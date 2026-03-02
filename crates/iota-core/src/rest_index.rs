@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -14,6 +14,7 @@ use iota_types::{
     committee::EpochId,
     digests::TransactionDigest,
     dynamic_field::visitor as DFV,
+    error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
     layout_resolver::LayoutResolver,
@@ -147,18 +148,21 @@ struct IndexStoreTables {
     ///
     /// Allows an efficient iterator to list all objects currently owned by a
     /// specific user account.
+    /// REST-API only
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
     /// a particular ObjectID.
+    /// REST-API only
     dynamic_field: DBMap<DynamicFieldKey, DynamicFieldIndexInfo>,
 
     /// An index of Coin Types
     ///
     /// Allows looking up information related to published Coins, like the
     /// ObjectID of its coorisponding CoinMetadata.
+    /// REST-API only
     coin: DBMap<CoinIndexKey, CoinIndexInfo>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
@@ -587,10 +591,12 @@ impl IndexStoreTables {
         Ok(())
     }
 
+    // only used in "grpc-server"
     fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
         self.epochs.get(&epoch)
     }
 
+    // used in both "grpc-server" and "rest-api"
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -598,6 +604,7 @@ impl IndexStoreTables {
         self.transactions.get(digest)
     }
 
+    // only used in "rest-api"
     fn owner_iter(
         &self,
         owner: IotaAddress,
@@ -613,6 +620,7 @@ impl IndexStoreTables {
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
     }
 
+    // only used in "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -629,6 +637,7 @@ impl IndexStoreTables {
         Ok(iter)
     }
 
+    // only used in "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
@@ -696,6 +705,11 @@ impl RestIndexStore {
         }
     }
 
+    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
+        // We are checkpointing the whole db
+        self.tables.meta.checkpoint_db(path).map_err(Into::into)
+    }
+
     pub fn prune(
         &self,
         pruned_checkpoint_watermark: u64,
@@ -747,10 +761,12 @@ impl RestIndexStore {
         Ok(batch.write()?)
     }
 
+    // only used in "grpc-server"
     pub fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
         self.tables.get_epoch_info(epoch)
     }
 
+    // used in both "grpc-server" and "rest-api"
     pub fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -758,6 +774,7 @@ impl RestIndexStore {
         self.tables.get_transaction_info(digest)
     }
 
+    // only used in "rest-api"
     pub fn owner_iter(
         &self,
         owner: IotaAddress,
@@ -769,6 +786,7 @@ impl RestIndexStore {
         self.tables.owner_iter(owner, cursor)
     }
 
+    // only used in "rest-api"
     pub fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -780,6 +798,7 @@ impl RestIndexStore {
         self.tables.dynamic_field_iter(parent, cursor)
     }
 
+    // only used in "rest-api"
     pub fn get_coin_info(
         &self,
         coin_type: &StructTag,

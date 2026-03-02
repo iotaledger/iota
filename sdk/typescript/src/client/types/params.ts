@@ -28,6 +28,7 @@ export interface DevInspectTransactionBlockParams {
     epoch?: string | null | undefined;
     /** Additional arguments including gas_budget, gas_objects, gas_sponsor and skip_checks. */
     additionalArgs?: RpcTypes.DevInspectArgs | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Return transaction execution effects including the gas cost summary, while the effects are not
@@ -35,6 +36,7 @@ export interface DevInspectTransactionBlockParams {
  */
 export interface DryRunTransactionBlockParams {
     transactionBlock: Uint8Array | string;
+    signal?: AbortSignal;
 }
 /**
  * Execute the transaction and wait for results if desired. Request types: 1. WaitForEffectsCert: waits
@@ -58,13 +60,17 @@ export interface ExecuteTransactionBlockParams {
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
     /** @deprecated requestType will be ignored by JSON RPC in the future */
     requestType?: RpcTypes.ExecuteTransactionRequestType | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the first four bytes of the chain's genesis checkpoint digest. */
-export interface GetChainIdentifierParams {}
+export interface GetChainIdentifierParams {
+    signal?: AbortSignal;
+}
 /** Return a checkpoint */
 export interface GetCheckpointParams {
     /** Checkpoint identifier, can use either checkpoint digest, or checkpoint sequence number as input. */
     id: RpcTypes.CheckpointId;
+    signal?: AbortSignal;
 }
 /** Return paginated list of checkpoints */
 export interface GetCheckpointsParams {
@@ -77,40 +83,49 @@ export interface GetCheckpointsParams {
     limit?: number | null | undefined;
     /** query result ordering, default to false (ascending order), oldest record first. */
     descendingOrder: boolean;
+    signal?: AbortSignal;
 }
 /** Return transaction events. */
 export interface GetEventsParams {
     /** the event query criteria. */
     transactionDigest: string;
+    signal?: AbortSignal;
 }
 /** Return the sequence number of the latest checkpoint that has been executed */
-export interface GetLatestCheckpointSequenceNumberParams {}
+export interface GetLatestCheckpointSequenceNumberParams {
+    signal?: AbortSignal;
+}
 /** Return the argument types of a Move function, based on normalized Type. */
 export interface GetMoveFunctionArgTypesParams {
     package: string;
     module: string;
     function: string;
+    signal?: AbortSignal;
 }
 /** Return a structured representation of Move function */
 export interface GetNormalizedMoveFunctionParams {
     package: string;
     module: string;
     function: string;
+    signal?: AbortSignal;
 }
 /** Return a structured representation of Move module */
 export interface GetNormalizedMoveModuleParams {
     package: string;
     module: string;
+    signal?: AbortSignal;
 }
 /** Return structured representations of all modules in the given package */
 export interface GetNormalizedMoveModulesByPackageParams {
     package: string;
+    signal?: AbortSignal;
 }
 /** Return a structured representation of Move struct */
 export interface GetNormalizedMoveStructParams {
     package: string;
     module: string;
     struct: string;
+    signal?: AbortSignal;
 }
 /** Return the object information for a specified object */
 export interface GetObjectParams {
@@ -118,6 +133,7 @@ export interface GetObjectParams {
     id: string;
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Return the protocol config table for the given version number. If the version number is not
@@ -129,20 +145,25 @@ export interface GetProtocolConfigParams {
      * will be returned.
      */
     version?: string | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the total number of transaction blocks known to the server. */
-export interface GetTotalTransactionBlocksParams {}
+export interface GetTotalTransactionBlocksParams {
+    signal?: AbortSignal;
+}
 /** Return the transaction response object. */
 export interface GetTransactionBlockParams {
     /** the digest of the queried transaction */
     digest: string;
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return if the transaction has been indexed on the fullnode. */
 export interface IsTransactionIndexedOnNodeParams {
     /** the digest of the queried transaction */
     digest: string;
+    signal?: AbortSignal;
 }
 /** Return the object data for a list of objects */
 export interface MultiGetObjectsParams {
@@ -150,6 +171,7 @@ export interface MultiGetObjectsParams {
     ids: string[];
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Returns an ordered list of transaction responses The method will throw an error if the input
@@ -160,6 +182,7 @@ export interface MultiGetTransactionBlocksParams {
     digests: string[];
     /** config options to control which fields to fetch */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Note there is no software-level guarantee/SLA that objects with past versions can be retrieved by
@@ -173,6 +196,7 @@ export interface TryGetPastObjectParams {
     version: number;
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Note there is no software-level guarantee/SLA that objects with past versions can be retrieved by
@@ -184,6 +208,7 @@ export interface TryMultiGetPastObjectsParams {
     pastObjects: RpcTypes.GetPastObjectRequest[];
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /** Calls a move view function. */
 export interface ViewParams {
@@ -194,11 +219,13 @@ export interface ViewParams {
     functionName: string;
     typeArgs?: string[] | null | undefined;
     arguments: unknown[];
+    signal?: AbortSignal;
 }
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
     /** the owner's IOTA address */
     owner: string;
+    signal?: AbortSignal;
 }
 /** Return all Coin objects owned by an address. */
 export interface GetAllCoinsParams {
@@ -208,10 +235,12 @@ export interface GetAllCoinsParams {
     cursor?: string | null | undefined;
     /** maximum number of items per page */
     limit?: number | null | undefined;
+    signal?: AbortSignal;
 }
 /** Address related metrics. Exclusively served by the indexer. */
 export interface GetAllEpochAddressMetricsParams {
     descendingOrder?: boolean | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the total coin balance for one coin type, owned by the address owner. */
 export interface GetBalanceParams {
@@ -222,17 +251,22 @@ export interface GetBalanceParams {
      * default to 0x2::iota::IOTA if not specified.
      */
     coinType?: string | null | undefined;
+    signal?: AbortSignal;
 }
 /** Address related metrics. Exclusively served by the indexer. */
 export interface GetCheckpointAddressMetricsParams {
     checkpoint: string;
+    signal?: AbortSignal;
 }
 /** Return the circulating supply summary. */
-export interface GetCirculatingSupplyParams {}
+export interface GetCirculatingSupplyParams {
+    signal?: AbortSignal;
+}
 /** Return metadata (e.g., symbol, decimals) for a coin. */
 export interface GetCoinMetadataParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
+    signal?: AbortSignal;
 }
 /** Return all Coin<`coin_type`> objects owned by an address. */
 export interface GetCoinsParams {
@@ -247,20 +281,25 @@ export interface GetCoinsParams {
     cursor?: string | null | undefined;
     /** maximum number of items per page */
     limit?: number | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the committee information for the asked `epoch`. */
 export interface GetCommitteeInfoParams {
     /** The epoch of interest. If None, default to the latest epoch */
     epoch?: string | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return current epoch info. Exclusively served by the indexer. */
-export interface GetCurrentEpochParams {}
+export interface GetCurrentEpochParams {
+    signal?: AbortSignal;
+}
 /** Return the dynamic field object information for a specified object */
 export interface GetDynamicFieldObjectParams {
     /** The ID of the queried parent object */
     parentId: string;
     /** The Name of the dynamic field */
     name: RpcTypes.DynamicFieldName;
+    signal?: AbortSignal;
 }
 /** Return the dynamic field object information for a specified object with content options. */
 export interface GetDynamicFieldObjectV2Params {
@@ -270,6 +309,7 @@ export interface GetDynamicFieldObjectV2Params {
     name: RpcTypes.DynamicFieldName;
     /** Options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the list of dynamic field objects owned by an object. */
 export interface GetDynamicFieldsParams {
@@ -282,6 +322,7 @@ export interface GetDynamicFieldsParams {
     cursor?: string | null | undefined;
     /** Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer. */
 export interface GetEpochMetricsParams {
@@ -291,6 +332,7 @@ export interface GetEpochMetricsParams {
     limit?: number | null | undefined;
     /** Flag to return results in descending order */
     descendingOrder?: boolean | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return a list of epoch info. Exclusively served by the indexer. */
 export interface GetEpochsParams {
@@ -300,23 +342,34 @@ export interface GetEpochsParams {
     limit?: number | null | undefined;
     /** Flag to return results in descending order */
     descendingOrder?: boolean | null | undefined;
+    signal?: AbortSignal;
 }
 /** Address related metrics. Exclusively served by the indexer. */
-export interface GetLatestAddressMetricsParams {}
+export interface GetLatestAddressMetricsParams {
+    signal?: AbortSignal;
+}
 /**
  * Return the latest IOTA system state object on networks supporting protocol version `< 5`. These are
  * networks with node software release version `< 0.11`.
  */
-export interface GetLatestIotaSystemStateParams {}
+export interface GetLatestIotaSystemStateParams {
+    signal?: AbortSignal;
+}
 /**
  * Return the latest IOTA system state object on networks supporting protocol version `>= 5`. These are
  * networks with node software release version `>= 0.11`.
  */
-export interface GetLatestIotaSystemStateV2Params {}
+export interface GetLatestIotaSystemStateV2Params {
+    signal?: AbortSignal;
+}
 /** Return move call metrics. Exclusively served by the indexer. */
-export interface GetMoveCallMetricsParams {}
+export interface GetMoveCallMetricsParams {
+    signal?: AbortSignal;
+}
 /** Return Network metrics. Exclusively served by the indexer. */
-export interface GetNetworkMetricsParams {}
+export interface GetNetworkMetricsParams {
+    signal?: AbortSignal;
+}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
  * `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have
@@ -332,56 +385,73 @@ export type GetOwnedObjectsParams = {
     cursor?: string | null | undefined;
     /** Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
     limit?: number | null | undefined;
+    signal?: AbortSignal;
 } & RpcTypes.IotaObjectResponseQuery;
 /**
  * Returns the participation metrics. Participation is defined as the total number of unique addresses
  * that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA.
  * Exclusively served by the indexer.
  */
-export interface GetParticipationMetricsParams {}
+export interface GetParticipationMetricsParams {
+    signal?: AbortSignal;
+}
 /** Return the reference gas price for the network */
-export interface GetReferenceGasPriceParams {}
+export interface GetReferenceGasPriceParams {
+    signal?: AbortSignal;
+}
 /** Return all [DelegatedStake]. */
 export interface GetStakesParams {
     owner: string;
+    signal?: AbortSignal;
 }
 /** Return one or more [DelegatedStake]. If a Stake was withdrawn its status will be Unstaked. */
 export interface GetStakesByIdsParams {
     stakedIotaIds: string[];
+    signal?: AbortSignal;
 }
 /** Return all [DelegatedTimelockedStake]. */
 export interface GetTimelockedStakesParams {
     owner: string;
+    signal?: AbortSignal;
 }
 /** Return one or more [DelegatedTimelockedStake]. If a Stake was withdrawn its status will be Unstaked. */
 export interface GetTimelockedStakesByIdsParams {
     timelockedStakedIotaIds: string[];
+    signal?: AbortSignal;
 }
 /** Return total supply for a coin. */
 export interface GetTotalSupplyParams {
     /** type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC) */
     coinType: string;
+    signal?: AbortSignal;
 }
 /** Return the total number of transactions. Exclusively served by the indexer. */
-export interface GetTotalTransactionsParams {}
+export interface GetTotalTransactionsParams {
+    signal?: AbortSignal;
+}
 /** Return the validator APY */
-export interface GetValidatorsApyParams {}
+export interface GetValidatorsApyParams {
+    signal?: AbortSignal;
+}
 /** Find all registration NFTs for the given address. */
 export interface IotaNamesFindAllRegistrationNFTsParams {
     address: string;
     cursor?: string | null | undefined;
     limit?: number | null | undefined;
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return the resolved record for the given name. */
 export interface IotaNamesLookupParams {
     /** The name to resolve */
     name: string;
+    signal?: AbortSignal;
 }
 /** Return the resolved name for the given address. */
 export interface IotaNamesReverseLookupParams {
     /** The address to resolve. */
     address: string;
+    signal?: AbortSignal;
 }
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
@@ -397,6 +467,7 @@ export interface QueryEventsParams {
     limit?: number | null | undefined;
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
+    signal?: AbortSignal;
 }
 /** Return list of transactions for a specified query criteria. */
 export type QueryTransactionBlocksParams = {
@@ -409,6 +480,7 @@ export type QueryTransactionBlocksParams = {
     limit?: number | null | undefined;
     /** query result ordering, default to false (ascending order), oldest record first. */
     order?: 'ascending' | 'descending' | null | undefined;
+    signal?: AbortSignal;
 } & RpcTypes.IotaTransactionBlockResponseQuery;
 /** Subscribe to a stream of IOTA event */
 export interface SubscribeEventParams {
@@ -418,10 +490,12 @@ export interface SubscribeEventParams {
      * documentation for examples.
      */
     filter: RpcTypes.IotaEventFilter;
+    signal?: AbortSignal;
 }
 /** Subscribe to a stream of IOTA transaction effects */
 export interface SubscribeTransactionParams {
     filter: RpcTypes.TransactionFilter;
+    signal?: AbortSignal;
 }
 /** Create an unsigned batched transaction. */
 export interface UnsafeBatchTransactionParams {
@@ -438,6 +512,7 @@ export interface UnsafeBatchTransactionParams {
     gasBudget: string;
     /** Whether this is a regular transaction or a Dev Inspect Transaction */
     txnBuilderMode?: RpcTypes.IotaTransactionBlockBuilderMode | null | undefined;
+    signal?: AbortSignal;
 }
 /** Create an unsigned transaction to merge multiple coins into one coin. */
 export interface UnsafeMergeCoinsParams {
@@ -457,6 +532,7 @@ export interface UnsafeMergeCoinsParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /**
  * Create an unsigned transaction to execute a Move call on the network, by calling the specified
@@ -490,6 +566,7 @@ export interface UnsafeMoveCallParams {
      * `IotaTransactionBlockBuilderMode::Commit` when it's None.
      */
     executionMode?: RpcTypes.IotaTransactionBlockBuilderMode | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Send `Coin<T>` to a list of addresses, where `T` can be any coin type, following a list of amounts,
@@ -513,6 +590,7 @@ export interface UnsafePayParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /**
  * Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas
@@ -530,6 +608,7 @@ export interface UnsafePayAllIotaParams {
     recipient: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /**
  * Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and
@@ -551,6 +630,7 @@ export interface UnsafePayIotaParams {
     amounts: string[];
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Create an unsigned transaction to publish a Move package. */
 export interface UnsafePublishParams {
@@ -567,6 +647,7 @@ export interface UnsafePublishParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Add stake to a validator's staking pool using multiple coins and amount. */
 export interface UnsafeRequestAddStakeParams {
@@ -585,6 +666,7 @@ export interface UnsafeRequestAddStakeParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Add timelocked stake to a validator's staking pool using multiple balances and amount. */
 export interface UnsafeRequestAddTimelockedStakeParams {
@@ -598,6 +680,7 @@ export interface UnsafeRequestAddTimelockedStakeParams {
     gas: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Withdraw stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawStakeParams {
@@ -612,6 +695,7 @@ export interface UnsafeRequestWithdrawStakeParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Withdraw timelocked stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawTimelockedStakeParams {
@@ -623,6 +707,7 @@ export interface UnsafeRequestWithdrawTimelockedStakeParams {
     gas: string;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Create an unsigned transaction to split a coin object into multiple coins. */
 export interface UnsafeSplitCoinParams {
@@ -639,6 +724,7 @@ export interface UnsafeSplitCoinParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /** Create an unsigned transaction to split a coin object into multiple equal-size coins. */
 export interface UnsafeSplitCoinEqualParams {
@@ -655,6 +741,7 @@ export interface UnsafeSplitCoinEqualParams {
     gas?: string | null | undefined;
     /** the gas budget, the transaction will fail if the gas cost exceed the budget */
     gasBudget: string;
+    signal?: AbortSignal;
 }
 /**
  * Create an unsigned transaction to send IOTA coin object to an IOTA address. The IOTA object is also
@@ -671,6 +758,7 @@ export interface UnsafeTransferIotaParams {
     recipient: string;
     /** the amount to be split out and transferred */
     amount?: string | null | undefined;
+    signal?: AbortSignal;
 }
 /**
  * Create an unsigned transaction to transfer an object from one address to another. The object's type
@@ -690,4 +778,5 @@ export interface UnsafeTransferObjectParams {
     gasBudget: string;
     /** the recipient's IOTA address */
     recipient: string;
+    signal?: AbortSignal;
 }

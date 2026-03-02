@@ -1,0 +1,14 @@
+[package]
+name = "public_key_authentication"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+iotaccount = { local = "../iotaccount" }
+
+[addresses]
+public_key_authentication = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

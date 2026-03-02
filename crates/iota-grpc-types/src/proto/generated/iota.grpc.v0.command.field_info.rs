@@ -81,6 +81,7 @@ mod _field_impls {
                 json_name: "index",
                 number: 1i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
         }
@@ -118,6 +119,7 @@ mod _field_impls {
                 json_name: "index",
                 number: 1i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
             pub const NESTED_RESULT_INDEX_FIELD: &'static MessageField = &MessageField {
@@ -125,6 +127,7 @@ mod _field_impls {
                 json_name: "nestedResultIndex",
                 number: 2i32,
                 is_optional: true,
+                is_map: false,
                 message_fields: None,
             };
         }
@@ -170,6 +173,7 @@ mod _field_impls {
             json_name: "unknown",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Unknown::FIELDS),
         };
         pub const GAS_COIN_FIELD: &'static MessageField = &MessageField {
@@ -177,6 +181,7 @@ mod _field_impls {
             json_name: "gasCoin",
             number: 2i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(GasCoin::FIELDS),
         };
         pub const INPUT_FIELD: &'static MessageField = &MessageField {
@@ -184,6 +189,7 @@ mod _field_impls {
             json_name: "input",
             number: 3i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Input::FIELDS),
         };
         pub const RESULT_FIELD: &'static MessageField = &MessageField {
@@ -191,8 +197,12 @@ mod _field_impls {
             json_name: "result",
             number: 4i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Result::FIELDS),
         };
+    }
+    impl Argument {
+        pub const KIND_ONEOF: &'static str = "kind";
     }
     impl MessageFields for Argument {
         const FIELDS: &'static [&'static MessageField] = &[
@@ -245,6 +255,7 @@ mod _field_impls {
             json_name: "argument",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Argument::FIELDS),
         };
         pub const TYPE_TAG_FIELD: &'static MessageField = &MessageField {
@@ -252,6 +263,7 @@ mod _field_impls {
             json_name: "typeTag",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TypeTag::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -259,6 +271,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
         pub const JSON_FIELD: &'static MessageField = &MessageField {
@@ -266,6 +279,7 @@ mod _field_impls {
             json_name: "json",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
     }
@@ -320,6 +334,7 @@ mod _field_impls {
             json_name: "outputs",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(CommandOutput::FIELDS),
         };
     }
@@ -357,14 +372,16 @@ mod _field_impls {
             json_name: "mutatedByRef",
             number: 1i32,
             is_optional: true,
-            message_fields: Some(CommandOutputs::FIELDS),
+            is_map: false,
+            message_fields: Some(CommandOutput::FIELDS),
         };
         pub const RETURN_VALUES_FIELD: &'static MessageField = &MessageField {
             name: "return_values",
             json_name: "returnValues",
             number: 2i32,
             is_optional: true,
-            message_fields: Some(CommandOutputs::FIELDS),
+            is_map: false,
+            message_fields: Some(CommandOutput::FIELDS),
         };
     }
     impl MessageFields for CommandResult {
@@ -393,13 +410,13 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn mutated_by_ref(mut self) -> CommandOutputsFieldPathBuilder {
+        pub fn mutated_by_ref(mut self) -> CommandOutputFieldPathBuilder {
             self.path.push(CommandResult::MUTATED_BY_REF_FIELD.name);
-            CommandOutputsFieldPathBuilder::new_with_base(self.path)
+            CommandOutputFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn return_values(mut self) -> CommandOutputsFieldPathBuilder {
+        pub fn return_values(mut self) -> CommandOutputFieldPathBuilder {
             self.path.push(CommandResult::RETURN_VALUES_FIELD.name);
-            CommandOutputsFieldPathBuilder::new_with_base(self.path)
+            CommandOutputFieldPathBuilder::new_with_base(self.path)
         }
     }
     impl CommandResults {
@@ -408,6 +425,7 @@ mod _field_impls {
             json_name: "results",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(CommandResult::FIELDS),
         };
     }

@@ -6,9 +6,10 @@ use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
+    read_masks::GET_OBJECTS_READ_MASK,
     v0::{
         error_reason::ErrorReason,
-        ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult, object_result},
+        ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
         object::Object,
     },
 };
@@ -23,12 +24,6 @@ use crate::{
     types::{GrpcReader, ObjectsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!(
-    "reference.object_id",
-    "reference.version",
-    "reference.digest",
-);
-
 type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
 
 pub fn validate_get_object_requests(
@@ -36,7 +31,7 @@ pub fn validate_get_object_requests(
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
     let read_mask = {
-        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(GET_OBJECTS_READ_MASK));
         read_mask.validate::<Object>().map_err(|path| {
             FieldViolation::new("read_mask")
                 .with_description(format!("invalid read_mask path: {path}"))
@@ -68,6 +63,22 @@ pub fn validate_get_object_requests(
     Ok((requests, read_mask))
 }
 
+/// Available Read Mask Fields
+///
+/// The `get_objects` function supports the following `read_mask` fields to
+/// control which data is included in the response:
+///
+/// ## Reference Fields
+/// - `reference` - includes all reference fields
+///   - `reference.object_id` - the ID of the object to fetch
+///   - `reference.version` - the version of the object, which can be used to
+///     fetch a specific historical version or the latest version if not
+///     provided
+///   - `reference.digest` - the digest of the object contents, which can be
+///     used for integrity verification
+///
+/// ## Data Fields
+/// - `bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader))]
 pub(crate) fn get_objects(
     reader: GrpcReader,
@@ -102,12 +113,8 @@ pub(crate) fn get_objects(
         {
             // Lazily fetch the object only when needed
             let object_result = match get_object_impl(&reader, object_id, version, &read_mask) {
-                Ok(object) => ObjectResult {
-                    result: Some(object_result::Result::Object(object)),
-                },
-                Err(error) => ObjectResult {
-                    result: Some(object_result::Result::Error(error.into_status_proto())),
-                },
+                Ok(object) => ObjectResult::default().with_object(object),
+                Err(error) => ObjectResult::default().with_error(error.into_status_proto()),
             };
 
             let object_size = object_result.encoded_len();
@@ -129,18 +136,13 @@ fn get_object_impl(
 ) -> Result<Object, RpcError> {
     let object = if let Some(version) = version {
         reader
-            .get_object_by_key(&object_id, version.into())
+            .get_object_by_key(&object_id, version.into())?
             .ok_or_else(|| ObjectNotFoundError::new_with_version(object_id, version))?
     } else {
         reader
-            .get_object(&object_id)
+            .get_object(&object_id)?
             .ok_or_else(|| ObjectNotFoundError::new(object_id))?
     };
 
-    Object::merge_from(object, read_mask).map_err(|e| {
-        RpcError::new(
-            tonic::Code::Internal,
-            format!("Failed to build object response: {e}"),
-        )
-    })
+    Object::merge_from(object, read_mask).map_err(|e| e.with_context("failed to merge object"))
 }

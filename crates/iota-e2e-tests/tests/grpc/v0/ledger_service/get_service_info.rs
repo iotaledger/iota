@@ -4,6 +4,7 @@
 
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    read_masks::GET_SERVICE_INFO_READ_MASK,
     v0::ledger_service::{
         GetServiceInfoRequest, GetServiceInfoResponse, ledger_service_client::LedgerServiceClient,
     },
@@ -11,7 +12,7 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, setup_grpc_test};
+use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 async fn assert_service_info_request(
     ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -20,7 +21,13 @@ async fn assert_service_info_request(
     scenario: &str,
 ) -> GetServiceInfoResponse {
     let response = ledger_client
-        .get_service_info(GetServiceInfoRequest { read_mask })
+        .get_service_info({
+            let mut req = GetServiceInfoRequest::default();
+            if let Some(mask) = read_mask {
+                req = req.with_read_mask(mask);
+            }
+            req
+        })
         .await
         .unwrap()
         .into_inner();
@@ -40,7 +47,7 @@ async fn get_service_info_readmask_scenarios() {
     assert_service_info_request(
         &mut ledger_client,
         None,
-        &["chain_id", "epoch", "executed_checkpoint_height"],
+        &comma_separated_field_mask_to_paths(GET_SERVICE_INFO_READ_MASK),
         "default readmask",
     )
     .await;

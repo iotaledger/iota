@@ -884,7 +884,7 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     }
 
     // Test 2: Decode a MoveAuthenticator signature
-    let move_auth_sig = "BwEAggGAAWRjNTczYTU4YzdkYTAxNmFmYzYwMmQyYWU1NWFiZGFhNmRkYzNlNzljMmY0YzA4NTM5NGM2YzI0YjQ4MzllYzRlMDEyMGRiNjkwMmIwOTc3NzIxMThhNzhhYmE2MjA4OTg4MjAwNTEwOWYxZmEzYTVjMDc4ZDkxNjQ0NDU2NjBjAAEByLo1vvdMf/26NtUKB9kj0Pu354Q/ITlRsZ5jYimoCR4EAAAAAAAAAAA=";
+    let move_auth_sig = "BwABAIIBgAFkYzU3M2E1OGM3ZGEwMTZhZmM2MDJkMmFlNTVhYmRhYTZkZGMzZTc5YzJmNGMwODUzOTRjNmMyNGI0ODM5ZWM0ZTAxMjBkYjY5MDJiMDk3NzcyMTE4YTc4YWJhNjIwODk4ODIwMDUxMDlmMWZhM2E1YzA3OGQ5MTY0NDQ1NjYwYwABAci6Nb73TH/9ujbVCgfZI9D7t+eEPyE5UbGeY2IpqAkeBAAAAAAAAAAA";
     let output = KeyToolCommand::DecodeSig {
         sig: move_auth_sig.to_string(),
     }

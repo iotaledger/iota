@@ -4,6 +4,7 @@
 
 include!("../../../generated/iota.grpc.v0.transaction.rs");
 include!("../../../generated/iota.grpc.v0.transaction.field_info.rs");
+include!("../../../generated/iota.grpc.v0.transaction.accessors.rs");
 
 use crate::proto::TryFromProtoError;
 
@@ -39,11 +40,15 @@ impl TryFrom<&TransactionEffects> for iota_sdk_types::Digest {
 // Convenience methods for TransactionEffects (delegate to TryFrom)
 impl TransactionEffects {
     /// Get the effects digest.
+    ///
+    /// Requires `digest` in the read_mask.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize effects from BCS.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn effects(&self) -> Result<iota_sdk_types::TransactionEffects, TryFromProtoError> {
         self.try_into()
     }
@@ -68,10 +73,16 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::TransactionEvents {
                     TryFromProtoError::missing("event.bcs")
                         .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
                 })?;
-                bcs.deserialize().map_err(|err| {
-                    TryFromProtoError::invalid("event.bcs", err)
-                        .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
-                })
+                bcs.deserialize::<crate::v0::versioned::VersionedEvent>()
+                    .map_err(|err| {
+                        TryFromProtoError::invalid("event.bcs", err)
+                            .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
+                    })?
+                    .try_into_v1()
+                    .map_err(|_| {
+                        TryFromProtoError::invalid("event.bcs", "unsupported Event version")
+                            .nested_at(TransactionEvents::EVENTS_FIELD.name, i)
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -96,11 +107,15 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::Digest {
 // Convenience methods for TransactionEvents (delegate to TryFrom)
 impl TransactionEvents {
     /// Get the events digest.
+    ///
+    /// Requires `digest` in the read_mask.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize all events from BCS.
+    ///
+    /// Requires `events.bcs` in the read_mask.
     pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
         self.try_into()
     }
@@ -111,95 +126,122 @@ impl TransactionEvents {
 
 // Lazy conversion methods for ExecutedTransaction
 impl ExecutedTransaction {
-    /// Get the transaction digest.
-    pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+    /// Get the transaction.
+    ///
+    /// Requires `transaction` in the read_mask.
+    pub fn transaction(&self) -> Result<&super::transaction::Transaction, TryFromProtoError> {
         self.transaction
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .digest()
-            .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
+            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))
     }
 
-    /// Deserialize the transaction from BCS.
-    pub fn transaction(&self) -> Result<iota_sdk_types::Transaction, TryFromProtoError> {
-        self.transaction
+    /// Get the user signatures.
+    ///
+    /// Requires `signatures` in the read_mask.
+    pub fn signatures(&self) -> Result<&super::signatures::UserSignatures, TryFromProtoError> {
+        self.signatures
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::TRANSACTION_FIELD.name))?
-            .transaction()
-            .map_err(|e| e.nested(Self::TRANSACTION_FIELD.name))
+            .ok_or_else(|| TryFromProtoError::missing(Self::SIGNATURES_FIELD.name))
     }
 
-    /// Deserialize user signatures.
-    pub fn signatures(&self) -> Result<Vec<iota_sdk_types::UserSignature>, TryFromProtoError> {
-        let signatures_proto = self
-            .signatures
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::SIGNATURES_FIELD.name))?;
-
-        signatures_proto
-            .signatures
-            .iter()
-            .enumerate()
-            .map(|(i, sig)| {
-                <&super::signatures::UserSignature as TryInto<iota_sdk_types::UserSignature>>::try_into(sig)
-                    .map_err(|e: TryFromProtoError| e.nested_at(Self::SIGNATURES_FIELD.name, i))
-            })
-            .collect()
-    }
-
-    /// Deserialize transaction effects from BCS.
-    pub fn effects(&self) -> Result<iota_sdk_types::TransactionEffects, TryFromProtoError> {
+    /// Get the transaction effects.
+    ///
+    /// Requires `effects` in the read_mask.
+    pub fn effects(&self) -> Result<&super::transaction::TransactionEffects, TryFromProtoError> {
         self.effects
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EFFECTS_FIELD.name))?
-            .effects()
-            .map_err(|e| e.nested(Self::EFFECTS_FIELD.name))
+            .ok_or_else(|| TryFromProtoError::missing(Self::EFFECTS_FIELD.name))
     }
 
-    /// Deserialize transaction events. Returns Ok(None) if not present.
-    pub fn events(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
+    /// Get the transaction events.
+    ///
+    /// Requires `events` in the read_mask.
+    pub fn events(&self) -> Result<&super::transaction::TransactionEvents, TryFromProtoError> {
         self.events
             .as_ref()
-            .map(|ev| ev.events().map_err(|e| e.nested(Self::EVENTS_FIELD.name)))
+            .ok_or_else(|| TryFromProtoError::missing(Self::EVENTS_FIELD.name))
+    }
+
+    fn events_opt(&self) -> Result<Option<iota_sdk_types::TransactionEvents>, TryFromProtoError> {
+        self.events
+            .as_ref()
+            .map(TransactionEvents::events)
             .transpose()
     }
 
-    /// Get checkpoint sequence number (no deserialization needed).
-    pub fn checkpoint_sequence_number(&self) -> Option<u64> {
+    /// Get checkpoint sequence number.
+    ///
+    /// Requires `checkpoint` in the read_mask.
+    pub fn checkpoint_sequence_number(
+        &self,
+    ) -> Result<iota_sdk_types::CheckpointSequenceNumber, TryFromProtoError> {
         self.checkpoint
+            .ok_or_else(|| TryFromProtoError::missing(Self::CHECKPOINT_FIELD.name))
     }
 
     /// Get timestamp in milliseconds.
-    pub fn timestamp_ms(&self) -> Result<Option<u64>, TryFromProtoError> {
-        self.timestamp
-            .as_ref()
-            .map(|ts| {
-                crate::proto::proto_to_timestamp_ms(*ts)
-                    .map_err(|e| e.nested(Self::TIMESTAMP_FIELD.name))
-            })
-            .transpose()
+    ///
+    /// Requires `timestamp` in the read_mask.
+    pub fn timestamp_ms(&self) -> Result<iota_sdk_types::CheckpointTimestamp, TryFromProtoError> {
+        let ts = self
+            .timestamp
+            .ok_or_else(|| TryFromProtoError::missing(Self::TIMESTAMP_FIELD.name))?;
+        crate::proto::proto_to_timestamp_ms(ts).map_err(|e| e.nested(Self::TIMESTAMP_FIELD.name))
     }
 
-    /// Deserialize input objects. Returns Ok(None) if not present.
-    pub fn input_objects(&self) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+    /// Get input objects.
+    ///
+    /// Requires `input_objects` in the read_mask.
+    pub fn input_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
         self.input_objects
             .as_ref()
-            .map(|objs| {
-                objs.objects()
-                    .map_err(|e| e.nested(Self::INPUT_OBJECTS_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::INPUT_OBJECTS_FIELD.name))
     }
 
-    /// Deserialize output objects. Returns Ok(None) if not present.
-    pub fn output_objects(&self) -> Result<Option<Vec<iota_sdk_types::Object>>, TryFromProtoError> {
+    /// Get output objects.
+    ///
+    /// Requires `output_objects` in the read_mask.
+    pub fn output_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
         self.output_objects
             .as_ref()
-            .map(|objs| {
-                objs.objects()
-                    .map_err(|e| e.nested(Self::OUTPUT_OBJECTS_FIELD.name))
-            })
-            .transpose()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OUTPUT_OBJECTS_FIELD.name))
+    }
+}
+
+// TryFrom implementations for CheckpointTransaction
+impl TryFrom<&ExecutedTransaction> for iota_sdk_types::CheckpointTransaction {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &ExecutedTransaction) -> Result<Self, Self::Error> {
+        let input_objects: Result<Vec<_>, _> = value
+            .input_objects()?
+            .objects
+            .iter()
+            .map(|obj| obj.object())
+            .collect();
+
+        let output_objects: Result<Vec<_>, _> = value
+            .output_objects()?
+            .objects
+            .iter()
+            .map(|obj| obj.object())
+            .collect();
+
+        Ok(Self {
+            transaction: iota_sdk_types::SignedTransaction {
+                transaction: value.transaction()?.transaction()?,
+                signatures: value
+                    .signatures()?
+                    .signatures
+                    .iter()
+                    .map(|s| s.signature())
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+            effects: value.effects()?.effects()?,
+            events: value.events_opt()?,
+            input_objects: input_objects?,
+            output_objects: output_objects?,
+        })
     }
 }
 
@@ -235,11 +277,15 @@ impl TryFrom<&Transaction> for iota_sdk_types::Digest {
 // Convenience methods for Transaction (delegate to TryFrom)
 impl Transaction {
     /// Get the transaction digest.
+    ///
+    /// Requires `digest` in the read_mask.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize the transaction from BCS.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn transaction(&self) -> Result<iota_sdk_types::Transaction, TryFromProtoError> {
         self.try_into()
     }

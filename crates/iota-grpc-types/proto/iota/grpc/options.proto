@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package iota.grpc;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+  // Default accessor types to generate for all fields in this message.
+  // Valid values: getter, getter_opt, set, with, mut, mut_opt, all
+  // Example: "with" generates with_field() for all fields
+  // Field-level field_accessors annotations override this default.
+  optional string message_accessors = 50000;
+  // When true, parent fields pointing to this message will skip this wrapper
+  // layer in field_info (read_mask paths) and FieldPathBuilders. The wrapper
+  // must contain exactly one repeated or map field.
+  optional bool field_mask_transparent = 50002;
+}
+
+extend google.protobuf.FieldOptions {
+  // Comma-separated list of accessor types to generate for this field.
+  // Valid values: getter, getter_opt, set, with, mut, mut_opt, all
+  // Example: "set,with" generates set_field() and with_field()
+  // Overrides message-level message_accessors option.
+  optional string field_accessors = 50001;
+}
