@@ -16,9 +16,8 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::Address;
 use iota_types::{
-    base_types::{AuthorityName, Identifier, StructTag, dbg_addr},
+    base_types::{AuthorityName, Identifier, IotaAddress, StructTag, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
         random_committee_key_pairs_of_size,
@@ -32,7 +31,10 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas_coin::GasCoin,
     iota_system_state::IotaSystemStateWrapper,
-    messages_consensus::{AuthorityCapabilitiesV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
+        VersionAssignment,
+    },
     object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
@@ -4658,7 +4660,7 @@ async fn test_shared_object_transaction_ok() {
         .get_assigned_shared_object_versions(&certificate.key())
         .expect("Versions should be set")
         .into_iter()
-        .find_map(|(object_id, version)| {
+        .find_map(|VersionAssignment { object_id, version }| {
             if object_id == shared_object_id {
                 Some(version)
             } else {
@@ -4766,9 +4768,9 @@ async fn test_consensus_commit_prologue_generation() {
             .get_assigned_shared_object_versions(txn_key)
             .expect("versions should be set")
             .iter()
-            .filter_map(|(id, seq)| {
-                if id == &ObjectID::CLOCK {
-                    Some(*seq)
+            .filter_map(|VersionAssignment { object_id, version }| {
+                if object_id == &ObjectID::CLOCK {
+                    Some(*version)
                 } else {
                     None
                 }
@@ -5735,7 +5737,7 @@ async fn test_function_not_found() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            Address::STD.into(),
+            IotaAddress::STD.into(),
             Identifier::OPTION_MODULE,
             Identifier::from_static("bad_function"),
             vec![],
@@ -5791,7 +5793,7 @@ async fn test_arity_mismatch() {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder
         .move_call(
-            Address::STD.into(),
+            IotaAddress::STD.into(),
             Identifier::OPTION_MODULE,
             Identifier::from_static("is_none"),
             vec![TypeTag::U64],
@@ -6576,6 +6578,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         .get_assigned_shared_object_versions(&cancelled_txn.key())
         .expect("Versions should be set")
         .into_iter()
+        .map(|VersionAssignment { object_id, version }| (object_id, version))
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
@@ -6650,24 +6653,22 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     {
         assert!(matches!(
             &prologue_txn.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
-            if assignment == &vec![(
-                *cancelled_txn.digest(),
-                vec![
-                    (
-                        shared_objects[0].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
-                            suggested_gas_price
-                        ).unwrap(),
-                    ),
-                    (
-                        shared_objects[1].id(),
-                        SequenceNumber::new_congested_with_suggested_gas_price(
-                            suggested_gas_price
-                        ).unwrap(),
-                    )
+            ConsensusDeterminedVersionAssignments::CancelledTransactions{ cancelled_transactions }
+            if cancelled_transactions == &[CancelledTransaction{
+                 digest: *cancelled_txn.digest(),
+                 version_assignments: vec![
+                    VersionAssignment{
+                        object_id: shared_objects[0].id(),
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                            .unwrap()
+                    },
+                    VersionAssignment{
+                        object_id: shared_objects[1].id(),
+                        version: SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                            .unwrap()
+                    }
                 ]
-            )]
+            }]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

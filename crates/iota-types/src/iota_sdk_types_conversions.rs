@@ -12,6 +12,7 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
+    MovePackage, SharedObjectReference, TypeOrigin, UpgradeInfo,
     address::Address,
     checkpoint::{
         CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,

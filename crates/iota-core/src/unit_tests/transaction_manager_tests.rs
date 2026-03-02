@@ -4,6 +4,7 @@
 
 use std::{time::Duration, vec};
 
+use iota_sdk_types::VersionAssignment;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
@@ -237,14 +238,20 @@ async fn transaction_manager_object_dependency() {
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
             transaction_read_0.digest(),
-            &[(shared_object.id(), shared_version)],
+            &[VersionAssignment {
+                object_id: shared_object.id(),
+                version: shared_version,
+            }],
         )
         .unwrap();
     state
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
             transaction_read_1.digest(),
-            &[(shared_object.id(), shared_version)],
+            &[VersionAssignment {
+                object_id: shared_object.id(),
+                version: shared_version,
+            }],
         )
         .unwrap();
 
@@ -262,7 +269,10 @@ async fn transaction_manager_object_dependency() {
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
             transaction_default.digest(),
-            &[(shared_object.id(), shared_version)],
+            &[VersionAssignment {
+                object_id: shared_object.id(),
+                version: shared_version,
+            }],
         )
         .unwrap();
 
@@ -283,8 +293,14 @@ async fn transaction_manager_object_dependency() {
         .set_shared_object_versions_for_testing(
             transaction_read_2.digest(),
             &[
-                (shared_object.id(), shared_version),
-                (shared_object_2.id(), shared_version_2),
+                VersionAssignment {
+                    object_id: shared_object.id(),
+                    version: shared_version,
+                },
+                VersionAssignment {
+                    object_id: shared_object_2.id(),
+                    version: shared_version_2,
+                },
             ],
         )
         .unwrap();
@@ -772,11 +788,14 @@ async fn transaction_manager_with_cancelled_transactions() {
         .set_shared_object_versions_for_testing(
             cancelled_transaction.digest(),
             &[
-                (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
-                (
-                    shared_object_2.id(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(101).unwrap(),
-                ),
+                VersionAssignment {
+                    object_id: shared_object_1.id(),
+                    version: SequenceNumber::CANCELLED_READ,
+                },
+                VersionAssignment {
+                    object_id: shared_object_2.id(),
+                    version: SequenceNumber::new_congested_with_suggested_gas_price(101).unwrap(),
+                },
             ],
         )
         .unwrap();

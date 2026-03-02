@@ -51,7 +51,6 @@ use crate::{
     messages_checkpoint::CheckpointTimestamp,
     messages_consensus::{
         CancelledTransaction, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-        VersionAssignment,
     },
     move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
@@ -2464,7 +2463,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2475,19 +2474,7 @@ impl VerifiedTransaction {
             consensus_commit_digest,
             consensus_determined_version_assignments:
                 ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: cancelled_txn_version_assignment
-                        .into_iter()
-                        .map(|(digest, version_assignments)| CancelledTransaction {
-                            digest,
-                            version_assignments: version_assignments
-                                .into_iter()
-                                .map(|(object_id, version)| VersionAssignment {
-                                    object_id,
-                                    version,
-                                })
-                                .collect(),
-                        })
-                        .collect(),
+                    cancelled_transactions,
                 },
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)

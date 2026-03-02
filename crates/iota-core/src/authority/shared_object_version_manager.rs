@@ -10,6 +10,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
+    messages_consensus::VersionAssignment,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
@@ -27,7 +28,7 @@ use crate::{
 
 pub struct SharedObjVerManager {}
 
-pub type AssignedTxAndVersions = Vec<(TransactionKey, Vec<(ObjectID, SequenceNumber)>)>;
+pub type AssignedTxAndVersions = Vec<(TransactionKey, Vec<VersionAssignment>)>;
 
 #[must_use]
 #[derive(Default)]
@@ -66,7 +67,10 @@ impl SharedObjVerManager {
             );
             assigned_versions.push((
                 TransactionKey::RandomnessRound(epoch_store.epoch(), round),
-                vec![(ObjectID::RANDOMNESS_STATE, *version)],
+                vec![VersionAssignment {
+                    object_id: ObjectID::RANDOMNESS_STATE,
+                    version: *version,
+                }],
             ));
             version.increment().unwrap();
         }
@@ -115,7 +119,10 @@ impl SharedObjVerManager {
             let cert_assigned_versions: Vec<_> = effects
                 .input_shared_objects()
                 .into_iter()
-                .map(|iso| iso.id_and_version())
+                .map(|iso| {
+                    let (object_id, version) = iso.id_and_version();
+                    VersionAssignment { object_id, version }
+                })
                 .collect();
             let tx_key = cert.key();
             trace!(
@@ -133,7 +140,7 @@ impl SharedObjVerManager {
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
         enable_gas_price_feedback: bool,
-    ) -> Vec<(ObjectID, SequenceNumber)> {
+    ) -> Vec<VersionAssignment> {
         let tx_digest = cert.digest();
 
         // Check if the transaction is cancelled due to congestion.
@@ -204,24 +211,21 @@ impl SharedObjVerManager {
                     }
                     None => unreachable!("cancelled transaction should have cancellation info"),
                 };
-                assigned_versions.push((*id, assigned_version));
+                assigned_versions.push(VersionAssignment {
+                    object_id: *id,
+                    version: assigned_version,
+                });
                 is_mutable_input.push(false);
             }
         } else {
-            for (
-                SharedObjectRef {
-                    object_id: id,
-                    mutable,
-                    ..
-                },
-                assigned_version,
-            ) in shared_input_objects.iter().map(|obj| {
-                (
-                    obj,
-                    *shared_input_next_versions.get(&obj.object_id).unwrap(),
-                )
-            }) {
-                assigned_versions.push((*id, assigned_version));
+            for (SharedInputObject { id, mutable, .. }, assigned_version) in shared_input_objects
+                .iter()
+                .map(|obj| (obj, *shared_input_next_versions.get(&obj.id()).unwrap()))
+            {
+                assigned_versions.push(VersionAssignment {
+                    object_id: *id,
+                    version: assigned_version,
+                });
                 input_object_keys.push(ObjectKey(*id, assigned_version));
                 is_mutable_input.push(*mutable);
             }
@@ -239,20 +243,23 @@ impl SharedObjVerManager {
             assigned_versions
                 .iter()
                 .zip(is_mutable_input)
-                .filter_map(|((id, _), mutable)| {
+                .filter_map(|(VersionAssignment { object_id, .. }, mutable)| {
                     if mutable {
-                        Some((*id, next_version))
+                        Some(VersionAssignment {
+                            object_id: *object_id,
+                            version: next_version,
+                        })
                     } else {
                         None
                     }
                 })
-                .for_each(|(id, version)| {
+                .for_each(|VersionAssignment { object_id, version }| {
                     assert!(
                         version.is_valid(),
                         "Assigned version must be a valid version."
                     );
                     shared_input_next_versions
-                        .insert(id, version)
+                        .insert(object_id, version)
                         .expect("Object must exist in shared_input_next_versions.");
                 });
         }
@@ -373,10 +380,34 @@ mod tests {
         assert_eq!(
             assigned_versions,
             vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+                (
+                    certs[0].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: init_shared_version
+                    }]
+                ),
+                (
+                    certs[1].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: SequenceNumber::from_u64(4)
+                    }]
+                ),
+                (
+                    certs[2].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: SequenceNumber::from_u64(4)
+                    }]
+                ),
+                (
+                    certs[3].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: SequenceNumber::from_u64(10)
+                    }]
+                ),
             ]
         );
     }
@@ -433,19 +464,28 @@ mod tests {
             vec![
                 (
                     TransactionKey::RandomnessRound(0, RandomnessRound::new(1)),
-                    vec![(ObjectID::RANDOMNESS_STATE, randomness_obj_version),]
+                    vec![VersionAssignment {
+                        object_id: ObjectID::RANDOMNESS_STATE,
+                        version: randomness_obj_version
+                    }]
                 ),
                 (
                     certs[0].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)]
+                    vec![VersionAssignment {
+                        object_id: ObjectID::RANDOMNESS_STATE,
+                        version: next_randomness_obj_version
+                    }]
                 ),
                 (
                     certs[1].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![(ObjectID::RANDOMNESS_STATE, next_randomness_obj_version)]
+                    vec![VersionAssignment {
+                        object_id: ObjectID::RANDOMNESS_STATE,
+                        version: next_randomness_obj_version
+                    }]
                 ),
             ]
         );
@@ -579,43 +619,67 @@ mod tests {
             vec![
                 (
                     certs[0].key(),
-                    vec![(id1, init_shared_version_1), (id2, init_shared_version_2)]
+                    vec![
+                        VersionAssignment {
+                            object_id: id1,
+                            version: init_shared_version_1
+                        },
+                        VersionAssignment {
+                            object_id: id2,
+                            version: init_shared_version_2
+                        }
+                    ]
                 ),
                 (
                     certs[1].key(),
                     vec![
-                        (
-                            id1,
-                            SequenceNumber::new_congested_with_suggested_gas_price(
+                        VersionAssignment {
+                            object_id: id1,
+                            version: SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
                             .unwrap()
-                        ),
-                        (id2, SequenceNumber::CANCELLED_READ),
+                        },
+                        VersionAssignment {
+                            object_id: id2,
+                            version: SequenceNumber::CANCELLED_READ
+                        },
                     ]
                 ),
-                (certs[2].key(), vec![(id1, SequenceNumber::from_u64(4)),]),
+                (
+                    certs[2].key(),
+                    vec![VersionAssignment {
+                        object_id: id1,
+                        version: SequenceNumber::from_u64(4)
+                    }]
+                ),
                 (
                     certs[3].key(),
                     vec![
-                        (id1, SequenceNumber::CANCELLED_READ),
-                        (
-                            id2,
-                            SequenceNumber::new_congested_with_suggested_gas_price(
+                        VersionAssignment {
+                            object_id: id1,
+                            version: SequenceNumber::CANCELLED_READ
+                        },
+                        VersionAssignment {
+                            object_id: id2,
+                            version: SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
                             .unwrap()
-                        )
+                        }
                     ]
                 ),
                 (
                     certs[4].key(),
                     vec![
-                        (
-                            ObjectID::RANDOMNESS_STATE,
-                            SequenceNumber::RANDOMNESS_UNAVAILABLE
-                        ),
-                        (id2, SequenceNumber::CANCELLED_READ)
+                        VersionAssignment {
+                            object_id: ObjectID::RANDOMNESS_STATE,
+                            version: SequenceNumber::RANDOMNESS_UNAVAILABLE
+                        },
+                        VersionAssignment {
+                            object_id: id2,
+                            version: SequenceNumber::CANCELLED_READ
+                        }
                     ]
                 ),
             ]
@@ -671,10 +735,34 @@ mod tests {
         assert_eq!(
             assigned_versions,
             vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+                (
+                    certs[0].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: init_shared_version
+                    },]
+                ),
+                (
+                    certs[1].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: SequenceNumber::from_u64(4)
+                    },]
+                ),
+                (
+                    certs[2].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: SequenceNumber::from_u64(4)
+                    },]
+                ),
+                (
+                    certs[3].key(),
+                    vec![VersionAssignment {
+                        object_id: id,
+                        version: SequenceNumber::from_u64(10)
+                    },]
+                ),
             ]
         );
     }
