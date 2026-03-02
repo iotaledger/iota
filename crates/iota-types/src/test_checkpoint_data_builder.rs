@@ -26,8 +26,8 @@ use crate::{
     object::{GAS_VALUE_FOR_TESTING, MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        EndOfEpochTransactionKind, ObjectArg, SenderSignedData, Transaction, TransactionData,
-        TransactionKind,
+        CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
+        TransactionData, TransactionKind,
     },
 };
 
@@ -429,7 +429,7 @@ impl TestCheckpointDataBuilder {
 
         for &object_ref in &frozen_objects {
             pt_builder
-                .obj(ObjectArg::ImmOrOwnedObject(object_ref))
+                .obj(CallArg::ImmutableOrOwned(object_ref))
                 .expect("Failed to add frozen object input");
         }
 
@@ -439,11 +439,11 @@ impl TestCheckpointDataBuilder {
             };
 
             pt_builder
-                .obj(ObjectArg::SharedObject {
-                    id: *id,
+                .obj(CallArg::Shared(SharedObjectRef::new(
+                    *id,
                     initial_shared_version,
-                    mutable: input.mutable,
-                })
+                    input.mutable,
+                )))
                 .expect("Failed to add shared object input");
         }
 

@@ -15,7 +15,7 @@ use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     gas::GasCostSummary,
     gas_coin::GAS,
-    transaction::{CallArg, ObjectArg, TransactionData},
+    transaction::{CallArg, SharedObjectRef, TransactionData},
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -82,8 +82,8 @@ async fn split_n_tx(
             Identifier::PAY_MODULE.as_str(),
             PAY_SPLIT_VEC_FUNC_NAME.as_str(),
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                CallArg::Pure(bcs::to_bytes(&split_amounts).unwrap()),
+                CallArg::ImmutableOrOwned(coin),
+                CallArg::pure(&split_amounts),
             ],
         )
         .with_type_args(type_args)
@@ -152,8 +152,8 @@ async fn create_txes(
             Identifier::COIN_MODULE.as_str(),
             COIN_JOIN_FUNC_NAME.as_str(),
             vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(c1)),
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(gas_objects.pop().unwrap())),
+                CallArg::ImmutableOrOwned(c1),
+                CallArg::ImmutableOrOwned(gas_objects.pop().unwrap()),
             ],
         )
         .with_type_args(type_args)
@@ -187,8 +187,8 @@ async fn create_txes(
             "counter",
             "assert_value",
             vec![
-                CallArg::Object(ObjectArg::SharedObject {
-                    id: counter_id,
+                CallArg::Shared(SharedObjectRef {
+                    object_id: counter_id,
                     initial_shared_version: counter_initial_shared_version,
                     mutable: true,
                 }),

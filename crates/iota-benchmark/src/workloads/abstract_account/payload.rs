@@ -9,16 +9,14 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::{Authenticator, Signer},
 };
-use iota_sdk::types::transaction::{
-    Argument, CallArg, Command, ObjectArg, ProgrammableTransaction,
-};
+use iota_sdk::types::transaction::{Argument, CallArg, Command, ProgrammableTransaction};
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::AccountKeyPair,
     move_authenticator::MoveAuthenticator,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{Transaction, TransactionData},
+    transaction::{SharedObjectRef, Transaction, TransactionData},
 };
 use tracing::{debug, error};
 
@@ -152,8 +150,8 @@ impl Payload for AbstractAccountPayload {
         );
 
         // Build MoveAuthenticator args and signature
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: self.aa_object_id,
+        let self_call_arg = CallArg::Shared(SharedObjectRef {
+            object_id: self.aa_object_id,
             initial_shared_version: self.aa_initial_shared_version,
             mutable: false,
         });
@@ -225,7 +223,7 @@ impl AbstractAccountPayload {
             let mut builder = ProgrammableTransactionBuilder::new();
 
             let pay_arg: Argument = builder
-                .obj(ObjectArg::ImmOrOwnedObject(self.pay_coin))
+                .obj(CallArg::ImmutableOrOwned(self.pay_coin))
                 .expect("pt builder: pay coin");
 
             let amt_arg: Argument = builder
@@ -249,11 +247,11 @@ impl AbstractAccountPayload {
 
             let shared = self.shared_object.unwrap();
             let shared_obj_arg = b
-                .obj(ObjectArg::SharedObject {
-                    id: shared.object_id,
+                .obj(CallArg::Shared(SharedObjectRef {
+                    object_id: shared.object_id,
                     initial_shared_version: shared.version,
                     mutable: true,
-                })
+                }))
                 .unwrap();
             // Move call: iota_system::request_add_stake(state, pay_coin,
             // validator_to_stake_address)
@@ -311,7 +309,7 @@ fn build_move_auth_args(
             // These modes assume that bench_objects are already created and belong to the
             // AA address.
             for obj in bench_objects.iter() {
-                auth_args.push(CallArg::Object(ObjectArg::ImmOrOwnedObject(*obj)));
+                auth_args.push(CallArg::ImmutableOrOwned(*obj));
             }
         }
     }

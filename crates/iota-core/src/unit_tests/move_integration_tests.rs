@@ -3099,7 +3099,7 @@ pub fn build_multi_upgrade_txns(
     for package_upgrade in package_upgrades {
         let package_id = package_upgrade.package_id;
         let cap = builder
-            .obj(ObjectArg::ImmOrOwnedObject(package_upgrade.upgrade_cap))
+            .obj(CallArg::ImmutableOrOwned(package_upgrade.upgrade_cap))
             .unwrap();
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();

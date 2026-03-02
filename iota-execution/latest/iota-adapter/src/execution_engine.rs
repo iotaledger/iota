@@ -54,8 +54,8 @@ mod checked {
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
-            EndOfEpochTransactionKind, GasData, GenesisTransaction, InputObjects, ObjectArg,
-            ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
+            EndOfEpochTransactionKind, GasData, GenesisTransaction, InputObjects,
+            ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1340,9 +1340,7 @@ mod checked {
     ) -> (Argument, Argument) {
         // Create storage charges.
         let storage_charge_arg = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&params.storage_charge).unwrap(),
-            ))
+            .input(CallArg::pure(&params.storage_charge))
             .unwrap();
         let storage_charges = builder.programmable_move_call(
             ObjectID::FRAMEWORK,
@@ -1354,9 +1352,7 @@ mod checked {
 
         // Create computation charges.
         let computation_charge_arg = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&params.computation_charge).unwrap(),
-            ))
+            .input(CallArg::pure(&params.computation_charge))
             .unwrap();
         let computation_charges = builder.programmable_move_call(
             ObjectID::FRAMEWORK,
@@ -1432,13 +1428,13 @@ mod checked {
         // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
         // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::IOTA_SYSTEM_MUTABLE, // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch), // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate), // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate), // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms), // epoch_start_timestamp_ms: u64
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1452,15 +1448,15 @@ mod checked {
         // common to both v1 and v2 and are added in `construct_advance_epoch_pt_impl`.
         // The remaining arguments are added here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1475,16 +1471,17 @@ mod checked {
         // `construct_advance_epoch_pt_impl`. The remaining arguments are added
         // here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
+            CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
+                                                               * Vec<u64> */
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1499,18 +1496,19 @@ mod checked {
         // `construct_advance_epoch_pt_impl`. The remaining arguments are added
         // here.
         let call_arg_vec = vec![
-            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
-            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
-            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
-            CallArg::Pure(bcs::to_bytes(&params.scores).unwrap()), // scores: Vec<u64>
-            CallArg::Pure(bcs::to_bytes(&params.adjust_rewards_by_score).unwrap()), /* adjust_rewards_by_score: bool */
+            CallArg::pure(&params.computation_charge_burned), // computation_charge_burned: u64
+            CallArg::IOTA_SYSTEM_MUTABLE,                     // wrapper: &mut IotaSystemState
+            CallArg::pure(&params.epoch),                     // new_epoch: u64
+            CallArg::pure(&params.next_protocol_version.as_u64()), // next_protocol_version: u64
+            CallArg::pure(&params.storage_rebate),            // storage_rebate: u64
+            CallArg::pure(&params.non_refundable_storage_fee), // non_refundable_storage_fee: u64
+            CallArg::pure(&params.reward_slashing_rate),      // reward_slashing_rate: u64
+            CallArg::pure(&params.epoch_start_timestamp_ms),  // epoch_start_timestamp_ms: u64
+            CallArg::pure(&params.max_committee_members_count), // max_committee_members_count: u64
+            CallArg::pure(&params.eligible_active_validators), /* eligible_active_validators:
+                                                               * Vec<u64> */
+            CallArg::pure(&params.scores), // scores: Vec<u64>
+            CallArg::pure(&params.adjust_rewards_by_score), // adjust_rewards_by_score: bool
         ];
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
@@ -1858,8 +1856,8 @@ mod checked {
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::CLOCK_MUT,
-                    CallArg::Pure(bcs::to_bytes(&consensus_commit_timestamp_ms).unwrap()),
+                    CallArg::CLOCK_MUTABLE,
+                    CallArg::pure(&consensus_commit_timestamp_ms),
                 ],
             );
             assert_invariant!(
@@ -1922,12 +1920,12 @@ mod checked {
                 AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: ObjectID::AUTHENTICATOR_STATE,
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: update.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
-                    CallArg::Pure(bcs::to_bytes(&update.new_active_jwks).unwrap()),
+                    CallArg::pure(&update.new_active_jwks),
                 ],
             );
             assert_invariant!(
@@ -1963,12 +1961,12 @@ mod checked {
                 AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: ObjectID::AUTHENTICATOR_STATE,
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: ObjectID::AUTHENTICATOR_STATE,
                         initial_shared_version: expire.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
-                    CallArg::Pure(bcs::to_bytes(&expire.min_epoch).unwrap()),
+                    CallArg::pure(&expire.min_epoch),
                 ],
             )
             .expect("Unable to generate authenticator_state_expire transaction!");
@@ -1998,13 +1996,13 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Object(ObjectArg::SharedObject {
-                        id: ObjectID::RANDOMNESS_STATE,
+                    CallArg::Shared(SharedObjectRef {
+                        object_id: ObjectID::RANDOMNESS_STATE,
                         initial_shared_version: update.randomness_obj_initial_shared_version,
                         mutable: true,
                     }),
-                    CallArg::Pure(bcs::to_bytes(&update.randomness_round).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&update.random_bytes).unwrap()),
+                    CallArg::pure(&update.randomness_round),
+                    CallArg::pure(&update.random_bytes),
                 ],
             );
             assert_invariant!(

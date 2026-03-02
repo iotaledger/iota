@@ -21,8 +21,8 @@ use iota_types::{
     message_envelope::Message,
     signature_verification::VerifiedDigestCache,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        Transaction, TransactionData,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -229,8 +229,8 @@ pub fn make_transfer_object_move_transaction(
     gas_price: u64,
 ) -> Transaction {
     let args = vec![
-        CallArg::Object(ObjectArg::ImmOrOwnedObject(object_ref)),
-        CallArg::Pure(bcs::to_bytes(&AccountAddress::new(dest.into_bytes())).unwrap()),
+        CallArg::ImmutableOrOwned(object_ref),
+        CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 
     to_sender_signed_transaction(

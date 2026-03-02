@@ -19,7 +19,7 @@ use iota_grpc_types::{
 use iota_macros::sim_test;
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ObjectArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionData, TransactionDataAPI},
 };
 use prost_types::FieldMask;
 
@@ -252,7 +252,7 @@ async fn simulate_transaction_readmask_scenarios() {
     // command-results readmask scenarios below can verify deeply.
     let mut builder = ProgrammableTransactionBuilder::new();
     let gas_coin_arg = builder
-        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let amount = builder.pure(1000u64).unwrap();
     let split_result = builder.command(iota_types::transaction::Command::SplitCoins(
@@ -283,7 +283,7 @@ async fn simulate_transaction_readmask_scenarios() {
     // command_index=0).
     let mut failing_builder = ProgrammableTransactionBuilder::new();
     let failing_coin_arg = failing_builder
-        .obj(ObjectArg::ImmOrOwnedObject(*obj_to_split))
+        .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let huge_amount = failing_builder.pure(u64::MAX).unwrap();
     failing_builder.command(iota_types::transaction::Command::SplitCoins(

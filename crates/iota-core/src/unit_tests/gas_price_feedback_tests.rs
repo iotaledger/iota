@@ -17,8 +17,8 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        ObjectArg, ProgrammableTransaction, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind, VerifiedCertificate,
+        CallArg, ProgrammableTransaction, SharedObjectRef, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind, VerifiedCertificate,
     },
     utils::to_sender_signed_transaction,
 };
@@ -290,19 +290,19 @@ impl GasPriceFeedbackTester {
         let mut txn_builder = ProgrammableTransactionBuilder::new();
 
         let arg1 = txn_builder
-            .obj(ObjectArg::SharedObject {
-                id: self.shared_counter_1.object_id,
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: self.shared_counter_1.object_id,
                 initial_shared_version: self.shared_counter_1.version,
                 mutable: counter_1_mutable,
-            })
+            }))
             .unwrap();
 
         let arg2 = txn_builder
-            .obj(ObjectArg::SharedObject {
-                id: self.shared_counter_2.object_id,
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: self.shared_counter_2.object_id,
                 initial_shared_version: self.shared_counter_2.version,
                 mutable: counter_2_mutable,
-            })
+            }))
             .unwrap();
 
         if counter_1_mutable && counter_2_mutable {
@@ -351,11 +351,11 @@ impl GasPriceFeedbackTester {
         };
 
         let arg = txn_builder
-            .obj(ObjectArg::SharedObject {
-                id: counter.object_id,
+            .obj(CallArg::Shared(SharedObjectRef {
+                object_id: counter.object_id,
                 initial_shared_version: counter.version,
                 mutable,
-            })
+            }))
             .unwrap();
 
         if mutable {
