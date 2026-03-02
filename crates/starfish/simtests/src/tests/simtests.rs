@@ -484,9 +484,8 @@ mod test {
         run_sequential_restarts_test(RestartMode::PersistAll, true, false).await;
     }
 
-    // TODO: This test is expected to panic due to fast sync failure when it is
-    // aborted before full sync catch-up. It should be added once the fix for
-    // fast syncing is applied.
+    // TODO: This test is flaky when running with many other tests in parallel.
+    // It passes consistently when running individually.
     // /// Persistent DB after each restart, short run before stop, long stop
     // duration.
     #[sim_test(config = "test_config()")]

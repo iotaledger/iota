@@ -1,29 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Joins field names with commas for field mask constants.
-///
-/// # Example
-/// ```ignore
-/// const MASK: &str = field_mask!(
-///     "transaction.digest",
-///     "transaction.effects",
-///     "command_results"
-/// );
-/// // Expands to: "transaction.digest,transaction.effects,command_results"
-/// ```
-#[macro_export]
-macro_rules! field_mask {
-    // Base case: single field
-    ($field:literal) => {
-        $field
-    };
-    // Recursive case: multiple fields
-    ($first:literal, $($rest:literal),+ $(,)?) => {
-        concat!($first, ",", $crate::field_mask!($($rest),+))
-    };
-}
-
 /// Creates a lazy batching stream that fetches and batches items on-demand
 /// based on message size limits.
 ///

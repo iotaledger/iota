@@ -10,6 +10,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
+    read_masks::EXECUTE_TRANSACTION_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         transaction::ExecutedTransaction,
@@ -27,8 +28,6 @@ use tonic::{Request, Response};
 pub use transaction::{CommandResultsReadSource, TransactionReadSource};
 
 use crate::{error::RpcError, merge::Merge, types::GrpcReader};
-
-pub const EXECUTE_TRANSACTION_READ_MASK_DEFAULT: &str = "transaction.effects";
 
 pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
@@ -87,6 +86,53 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
     }
 }
 
+/// Available Read Mask Fields
+///
+/// The `execute_transaction` function supports the following `read_mask` fields
+/// to control which data is included in the response:
+///
+/// ## Transaction Fields
+/// - `transaction` - includes all transaction fields
+///   - `transaction.digest` - the transaction digest
+///   - `transaction.bcs` - the full BCS-encoded transaction
+/// - `signatures` - includes all signature fields
+///   - `signatures.bcs` - the full BCS-encoded signature
+/// - `effects` - includes all effects fields
+///   - `effects.digest` - the effects digest
+///   - `effects.bcs` - the full BCS-encoded effects
+/// - `checkpoint` - the checkpoint that included the transaction (not available
+///   for just-executed transactions)
+/// - `timestamp` - the timestamp of the checkpoint (not available for
+///   just-executed transactions)
+///
+/// ## Event Fields
+/// - `events` - includes all event fields (all events of the transaction)
+///   - `events.digest` - the events digest
+///   - `events.events.bcs` - the full BCS-encoded event
+///   - `events.events.package_id` - the ID of the package that emitted the
+///     event
+///   - `events.events.module` - the module that emitted the event
+///   - `events.events.sender` - the sender that triggered the event
+///   - `events.events.event_type` - the type of the event
+///   - `events.events.bcs_contents` - the full BCS-encoded contents of the
+///     event
+///   - `events.events.json_contents` - the JSON-encoded contents of the event
+///
+/// ## Object Fields
+/// - `input_objects` - includes all input object fields
+///   - `input_objects.reference` - includes all reference fields
+///     - `input_objects.reference.object_id` - the ID of the input object
+///     - `input_objects.reference.version` - the version of the input object
+///     - `input_objects.reference.digest` - the digest of the input object
+///       contents
+///   - `input_objects.bcs` - the full BCS-encoded object
+/// - `output_objects` - includes all output object fields
+///   - `output_objects.reference` - includes all reference fields
+///     - `output_objects.reference.object_id` - the ID of the output object
+///     - `output_objects.reference.version` - the version of the output object
+///     - `output_objects.reference.digest` - the digest of the output object
+///       contents
+///   - `output_objects.bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader, executor))]
 pub async fn execute_transaction(
     reader: &Arc<GrpcReader>,
@@ -99,7 +145,7 @@ pub async fn execute_transaction(
         .read_mask
         .map(|mask| FieldMaskTree::from_field_mask(&mask))
         .unwrap_or_else(|| {
-            EXECUTE_TRANSACTION_READ_MASK_DEFAULT
+            EXECUTE_TRANSACTION_READ_MASK
                 .parse::<FieldMaskTree>()
                 .unwrap()
         });
@@ -183,22 +229,12 @@ pub async fn execute_transaction(
             )
         })?;
 
-    // Determine what to include in the request based on read mask
-    // The mask is at the response level, so we need to check the "transaction"
-    // subtree
-    let tx_mask = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name);
-    let include_events = tx_mask
-        .as_ref()
-        .map(|m| m.contains(ExecutedTransaction::EVENTS_FIELD.name))
-        .unwrap_or(false);
-    let include_input_objects = tx_mask
-        .as_ref()
-        .map(|m| m.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name))
-        .unwrap_or(false);
-    let include_output_objects = tx_mask
-        .as_ref()
-        .map(|m| m.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name))
-        .unwrap_or(false);
+    // Determine what to include in the request based on read mask.
+    // ExecuteTransactionResponse is transparent, so the read_mask paths apply
+    // directly to ExecutedTransaction fields.
+    let include_events = read_mask.contains(ExecutedTransaction::EVENTS_FIELD.name);
+    let include_input_objects = read_mask.contains(ExecutedTransaction::INPUT_OBJECTS_FIELD.name);
+    let include_output_objects = read_mask.contains(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name);
 
     // Create execution request
     let exec_request = ExecuteTransactionRequestV1 {
@@ -226,46 +262,38 @@ pub async fn execute_transaction(
             )
         })?;
 
-    // Build the response
-    let mut response = ExecuteTransactionResponse::default();
+    // Build the response.
+    // ExecuteTransactionResponse is transparent, so we use read_mask directly.
+    let sdk_transaction: iota_sdk_types::Transaction =
+        transaction.transaction_data().clone().try_into()?;
+    let signatures: Vec<iota_sdk_types::UserSignature> = transaction
+        .tx_signatures()
+        .to_owned()
+        .into_iter()
+        .map(|sig| sig.try_into())
+        .collect::<Result<_, _>>()?;
 
-    // Only include transaction if requested
-    if let Some(tx_mask) = read_mask.subtree(ExecuteTransactionResponse::TRANSACTION_FIELD.name) {
-        let sdk_transaction: iota_sdk_types::Transaction =
-            transaction.transaction_data().clone().try_into()?;
-        let signatures: Vec<iota_sdk_types::UserSignature> = transaction
-            .tx_signatures()
-            .to_owned()
-            .into_iter()
-            .map(|sig| sig.try_into())
-            .collect::<Result<_, _>>()?;
+    // Create a source for the merge
+    let source = TransactionReadSource {
+        reader: reader.clone(),
+        config,
+        transaction: Some(sdk_transaction),
+        signatures: Some(signatures),
+        effects: Some(effects.effects),
+        events,
+        // For execute_transaction, checkpoint and timestamp are not available
+        // immediately as the transaction is just being executed and not yet
+        // included in a checkpoint
+        checkpoint: None,
+        timestamp_ms: None,
+        input_objects,
+        output_objects,
+    };
 
-        // Create a source for the merge
-        let source = TransactionReadSource {
-            reader: reader.clone(),
-            config,
-            transaction: Some(sdk_transaction),
-            signatures: Some(signatures),
-            effects: Some(effects.effects),
-            events,
-            // For execute_transaction, checkpoint and timestamp are not available
-            // immediately as the transaction is just being executed and not yet
-            // included in a checkpoint
-            checkpoint: None,
-            timestamp_ms: None,
-            input_objects,
-            output_objects,
-        };
-
-        response.transaction = Some(ExecutedTransaction::merge_from(&source, &tx_mask).map_err(
-            |e| {
-                RpcError::new(
-                    tonic::Code::Internal,
-                    format!("failed to build executed transaction in execution response: {e}"),
-                )
-            },
-        )?);
-    }
-
-    Ok(response)
+    Ok(
+        ExecuteTransactionResponse::default().with_executed_transaction(
+            ExecutedTransaction::merge_from(&source, &read_mask)
+                .map_err(|e| e.with_context("failed to merge executed transaction"))?,
+        ),
+    )
 }

@@ -1480,7 +1480,6 @@ mod bcs_signable {
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
-    impl BcsSignable for crate::move_authenticator::MoveAuthenticator {}
     impl BcsSignable for crate::transaction::SenderSignedData {}
     impl BcsSignable for crate::object::ObjectInner {}
 
@@ -1501,6 +1500,36 @@ where
         // Note: This assumes that names never contain the separator `::`.
         write!(writer, "{name}::").expect("Hasher should not fail");
         bcs::serialize_into(writer, &self).expect("Message serialization should not fail");
+    }
+}
+
+/// Manual [`Signable`] impl for MoveAuthenticator.
+///
+/// `serde_name::trace_name` returns `None` for types that carry
+/// `#[serde(flatten)]`, so the blanket impl via `BcsSignable` panics.
+/// We hardcode the tag and serialise via `self.inner` — the same
+/// representation that `AsRef<[u8]>` already uses.
+impl<W> Signable<W> for crate::move_authenticator::MoveAuthenticator
+where
+    W: std::io::Write,
+{
+    fn write(&self, writer: &mut W) {
+        let name = "MoveAuthenticator";
+        write!(writer, "{name}::").expect("Hasher should not fail");
+        bcs::serialize_into(writer, &self.inner).expect("Message serialization should not fail");
+    }
+}
+
+impl SignableBytes for crate::move_authenticator::MoveAuthenticator {
+    fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let name = "MoveAuthenticator";
+        let name_byte_len = format!("{name}::").bytes().len();
+        let inner = bcs::from_bytes(
+            bytes
+                .get(name_byte_len..)
+                .ok_or_else(|| anyhow!("Failed to deserialize to {name}."))?,
+        )?;
+        Ok(Self::from_inner(inner))
     }
 }
 
