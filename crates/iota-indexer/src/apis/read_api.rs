@@ -31,7 +31,7 @@ use crate::{
 };
 
 #[derive(Clone)]
-pub(crate) struct ReadApi {
+pub struct ReadApi {
     inner: IndexerReader,
     fullnode_grpc_client: GrpcClient,
 }

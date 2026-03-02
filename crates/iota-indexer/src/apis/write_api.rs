@@ -33,7 +33,7 @@ use iota_types::{
         TransactionKind,
     },
 };
-use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
+use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
     apis::error::Error as ApiError,
@@ -208,10 +208,11 @@ impl WriteApi {
             gas_budget,
             gas_objects,
             show_raw_txn_data_and_effects,
-            skip_checks: _,
+            skip_checks,
         } = additional_args.unwrap_or_default();
 
         let show_raw_txn_data_and_effects = show_raw_txn_data_and_effects.unwrap_or(false);
+        let skip_checks = skip_checks.unwrap_or(true);
 
         let (price, budget) = match (gas_price, gas_budget) {
             (Some(price), Some(budget)) => (price.into_inner(), budget.into_inner()),
@@ -254,7 +255,7 @@ impl WriteApi {
             .fullnode_grpc_client
             .simulate_transaction(
                 transaction_data.try_into()?,
-                true,
+                skip_checks,
                 false,
                 Some(readmask.as_str()),
             )
@@ -342,21 +343,6 @@ impl OptimisticWriteApi {
             write_api,
             optimistic_tx_executor,
         }
-    }
-
-    pub fn fullnode_client(&self) -> &HttpClient {
-        // with the use of gRPC API we need to make a distinction between the fullnode
-        // and the indexer ReadApi::is_transaction_indexed_on_node.
-        //
-        // returning the HttpClient is not feasible anymore, also this method is only
-        // used on the graphql side to access only one ReadApi method call.
-        // Since the Indexer's ReadApi can directly invoke the
-        // is_transaction_indexed_on_node with either JSON RPC or gRPC, we could
-        // deprecate this method in favor of storing the Indexer's ReadApi in the
-        // graphql context data, the same way we do for the indexer's WriteApi.
-        //
-        // will be resolved as part of issue: https://github.com/iotaledger/iota/issues/7926
-        todo!()
     }
 }
 
