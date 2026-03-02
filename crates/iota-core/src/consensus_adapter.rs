@@ -844,20 +844,22 @@ impl ConsensusAdapter {
         debug!("{transaction_keys:?} processed by consensus");
 
         let consensus_keys: Vec<_> = transactions.iter().map(|t| t.key()).collect();
-
         epoch_store
             .remove_pending_consensus_transactions(&consensus_keys)
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || matches!(
-                transactions[0].kind,
-                // NOTE: We need to check both because `CertifiedTransaction` (scenario with
-                // certificates) and `UserTransactionV1` (certificate-less scenario) are both
-                // user transactions.
-                ConsensusTransactionKind::CertifiedTransaction(_)
-                    | ConsensusTransactionKind::UserTransactionV1(_)
-            );
+            || if epoch_store.protocol_config().enable_white_flag_flow() {
+                matches!(
+                    transactions[0].kind,
+                    ConsensusTransactionKind::UserTransactionV1(_)
+                )
+            } else {
+                matches!(
+                    transactions[0].kind,
+                    ConsensusTransactionKind::CertifiedTransaction(_)
+                )
+            };
         let send_end_of_publish = if is_user_tx {
             // If we are in RejectUserCerts state and we just drained the list we need to
             // send EndOfPublish to signal other validators that we are not submitting more
