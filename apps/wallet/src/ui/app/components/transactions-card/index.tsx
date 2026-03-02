@@ -85,12 +85,13 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         ? '--'
         : formatDate(Number(txn.timestampMs), ['day', 'month', 'year', 'hour', 'minute']);
 
-    const handleTransactionClick = () => {
-        const transactionAction = getTransactionAction(txn, address);
+    const transactionAction = getTransactionAction(txn, address);
+    const isTransactionSuccess = executionStatus === 'success' && !error;
 
+    const handleTransactionClick = () => {
         ampli.transactionOpened({
             transactionType: transactionAction,
-            success: executionStatus === 'success' && !error,
+            success: isTransactionSuccess,
         });
     };
 
@@ -106,8 +107,8 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
             <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
-                        txnFailed={executionStatus !== 'success' || !!error}
-                        variant={getTransactionAction(txn, address)}
+                        txnFailed={!isTransactionSuccess}
+                        variant={transactionAction}
                     />
                 </CardImage>
                 <CardBody
