@@ -14,7 +14,7 @@ use std::{
 use consensus_config::AuthorityIndex;
 use itertools::Itertools as _;
 use tokio::time::Instant;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, info, trace, warn};
 
 use crate::{
     CommittedSubDag,
@@ -846,11 +846,11 @@ impl DagState {
     pub(crate) fn add_commit(&mut self, commit: TrustedCommit) {
         let time_diff = if let Some(last_commit) = &self.last_commit {
             if commit.index() <= last_commit.index() {
-                error!(
+                warn!(
                     "New commit index {} <= last commit index {}!",
                     commit.index(),
                     last_commit.index()
-                );
+                ); // This could happen in case of fast commit syncer downloading transactions from last solid commit (not pending).
                 return;
             }
             assert_eq!(commit.index(), last_commit.index() + 1);
