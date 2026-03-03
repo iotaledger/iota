@@ -4390,7 +4390,7 @@ impl AuthorityPerEpochStore {
     }
 
     /// Handles `SchedulingResult`, i.e., the output of the
-    /// `self.try_schedule() function, for the given
+    /// `self.try_schedule()` function, for the given
     /// `VerifiedExecutableTransaction`.
     fn handle_scheduling_result(
         &self,
