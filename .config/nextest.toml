@@ -17,6 +17,7 @@ filter = '''
 (package(iota-cluster-test) and (test(test_iota_cluster)))
 or (package(iota-graphql-rpc) and (binary(e2e_tests) or (test(test_query_cost)) or binary(examples_validation_tests)))
 or (package(iota-indexer) and (binary(ingestion_tests)))
+or (package(starfish-simtests) and test(test_sequential_restarts_persistent_db_short_run_long_stop))
 '''
 
 [[profile.default.overrides]]
@@ -30,7 +31,6 @@ or (package(iota-cost) and test(test_good_snapshot))
 or (package(iota-faucet) and test(test_insufficient_balance_will_retry_success))
 or (package(iota-network) and test(test_byzantine_peer_handling))
 or (package(iota-open-rpc) and test(test_json_rpc_spec))
-or (package(iota-replay) and test(verify_latest_tx_replay_testnet_mainnet))
 '''
 
 [[profile.default.overrides]]

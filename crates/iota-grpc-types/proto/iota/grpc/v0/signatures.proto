@@ -23,6 +23,7 @@ message UserSignature {
 // A list of user signatures.
 message UserSignatures {
   option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
 
   repeated UserSignature signatures = 1;
 }

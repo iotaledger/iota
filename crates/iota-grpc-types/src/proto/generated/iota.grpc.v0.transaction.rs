@@ -75,5 +75,5 @@ pub struct ExecutedTransaction {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ExecutedTransactions {
     #[prost(message, repeated, tag = "1")]
-    pub transactions: ::prost::alloc::vec::Vec<ExecutedTransaction>,
+    pub executed_transactions: ::prost::alloc::vec::Vec<ExecutedTransaction>,
 }

@@ -167,12 +167,10 @@ pub struct IndexStoreTables {
     transactions_to_addr: DBMap<(IotaAddress, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that used that object id as input.
-    #[deprecated]
     transactions_by_input_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
 
     /// Index from object id to transactions that modified/created that object
     /// id.
-    #[deprecated]
     transactions_by_mutated_object_id: DBMap<(ObjectID, TxSequenceNumber), TransactionDigest>,
 
     /// Index from package id, module and function identifier to transactions
@@ -236,7 +234,6 @@ pub struct IndexStore {
     caches: IndexStoreCaches,
     metrics: Arc<IndexStoreMetrics>,
     max_type_length: u64,
-    remove_deprecated_tables: bool,
     pruner_watermark: Arc<AtomicU64>,
 }
 
@@ -330,12 +327,7 @@ fn coin_index_table_default_config() -> DBOptions {
 }
 
 impl IndexStore {
-    pub fn new(
-        path: PathBuf,
-        registry: &Registry,
-        max_type_length: Option<u64>,
-        remove_deprecated_tables: bool,
-    ) -> Self {
+    pub fn new(path: PathBuf, registry: &Registry, max_type_length: Option<u64>) -> Self {
         let db_options = default_db_options().disable_write_throttling();
         let pruner_watermark = Arc::new(AtomicU64::new(0));
         let compaction_metrics = JsonRpcCompactionMetrics::new(registry);
@@ -443,12 +435,11 @@ impl IndexStore {
                 ),
             ),
         ]));
-        let tables = IndexStoreTables::open_tables_read_write_with_deprecation_option(
+        let tables = IndexStoreTables::open_tables_read_write(
             path,
             MetricConf::new("index"),
             Some(db_options.options),
             Some(table_options),
-            remove_deprecated_tables,
         );
 
         let metrics = IndexStoreMetrics::new(registry);
@@ -480,7 +471,6 @@ impl IndexStore {
             caches,
             metrics: Arc::new(metrics),
             max_type_length: max_type_length.unwrap_or(128),
-            remove_deprecated_tables,
             pruner_watermark,
         }
     }
@@ -660,20 +650,17 @@ impl IndexStore {
             std::iter::once(((sender, sequence), *digest)),
         )?;
 
-        #[allow(deprecated)]
-        if !self.remove_deprecated_tables {
-            batch.insert_batch(
-                &self.tables.transactions_by_input_object_id,
-                active_inputs.map(|id| ((id, sequence), *digest)),
-            )?;
+        batch.insert_batch(
+            &self.tables.transactions_by_input_object_id,
+            active_inputs.map(|id| ((id, sequence), *digest)),
+        )?;
 
-            batch.insert_batch(
-                &self.tables.transactions_by_mutated_object_id,
-                mutated_objects
-                    .clone()
-                    .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
-            )?;
-        }
+        batch.insert_batch(
+            &self.tables.transactions_by_mutated_object_id,
+            mutated_objects
+                .clone()
+                .map(|(obj_ref, _)| ((obj_ref.0, sequence), *digest)),
+        )?;
 
         batch.insert_batch(
             &self.tables.transactions_by_move_function,
@@ -919,10 +906,6 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        if self.remove_deprecated_tables {
-            return Ok(vec![]);
-        }
-        #[allow(deprecated)]
         Self::get_transactions_from_index(
             &self.tables.transactions_by_input_object_id,
             input_object,
@@ -939,10 +922,6 @@ impl IndexStore {
         limit: Option<usize>,
         reverse: bool,
     ) -> IotaResult<Vec<TransactionDigest>> {
-        if self.remove_deprecated_tables {
-            return Ok(vec![]);
-        }
-        #[allow(deprecated)]
         Self::get_transactions_from_index(
             &self.tables.transactions_by_mutated_object_id,
             mutated_object,
@@ -1747,7 +1726,7 @@ mod tests {
         // again and read balance. The balance should be 700 and verified from
         // both db and cache. This tests make sure we are invalidating entries
         // in the cache and always reading latest balance.
-        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128), false);
+        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128));
         let address: IotaAddress = AccountAddress::random().into();
         let mut written_objects = BTreeMap::new();
         let mut object_map = BTreeMap::new();
@@ -1862,7 +1841,7 @@ mod tests {
         use iota_types::base_types::ObjectID;
         use typed_store::Map;
 
-        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128), false);
+        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128));
         let db = &index_store.tables.transactions_by_move_function;
         db.insert(
             &(

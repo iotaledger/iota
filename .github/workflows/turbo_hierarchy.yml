@@ -86,7 +86,7 @@ jobs:
     concurrency:
       group: turbo-build-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (!cancelled() && !failure() && (needs.diff.outputs.isExplorer || needs.diff.outputs.isTypescriptSDK || needs.diff.outputs.isWallet || needs.diff.outputs.isWalletDashboard || needs.diff.outputs.isEvmBridge) && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && (needs.diff.outputs.isExplorer == 'true' || needs.diff.outputs.isTypescriptSDK == 'true' || needs.diff.outputs.isWallet == 'true' || needs.diff.outputs.isWalletDashboard == 'true' || needs.diff.outputs.isEvmBridge == 'true') && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     steps:
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1

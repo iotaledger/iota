@@ -55,8 +55,12 @@ export class MoveSigner extends Signer {
      * based on the object ID.
      */
     getPublicKey(): PublicKey {
-        const objectId = getObjectIdFromCallArg(this.data.objectToAuthenticate);
-        return new MoveAuthenticatorPublicKey(objectId);
+        if (this.data.version === 'V1') {
+            return new MoveAuthenticatorPublicKey(
+                getObjectIdFromCallArg(this.data.objectToAuthenticate),
+            );
+        }
+        throw new Error(`Unsupported MoveAuthenticator version: ${this.data.version}`);
     }
 
     /**
@@ -66,13 +70,18 @@ export class MoveSigner extends Signer {
      * @returns The BCS-serialized MoveAuthenticator bytes
      */
     async sign(): Promise<Uint8Array> {
-        return bcs.MoveAuthenticator.serialize({
-            callArgs: this.data.callArgs,
-            typeArgs: this.data.typeArgs,
-            objectToAuthenticate: {
-                Object: this.data.objectToAuthenticate,
-            },
-        }).toBytes();
+        if (this.data.version === 'V1') {
+            return bcs.MoveAuthenticator.serialize({
+                V1: {
+                    callArgs: this.data.callArgs,
+                    typeArgs: this.data.typeArgs,
+                    objectToAuthenticate: {
+                        Object: this.data.objectToAuthenticate,
+                    },
+                },
+            }).toBytes();
+        }
+        throw new Error(`Unsupported MoveAuthenticator version: ${this.data.version}`);
     }
 
     /**

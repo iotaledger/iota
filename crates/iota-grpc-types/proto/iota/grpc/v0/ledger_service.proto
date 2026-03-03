@@ -151,7 +151,7 @@ message TransactionResult {
   option (iota.grpc.message_accessors) = "with";
 
   oneof result {
-    iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
+    iota.grpc.v0.transaction.ExecutedTransaction executed_transaction = 1;
     google.rpc.Status error = 2;
   }
 }
@@ -159,7 +159,7 @@ message TransactionResult {
 message GetTransactionsResponse {
   option (iota.grpc.message_accessors) = "with";
 
-  repeated TransactionResult transactions = 1;
+  repeated TransactionResult transaction_results = 1;
   bool has_next = 2;
 }
 
@@ -228,7 +228,7 @@ message CheckpointData {
 
   oneof payload {
     iota.grpc.v0.checkpoint.Checkpoint checkpoint = 1;
-    iota.grpc.v0.transaction.ExecutedTransactions transactions = 2;
+    iota.grpc.v0.transaction.ExecutedTransactions executed_transactions = 2;
     iota.grpc.v0.event.Events events = 3;
     EndMarker end_marker = 4;
   }
