@@ -201,9 +201,9 @@ export const RPC_METHODS: {
         } catch (error) {
             console.warn('GraphQL getBalance failed, falling back to default values:', error);
             return {
-                coinType: IOTA_TYPE_ARG,
+                coinType: normalizeStructTag(inputs[1] ?? IOTA_TYPE_ARG),
                 coinObjectCount: 0,
-                totalBalance: 0,
+                totalBalance: '0',
             };
         }
     },
