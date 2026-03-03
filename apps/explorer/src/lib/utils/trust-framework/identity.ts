@@ -7,6 +7,7 @@ import { type IotaClient, Network } from '@iota/iota-sdk/client';
 import {
     DID_PROTOCOL_SEGMENT_SYMBOL,
     DID_URL_SEGMENT_SYMBOL,
+    IDENTITY_WASM_PATH,
     IOTA_IDENTITY_PKG_ID,
 } from '~/lib/constants/trustFramework.constants';
 
@@ -20,7 +21,7 @@ let initPromise: Promise<void> | null = null;
  */
 export const initIdentityWasmWeb = async (): Promise<void> => {
     if (!initPromise) {
-        initPromise = identity.init().catch((e) => {
+        initPromise = identity.init(IDENTITY_WASM_PATH).catch((e) => {
             console.error('failed to load identity wasm (web version)', e);
             initPromise = null; // allow retry
             throw e;
