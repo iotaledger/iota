@@ -30,7 +30,7 @@ export const getInputObjects = async (transaction: Transaction, client: IotaClie
 
     // NOTE: We should probably get rid of this manual serialization logic in favor of using the
     // already serialized object bytes from the GraphQL API once there is more mainstream support
-    // for it + we can enforce the transport type on the Sui client.
+    // for it + we can enforce the transport type on the IOTA client.
     const bcsObjects = objects
         .map((object) => {
             if (object.error || !object.data || object.data.bcs?.dataType !== 'moveObject') {
