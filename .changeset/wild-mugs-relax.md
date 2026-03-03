@@ -1,5 +1,5 @@
 ---
-'@iota/wallet-standard': patch
+'@iota/iota-sdk': patch
 ---
 
 
