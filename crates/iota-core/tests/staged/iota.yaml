@@ -53,30 +53,6 @@ AuthorityQuorumSignInfo:
           CONTENT: U8
           SIZE: 48
     - signers_map: BYTES
-BinaryEndOfEpochTransactionKind:
-  ENUM:
-    0:
-      ChangeEpoch:
-        NEWTYPE:
-          TYPENAME: ChangeEpoch
-    1:
-      ChangeEpochV2:
-        NEWTYPE:
-          TYPENAME: ChangeEpochV2
-    2:
-      ChangeEpochV3:
-        NEWTYPE:
-          TYPENAME: ChangeEpochV3
-    3:
-      ChangeEpochV4:
-        NEWTYPE:
-          TYPENAME: ChangeEpochV4
-    4:
-      AuthenticatorStateCreate: UNIT
-    5:
-      AuthenticatorStateExpire:
-        NEWTYPE:
-          TYPENAME: AuthenticatorStateExpire
 CallArg:
   ENUM:
     0:
@@ -386,6 +362,30 @@ EndOfEpochData:
         SEQ:
           TYPENAME: CheckpointCommitment
     - epochSupplyChange: I64
+EndOfEpochTransactionKind:
+  ENUM:
+    0:
+      ChangeEpoch:
+        NEWTYPE:
+          TYPENAME: ChangeEpoch
+    1:
+      ChangeEpochV2:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV2
+    2:
+      ChangeEpochV3:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV3
+    3:
+      ChangeEpochV4:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV4
+    4:
+      AuthenticatorStateCreate: UNIT
+    5:
+      AuthenticatorStateExpire:
+        NEWTYPE:
+          TYPENAME: AuthenticatorStateExpire
 Event:
   STRUCT:
     - packageId:
@@ -984,7 +984,7 @@ TransactionKind:
       EndOfEpochTransaction:
         NEWTYPE:
           SEQ:
-            TYPENAME: BinaryEndOfEpochTransactionKind
+            TYPENAME: EndOfEpochTransactionKind
     5:
       RandomnessStateUpdate:
         NEWTYPE:
