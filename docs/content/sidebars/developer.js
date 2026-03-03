@@ -581,7 +581,7 @@ const developer = [
             },
         ],
     },
-   {
+    {
         type: 'category',
         label: 'TS SDK',
         items: tsSDK,

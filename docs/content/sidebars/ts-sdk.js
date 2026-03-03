@@ -8,6 +8,9 @@ import typedocSidebarKiosk from '../developer/ts-sdk/kiosk/api/typedoc-sidebar.c
 import typedocSidebarGraphqlTransport from '../developer/ts-sdk/graphql-transport/api/typedoc-sidebar.cjs';
 import typedocSidebarWalletStandard from '../developer/ts-sdk/wallet-standard/api/typedoc-sidebar.cjs';
 import typedocSidebarLedger from '../developer/ts-sdk/ledgerjs-hw-app-iota/api/typedoc-sidebar.cjs';
+import typedocSidebarSigners from '../developer/ts-sdk/signers/api/typedoc-sidebar.cjs';
+import typedocSidebarBcs from '../developer/ts-sdk/bcs/api/typedoc-sidebar.cjs';
+import typedocSidebarIscSdk from '../developer/ts-sdk/isc-sdk/api/typedoc-sidebar.cjs';
 
 const tsSDK = [
     {
@@ -188,7 +191,7 @@ const tsSDK = [
             {
                 type: 'category',
                 label: 'API Reference',
-                items: typedocSidebarLedger,
+                items: typedocSidebarSigners,
                 link: { type: 'doc', id: 'developer/ts-sdk/signers/api/index' },
             },
         ],
@@ -200,7 +203,7 @@ const tsSDK = [
             {
                 type: 'category',
                 label: 'API Reference',
-                items: typedocSidebarLedger,
+                items: typedocSidebarBcs,
                 link: { type: 'doc', id: 'developer/ts-sdk/bcs/api/index' },
             },
         ],
@@ -212,7 +215,7 @@ const tsSDK = [
             {
                 type: 'category',
                 label: 'API Reference',
-                items: typedocSidebarLedger,
+                items: typedocSidebarIscSdk,
                 link: { type: 'doc', id: 'developer/ts-sdk/isc-sdk/api/index' },
             },
         ],
