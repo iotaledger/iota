@@ -1,0 +1,562 @@
+---
+title: Spending Limit Account
+description: "How to create and manage accounts with per-transaction spending limits"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction /> 
+
+
+## About Spending Limit Accounts
+
+Spending Limit Accounts enable programmable spending controls by enforcing a maximum withdrawal amount per transaction. The account maintains a balance reserve (funds available for spending) and validates that withdrawals don't exceed the configured limit. This is useful for allowances, budgets, or controlled fund access scenarios.
+
+The authenticator inspects transaction commands, identifies withdrawal calls, calculates the total amount, and enforces the spending limit.
+
+
+## What this example shows
+
+- Create a SpendingLimitAccount with a public key, balance reserve, and spending limit.
+- Authenticate transactions by verifying signatures and validating withdrawal amounts.
+- Withdraw funds from the balance reserve within the spending limit.
+- Manage (attach, rotate) spending limits and balance reserves.
+- Inspect PTB commands to extract and validate withdrawal operations.
+
+## How it works
+
+### Step 1: Create spending limit account
+
+Create an account with public key authentication, an empty balance reserve, and a spending limit.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L89-L116
+```
+
+**What this does**
+- Creates a new SpendingLimitAccount as a shared object.
+- Attaches a public key for signature verification.
+- Initializes an empty balance reserve to hold withdrawable funds.
+- Sets the spending limit (maximum withdrawal per transaction).
+- The `limit` parameter defines how much can be withdrawn in a single transaction.
+
+
+### Step 2: Initialize balance reserve structure
+
+The balance reserve holds funds that can be withdrawn up to the spending limit.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move#L22-L25
+```
+
+**What this does**
+- Defines a BalanceReserve struct that wraps a `Balance<T>`.
+- Stores the actual funds available for spending.
+- Separate from gas funds, dedicated to controlled withdrawals.
+
+### Step 3: Attach balance reserve to account
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move#L54-L59
+```
+
+**What this does**
+- Adds the balance reserve as a dynamic field on the account's UID.
+- Ensures only one balance reserve can be attached (idempotent check).
+- Makes the reserve accessible for deposit and withdrawal operations.
+
+### Step 4: Attach spending limit to account
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move#L35-L40
+```
+
+**What this does**
+- Adds the spending limit as a dynamic field.
+- Validates the limit is greater than zero.
+- Prevents attaching multiple spending limits to the same account.
+
+### Step 5: Deposit funds to balance reserve
+
+Before withdrawing, the balance reserve must be funded.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move#L38-L41
+```
+
+**What this does**
+- Accepts a `Balance<T>` and adds it to the reserve's balance.
+- Increases the total withdrawable amount.
+- Separate from the gas balance used for transaction fees.
+
+### Step 6: Ed25519 authenticator with spending limit check
+
+The core authentication logic that validates both signature and spending limit.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L152-L172
+```
+
+**What this does**
+- First verifies the Ed25519 signature against the stored public key.
+- Then inspects the transaction's PTB commands to find withdrawal calls.
+- Calculates the total withdrawal amount across all commands.
+- Finally validates that the total doesn't exceed the spending limit.
+
+### Step 7: Look up and calculate withdrawals from PTB
+
+Analyzes the transaction's programmable transaction block to find withdrawal operations.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L239-L275
+```
+
+**What this does**
+- Iterates through all commands in the transaction.
+- Identifies `withdraw_from_balance_reserve` function calls.
+- Extracts the withdrawal amount from each call's arguments.
+- Accumulates the total amount to be withdrawn.
+- Returns 0 if no withdrawal commands are found.
+
+### Step 8: Validate withdrawal call signature
+
+Helper function to identify valid withdrawal calls targeting this account.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L276-L298
+```
+
+**What this does**
+- Checks if the first argument equals the transaction sender (the account itself).
+- Verifies the function name is `withdraw_from_balance_reserve`.
+- Verifies the module name is `account`.
+- Validates the package ID matches the SpendingLimitAccount's package.
+- Ensures only legitimate withdrawals from this account are counted.
+
+### Step 9: Execute withdrawal from balance reserve
+
+The actual withdrawal function that transfers funds from the reserve.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L178-L194
+```
+
+**What this does**
+- Verifies the amount is within the current spending limit.
+- Checks the balance reserve has sufficient funds.
+- Withdraws the specified amount from the reserve.
+- Decreases the spending limit by the withdrawn amount (one-time use).
+- Returns a `Coin<IOTA>` that can be transferred or used.
+
+### Step 10: Authenticate against spending limit
+
+Final validation that the withdrawal amount doesn't exceed the limit.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move#L59-L65
+```
+
+**What this does**
+- Retrieves the current spending limit from the account.
+- Compares the requested amount against the limit.
+- Aborts the transaction with `EOverspend` error if limit is exceeded.
+- Allows the transaction to proceed if within limits.
+
+## Verify the result
+
+**Create spending limit account and fund it**
+
+```bash
+# Set spending limit (e.g., 999 NANOS maximum per transaction)
+export LIMIT=999
+
+# Create account
+export PTB_JSON=$(iota client ptb \
+--move-call 0x2::authenticator_function::create_auth_function_ref_v1 '<'$PACKAGE_ID'::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'>' @$METADATA_ID '"'$AUTH_MODULE_NAME'"' '"'$AUTH_FUNCTION_NAME'"' \
+--assign ref \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$SIGN_PUB_KEY_BYTES" $LIMIT ref \
+--json)
+export ABSTRACTACCOUNT=$(echo $PTB_JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'"))) | .objectId')
+echo "Account Object ID: $ABSTRACTACCOUNT"
+
+# Fund the balance reserve
+iota client ptb \
+--split-coins gas "[1000]" \
+--assign new_coins \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::deposit_to_balance_reserve @$ABSTRACTACCOUNT new_coins
+```
+
+<details>
+
+<summary>Expected output</summary>
+```bash
+Transaction Digest: CMarDwtFVXJ8k6cZHhopoE84dmLMX86ddoAWQnXCKFWb
+╭─────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257                      │
+│ Gas Owner: 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257                   │
+│ Gas Budget: 2980400 NANOS                                                                       │
+│ Gas Price: 1000 NANOS                                                                           │
+│ Gas Payment:                                                                                    │
+│  ┌──                                                                                            │
+│  │ ID: 0x189b2eebd6335109af98e5426737b1336af3a41e6854a38daa90c333ab43f31d                       │
+│  │ Version: 4                                                                                   │
+│  │ Digest: DczUuCuZUbRqMMGMyr89XoC3jo2SqXUf2duhwvHEvLHZ                                         │
+│  └──                                                                                            │
+│                                                                                                 │
+│ Transaction Kind: Programmable                                                                  │
+│ ╭─────────────────────────────────────────────────────────────────────────────────────────────╮ │
+│ │ Input Objects                                                                               │ │
+│ ├─────────────────────────────────────────────────────────────────────────────────────────────┤ │
+│ │ 0   Pure Arg: Type: u64, Value: "1000"                                                      │ │
+│ │ 1   Shared Object    ID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e │ │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│ ╭──────────────────────────────────────────────────────────────────────────────────╮            │
+│ │ Commands                                                                         │            │
+│ ├──────────────────────────────────────────────────────────────────────────────────┤            │
+│ │ 0  SplitCoins:                                                                   │            │
+│ │  ┌                                                                               │            │
+│ │  │ Coin: GasCoin                                                                 │            │
+│ │  │ Amounts:                                                                      │            │
+│ │  │   Input  0                                                                    │            │
+│ │  └                                                                               │            │
+│ │                                                                                  │            │
+│ │ 1  MoveCall:                                                                     │            │
+│ │  ┌                                                                               │            │
+│ │  │ Function:  deposit_to_balance_reserve                                         │            │
+│ │  │ Module:    spending_limit_account                                             │            │
+│ │  │ Package:   0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb │            │
+│ │  │ Arguments:                                                                    │            │
+│ │  │   Input  1                                                                    │            │
+│ │  │   Result 0                                                                    │            │
+│ │  └                                                                               │            │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯            │
+│                                                                                                 │
+│ Signatures:                                                                                     │
+│    in9W5MDK7XdIVoUAfScWbFbNdLpBQY/1tlNn4f24zLiCanJcPjRiB8z5TuCuT0R49iJANtlnzv5hmeITExdxBg==     │
+│                                                                                                 │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: CMarDwtFVXJ8k6cZHhopoE84dmLMX86ddoAWQnXCKFWb                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 1                                                                                 │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x189b2eebd6335109af98e5426737b1336af3a41e6854a38daa90c333ab43f31d                         │
+│  │ Owner: Account Address ( 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257 )  │
+│  │ Version: 5                                                                                     │
+│  │ Digest: 2qLBX98VpdAGwLFCojj15kDnrNj6FKemjpgPsY3PADRn                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x61bf95b6700f1860468a4a18dadb4eab2c6569c7dc78ee9a5bfd4f0925a07155                         │
+│  │ Owner: Object ID: ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )       │
+│  │ Version: 5                                                                                     │
+│  │ Digest: 7XCR4DEQ7tXshnvf5muQSAWqXhoaZtnFS4gUoKcDxg6q                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                         │
+│  │ Owner: Shared( 4 )                                                                             │
+│  │ Version: 5                                                                                     │
+│  │ Digest: 4uTTFxQq4QB8KjQ9ZZJaE9aweKBQesBJTZ7Mvyyr7d6D                                           │
+│  └──                                                                                              │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                         │
+│  │ Version: 4                                                                                     │
+│  │ Digest: BPCQ995XupLNjM37pYaKKuD5ipSXaX2eV9i273iUsvAa                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x189b2eebd6335109af98e5426737b1336af3a41e6854a38daa90c333ab43f31d                         │
+│  │ Owner: Account Address ( 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257 )  │
+│  │ Version: 5                                                                                     │
+│  │ Digest: 2qLBX98VpdAGwLFCojj15kDnrNj6FKemjpgPsY3PADRn                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 5266800 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Computation Cost Burned: 1000000 NANOS                                                         │
+│    Storage Rebate: 5266800 NANOS                                                                  │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    2rmtbaECdYgfm6xQvMFr9BnQVYZ7ujbxFjfxt7QFLac1                                                   │
+│    ArVG3Y8vcdgbpwdqcf8zGU73uhpqb8oM1XWEt3jZNWgr                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                                                                                                                                                                                │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Mutated Objects:                                                                                                                                                                                                                                                              │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0x189b2eebd6335109af98e5426737b1336af3a41e6854a38daa90c333ab43f31d                                                                                                                                                                                               │
+│  │ Sender: 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257                                                                                                                                                                                                 │
+│  │ Owner: Account Address ( 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257 )                                                                                                                                                                              │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                                                                                                                                                               │
+│  │ Version: 5                                                                                                                                                                                                                                                                 │
+│  │ Digest: 2qLBX98VpdAGwLFCojj15kDnrNj6FKemjpgPsY3PADRn                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0x61bf95b6700f1860468a4a18dadb4eab2c6569c7dc78ee9a5bfd4f0925a07155                                                                                                                                                                                               │
+│  │ Sender: 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257                                                                                                                                                                                                 │
+│  │ Owner: Object ID: ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )                                                                                                                                                                                   │
+│  │ ObjectType: 0x2::dynamic_field::Field<0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::balance_reserve::BalanceReserveFieldName, 0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::balance_reserve::BalanceReserve<0x2::iota::IOTA>>  │
+│  │ Version: 5                                                                                                                                                                                                                                                                 │
+│  │ Digest: 7XCR4DEQ7tXshnvf5muQSAWqXhoaZtnFS4gUoKcDxg6q                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                               │
+│  │ Sender: 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257                                                                                                                                                                                                 │
+│  │ Owner: Shared( 4 )                                                                                                                                                                                                                                                         │
+│  │ ObjectType: 0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::spending_limit_account::SpendingLimitAccount                                                                                                                                               │
+│  │ Version: 5                                                                                                                                                                                                                                                                 │
+│  │ Digest: 4uTTFxQq4QB8KjQ9ZZJaE9aweKBQesBJTZ7Mvyyr7d6D                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0xa4ed887bf2efb395b5592ed57871364d5260a7e780738b6ed90cfc7747cf5257 )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: -1001000                                                                               │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+</details>
+
+**Withdraw funds within spending limit**
+
+```bash
+# Create withdrawal transaction (amount must be <= LIMIT)
+UNSIGNED_TX_BYTES=$(iota client ptb \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::withdraw_from_balance_reserve @$ABSTRACTACCOUNT 998 \
+--assign withdrawn_coin \
+--transfer-objects "[withdrawn_coin]" @0x0 \
+--serialize-unsigned-transaction)
+echo "Unsigned TX: $UNSIGNED_TX_BYTES"
+
+# Sign the transaction
+# Extract the TX digest that is used by the authenticator to check the signature for the account
+TX_DIGEST_HEX=$(iota keytool tx-digest $UNSIGNED_TX_BYTES --json | jq -r '.digestHex')
+echo "TX Digest Hex: $TX_DIGEST_HEX"
+
+# Obtain the signature where the message is the TX digest and the signing key is part of the keypair from which the signing address was derived
+export IOTA_SIGNATURE_HEX=$(iota keytool sign-raw --address $SIGN_ADDRESS --data $TX_DIGEST_HEX --json | jq -r '.iotaSignature' | base64 -d | od -An -tx1 | tr -d ' \n')
+echo "IOTA signature hex: $IOTA_SIGNATURE_HEX"
+
+# Execute with authentication
+export SIGNED_TX_BYTES=$(iota client ptb \
+--move-call $PACKAGE_ID::$CREATE_MODULE_NAME::withdraw_from_balance_reserve @$ABSTRACTACCOUNT 998 \
+--assign withdrawn_coin \
+--transfer-objects "[withdrawn_coin]" @0x0 \
+--auth-call-args 0x$SIGNATURE_HEX  \
+--serialize-signed-transaction)
+echo "Signed tx bytes: $SIGNED_TX_BYTES"
+iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
+```
+
+<details>
+<summary>Expected output</summary>
+```bash
+Signed tx bytes: AQAAAAAAAwEB+FCV/7JVaBgtygUfy6i9RW5jAHJYTQxtBzoABeY54Q4EAAAAAAAAAAEACOYDAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAkll8T5EhNxLw5UnlMQWTnUL70TrPqQ5gQ3LF3apnNbsWc3BlbmRpbmdfbGltaXRfYWNjb3VudB13aXRoZHJhd19mcm9tX2JhbGFuY2VfcmVzZXJ2ZQACAQAAAQEAAQECAAABAgD4UJX/slVoGC3KBR/LqL1FbmMAclhNDG0HOgAF5jnhDgEmM1ZX/0rZz1gi+gckv7jpf3xitVsXTT/iBNaUya2w3QIAAAAAAAAAIDRNFYxk8DX2GAtjLA0LhltTdGl6JB1ZROHhy1PStJho+FCV/7JVaBgtygUfy6i9RW5jAHJYTQxtBzoABeY54Q7oAwAAAAAAAOBvPAAAAAAAAAFxBwEAQUBbTmf7eixIpzx0Q5/WqbhiqMF7Ww4YWwqn8bQ6LACxln2/uevnNyCGZPUqQI499nMGM2RxXjMO0PHREFhtciUKAAEB+FCV/7JVaBgtygUfy6i9RW5jAHJYTQxtBzoABeY54Q4EAAAAAAAAAAA=
+Transaction Digest: 7WkHLenav4FS86bamSWNKzdyatYJM4axAyJdpVGqDb6d
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Data                                                                                                                                            │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Sender: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                  │
+│ Gas Owner: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                               │
+│ Gas Budget: 3960800 NANOS                                                                                                                                   │
+│ Gas Price: 1000 NANOS                                                                                                                                       │
+│ Gas Payment:                                                                                                                                                │
+│  ┌──                                                                                                                                                        │
+│  │ ID: 0x26335657ff4ad9cf5822fa0724bfb8e97f7c62b55b174d3fe204d694c9adb0dd                                                                                   │
+│  │ Version: 2                                                                                                                                               │
+│  │ Digest: 4XANgrmhYiGEFe8kYLtnQcm37gxCHft1Vp2etmvXsk1D                                                                                                     │
+│  └──                                                                                                                                                        │
+│                                                                                                                                                             │
+│ Transaction Kind: Programmable                                                                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮                                                │
+│ │ Input Objects                                                                                            │                                                │
+│ ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                │
+│ │ 0   Shared Object    ID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e              │                                                │
+│ │ 1   Pure Arg: Type: u64, Value: "998"                                                                    │                                                │
+│ │ 2   Pure Arg: Type: address, Value: "0x0000000000000000000000000000000000000000000000000000000000000000" │                                                │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                │
+│ ╭──────────────────────────────────────────────────────────────────────────────────╮                                                                        │
+│ │ Commands                                                                         │                                                                        │
+│ ├──────────────────────────────────────────────────────────────────────────────────┤                                                                        │
+│ │ 0  MoveCall:                                                                     │                                                                        │
+│ │  ┌                                                                               │                                                                        │
+│ │  │ Function:  withdraw_from_balance_reserve                                      │                                                                        │
+│ │  │ Module:    spending_limit_account                                             │                                                                        │
+│ │  │ Package:   0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb │                                                                        │
+│ │  │ Arguments:                                                                    │                                                                        │
+│ │  │   Input  0                                                                    │                                                                        │
+│ │  │   Input  1                                                                    │                                                                        │
+│ │  └                                                                               │                                                                        │
+│ │                                                                                  │                                                                        │
+│ │ 1  TransferObjects:                                                              │                                                                        │
+│ │  ┌                                                                               │                                                                        │
+│ │  │ Arguments:                                                                    │                                                                        │
+│ │  │   Result 0                                                                    │                                                                        │
+│ │  │ Address: Input  2                                                             │                                                                        │
+│ │  └                                                                               │                                                                        │
+│ ╰──────────────────────────────────────────────────────────────────────────────────╯                                                                        │
+│                                                                                                                                                             │
+│ Signatures:                                                                                                                                                 │
+│    BwEAQUBbTmf7eixIpzx0Q5/WqbhiqMF7Ww4YWwqn8bQ6LACxln2/uevnNyCGZPUqQI499nMGM2RxXjMO0PHREFhtciUKAAEB+FCV/7JVaBgtygUfy6i9RW5jAHJYTQxtBzoABeY54Q4EAAAAAAAAAAA= │
+│                                                                                                                                                             │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: 7WkHLenav4FS86bamSWNKzdyatYJM4axAyJdpVGqDb6d                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 2                                                                                 │
+│                                                                                                   │
+│ Created Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x4a5bf3283028282e1335f20b6ab9ff1610d9a2bbe7518fd6c71cef67768eeb9e                         │
+│  │ Owner: Account Address ( 0x0000000000000000000000000000000000000000000000000000000000000000 )  │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 9ttXCnfC35Pm2XWvTioyByQ2EHC7RvZ74aHrsg3CkLgg                                           │
+│  └──                                                                                              │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x26335657ff4ad9cf5822fa0724bfb8e97f7c62b55b174d3fe204d694c9adb0dd                         │
+│  │ Owner: Account Address ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )  │
+│  │ Version: 6                                                                                     │
+│  │ Digest: FXKiLJi5btD2xHBpe57bL9sKhbci9SFpef6rkW34N3oj                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x61619a8b9c8e12fde39e38305abd47d083ce3d0e73d791d6171cc0c801f8eb8b                         │
+│  │ Owner: Object ID: ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )       │
+│  │ Version: 6                                                                                     │
+│  │ Digest: 7hwRSV9cP7QCyRRiRLVYcgPyEW47mqA3FueYSBW71EFZ                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0x61bf95b6700f1860468a4a18dadb4eab2c6569c7dc78ee9a5bfd4f0925a07155                         │
+│  │ Owner: Object ID: ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )       │
+│  │ Version: 6                                                                                     │
+│  │ Digest: GbHpJY9M5JQJDEXoj2L9PAmFvtuq83AviLDDB2D56Hea                                           │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ ID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                         │
+│  │ Owner: Shared( 4 )                                                                             │
+│  │ Version: 6                                                                                     │
+│  │ Digest: Gmr5PpYLHKtRLCKNXDjh9f2CgCvD6mn6xPtxr28kPWru                                           │
+│  └──                                                                                              │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                         │
+│  │ Version: 5                                                                                     │
+│  │ Digest: 4uTTFxQq4QB8KjQ9ZZJaE9aweKBQesBJTZ7Mvyyr7d6D                                           │
+│  └──                                                                                              │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x26335657ff4ad9cf5822fa0724bfb8e97f7c62b55b174d3fe204d694c9adb0dd                         │
+│  │ Owner: Account Address ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )  │
+│  │ Version: 6                                                                                     │
+│  │ Digest: FXKiLJi5btD2xHBpe57bL9sKhbci9SFpef6rkW34N3oj                                           │
+│  └──                                                                                              │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 8306800 NANOS                                                                    │
+│    Computation Cost: 1000000 NANOS                                                                │
+│    Computation Cost Burned: 1000000 NANOS                                                         │
+│    Storage Rebate: 7326400 NANOS                                                                  │
+│    Non-refundable Storage Fee: 0 NANOS                                                            │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    5EMVsTA1oQJsYhKXs8oojxANqb3zmqdpAsR9bv98rpu8                                                   │
+│    ArVG3Y8vcdgbpwdqcf8zGU73uhpqb8oM1XWEt3jZNWgr                                                   │
+│    CMarDwtFVXJ8k6cZHhopoE84dmLMX86ddoAWQnXCKFWb                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─────────────────────────────╮
+│ No transaction block events │
+╰─────────────────────────────╯
+
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Object Changes                                                                                                                                                                                                                                                                │
+├───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Created Objects:                                                                                                                                                                                                                                                              │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0x4a5bf3283028282e1335f20b6ab9ff1610d9a2bbe7518fd6c71cef67768eeb9e                                                                                                                                                                                               │
+│  │ Sender: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                                 │
+│  │ Owner: Account Address ( 0x0000000000000000000000000000000000000000000000000000000000000000 )                                                                                                                                                                              │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                                                                                                                                                               │
+│  │ Version: 6                                                                                                                                                                                                                                                                 │
+│  │ Digest: 9ttXCnfC35Pm2XWvTioyByQ2EHC7RvZ74aHrsg3CkLgg                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+│ Mutated Objects:                                                                                                                                                                                                                                                              │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0x26335657ff4ad9cf5822fa0724bfb8e97f7c62b55b174d3fe204d694c9adb0dd                                                                                                                                                                                               │
+│  │ Sender: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                                 │
+│  │ Owner: Account Address ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )                                                                                                                                                                              │
+│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                                                                                                                                                                                               │
+│  │ Version: 6                                                                                                                                                                                                                                                                 │
+│  │ Digest: FXKiLJi5btD2xHBpe57bL9sKhbci9SFpef6rkW34N3oj                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0x61619a8b9c8e12fde39e38305abd47d083ce3d0e73d791d6171cc0c801f8eb8b                                                                                                                                                                                               │
+│  │ Sender: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                                 │
+│  │ Owner: Object ID: ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )                                                                                                                                                                                   │
+│  │ ObjectType: 0x2::dynamic_field::Field<0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::spending_limit_authentication::SpendingLimitFieldName, u64>                                                                                                      │
+│  │ Version: 6                                                                                                                                                                                                                                                                 │
+│  │ Digest: 7hwRSV9cP7QCyRRiRLVYcgPyEW47mqA3FueYSBW71EFZ                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0x61bf95b6700f1860468a4a18dadb4eab2c6569c7dc78ee9a5bfd4f0925a07155                                                                                                                                                                                               │
+│  │ Sender: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                                 │
+│  │ Owner: Object ID: ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )                                                                                                                                                                                   │
+│  │ ObjectType: 0x2::dynamic_field::Field<0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::balance_reserve::BalanceReserveFieldName, 0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::balance_reserve::BalanceReserve<0x2::iota::IOTA>>  │
+│  │ Version: 6                                                                                                                                                                                                                                                                 │
+│  │ Digest: GbHpJY9M5JQJDEXoj2L9PAmFvtuq83AviLDDB2D56Hea                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+│  ┌──                                                                                                                                                                                                                                                                          │
+│  │ ObjectID: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                               │
+│  │ Sender: 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e                                                                                                                                                                                                 │
+│  │ Owner: Shared( 4 )                                                                                                                                                                                                                                                         │
+│  │ ObjectType: 0x92597c4f91213712f0e549e53105939d42fbd13acfa90e604372c5ddaa6735bb::spending_limit_account::SpendingLimitAccount                                                                                                                                               │
+│  │ Version: 6                                                                                                                                                                                                                                                                 │
+│  │ Digest: Gmr5PpYLHKtRLCKNXDjh9f2CgCvD6mn6xPtxr28kPWru                                                                                                                                                                                                                       │
+│  └──                                                                                                                                                                                                                                                                          │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Balance Changes                                                                                   │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0x0000000000000000000000000000000000000000000000000000000000000000 )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: 998                                                                                    │
+│  └──                                                                                              │
+│  ┌──                                                                                              │
+│  │ Owner: Account Address ( 0xf85095ffb25568182dca051fcba8bd456e630072584d0c6d073a0005e639e10e )  │
+│  │ CoinType: 0x2::iota::IOTA                                                                      │
+│  │ Amount: -1980400                                                                               │
+│  └──                                                                                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+</details>
+
+## Expected Behavior
+- Transactions with withdrawal amounts exceeding the spending limit fail with `ESpendingLimitExceeded` error.
+- Multiple withdrawal commands in a single transaction are summed and checked against the limit.
+- The spending limit decreases by the withdrawn amount after each successful withdrawal.
+- Withdrawals from insufficient balance reserves fail with `EInsufficientBalanceReserve`.
+- Only valid `withdraw_from_balance_reserve` calls from the correct package are counted.
+
+## Full Example Code
+
+The complete Move package, including comments and setup logic, is available here:
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="move" label="Move">
+
+**Spending limit account module:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move
+```
+
+**Balance reserve module:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move
+```
+
+**Spending limit authentication helpers:**
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move
+```
+
+</TabItem>
+</Tabs>
