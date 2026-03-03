@@ -15,7 +15,7 @@ export function useAccountSources() {
         queryKey: ACCOUNT_SOURCES_QUERY_KEY,
         queryFn: () =>
             backgroundClient.getStoredEntities<AccountSourceSerializedUI>('accountSources'),
-        gcTime: 0,
+        gcTime: 30 * 1000,
         staleTime: 15 * 1000,
         refetchInterval: 30 * 1000,
         meta: { skipPersistedCache: true },
