@@ -494,6 +494,9 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
+
+        // `u64::MAX - 1` is the max total supply value acceptable by
+        // `iota::balance::increase_supply`
         let genesis_config = GenesisConfig::new_for_benchmarks(
             &ips,
             parameters.epoch_duration_ms,

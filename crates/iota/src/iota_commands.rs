@@ -1211,6 +1211,8 @@ async fn genesis(
                         * iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT
                             as u64;
                 }
+                // `u64::MAX - 1` is the max total supply value acceptable by
+                // `iota::balance::increase_supply`
                 let total_available_amount = (u64::MAX - 1)
                     .saturating_sub(validator_extra)
                     .saturating_sub(faucet_extra);
