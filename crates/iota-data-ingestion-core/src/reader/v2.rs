@@ -43,6 +43,19 @@ use crate::{
 
 const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
 
+// As an optimization, we're trying to request only the fields we actually need.
+const GRPC_CHECKPOINT_STREAM_READ_MASK: &[&str] = &[
+    "checkpoint.summary.bcs",
+    "checkpoint.contents.bcs",
+    "checkpoint.signature",
+    "transactions.transaction.bcs",
+    "transactions.signatures.bcs",
+    "transactions.effects.bcs",
+    "transactions.events.events.bcs",
+    "transactions.input_objects.bcs",
+    "transactions.output_objects.bcs",
+];
+
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
 ///
@@ -340,11 +353,15 @@ impl CheckpointReaderActor {
     /// Fetches checkpoints from the fullnode trough a gRPC streaming connection
     /// and streams them to a channel.
     async fn relay_from_fullnode(&mut self, client: &mut GrpcClient) -> IngestionResult<()> {
+        let readmask = FieldMask::from_paths(GRPC_CHECKPOINT_STREAM_READ_MASK)
+            .display()
+            .to_string();
+
         let mut checkpoints_stream = client
             .stream_checkpoints(
                 Some(self.current_checkpoint_number),
                 None,
-                Some("checkpoint,transactions"),
+                Some(readmask.as_str()),
                 None,
                 None,
             )
