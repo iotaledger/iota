@@ -229,12 +229,17 @@ describe('Transaction inputs', () => {
               "objectId": "0x0000000000000000000000000000000000000000000000000000000000000005",
             },
           },
-          {
-            "$kind": "UnresolvedObject",
-            "UnresolvedObject": {
-              "objectId": "0x0000000000000000000000000000000000000000000000000000000000000006",
-            },
-          },
+			    {
+			      "$kind": "Object",
+			      "Object": {
+			        "$kind": "SharedObject",
+			        "SharedObject": {
+			          "initialSharedVersion": 1,
+			          "mutable": false,
+			          "objectId": "0x0000000000000000000000000000000000000000000000000000000000000006",
+			        },
+			      },
+			    },
 			    {
 			      "$kind": "UnresolvedObject",
 			      "UnresolvedObject": {
