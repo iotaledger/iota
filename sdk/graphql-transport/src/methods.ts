@@ -13,7 +13,12 @@ import type {
     IotaMoveViewCallResults,
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { normalizeStructTag, normalizeIotaAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import {
+    normalizeStructTag,
+    normalizeIotaAddress,
+    parseStructTag,
+    IOTA_TYPE_ARG,
+} from '@iota/iota-sdk/utils';
 
 import type {
     ObjectFilter,
