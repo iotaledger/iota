@@ -13,7 +13,7 @@ import type {
     IotaMoveViewCallResults,
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
+import { normalizeStructTag, normalizeIotaAddress, parseStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 import type {
     ObjectFilter,
@@ -188,9 +188,9 @@ export const RPC_METHODS: {
         );
 
         return {
-            coinType: toShortTypeString(balance.coinType?.repr!),
-            coinObjectCount: balance.coinObjectCount!,
-            totalBalance: balance.totalBalance,
+            coinType: toShortTypeString(balance.coinType?.repr!) || IOTA_TYPE_ARG,
+            coinObjectCount: balance.coinObjectCount || 0,
+            totalBalance: balance.totalBalance || 0,
         };
     },
 
