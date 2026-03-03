@@ -1030,19 +1030,9 @@ impl AuthorityPerEpochStore {
             .expect("Load reconfig state at initialization cannot fail");
 
         let epoch_alive_notify = NotifyOnce::new();
+        // NOTE: `pending_consensus_certificates` will be built after `protocol_config`
+        // is available below.
         let pending_consensus_transactions = tables.get_all_pending_consensus_transactions()?;
-        let pending_consensus_certificates: HashSet<_> = pending_consensus_transactions
-            .iter()
-            .filter_map(|transaction| {
-                if let ConsensusTransactionKind::CertifiedTransaction(certificate) =
-                    &transaction.kind
-                {
-                    Some(*certificate.digest())
-                } else {
-                    None
-                }
-            })
-            .collect();
         assert_eq!(
             epoch_start_configuration.epoch_start_state().epoch(),
             epoch_id
@@ -1070,6 +1060,24 @@ impl AuthorityPerEpochStore {
         );
 
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, chain.1);
+
+        let pending_consensus_certificates: HashSet<_> = if protocol_config.enable_white_flag_flow()
+        {
+            HashSet::new() // no certificates in certificate-less mode
+        } else {
+            pending_consensus_transactions
+                .iter()
+                .filter_map(|transaction| {
+                    if let ConsensusTransactionKind::CertifiedTransaction(certificate) =
+                        &transaction.kind
+                    {
+                        Some(*certificate.digest())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
 
         let execution_component = ExecutionComponents::new(
             &protocol_config,
