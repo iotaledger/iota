@@ -12,17 +12,17 @@ mod _field_impls {
     #[allow(unused_imports)]
     use crate::v0::bcs::BcsDataFieldPathBuilder;
     #[allow(unused_imports)]
-    use crate::v0::event::Events;
+    use crate::v0::event::Event;
     #[allow(unused_imports)]
-    use crate::v0::event::EventsFieldPathBuilder;
+    use crate::v0::event::EventFieldPathBuilder;
     #[allow(unused_imports)]
-    use crate::v0::object::Objects;
+    use crate::v0::object::Object;
     #[allow(unused_imports)]
-    use crate::v0::object::ObjectsFieldPathBuilder;
+    use crate::v0::object::ObjectFieldPathBuilder;
     #[allow(unused_imports)]
-    use crate::v0::signatures::UserSignatures;
+    use crate::v0::signatures::UserSignature;
     #[allow(unused_imports)]
-    use crate::v0::signatures::UserSignaturesFieldPathBuilder;
+    use crate::v0::signatures::UserSignatureFieldPathBuilder;
     #[allow(unused_imports)]
     use crate::v0::types::Digest;
     #[allow(unused_imports)]
@@ -33,6 +33,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -40,6 +41,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -84,6 +86,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -91,6 +94,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -135,6 +139,7 @@ mod _field_impls {
             json_name: "digest",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Digest::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
@@ -142,7 +147,8 @@ mod _field_impls {
             json_name: "events",
             number: 2i32,
             is_optional: true,
-            message_fields: Some(Events::FIELDS),
+            is_map: false,
+            message_fields: Some(Event::FIELDS),
         };
     }
     impl MessageFields for TransactionEvents {
@@ -175,9 +181,9 @@ mod _field_impls {
             self.path.push(TransactionEvents::DIGEST_FIELD.name);
             DigestFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn events(mut self) -> EventsFieldPathBuilder {
+        pub fn events(mut self) -> EventFieldPathBuilder {
             self.path.push(TransactionEvents::EVENTS_FIELD.name);
-            EventsFieldPathBuilder::new_with_base(self.path)
+            EventFieldPathBuilder::new_with_base(self.path)
         }
     }
     impl ExecutedTransaction {
@@ -186,6 +192,7 @@ mod _field_impls {
             json_name: "transaction",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(Transaction::FIELDS),
         };
         pub const SIGNATURES_FIELD: &'static MessageField = &MessageField {
@@ -193,13 +200,15 @@ mod _field_impls {
             json_name: "signatures",
             number: 2i32,
             is_optional: true,
-            message_fields: Some(UserSignatures::FIELDS),
+            is_map: false,
+            message_fields: Some(UserSignature::FIELDS),
         };
         pub const EFFECTS_FIELD: &'static MessageField = &MessageField {
             name: "effects",
             json_name: "effects",
             number: 3i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionEffects::FIELDS),
         };
         pub const EVENTS_FIELD: &'static MessageField = &MessageField {
@@ -207,6 +216,7 @@ mod _field_impls {
             json_name: "events",
             number: 4i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(TransactionEvents::FIELDS),
         };
         pub const CHECKPOINT_FIELD: &'static MessageField = &MessageField {
@@ -214,6 +224,7 @@ mod _field_impls {
             json_name: "checkpoint",
             number: 5i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const TIMESTAMP_FIELD: &'static MessageField = &MessageField {
@@ -221,6 +232,7 @@ mod _field_impls {
             json_name: "timestamp",
             number: 6i32,
             is_optional: true,
+            is_map: false,
             message_fields: None,
         };
         pub const INPUT_OBJECTS_FIELD: &'static MessageField = &MessageField {
@@ -228,14 +240,16 @@ mod _field_impls {
             json_name: "inputObjects",
             number: 7i32,
             is_optional: true,
-            message_fields: Some(Objects::FIELDS),
+            is_map: false,
+            message_fields: Some(Object::FIELDS),
         };
         pub const OUTPUT_OBJECTS_FIELD: &'static MessageField = &MessageField {
             name: "output_objects",
             json_name: "outputObjects",
             number: 8i32,
             is_optional: true,
-            message_fields: Some(Objects::FIELDS),
+            is_map: false,
+            message_fields: Some(Object::FIELDS),
         };
     }
     impl MessageFields for ExecutedTransaction {
@@ -274,9 +288,9 @@ mod _field_impls {
             self.path.push(ExecutedTransaction::TRANSACTION_FIELD.name);
             TransactionFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn signatures(mut self) -> UserSignaturesFieldPathBuilder {
+        pub fn signatures(mut self) -> UserSignatureFieldPathBuilder {
             self.path.push(ExecutedTransaction::SIGNATURES_FIELD.name);
-            UserSignaturesFieldPathBuilder::new_with_base(self.path)
+            UserSignatureFieldPathBuilder::new_with_base(self.path)
         }
         pub fn effects(mut self) -> TransactionEffectsFieldPathBuilder {
             self.path.push(ExecutedTransaction::EFFECTS_FIELD.name);
@@ -294,26 +308,29 @@ mod _field_impls {
             self.path.push(ExecutedTransaction::TIMESTAMP_FIELD.name);
             self.finish()
         }
-        pub fn input_objects(mut self) -> ObjectsFieldPathBuilder {
+        pub fn input_objects(mut self) -> ObjectFieldPathBuilder {
             self.path.push(ExecutedTransaction::INPUT_OBJECTS_FIELD.name);
-            ObjectsFieldPathBuilder::new_with_base(self.path)
+            ObjectFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn output_objects(mut self) -> ObjectsFieldPathBuilder {
+        pub fn output_objects(mut self) -> ObjectFieldPathBuilder {
             self.path.push(ExecutedTransaction::OUTPUT_OBJECTS_FIELD.name);
-            ObjectsFieldPathBuilder::new_with_base(self.path)
+            ObjectFieldPathBuilder::new_with_base(self.path)
         }
     }
     impl ExecutedTransactions {
-        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
-            name: "transactions",
-            json_name: "transactions",
+        pub const EXECUTED_TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
+            name: "executed_transactions",
+            json_name: "executedTransactions",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
     }
     impl MessageFields for ExecutedTransactions {
-        const FIELDS: &'static [&'static MessageField] = &[Self::TRANSACTIONS_FIELD];
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::EXECUTED_TRANSACTIONS_FIELD,
+        ];
     }
     impl ExecutedTransactions {
         pub fn path_builder() -> ExecutedTransactionsFieldPathBuilder {
@@ -335,8 +352,8 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn transactions(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(ExecutedTransactions::TRANSACTIONS_FIELD.name);
+        pub fn executed_transactions(mut self) -> ExecutedTransactionFieldPathBuilder {
+            self.path.push(ExecutedTransactions::EXECUTED_TRANSACTIONS_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
     }

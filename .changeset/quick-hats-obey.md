@@ -1,5 +1,5 @@
 ---
-'@iota/signers': minor
+'@iota/signers': major
 ---
 
 Updated @iota/iota-sdk.
