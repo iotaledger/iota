@@ -103,6 +103,22 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLBalance).toEqual(rpcBalance);
     });
 
+    test('getBalance with zero funds', async () => {
+        const weirdAddress = '0x00001234000000000000000000000000000000';
+        const coinType = '0x02::iota::IOTA';
+
+        const rpcBalance = await toolbox.client.getBalance({
+            owner: weirdAddress,
+            coinType,
+        });
+        const graphQLBalance = await graphQLClient!.getBalance({
+            owner: weirdAddress,
+            coinType,
+        });
+
+        expect(graphQLBalance).toEqual(rpcBalance);
+    });
+
     test('getAllBalances', async () => {
         const rpcBalances = await toolbox.client.getAllBalances({
             owner: toolbox.address(),
