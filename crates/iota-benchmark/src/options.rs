@@ -231,6 +231,12 @@ pub enum RunSpec {
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = ["0-1.0".to_string()])]
         adversarial_cfg: Vec<String>,
 
+        // relative weight of conflicting transfer transactions in the benchmark workload.
+        // Submits pairs of transactions that conflict over the same owned object as a
+        // soft bundle, exercising the white-flag post-consensus conflict resolution.
+        #[clap(long, num_args(1..), value_delimiter = ',', default_values_t = [0])]
+        conflicting_transfer: Vec<u32>,
+
         // type of expected failure transactions in the benchmark workload.
         // See `ExpectedFailureType` enum for `expected_failure_type`
         #[clap(long, num_args(1..), value_delimiter = ',', default_values_t = [0])]

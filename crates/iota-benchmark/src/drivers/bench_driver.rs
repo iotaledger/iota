@@ -53,7 +53,11 @@ use crate::{
     ExecutionEffects, ValidatorProxy,
     drivers::{HistogramWrapper, driver::Driver},
     system_state_observer::SystemStateObserver,
-    workloads::{GroupID, WorkloadInfo, payload::Payload, workload::ExpectedFailureType},
+    workloads::{
+        GroupID, WorkloadInfo,
+        payload::{Payload, SoftBundleExecutionResults, SoftBundleTransactionResult},
+        workload::ExpectedFailureType,
+    },
 };
 pub struct BenchMetrics {
     pub benchmark_duration: IntGauge,
@@ -882,6 +886,67 @@ async fn run_bench_worker(
         }
     };
 
+    // Handles the soft-bundle response (batched payload path).
+    let handle_soft_bundle_response = |results: Result<SoftBundleExecutionResults>,
+                                       start: Arc<Instant>,
+                                       mut payload: Box<dyn Payload>|
+     -> NextOp {
+        let latency = start.elapsed();
+        match results {
+            Ok(bundle_results) => {
+                let had_success = bundle_results
+                    .results
+                    .iter()
+                    .any(|(_, r)| matches!(r, SoftBundleTransactionResult::Executed(_)));
+
+                payload.handle_batch_results(&bundle_results);
+
+                metrics_cloned
+                    .num_in_flight
+                    .with_label_values(&[&payload.to_string()])
+                    .dec();
+
+                if had_success {
+                    metrics_cloned
+                        .latency_s
+                        .with_label_values(&[&payload.to_string()])
+                        .observe(latency.as_secs_f64());
+                    metrics_cloned
+                        .latency_squared_s
+                        .with_label_values(&[&payload.to_string()])
+                        .inc_by(latency.as_secs_f64().powf(2.0));
+                    metrics_cloned
+                        .num_success
+                        .with_label_values(&[&payload.to_string()])
+                        .inc();
+                    NextOp::Response {
+                        latency,
+                        num_commands: 1,
+                        gas_used: 0,
+                        payload,
+                    }
+                } else {
+                    metrics_cloned
+                        .num_error
+                        .with_label_values(&[
+                            &payload.to_string(),
+                            &"soft_bundle_all_rejected".to_string(),
+                        ])
+                        .inc();
+                    NextOp::Failure
+                }
+            }
+            Err(err) => {
+                error!("Soft bundle execution failed: {:?}", err);
+                metrics_cloned
+                    .num_error
+                    .with_label_values(&[&payload.to_string(), &"soft_bundle_error".to_string()])
+                    .inc();
+                NextOp::Failure
+            }
+        }
+    };
+
     // Updates the progress bars. if any of the progress bars are finished then true
     // is returned. False otherwise.
     let update_progress = |increment_by_value: u64| {
@@ -996,19 +1061,39 @@ async fn run_bench_worker(
                 } else {
                     let mut payload = free_pool.pop_front().unwrap();
                     num_in_flight += 1;
-                    num_submitted += 1;
                     metrics_cloned.num_in_flight.with_label_values(&[&payload.to_string()]).inc();
-                    metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
-                    let tx = payload.make_transaction();
-                    let start = Arc::new(Instant::now());
-                    // TODO: clone committee for each request is not ideal.
-                    let committee = worker.proxy.clone_committee();
-                    let res = worker.proxy
-                        .execute_transaction_block(tx.clone())
-                    .then(|res| async move {
-                        handle_execute_transaction_response(res, start, tx, payload, committee)
-                    });
-                    futures.push(Box::pin(res));
+
+                    if payload.is_batched() {
+                        // Soft-bundle path: submit multiple transactions together.
+                        let txs = payload.make_transaction_batch();
+                        let batch_size = txs.len() as u64;
+                        num_submitted += batch_size;
+                        metrics_cloned
+                            .num_submitted
+                            .with_label_values(&[&payload.to_string()])
+                            .inc_by(batch_size);
+                        let start = Arc::new(Instant::now());
+                        let res = worker.proxy
+                            .execute_soft_bundle(txs)
+                            .then(|results| async move {
+                                handle_soft_bundle_response(results, start, payload)
+                            });
+                        futures.push(Box::pin(res));
+                    } else {
+                        // Regular single-transaction path.
+                        num_submitted += 1;
+                        metrics_cloned.num_submitted.with_label_values(&[&payload.to_string()]).inc();
+                        let tx = payload.make_transaction();
+                        let start = Arc::new(Instant::now());
+                        // TODO: clone committee for each request is not ideal.
+                        let committee = worker.proxy.clone_committee();
+                        let res = worker.proxy
+                            .execute_transaction_block(tx.clone())
+                            .then(|res| async move {
+                                handle_execute_transaction_response(res, start, tx, payload, committee)
+                            });
+                        futures.push(Box::pin(res));
+                    }
                 }
             }
             Some(op) = futures.next() => {

@@ -9,6 +9,7 @@ use tracing::info;
 
 use super::{
     adversarial::{AdversarialPayloadCfg, AdversarialWorkloadBuilder},
+    conflicting_transfer::ConflictingTransferWorkloadBuilder,
     expected_failure::{ExpectedFailurePayloadCfg, ExpectedFailureWorkloadBuilder},
     randomized_transaction::RandomizedTransactionWorkloadBuilder,
     randomness::RandomnessWorkloadBuilder,
@@ -40,6 +41,7 @@ pub struct WorkloadWeights {
     pub randomness: u32,
     pub randomized_transaction: u32,
     pub slow: u32,
+    pub conflicting_transfer: u32,
 }
 
 pub struct WorkloadConfig {
@@ -81,6 +83,7 @@ impl WorkloadConfiguration {
                 randomness,
                 randomized_transaction,
                 slow,
+                conflicting_transfer,
                 shared_counter_hotness_factor,
                 num_shared_counters,
                 shared_counter_max_tip,
@@ -116,6 +119,7 @@ impl WorkloadConfiguration {
                             expected_failure: expected_failure[i],
                             randomness: randomness[i],
                             randomized_transaction: randomized_transaction[i],
+                            conflicting_transfer: conflicting_transfer[i],
                             slow: slow[i],
                         },
                         adversarial_cfg: AdversarialPayloadCfg::from_str(&adversarial_cfg[i])
@@ -272,6 +276,7 @@ impl WorkloadConfiguration {
             + weights.randomness
             + weights.expected_failure
             + weights.randomized_transaction
+            + weights.conflicting_transfer
             + weights.slow;
         let reference_gas_price = system_state_observer.state.borrow().reference_gas_price;
         let mut workload_builders = vec![];
@@ -370,6 +375,16 @@ impl WorkloadConfiguration {
             group,
         );
         workload_builders.push(randomized_transaction_workload);
+        let conflicting_transfer_workload = ConflictingTransferWorkloadBuilder::from(
+            weights.conflicting_transfer as f32 / total_weight as f32,
+            target_qps,
+            num_workers,
+            in_flight_ratio,
+            duration,
+            group,
+        );
+        workload_builders.push(conflicting_transfer_workload);
+
         let slow_workload = SlowWorkloadBuilder::from(
             weights.slow as f32 / total_weight as f32,
             target_qps,

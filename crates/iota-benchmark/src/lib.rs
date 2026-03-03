@@ -23,7 +23,7 @@ use futures::TryStreamExt;
 use iota_config::genesis::Genesis;
 use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-    authority_client::NetworkAuthorityClient,
+    authority_client::{AuthorityAPI, NetworkAuthorityClient},
     quorum_driver::{
         QuorumDriver, QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
         reconfig_observer::ReconfigObserver,
@@ -35,7 +35,9 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder, PagedFn};
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{
+        AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+    },
     committee::{Committee, EpochId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -202,6 +204,16 @@ pub trait ValidatorProxy {
     -> Result<IotaSystemStateSummary, anyhow::Error>;
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
+
+    /// Submit multiple transactions as a soft bundle so they arrive at
+    /// consensus together, enabling post-consensus owned-object conflict
+    /// detection (white flag).
+    ///
+    /// Returns one result per input transaction in submission order.
+    async fn execute_soft_bundle(
+        &self,
+        txs: Vec<Transaction>,
+    ) -> anyhow::Result<workloads::payload::SoftBundleExecutionResults>;
 
     fn clone_committee(&self) -> Arc<Committee>;
 
@@ -372,6 +384,85 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         bail!("Transaction {:?} failed for {retry_cnt} times", tx_digest);
     }
 
+    async fn execute_soft_bundle(
+        &self,
+        txs: Vec<Transaction>,
+    ) -> anyhow::Result<workloads::payload::SoftBundleExecutionResults> {
+        use iota_types::messages_grpc::{
+            SubmitTransactionResult, SubmitTransactionsRequest, WaitForEffectsRequest,
+            WaitForEffectsResponse,
+        };
+        use rand::seq::IteratorRandom;
+        use workloads::payload::{SoftBundleExecutionResults, SoftBundleTransactionResult};
+
+        let digests: Vec<TransactionDigest> = txs.iter().map(|t| *t.digest()).collect();
+
+        // Pick a random validator to submit to.
+        let client = self
+            .clients
+            .values()
+            .choose(&mut rand::thread_rng())
+            .ok_or_else(|| anyhow::anyhow!("No validator clients available"))?;
+
+        // Submit all transactions as a single soft bundle.
+        let txs_len = txs.len();
+        let transactions_request = SubmitTransactionsRequest::new_soft_bundle(txs);
+        let submit_resp = client
+            .handle_submit_transactions(transactions_request, None)
+            .await
+            .map_err(|e| anyhow::anyhow!("submit_raw failed: {e}"))?;
+
+        let mut results = Vec::with_capacity(txs_len);
+        match submit_resp.result {
+            SubmitTransactionResult::Executed { .. } => {
+                // TODO: figure out how to handle executed.
+                unreachable!();
+            }
+            SubmitTransactionResult::Rejected { error } => {
+                anyhow::bail!("Soft bundle rejected: {error}");
+            }
+            SubmitTransactionResult::Submitted => {
+                for digest in &digests {
+                    // Wait for effects from the same validator.
+                    let wait_req = WaitForEffectsRequest {
+                        transaction_digest: Some(*digest),
+                        include_details: true,
+                        ping_type: false,
+                    };
+                    let tx_result = match client.handle_wait_for_effects(wait_req, None).await
+                        as Result<WaitForEffectsResponse, iota_types::error::IotaError>
+                    {
+                        Ok(WaitForEffectsResponse::Executed { details, .. }) => {
+                            if let Some(details) = details {
+                                SoftBundleTransactionResult::Executed(Box::new(details.effects))
+                            } else {
+                                SoftBundleTransactionResult::Failed(
+                                    "no effects details".to_string(),
+                                )
+                            }
+                        }
+                        Ok(WaitForEffectsResponse::Rejected { error }) => {
+                            SoftBundleTransactionResult::Rejected(
+                                error
+                                    .map(|e| e.to_string())
+                                    .unwrap_or_else(|| "rejected".to_string()),
+                            )
+                        }
+                        Ok(WaitForEffectsResponse::Expired { .. }) => {
+                            SoftBundleTransactionResult::Failed(
+                                "wait_for_effects expired".to_string(),
+                            )
+                        }
+                        Err(e) => SoftBundleTransactionResult::Failed(e.to_string()),
+                    };
+                    results.push((*digest, tx_result));
+                }
+
+                Ok(SoftBundleExecutionResults { results })
+            }
+        }
+    }
+
     fn clone_committee(&self) -> Arc<Committee> {
         self.qd.clone_committee()
     }
@@ -522,6 +613,13 @@ impl ValidatorProxy for FullNodeProxy {
             }
         }
         bail!("Transaction {:?} failed for {retry_cnt} times", tx_digest);
+    }
+
+    async fn execute_soft_bundle(
+        &self,
+        _txs: Vec<Transaction>,
+    ) -> anyhow::Result<workloads::payload::SoftBundleExecutionResults> {
+        anyhow::bail!("FullNodeProxy does not support execute_soft_bundle")
     }
 
     fn clone_committee(&self) -> Arc<Committee> {

@@ -5,6 +5,7 @@
 pub mod abstract_account;
 pub mod adversarial;
 pub mod batch_payment;
+pub mod conflicting_transfer;
 pub mod delegation;
 pub mod expected_failure;
 pub mod payload;
