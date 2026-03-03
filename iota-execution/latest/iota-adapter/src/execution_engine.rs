@@ -8,7 +8,9 @@ pub use checked::*;
 mod checked {
 
     use std::{
+        cell::RefCell,
         collections::{BTreeMap, BTreeSet, HashSet},
+        rc::Rc,
         sync::Arc,
     };
 
@@ -566,6 +568,7 @@ mod checked {
             };
             AuthContext::new_from_components(authenticator.digest(), ptb)
         };
+        let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 
         // Store the authentication context in the temporary store.
         // It will be added to the authentication's parameter list later, just before

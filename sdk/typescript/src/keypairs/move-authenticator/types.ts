@@ -17,10 +17,13 @@ export type MoveAuthenticatorCallArg =
     | { Pure: Uint8Array };
 
 /**
- * The resolved MoveAuthenticator data structure.
- * Fields match the Rust MoveAuthenticator struct.
+ * The resolved MoveAuthenticator data structure, versioned as a discriminated
+ * union. Add new variants here when new versions are introduced on the Rust side.
  */
-export interface MoveAuthenticatorData {
+export type MoveAuthenticatorData = MoveAuthenticatorDataV1; // future: | MoveAuthenticatorDataV2;
+
+export interface MoveAuthenticatorDataV1 {
+    version: 'V1';
     callArgs: CallArg[];
     typeArgs: string[];
     objectToAuthenticate: ObjectArg;

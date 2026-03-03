@@ -119,6 +119,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 21;
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on testnet.
 //             Enable fast commit syncer for faster recovery in devnet.
+//             Add auth_context_tx native functions costs.
+//             Reduce max_auth_gas in Devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1259,6 +1261,20 @@ pub struct ProtocolConfig {
     /// component is created, having access to metrics and being able to expose
     /// validator scores.
     scorer_version: Option<u16>,
+
+    // `auth_context` module
+    // Cost params for the Move native function `native_digest(): vector<u8>`
+    auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
+    auth_context_tx_commands_cost_base: Option<u64>,
+    auth_context_tx_commands_cost_per_byte: Option<u64>,
+    // Cost params for the Move native function `native_tx_inputs<I>(): vector<I>`
+    auth_context_tx_inputs_cost_base: Option<u64>,
+    auth_context_tx_inputs_cost_per_byte: Option<u64>,
+    // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
+    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    auth_context_replace_cost_base: Option<u64>,
+    auth_context_replace_cost_per_byte: Option<u64>,
 }
 
 // feature flags
@@ -2162,6 +2178,15 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             scorer_version: None,
+
+            // `auth_context` module
+            auth_context_digest_cost_base: None,
+            auth_context_tx_commands_cost_base: None,
+            auth_context_tx_commands_cost_per_byte: None,
+            auth_context_tx_inputs_cost_base: None,
+            auth_context_tx_inputs_cost_per_byte: None,
+            auth_context_replace_cost_base: None,
+            auth_context_replace_cost_per_byte: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2548,6 +2573,19 @@ impl ProtocolConfig {
                         // randomness on testnet.
                         cfg.feature_flags
                             .separate_gas_price_feedback_mechanism_for_randomness = true;
+                    }
+
+                    cfg.auth_context_digest_cost_base = Some(30);
+                    cfg.auth_context_tx_commands_cost_base = Some(30);
+                    cfg.auth_context_tx_commands_cost_per_byte = Some(2);
+                    cfg.auth_context_tx_inputs_cost_base = Some(30);
+                    cfg.auth_context_tx_inputs_cost_per_byte = Some(2);
+                    cfg.auth_context_replace_cost_base = Some(30);
+                    cfg.auth_context_replace_cost_per_byte = Some(2);
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Decrease max_auth_gas to 0.00025 IOTA
+                        cfg.max_auth_gas = Some(250_000);
                     }
                 }
 

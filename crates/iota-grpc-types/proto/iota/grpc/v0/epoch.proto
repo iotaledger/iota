@@ -41,12 +41,14 @@ message ValidatorCommittee {
 
 message ProtocolFeatureFlags {
   option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
 
   map<string, bool> flags = 1;
 }
 
 message ProtocolAttributes {
   option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
 
   map<string, string> attributes = 1;
 }

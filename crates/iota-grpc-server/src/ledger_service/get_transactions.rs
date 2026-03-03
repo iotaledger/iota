@@ -7,6 +7,7 @@ use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
+    read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{GetTransactionsRequest, GetTransactionsResponse, TransactionResult},
@@ -25,8 +26,6 @@ use crate::{
     types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
 };
 
-pub const READ_MASK_DEFAULT: &str = crate::field_mask!("transaction.digest");
-
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
 pub fn validate_get_transaction_requests(
@@ -34,7 +33,8 @@ pub fn validate_get_transaction_requests(
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
     let read_mask = {
-        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+        let read_mask =
+            read_mask.unwrap_or_else(|| FieldMask::from_str(GET_TRANSACTIONS_READ_MASK));
         read_mask
             .validate::<ExecutedTransaction>()
             .map_err(|path| {
@@ -67,6 +67,59 @@ pub fn validate_get_transaction_requests(
     Ok((requests, read_mask))
 }
 
+/// Available Read Mask Fields
+///
+/// The `get_transactions` function supports the following `read_mask` fields to
+/// control which data is included in the response:
+///
+/// ## Transaction Fields
+/// - `transaction` - includes all transaction fields
+///   - `transaction.digest` - the transaction digest
+///   - `transaction.bcs` - the full BCS-encoded transaction
+/// - `signatures` - includes all signature fields
+///   - `signatures.bcs` - the full BCS-encoded signature
+/// - `effects` - includes all effects fields
+///   - `effects.digest` - the effects digest
+///   - `effects.bcs` - the full BCS-encoded effects
+///
+/// ## Event Fields
+/// - `events` - includes all event fields
+///   - `events.digest` - the events digest
+///   - `events.events` - includes all event fields
+///     - `events.events.bcs` - the full BCS-encoded event
+///     - `events.events.package_id` - the ID of the package that emitted the
+///       event
+///     - `events.events.module` - the module that emitted the event
+///     - `events.events.sender` - the sender that triggered the event
+///     - `events.events.event_type` - the type of the event
+///     - `events.events.bcs_contents` - the full BCS-encoded contents of the
+///       event
+///     - `events.events.json_contents` - the JSON-encoded contents of the event
+///
+/// ## Timing Fields
+/// - `checkpoint` - the checkpoint that included the transaction
+/// - `timestamp` - the timestamp of the checkpoint that included the
+///   transaction
+///
+/// ## Object Fields
+/// - `input_objects` - includes all input object fields
+///   - `input_objects.reference` - includes all reference fields
+///     - `input_objects.reference.object_id` - the ID of the input object
+///     - `input_objects.reference.version` - the version of the input object,
+///       which can be used to fetch a specific historical version or the latest
+///       version if not provided
+///     - `input_objects.reference.digest` - the digest of the input object
+///       contents, which can be used for integrity verification
+///   - `input_objects.bcs` - the full BCS-encoded object
+/// - `output_objects` - includes all output object fields
+///   - `output_objects.reference` - includes all reference fields
+///     - `output_objects.reference.object_id` - the ID of the output object
+///     - `output_objects.reference.version` - the version of the output object,
+///       which can be used to fetch a specific historical version or the latest
+///       version if not provided
+///     - `output_objects.reference.digest` - the digest of the output object
+///       contents, which can be used for integrity verification
+///   - `output_objects.bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader))]
 pub(crate) fn get_transactions(
     reader: Arc<GrpcReader>,
@@ -93,7 +146,7 @@ pub(crate) fn get_transactions(
         digest,
         {
             let tx_result = match get_transaction_impl(&reader, &config, digest, &read_mask) {
-                Ok(tx) => TransactionResult::default().with_transaction(tx),
+                Ok(tx) => TransactionResult::default().with_executed_transaction(tx),
                 Err(error) => TransactionResult::default().with_error(error.into_status_proto()),
             };
 
@@ -102,7 +155,7 @@ pub(crate) fn get_transactions(
         },
         max_message_size,
         GetTransactionsResponse,
-        transactions,
+        transaction_results,
         has_next
     ))
 }
@@ -134,10 +187,6 @@ fn get_transaction_impl(
         output_objects: tx_read.output_objects,
     };
 
-    ExecutedTransaction::merge_from(&source, read_mask).map_err(|e| {
-        RpcError::new(
-            tonic::Code::Internal,
-            format!("failed to build executed transaction in get_transaction response: {e}"),
-        )
-    })
+    ExecutedTransaction::merge_from(&source, read_mask)
+        .map_err(|e| e.with_context("failed to merge transaction"))
 }

@@ -30,7 +30,7 @@
         "@iota/iota-names-sdk": "^0.5.1",
         "@iota/iota-sdk": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
-        "@sentry/nextjs": "^7.120.3",
+        "@sentry/nextjs": "^10.40.0",
         "@tanstack/react-query": "^5.50.1",
         "bignumber.js": "^9.1.1",
         "clsx": "^2.1.1",
