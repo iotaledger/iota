@@ -92,6 +92,8 @@ export function ProtectAccountPage() {
                     trackAutoLockUpdated(autoLockToTrack);
                 }
 
+                await backgroundClient.unlockAllAccountsAndSources({ password });
+
                 if (
                     type === AccountsFormType.NewMnemonic &&
                     isMnemonicSerializedUiAccount(createdAccounts[0])

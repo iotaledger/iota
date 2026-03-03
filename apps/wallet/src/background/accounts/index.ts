@@ -117,10 +117,7 @@ export async function changeActiveAccount(accountID: string) {
     });
 }
 
-export async function addNewAccounts<T extends SerializedAccount>(
-    accounts: Omit<T, 'id'>[],
-    { password }: { password?: string } = {},
-) {
+export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit<T, 'id'>[]) {
     const db = await getDB();
     const accountsCreated = await db.transaction('rw', db.accounts, async () => {
         const accountInstances = [];
@@ -154,13 +151,6 @@ export async function addNewAccounts<T extends SerializedAccount>(
         return accountInstances;
     });
     await backupDB();
-    if (password) {
-        for (const account of accountsCreated) {
-            if (isPasswordUnLockable(account)) {
-                await account.passwordUnlock(password);
-            }
-        }
-    }
     accountsEvents.emit('accountsChanged');
     return accountsCreated;
 }
@@ -352,11 +342,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         } else {
             throw new Error(`Unknown accounts type to create ${type}`);
         }
-        const password =
-            'password' in payload.args
-                ? (payload.args as { password: string }).password
-                : undefined;
-        const newAccounts = await addNewAccounts(newSerializedAccounts, { password });
+        const newAccounts = await addNewAccounts(newSerializedAccounts);
         await uiConnection.send(
             createMessage<MethodPayload<'accountsCreatedResponse'>>(
                 {
