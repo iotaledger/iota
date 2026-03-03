@@ -36,7 +36,7 @@ const MAX_TRANSACTIONS_PER_PRUNE_BATCH: u64 = 1000;
 
 /// Maximum number of checkpoints to prune in a single batch for ByCheckpoint
 /// strategy
-const MAX_CHECKPOINTS_PER_PRUNE_BATCH: u64 = 100;
+const MAX_CHECKPOINTS_PER_PRUNE_BATCH: u64 = 1000;
 
 /// Interval for running the pruning task
 const PRUNING_TASK_INTERVAL: Duration = Duration::from_secs(5);
