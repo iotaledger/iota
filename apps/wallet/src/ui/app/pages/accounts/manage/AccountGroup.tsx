@@ -3,13 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import {
-    useAccountSources,
-    useActiveAccount,
-    useBackgroundClient,
-    useCreateAccountsMutation,
-} from '_hooks';
+import { AccountsFormType } from '_components';
+import { useAccountSources, useActiveAccount, useCreateAccountsMutation } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
@@ -76,12 +71,8 @@ export function AccountGroup({
     const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
-    const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
-    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-
-    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -93,13 +84,7 @@ export function AccountGroup({
         const accountsFormType = isMnemonicDerivedGroup
             ? AccountsFormType.MnemonicSource
             : AccountsFormType.SeedSource;
-        setAccountsFormValues({
-            type: accountsFormType,
-            sourceID: accountSource.id,
-        });
-        if (accountSource.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
+        if (!accountSource.isLocked) {
             createAccountsMutation.mutate({
                 type: accountsFormType,
                 sourceFlow: SOURCE_FLOW,
