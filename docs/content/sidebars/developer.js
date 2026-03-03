@@ -447,6 +447,7 @@ const developer = [
                             'developer/move/how-tos/account-abstraction/create-public-key-authentication',
                             'developer/move/how-tos/account-abstraction/create-time-locked-account',
                             'developer/move/how-tos/account-abstraction/create-onesig-account',
+                            'developer/move/how-tos/account-abstraction/create-spending-limit-account'
                         ],
                     },
                     {
