@@ -15,5 +15,6 @@
     ],
     "excludeInternal": true,
     "excludePrivate": true,
-    "intentionallyNotExported": []
+    "intentionallyNotExported": [],
+    "docsUrl": "https://docs.iota.org/developer/ts-sdk/typescript/api"
 }

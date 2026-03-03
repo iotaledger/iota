@@ -8,6 +8,7 @@ import * as path from 'path';
 import dotenv from 'dotenv';
 import type { BuildOptions } from 'esbuild';
 import { build } from 'esbuild';
+import { injectDocLinks } from './injectDocLinks.js';
 
 dotenv.config({
     path: [
@@ -37,6 +38,23 @@ export async function buildPackage(buildOptions?: BuildOptions) {
     await buildCJS(allFiles, packageJson, buildOptions);
     await buildESM(allFiles, packageJson, buildOptions);
     await buildImportDirectories(packageJson);
+    await injectDocLinksIfConfigured();
+}
+
+async function injectDocLinksIfConfigured() {
+    const typedocPath = path.join(process.cwd(), 'typedoc.json');
+    let docsUrl: string | undefined;
+    try {
+        const raw = await fs.readFile(typedocPath, 'utf-8');
+        const config = JSON.parse(raw) as { docsUrl?: string };
+        docsUrl = config.docsUrl;
+    } catch {
+        // No typedoc.json or no docsUrl field — skip silently
+        return;
+    }
+    if (docsUrl) {
+        await injectDocLinks(docsUrl);
+    }
 }
 
 async function findAllFiles(dir: string, files: string[] = []) {
