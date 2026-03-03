@@ -437,9 +437,9 @@ const developer = [
                             type: 'category',
                             label: 'Dynamic Multisig',
                             items: [
-                                'developer/move/how-tos/account-abstraction/dynamic-multisig-account',
-                                'developer/move/how-tos/account-abstraction/multisig-members',
-                                'developer/move/how-tos/account-abstraction/transactions',
+                                'developer/move/how-tos/account-abstraction/dynamic-multisig/dynamic-multisig-account',
+                                'developer/move/how-tos/account-abstraction/dynamic-multisig/multisig-members',
+                                'developer/move/how-tos/account-abstraction/dynamic-multisig/transactions',
                             ],
                             },
                             'developer/move/how-tos/account-abstraction/function-call-keys',
