@@ -164,17 +164,25 @@ impl PrimaryWriter {
             let mut persist_tasks = vec![
                 self.state.persist_transactions(tx_batch),
                 self.state.persist_tx_indices(tx_indices_batch),
-                self.state
-                    .persist_tx_global_order(tx_global_order_batch.clone()),
                 self.state.persist_events(events_batch),
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(display_updates_batch),
                 self.state.persist_packages(packages_batch),
-                self.state.persist_checkpoint_objects(object_changes_batch),
                 self.state
                     .persist_object_history(object_history_changes_batch.clone()),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
+                Box::pin(async {
+                    // We need to persist global order before writing objects, so that optimistic
+                    // indexing is blocked from overwriting objects table with old tx data
+                    // reference: https://github.com/iotaledger/iota/issues/10250
+                    self.state
+                        .persist_tx_global_order(tx_global_order_batch.clone())
+                        .await?;
+                    self.state
+                        .persist_checkpoint_objects(object_changes_batch)
+                        .await
+                }),
             ];
             if let Some(epoch_data) = epoch.clone() {
                 persist_tasks.push(self.state.persist_epoch(epoch_data));
