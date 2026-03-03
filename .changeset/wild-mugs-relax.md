@@ -2,7 +2,6 @@
 '@iota/iota-sdk': patch
 ---
 
-
 Fix system objects to avoid unnecessary network calls
 
 - Clock (0x6) and Random (0x8) now return fully resolved SharedObject references with mutable: false
