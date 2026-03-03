@@ -306,25 +306,6 @@ export function AccountGroup({
                     </Dropdown>
                 </OutsideClickHandler>
             </div>
-            {isPasswordModalVisible ? (
-                <VerifyPasswordModal
-                    open
-                    onVerify={async (password) => {
-                        await backgroundClient.unlockAllAccountsAndSources({
-                            password,
-                        });
-
-                        if (accountsFormValues.current) {
-                            await createAccountsMutation.mutateAsync({
-                                type: accountsFormValues.current.type,
-                                sourceFlow: SOURCE_FLOW,
-                            });
-                        }
-                        setPasswordModalVisible(false);
-                    }}
-                    onClose={() => setPasswordModalVisible(false)}
-                />
-            ) : null}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAccounts, useBackgroundClient, useUnlockMutation } from '_hooks';
+import { useAccounts, useBackgroundClient } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import {
     Button,
@@ -51,7 +51,6 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(true);
 
     const totalAccounts = allAccounts?.data?.length || 0;
-    const unlockAllAccountsMutation = useUnlockMutation();
 
     function handleCancel() {
         setPasswordModalVisible(true);
@@ -70,9 +69,6 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             <VerifyPasswordModal
                 open={isOpen}
                 onVerify={async (password) => {
-                    await unlockAllAccountsMutation.mutateAsync({
-                        password,
-                    });
                     setPasswordModalVisible(false);
                 }}
                 onClose={() => {
