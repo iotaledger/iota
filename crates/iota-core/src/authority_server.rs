@@ -1414,17 +1414,40 @@ impl ValidatorService {
             ));
         }
 
-        if request.is_soft_bundle() {
-            // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
-            let transactions = request.transactions;
-            let n = transactions.len();
+        let transactions = request.transactions;
+        // is_ping() = len() == 0 (handled above); is_soft_bundle() = len() > 1; else =
+        // len() == 1.
+        let is_soft_bundle = transactions.len() > 1;
 
-            // Per-tx validity checks (accumulates total size for the bundle size limit).
-            let mut total_size_bytes: u64 = 0;
-            for tx in &transactions {
-                total_size_bytes +=
-                    tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
+        // Per-tx validity checks. For soft bundles this also accumulates total
+        // serialized size for the bundle size limit.
+        let mut total_size_bytes: u64 = 0;
+        for tx in &transactions {
+            total_size_bytes +=
+                tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
+
+            // System overload check per transaction: check_execution_overload examines
+            // per-transaction input objects (shared objects, object queue depth).
+            if let Err(e) = state.check_system_overload(
+                &consensus_adapter,
+                tx.data(),
+                state.check_system_overload_at_signing(),
+            ) {
+                metrics
+                    .num_rejected_tx_during_overload
+                    .with_label_values(&[e.as_ref()])
+                    .inc_by(transactions.len() as u64);
+                return Err(e.into());
             }
+        }
+
+        // Latency timer starts after pre-flight checks, mirroring handle_transaction
+        // where the timer also starts after the overload check.
+        let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
+
+        if is_soft_bundle {
+            // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
+            let n = transactions.len();
 
             // Bundle-level validity checks (shared-object, size, gas price, already
             // processed).
@@ -1434,28 +1457,6 @@ impl ValidatorService {
                 total_size_bytes,
             )
             .await?;
-
-            // System overload check per transaction, mirroring handle_certificates which
-            // checks per certificate.
-            for tx in &transactions {
-                // TODO: should we just check it once?
-                if let Err(e) = state.check_system_overload(
-                    &consensus_adapter,
-                    tx.data(),
-                    state.check_system_overload_at_signing(),
-                ) {
-                    metrics
-                        .num_rejected_tx_during_overload
-                        .with_label_values(&[e.as_ref()])
-                        .inc();
-                    // TODO: is this how we want to return an error?
-                    return Err(e.into());
-                }
-            }
-
-            // Latency timer starts here, after pre-flight checks, mirroring
-            // handle_transaction where the timer also starts after the overload check.
-            let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
 
             // Verify each transaction's user signature individually.
             // TODO: switch to batch verification once a parallel helper exists.
@@ -1472,7 +1473,9 @@ impl ValidatorService {
             // all transactions are either accepted or rejected together.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
             if !reconfiguration_lock.should_accept_user_certs() {
-                metrics.num_rejected_tx_in_epoch_boundary.inc();
+                metrics
+                    .num_rejected_tx_in_epoch_boundary
+                    .inc_by(transactions.len() as u64);
                 return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
             }
 
@@ -1486,6 +1489,7 @@ impl ValidatorService {
                 .submit_batch(&consensus_txs, Some(&reconfiguration_lock), &epoch_store)
                 .map_err(tonic::Status::from)?;
 
+            // TODO: do we need a vector in the response, since it's all or nothing anyway?
             let results = vec![SubmitTransactionResult::Submitted; n];
             Ok((
                 tonic::Response::new(SubmitTransactionsResponse { results }),
@@ -1493,90 +1497,59 @@ impl ValidatorService {
             ))
         } else {
             // ── Single-transaction path ─────────────────────────────────────────
-            // Each transaction is validated and submitted independently; failures
-            // produce a per-tx Rejected result rather than aborting the whole request.
-            let mut results = Vec::with_capacity(request.transactions.len());
+            let transaction = transactions
+                .into_iter()
+                .next()
+                .expect("single transaction expected: ping and soft-bundle cases already handled");
+            let tx_digest = *transaction.digest();
 
-            for transaction in request.transactions {
-                let tx_digest = *transaction.digest();
+            // Check if already executed.
+            if let Some(effects) =
+                state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
+            {
+                let effects_digest = *effects.digest();
+                // TODO: populate `details` with effects/events/objects to allow the
+                // TransactionDriver to skip the get_full_effects RPC call. The client
+                // already handles Some(details) in effects_certifier.rs.
+                return Ok((
+                    tonic::Response::new(SubmitTransactionsResponse {
+                        results: vec![SubmitTransactionResult::Executed {
+                            effects_digest,
+                            details: None,
+                        }],
+                    }),
+                    Weight::one(),
+                ));
+            }
 
-                // Validity check.
-                if let Err(e) =
-                    transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-                {
-                    results.push(SubmitTransactionResult::Rejected { error: e });
-                    continue;
-                }
+            // Verify user signature.
+            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+            if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
+                metrics.signature_errors.inc();
+                return Err(e.into());
+            }
+            drop(tx_verif_guard);
 
-                // System overload check (authority, execution queue, consensus, pending-tx
-                // backpressure). Mirrors handle_transaction which runs this before starting the
-                // latency timer.
-                if let Err(e) = state.check_system_overload(
-                    &consensus_adapter,
-                    transaction.data(),
-                    state.check_system_overload_at_signing(),
-                ) {
-                    metrics
-                        .num_rejected_tx_during_overload
-                        .with_label_values(&[e.as_ref()])
-                        .inc();
-                    results.push(SubmitTransactionResult::Rejected { error: e });
-                    continue;
-                }
+            // Reconfig check.
+            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+            if !reconfiguration_lock.should_accept_user_certs() {
+                metrics.num_rejected_tx_in_epoch_boundary.inc();
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
 
-                // Latency timer starts here, after pre-flight checks, mirroring
-                // handle_transaction where the timer also starts after the overload check.
-                let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
-
-                // Check if already executed.
-                // TODO: can we call get_transaction_status?
-                if let Some(effects) =
-                    state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
-                {
-                    let effects_digest = *effects.digest();
-                    results.push(SubmitTransactionResult::Executed {
-                        effects_digest,
-                        details: None,
-                    });
-                    continue;
-                }
-
-                // Verify user signature.
-                let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-                if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
-                    metrics.signature_errors.inc();
-                    results.push(SubmitTransactionResult::Rejected { error: e });
-                    continue;
-                }
-                drop(tx_verif_guard);
-
-                // Reconfig check.
-                let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-                if !reconfiguration_lock.should_accept_user_certs() {
-                    metrics.num_rejected_tx_in_epoch_boundary.inc();
-                    results.push(SubmitTransactionResult::Rejected {
-                        error: IotaError::ValidatorHaltedAtEpochEnd,
-                    });
-                    continue;
-                }
-
-                // TODO: check if transaction has been sequenced in this epoch.
-
-                // Submit to consensus.
-                if let Err(e) = consensus_adapter.submit(
+            // Submit to consensus.
+            consensus_adapter
+                .submit(
                     ConsensusTransaction::new_user_transaction(transaction),
                     Some(&reconfiguration_lock),
                     &epoch_store,
-                ) {
-                    results.push(SubmitTransactionResult::Rejected { error: e });
-                    continue;
-                }
-
-                results.push(SubmitTransactionResult::Submitted);
-            }
+                )
+                .map_err(tonic::Status::from)?;
 
             Ok((
-                tonic::Response::new(SubmitTransactionsResponse { results }),
+                tonic::Response::new(SubmitTransactionsResponse {
+                    results: vec![SubmitTransactionResult::Submitted],
+                }),
                 Weight::one(),
             ))
         }
@@ -1635,8 +1608,10 @@ impl ValidatorService {
                     // Fetch detailed execution data if requested
                     let details = if wait_request.include_details {
                         if let Some(effects) = cache.get_executed_effects(&tx_digest) {
-                            let events = if let Some(digest) = effects.events_digest() {
-                                self.state.get_transaction_events(digest).ok()
+                            let events = if effects.events_digest().is_some() {
+                                self.state
+                                    .get_transaction_events(effects.transaction_digest())
+                                    .ok()
                             } else {
                                 None
                             };
