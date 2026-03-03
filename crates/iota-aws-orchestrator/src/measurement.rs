@@ -486,7 +486,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             == IotaBenchmarkType::AbstractAccountBench.to_string()
         {
             table.add_row(row![bH2->"AA config"]);
-            table.add_row(row![b->"Authenticator:", self.parameters.aa_authenticator.cli_str()]);
+            table.add_row(row![b->"Authenticator:", self.parameters.aa_authenticator.to_string()]);
             table.add_row(row![b->"Stress workers:", self.parameters.stress_num_workers]);
             table.add_row(
                 row![b->"Stress in-flight ratio:", self.parameters.stress_in_flight_ratio],

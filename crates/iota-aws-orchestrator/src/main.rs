@@ -9,6 +9,7 @@ use clap::{Parser, ValueEnum};
 use client::{ServerProviderClient, aws::AwsClient};
 use eyre::{Context, Result};
 use faults::FaultsType;
+use iota_benchmark::workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType};
 use measurement::MeasurementsCollection;
 use orchestrator::Orchestrator;
 use protocol::iota::{IotaBenchmarkType, IotaProtocol};
@@ -17,10 +18,7 @@ use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
 
-use crate::{
-    benchmark::{AbstractAccountAuthenticator, RunInterval, TxPayloadObjType},
-    net_latency::TopologyLayout,
-};
+use crate::{benchmark::RunInterval, net_latency::TopologyLayout};
 
 pub mod benchmark;
 pub mod build_cache;
@@ -82,7 +80,7 @@ pub enum Operation {
 
         /// The AA authenticator to use.
         #[arg(long, default_value = "ed25519", global = true)]
-        aa_authenticator: AbstractAccountAuthenticator,
+        aa_authenticator: AuthenticatorKind,
 
         /// Whether the AA transactions should fail.
         #[arg(long, default_value = "false", global = true)]

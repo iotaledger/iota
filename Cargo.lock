@@ -6041,6 +6041,7 @@ dependencies = [
  "duration-str",
  "eyre",
  "futures",
+ "iota-benchmark",
  "iota-build-cache-server",
  "iota-config",
  "iota-metrics",

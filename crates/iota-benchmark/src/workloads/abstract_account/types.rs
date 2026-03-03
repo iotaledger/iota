@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::workloads::abstract_account::AA_MODULE_NAME;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub enum AuthenticatorKind {
+    #[default]
     Ed25519,
     Ed25519Heavy,
     HelloWorld,
@@ -68,8 +69,9 @@ impl std::fmt::Display for AuthenticatorKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Default)]
 pub enum TxPayloadObjType {
+    #[default]
     OwnedObject,
     SharedObject,
 }

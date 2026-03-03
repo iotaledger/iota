@@ -11,9 +11,8 @@ use std::{
 };
 
 use duration_str::parse;
+use iota_benchmark::workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-
-use crate::ValueEnum;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub enum RunInterval {
@@ -59,28 +58,6 @@ impl std::fmt::Display for RunInterval {
     }
 }
 
-#[derive(
-    ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
-)]
-pub enum AbstractAccountAuthenticator {
-    #[default]
-    Ed25519,
-    Ed25519Heavy,
-    HelloWorld,
-    MaxArgs125,
-}
-
-impl AbstractAccountAuthenticator {
-    pub fn cli_str(&self) -> &'static str {
-        match self {
-            Self::Ed25519 => "ed25519",
-            Self::Ed25519Heavy => "ed25519heavy",
-            Self::HelloWorld => "helloworld",
-            Self::MaxArgs125 => "maxargs125",
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct OtelConfig {
     pub otlp_endpoint: String, // example "http://10.0.0.12:4317"
@@ -96,24 +73,6 @@ impl Default for OtelConfig {
             protocol: "grpc".to_string(),
             sampler: "parentbased_traceidratio".to_string(),
             sampler_arg: "0.1".to_string(),
-        }
-    }
-}
-
-#[derive(
-    ValueEnum, Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default,
-)]
-pub enum TxPayloadObjType {
-    #[default]
-    OwnedObject,
-    SharedObject,
-}
-
-impl TxPayloadObjType {
-    pub fn cli_str(&self) -> &'static str {
-        match self {
-            Self::OwnedObject => "owned-object",
-            Self::SharedObject => "shared-object",
         }
     }
 }
@@ -161,7 +120,7 @@ pub struct BenchmarkParameters<T> {
     /// 60s) or a transaction count (e.g., 100_000 txs).
     pub run_interval: RunInterval,
     /// AA workload: which authenticator kind to use.
-    pub aa_authenticator: AbstractAccountAuthenticator,
+    pub aa_authenticator: AuthenticatorKind,
     /// AA workload: whether the transactions should fail.
     pub should_fail: bool,
     /// AA workload: which authenticator kind to use.
@@ -222,7 +181,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             faults: FaultsType::default(),
             load: 500,
             run_interval: RunInterval::Time(Duration::from_secs(60)),
-            aa_authenticator: AbstractAccountAuthenticator::default(),
+            aa_authenticator: AuthenticatorKind::default(),
             should_fail: false,
             tx_payload_obj_type: TxPayloadObjType::default(),
             aa_split_amount: 1_000,
@@ -286,7 +245,7 @@ impl<T> BenchmarkParameters<T> {
         faults: FaultsType,
         load: usize,
         run_interval: RunInterval,
-        aa_authenticator: AbstractAccountAuthenticator,
+        aa_authenticator: AuthenticatorKind,
         should_fail: bool,
         tx_payload_obj_type: TxPayloadObjType,
         stress_num_workers: u64,
@@ -386,7 +345,7 @@ pub struct BenchmarkParametersGenerator<T> {
     pub use_internal_ip_address: bool,
 
     /// AA workload authenticator.
-    aa_authenticator: AbstractAccountAuthenticator,
+    aa_authenticator: AuthenticatorKind,
 
     /// AA workload: whether the transactions should fail.
     should_fail: bool,
@@ -456,9 +415,9 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.faults.clone(),
                 load,
                 self.run_interval,
-                self.aa_authenticator.clone(),
+                self.aa_authenticator,
                 self.should_fail,
-                self.tx_payload_obj_type.clone(),
+                self.tx_payload_obj_type,
                 self.stress_num_workers,
                 self.aa_split_amount,
                 self.stress_in_flight_ratio,
@@ -524,7 +483,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             max_pipeline_delay: 400,
             shared_counter_hotness_factor: None,
             num_shared_counters: None,
-            aa_authenticator: AbstractAccountAuthenticator::default(),
+            aa_authenticator: AuthenticatorKind::default(),
             should_fail: false,
             tx_payload_obj_type: TxPayloadObjType::default(),
             stress_num_workers: 2,
@@ -536,7 +495,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         }
     }
 
-    pub fn with_aa_authenticator(mut self, aa_authenticator: AbstractAccountAuthenticator) -> Self {
+    pub fn with_aa_authenticator(mut self, aa_authenticator: AuthenticatorKind) -> Self {
         self.aa_authenticator = aa_authenticator;
         self
     }
