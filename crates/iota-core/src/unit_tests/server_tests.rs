@@ -383,19 +383,16 @@ async fn test_submit_transaction_invalid_signature() {
         ))
         .await;
 
-    // Should return Ok with Rejected result
-    assert!(result.is_ok(), "Should return Ok with Rejected result");
-    let response = result.unwrap().0.into_inner();
-    assert_eq!(response.results.len(), 1, "Should have one result");
-    match &response.results[0] {
-        SubmitTransactionResult::Rejected { .. } => {
-            // Success - signature error was caught and returned as Rejected
-        }
-        other => panic!(
-            "Expected Rejected result for invalid signature, got {:?}",
-            other
-        ),
-    }
+    // Signature errors now return a hard Err, consistent
+    // with the certificate flow where validity failures are fatal to the caller.
+    assert!(result.is_err(), "Should return Err for invalid signature");
+    let err = result.unwrap_err();
+    assert_eq!(err.code(), tonic::Code::Internal);
+    assert!(
+        err.message().to_lowercase().contains("signature"),
+        "Error message should mention signature, got: {}",
+        err.message()
+    );
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
