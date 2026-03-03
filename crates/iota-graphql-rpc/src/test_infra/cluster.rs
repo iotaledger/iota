@@ -143,10 +143,7 @@ pub async fn serve_executor(
     };
 
     let chain_id = executor.get_chain_identifier().unwrap();
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
-        executor,
-        Some("graphql_grpc_test".into()),
-    ));
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(executor, None));
 
     let executor_server_handle = start_grpc_server(
         grpc_reader,

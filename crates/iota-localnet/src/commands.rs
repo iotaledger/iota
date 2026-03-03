@@ -584,6 +584,15 @@ async fn start(
             .with_network_config(network_config);
     }
 
+    // the indexer and GraphQL services communicate with the fullnode via gRPC, we
+    // must enable it by default.
+    #[cfg(feature = "indexer")]
+    if with_indexer.is_some() || with_graphql.is_some() {
+        // the gRPC api uses default values if config is not provided,
+        // allowing to not override it when provided in fullnode config.
+        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
+    }
+
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
@@ -621,6 +630,21 @@ async fn start(
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
 
     #[cfg(feature = "indexer")]
+    let fullnode_grpc_url = {
+        let socket_addr = swarm
+            .fullnodes()
+            .next()
+            .and_then(|node| {
+                node.config()
+                    .grpc_api_config
+                    .as_ref()
+                    .map(|grpc| grpc.address)
+            })
+            .unwrap_or_else(|| GrpcApiConfig::default().address);
+        format!("http://{socket_addr}")
+    };
+
+    #[cfg(feature = "indexer")]
     if let Some(input) = with_indexer {
         let indexer_address = parse_host_port(input, DEFAULT_INDEXER_PORT)
             .map_err(|_| anyhow!("Invalid indexer host and port"))?;
@@ -643,7 +667,7 @@ async fn start(
             pg_address.clone(),
             false,
             None,
-            fullnode_url.clone(),
+            fullnode_grpc_url.clone(),
             IndexerTypeConfig::reader_mode(indexer_address.to_string()),
             data_ingestion_dir.clone(),
         )
@@ -676,7 +700,7 @@ async fn start(
         };
         start_graphql_server_with_fn_rpc(
             graphql_connection_config,
-            Some(fullnode_url.clone()),
+            Some(fullnode_grpc_url),
             None, // it will be initialized by default
             None, // resolves to default service config
         )
