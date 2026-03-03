@@ -48,7 +48,7 @@ const config = {
         id:'mainnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/mainnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "developer/references/iota-api/iota-graphql/reference/mainnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
