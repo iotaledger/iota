@@ -4,6 +4,7 @@
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::ledger_service::{
         GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
         ledger_service_client::LedgerServiceClient, transaction_result,
@@ -15,7 +16,7 @@ use iota_types::digests::TransactionDigest;
 use prost_types::FieldMask;
 use test_cluster::TestCluster;
 
-use crate::utils::{assert_field_presence, setup_grpc_test};
+use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 /// Helper to create a test transaction and return its digest
 async fn create_test_transaction(test_cluster: &TestCluster) -> TransactionDigest {
@@ -90,6 +91,7 @@ async fn assert_get_transactions_request(
                 assert_field_presence(
                     transaction,
                     expected_field_mask_paths,
+                    &[],
                     &format!("{scenario} (response {response_count}, transaction {idx})"),
                 );
             }
@@ -142,19 +144,10 @@ async fn get_transactions_readmask_scenarios() {
     // fields. So "effects" means "effects.digest" AND "effects.bcs".
     type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
-        // Default readmask (None) - GET_TRANSACTIONS_READ_MASK =
-        // "transaction,signatures,checkpoint,timestamp" "transaction" is a wildcard that
-        // expands to all its sub-fields.
         (
             "default readmask",
             None,
-            vec![
-                "transaction.digest",
-                "transaction.bcs",
-                "signatures",
-                "checkpoint",
-                "timestamp",
-            ],
+            comma_separated_field_mask_to_paths(GET_TRANSACTIONS_READ_MASK),
         ),
         // Empty readmask - returns no fields
         (
@@ -162,31 +155,21 @@ async fn get_transactions_readmask_scenarios() {
             Some(FieldMask::from_paths(&[] as &[&str])),
             vec![],
         ),
-        // Full readmask - returns all implemented fields with explicit nested paths
-        // Note: events may be None if transaction doesn't emit events
-        // Note: signatures, input_objects, output_objects are leaf fields (not
-        // nested) because their inner fields are Vec, not Option
         (
             "full readmask",
             Some(FieldMask::from_paths([
-                "transaction.digest",
-                "transaction.bcs",
+                "transaction",
                 "signatures",
-                "effects.digest",
-                "effects.bcs",
+                "effects",
                 "events",
                 "checkpoint",
                 "timestamp",
             ])),
-            // "events" is a wildcard → server returns events.digest AND events.events.
             vec![
-                "transaction.digest",
-                "transaction.bcs",
+                "transaction",
                 "signatures",
-                "effects.digest",
-                "effects.bcs",
-                "events.digest",
-                "events.events",
+                "effects",
+                "events",
                 "checkpoint",
                 "timestamp",
             ],
@@ -207,10 +190,9 @@ async fn get_transactions_readmask_scenarios() {
         (
             "partial readmask (effects wildcard)",
             Some(FieldMask::from_paths(["effects"])),
-            vec!["effects.digest", "effects.bcs"],
+            vec!["effects"],
         ),
         // Partial readmask: transaction + signatures
-        // Note: signatures is a leaf field, transaction has nested paths
         (
             "partial readmask (transaction + signatures)",
             Some(FieldMask::from_paths(["transaction.digest", "signatures"])),
@@ -253,14 +235,13 @@ async fn get_transactions_batch() {
         digests.push(digest);
     }
 
-    // Test batch request with partial readmask
-    // Note: "effects" without nested paths means all nested fields are included
+    // Test batch request with partial readmask.
     let responses = assert_get_transactions_request(
         &mut ledger_client,
         digests.clone(),
         Some(FieldMask::from_paths(["transaction.digest", "effects"])),
         None,
-        &["transaction.digest", "effects.digest", "effects.bcs"],
+        &["transaction.digest", "effects"],
         "batch with 3 transactions",
     )
     .await;
@@ -291,11 +272,8 @@ async fn get_transactions_streaming() {
         all_digests.extend(digests.iter().cloned());
     }
 
-    // Test streaming by requesting many transactions with full readmask
-    // Use minimum allowed message size to maximize chance of multi-message
-    // streaming
-    // Note: Parent fields without nested paths are wildcards that include all
-    // nested fields
+    // Test streaming by requesting many transactions with full readmask.
+    // Use minimum allowed message size to maximize multi-message streaming.
     let responses = assert_get_transactions_request(
         &mut ledger_client,
         all_digests,
@@ -310,11 +288,9 @@ async fn get_transactions_streaming() {
         ])),
         Some(1024 * 1024_u32), // 1MB (minimum allowed)
         &[
-            "transaction.digest",
-            "transaction.bcs",
+            "transaction",
             "signatures",
-            "effects.digest",
-            "effects.bcs",
+            "effects",
             "checkpoint",
             "timestamp",
             "input_objects",

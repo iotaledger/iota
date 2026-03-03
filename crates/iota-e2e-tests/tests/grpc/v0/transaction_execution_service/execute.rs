@@ -4,6 +4,7 @@
 
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    read_masks::EXECUTE_TRANSACTION_READ_MASK,
     v0::{
         bcs::BcsData,
         signatures::{UserSignature, UserSignatures},
@@ -18,7 +19,7 @@ use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, setup_grpc_test};
+use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 async fn assert_execute_transaction_request(
     exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -42,7 +43,7 @@ async fn assert_execute_transaction_request(
         .unwrap()
         .into_inner();
 
-    assert_field_presence(&response, expected_fields, scenario);
+    assert_field_presence(&response, expected_fields, &[], scenario);
     response
 }
 
@@ -63,18 +64,9 @@ async fn execute_transaction_readmask_scenarios() {
         (
             "default readmask",
             None,
-            // EXECUTE_TRANSACTION_READ_MASK =
-            // "transaction.digest,effects,events,input_objects,output_objects"
-            // "effects" and "events" are wildcards that expand to all their sub-fields.
-            vec![
-                "transaction.digest",
-                "effects.digest",
-                "effects.bcs",
-                "events.digest",
-                "events.events",
-                "input_objects",
-                "output_objects",
-            ],
+            // Bare paths with nested checkers (effects, events) auto-recurse into
+            // all their sub-fields; "transaction.digest" is specific (bcs absent).
+            comma_separated_field_mask_to_paths(EXECUTE_TRANSACTION_READ_MASK),
         ),
         (
             "empty readmask",
@@ -94,13 +86,10 @@ async fn execute_transaction_readmask_scenarios() {
                 "output_objects",
             ])),
             vec![
-                "transaction.digest",
-                "transaction.bcs",
+                "transaction",
                 "signatures",
-                "effects.digest",
-                "effects.bcs",
-                "events.digest",
-                "events.events",
+                "effects",
+                "events",
                 "input_objects",
                 "output_objects",
             ],
@@ -109,7 +98,7 @@ async fn execute_transaction_readmask_scenarios() {
         (
             "nested readmask (multiple specific fields)",
             Some(FieldMask::from_paths(["transaction.digest", "effects"])),
-            vec!["transaction.digest", "effects.digest", "effects.bcs"],
+            vec!["transaction.digest", "effects"],
         ),
     ];
 

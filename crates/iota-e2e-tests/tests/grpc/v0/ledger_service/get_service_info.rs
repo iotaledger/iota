@@ -32,7 +32,7 @@ async fn assert_service_info_request(
         .unwrap()
         .into_inner();
 
-    assert_field_presence(&response, expected_fields, scenario);
+    assert_field_presence(&response, expected_fields, &[], scenario);
     response
 }
 
