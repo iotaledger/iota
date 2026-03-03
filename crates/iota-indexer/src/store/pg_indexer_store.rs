@@ -382,6 +382,7 @@ impl PgIndexerStore {
                 coin_type = EXCLUDED.coin_type,
                 coin_balance = EXCLUDED.coin_balance,
                 df_kind = EXCLUDED.df_kind
+            WHERE EXCLUDED.object_version > objects.object_version
         "#;
         let (objects, tx_digests): (StoredObjects, Vec<_>) = objects
             .into_iter()
@@ -433,27 +434,32 @@ impl PgIndexerStore {
         let len = objects.len();
         let raw_query = r#"
             DELETE FROM objects
-            WHERE object_id IN (
-                SELECT u.object_id
+            USING (
+                SELECT u.object_id, u.object_version
                 FROM UNNEST(
                     $1::BYTEA[],
-                    $2::BYTEA[]
-                ) AS u(object_id, tx_digest)
+                    $2::BIGINT[],
+                    $3::BYTEA[]
+                ) AS u(object_id, object_version, tx_digest)
                 LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
                 WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
-            )
+            ) AS to_delete
+            WHERE objects.object_id = to_delete.object_id
+            AND objects.object_version < to_delete.object_version
         "#;
-        let (object_ids, tx_digests): (Vec<_>, Vec<_>) = objects
+        let (object_ids, versions, tx_digests): (Vec<_>, Vec<_>, Vec<_>) = objects
             .into_iter()
             .map(|removed_object| {
                 (
                     removed_object.object_id().to_vec(),
+                    removed_object.version() as i64,
                     removed_object.transaction_digest.into_inner().to_vec(),
                 )
             })
-            .unzip();
+            .multiunzip();
         let query = diesel::sql_query(raw_query)
             .bind::<Array<Bytea>, _>(object_ids)
+            .bind::<Array<BigInt>, _>(versions)
             .bind::<Array<Bytea>, _>(tx_digests);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
@@ -477,7 +483,7 @@ impl PgIndexerStore {
         conn: &mut PgConnection,
         mutated_object_mutation_chunk: Vec<StoredObject>,
     ) -> Result<(), IndexerError> {
-        on_conflict_do_update!(
+        on_conflict_do_update_with_condition!(
             objects::table,
             mutated_object_mutation_chunk,
             objects::object_id,
@@ -493,6 +499,7 @@ impl PgIndexerStore {
                 objects::coin_balance.eq(excluded(objects::coin_balance)),
                 objects::df_kind.eq(excluded(objects::df_kind)),
             ),
+            excluded(objects::object_version).gt(objects::object_version),
             conn
         );
         Ok::<(), IndexerError>(())
@@ -503,20 +510,22 @@ impl PgIndexerStore {
         conn: &mut PgConnection,
         deleted_objects_chunk: Vec<StoredDeletedObject>,
     ) -> Result<(), IndexerError> {
-        diesel::delete(
-            objects::table.filter(
-                objects::object_id.eq_any(
-                    deleted_objects_chunk
-                        .iter()
-                        .map(|o| o.object_id.clone())
-                        .collect::<Vec<_>>(),
-                ),
-            ),
-        )
-        .execute(conn)
-        .map_err(IndexerError::from)
-        .context("Failed to write object deletion to PostgresDB")?;
-
+        let (object_ids, object_versions): (Vec<_>, Vec<_>) = deleted_objects_chunk
+            .iter()
+            .map(|o| (o.object_id.clone(), o.object_version))
+            .unzip();
+        let raw_query = r#"
+            DELETE FROM objects
+            USING UNNEST($1::BYTEA[], $2::BIGINT[]) AS to_delete(object_id, object_version)
+            WHERE objects.object_id = to_delete.object_id
+            AND objects.object_version < to_delete.object_version
+        "#;
+        diesel::sql_query(raw_query)
+            .bind::<Array<Bytea>, _>(object_ids)
+            .bind::<Array<BigInt>, _>(object_versions)
+            .execute(conn)
+            .map_err(IndexerError::from)
+            .context("Failed to write object deletion to PostgresDB")?;
         Ok::<(), IndexerError>(())
     }
 
