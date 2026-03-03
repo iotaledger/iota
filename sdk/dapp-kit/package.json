@@ -75,7 +75,7 @@
         "vitest": "^2.1.9"
     },
     "dependencies": {
-        "@iota/iota-names-sdk": "^0.5.1",
+        "@iota/iota-names-sdk": "^0.6.1",
         "@iota/iota-sdk": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
         "@radix-ui/react-dialog": "^1.1.1",

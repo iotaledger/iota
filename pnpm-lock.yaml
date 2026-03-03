@@ -241,8 +241,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/graphql-transport
       '@iota/iota-names-sdk':
-        specifier: ^0.5.1
-        version: 0.5.1(@iota/iota-sdk@sdk+typescript)
+        specifier: ^0.6.1
+        version: 0.6.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -483,8 +483,8 @@ importers:
         specifier: 1.7.0-beta.1
         version: 1.7.0-beta.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-names-sdk':
-        specifier: ^0.5.1
-        version: 0.5.1(@iota/iota-sdk@sdk+typescript)
+        specifier: ^0.6.1
+        version: 0.6.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -806,8 +806,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
       '@iota/iota-names-sdk':
-        specifier: ^0.5.1
-        version: 0.5.1(@iota/iota-sdk@sdk+typescript)
+        specifier: ^0.6.1
+        version: 0.6.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -1092,8 +1092,8 @@ importers:
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
       '@iota/iota-names-sdk':
-        specifier: ^0.5.1
-        version: 0.5.1(@iota/iota-sdk@sdk+typescript)
+        specifier: ^0.6.1
+        version: 0.6.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
@@ -1664,8 +1664,8 @@ importers:
   sdk/dapp-kit:
     dependencies:
       '@iota/iota-names-sdk':
-        specifier: ^0.5.1
-        version: 0.5.1(@iota/iota-sdk@sdk+typescript)
+        specifier: ^0.6.1
+        version: 0.6.1(@iota/iota-sdk@sdk+typescript)
       '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
@@ -5997,8 +5997,8 @@ packages:
     peerDependencies:
       '@iota/iota-sdk': ^1.2.0
 
-  '@iota/iota-names-sdk@0.5.1':
-    resolution: {integrity: sha512-Nn0ZytTplGb1hIZb98BCSTOmj8HlLwum2/LqffAW22CzO4JclLXBK7l6DRxqMddZumK8SxFpdX/uCiwxKWZPZg==}
+  '@iota/iota-names-sdk@0.6.1':
+    resolution: {integrity: sha512-PkQ/27CyUbkQZ/Nvq8flAhZhRu5Jici/5CZdS1zUv/1aOhf/ughbJY3/yKda2rjYBGTkhUf2UN8XQf7xshkYCw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@iota/iota-sdk': ^1.10.0
@@ -28104,7 +28104,7 @@ snapshots:
     dependencies:
       '@iota/iota-sdk': link:sdk/typescript
 
-  '@iota/iota-names-sdk@0.5.1(@iota/iota-sdk@sdk+typescript)':
+  '@iota/iota-names-sdk@0.6.1(@iota/iota-sdk@sdk+typescript)':
     dependencies:
       '@iota/iota-sdk': link:sdk/typescript
       '@noble/hashes': 1.8.0
