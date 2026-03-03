@@ -53,3 +53,11 @@ export function groupByType(accounts: SerializedUIAccount[]) {
         ),
     );
 }
+
+/**
+ * Determines if the provided accounts array represents the first account being added.
+ * Returns true if there are no existing accounts.
+ */
+export function isFirstAccount(accounts?: SerializedUIAccount[]): boolean {
+    return !accounts?.length;
+}

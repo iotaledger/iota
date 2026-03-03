@@ -33,16 +33,22 @@ impl TryFrom<&Event> for iota_sdk_types::Event {
 // Convenience methods for Event (delegate to TryFrom)
 impl Event {
     /// Deserialize the event from BCS.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn event(&self) -> Result<iota_sdk_types::Event, TryFromProtoError> {
         self.try_into()
     }
 
     /// Get the package ID of the Move module that emitted this event.
+    ///
+    /// Requires `package_id` in the read_mask.
     pub fn package_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
         get_inner_field!(self.package_id, Self::PACKAGE_ID_FIELD, try_into)
     }
 
     /// Get the module name of the Move module that emitted this event.
+    ///
+    /// Requires `module` in the read_mask.
     pub fn module_name(&self) -> Result<iota_sdk_types::Identifier, TryFromProtoError> {
         self.module
             .as_deref()
@@ -54,11 +60,15 @@ impl Event {
     }
 
     /// Get the sender address of the transaction that emitted this event.
+    ///
+    /// Requires `sender` in the read_mask.
     pub fn sender(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
         get_inner_field!(self.sender, Self::SENDER_FIELD, try_into)
     }
 
     /// Get the type of the event emitted.
+    ///
+    /// Requires `event_type` in the read_mask.
     pub fn type_name(&self) -> Result<iota_sdk_types::StructTag, TryFromProtoError> {
         self.event_type
             .as_deref()
@@ -73,6 +83,8 @@ impl Event {
     ///
     /// This is the serialized event data without the metadata (package, module,
     /// sender, type).
+    ///
+    /// Requires `bcs_contents` in the read_mask.
     pub fn bcs_contents(&self) -> Result<&[u8], TryFromProtoError> {
         self.bcs_contents
             .as_ref()
@@ -81,6 +93,8 @@ impl Event {
     }
 
     /// Get the JSON contents of the event.
+    ///
+    /// Requires `json_contents` in the read_mask.
     pub fn json_contents(&self) -> Result<serde_json::Value, TryFromProtoError> {
         self.json_contents
             .as_ref()

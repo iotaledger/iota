@@ -41,6 +41,7 @@ import {
     type DeriveBipPathAccountsFinder,
     isDeriveBipPathAccountsFinderResponse,
     type PersistAccountsFinder,
+    isPersistAccountsFinderResponse,
     type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
@@ -646,15 +647,24 @@ export class BackgroundClient {
         );
     }
 
-    public async persistAccountsFinder(sourceStrategy: SourceStrategyToPersist) {
-        await lastValueFrom(
+    public async persistAccountsFinder(sourceStrategy: SourceStrategyToPersist): Promise<number> {
+        const response = await lastValueFrom(
             this.sendMessage(
                 createMessage<PersistAccountsFinder>({
                     type: 'persist-accounts-finder',
                     sourceStrategy,
                 }),
-            ).pipe(take(1)),
+            ).pipe(
+                map((msg) => msg.payload),
+                take(1),
+            ),
         );
+
+        if (isPersistAccountsFinderResponse(response)) {
+            return response.numberOfAccountsCreated;
+        }
+
+        return 0;
     }
 
     private loadFeatures() {

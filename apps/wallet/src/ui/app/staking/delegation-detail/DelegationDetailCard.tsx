@@ -50,6 +50,8 @@ interface DelegationDetailCardProps {
     stakedId: string;
 }
 
+const SOURCE_FLOW = 'Delegation detail card';
+
 export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationDetailCardProps) {
     const navigate = useNavigate();
     const {
@@ -141,7 +143,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         navigate(stakeByValidatorAddress);
         ampli.stakeClicked({
             isCurrentlyStaking: true,
-            sourceFlow: 'Delegation detail card',
+            sourceFlow: SOURCE_FLOW,
         });
     }
 

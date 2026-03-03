@@ -1098,7 +1098,11 @@ export interface IotaValidatorSummary {
  * Move code. This function represents the data received by the Move authenticate function during the
  * Account Abstraction authentication flow.
  */
-export interface MoveAuthenticator {
+export type MoveAuthenticator = {
+    V1: MoveAuthenticatorV1;
+};
+/** MoveAuthenticatorV1 is the first version of MoveAuthenticator. */
+export interface MoveAuthenticatorV1 {
     /** Input objects or primitive values */
     call_args: CallArg[];
     /** The object that is authenticated. Represents the account being the sender of the transaction. */

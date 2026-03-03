@@ -114,3 +114,4 @@ crates/iota-aws-orchestrator/assets/logs/
 
 # ignore explorer files
 apps/explorer/public/*.wasm
+docs
