@@ -1386,13 +1386,13 @@ impl ValidatorService {
         } = self.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
-        // Ensure not a fullnode
+        // Ensure not a fullnode.
         fp_ensure!(
             !state.is_fullnode(&epoch_store),
             IotaError::FullNodeCantHandleSubmitTransactions.into()
         );
 
-        // Check feature flag
+        // Check feature flag.
         fp_ensure!(
             epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
@@ -1403,7 +1403,7 @@ impl ValidatorService {
 
         let request = request.into_inner();
 
-        // Handle ping
+        // Handle ping.
         if request.is_ping() {
             // TODO: handle ping response better. Do we even need ping requests?
             return Ok((
@@ -1419,16 +1419,15 @@ impl ValidatorService {
             let transactions = request.transactions;
             let n = transactions.len();
 
-            // Measure total serialized size (and run per-tx validity checks) before
-            // any bundle-level check, mirroring the cert-bundle path which calls
-            // `validity_check` per cert.
+            // Per-tx validity checks (accumulates total size for the bundle size limit).
             let mut total_size_bytes: u64 = 0;
             for tx in &transactions {
                 total_size_bytes +=
                     tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
             }
 
-            // Bundle-level validity checks (shared-object, size, gas price, …).
+            // Bundle-level validity checks (shared-object, size, gas price, already
+            // processed).
             self.submit_transactions_bundle_validity_check(
                 &transactions,
                 &epoch_store,
@@ -1436,25 +1435,48 @@ impl ValidatorService {
             )
             .await?;
 
+            // System overload check per transaction, mirroring handle_certificates which
+            // checks per certificate.
+            for tx in &transactions {
+                // TODO: should we just check it once?
+                if let Err(e) = state.check_system_overload(
+                    &consensus_adapter,
+                    tx.data(),
+                    state.check_system_overload_at_signing(),
+                ) {
+                    metrics
+                        .num_rejected_tx_during_overload
+                        .with_label_values(&[e.as_ref()])
+                        .inc();
+                    // TODO: is this how we want to return an error?
+                    return Err(e.into());
+                }
+            }
+
+            // Latency timer starts here, after pre-flight checks, mirroring
+            // handle_transaction where the timer also starts after the overload check.
+            let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
+
             // Verify each transaction's user signature individually.
             // TODO: switch to batch verification once a parallel helper exists.
+            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
             for tx in &transactions {
                 if let Err(e) = epoch_store.verify_transaction(tx.clone()) {
                     metrics.signature_errors.inc();
                     return Err(e.into());
                 }
             }
+            drop(tx_verif_guard);
 
             // Acquire the reconfiguration lock once for the whole bundle so that
             // all transactions are either accepted or rejected together.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
             if !reconfiguration_lock.should_accept_user_certs() {
+                metrics.num_rejected_tx_in_epoch_boundary.inc();
                 return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
             }
 
             // Build consensus messages and submit as an atomic batch.
-            // submit_batch now accepts both CertifiedTransaction and UserTransactionV1
-            // homogeneous bundles.
             let consensus_txs: Vec<_> = transactions
                 .into_iter()
                 .map(ConsensusTransaction::new_user_transaction)
@@ -1471,84 +1493,93 @@ impl ValidatorService {
             ))
         } else {
             // ── Single-transaction path ─────────────────────────────────────────
+            // Each transaction is validated and submitted independently; failures
+            // produce a per-tx Rejected result rather than aborting the whole request.
             let mut results = Vec::with_capacity(request.transactions.len());
+
             for transaction in request.transactions {
-                let result = self
-                    .submit_single_transaction_to_consensus(
-                        transaction,
-                        &state,
-                        &epoch_store,
-                        &consensus_adapter,
-                        &metrics,
-                    )
-                    .await?;
-                results.push(result);
+                let tx_digest = *transaction.digest();
+
+                // Validity check.
+                if let Err(e) =
+                    transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
+                {
+                    results.push(SubmitTransactionResult::Rejected { error: e });
+                    continue;
+                }
+
+                // System overload check (authority, execution queue, consensus, pending-tx
+                // backpressure). Mirrors handle_transaction which runs this before starting the
+                // latency timer.
+                if let Err(e) = state.check_system_overload(
+                    &consensus_adapter,
+                    transaction.data(),
+                    state.check_system_overload_at_signing(),
+                ) {
+                    metrics
+                        .num_rejected_tx_during_overload
+                        .with_label_values(&[e.as_ref()])
+                        .inc();
+                    results.push(SubmitTransactionResult::Rejected { error: e });
+                    continue;
+                }
+
+                // Latency timer starts here, after pre-flight checks, mirroring
+                // handle_transaction where the timer also starts after the overload check.
+                let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
+
+                // Check if already executed.
+                // TODO: can we call get_transaction_status?
+                if let Some(effects) =
+                    state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
+                {
+                    let effects_digest = *effects.digest();
+                    results.push(SubmitTransactionResult::Executed {
+                        effects_digest,
+                        details: None,
+                    });
+                    continue;
+                }
+
+                // Verify user signature.
+                let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+                if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
+                    metrics.signature_errors.inc();
+                    results.push(SubmitTransactionResult::Rejected { error: e });
+                    continue;
+                }
+                drop(tx_verif_guard);
+
+                // Reconfig check.
+                let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+                if !reconfiguration_lock.should_accept_user_certs() {
+                    metrics.num_rejected_tx_in_epoch_boundary.inc();
+                    results.push(SubmitTransactionResult::Rejected {
+                        error: IotaError::ValidatorHaltedAtEpochEnd,
+                    });
+                    continue;
+                }
+
+                // TODO: check if transaction has been sequenced in this epoch.
+
+                // Submit to consensus.
+                if let Err(e) = consensus_adapter.submit(
+                    ConsensusTransaction::new_user_transaction(transaction),
+                    Some(&reconfiguration_lock),
+                    &epoch_store,
+                ) {
+                    results.push(SubmitTransactionResult::Rejected { error: e });
+                    continue;
+                }
+
+                results.push(SubmitTransactionResult::Submitted);
             }
 
-            // TODO: handle retries (will be implemented later)
             Ok((
                 tonic::Response::new(SubmitTransactionsResponse { results }),
                 Weight::one(),
             ))
         }
-    }
-
-    /// Validates and submits a single transaction to consensus.
-    /// Returns the appropriate `SubmitTxResult`.
-    async fn submit_single_transaction_to_consensus(
-        &self,
-        transaction: Transaction,
-        state: &Arc<AuthorityState>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        consensus_adapter: &Arc<ConsensusAdapter>,
-        metrics: &Arc<ValidatorServiceMetrics>,
-    ) -> IotaResult<SubmitTransactionResult> {
-        let tx_digest = *transaction.digest();
-        // TODO: those checks should be done way earlier
-        // Validity check
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
-            return Ok(SubmitTransactionResult::Rejected { error: e });
-        }
-
-        // Consensus overload check
-        if let Err(e) = consensus_adapter.check_consensus_overload() {
-            return Ok(SubmitTransactionResult::Rejected { error: e });
-        }
-
-        // Check if already executed
-        if let Some(effects) = state.get_signed_effects_and_maybe_resign(&tx_digest, epoch_store)? {
-            let effects_digest = *effects.digest();
-            return Ok(SubmitTransactionResult::Executed {
-                effects_digest,
-                details: None,
-            });
-        }
-
-        // Verify user signature
-        if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
-            metrics.signature_errors.inc();
-            return Ok(SubmitTransactionResult::Rejected { error: e });
-        }
-
-        // Submit to consensus
-        let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-        if !reconfiguration_lock.should_accept_user_certs() {
-            return Ok(SubmitTransactionResult::Rejected {
-                error: IotaError::ValidatorHaltedAtEpochEnd,
-            });
-        }
-        // TODO: check if transaction has been executed in this epoch
-
-        let consensus_tx = ConsensusTransaction::new_user_transaction(transaction);
-        if let Err(e) =
-            consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), epoch_store)
-        {
-            return Ok(SubmitTransactionResult::Rejected { error: e });
-        }
-
-        Ok(SubmitTransactionResult::Submitted)
     }
 
     async fn handle_wait_for_effects_impl(
