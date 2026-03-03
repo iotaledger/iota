@@ -342,10 +342,20 @@ impl ConsensusAdapter {
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
+        let is_pending_consensus_certificates_empty =
+            if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In the certificate-less mode, the list of pending consensus
+                // certificates is always empty.
+                true
+            } else {
+                epoch_store.pending_consensus_certificates_empty()
+            };
+
+
         if epoch_store
             .get_reconfig_state_read_lock_guard()
             .is_reject_user_certs()
-            && epoch_store.pending_consensus_certificates_empty()
+            && is_pending_consensus_certificates_empty
         {
             // If `recovered` does not contain `EndOfPublish` yet, we need to insert it.
             if !recovered
