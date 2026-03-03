@@ -382,6 +382,7 @@ impl PgIndexerStore {
                 coin_type = EXCLUDED.coin_type,
                 coin_balance = EXCLUDED.coin_balance,
                 df_kind = EXCLUDED.df_kind
+            WHERE EXCLUDED.object_version > objects.object_version
         "#;
         let (objects, tx_digests): (StoredObjects, Vec<_>) = objects
             .into_iter()
@@ -482,7 +483,7 @@ impl PgIndexerStore {
         conn: &mut PgConnection,
         mutated_object_mutation_chunk: Vec<StoredObject>,
     ) -> Result<(), IndexerError> {
-        on_conflict_do_update!(
+        on_conflict_do_update_with_condition!(
             objects::table,
             mutated_object_mutation_chunk,
             objects::object_id,
@@ -498,6 +499,7 @@ impl PgIndexerStore {
                 objects::coin_balance.eq(excluded(objects::coin_balance)),
                 objects::df_kind.eq(excluded(objects::df_kind)),
             ),
+            excluded(objects::object_version).gt(objects::object_version),
             conn
         );
         Ok::<(), IndexerError>(())
