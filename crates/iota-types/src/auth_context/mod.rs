@@ -126,8 +126,9 @@ impl AuthContext {
         }
     }
 
-    // Move test only API
-    //
+    /// Replaces the contents of the `AuthContext` with new values. This is
+    /// intended for use within a Move test function, as the `AuthContext`
+    /// should be immutable during normal use.
     pub fn replace(
         &mut self,
         auth_digest: MoveAuthenticatorDigest,
