@@ -24,10 +24,10 @@ use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
     base_types::TransactionEffectsDigest,
     effects::TransactionEffectsAPI,
-    message_envelope::Message,
     error::*,
     fp_ensure,
     iota_system_state::IotaSystemState,
+    message_envelope::Message,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
@@ -1473,6 +1473,17 @@ impl ValidatorService {
             }
             drop(tx_verif_guard);
 
+            // Early bail-out during epoch boundary, before running expensive deny checks.
+            if !epoch_store
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_user_certs()
+            {
+                metrics
+                    .num_rejected_tx_in_epoch_boundary
+                    .inc_by(transactions.len() as u64);
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
+
             // Content validation: deny checks + owned object version validation.
             for verified_tx in &verified_transactions {
                 let owned_objects = state
@@ -1557,6 +1568,15 @@ impl ValidatorService {
                 }
             };
             drop(tx_verif_guard);
+
+            // Early bail-out during epoch boundary, before running expensive deny checks.
+            if !epoch_store
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_user_certs()
+            {
+                metrics.num_rejected_tx_in_epoch_boundary.inc();
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
 
             // Content validation: deny checks + owned object version validation.
             let owned_objects = state
