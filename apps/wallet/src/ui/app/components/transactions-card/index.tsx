@@ -107,12 +107,16 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
             <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
-                        txnFailed={!isTransactionSuccess}
                         variant={transactionAction}
+                        txnFailed={!isTransactionSuccess}
                     />
                 </CardImage>
                 <CardBody
-                    title={error ? 'Transaction Failed' : (summary?.label ?? 'Unknown')}
+                    title={
+                        error
+                            ? `Failed - ${summary?.label ?? 'Unknown'}`
+                            : (summary?.label ?? 'Unknown')
+                    }
                     subtitle={transactionDate}
                 />
                 <CardAction
