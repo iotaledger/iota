@@ -11,60 +11,32 @@ import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction /> 
 
-## About Function Call Keys
+This how-to demonstrates how to attach function-call-key based delegation to an IOTAccount, allowing the owner to delegate specific Move function calls to other public keys.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
 
-Function-call keys let an account owner delegate specific Move function calls to other public keys.
-The account's `authenticate` implements two flows: an owner bypass (full power) and a **delegated** flow that only allows a single, pre-approved Move function call per transaction.
+## Example Code
 
-## What this example shows
-
-- Create an IOTAccount with an owner public key and an attached FunctionCallKeysStore.
-- Grant / revoke a function permission to a delegated public key.
-- authenticate that:
-    - verifies owner signatures (owner bypass), or
-    - verifies delegated signatures and enforces exactly one PTB command whose (package,module,function) is pre-approved.
-
-## Example code (core functionality)
-
-### Create account & attach function-call-keys store
+1. Create an IOTAccount with an owner public key and an attached function-call-keys store.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L73-L102
 ```
 
-**What this does**
-- Builds and shares an `IOTAccount` that stores the owner public key and an empty function-call allow-set as a dynamic field.
-
-### Grant / Revoke / Check permission (owner-only)
+2. Grant, revoke, or check a function permission for a delegated public key (owner-only).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L166-L222
 ```
 
-**What this does**
-
-- Owner can add or remove a `(package,module,function)` tuple for a delegated `pub_key`.
-- `has_permission` is a read-only query used by the authenticator.
-
-### Core authenticator — dual flow (owner / function-call-key)
+3. Define the core authenticator with dual flow: owner bypass (full power) or delegated key (single pre-approved function call per transaction).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L111-L164
 ```
 
-**What this does**
-- Owner signature ⇒ immediate allow (no function checks).
-- Delegated signature ⇒ require exactly one command and that `(package,module,function)` be allowed for that delegated key.
-
-### Store: FunctionRef type + allow/disallow/is_allowed + extractor
+4. Define the FunctionCallKeysStore with FunctionRef type, allow/disallow operations, and PTB extractor.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys_store.move#L40-L127
 ```
 
-**What this does**
-
-- FunctionRef canonicalizes a Move function identity.
-- Store maps pub_key -> set(FunctionRef) and provides idempotent allow/disallow checks.
-- extract_function_ref converts a PTB MoveCall into the canonical FunctionRef the authenticator checks.
-
-## Verify the result
+## Verify the Result
 
 **Owner grants permission**
 

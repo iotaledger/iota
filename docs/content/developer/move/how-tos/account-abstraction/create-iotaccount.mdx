@@ -9,57 +9,30 @@ tags:
 
 import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
-<AccountAbstraction /> 
+<AccountAbstraction />
 
-## About IOTAccount
+This how-to demonstrates how to create an `IOTAccount` with a builder, attach dynamic fields, and rotate the authenticator.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
 
-`IOTAccount` is a small, generic account primitive used as a base for other account flavors (multisig, function-call-keys, public-key accounts, …). It stores all per-account data as dynamic fields so implementations can extend or rotate behavior without changing the account address.
+## Example Code
 
-## What this example shows
-- How to safely construct an `IOTAccount` with an `AuthenticatorFunctionRefV1`.
-- How to attach / borrow / rotate dynamic fields (and the optional admin).
-- How to rotate the attached authenticator (account-level key rotation / recovery).
-- View helpers to read address/uid and to borrow the attached authenticator.
-
-## Example code (core snippets)
-
-### Builder / create account
-
+1. Build and share an `IOTAccount` by creating a temporary builder, attaching an authenticator, and calling [`account::create_account_v1`](../../../references/framework/devnet/iota/account.mdx#function-create_account_v1).
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L69-L114
 ```
-
-**What this does**
-
-- Creates a temporary `IOTAccountBuilder`, attaches an authenticator, and shares the final IOTAccount object via `account::create_account_v1`.
-- Returns the account address so CLI examples can reference it.
-
-### Attach / add dynamic field while building
+2. Add an arbitrary dynamic field to the account during build time.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L84-L92
 ```
-
-**What this does**
-- Adds any arbitrary dynamic field to the account during build time (used to attach public-key field, function-call-keys store, etc.)
-
-### Add / remove / borrow dynamic fields at runtime (account-only)
+3. Add, remove, or borrow dynamic fields at runtime (account-only).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L115-L162
 ```
-
-**What this does**
-- Shows how account-controlled calls can add or mutate dynamic fields; protects these operations by verifying the transaction sender is the account.
-
-### Rotate authenticator (account or admin)
+4. Rotate the authenticator function reference (account or admin only).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L181-L193
 ```
 
-**What this does**
-- Allows rotating the account-level authenticator function reference (useful for recovery or upgrades). Protected so only account or configured admin can call it.
-
-## Verify the result
-
-**Verify the public key is attached to the account**
+## Verify the Result
 
 ```bash
 DYNAMIC_FIELD_JSON=$(iota client dynamic-field $ABSTRACTACCOUNT --json)

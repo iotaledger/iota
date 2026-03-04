@@ -11,82 +11,45 @@ import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction /> 
 
-## About Public Key Authentication
+This how-to demonstrates how to create and authenticate an IOTAccount using public key verification.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
 
-Public key authentication allows an IOTAccount to verify transactions using cryptographic signatures. The account stores a public key as a dynamic field, and authenticators verify signatures against this key to authenticate transactions.
+## Example Code
 
-## What this example shows
+1. Attach and manage public keys as dynamic fields on an account.
 
-- Create an IOTAccount with a public key for authentication.
-- Support multiple signature schemes: Ed25519, Secp256k1, and Secp256r1.
-- Attach, rotate, and manage public keys on an IOTAccount.
-- Authenticate transactions by verifying signatures against the stored public key.
-
-## Example code (core functionality)
-
-### Attach and manage public keys
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move#L42-L63
 ```
 
-**What this does**
-- Attaches a public key to an account as a dynamic field.
-- Allows rotating or detaching the public key when needed.
-
-### Public key authenticators (Ed25519, Secp256k1, Secp256r1)
+2. Define public key authenticators for different cryptographic schemes (Ed25519, Secp256k1, Secp256r1).
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move#L67-L92
 ```
 
-**What this does**
-- Verifies signatures using the stored public key for different cryptographic schemes.
-- Each authenticator checks that the signature is valid for the transaction digest.
-
-### Create IOTAccount with public key
+3. Create an IOTAccount with an attached public key and authenticator.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L31-L52
 ```
 
-**What this does**
-- Creates a new IOTAccount with an attached public key and authenticator.
-- Optionally sets an admin address for account management.
-
-### Attach public key to builder
+4. Attach a public key when building an IOTAccount via the builder pattern.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L56-L58
 ```
 
-**What this does**
-- Helper function to attach a public key when building an IOTAccount.
-
-### Rotate public key and authenticator
+5. Rotate the public key and authenticator function in a single operation.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L63-L74
 ```
 
-**What this does**
-- Updates both the public key and the authenticator function in a single operation.
-- Only the account itself can perform this rotation.
-
-### Add public key to existing account
+6. Add a public key to an existing account that doesn't already have one.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L79-L90
 ```
 
-**What this does**
-- Attaches a public key to an account that doesn't already have one.
-- Updates the authenticator function to use the new public key.
-
-### IOTAccount authenticators
+7. Define IOTAccount-level authenticator functions for Ed25519, Secp256k1, and Secp256r1.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L96-L125
 ```
 
-**What this does**
-- Provides authenticator functions for Ed25519, Secp256k1, and Secp256r1 signatures.
-- Each authenticator verifies the signature against the account's stored public key.
-
-### View functions
+8. Use view functions to check if an account has a public key and to borrow it.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L130-L137
 ```
 
-**What this does**
-- Utility functions to check if an account has a public key and to borrow the public key.
-
-## Verify the result
+## Verify the Result
 
 
 **Create account with Ed25519 public key**

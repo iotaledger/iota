@@ -11,120 +11,57 @@ import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction /> 
 
-## About account abstraction
+This how-to demonstrates how to build a dynamic multisig account using Account Abstraction, with on-chain approvals, weighted members, and threshold-based authorization.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../../explanations/account-abstraction.mdx).
 
-Account Abstraction lets you attach a Move `authenticate` function to a shared account object. The runtime will call that function to decide whether a transaction where the account is the sender is allowed.
+## Example Code
 
-In this example, the authenticator enforces **multi-party approval** by checking on-chain approvals stored as
-dynamic fields on the account object.
-
-## What this example shows
-
-This how-to demonstrates how Account Abstraction can be used to build a **dynamic multisig account**:
-
-- Create a shared account object with members, weights and threshold.  
-- Store per-account proposed transaction digests and approvals on-chain.  
-- An `authenticate` function that verifies a transaction digest has enough member approvals before allowing the account to send the TX.  
-- How to update members/threshold and rotate authenticators.
-
-## Example code
-
-Below is the **minimal core code** required to implement a dynamic multisig account.  
-The full package contains additional helpers and modules, but this snippet highlights only the essential logic.
-
-### Define the multisig account object
+1. Define the multisig account object.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L44-L48
 ```
 
-**What this does**
-- Defines the abstract account object.
-- id becomes the account address.
-- All multisig state (members, threshold, txs) will live as dynamic fields under this object.
-
-### Define dynamic field keys (account state)
+2. Define dynamic field keys to namespace account state.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L34-L43
 ```
 
-**What this does**
-- Namespaces account state cleanly.
-- Each key maps to one logical piece of account data:
-  -  members list
-  -  approval threshold
-  -  proposed transactions
-
-### Create the multisig account and attach authenticator
+3. Create the multisig account with members, threshold, and authenticator.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L51-L79
 ```
 
-**What this does**
-- Creates members with weights.
-- Verifies `threshold ≤ total member weight`.
-- Creates a shared account object.
-- Stores all multisig state as dynamic fields.
-- Attaches the authenticator → converts it into an abstract account.
-
-### Update members, threshold, and authenticator
+4. Update members, threshold, and authenticator while keeping the same account address.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L80-L109
 ```
 
-**What this does**
-
-- Enables dynamic multisig:
-  -  add/remove members
-  -  change weights
-  -  update threshold
-- Keeps the same account address.
-- Old approvals from removed members are ignored automatically.
-
-### Propose a transaction (on-chain)
+5. Propose a transaction by storing its digest on-chain.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L110-L122
 ```
 
-**What this does**
-- Any member can propose a transaction.
-- Stores only the digest, not full tx bytes.
-- Proposer is automatically the first approver.
-
-### Approve a transaction
+6. Approve a proposed transaction (records approval on-chain, prevents duplicates).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L124-L139
 ```
 
-**What this does**
-- Records approval on-chain.
-- Prevents duplicate approvals.
-- Updates approval weight used during authentication.
-
-### Remove a transaction (account-only)
+7. Remove an executed or cancelled transaction proposal (account-only).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L140-L154
 ```
 
-**What this does**
-- Garbage-collects executed or cancelled proposals.
-- Can only be called via an **account-approved transaction**.
-
-### Track approvals for a transaction
+8. Track approval weight for a transaction (ignores removed members).
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L193-L212
 ```
 
-**What this does**
-- Computes approval weight, not count.
-- Ignores approvals from removed members.
-- This value is later checked by the authenticator.
-
-### Core authenticator (account abstraction)
+9. Define the core authenticator that checks approval weight against the threshold.
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L155-L170
 ```
 
-## Verify the result:
+## Verify the Result
 
 **Multisig approval succeeded (propose + approve worked)**
 
@@ -394,17 +331,6 @@ Transaction Digest: x6MuoDJBEps84RbXMAPYW5wbq31QXhUQCmZv8Sw5214
 ```
 
 </details>
-
-After deploying and using this dynamic multisig account implementation:
-
-- A shared abstract account address is created that represents the multisig wallet.
-- Account state (members, weights, threshold, proposed transactions) is stored as dynamic fields under the account object.
-- Members can propose transactions by submitting only the transaction digest on-chain.
-- Other members can approve the same transaction digest, and approvals are accumulated by weight, not by count.
-- When a transaction is submitted with the multisig account as the sender, the attached authenticator is executed automatically by the runtime.
-- The transaction is allowed only if total approval weight ≥ threshold; otherwise it is rejected during validation.
-- Members, weights, threshold, and even the authenticator itself can be updated without changing the account address.
-- Old approvals from removed members are automatically ignored, keeping the approval logic consistent.
 
 ## Expected Behavior
 

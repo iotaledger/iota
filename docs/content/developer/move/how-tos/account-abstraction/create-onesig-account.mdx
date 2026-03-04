@@ -11,81 +11,36 @@ import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction /> 
 
-## About OneSig
+This how-to demonstrates how to execute multiple transactions with a single signature using Merkle tree-based authentication.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
 
-OneSig enables executing multiple transactions with a single signature by using a Merkle tree structure for transaction authorization. The account verifies signatures against a Merkle root representing authorized transactions and validates each transaction using Merkle proofs.
+## Example Code
 
-This implementation is based on the [OneSig protocol](https://github.com/LayerZero-Labs/OneSig) and demonstrates how to batch-authorize transactions efficiently.
-
-## What this example shows
-
-- Create a OneSigAccount with public key authentication.
-- Build a Merkle tree from multiple transaction digests.
-- Authenticate transactions using Merkle root signatures and proofs.
-- Execute pre-authorized transactions with single-signature verification.
-
-## How it works
-
-### Step 1: Create the account
-
-First, create a OneSigAccount with a public key that will be used to sign the Merkle root of authorized transactions.
+1. Create a OneSigAccount with a public key for signature verification.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L40-L55
 ```
 
-**What this does**
-- Creates a new OneSigAccount as a shared object.
-- Attaches the public key for signature verification.
-- Sets up the authenticator function for Merkle-based authentication.
-
-### Step 2: Build Merkle tree from transaction digests
-
-Generate multiple unsigned transactions and build a Merkle tree from their digests. This creates a single root hash and individual proofs for each transaction.
+2. Build a Merkle tree from multiple transaction digests to create a root hash and individual proofs.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/merkle.move#L106-L165
 ```
 
-**What this does**
-- Takes multiple transaction digests (leaves) as input.
-- Builds a Merkle tree using Keccak256 hashing with sorted pairs.
-- Returns the Merkle root and a proof for each transaction.
-- Each proof allows verifying that a specific transaction is part of the authorized set.
-
-### Step 3: Verify Merkle root with signature
-
-The authenticator verifies that the provided signature matches the Merkle root, confirming the signer authorized this batch of transactions.
+3. Verify the Merkle root with an Ed25519 signature against the account's public key.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L90-L97
 ```
 
-**What this does**
-- Verifies the Ed25519 signature against the Merkle root using the account's public key.
-- Ensures only the account owner can authorize transaction batches.
-
-### Step 4: Verify individual transaction with Merkle proof
-For each transaction execution, verify that the transaction digest is part of the authorized Merkle tree.
+4. Verify each individual transaction digest against the Merkle tree using its proof.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L100-L111
 ```
 
-**What this does**
-- Extracts the transaction digest from the transaction context.
-- Verifies the Merkle proof against the root to confirm this transaction was authorized.
-- Rejects transactions not included in the original Merkle tree.
-
-### Step 5: OneSig authenticator (combines verification)
+5. Combine both verification steps in the OneSig authenticator.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L63-L74
 ```
 
-**What this does**
-- Combines both verification steps: signature check and Merkle proof validation.
-- Ensures transactions are both signed by the owner and part of the authorized batch.
-
-### Step 6: Merkle proof verification functions
+6. Define the Merkle proof verification functions.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/merkle.move#L21-L43
 ```
 
-**What this does**
-- Verifies a Merkle proof using Keccak256 hashing with lexicographically sorted pairs.
-- Supports both pre-hashed leaves and raw byte inputs.
-
-## Verify the result
+## Verify the Result
 
 **Create OneSigAccount**
 ```bash
