@@ -25,8 +25,8 @@ use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
-        VerifiedOwnShard, VerifiedTransactions,
+        ShardWithProofAPI, ShardWithProofV1, SignedBlockHeader, TransactionsCommitment,
+        VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -334,7 +334,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
             let shard: ShardWithProof =
-                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+                if !self.context.protocol_config.consensus_fast_commit_sync() {
+                    // For backward compatibility, we still support ShardWithProofV1 during the
+                    // epoch during which nodes are upgraded to a new software version. Peers
+                    // running an old version will still send ShardWithProofV1 without the enum
+                    // wrapping. We can remove this support after we are sure
+                    // all peers have been updated to send versioned ShardWithProof.
+                    let shard_v1: ShardWithProofV1 = bcs::from_bytes(serialized_shard)
+                        .map_err(ConsensusError::MalformedShard)?;
+                    ShardWithProof::V1(shard_v1)
+                } else {
+                    bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?
+                };
 
             if shard.round() >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
@@ -734,9 +745,24 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
         if let Some(shard_for_core) = shard_for_core {
-            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
-                .map_err(ConsensusError::SerializationFailure)?
-                .into();
+            let serialized_shard_for_core: Bytes = match shard_for_core {
+                // For backward compatibility, we still support ShardWithProofV1 during the
+                // epoch during which nodes are upgraded to a new software version. Because of
+                // peers running an old version will still need to send
+                // ShardWithProofV1 without the enum wrapping. We can remove this
+                // support after we are sure all peers have been updated to send
+                // versioned ShardWithProof.
+                ShardWithProof::V1(shard_v1)
+                    if !self.context.protocol_config.consensus_fast_commit_sync() =>
+                {
+                    bcs::to_bytes(&shard_v1)
+                        .map_err(ConsensusError::SerializationFailure)?
+                        .into()
+                }
+                _ => bcs::to_bytes(&shard_for_core)
+                    .map_err(ConsensusError::SerializationFailure)?
+                    .into(),
+            };
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
                 gen_transaction_ref,
