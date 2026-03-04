@@ -8,7 +8,7 @@ import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
@@ -36,9 +36,6 @@ export function SiteConnectPage() {
     const accountGroups = useAccountGroups();
     const accounts = accountGroups.list();
     const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value ?? [];
-
-    // Track which request IDs have already fired the dappConnectStarted event
-    const trackedRequestIDs = useRef<Set<string>>(new Set());
 
     const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() => {
         const preselectedAccounts = activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
@@ -113,8 +110,7 @@ export function SiteConnectPage() {
     );
 
     useEffect(() => {
-        if (permissionRequest && requestID && !trackedRequestIDs.current.has(requestID)) {
-            trackedRequestIDs.current.add(requestID);
+        if (permissionRequest && requestID) {
             const resolvedName = resolveApplicationName(
                 permissionRequest.name,
                 permissionRequest.origin,
