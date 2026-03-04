@@ -16,9 +16,6 @@ import { Warning, Info } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { SidePanel } from '_src/polyfills/sidepanel';
 import { resolveApplicationName } from '_src/shared/utils';
-import { useFeature } from '@growthbook/growthbook-react';
-import { Feature } from '@iota/core';
-import { type DAppEntry } from '../../components/iota-apps/IotaApp';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
@@ -35,7 +32,6 @@ export function SiteConnectPage() {
     const activeAccount = useActiveAccount();
     const accountGroups = useAccountGroups();
     const accounts = accountGroups.list();
-    const ecosystemApps = useFeature<DAppEntry[]>(Feature.WalletDapps).value ?? [];
 
     const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() => {
         const preselectedAccounts = activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
@@ -67,21 +63,19 @@ export function SiteConnectPage() {
                         allowed,
                     }),
                 );
-                const resolvedName = resolveApplicationName(
+                const resolvedAppName = resolveApplicationName(
                     permissionRequest.name,
                     permissionRequest.origin,
-                    permissionRequest.pagelink,
-                    ecosystemApps,
                 );
                 ampli.respondedToConnectionRequest({
-                    applicationName: resolvedName,
+                    applicationName: resolvedAppName,
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
                 handleOnFinish();
             }
         },
-        [requestID, accountsToConnect, permissionRequest, dispatch, ecosystemApps],
+        [requestID, accountsToConnect, permissionRequest, dispatch],
     );
     useEffect(() => {
         if (!loading && !permissionRequest) {
@@ -110,19 +104,13 @@ export function SiteConnectPage() {
     );
 
     useEffect(() => {
-        if (permissionRequest && requestID) {
-            const resolvedName = resolveApplicationName(
-                permissionRequest.name,
-                permissionRequest.origin,
-                permissionRequest.pagelink,
-                ecosystemApps,
-            );
+        if (permissionRequest) {
             ampli.dappConnectStarted({
-                applicationName: resolvedName,
+                applicationName: permissionRequest.name || permissionRequest.origin,
                 applicationUrl: permissionRequest.origin,
             });
         }
-    }, [permissionRequest, requestID, ecosystemApps]);
+    }, [permissionRequest]);
 
     return (
         <Loading loading={loading}>

@@ -47,8 +47,6 @@ export function useConnectedApps() {
                     const resolvedName = resolveApplicationName(
                         aPermission.name,
                         aPermission.origin,
-                        aPermission.pagelink,
-                        ecosystemApps,
                     );
 
                     return {

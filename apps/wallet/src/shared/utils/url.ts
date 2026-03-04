@@ -64,36 +64,14 @@ export function getAppNameFromOrigin(origin: string): string {
     }
 }
 
-export interface EcosystemApp {
-    link: string;
-    name: string;
-    [key: string]: unknown;
-}
-
 /**
- * Resolves application name by matching with ecosystem apps or parsing from origin
- * Prioritizes provided name, then matched ecosystem app name, then parsed origin name
+ * Resolves application name from permission request or origin
+ * Prioritizes provided name, then parses from origin
  */
-export function resolveApplicationName(
-    permissionName: string | undefined,
-    origin: string,
-    pagelink: string | undefined,
-    ecosystemApps: EcosystemApp[],
-): string {
-    // Try to match with ecosystem apps
-    const matchedEcosystemApp = ecosystemApps.find((app) => {
-        const originAdj = prepareLinkToCompare(origin);
-        const pagelinkAdj = pagelink ? prepareLinkToCompare(pagelink) : null;
-        const appLinkAdj = prepareLinkToCompare(app.link);
-        return originAdj === appLinkAdj || pagelinkAdj === appLinkAdj;
-    });
-
-    // Return in priority order: permission name > ecosystem app name > parsed origin name
+export function resolveApplicationName(permissionName: string | undefined, origin: string): string {
+    // Return in priority order: permission name > parsed origin name
     if (permissionName) {
         return permissionName;
-    }
-    if (matchedEcosystemApp?.name) {
-        return matchedEcosystemApp.name;
     }
     return getAppNameFromOrigin(origin);
 }
