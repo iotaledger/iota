@@ -565,6 +565,9 @@ impl IotaTransactionBlockKind {
                                     },
                                 )
                             }
+                          _ => unimplemented!(
+                            "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                        ),
                         })
                         .collect(),
                 })
