@@ -64,6 +64,7 @@ iota-metrics.workspace = true
 iota-names.workspace = true
 iota-network-stack.workspace = true
 iota-package-resolver.workspace = true
+iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
 iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
