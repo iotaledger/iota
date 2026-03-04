@@ -321,6 +321,9 @@ pub async fn init_bench_objects(
     // Take a gas object to pay for this init transaction
     let gas_obj = init_coin.0;
 
+    // Standard GAS_BUDGET is not enough for this transaction since it creates many
+    // objects. We set a higher gas budget here since we know this
+    // transaction will create many objects and we don't want to run out of gas.
     let gas_budget = 2_000_000_000u64;
 
     let sender = owner.0;

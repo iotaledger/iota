@@ -99,7 +99,7 @@ impl FromStr for ExpectedFailureType {
 impl Distribution<ExpectedFailureType> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ExpectedFailureType {
         // Exclude the "Random" variant
-        let n = rng.gen_range(1..ExpectedFailureType::COUNT);
+        let n = rng.gen_range(1..ExpectedFailureType::COUNT - 1);
         ExpectedFailureType::iter().nth(n).unwrap()
     }
 }
