@@ -210,6 +210,7 @@ impl CongestionTracker {
     /// get the highest minimum clearing price, if any exists. The 'clearing'
     /// gas price means the underlying transaction was not cancelled due
     /// congestion.
+    #[allow(dead_code)]
     pub fn get_prediction_suggested_gas_price_legacy(
         &self,
         transaction: &TransactionData,
