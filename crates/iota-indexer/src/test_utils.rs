@@ -49,7 +49,7 @@ use crate::{
 ///             .unwrap()
 ///     });
 ///
-/// let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+/// let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
 ///     Arc::new(sim),
 ///     data_ingestion_path,
 ///     None,
