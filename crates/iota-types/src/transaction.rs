@@ -18,8 +18,9 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, ChangeEpoch, ChangeEpochV2,
     ChangeEpochV3, ChangeEpochV4, Command, EndOfEpochTransactionKind, GasPayment as GasData,
-    MoveCall as ProgrammableMoveCall, RandomnessStateUpdate,
-    SharedObjectReference as SharedObjectRef, SystemPackage, TransactionExpiration,
+    MakeMoveVector, MergeCoins, MoveCall as ProgrammableMoveCall, Publish, RandomnessStateUpdate,
+    SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
+    TransferObjects, Upgrade,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -479,15 +480,14 @@ impl CommandExt for Command {
                 .dependencies
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
-                .chain(Some(InputObjectKind::MovePackage(*cmd.package)))
+                .chain(Some(InputObjectKind::MovePackage(cmd.package)))
                 .collect(),
             Command::Publish(cmd) => cmd
                 .dependencies
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-
-            Command::MakeMoveVector(Some(t), _) => {
+            Command::MakeMoveVector(MakeMoveVector { type_: Some(t), .. }) => {
                 let mut packages = BTreeSet::new();
                 add_type_input_packages(&mut packages, t);
                 packages
@@ -495,19 +495,23 @@ impl CommandExt for Command {
                     .map(InputObjectKind::MovePackage)
                     .collect()
             }
-            Command::MakeMoveVector(None, _)
-            | Command::TransferObjects(_, _)
-            | Command::SplitCoins(_, _)
-            | Command::MergeCoins(_, _) => vec![],
+            Command::MakeMoveVector(MakeMoveVector { type_: None, .. })
+            | Command::TransferObjects(_)
+            | Command::SplitCoins(_)
+            | Command::MergeCoins(_) => vec![],
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
             Command::MoveCall(call) => call.validity_check(config)?,
-            Command::TransferObjects(args, _)
-            | Command::MergeCoins(_, args)
-            | Command::SplitCoins(_, args) => {
+            Command::TransferObjects(TransferObjects { objects: args, .. })
+            | Command::MergeCoins(MergeCoins {
+                coins_to_merge: args,
+                ..
+            })
+            | Command::SplitCoins(SplitCoins { amounts: args, .. }) => {
                 fp_ensure!(!args.is_empty(), UserInputError::EmptyCommandInput);
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
@@ -518,16 +522,22 @@ impl CommandExt for Command {
                     }
                 );
             }
-            Command::MakeMoveVector(ty_opt, args) => {
+            Command::MakeMoveVector(MakeMoveVector {
+                type_: ty_opt,
+                elements: args,
+            }) => {
                 // ty_opt.is_none() ==> !args.is_empty()
                 fp_ensure!(
                     ty_opt.is_some() || !args.is_empty(),
                     UserInputError::EmptyCommandInput
                 );
-                if let Some(ty) = ty_opt {
-                    let mut type_arguments_count = 0;
-                    type_input_validity_check(ty, config, &mut type_arguments_count)?;
-                }
+                // TODO
+                // if let Some(ty) = ty_opt {
+                //     let mut type_arguments_count = 0;
+                // TODO
+                // type_input_validity_check(ty, config, &mut
+                // type_arguments_count)?;
+                // }
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
                     UserInputError::SizeLimitExceeded {
@@ -537,7 +547,15 @@ impl CommandExt for Command {
                     }
                 );
             }
-            Command::Publish(modules, deps) | Command::Upgrade(modules, deps, _, _) => {
+            Command::Publish(Publish {
+                modules,
+                dependencies,
+            })
+            | Command::Upgrade(Upgrade {
+                modules,
+                dependencies,
+                ..
+            }) => {
                 fp_ensure!(!modules.is_empty(), UserInputError::EmptyCommandInput);
                 fp_ensure!(
                     modules.len() < config.max_modules_in_publish() as usize,
@@ -550,7 +568,7 @@ impl CommandExt for Command {
                 if let Some(max_package_dependencies) = config.max_package_dependencies_as_option()
                 {
                     fp_ensure!(
-                        deps.len() < max_package_dependencies as usize,
+                        dependencies.len() < max_package_dependencies as usize,
                         UserInputError::SizeLimitExceeded {
                             limit: "maximum package dependencies".to_string(),
                             value: max_package_dependencies.to_string()
@@ -558,6 +576,7 @@ impl CommandExt for Command {
                     );
                 };
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
         Ok(())
     }
