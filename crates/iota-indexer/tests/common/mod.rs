@@ -11,6 +11,7 @@ use std::{
 use diesel::{QueryDsl, RunQueryDsl};
 use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
+use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
     config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
@@ -43,6 +44,7 @@ use jsonrpsee::{
     types::ErrorObject,
 };
 use simulacrum::Simulacrum;
+use simulacrum_server::start_simulacrum_grpc_server;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
@@ -151,7 +153,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         // reset the existing db
         true,
         None,
-        cluster.rpc_url().to_string(),
+        cluster.grpc_url(),
         IndexerTypeConfig::writer_mode(None, pruning_options),
         None,
     )
@@ -427,22 +429,27 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     database_name: Option<&str>,
     db_init_hook: Option<DBInitHook>,
 ) -> (
-    JoinHandle<()>,
+    GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
 ) {
-    let server_url = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
-    let server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(sim)
-            .start_service(server_url)
-            .await;
-    });
+    let address = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
+
+    let config = iota_config::node::GrpcApiConfig {
+        address,
+        ..Default::default()
+    };
+
+    let server_handle = start_simulacrum_grpc_server(sim, config, Default::default())
+        .await
+        .unwrap();
+
     // Starts indexer
     let (pg_store, pg_handle, _) = start_test_indexer(
         db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
-        format!("http://{server_url}"),
+        format!("http://{address}"),
         IndexerTypeConfig::writer_mode(
             Some(SnapshotLagConfig {
                 snapshot_min_lag: 5,
@@ -461,7 +468,7 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     data_ingestion_path: PathBuf,
     database_name: Option<&str>,
 ) -> (
-    JoinHandle<()>,
+    GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
