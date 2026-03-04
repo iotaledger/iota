@@ -3970,9 +3970,18 @@ pub(crate) fn process_auth_args(
         .map(|args| {
             args.iter()
                 .map(|arg| {
-                    IotaJsonValue::from_str(arg).unwrap_or_else(|_| {
+                    // Use bracket-aware parsing only for array-like args
+                    // (e.g. "[0xAA,0xBBCC]"), so that nested vectors are
+                    // correctly split. Everything else is kept as a JSON
+                    // string, which the resolver handles for u64, hex
+                    // bytes, addresses, object IDs, etc.
+                    if arg.starts_with('[') {
+                        IotaJsonValue::from_str(arg).unwrap_or_else(|_| {
+                            IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap()
+                        })
+                    } else {
                         IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap()
-                    })
+                    }
                 })
                 .collect()
         })
