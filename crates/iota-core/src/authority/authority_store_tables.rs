@@ -491,7 +491,7 @@ impl AuthorityPerpetualTables {
         self.total_iota_supply.unsafe_clear()?;
         self.expected_storage_fund_imbalance.unsafe_clear()?;
         self.object_per_epoch_marker_table.unsafe_clear()?;
-        self.objects.rocksdb.flush()?;
+        self.objects.db.flush()?;
         Ok(())
     }
 
