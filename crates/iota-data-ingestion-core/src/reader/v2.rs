@@ -139,8 +139,8 @@ impl RemoteStore {
                     }
                     // fallback to REST API if gRPC fails
                     Err(e) => {
-                        debug!("unable to establish a gRPC connection to fullnode: {e}");
-                        info!("using REST API as checkpoint stream");
+                        info!("unable to establish a gRPC connection to fullnode: {e}");
+                        info!("fallback to REST API as checkpoint stream");
                         RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
                     }
                 }
