@@ -8,6 +8,7 @@ export {
     type IotaTransportSubscribeOptions,
     type HttpHeaders,
     type IotaHTTPTransportOptions,
+    type RequestInspector,
     IotaHTTPTransport,
 } from './http-transport.js';
 export {

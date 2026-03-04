@@ -47,6 +47,7 @@ feature_flags:
   calculate_validator_scores: true
   adjust_rewards_by_score: true
   pass_calculated_validator_scores_to_advance_epoch: true
+  consensus_fast_commit_sync: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -81,7 +82,7 @@ max_move_object_size: 256000
 max_move_package_size: 102400
 max_publish_or_upgrade_per_ptb: 5
 max_tx_gas: 50000000000
-max_auth_gas: 250000000
+max_auth_gas: 250000
 max_gas_price: 100000
 max_gas_computation_bucket: 5000000
 gas_rounding_step: 1000
@@ -323,3 +324,10 @@ max_committee_members_count: 100
 consensus_gc_depth: 60
 max_congestion_limit_overshoot_per_commit: 100
 scorer_version: 1
+auth_context_digest_cost_base: 30
+auth_context_tx_commands_cost_base: 30
+auth_context_tx_commands_cost_per_byte: 2
+auth_context_tx_inputs_cost_base: 30
+auth_context_tx_inputs_cost_per_byte: 2
+auth_context_replace_cost_base: 30
+auth_context_replace_cost_per_byte: 2

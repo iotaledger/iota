@@ -187,7 +187,7 @@ impl IndexStoreTables {
         }) || self.is_indexed_watermark_out_of_date(checkpoint_store)
     }
 
-    // Check if the index watermark is behind the highets_executed watermark.
+    // Check if the index watermark is behind the highest_executed_checkpoint.
     fn is_indexed_watermark_out_of_date(&self, checkpoint_store: &CheckpointStore) -> bool {
         let highest_executed_checkpoint = checkpoint_store
             .get_highest_executed_checkpoint_seq_number()

@@ -21,6 +21,7 @@ mod _field_impls {
             json_name: "reference",
             number: 1i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(ObjectReference::FIELDS),
         };
         pub const BCS_FIELD: &'static MessageField = &MessageField {
@@ -28,6 +29,7 @@ mod _field_impls {
             json_name: "bcs",
             number: 2i32,
             is_optional: true,
+            is_map: false,
             message_fields: Some(BcsData::FIELDS),
         };
     }
@@ -72,6 +74,7 @@ mod _field_impls {
             json_name: "objects",
             number: 1i32,
             is_optional: false,
+            is_map: false,
             message_fields: Some(Object::FIELDS),
         };
     }

@@ -10,6 +10,26 @@
 pub mod field;
 pub mod headers;
 pub mod proto;
+pub mod read_masks;
+
+/// Joins field names with commas to build a read mask string constant.
+///
+/// # Example
+/// ```
+/// use iota_grpc_types::field_mask;
+///
+/// const MASK: &str = field_mask!("transaction.digest", "effects.bcs");
+/// assert_eq!(MASK, "transaction.digest,effects.bcs");
+/// ```
+#[macro_export]
+macro_rules! field_mask {
+    ($field:literal) => {
+        $field
+    };
+    ($first:literal, $($rest:literal),+ $(,)?) => {
+        concat!($first, ",", $crate::field_mask!($($rest),+))
+    };
+}
 
 // Re-export google namespace
 pub mod google {

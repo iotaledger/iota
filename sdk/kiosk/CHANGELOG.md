@@ -1,5 +1,46 @@
 # @iota/kiosk
 
+## 0.7.0
+
+### Minor Changes
+
+-   b65347f: Remove MatchAny filter when loading owned kiosks. This may result in an extra request,
+    and a change of cursor format when loading owned kiosks
+-   c1282a6: Update fee calculation to happen via dry runs to improve the display of transactions
+    within the wallet.
+
+### Patch Changes
+
+-   54c7803: Update @types/node to v24.
+-   f5a4569: Fix transaction construction for royalty_rule::fee_amount
+-   40d44e8: Use default pagination limit when loading kiosks
+-   Updated dependencies [43cfa2b]
+-   Updated dependencies [3bcb711]
+-   Updated dependencies [0296e7d]
+-   Updated dependencies [54c7803]
+-   Updated dependencies [b903c0a]
+-   Updated dependencies [f5a4569]
+-   Updated dependencies [19c174f]
+-   Updated dependencies [8bd4574]
+-   Updated dependencies [5fc7e20]
+-   Updated dependencies [7a61cb5]
+-   Updated dependencies [f2b8160]
+-   Updated dependencies [abcdd2f]
+-   Updated dependencies [d5923e9]
+-   Updated dependencies [6fc20db]
+-   Updated dependencies [b72bfd2]
+-   Updated dependencies [38657f6]
+-   Updated dependencies [7fa1fde]
+-   Updated dependencies [2164846]
+-   Updated dependencies [4dc4b84]
+-   Updated dependencies [58891a9]
+-   Updated dependencies [924bf18]
+-   Updated dependencies [21a4820]
+-   Updated dependencies [ffbb296]
+-   Updated dependencies [088c577]
+-   Updated dependencies [0cc417d]
+    -   @iota/iota-sdk@1.11.0
+
 ## 0.6.2
 
 ### Patch Changes

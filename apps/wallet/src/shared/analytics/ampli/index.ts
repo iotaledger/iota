@@ -69,6 +69,14 @@ export type LoadOptions =
     | LoadOptionsWithClientInstance;
 
 export interface AccountCreationStartedProperties {
+    accountOrigin?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+    isFirstAccount?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -77,19 +85,13 @@ export interface AccountCreationStartedProperties {
     sourceFlow?: string;
 }
 
-export interface AccountsAddedProperties {
+export interface AccountDeletedProperties {
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
     accountType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    numberOfAccounts?: number;
 }
 
 export interface AccountKeysExportedProperties {
@@ -100,6 +102,30 @@ export interface AccountKeysExportedProperties {
      */
     accountType?: string;
 }
+
+export interface AccountsAddedProperties {
+    accountOrigin?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+    isFirstAccount?: boolean;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    numberOfAccounts?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    sourceFlow?: string;
+}
+
 export interface AddedAccountsProperties {
     /**
      * | Rule | Value |
@@ -142,6 +168,7 @@ export interface ApplicationOpenedProperties {
 }
 
 export interface AppsBannerCtaClickedProperties {
+    bannerUrl?: string;
     /**
      * | Rule | Value |
      * |---|---|
@@ -333,15 +360,18 @@ export interface CollectibleCardClickedProperties {
      * | Regex |  |
      */
     collectibleType?: string;
+}
+
+export interface CollectibleHiddenProperties {
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
-    objectId?: string;
+    collectibleType?: string;
 }
 
-export interface CollectibleHiddenProperties {
+export interface CollectibleSentProperties {
     /**
      * | Rule | Value |
      * |---|---|
@@ -392,24 +422,10 @@ export interface DisconnectedApplicationProperties {
 
 export interface ElementCopiedProperties {
     type: string;
-    value?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | private, public |
-     */
-    visibility?: 'private' | 'public';
 }
 
 export interface ExternalLinkOpenedProperties {
     type: string;
-    value?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Enum Values | private, public |
-     */
-    visibility?: 'private' | 'public';
 }
 export interface IotaStakedProperties {
     /**
@@ -886,6 +902,14 @@ export class CollectibleHidden implements BaseEvent {
     event_type = 'collectible hidden';
 
     constructor(public event_properties?: CollectibleHiddenProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class CollectibleSent implements BaseEvent {
+    event_type = 'collectible sent';
+
+    constructor(public event_properties?: CollectibleSentProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1694,6 +1718,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new CollectibleHidden(properties), options);
+  }
+
+  /**
+   * collectible sent
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/collectible%20sent)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. collectibleType)
+   * @param options Amplitude event options.
+   */
+  collectibleSent(
+    properties?: CollectibleSentProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new CollectibleSent(properties), options);
   }
 
   /**
