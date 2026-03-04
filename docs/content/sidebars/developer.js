@@ -422,6 +422,7 @@ const developer = [
                             'developer/iota-101/move-overview/conventions',
                         ],
                     },
+                    'developer/move/explanations/account-abstraction',
                 ],
             },
             {
