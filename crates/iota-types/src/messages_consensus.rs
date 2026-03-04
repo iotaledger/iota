@@ -16,8 +16,8 @@ use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_sdk_types::crypto::IntentScope;
 pub use iota_sdk_types::{
-    CancelledTransaction, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-    VersionAssignment,
+    CancelledTransaction, CheckpointTimestamp as TimestampMs, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, VersionAssignment,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
