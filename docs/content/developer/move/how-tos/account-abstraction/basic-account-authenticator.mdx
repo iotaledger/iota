@@ -36,15 +36,13 @@ If you want to learn more about the concepts of Account Abstraction, check out t
 ```move file=<rootDir>/examples/move/account/sources/account.move#L28-L46
 ```
 
-## Verify the Result
+## Expected Behavior
+
+After publishing the package, anyone can call `link_auth` to attach the authenticator to the shared account.
+The example authenticator accepts a message string and succeeds only when the message equals `"hello"`.
 
 - A transaction authorized through this authenticator succeeds when the message argument is `"hello"`.
 - The same transaction fails when the message argument differs.
-
-## Expected Behavior
-
-After publishing the package, anyone can call `link_auth` to attach the authenticator to the shared account. The
-example authenticator accepts a message string and succeeds only when the message equals `"hello"`.
 
 ## Full Example Code
 

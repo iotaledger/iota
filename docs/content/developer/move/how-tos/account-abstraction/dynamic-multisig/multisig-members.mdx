@@ -44,12 +44,6 @@ If you want to learn more about the concepts of Account Abstraction, check out t
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move#L106-L118
 ```
 
-## Verify the Result
-
-- Multisig members are stored on-chain with explicit voting weights.
-- Invalid configurations (mismatched inputs, duplicate members) are rejected at creation time.
-- Approval weight can be calculated deterministically from the validated member set.
-
 ## Expected Behavior
 
 Only valid multisig member configurations can be created. All approval and authorization logic built on top of this module operates on a consistent, validated member set.

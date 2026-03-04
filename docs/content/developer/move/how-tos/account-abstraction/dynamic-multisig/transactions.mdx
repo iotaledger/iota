@@ -39,13 +39,6 @@ If you want to learn more about the concepts of Account Abstraction, check out t
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move#L94-L100
 ```
 
-## Verify the Result
-
-- Proposed transactions are represented on-chain by their digests.
-- Member approvals are tracked deterministically; duplicate proposals and approvals are rejected.
-- The multisig authenticator can evaluate which transactions are eligible for execution.
-
-
 ## Expected Behavior
 
 Transaction proposals and approvals are stored on-chain until execution or removal. The multisig authenticator relies on this data to decide whether a transaction is authorized.
