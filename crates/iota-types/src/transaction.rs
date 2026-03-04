@@ -183,9 +183,9 @@ pub enum TransactionKind {
     // https://github.com/iotaledger/iota/pull/7697 for detail.
 }
 
-/// Extension trait for `EndOfEpochTransactionKind` that adds methods requiring
-/// iota-types-specific types (like `InputObjectKind` and `ProtocolConfig`) that
-/// are not available in the SDK.
+/// Extension trait for [`EndOfEpochTransactionKind`] that adds methods
+/// requiring iota-types-specific types (like [`InputObjectKind`] and
+/// [`ProtocolConfig`]) that are not available in the SDK.
 pub(crate) trait EndOfEpochTransactionKindExt {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
