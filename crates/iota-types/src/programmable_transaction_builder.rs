@@ -129,7 +129,7 @@ impl ProgrammableTransactionBuilder {
             .into_iter()
             .map(|obj| self.obj(obj.into()))
             .collect::<Result<_, _>>()?;
-        Ok(self.command(Command::MakeMoveVec(None, make_vec_args)))
+        Ok(self.command(Command::MakeMoveVector(None, make_vec_args)))
     }
 
     pub fn command(&mut self, command: Command) -> Argument {

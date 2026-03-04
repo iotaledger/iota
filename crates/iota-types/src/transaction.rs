@@ -7,7 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
-    iter::{self, once},
+    iter::{self},
     sync::Arc,
 };
 
@@ -516,16 +516,18 @@ pub trait CommandExt {
 impl CommandExt for Command {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
-            Command::Upgrade(_, deps, package_id, _) => deps
+            Command::MoveCall(cmd) => cmd.input_objects(),
+            Command::Upgrade(cmd) => cmd
+                .dependencies
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
-                .chain(Some(InputObjectKind::MovePackage(*package_id)))
+                .chain(Some(InputObjectKind::MovePackage(*cmd.package_id)))
                 .collect(),
             Command::Publish(_, deps) => deps
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-            Command::MoveCall(c) => c.input_objects(),
+
             Command::MakeMoveVec(Some(t), _) => {
                 let mut packages = BTreeSet::new();
                 add_type_input_packages(&mut packages, t);
