@@ -463,8 +463,7 @@ async fn test_submit_transaction_success() {
     // Should succeed with Submitted result
     assert!(result.is_ok(), "Transaction submission should succeed");
     let response = result.unwrap().0.into_inner();
-    assert_eq!(response.results.len(), 1, "Should have one result");
-    match &response.results[0] {
+    match &response.result {
         SubmitTransactionResult::Submitted => {
             // Success - transaction was submitted to consensus
         }
