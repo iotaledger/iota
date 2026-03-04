@@ -17,7 +17,7 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, ChangeEpoch, ChangeEpochV2,
-    ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind, GasPayment as GasData,
+    ChangeEpochV3, ChangeEpochV4, Command, EndOfEpochTransactionKind, GasPayment as GasData,
     RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
     TransactionExpiration,
 };
@@ -405,39 +405,39 @@ pub struct ProgrammableTransaction {
     pub commands: Vec<Command>,
 }
 
-/// A single command in a programmable transaction.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub enum Command {
-    /// A call to either an entry or a public Move function
-    MoveCall(Box<ProgrammableMoveCall>),
-    /// `(Vec<forall T:key+store. T>, address)`
-    /// It sends n-objects to the specified address. These objects must have
-    /// store (public transfer) and either the previous owner must be an
-    /// address or the object must be newly created.
-    TransferObjects(Vec<Argument>, Argument),
-    /// `(&mut Coin<T>, Vec<u64>)` -> `Vec<Coin<T>>`
-    /// It splits off some amounts into a new coins with those amounts
-    SplitCoins(Argument, Vec<Argument>),
-    /// `(&mut Coin<T>, Vec<Coin<T>>)`
-    /// It merges n-coins into the first coin
-    MergeCoins(Argument, Vec<Argument>),
-    /// Publishes a Move package. It takes the package bytes and a list of the
-    /// package's transitive dependencies to link against on-chain.
-    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
-    /// `forall T: Vec<T> -> vector<T>`
-    /// Given n-values of the same type, it constructs a vector. For non objects
-    /// or an empty vector, the type input must be specified.
-    MakeMoveVec(Option<TypeInput>, Vec<Argument>),
-    /// Upgrades a Move package
-    /// Takes (in order):
-    /// 1. A vector of serialized modules for the package.
-    /// 2. A vector of object ids for the transitive dependencies of the new
-    ///    package.
-    /// 3. The object ID of the package being upgraded.
-    /// 4. An argument holding the `UpgradeTicket` that must have been produced
-    ///    from an earlier command in the same programmable transaction.
-    Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
-}
+// /// A single command in a programmable transaction.
+// #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+// pub enum Command {
+//     /// A call to either an entry or a public Move function
+//     MoveCall(Box<ProgrammableMoveCall>),
+//     /// `(Vec<forall T:key+store. T>, address)`
+//     /// It sends n-objects to the specified address. These objects must have
+//     /// store (public transfer) and either the previous owner must be an
+//     /// address or the object must be newly created.
+//     TransferObjects(Vec<Argument>, Argument),
+//     /// `(&mut Coin<T>, Vec<u64>)` -> `Vec<Coin<T>>`
+//     /// It splits off some amounts into a new coins with those amounts
+//     SplitCoins(Argument, Vec<Argument>),
+//     /// `(&mut Coin<T>, Vec<Coin<T>>)`
+//     /// It merges n-coins into the first coin
+//     MergeCoins(Argument, Vec<Argument>),
+//     /// Publishes a Move package. It takes the package bytes and a list of
+// the     /// package's transitive dependencies to link against on-chain.
+//     Publish(Vec<Vec<u8>>, Vec<ObjectID>),
+//     /// `forall T: Vec<T> -> vector<T>`
+//     /// Given n-values of the same type, it constructs a vector. For non
+// objects     /// or an empty vector, the type input must be specified.
+//     MakeMoveVec(Option<TypeInput>, Vec<Argument>),
+//     /// Upgrades a Move package
+//     /// Takes (in order):
+//     /// 1. A vector of serialized modules for the package.
+//     /// 2. A vector of object ids for the transitive dependencies of the new
+//     ///    package.
+//     /// 3. The object ID of the package being upgraded.
+//     /// 4. An argument holding the `UpgradeTicket` that must have been
+// produced     ///    from an earlier command in the same programmable
+// transaction.     Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
+// }
 
 /// The command for calling a Move function, either an entry function or a
 /// public function (which cannot return references).
@@ -506,38 +506,14 @@ impl ProgrammableMoveCall {
         }
         Ok(())
     }
-
-    fn is_input_arg_used(&self, arg: u16) -> bool {
-        self.arguments
-            .iter()
-            .any(|a| matches!(a, Argument::Input(inp) if *inp == arg))
-    }
 }
 
-impl Command {
-    pub fn move_call(
-        package: ObjectID,
-        module: Identifier,
-        function: Identifier,
-        type_arguments: Vec<TypeTag>,
-        arguments: Vec<Argument>,
-    ) -> Self {
-        let module = module.to_string();
-        let function = function.to_string();
-        let type_arguments = type_arguments.into_iter().map(TypeInput::from).collect();
-        Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package,
-            module,
-            function,
-            type_arguments,
-            arguments,
-        }))
-    }
+pub trait CommandExt {
+    fn input_objects(&self) -> Vec<InputObjectKind>;
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+}
 
-    pub fn make_move_vec(ty: Option<TypeTag>, args: Vec<Argument>) -> Self {
-        Command::MakeMoveVec(ty.map(TypeInput::from), args)
-    }
-
+impl CommandExt for Command {
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Command::Upgrade(_, deps, package_id, _) => deps
@@ -562,18 +538,6 @@ impl Command {
             | Command::TransferObjects(_, _)
             | Command::SplitCoins(_, _)
             | Command::MergeCoins(_, _) => vec![],
-        }
-    }
-
-    fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>> {
-        match self {
-            Command::Upgrade(v, _, _, _) => Some(v),
-            Command::Publish(v, _) => Some(v),
-            Command::MoveCall(_)
-            | Command::TransferObjects(_, _)
-            | Command::SplitCoins(_, _)
-            | Command::MergeCoins(_, _)
-            | Command::MakeMoveVec(_, _) => None,
         }
     }
 
@@ -635,25 +599,6 @@ impl Command {
             }
         };
         Ok(())
-    }
-
-    fn is_input_arg_used(&self, input_arg: u16) -> bool {
-        match self {
-            Command::MoveCall(c) => c.is_input_arg_used(input_arg),
-            Command::TransferObjects(args, arg)
-            | Command::MergeCoins(arg, args)
-            | Command::SplitCoins(arg, args) => args
-                .iter()
-                .chain(once(arg))
-                .any(|a| matches!(a, Argument::Input(inp) if *inp == input_arg)),
-            Command::MakeMoveVec(_, args) => args
-                .iter()
-                .any(|a| matches!(a, Argument::Input(inp) if *inp == input_arg)),
-            Command::Upgrade(_, _, _, arg) => {
-                matches!(arg, Argument::Input(inp) if *inp == input_arg)
-            }
-            Command::Publish(_, _) => false,
-        }
     }
 }
 
