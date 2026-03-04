@@ -33,8 +33,8 @@ Argument:
           - U16
 AuthenticatorStateExpire:
   STRUCT:
-    - min_epoch: U64
-    - authenticator_obj_initial_shared_version: U64
+    - minEpoch: U64
+    - authenticatorObjInitialSharedVersion: U64
 AuthenticatorStateUpdateV1:
   STRUCT:
     - epoch: U64
@@ -65,85 +65,61 @@ CallArg:
 ChangeEpoch:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
-    - storage_charge: U64
-    - computation_charge: U64
-    - storage_rebate: U64
-    - non_refundable_storage_fee: U64
-    - epoch_start_timestamp_ms: U64
-    - system_packages:
+    - protocolVersion: U64
+    - storageCharge: U64
+    - computationCharge: U64
+    - storageRebate: U64
+    - nonRefundableStorageFee: U64
+    - epochStartTimestampMs: U64
+    - systemPackages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
+          TYPENAME: SystemPackage
 ChangeEpochV2:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
-    - storage_charge: U64
-    - computation_charge: U64
-    - computation_charge_burned: U64
-    - storage_rebate: U64
-    - non_refundable_storage_fee: U64
-    - epoch_start_timestamp_ms: U64
-    - system_packages:
+    - protocolVersion: U64
+    - storageCharge: U64
+    - computationCharge: U64
+    - computationChargeBurned: U64
+    - storageRebate: U64
+    - nonRefundableStorageFee: U64
+    - epochStartTimestampMs: U64
+    - systemPackages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
+          TYPENAME: SystemPackage
 ChangeEpochV3:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
-    - storage_charge: U64
-    - computation_charge: U64
-    - computation_charge_burned: U64
-    - storage_rebate: U64
-    - non_refundable_storage_fee: U64
-    - epoch_start_timestamp_ms: U64
-    - system_packages:
+    - protocolVersion: U64
+    - storageCharge: U64
+    - computationCharge: U64
+    - computationChargeBurned: U64
+    - storageRebate: U64
+    - nonRefundableStorageFee: U64
+    - epochStartTimestampMs: U64
+    - systemPackages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
-    - eligible_active_validators:
+          TYPENAME: SystemPackage
+    - eligibleActiveValidators:
         SEQ: U64
 ChangeEpochV4:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
-    - storage_charge: U64
-    - computation_charge: U64
-    - computation_charge_burned: U64
-    - storage_rebate: U64
-    - non_refundable_storage_fee: U64
-    - epoch_start_timestamp_ms: U64
-    - system_packages:
+    - protocolVersion: U64
+    - storageCharge: U64
+    - computationCharge: U64
+    - computationChargeBurned: U64
+    - storageRebate: U64
+    - nonRefundableStorageFee: U64
+    - epochStartTimestampMs: U64
+    - systemPackages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
-    - eligible_active_validators:
+          TYPENAME: SystemPackage
+    - eligibleActiveValidators:
         SEQ: U64
     - scores:
         SEQ: U64
-    - adjust_rewards_by_score: BOOL
+    - adjustRewardsByScore: BOOL
 CheckpointCommitment:
   ENUM:
     0:
@@ -913,6 +889,14 @@ StructTag:
     - type_params:
         SEQ:
           TYPENAME: TypeTag
+SystemPackage:
+  STRUCT:
+    - version: U64
+    - modules:
+        SEQ: BYTES
+    - dependencies:
+        SEQ:
+          TYPENAME: ObjectId
 TransactionData:
   ENUM:
     0:

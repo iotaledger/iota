@@ -1081,23 +1081,6 @@ export interface IotaValidatorSummary {
     stakingPoolIotaBalance: string;
     votingPower: string;
 }
-/**
- * MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through
- * Move code. This function represents the data received by the Move authenticate function during the
- * Account Abstraction authentication flow.
- */
-export type MoveAuthenticator = {
-    V1: MoveAuthenticatorV1;
-};
-/** MoveAuthenticatorV1 is the first version of MoveAuthenticator. */
-export interface MoveAuthenticatorV1 {
-    /** Input objects or primitive values */
-    call_args: CallArg[];
-    /** The object that is authenticated. Represents the account being the sender of the transaction. */
-    object_to_authenticate: CallArg;
-    /** Type arguments for the Move authenticate function */
-    type_arguments: string[];
-}
 export interface MoveCallMetrics {
     /** The count of calls of each function in the last 30 days. */
     rank30Days: [MoveFunctionName, string][];

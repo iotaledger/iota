@@ -34,7 +34,7 @@ use iota_config::{
         StateDebugDumpConfig,
     },
 };
-use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_framework::{BuiltInFramework, SystemPackage as FrameworkSystemPackage};
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
     IotaObjectDataFilter, IotaTransactionBlockData, IotaTransactionBlockEffects,
@@ -4825,7 +4825,7 @@ impl AuthorityState {
         &self,
         system_packages: Vec<ObjectRef>,
         binary_config: &BinaryConfig,
-    ) -> Option<Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>> {
+    ) -> Option<Vec<SystemPackage>> {
         let ids: Vec<_> = system_packages
             .iter()
             .map(|object_ref| object_ref.object_id)
@@ -4849,7 +4849,7 @@ impl AuthorityState {
             };
 
             #[cfg(msim)]
-            let SystemPackage {
+            let FrameworkSystemPackage {
                 id: _,
                 bytes,
                 dependencies,
@@ -4862,7 +4862,7 @@ impl AuthorityState {
             });
 
             #[cfg(not(msim))]
-            let SystemPackage {
+            let FrameworkSystemPackage {
                 id: _,
                 bytes,
                 dependencies,
@@ -4888,7 +4888,11 @@ impl AuthorityState {
                 return None;
             }
 
-            res.push((system_package_ref.version, bytes, dependencies));
+            res.push(SystemPackage {
+                version: system_package_ref.version,
+                modules: bytes,
+                dependencies,
+            });
         }
 
         Some(res)
@@ -5227,7 +5231,7 @@ impl AuthorityState {
             if config.pass_validator_scores_to_advance_epoch() {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
                     next_epoch,
-                    next_epoch_protocol_version,
+                    next_epoch_protocol_version.as_u64(),
                     gas_cost_summary.storage_cost,
                     gas_cost_summary.computation_cost,
                     gas_cost_summary.computation_cost_burned,
@@ -5242,7 +5246,7 @@ impl AuthorityState {
             } else {
                 txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
                     next_epoch,
-                    next_epoch_protocol_version,
+                    next_epoch_protocol_version.as_u64(),
                     gas_cost_summary.storage_cost,
                     gas_cost_summary.computation_cost,
                     gas_cost_summary.computation_cost_burned,
@@ -5258,7 +5262,7 @@ impl AuthorityState {
         {
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
                 next_epoch,
-                next_epoch_protocol_version,
+                next_epoch_protocol_version.as_u64(),
                 gas_cost_summary.storage_cost,
                 gas_cost_summary.computation_cost,
                 gas_cost_summary.computation_cost_burned,
@@ -5270,7 +5274,7 @@ impl AuthorityState {
         } else {
             txns.push(EndOfEpochTransactionKind::new_change_epoch(
                 next_epoch,
-                next_epoch_protocol_version,
+                next_epoch_protocol_version.as_u64(),
                 gas_cost_summary.storage_cost,
                 gas_cost_summary.computation_cost,
                 gas_cost_summary.storage_rebate,
