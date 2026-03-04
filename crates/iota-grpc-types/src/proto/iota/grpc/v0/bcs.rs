@@ -4,6 +4,7 @@
 
 include!("../../../generated/iota.grpc.v0.bcs.rs");
 include!("../../../generated/iota.grpc.v0.bcs.field_info.rs");
+include!("../../../generated/iota.grpc.v0.bcs.accessors.rs");
 
 impl BcsData {
     pub fn serialize<T: serde::Serialize>(value: &T) -> Result<Self, bcs::Error> {
@@ -12,6 +13,11 @@ impl BcsData {
 
     pub fn deserialize<'de, T: serde::Deserialize<'de>>(&'de self) -> Result<T, bcs::Error> {
         bcs::from_bytes(self.data.as_ref())
+    }
+
+    /// Get the raw BCS bytes as a slice.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.data.as_ref()
     }
 }
 

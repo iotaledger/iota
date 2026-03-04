@@ -185,6 +185,25 @@ export function generateValidatorsTableColumns({
             },
         },
         {
+            header: 'Effective Commission',
+            accessorKey: 'effectiveCommissionRate',
+            id: 'effectiveCommissionRate',
+            enableSorting: true,
+            sortingFn: sortByNumber,
+            cell({ row }) {
+                const { original: validator } = row;
+                const commissionRate = Number(validator.commissionRate);
+                const votingPower = Number(validator.votingPower);
+                const effectiveCommissionRate = Math.max(commissionRate, votingPower);
+
+                return (
+                    <TableCellBase>
+                        <TableCellText>{`${effectiveCommissionRate / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
             header: 'Commission',
             accessorKey: 'commissionRate',
             enableSorting: true,

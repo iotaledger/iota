@@ -10,10 +10,125 @@ use iota_grpc_types::{
 
 use crate::{
     Client,
-    api::{Result, TryFromProtoError},
+    api::{GET_EPOCH_READ_MASK, Result, TryFromProtoError, field_mask_with_default},
 };
 
 impl Client {
+    /// Get epoch information.
+    ///
+    /// Returns the [`Epoch`] proto type with fields populated according to the
+    /// `read_mask`.
+    ///
+    /// # Parameters
+    ///
+    /// * `epoch` - The epoch to query. If `None`, returns the current epoch.
+    /// * `read_mask` - Optional field mask specifying which fields to include.
+    ///   If `None`, uses [`GET_EPOCH_READ_MASK`].
+    ///
+    /// # Available Read Mask Fields
+    ///
+    /// ## Epoch Fields
+    /// - `epoch` - the epoch number
+    /// - `committee` - the validator committee for this epoch
+    /// - `bcs_system_state` - the BCS-encoded system state at the beginning of
+    ///   the epoch for past epochs or the current system state for the current
+    ///   epoch, which can be used for historical state queries or to get the
+    ///   current state respectively
+    ///
+    /// ## Checkpoint Fields
+    /// - `first_checkpoint` - the first checkpoint included in the epoch
+    /// - `last_checkpoint` - the last checkpoint included in the epoch, which
+    ///   may be unavailable for the current epoch if it has not ended yet
+    ///
+    /// ## Timing Fields
+    /// - `start` - the timestamp of the first checkpoint included in the epoch
+    /// - `end` - the timestamp of the last checkpoint included in the epoch,
+    ///   which may be unavailable for the current epoch if it has not ended yet
+    ///
+    /// ## Gas Fields
+    /// - `reference_gas_price` - the reference gas price during the epoch,
+    ///   denominated in NANOS
+    ///
+    /// ## Protocol Configuration Fields
+    /// - `protocol_config` - the protocol configuration during the epoch
+    ///   - `protocol_config.protocol_version` - the protocol version during the
+    ///     epoch
+    ///   - `protocol_config.feature_flags` - the individual protocol feature
+    ///     flags during the epoch (use `protocol_config.feature_flags.<key>` to
+    ///     filter specific flags)
+    ///   - `protocol_config.attributes` - the individual protocol attributes
+    ///     during the epoch (use `protocol_config.attributes.<key>` to filter
+    ///     specific attributes)
+    ///
+    ///   > **Note:** Other than for all other fields, wildcards don't work for
+    ///   > `protocol_config.feature_flags` and `protocol_config.attributes`
+    ///   > since they are maps (`protocol_config` is not enough). If you want
+    ///   > all entries, you must specify the map directly, or single entries of
+    ///   > it by name.
+    ///   > (e.g. `protocol_config.feature_flags` to get all entries, or
+    ///   > `protocol_config.feature_flags.zklogin_auth` to get a single flag)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use iota_grpc_client::Client;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = Client::connect("http://localhost:9000").await?;
+    ///
+    /// // Get current epoch with default fields
+    /// let epoch = client.get_epoch(None, None).await?;
+    /// println!("Epoch: {:?}", epoch.epoch);
+    ///
+    /// // Get specific epoch with custom fields
+    /// let epoch = client
+    ///     .get_epoch(Some(0), Some("epoch,reference_gas_price,first_checkpoint"))
+    ///     .await?;
+    ///
+    /// // Get all feature flags for the current epoch
+    /// let epoch = client
+    ///     .get_epoch(None, Some("protocol_config.feature_flags"))
+    ///     .await?;
+    /// let flags = epoch.protocol_config.unwrap().feature_flags.unwrap().flags;
+    ///
+    /// // Get a single named feature flag
+    /// let epoch = client
+    ///     .get_epoch(None, Some("protocol_config.feature_flags.zklogin_auth"))
+    ///     .await?;
+    ///
+    /// // Get all protocol attributes for the current epoch
+    /// let epoch = client
+    ///     .get_epoch(None, Some("protocol_config.attributes"))
+    ///     .await?;
+    /// let attributes = epoch
+    ///     .protocol_config
+    ///     .unwrap()
+    ///     .attributes
+    ///     .unwrap()
+    ///     .attributes;
+    ///
+    /// // Get a single named attribute
+    /// let epoch = client
+    ///     .get_epoch(None, Some("protocol_config.attributes.max_tx_gas"))
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_epoch(&self, epoch: Option<u64>, read_mask: Option<&str>) -> Result<Epoch> {
+        let mut request = GetEpochRequest::default()
+            .with_read_mask(field_mask_with_default(read_mask, GET_EPOCH_READ_MASK));
+
+        if let Some(epoch) = epoch {
+            request = request.with_epoch(epoch);
+        }
+
+        let mut client = self.ledger_service_client();
+        let response = client.get_epoch(request).await?.into_inner();
+
+        response
+            .epoch
+            .ok_or(TryFromProtoError::missing("epoch").into())
+    }
+
     /// Get the reference gas price for the current epoch.
     ///
     /// # Example
@@ -38,12 +153,10 @@ impl Client {
         field: &str,
         extractor: impl FnOnce(Epoch) -> Option<T>,
     ) -> Result<T> {
-        let request = GetEpochRequest {
-            epoch: None, // Current epoch
-            read_mask: Some(FieldMask {
-                paths: vec![field.to_string()],
-            }),
-        };
+        // Current epoch (no epoch field set)
+        let request = GetEpochRequest::default().with_read_mask(FieldMask {
+            paths: vec![field.to_string()],
+        });
 
         let mut client = self.ledger_service_client();
         let response = client.get_epoch(request).await?.into_inner();

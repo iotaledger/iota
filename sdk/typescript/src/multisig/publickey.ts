@@ -255,6 +255,9 @@ export class MultiSigPublicKey extends PublicKey {
             if (parsed.signatureScheme === 'MultiSig') {
                 throw new Error('MultiSig is not supported inside MultiSig');
             }
+            if (parsed.signatureScheme === 'MoveAuthenticator') {
+                throw new Error('MoveAuthenticator is not supported inside MultiSig');
+            }
 
             const publicKey = parsed.publicKey;
 

@@ -18,6 +18,7 @@ import { toast } from '@iota/core';
 import { Warning } from '@iota/apps-ui-icons';
 import { VerifyPasswordModal } from '_src/ui/app/components';
 import { useState } from 'react';
+import { ampli, ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
 
 interface RemoveDialogProps {
     accountID: string;
@@ -31,14 +32,26 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     const removeAccountMutation = useMutation({
         mutationKey: ['remove account mutation', accountID],
         mutationFn: async () => {
+            // Get account type before deletion for analytics
+            const account = allAccounts?.data?.find((acc) => acc.id === accountID);
+            const accountType = account?.type;
+
             await backgroundClient.removeAccount({ accountID: accountID });
+
+            // Track account deletion event
+            if (accountType) {
+                ampli.accountDeleted({
+                    accountType: ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[accountType],
+                });
+            }
+
             setOpen(false);
         },
     });
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(true);
 
     const totalAccounts = allAccounts?.data?.length || 0;
-    const unlockAccountSourceMutation = useUnlockMutation();
+    const unlockAllAccountsMutation = useUnlockMutation();
 
     function handleCancel() {
         setPasswordModalVisible(true);
@@ -57,8 +70,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
             <VerifyPasswordModal
                 open={isOpen}
                 onVerify={async (password) => {
-                    await unlockAccountSourceMutation.mutateAsync({
-                        id: accountID,
+                    await unlockAllAccountsMutation.mutateAsync({
                         password,
                     });
                     setPasswordModalVisible(false);

@@ -5,7 +5,11 @@ syntax = "proto3";
 
 package iota.grpc.v0.bcs;
 
+import "iota/grpc/options.proto";
+
 // BCS-serialized data container
 message BcsData {
+  option (iota.grpc.message_accessors) = "with";
+
   bytes data = 1;
 }

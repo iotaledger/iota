@@ -2172,6 +2172,9 @@ impl AuthorityState {
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
             execution_result,
+            suggested_gas_price: self
+                .congestion_tracker
+                .get_prediction_suggested_gas_price(&transaction),
             mock_gas_id,
         })
     }
@@ -3539,6 +3542,9 @@ impl AuthorityState {
         if checkpoint_indexes {
             if let Some(indexes) = self.indexes.as_ref() {
                 indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
+            }
+            if let Some(rest_index) = self.rest_index.as_ref() {
+                rest_index.checkpoint_db(&checkpoint_path_tmp.join("grpc_indexes"))?;
             }
         }
 

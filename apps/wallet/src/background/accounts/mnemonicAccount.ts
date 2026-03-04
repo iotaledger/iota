@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota-sdk/cryptography';
 
 import { MnemonicAccountSource } from '../account-sources/mnemonicAccountSource';
@@ -36,15 +35,14 @@ export function isMnemonicSerializedUiAccount(
     return account.type === AccountType.MnemonicDerived;
 }
 
-type SessionStorageData = { keyPair: string };
-
 export class MnemonicAccount
-    extends Account<MnemonicSerializedAccount, SessionStorageData>
+    extends Account<MnemonicSerializedAccount>
     implements PasswordUnlockableAccount, SigningAccount, KeyPairExportableAccount
 {
     readonly unlockType = 'password' as const;
     readonly canSign = true;
     readonly exportableKeyPair = true;
+    readonly isDerived = true;
 
     static isOfType(serialized: SerializedAccount): serialized is MnemonicSerializedAccount {
         return serialized.type === AccountType.MnemonicDerived;
@@ -77,27 +75,31 @@ export class MnemonicAccount
     }
 
     async isLocked(): Promise<boolean> {
-        return !(await this.#getKeyPair());
+        const mnemonicSource = await this.#getMnemonicSource();
+        return await mnemonicSource.isLocked();
     }
 
-    async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+    async lock(): Promise<void> {
+        const mnemonicSource = await this.#getMnemonicSource();
+        const isLocked = await mnemonicSource.isLocked();
+        if (!isLocked) {
+            await mnemonicSource.lock();
+            await this.onLocked();
+        }
     }
 
     async passwordUnlock(password?: string): Promise<void> {
         const mnemonicSource = await this.#getMnemonicSource();
-        if ((await mnemonicSource.isLocked()) && !password) {
-            throw new Error('Missing password to unlock the account');
-        }
-        const { derivationPath } = await this.getStoredData();
-        if (password) {
+        const isLocked = await mnemonicSource.isLocked();
+
+        if (isLocked) {
+            if (!password) {
+                throw new Error('Missing password to unlock the account');
+            }
+
             await mnemonicSource.unlock(password);
+            await this.onUnlocked();
         }
-        await this.setEphemeralValue({
-            keyPair: (await mnemonicSource.deriveKeyPair(derivationPath)).getSecretKey(),
-        });
-        await this.onUnlocked();
     }
 
     async verifyPassword(password: string): Promise<void> {
@@ -125,11 +127,13 @@ export class MnemonicAccount
     }
 
     async signData(data: Uint8Array): Promise<string> {
-        const keyPair = await this.#getKeyPair();
-        if (!keyPair) {
+        const mnemonicSource = await this.#getMnemonicSource();
+        if (await mnemonicSource.isLocked()) {
             throw new Error(`Account is locked`);
         }
-        return this.generateSignature(data, keyPair);
+        const { derivationPath } = await this.getStoredData();
+        const keypair = await mnemonicSource.deriveKeyPair(derivationPath);
+        return this.generateSignature(data, keypair);
     }
 
     get derivationPath() {
@@ -145,14 +149,6 @@ export class MnemonicAccount
         const mnemonicSource = await this.#getMnemonicSource();
         await mnemonicSource.unlock(password);
         return (await mnemonicSource.deriveKeyPair(derivationPath)).getSecretKey();
-    }
-
-    async #getKeyPair() {
-        const ephemeralData = await this.getEphemeralValue();
-        if (ephemeralData) {
-            return fromExportedKeypair(ephemeralData.keyPair);
-        }
-        return null;
     }
 
     async #getMnemonicSource() {
