@@ -212,7 +212,7 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            _ => unreachable!(
+            _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),
         }

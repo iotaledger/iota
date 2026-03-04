@@ -489,7 +489,9 @@ impl EndOfEpochTransactionKind {
                     checkpoint_viewed_at,
                 })
             }
-            _ => unreachable!("unknown EndOfEpochTransactionKind variant"),
+            _ => unimplemented!(
+                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }
