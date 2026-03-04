@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import * as amplitude from '@amplitude/analytics-browser';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
@@ -45,7 +44,7 @@ export async function initAmplitude() {
         },
     }).promise;
 
-    amplitude.add(attachEnvironmentPlugin(IS_DEV));
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 
     let flushInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -58,8 +57,8 @@ export async function initAmplitude() {
                 clearInterval(flushInterval);
             }
             if (IS_BOT_CLEARED) {
-                amplitude.setTransport('beacon');
-                ampli.flush();
+                ampli.client.setTransport('beacon');
+                ampli.client.flush();
             }
         },
         { once: true },

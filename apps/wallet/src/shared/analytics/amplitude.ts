@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
@@ -47,15 +46,15 @@ export async function initAmplitude() {
 
     // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport('beacon');
-        amplitude.flush();
+        ampli.client.setTransport('beacon');
+        ampli.client.flush();
     });
 
     // Additional flush on visibility change (when popup loses focus)
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-            amplitude.setTransport('beacon');
-            amplitude.flush();
+            ampli.client.setTransport('beacon');
+            ampli.client.flush();
         }
     });
 
