@@ -105,8 +105,12 @@ export function SiteConnectPage() {
 
     useEffect(() => {
         if (permissionRequest) {
+            const resolvedAppName = resolveApplicationName(
+                permissionRequest.name,
+                permissionRequest.origin,
+            );
             ampli.dappConnectStarted({
-                applicationName: permissionRequest.name || permissionRequest.origin,
+                applicationName: resolvedAppName,
                 applicationUrl: permissionRequest.origin,
             });
         }
