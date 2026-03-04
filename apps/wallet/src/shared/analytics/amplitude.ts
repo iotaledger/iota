@@ -47,14 +47,14 @@ export async function initAmplitude() {
     // Flush events when popup is about to close
     window.addEventListener('pagehide', () => {
         ampli.client.setTransport('beacon');
-        ampli.client.flush();
+        ampli.flush();
     });
 
     // Additional flush on visibility change (when popup loses focus)
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
             ampli.client.setTransport('beacon');
-            ampli.client.flush();
+            ampli.flush();
         }
     });
 

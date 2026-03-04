@@ -83,7 +83,7 @@ function setupAntiBotProtection() {
 
             if (IS_BOT_CLEARED) {
                 ampli.client.setTransport('beacon');
-                ampli.client.flush();
+                ampli.flush();
             }
         },
         { once: true },

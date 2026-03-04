@@ -44,7 +44,7 @@ export async function initAmplitude() {
 
     window.addEventListener('pagehide', () => {
         ampli.client.setTransport('beacon');
-        ampli.client.flush();
+        ampli.flush();
     });
 
     // Add environment plugin to set prefix dev events
