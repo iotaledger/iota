@@ -13,6 +13,20 @@ const IS_ENABLED =
 
 const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 
+/**
+ * Anti-bot configuration: Events are queued but not sent initially.
+ * After BOT_DETECTION_DELAY, we assume the user is human and start sending events.
+ */
+const ANTI_BOT_CONFIG = {
+    // Detection delay: bots typically leave within 2 seconds
+    DETECTION_DELAY_MS: 2000,
+    // Regular flush interval after bot detection passes
+    REGULAR_FLUSH_INTERVAL_MS: 1000,
+    // Initial flush settings (effectively disabled to queue events locally)
+    INITIAL_FLUSH_INTERVAL_MS: 3600000, // 1 hour
+    INITIAL_QUEUE_SIZE: 50,
+} as const;
+
 let IS_BOT_CLEARED = false;
 
 export async function initAmplitude() {
@@ -22,6 +36,7 @@ export async function initAmplitude() {
         return;
     }
 
+    // Load Amplitude with anti-bot flush settings
     await ampli.load({
         environment: 'iotaexplorer',
         disabled: !IS_ENABLED,
@@ -36,9 +51,8 @@ export async function initAmplitude() {
                     sessions: IS_ENABLED,
                 },
                 logLevel: LogLevel.None,
-                // Anti-bot: Hold events initially to filter crawlers
-                flushIntervalMillis: 3600000, // 1 hour - effectively disabled
-                flushQueueSize: 50, // Small queue sufficient for 2s of events
+                flushIntervalMillis: ANTI_BOT_CONFIG.INITIAL_FLUSH_INTERVAL_MS,
+                flushQueueSize: ANTI_BOT_CONFIG.INITIAL_QUEUE_SIZE,
                 identityStorage: 'localStorage',
             },
         },
@@ -46,16 +60,27 @@ export async function initAmplitude() {
 
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 
+    setupAntiBotProtection();
+}
+
+/**
+ * Sets up anti-bot protection by:
+ * 1. Queueing events initially without sending them
+ * 2. After DETECTION_DELAY_MS, marking user as human and flushing events
+ * 3. Starting regular flush intervals for subsequent events
+ * 4. Handling page exit to flush remaining events
+ */
+function setupAntiBotProtection() {
     let flushInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Flush events on page hide, if the bot has been cleared
-    // to ensure events are sent before the page unloads
+    // Handle page exit: only flush if user passed bot detection
     window.addEventListener(
         'pagehide',
         () => {
             if (flushInterval) {
                 clearInterval(flushInterval);
             }
+
             if (IS_BOT_CLEARED) {
                 ampli.client.setTransport('beacon');
                 ampli.client.flush();
@@ -64,18 +89,16 @@ export async function initAmplitude() {
         { once: true },
     );
 
-    // Restore default flush behavior after a short delay to filter out bot traffic
-    const BOT_WAIT_TIME = 2000;
+    // After delay, assume user is human and enable regular flushing
     setTimeout(() => {
         IS_BOT_CLEARED = true;
+        ampli.flush(); // Send all queued events
 
-        ampli.flush();
-
-        const FLUSH_INTERVAL = 1000;
+        // Start regular flushing since Amplitude's config can't be changed after init
         flushInterval = setInterval(() => {
             if (ampli.isLoaded) {
                 ampli.flush();
             }
-        }, FLUSH_INTERVAL);
-    }, BOT_WAIT_TIME);
+        }, ANTI_BOT_CONFIG.REGULAR_FLUSH_INTERVAL_MS);
+    }, ANTI_BOT_CONFIG.DETECTION_DELAY_MS);
 }
