@@ -18,7 +18,8 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
-    Argument, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
+    Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind,
+    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -34,7 +35,7 @@ use tracing::{instrument, trace};
 use super::{base_types::*, error::*};
 use crate::{
     IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-    committee::{Committee, EpochId, ProtocolVersion},
+    committee::{Committee, EpochId},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
@@ -137,133 +138,6 @@ pub fn type_input_validity_check(
     Ok(())
 }
 
-/// System transaction for advancing the epoch.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ChangeEpoch {
-    /// The next (to become) epoch ID.
-    pub epoch: EpochId,
-    /// The protocol version in effect in the new epoch.
-    pub protocol_version: ProtocolVersion,
-    /// The total amount of gas charged for storage during the epoch.
-    pub storage_charge: u64,
-    /// The total amount of gas charged for computation during the epoch.
-    pub computation_charge: u64,
-    /// The amount of storage rebate refunded to the txn senders.
-    pub storage_rebate: u64,
-    /// The non-refundable storage fee.
-    pub non_refundable_storage_fee: u64,
-    /// Unix timestamp when epoch started
-    pub epoch_start_timestamp_ms: u64,
-    /// System packages (specifically framework and move stdlib) that are
-    /// written before the new epoch starts. This tracks framework upgrades
-    /// on chain. When executing the ChangeEpoch txn, the validator must
-    /// write out the modules below.  Modules are provided with the version they
-    /// will be upgraded to, their modules in serialized form (which include
-    /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-}
-
-/// System transaction for advancing the epoch.
-/// This version includes the computation_charge_burned field for when
-/// protocol_defined_base_fee is enabled in the protocol config.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ChangeEpochV2 {
-    /// The next (to become) epoch ID.
-    pub epoch: EpochId,
-    /// The protocol version in effect in the new epoch.
-    pub protocol_version: ProtocolVersion,
-    /// The total amount of gas charged for storage during the epoch.
-    pub storage_charge: u64,
-    /// The total amount of gas charged for computation during the epoch.
-    pub computation_charge: u64,
-    /// The burned component of the total computation/execution costs.
-    pub computation_charge_burned: u64,
-    /// The amount of storage rebate refunded to the txn senders.
-    pub storage_rebate: u64,
-    /// The non-refundable storage fee.
-    pub non_refundable_storage_fee: u64,
-    /// Unix timestamp when epoch started
-    pub epoch_start_timestamp_ms: u64,
-    /// System packages (specifically framework and move stdlib) that are
-    /// written before the new epoch starts. This tracks framework upgrades
-    /// on chain. When executing the ChangeEpochV2 txn, the validator must
-    /// write out the modules below.  Modules are provided with the version they
-    /// will be upgraded to, their modules in serialized form (which include
-    /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-}
-
-/// System transaction for advancing the epoch.
-/// This version includes active validator indices that are eligible
-/// to take part in committee selection based on protocol version support.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ChangeEpochV3 {
-    /// The next (to become) epoch ID.
-    pub epoch: EpochId,
-    /// The protocol version in effect in the new epoch.
-    pub protocol_version: ProtocolVersion,
-    /// The total amount of gas charged for storage during the epoch.
-    pub storage_charge: u64,
-    /// The total amount of gas charged for computation during the epoch.
-    pub computation_charge: u64,
-    /// The burned component of the total computation/execution costs.
-    pub computation_charge_burned: u64,
-    /// The amount of storage rebate refunded to the txn senders.
-    pub storage_rebate: u64,
-    /// The amount of storage rebate that is burnt due to the
-    /// gas_price. It's given that storage_rebate + non_refundable_storage_fee
-    /// is always equal to the storage_charge of the tx.
-    pub non_refundable_storage_fee: u64,
-    /// Unix timestamp from the start of the epoch as milliseconds
-    pub epoch_start_timestamp_ms: u64,
-    /// System packages (specifically framework and move stdlib) that are
-    /// written by the execution of this transaction. Validators must write
-    /// out the modules below.  Modules are provided with the version they
-    /// will be upgraded to, their modules in serialized form (which include
-    /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-    /// Vector of active validator indices eligible to take part in committee
-    /// selection because they support the new, target protocol version.
-    pub eligible_active_validators: Vec<u64>,
-}
-/// System transaction for advancing the epoch.
-/// This version includes the scores field for when the score based rewards are
-/// enabled in the protocol config.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ChangeEpochV4 {
-    /// The next (to become) epoch ID.
-    pub epoch: EpochId,
-    /// The protocol version in effect in the new epoch.
-    pub protocol_version: ProtocolVersion,
-    /// The total amount of gas charged for storage during the epoch.
-    pub storage_charge: u64,
-    /// The total amount of gas charged for computation during the epoch.
-    pub computation_charge: u64,
-    /// The burned component of the total computation/execution costs.
-    pub computation_charge_burned: u64,
-    /// The amount of storage rebate refunded to the txn senders.
-    pub storage_rebate: u64,
-    /// The non-refundable storage fee.
-    pub non_refundable_storage_fee: u64,
-    /// Unix timestamp when epoch started
-    pub epoch_start_timestamp_ms: u64,
-    /// System packages (specifically framework and move stdlib) that are
-    /// written before the new epoch starts. This tracks framework upgrades
-    /// on chain. When executing the ChangeEpochV4 txn, the validator must
-    /// write out the modules below.  Modules are provided with the version they
-    /// will be upgraded to, their modules in serialized form (which include
-    /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-    /// Vector of active validator indices eligible to take part in committee
-    /// selection because they support the new, target protocol version.
-    pub eligible_active_validators: Vec<u64>,
-    /// Scores for the epoch being finalized. Each value corresponds to
-    /// an authority, ordered by the ending epoch's AuthorityIndex.
-    pub scores: Vec<u64>,
-    /// Whether to adjust validator rewards based on score.
-    pub adjust_rewards_by_score: bool,
-}
-
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct GenesisTransaction {
     pub objects: Vec<GenesisObject>,
@@ -309,161 +183,30 @@ pub enum TransactionKind {
     // https://github.com/iotaledger/iota/pull/7697 for detail.
 }
 
-/// EndOfEpochTransactionKind
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
-pub enum EndOfEpochTransactionKind {
-    ChangeEpoch(ChangeEpoch),
-    ChangeEpochV2(ChangeEpochV2),
-    ChangeEpochV3(ChangeEpochV3),
-    ChangeEpochV4(ChangeEpochV4),
-    // IMPORTANT: new enum variants should be added at the end to preserve serialization
-    // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
+/// Extension trait for [`EndOfEpochTransactionKind`] that adds methods
+/// requiring iota-types-specific types (like [`InputObjectKind`] and
+/// [`ProtocolConfig`]) that are not available in the SDK.
+pub(crate) trait EndOfEpochTransactionKindExt {
+    fn input_objects(&self) -> Vec<InputObjectKind>;
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
 }
 
-impl EndOfEpochTransactionKind {
-    pub fn new_change_epoch(
-        next_epoch: EpochId,
-        protocol_version: ProtocolVersion,
-        storage_charge: u64,
-        computation_charge: u64,
-        storage_rebate: u64,
-        non_refundable_storage_fee: u64,
-        epoch_start_timestamp_ms: u64,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-    ) -> Self {
-        Self::ChangeEpoch(ChangeEpoch {
-            epoch: next_epoch,
-            protocol_version,
-            storage_charge,
-            computation_charge,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            system_packages,
-        })
-    }
-
-    pub fn new_change_epoch_v2(
-        next_epoch: EpochId,
-        protocol_version: ProtocolVersion,
-        storage_charge: u64,
-        computation_charge: u64,
-        computation_charge_burned: u64,
-        storage_rebate: u64,
-        non_refundable_storage_fee: u64,
-        epoch_start_timestamp_ms: u64,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-    ) -> Self {
-        Self::ChangeEpochV2(ChangeEpochV2 {
-            epoch: next_epoch,
-            protocol_version,
-            storage_charge,
-            computation_charge,
-            computation_charge_burned,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            system_packages,
-        })
-    }
-
-    pub fn new_change_epoch_v3(
-        next_epoch: EpochId,
-        protocol_version: ProtocolVersion,
-        storage_charge: u64,
-        computation_charge: u64,
-        computation_charge_burned: u64,
-        storage_rebate: u64,
-        non_refundable_storage_fee: u64,
-        epoch_start_timestamp_ms: u64,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-        eligible_active_validators: Vec<u64>,
-    ) -> Self {
-        Self::ChangeEpochV3(ChangeEpochV3 {
-            epoch: next_epoch,
-            protocol_version,
-            storage_charge,
-            computation_charge,
-            computation_charge_burned,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            system_packages,
-            eligible_active_validators,
-        })
-    }
-
-    pub fn new_change_epoch_v4(
-        next_epoch: EpochId,
-        protocol_version: ProtocolVersion,
-        storage_charge: u64,
-        computation_charge: u64,
-        computation_charge_burned: u64,
-        storage_rebate: u64,
-        non_refundable_storage_fee: u64,
-        epoch_start_timestamp_ms: u64,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-        eligible_active_validators: Vec<u64>,
-        scores: Vec<u64>,
-        adjust_rewards_by_score: bool,
-    ) -> Self {
-        Self::ChangeEpochV4(ChangeEpochV4 {
-            epoch: next_epoch,
-            protocol_version,
-            storage_charge,
-            computation_charge,
-            computation_charge_burned,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            system_packages,
-            eligible_active_validators,
-            scores,
-            adjust_rewards_by_score,
-        })
-    }
-
+impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
     fn input_objects(&self) -> Vec<InputObjectKind> {
-        match self {
-            Self::ChangeEpoch(_) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::SYSTEM_STATE,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                }]
-            }
-            Self::ChangeEpochV2(_) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::SYSTEM_STATE,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                }]
-            }
-            Self::ChangeEpochV3(_) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectID::SYSTEM_STATE,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                }]
-            }
-            Self::ChangeEpochV4(_) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: ObjectId::SYSTEM_STATE,
-                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-                    mutable: true,
-                }]
-            }
-        }
-    }
-
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match self {
             Self::ChangeEpoch(_)
             | Self::ChangeEpochV2(_)
             | Self::ChangeEpochV3(_)
             | Self::ChangeEpochV4(_) => {
-                vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter()
+                vec![InputObjectKind::SharedMoveObject {
+                    id: ObjectID::SYSTEM_STATE,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                }]
             }
+            _ => unimplemented!(
+                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 
@@ -552,6 +295,9 @@ impl EndOfEpochTransactionKind {
                     ));
                 }
             }
+            _ => unimplemented!(
+                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+            ),
         }
         Ok(())
     }
@@ -1182,6 +928,9 @@ impl TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
+                    _ => unimplemented!(
+                        "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                    ),
                 }
             }
             _ => None,

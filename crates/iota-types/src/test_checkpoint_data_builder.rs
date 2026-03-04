@@ -562,7 +562,7 @@ impl TestCheckpointDataBuilder {
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         let tx_kind = EndOfEpochTransactionKind::new_change_epoch(
             self.checkpoint_builder.epoch + 1,
-            protocol_config.version,
+            protocol_config.version.as_u64(),
             Default::default(),
             Default::default(),
             Default::default(),

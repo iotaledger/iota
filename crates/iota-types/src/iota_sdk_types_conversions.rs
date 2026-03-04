@@ -28,11 +28,10 @@ use iota_sdk_types::{
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{GenesisObject, MoveStruct, Object, ObjectData},
     transaction::{
-        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, MakeMoveVector, MergeCoins,
-        MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate, SignedTransaction,
-        SplitCoins, SystemPackage, Transaction, TransactionExpiration, TransactionKind,
+        CancelledTransaction, Command, ConsensusCommitPrologueV1,
+        ConsensusDeterminedVersionAssignments, GasPayment, GenesisTransaction, MakeMoveVector,
+        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
+        SignedTransaction, SplitCoins, Transaction, TransactionExpiration, TransactionKind,
         TransactionV1, TransferObjects, Upgrade, VersionAssignment,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
@@ -309,7 +308,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                 TransactionKind::AuthenticatorStateUpdateV1Deprecated
             }
             InternalTxnKind::EndOfEpochTransaction(vec) => {
-                TransactionKind::EndOfEpoch(vec.into_iter().map(Into::into).collect())
+                TransactionKind::EndOfEpoch(vec)
             }
             InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
                 TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
@@ -395,7 +394,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                 Self::AuthenticatorStateUpdateV1Deprecated
             }
             TransactionKind::EndOfEpoch(vec) => {
-                Self::EndOfEpochTransaction(vec.into_iter().map(Into::into).collect())
+                Self::EndOfEpochTransaction(vec)
             }
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
@@ -409,180 +408,6 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
         .pipe(Ok)
-    }
-}
-
-impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransactionKind {
-    fn from(value: crate::transaction::EndOfEpochTransactionKind) -> Self {
-        match value {
-            crate::transaction::EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
-                EndOfEpochTransactionKind::ChangeEpoch(ChangeEpoch {
-                    epoch: change_epoch.epoch,
-                    protocol_version: change_epoch.protocol_version.as_u64(),
-                    storage_charge: change_epoch.storage_charge,
-                    computation_charge: change_epoch.computation_charge,
-                    storage_rebate: change_epoch.storage_rebate,
-                    non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
-                    system_packages: change_epoch
-                        .system_packages
-                        .into_iter()
-                        .map(|(version, modules, dependencies)| SystemPackage {
-                            version,
-                            modules,
-                            dependencies,
-                        })
-                        .collect(),
-                })
-            }
-            crate::transaction::EndOfEpochTransactionKind::ChangeEpochV2(change_epoch_v2) => {
-                EndOfEpochTransactionKind::ChangeEpochV2(ChangeEpochV2 {
-                    epoch: change_epoch_v2.epoch,
-                    protocol_version: change_epoch_v2.protocol_version.as_u64(),
-                    storage_charge: change_epoch_v2.storage_charge,
-                    computation_charge: change_epoch_v2.computation_charge,
-                    computation_charge_burned: change_epoch_v2.computation_charge_burned,
-                    storage_rebate: change_epoch_v2.storage_rebate,
-                    non_refundable_storage_fee: change_epoch_v2.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
-                    system_packages: change_epoch_v2
-                        .system_packages
-                        .into_iter()
-                        .map(|(version, modules, dependencies)| SystemPackage {
-                            version,
-                            modules,
-                            dependencies,
-                        })
-                        .collect(),
-                })
-            }
-            crate::transaction::EndOfEpochTransactionKind::ChangeEpochV3(change_epoch_v3) => {
-                EndOfEpochTransactionKind::ChangeEpochV3(ChangeEpochV3 {
-                    epoch: change_epoch_v3.epoch,
-                    protocol_version: change_epoch_v3.protocol_version.as_u64(),
-                    storage_charge: change_epoch_v3.storage_charge,
-                    computation_charge: change_epoch_v3.computation_charge,
-                    computation_charge_burned: change_epoch_v3.computation_charge_burned,
-                    storage_rebate: change_epoch_v3.storage_rebate,
-                    non_refundable_storage_fee: change_epoch_v3.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
-                    system_packages: change_epoch_v3
-                        .system_packages
-                        .into_iter()
-                        .map(|(version, modules, dependencies)| SystemPackage {
-                            version,
-                            modules,
-                            dependencies,
-                        })
-                        .collect(),
-                    eligible_active_validators: change_epoch_v3.eligible_active_validators,
-                })
-            }
-
-            crate::transaction::EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
-                EndOfEpochTransactionKind::ChangeEpochV4(ChangeEpochV4 {
-                    epoch: change_epoch_v4.epoch,
-                    protocol_version: change_epoch_v4.protocol_version.as_u64(),
-                    storage_charge: change_epoch_v4.storage_charge,
-                    computation_charge: change_epoch_v4.computation_charge,
-                    computation_charge_burned: change_epoch_v4.computation_charge_burned,
-                    storage_rebate: change_epoch_v4.storage_rebate,
-                    non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
-                    system_packages: change_epoch_v4
-                        .system_packages
-                        .into_iter()
-                        .map(|(version, modules, dependencies)| SystemPackage {
-                            version,
-                            modules,
-                            dependencies,
-                        })
-                        .collect(),
-                    eligible_active_validators: change_epoch_v4.eligible_active_validators,
-                    scores: change_epoch_v4.scores,
-                    adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
-                })
-            }
-        }
-    }
-}
-
-impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransactionKind {
-    fn from(value: EndOfEpochTransactionKind) -> Self {
-        match value {
-            EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
-                Self::ChangeEpoch(crate::transaction::ChangeEpoch {
-                    epoch: change_epoch.epoch,
-                    protocol_version: change_epoch.protocol_version.into(),
-                    storage_charge: change_epoch.storage_charge,
-                    computation_charge: change_epoch.computation_charge,
-                    storage_rebate: change_epoch.storage_rebate,
-                    non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
-                    system_packages: change_epoch
-                        .system_packages
-                        .into_iter()
-                        .map(|package| (package.version, package.modules, package.dependencies))
-                        .collect(),
-                })
-            }
-            EndOfEpochTransactionKind::ChangeEpochV2(change_epoch_v2) => {
-                Self::ChangeEpochV2(crate::transaction::ChangeEpochV2 {
-                    epoch: change_epoch_v2.epoch,
-                    protocol_version: change_epoch_v2.protocol_version.into(),
-                    storage_charge: change_epoch_v2.storage_charge,
-                    computation_charge: change_epoch_v2.computation_charge,
-                    computation_charge_burned: change_epoch_v2.computation_charge_burned,
-                    storage_rebate: change_epoch_v2.storage_rebate,
-                    non_refundable_storage_fee: change_epoch_v2.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
-                    system_packages: change_epoch_v2
-                        .system_packages
-                        .into_iter()
-                        .map(|package| (package.version, package.modules, package.dependencies))
-                        .collect(),
-                })
-            }
-            EndOfEpochTransactionKind::ChangeEpochV3(change_epoch_v3) => {
-                Self::ChangeEpochV3(crate::transaction::ChangeEpochV3 {
-                    epoch: change_epoch_v3.epoch,
-                    protocol_version: change_epoch_v3.protocol_version.into(),
-                    storage_charge: change_epoch_v3.storage_charge,
-                    computation_charge: change_epoch_v3.computation_charge,
-                    computation_charge_burned: change_epoch_v3.computation_charge_burned,
-                    storage_rebate: change_epoch_v3.storage_rebate,
-                    non_refundable_storage_fee: change_epoch_v3.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
-                    system_packages: change_epoch_v3
-                        .system_packages
-                        .into_iter()
-                        .map(|package| (package.version, package.modules, package.dependencies))
-                        .collect(),
-                    eligible_active_validators: change_epoch_v3.eligible_active_validators,
-                })
-            }
-            EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
-                Self::ChangeEpochV4(crate::transaction::ChangeEpochV4 {
-                    epoch: change_epoch_v4.epoch,
-                    protocol_version: change_epoch_v4.protocol_version.into(),
-                    storage_charge: change_epoch_v4.storage_charge,
-                    computation_charge: change_epoch_v4.computation_charge,
-                    computation_charge_burned: change_epoch_v4.computation_charge_burned,
-                    storage_rebate: change_epoch_v4.storage_rebate,
-                    non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
-                    epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
-                    system_packages: change_epoch_v4
-                        .system_packages
-                        .into_iter()
-                        .map(|package| (package.version, package.modules, package.dependencies))
-                        .collect(),
-                    eligible_active_validators: change_epoch_v4.eligible_active_validators,
-                    scores: change_epoch_v4.scores,
-                    adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
-                })
-            }
-            _ => unreachable!("a new enum variant was added and needs to be handled"),
-        }
     }
 }
 

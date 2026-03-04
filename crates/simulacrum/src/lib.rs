@@ -306,10 +306,10 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
         drop(inner);
 
-        let next_epoch_system_package_bytes = vec![];
+        let next_epoch_system_package_bytes: Vec<iota_types::transaction::SystemPackage> = vec![];
         let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
             next_epoch,
-            next_epoch_protocol_version,
+            next_epoch_protocol_version.as_u64(),
             gas_cost_summary.storage_cost,
             gas_cost_summary.computation_cost,
             gas_cost_summary.computation_cost_burned,
