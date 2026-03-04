@@ -58,7 +58,7 @@ pub async fn migrate_events(store: Arc<AuthorityStore>) {
                     tracing::warn!(
                         expected_events_digest =? events_digest,
                         fetched_events_digest =? fetched_events_digest,
-                        "fetched events don't matched expected digest; skipping",
+                        "fetched events don't match expected digest; skipping",
                     );
                     continue;
                 }
