@@ -289,9 +289,9 @@ impl ChangeEpochTransaction {
         connection.has_previous_page = consistent_page.has_previous_page;
         connection.has_next_page = consistent_page.has_next_page;
 
-        for c in consistent_page.cursors {
-            let sp = &self.native.system_packages[c.ix];
-            let compiled_modules = sp
+        for cursor in consistent_page.cursors {
+            let system_package = &self.native.system_packages[cursor.ix];
+            let compiled_modules = system_package
                 .modules
                 .iter()
                 .map(|bytes| CompiledModule::deserialize_with_defaults(bytes))
@@ -301,18 +301,20 @@ impl ChangeEpochTransaction {
 
             let native = NativeObject::new_system_package(
                 &compiled_modules,
-                sp.version,
-                sp.dependencies.clone(),
+                system_package.version,
+                system_package.dependencies.clone(),
                 TransactionDigest::ZERO,
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, c.c, None);
+            let object = Object::from_native(IotaAddress::from(runtime_id), native, cursor.c, None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;
 
-            connection.edges.push(Edge::new(c.encode_cursor(), package));
+            connection
+                .edges
+                .push(Edge::new(cursor.encode_cursor(), package));
         }
 
         Ok(connection)
@@ -395,9 +397,9 @@ impl ChangeEpochTransactionV2 {
         connection.has_previous_page = consistent_page.has_previous_page;
         connection.has_next_page = consistent_page.has_next_page;
 
-        for c in consistent_page.cursors {
-            let sp = &self.system_packages[c.ix];
-            let compiled_modules = sp
+        for cursor in consistent_page.cursors {
+            let system_package = &self.system_packages[cursor.ix];
+            let compiled_modules = system_package
                 .modules
                 .iter()
                 .map(|bytes| CompiledModule::deserialize_with_defaults(bytes))
@@ -407,18 +409,20 @@ impl ChangeEpochTransactionV2 {
 
             let native = NativeObject::new_system_package(
                 &compiled_modules,
-                sp.version,
-                sp.dependencies.clone(),
+                system_package.version,
+                system_package.dependencies.clone(),
                 TransactionDigest::ZERO,
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, c.c, None);
+            let object = Object::from_native(IotaAddress::from(runtime_id), native, cursor.c, None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;
 
-            connection.edges.push(Edge::new(c.encode_cursor(), package));
+            connection
+                .edges
+                .push(Edge::new(cursor.encode_cursor(), package));
         }
 
         Ok(connection)
