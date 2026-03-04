@@ -15,6 +15,7 @@ import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import clsx from 'clsx';
 import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
@@ -30,7 +31,6 @@ export function ImportExistingWallet() {
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
-    const isFirstAccount = !accounts || accounts.length === 0;
 
     const profileOptions = [
         {
@@ -74,7 +74,7 @@ export function ImportExistingWallet() {
             ampli.accountCreationStarted({
                 accountType: ampliData.accountType,
                 accountOrigin: ampliData.accountOrigin,
-                isFirstAccount,
+                isFirstAccount: isFirstAccount(accounts),
                 sourceFlow,
             });
         }

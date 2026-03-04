@@ -33,6 +33,7 @@ import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
 import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export interface ActionCardItem {
     title: string;
@@ -89,7 +90,6 @@ export function AddAccountPage() {
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
-    const isFirstAccount = !accounts || accounts.length === 0;
 
     const cardLinks: CardLinkItem[] = [
         {
@@ -128,7 +128,7 @@ export function AddAccountPage() {
             ampli.accountCreationStarted({
                 accountType: ampliData.accountType,
                 accountOrigin: ampliData.accountOrigin,
-                isFirstAccount,
+                isFirstAccount: isFirstAccount(accounts),
                 sourceFlow,
             });
         }

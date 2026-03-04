@@ -14,6 +14,7 @@ import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export function CreateNewWallet() {
     const { theme } = useTheme();
@@ -30,7 +31,6 @@ export function CreateNewWallet() {
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
-    const isFirstAccount = !accounts || accounts.length === 0;
 
     const profileOptions = [
         {
@@ -58,7 +58,7 @@ export function CreateNewWallet() {
             ampli.accountCreationStarted({
                 accountType: ampliData.accountType,
                 accountOrigin: ampliData.accountOrigin,
-                isFirstAccount,
+                isFirstAccount: isFirstAccount(accounts),
                 sourceFlow,
             });
         }
