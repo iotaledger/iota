@@ -1409,7 +1409,7 @@ impl ValidatorService {
             // TODO: handle ping response better. Do we even need ping requests?
             return Ok((
                 tonic::Response::new(SubmitTransactionsResponse {
-                    results: vec![SubmitTransactionResult::Submitted],
+                    result: SubmitTransactionResult::Submitted,
                 }),
                 Weight::zero(),
             ));
@@ -1448,7 +1448,6 @@ impl ValidatorService {
 
         if is_soft_bundle {
             // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
-            let n = transactions.len();
 
             // Bundle-level validity checks (shared-object, size, gas price, already
             // processed).
@@ -1506,10 +1505,10 @@ impl ValidatorService {
                 .submit_batch(&consensus_txs, Some(&reconfiguration_lock), &epoch_store)
                 .map_err(tonic::Status::from)?;
 
-            // TODO: do we need a vector in the response, since it's all or nothing anyway?
-            let results = vec![SubmitTransactionResult::Submitted; n];
             Ok((
-                tonic::Response::new(SubmitTransactionsResponse { results }),
+                tonic::Response::new(SubmitTransactionsResponse {
+                    result: SubmitTransactionResult::Submitted,
+                }),
                 Weight::one(),
             ))
         } else {
@@ -1539,10 +1538,10 @@ impl ValidatorService {
                 }));
                 return Ok((
                     tonic::Response::new(SubmitTransactionsResponse {
-                        results: vec![SubmitTransactionResult::Executed {
+                        result: SubmitTransactionResult::Executed {
                             effects_digest,
                             details,
-                        }],
+                        },
                     }),
                     Weight::one(),
                 ));
@@ -1587,7 +1586,7 @@ impl ValidatorService {
 
             Ok((
                 tonic::Response::new(SubmitTransactionsResponse {
-                    results: vec![SubmitTransactionResult::Submitted],
+                    result: SubmitTransactionResult::Submitted,
                 }),
                 Weight::one(),
             ))

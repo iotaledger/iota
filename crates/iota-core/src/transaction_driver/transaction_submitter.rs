@@ -225,13 +225,7 @@ impl TransactionSubmitter {
             TransactionRequestError::RejectedAtValidator(error)
         })?;
 
-        if resp.results.len() != 1 {
-            return Err(TransactionRequestError::ValidatorInternal(format!(
-                "Expected exactly 1 result, got {}",
-                resp.results.len()
-            )));
-        }
-        let result = resp.results.into_iter().next().unwrap();
+        let result = resp.result;
 
         // Since only one transaction is submitted, it is ok to return error when the
         // submission is rejected.
