@@ -903,6 +903,7 @@ mod sim_only_tests {
                     .as_ref(),
                 inner.validators.inactive_validators.id,
                 &ID::new(ObjectID::ZERO),
+                Some(inner.protocol_version),
             )
             .unwrap();
         } else {
@@ -928,6 +929,7 @@ mod sim_only_tests {
                     .as_ref(),
                 inner.validators.inactive_validators.id,
                 &ID::new(ObjectID::ZERO),
+                None,
             )
             .unwrap();
         } else {

@@ -12,6 +12,7 @@ use async_graphql::{
 use futures::TryFutureExt;
 use iota_indexer::apis::GovernanceReadApi;
 use iota_json_rpc::governance_api::mean_apy_from_exchange_rates;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     committee::EpochId,
@@ -39,9 +40,6 @@ use crate::{
         validator_credentials::ValidatorCredentials,
     },
 };
-
-/// The protocol version that IIP8 was put in effect.
-const IIP8_PROTOCOL_VERSION: u64 = 20;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
@@ -355,7 +353,7 @@ impl Validator {
         .await
         .extend()?;
         if let Some(epoch) = epoch {
-            if epoch.protocol_version() < IIP8_PROTOCOL_VERSION {
+            if epoch.protocol_version() < PROTOCOL_VERSION_IIP8 {
                 // Pre IIP8
                 return Ok(Some(summary.commission_rate));
             }

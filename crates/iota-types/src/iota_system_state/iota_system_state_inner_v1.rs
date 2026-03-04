@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
@@ -304,7 +305,15 @@ impl ValidatorV1 {
         })
     }
 
-    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+    /// Create the validator summary.
+    ///
+    /// The effective commission rate is evaluated based on the value of the
+    /// `protocol_version` passed. If [`None`] it resolves to the commission
+    /// rate set by the validator.
+    pub fn into_iota_validator_summary(
+        self,
+        protocol_version: Option<u64>,
+    ) -> IotaValidatorSummary {
         let Self {
             metadata:
                 ValidatorMetadataV1 {
@@ -357,6 +366,10 @@ impl ValidatorV1 {
             next_epoch_commission_rate,
             extra_fields: _,
         } = self;
+        let effective_commission_rate = Some(match protocol_version {
+            Some(version) if version >= PROTOCOL_VERSION_IIP8 => commission_rate.max(voting_power),
+            _ => commission_rate,
+        });
         IotaValidatorSummary {
             iota_address,
             authority_pubkey_bytes,
@@ -392,6 +405,7 @@ impl ValidatorV1 {
             pending_total_iota_withdraw,
             pending_pool_token_withdraw,
             commission_rate,
+            effective_commission_rate,
             next_epoch_stake,
             next_epoch_gas_price,
             next_epoch_commission_rate,
@@ -535,7 +549,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(Some(self.protocol_version)))
             .collect())
     }
 
@@ -646,7 +660,7 @@ impl IotaSystemStateTrait for IotaSystemStateV1 {
             total_stake,
             active_validators: active_validators
                 .into_iter()
-                .map(|v| v.into_iota_validator_summary())
+                .map(|v| v.into_iota_validator_summary(Some(protocol_version)))
                 .collect(),
             pending_active_validators_id,
             pending_active_validators_size,
