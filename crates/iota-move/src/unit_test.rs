@@ -9,13 +9,17 @@ use clap::Parser;
 use iota_move_build::{decorate_warnings, implicit_deps};
 use iota_move_natives::{
     NativesCostTable, authentication_context::AuthenticationContext, object_runtime::ObjectRuntime,
-    test_scenario::InMemoryTestStore,
+    test_scenario::InMemoryTestStore, transaction_context::TransactionContext,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    auth_context::AuthContext, gas_model::tables::initial_cost_schedule_for_unit_tests,
-    in_memory_storage::InMemoryStorage, metrics::LimitsMetrics,
+    auth_context::AuthContext,
+    base_types::{IotaAddress, TxContext},
+    digests::TransactionDigest,
+    gas_model::tables::initial_cost_schedule_for_unit_tests,
+    in_memory_storage::InMemoryStorage,
+    metrics::LimitsMetrics,
 };
 use move_cli::base::{
     self,
@@ -125,6 +129,7 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let store = Lazy::force(&TEST_STORE);
+    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
     // If this list needs to be updated you likely need to update
     // iota-execution/latest/iota-adapter/src/adapter.rs where it is constructed for
@@ -137,12 +142,22 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
         metrics,
         0, // epoch id
     ));
-    ext.add(NativesCostTable::from_protocol_config(
-        &ProtocolConfig::get_for_max_version_UNSAFE(),
-    ));
+    ext.add(NativesCostTable::from_protocol_config(&protocol_config));
     ext.add(AuthenticationContext::new_for_testing(Rc::new(
         RefCell::new(AuthContext::new_for_testing()),
     )));
+    ext.add(TransactionContext::new_for_testing(Rc::new(RefCell::new(
+        TxContext::new_from_components(
+            &IotaAddress::ZERO,
+            &TransactionDigest::default(),
+            &0,
+            0,
+            0,
+            0,
+            None,
+            &protocol_config,
+        ),
+    ))));
 
     ext.add(store);
 }

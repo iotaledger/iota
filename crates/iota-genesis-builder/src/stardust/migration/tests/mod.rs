@@ -4,6 +4,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::{anyhow, bail, ensure};
+use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_stardust_types::block::{
     address::AliasAddress,
     output::{
@@ -422,11 +423,17 @@ fn unlock_object(
 ) -> anyhow::Result<()> {
     let (migration_executor, objects_map) = run_migration(total_supply, outputs, coin_type)?;
 
+    let protocol_version = MIGRATION_PROTOCOL_VERSION.into();
+
     // Recreate the TxContext and Executor so we can set a timestamp greater than 0.
     let tx_context = TxContext::new(
         sender,
         &TransactionDigest::new(random()),
         &EpochData::new(0, epoch_start_timestamp_ms, Default::default()),
+        0,
+        0,
+        None,
+        &ProtocolConfig::get_for_version(protocol_version, Chain::Unknown),
     );
     let store = InMemoryStorage::new(
         // Cloning all objects in the store includes the system packages we need for executing
@@ -438,14 +445,10 @@ fn unlock_object(
             .cloned()
             .collect(),
     );
-    let mut executor = Executor::new(
-        MIGRATION_PROTOCOL_VERSION.into(),
-        MigrationTargetNetwork::Mainnet,
-        coin_type,
-    )
-    .unwrap()
-    .with_tx_context(tx_context)
-    .with_store(store);
+    let mut executor = Executor::new(protocol_version, MigrationTargetNetwork::Mainnet, coin_type)
+        .unwrap()
+        .with_tx_context(tx_context)
+        .with_store(store);
 
     // Find the corresponding objects to the migrated output.
     let output_created_objects = objects_map

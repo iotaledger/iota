@@ -12,6 +12,7 @@ mod checked {
         NativesCostTable,
         authentication_context::AuthenticationContext,
         object_runtime::{self, ObjectRuntime},
+        transaction_context::TransactionContext,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
@@ -100,11 +101,12 @@ mod checked {
         is_metered: bool,
         protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        current_epoch_id: EpochId,
+        tx_context: Rc<RefCell<TxContext>>,
         auth_context: Option<Rc<RefCell<AuthContext>>>,
     ) -> NativeContextExtensions<'r> {
         // When changing the list of configured extensions, make sure you also
         // update the one used while executing `move test` command.
+        let current_epoch_id = tx_context.borrow().epoch();
         let mut extensions = NativeContextExtensions::default();
         extensions.add(ObjectRuntime::new(
             child_resolver,
@@ -115,6 +117,7 @@ mod checked {
             current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
+        extensions.add(TransactionContext::new(tx_context));
         if let Some(auth_context) = auth_context {
             extensions.add(AuthenticationContext::new(auth_context));
         }

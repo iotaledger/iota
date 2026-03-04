@@ -36,9 +36,10 @@ use iota_types::{
         get_module_by_id,
     },
     transaction::{
-        CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
-        SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
-        TransactionKind::ProgrammableTransaction, VerifiedTransaction,
+        CheckedInputObjects, GasData, InputObjectKind, InputObjects, ObjectReadResult,
+        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI,
+        TransactionKind::{self, ProgrammableTransaction},
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -763,6 +764,12 @@ impl LocalExec {
             )
             .expect("Failed to create gas status")
         };
+        let gas_data = GasData {
+            payment: tx_info.gas.clone(),
+            owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
+            price: tx_info.gas_price,
+            budget: tx_info.gas_budget,
+        };
         let (inner_store, gas_status, effects, result) = executor.execute_transaction_to_effects(
             &self,
             protocol_config,
@@ -772,7 +779,7 @@ impl LocalExec {
             &tx_info.executed_epoch,
             tx_info.epoch_start_timestamp,
             CheckedInputObjects::new_for_replay(input_objects.clone()),
-            tx_info.gas.clone(),
+            gas_data,
             gas_status,
             transaction_kind.clone(),
             tx_info.sender,
@@ -821,6 +828,12 @@ impl LocalExec {
         trace!(target: "replay_gas_info", "{}", Pretty(gas_status));
 
         let skip_checks = true;
+        let gas_data = GasData {
+            payment: tx_info.gas.clone(),
+            owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
+            price: tx_info.gas_price,
+            budget: tx_info.gas_budget,
+        };
         if let ProgrammableTransaction(pt) = transaction_kind {
             trace!(
                 target: "replay_ptb_info",
@@ -839,7 +852,7 @@ impl LocalExec {
                             &tx_info.executed_epoch,
                             tx_info.epoch_start_timestamp,
                             CheckedInputObjects::new_for_replay(input_objects),
-                            tx_info.gas.clone(),
+                            gas_data,
                             IotaGasStatus::new(
                                 tx_info.gas_budget,
                                 tx_info.gas_price,
@@ -923,7 +936,7 @@ impl LocalExec {
             reference_gas_price,
         )
         .unwrap();
-        let (kind, signer, gas) = executable.transaction_data().execution_parts();
+        let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
         let executor = iota_execution::executor(&protocol_config, true, None).unwrap();
         let (_, _, effects, exec_res) = executor.execute_transaction_to_effects(
             &store,
@@ -934,7 +947,7 @@ impl LocalExec {
             &executed_epoch,
             epoch_start_timestamp,
             input_objects,
-            gas,
+            gas_data,
             gas_status,
             kind,
             signer,
@@ -1540,6 +1553,7 @@ impl LocalExec {
             input_objects: input_objs,
             shared_object_refs,
             gas: gas_object_refs,
+            gas_owner: (gas_data.owner != sender).then_some(gas_data.owner),
             gas_budget: gas_data.budget,
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
@@ -1604,8 +1618,6 @@ impl LocalExec {
                 }
             })
             .collect();
-        let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment;
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()
@@ -1623,6 +1635,8 @@ impl LocalExec {
         let (epoch_start_timestamp, reference_gas_price) = self
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
+        let gas_data = orig_tx.transaction_data().gas_data();
+        let gas_object_refs: Vec<_> = gas_data.clone().payment;
 
         Ok(OnChainTransactionInfo {
             kind: tx_kind_orig.clone(),
@@ -1631,6 +1645,7 @@ impl LocalExec {
             input_objects: input_objs,
             shared_object_refs,
             gas: gas_object_refs,
+            gas_owner: (gas_data.owner != sender).then_some(gas_data.owner),
             gas_budget: gas_data.budget,
             gas_price: gas_data.price,
             executed_epoch: epoch_id,

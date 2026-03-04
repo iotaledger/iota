@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     fs::{self, File},
     io::{BufReader, BufWriter, prelude::Read},
     path::{Path, PathBuf},
+    rc::Rc,
     str::FromStr,
     sync::Arc,
 };
@@ -1022,7 +1024,8 @@ fn create_genesis_context(
     genesis_validators: &[GenesisValidatorMetadata],
     token_distribution_schedule: &TokenDistributionSchedule,
     system_packages: &[SystemPackage],
-) -> TxContext {
+    protocol_config: &ProtocolConfig,
+) -> Rc<RefCell<TxContext>> {
     let mut hasher = DefaultHash::default();
     hasher.update(b"iota-genesis");
     hasher.update(bcs::to_bytes(genesis_chain_parameters).unwrap());
@@ -1035,11 +1038,17 @@ fn create_genesis_context(
     let hash = hasher.finalize();
     let genesis_transaction_digest = TransactionDigest::new(hash.into());
 
-    TxContext::new(
+    let tx_context = TxContext::new(
         &IotaAddress::default(),
         &genesis_transaction_digest,
         epoch_data,
-    )
+        0,
+        0,
+        None,
+        protocol_config,
+    );
+
+    Rc::new(RefCell::new(tx_context))
 }
 
 fn build_unsigned_genesis_data<'info>(
@@ -1076,24 +1085,26 @@ fn build_unsigned_genesis_data<'info>(
     // certain tests.
     update_system_packages_from_objects(&mut system_packages, &objects);
 
-    let mut genesis_ctx = create_genesis_context(
+    let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
+
+    let genesis_ctx = create_genesis_context(
         &epoch_data,
         &genesis_chain_parameters,
         &genesis_validators,
         token_distribution_schedule,
         &system_packages,
+        &protocol_config,
     );
 
     // Use a throwaway metrics registry for genesis transaction execution.
     let registry = prometheus::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let mut txs_data: TransactionsData = BTreeMap::new();
-    let protocol_config = get_genesis_protocol_config(parameters.protocol_version);
 
     // In here the main genesis objects are created. This means the main system
     // objects and the ones that are created at genesis like the network coin.
     let (genesis_objects, events) = create_genesis_objects(
-        &mut genesis_ctx,
+        genesis_ctx.clone(),
         objects,
         &genesis_validators,
         &genesis_chain_parameters,
@@ -1114,7 +1125,7 @@ fn build_unsigned_genesis_data<'info>(
         // objects. Here then we need to destroy those assets from the original set of
         // migration objects.
         let migration_objects = destroy_staked_migration_objects(
-            &mut genesis_ctx,
+            genesis_ctx,
             migration_objects.take_objects(),
             &genesis_objects,
             &genesis_chain_parameters,
@@ -1339,7 +1350,7 @@ fn create_genesis_transaction(
 }
 
 fn create_genesis_objects(
-    genesis_ctx: &mut TxContext,
+    genesis_ctx: Rc<RefCell<TxContext>>,
     input_objects: Vec<Object>,
     validators: &[GenesisValidatorMetadata],
     parameters: &GenesisChainParameters,
@@ -1365,7 +1376,7 @@ fn create_genesis_objects(
         let tx_events = process_package(
             &mut store,
             executor.as_ref(),
-            genesis_ctx,
+            genesis_ctx.clone(),
             &system_package.modules(),
             system_package.dependencies,
             &protocol_config,
@@ -1397,7 +1408,7 @@ fn create_genesis_objects(
 pub(crate) fn process_package(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
-    ctx: &mut TxContext,
+    ctx: Rc<RefCell<TxContext>>,
     modules: &[CompiledModule],
     dependencies: Vec<ObjectID>,
     protocol_config: &ProtocolConfig,
@@ -1473,7 +1484,7 @@ pub fn generate_genesis_system_object(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
     genesis_validators: &[GenesisValidatorMetadata],
-    genesis_ctx: &mut TxContext,
+    genesis_ctx: Rc<RefCell<TxContext>>,
     genesis_chain_parameters: &GenesisChainParameters,
     token_distribution_schedule: &TokenDistributionSchedule,
     metrics: Arc<LimitsMetrics>,
@@ -1625,7 +1636,7 @@ pub fn generate_genesis_system_object(
 // the genesis. In this function the objects needed for the stake are destroyed
 // (and, if needed, split) to provide a new set of migration object as output.
 fn destroy_staked_migration_objects(
-    genesis_ctx: &mut TxContext,
+    genesis_ctx: Rc<RefCell<TxContext>>,
     migration_objects: Vec<Object>,
     genesis_objects: &[Object],
     parameters: &GenesisChainParameters,
@@ -1685,7 +1696,7 @@ fn destroy_staked_migration_objects(
 pub fn split_timelocks(
     store: &mut InMemoryStorage,
     executor: &dyn Executor,
-    genesis_ctx: &mut TxContext,
+    genesis_ctx: Rc<RefCell<TxContext>>,
     genesis_chain_parameters: &GenesisChainParameters,
     timelocks_to_split: &[(ObjectRef, u64, IotaAddress)],
     metrics: Arc<LimitsMetrics>,
