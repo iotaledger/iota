@@ -1,0 +1,26 @@
+---
+description: "Account Abstraction in IOTA: overview and how-to guides for Move and the IOTA SDKs"
+tags:
+  - move-sc
+  - move-vm
+---
+
+# Account Abstraction
+
+Account Abstraction (AA) in IOTA lets you replace fixed cryptographic signature verification with programmable Move logic, enabling flexible and extensible account authentication.
+
+For a full conceptual introduction, see the [Account Abstraction explanation](./move/explanations/account-abstraction.mdx).
+
+## Move How-Tos
+
+These guides show how to implement and manage abstract accounts in Move.
+
+Go to [How To](./move/how-tos/account-abstraction/basic-account-authenticator.mdx).
+
+## TypeScript SDK How-Tos
+
+Coming soon.
+
+## Python SDK How-Tos
+
+Coming soon.

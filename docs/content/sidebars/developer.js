@@ -25,6 +25,7 @@ import devnetStardustCategoryLink from '../developer/references/framework/devnet
 const developer = [
     'developer/developer',
     'developer/network-overview',
+    'developer/account-abstraction',
     {
         type: 'category',
         label: 'Getting Started',
