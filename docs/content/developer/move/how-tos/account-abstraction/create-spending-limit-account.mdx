@@ -78,19 +78,21 @@ If you want to learn more about the concepts of Account Abstraction, check out t
 
 The complete Move package, including comments and setup logic, is available here:
 
-<Tabs groupId="language" queryString>
+<Tabs groupId="module" queryString>
+<TabItem value="limit" label="Spending limit account module">
 
-<TabItem value="move" label="Move">
-
-**Spending limit account module:**
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move
 ```
 
-**Balance reserve module:**
+</TabItem>
+<TabItem value="reserve" label="Balance reserve module">
+
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move
 ```
 
-**Spending limit authentication helpers:**
+</TabItem>
+<TabItem value="auth" label="Spending limit authentication helpers">
+
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move
 ```
 
