@@ -28,7 +28,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
@@ -136,8 +136,8 @@ impl RemoteStore {
                     }
                     // fallback to REST API if gRPC fails
                     Err(e) => {
-                        debug!("unable to establish a gRPC connection to fullnode: {e}");
-                        info!("using REST API as checkpoint stream");
+                        warn!("unable to establish a gRPC connection to fullnode: {e}");
+                        info!("fallback to REST API as checkpoint stream");
                         RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
                     }
                 }
