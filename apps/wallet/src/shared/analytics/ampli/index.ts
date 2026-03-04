@@ -69,6 +69,14 @@ export type LoadOptions =
     | LoadOptionsWithClientInstance;
 
 export interface AccountCreationStartedProperties {
+    accountOrigin?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+    isFirstAccount?: boolean;
     /**
      * | Rule | Value |
      * |---|---|

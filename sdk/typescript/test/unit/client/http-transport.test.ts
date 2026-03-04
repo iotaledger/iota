@@ -69,6 +69,66 @@ describe('IotaHTTPTransport', () => {
 
             expect(result).toEqual(mockResult);
         });
+
+        it('should call inspector when provided', async () => {
+            const mockInspector = vi.fn(async (input, executeRequest) => {
+                expect(input.method).toBe('getAllBalances');
+                expect(input.params).toEqual(['0x1234']);
+                const result = await executeRequest();
+                return result;
+            });
+
+            const transport = new IotaHTTPTransport({
+                url: 'http://localhost:4000',
+                rpc: {
+                    url: 'http://localhost:4000',
+                },
+                fetch,
+                inspector: mockInspector,
+            });
+
+            const result = await transport.request({
+                method: 'getAllBalances',
+                params: ['0x1234'],
+            });
+
+            expect(mockInspector).toHaveBeenCalledTimes(1);
+            expect(mockInspector).toHaveBeenCalledWith(
+                {
+                    method: 'getAllBalances',
+                    params: ['0x1234'],
+                },
+                expect.any(Function),
+            );
+
+            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(result).toEqual(mockResult);
+        });
+
+        it('should handle inspector errors', async () => {
+            const mockInspector = vi.fn(async () => {
+                throw new Error('Inspector error');
+            });
+
+            const transport = new IotaHTTPTransport({
+                url: 'http://localhost:4000',
+                rpc: {
+                    url: 'http://localhost:4000',
+                },
+                fetch,
+                inspector: mockInspector,
+            });
+
+            await expect(
+                transport.request({
+                    method: 'getAllBalances',
+                    params: ['0x1234'],
+                }),
+            ).rejects.toThrow('Inspector error');
+
+            expect(mockInspector).toHaveBeenCalledTimes(1);
+            expect(fetch).toHaveBeenCalledTimes(0); // Request should not be made if inspector fails
+        });
     });
 
     describe('rpc subscriptions', () => {
