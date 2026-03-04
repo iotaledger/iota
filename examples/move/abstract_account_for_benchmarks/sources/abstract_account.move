@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module abstract_account::abstract_account;
+module abstract_account_for_benchmarks::abstract_account;
 
 use iota::account;
 use iota::authenticator_function;
@@ -73,7 +73,7 @@ public fun authenticate_ed25519_heavy(
     ctx: &TxContext,
 ) {
     let mut i = 0;
-    while (i < 100) {
+    while (i < 5) {
          ed25519::ed25519_verify(
             &decode(signature),
             account.borrow_public_key(),

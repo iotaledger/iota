@@ -40,6 +40,7 @@ const AA_MODULE_NAME: &str = "abstract_account";
 
 /// For metrics/logging
 const WORKLOAD_LABEL: &str = "abstract_account";
+const WORKLOAD_PATH: &str = "abstract_account_for_benchmarks";
 
 /// Each payload uses two coins: one for gas and one as the pay coin.
 fn payload_coin_pairs_needed(num_payloads: u64) -> u64 {

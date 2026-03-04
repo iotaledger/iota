@@ -24,7 +24,7 @@ use crate::{
         Gas,
         abstract_account::{
             AA_MODULE_NAME, ABSTRACT_ACCOUNT_TY, AuthenticatorKind, GAS_BUDGET,
-            PACKAGE_METADATA_TY, PAY_CHUNK_SIZE, UPGRADE_CAP_TY, WORKLOAD_LABEL,
+            PACKAGE_METADATA_TY, PAY_CHUNK_SIZE, UPGRADE_CAP_TY, WORKLOAD_LABEL, WORKLOAD_PATH,
         },
     },
 };
@@ -42,10 +42,10 @@ pub async fn publish_aa_package_and_find_metadata(
     owner: &(IotaAddress, Arc<AccountKeyPair>),
     gas_price: u64,
 ) -> Result<(ObjectID, ObjectRef)> {
-    info!("[{WORKLOAD_LABEL}] publishing Move package: abstract_account");
+    info!("[{WORKLOAD_LABEL}] publishing Move package: {WORKLOAD_PATH}");
 
     let tx = TestTransactionBuilder::new(owner.0, init_coin.0, gas_price)
-        .publish_examples(WORKLOAD_LABEL)
+        .publish_examples(WORKLOAD_PATH)
         .build_and_sign(owner.1.as_ref());
 
     let effects = proxy
