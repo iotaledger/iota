@@ -80,7 +80,7 @@ export function KioskDetailsPage() {
                                         type={ExplorerLinkType.Object}
                                         eventType="object"
                                     >
-                                        {formatAddress(kioskId!)}
+                                        <span data-amp-mask>{formatAddress(kioskId!)}</span>
                                     </ExplorerLink>
                                 }
                                 fullwidth
