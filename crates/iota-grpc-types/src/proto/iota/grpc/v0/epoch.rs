@@ -83,13 +83,17 @@ impl TryFrom<&ValidatorCommittee> for iota_sdk_types::ValidatorCommittee {
 }
 
 impl Epoch {
-    /// Get the epoch number.
-    pub fn epoch_number(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
+    /// Get the epoch ID.
+    ///
+    /// Requires `epoch` in the read_mask.
+    pub fn epoch_id(&self) -> Result<iota_sdk_types::EpochId, TryFromProtoError> {
         self.epoch
             .ok_or_else(|| TryFromProtoError::missing(Self::EPOCH_FIELD.name))
     }
 
     /// Deserialize the validator committee.
+    ///
+    /// Requires `committee` in the read_mask.
     pub fn committee(&self) -> Result<iota_sdk_types::ValidatorCommittee, TryFromProtoError> {
         match &self.committee {
             Some(committee) => Ok(committee.try_into()?),
@@ -102,6 +106,8 @@ impl Epoch {
     /// This is a snapshot of IOTA's SystemState
     /// (`0x3::iota_system::SystemState`) at the beginning of the epoch (for
     /// past epochs) or the current state (for the current epoch).
+    ///
+    /// Requires `bcs_system_state` in the read_mask.
     // TODO: Implement when IotaSystemState type is available in iota-sdk-types.
     // Use `system_state_bcs()` for raw bytes access in the meantime.
     // See https://github.com/iotaledger/iota/issues/10077
@@ -117,6 +123,8 @@ impl Epoch {
     }
 
     /// Get the first checkpoint sequence number in this epoch.
+    ///
+    /// Requires `first_checkpoint` in the read_mask.
     pub fn first_checkpoint_sequence_number(
         &self,
     ) -> Result<iota_sdk_types::CheckpointSequenceNumber, TryFromProtoError> {
@@ -135,6 +143,8 @@ impl Epoch {
     }
 
     /// Get the epoch start time in milliseconds.
+    ///
+    /// Requires `start` in the read_mask.
     pub fn start_ms(&self) -> Result<iota_sdk_types::CheckpointTimestamp, TryFromProtoError> {
         let ts = self
             .start
@@ -155,12 +165,16 @@ impl Epoch {
     }
 
     /// Get the reference gas price in NANOS.
+    ///
+    /// Requires `reference_gas_price` in the read_mask.
     pub fn gas_price(&self) -> Result<u64, TryFromProtoError> {
         self.reference_gas_price
             .ok_or_else(|| TryFromProtoError::missing(Self::REFERENCE_GAS_PRICE_FIELD.name))
     }
 
     /// Get the protocol configuration for this epoch.
+    ///
+    /// Requires `protocol_config` in the read_mask.
     pub fn protocol_config(&self) -> Result<&ProtocolConfig, TryFromProtoError> {
         self.protocol_config
             .as_ref()
@@ -173,12 +187,17 @@ impl Epoch {
 
 impl ProtocolConfig {
     /// Get the protocol version number.
+    ///
+    /// Requires `protocol_version` in the read_mask.
     pub fn version(&self) -> Result<iota_sdk_types::ProtocolVersion, TryFromProtoError> {
         self.protocol_version
             .ok_or_else(|| TryFromProtoError::missing(Self::PROTOCOL_VERSION_FIELD.name))
     }
 
     /// Get the feature flags map.
+    ///
+    /// Requires `feature_flags` in the read_mask to return all flags.
+    /// Use `feature_flags.{name}` to request only specific named flags.
     pub fn feature_flags(
         &self,
     ) -> Result<&std::collections::BTreeMap<String, bool>, TryFromProtoError> {
@@ -189,6 +208,9 @@ impl ProtocolConfig {
     }
 
     /// Get the protocol attributes map.
+    ///
+    /// Requires `attributes` in the read_mask to return all attributes.
+    /// Use `attributes.{name}` to request only specific named attributes.
     pub fn attributes(
         &self,
     ) -> Result<&std::collections::BTreeMap<String, String>, TryFromProtoError> {
