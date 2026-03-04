@@ -50,7 +50,6 @@ uuid.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
-iota-config.workspace = true
 iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
@@ -91,13 +90,12 @@ tower.workspace = true
 iota-framework.workspace = true
 iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
-simulacrum-server.workspace = true
 
 [features]
 pg_integration = []
 
 [package.metadata.cargo-udeps.ignore]
-development = ["serial_test", "simulacrum", "simulacrum-server"]
+development = ["serial_test", "simulacrum"]
 
 [package.metadata.cargo-machete]
 ignored = [
