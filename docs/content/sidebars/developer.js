@@ -432,22 +432,22 @@ const developer = [
                         type: 'category',
                         label: 'Account Abstraction',
                         items: [
-                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',                    
-                            {
-                            type: 'category',
-                            label: 'Dynamic Multisig',
-                            items: [
-                                'developer/move/how-tos/account-abstraction/dynamic-multisig/dynamic-multisig-account',
-                                'developer/move/how-tos/account-abstraction/dynamic-multisig/multisig-members',
-                                'developer/move/how-tos/account-abstraction/dynamic-multisig/transactions',
-                            ],
-                            },
-                            'developer/move/how-tos/account-abstraction/function-call-keys',
+                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
                             'developer/move/how-tos/account-abstraction/create-public-key-authentication',
+                            'developer/move/how-tos/account-abstraction/function-call-keys',
                             'developer/move/how-tos/account-abstraction/create-time-locked-account',
                             'developer/move/how-tos/account-abstraction/create-onesig-account',
-                            'developer/move/how-tos/account-abstraction/create-spending-limit-account'
+                            'developer/move/how-tos/account-abstraction/create-spending-limit-account',
+                            {
+                                type: 'category',
+                                label: 'Dynamic Multisig',
+                                items: [
+                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/dynamic-multisig-account',
+                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/multisig-members',
+                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/transactions',
+                                ],
+                            },
                         ],
                     },
                     {
