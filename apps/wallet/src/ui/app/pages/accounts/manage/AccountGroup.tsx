@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType } from '_components';
+import { AccountsFormType, useAccountsFormContext } from '_components';
 import { useAccountSources, useActiveAccount, useCreateAccountsMutation } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -71,6 +71,7 @@ export function AccountGroup({
     const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
+    const [, setAccountsFormValues] = useAccountsFormContext();
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
 
@@ -84,6 +85,10 @@ export function AccountGroup({
         const accountsFormType = isMnemonicDerivedGroup
             ? AccountsFormType.MnemonicSource
             : AccountsFormType.SeedSource;
+        setAccountsFormValues({
+            type: accountsFormType,
+            sourceID: accountSource.id,
+        });
         createAccountsMutation.mutate({
             type: accountsFormType,
             sourceFlow: SOURCE_FLOW,
