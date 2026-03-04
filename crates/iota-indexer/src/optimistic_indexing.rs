@@ -235,7 +235,7 @@ impl OptimisticTransactionExecutor {
         let executed_transaction = match response {
             Ok(response) => {
                 node_timer.stop_and_record();
-                response
+                response.into_inner()
             }
             Err(e) => {
                 node_timer.stop_and_discard();

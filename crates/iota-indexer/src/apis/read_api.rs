@@ -167,8 +167,8 @@ impl ReadApi {
             .get_transactions(&[digest.into()], Some("transaction.digest"))
             .await
         {
-            Ok(mut txns) => {
-                let executed_tx = txns.pop().ok_or_else(|| {
+            Ok(txns) => {
+                let executed_tx = txns.into_inner().pop().ok_or_else(|| {
                     IndexerError::Grpc("there should be one tx lookup response".into())
                 })?;
 

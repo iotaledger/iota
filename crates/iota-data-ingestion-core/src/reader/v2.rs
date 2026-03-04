@@ -124,7 +124,7 @@ impl RemoteStore {
                 match GrpcClient::connect(url)
                     .and_then(|grpc_client| async {
                         // check if we can make gRPC request to client
-                        grpc_client.get_service_info(None).await?;
+                        grpc_client.get_health(None).await?;
                         Ok(grpc_client
                             .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES))
                     })
@@ -372,7 +372,7 @@ impl CheckpointReaderActor {
 
         while let Some(grpc_checkpoint) = self
             .token
-            .run_until_cancelled(checkpoints_stream.try_next())
+            .run_until_cancelled(checkpoints_stream.body_mut().try_next())
             .await
             .transpose()?
             .flatten()

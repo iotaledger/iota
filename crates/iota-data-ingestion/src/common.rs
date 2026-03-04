@@ -16,7 +16,8 @@ pub async fn epoch_info(
     let epoch = client
         .get_epoch(epoch_id, Some("epoch,first_checkpoint"))
         .await
-        .map_err(anyhow::Error::new)?;
+        .map_err(anyhow::Error::new)?
+        .into_inner();
 
     epoch
         .epoch_id()
@@ -36,7 +37,8 @@ pub async fn checkpoint_sequence_number_range_to_watermark(
 ) -> anyhow::Result<Range<CheckpointSequenceNumber>> {
     let chk = client
         .get_checkpoint_by_sequence_number(watermark, None, None, None)
-        .await?;
+        .await?
+        .into_inner();
 
     let epoch_id = chk.summary()?.summary()?.epoch;
     let (_, epoch_first_checkpoint_seq_num) = epoch_info(client, Some(epoch_id)).await?;

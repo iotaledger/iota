@@ -70,13 +70,14 @@ pub async fn start_cluster(
         start_validator_with_fullnode(internal_data_source_rpc_port, data_ingestion_path.clone())
             .await;
 
+    let grpc_url = test_cluster.grpc_url();
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
         // reset the existing db
         true,
         None,
-        test_cluster.rpc_url().to_string(),
+        grpc_url.clone(),
         IndexerTypeConfig::writer_mode(None, None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
@@ -84,7 +85,6 @@ pub async fn start_cluster(
     .await;
 
     // Starts graphql server
-    let grpc_url = test_cluster.grpc_url();
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
         Some(grpc_url),
@@ -151,6 +151,7 @@ pub async fn serve_executor(
         config,
         cancellation_token.clone(),
         chain_id,
+        None,
     )
     .await
     .unwrap();

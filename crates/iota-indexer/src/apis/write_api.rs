@@ -118,7 +118,8 @@ impl WriteApi {
                 false,
                 Some(readmask.as_str()),
             )
-            .await?;
+            .await?
+            .into_inner();
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
         let execution_error_source = simulate_tx_response
@@ -259,7 +260,8 @@ impl WriteApi {
                 false,
                 Some(readmask.as_str()),
             )
-            .await?;
+            .await?
+            .into_inner();
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
 
@@ -321,7 +323,8 @@ impl WriteApi {
                 None, // we're requesting the information for the current epoch.
                 Some(readmask.as_str()),
             )
-            .await?;
+            .await?
+            .into_inner();
 
         let max_tx_gas = epoch
             .protocol_config()?
