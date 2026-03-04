@@ -5,7 +5,6 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
     config::PruningOptions,
@@ -37,7 +36,6 @@ const GAS_OBJECT_COUNT: usize = 3;
 pub const DEFAULT_INTERNAL_DATA_SOURCE_PORT: u16 = 3000;
 
 pub struct ExecutorCluster {
-    pub executor_server_handle: GrpcServerHandle,
     pub indexer_store: PgIndexerStore,
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
@@ -121,7 +119,7 @@ pub async fn start_cluster(
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
-    executor: Arc<dyn RestStateReader + Send + Sync>,
+    _executor: Arc<dyn RestStateReader + Send + Sync>,
     snapshot_config: Option<SnapshotLagConfig>,
     epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
@@ -131,33 +129,14 @@ pub async fn serve_executor(
     // can send a cancellation token on cleanup
     let cancellation_token = CancellationToken::new();
 
+    // a dummy address to satisfy the indexer and graphql, the latter needs the url
+    // for the Write API, if not provided the server will return an error.
     let executor_server_url: SocketAddr = format!("127.0.0.1:{internal_data_source_rpc_port}")
         .parse()
         .unwrap();
 
-    info!("Starting executor server on {}", executor_server_url);
-
-    let config = iota_config::node::GrpcApiConfig {
-        address: executor_server_url,
-        ..Default::default()
-    };
-
-    let chain_id = executor.get_chain_identifier().unwrap();
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(executor, None));
-
-    let executor_server_handle = start_grpc_server(
-        grpc_reader,
-        None,
-        config,
-        cancellation_token.clone(),
-        chain_id,
-        None,
-    )
-    .await
-    .unwrap();
-
-    info!("spawned executor server");
-
+    // in writer mode the indexer will read checkpoint data from the data ingestion
+    // path and ignore the rpc_url.
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
         true,
@@ -195,7 +174,6 @@ pub async fn serve_executor(
     wait_for_graphql_server(&client).await;
 
     ExecutorCluster {
-        executor_server_handle,
         indexer_store: pg_store,
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
