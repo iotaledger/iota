@@ -18,9 +18,7 @@ iota-move-build = { path = "../../../crates/iota-move-build" }
 iota-sdk = { path = "../../../crates/iota-sdk" }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "625d1ca47d1ed77f1b9454b77ce3dcf0ab384d01" }
 iota-types = { path = "../../../crates/iota-types" }
-move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = [
-    "fuzzing",
-] }
+move-binary-format = { path = "../../../external-crates/move/crates/move-binary-format", features = ["fuzzing"] }
 
 [dev-dependencies]
 # external dependencies
