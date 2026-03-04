@@ -1461,13 +1461,29 @@ impl ValidatorService {
             // Verify each transaction's user signature individually.
             // TODO: switch to batch verification once a parallel helper exists.
             let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+            let mut verified_transactions = Vec::with_capacity(transactions.len());
             for tx in &transactions {
-                if let Err(e) = epoch_store.verify_transaction(tx.clone()) {
-                    metrics.signature_errors.inc();
-                    return Err(e.into());
+                match epoch_store.verify_transaction(tx.clone()) {
+                    Ok(verified) => verified_transactions.push(verified),
+                    Err(e) => {
+                        metrics.signature_errors.inc();
+                        return Err(e.into());
+                    }
                 }
             }
             drop(tx_verif_guard);
+
+            // Content validation: deny checks + owned object version validation.
+            for verified_tx in &verified_transactions {
+                let owned_objects = state
+                    .handle_transaction_deny_checks(verified_tx, &epoch_store)
+                    .await
+                    .map_err(tonic::Status::from)?;
+                state
+                    .get_cache_writer()
+                    .validate_owned_object_versions(&owned_objects)
+                    .map_err(tonic::Status::from)?;
+            }
 
             // Acquire the reconfiguration lock once for the whole bundle so that
             // all transactions are either accepted or rejected together.
@@ -1504,6 +1520,7 @@ impl ValidatorService {
             let tx_digest = *transaction.digest();
 
             // Check if already executed.
+            // TODO: we don't need to sign the effects in the called method!
             if let Some(effects) =
                 state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
             {
@@ -1524,11 +1541,24 @@ impl ValidatorService {
 
             // Verify user signature.
             let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-            if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
-                metrics.signature_errors.inc();
-                return Err(e.into());
-            }
+            let verified_tx = match epoch_store.verify_transaction(transaction.clone()) {
+                Ok(verified) => verified,
+                Err(e) => {
+                    metrics.signature_errors.inc();
+                    return Err(e.into());
+                }
+            };
             drop(tx_verif_guard);
+
+            // Content validation: deny checks + owned object version validation.
+            let owned_objects = state
+                .handle_transaction_deny_checks(&verified_tx, &epoch_store)
+                .await
+                .map_err(tonic::Status::from)?;
+            state
+                .get_cache_writer()
+                .validate_owned_object_versions(&owned_objects)
+                .map_err(tonic::Status::from)?;
 
             // Reconfig check.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
