@@ -71,10 +71,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
                 onVerify={() => {
                     setPasswordModalVisible(false);
                 }}
-                onClose={() => {
-                    setPasswordModalVisible(true);
-                    setOpen(false);
-                }}
+                onClose={handleCancel}
             />
         );
     }
@@ -82,7 +79,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Remove account" onClose={() => setOpen(false)} />
+                <Header title="Remove account" onClose={handleCancel} />
                 <DialogBody>
                     <div className="flex flex-col gap-y-md">
                         <div className="text-body-md">
