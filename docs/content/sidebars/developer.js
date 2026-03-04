@@ -434,6 +434,8 @@ const developer = [
                         items: [
                             'developer/move/how-tos/account-abstraction/basic-account-authenticator',
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
+                            'developer/move/how-tos/account-abstraction/manage-iotaccount-fields',
+                            'developer/move/how-tos/account-abstraction/rotate-iotaccount-properties',
                             'developer/move/how-tos/account-abstraction/create-public-key-authentication',
                             'developer/move/how-tos/account-abstraction/function-call-keys',
                             'developer/move/how-tos/account-abstraction/create-time-locked-account',

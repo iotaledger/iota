@@ -1,40 +1,38 @@
 ---
-title: IOTAccount (builder & core ops)
-description: "How to create and use an IOTAccount (builder, fields, admin, and auth rotation) in Move"
+description: 'How to create an account using the builder pattern in Move'
 tags:
   - how-to
   - move-sc
   - move-vm
 ---
 
+# Create an Account Using the Builder Pattern
+
 import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction />
 
-This how-to demonstrates how to create an `IOTAccount` with a builder, attach dynamic fields, and rotate the authenticator.
-If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
+This how-to demonstrates how to use the builder pattern to create and share an account, using `IOTAccount` as an example.
 
 ## Example Code
 
-1. Build and share an `IOTAccount` by creating a temporary builder, attaching an authenticator, and calling [`account::create_account_v1`](../../../references/framework/devnet/iota/account.mdx#function-create_account_v1).
-```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L69-L114
+1. Create a builder by passing an authenticator function reference to `builder`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L74-L82
 ```
-2. Add an arbitrary dynamic field to the account during build time.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L84-L92
+2. Optionally attach dynamic fields to the account during build time using `with_field`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L85-L92
 ```
-3. Add, remove, or borrow dynamic fields at runtime (account-only).
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L115-L162
+3. Using dynamic fields we can all kind of additional properties to our Account like an Admin in this case.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L95-L97
 ```
-4. Rotate the authenticator function reference (account or admin only).
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L181-L193
+4. Finalize the account by calling `build`, which validates the authenticator and shares the account object.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L101-L113
 ```
 
 ## Expected Behavior
-- An IOTAccount is created and shared with a valid authenticator function reference attached, and its address can be used as the transaction sender.
-- Only the account itself (or the configured admin) can modify dynamic fields or rotate the authenticator; unauthorized transactions are rejected during validation.
+
+After calling `build`, the `IOTAccount` is shared on-chain and its address is returned.
+The account is ready to be used as a transaction sender, authenticated by the function reference attached during construction.
 
 ## Full Example Code
 
