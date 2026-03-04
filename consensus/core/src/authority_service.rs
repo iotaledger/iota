@@ -459,37 +459,44 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // For commit sync, optimize by fetching from store for blocks below GC round
             let gc_round = self.dag_state.read().gc_round();
 
-            // Partition block_refs into those below and at-or-above GC round
-            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
-                .iter()
-                .partition(|block_ref| block_ref.round < gc_round);
+            // Separate indices for below/above GC while preserving original order
+            let mut below_gc_indices = Vec::new();
+            let mut above_gc_indices = Vec::new();
+            let mut below_gc_refs = Vec::new();
+            let mut above_gc_refs = Vec::new();
+            for (i, block_ref) in block_refs.iter().enumerate() {
+                if block_ref.round < gc_round {
+                    below_gc_indices.push(i);
+                    below_gc_refs.push(*block_ref);
+                } else {
+                    above_gc_indices.push(i);
+                    above_gc_refs.push(*block_ref);
+                }
+            }
 
-            let mut blocks = Vec::new();
+            let mut blocks: Vec<Option<VerifiedBlock>> = vec![None; block_refs.len()];
 
             // Fetch blocks below GC from store
-            if !below_gc.is_empty() {
-                let store_blocks = self
-                    .store
-                    .read_blocks(&below_gc)?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                blocks.extend(store_blocks);
+            if !below_gc_refs.is_empty() {
+                for (idx, block) in below_gc_indices
+                    .iter()
+                    .zip(self.store.read_blocks(&below_gc_refs)?)
+                {
+                    blocks[*idx] = block;
+                }
             }
 
             // Fetch blocks at-or-above GC from dag_state
-            if !above_gc.is_empty() {
-                let dag_blocks = self
-                    .dag_state
-                    .read()
-                    .get_blocks(&above_gc)
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                blocks.extend(dag_blocks);
+            if !above_gc_refs.is_empty() {
+                for (idx, block) in above_gc_indices
+                    .iter()
+                    .zip(self.dag_state.read().get_blocks(&above_gc_refs))
+                {
+                    blocks[*idx] = block;
+                }
             }
 
-            blocks
+            blocks.into_iter().flatten().collect()
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
@@ -913,8 +920,8 @@ pub(crate) mod tests {
     use crate::{
         Round,
         authority_service::AuthorityService,
-        block::{BlockAPI, BlockRef, SignedBlock, TestBlock, VerifiedBlock},
-        commit::{CertifiedCommits, CommitRange},
+        block::{BlockAPI, BlockRef, GENESIS_ROUND, SignedBlock, TestBlock, VerifiedBlock},
+        commit::{CertifiedCommits, CommitDigest, CommitRange, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core_thread::{CoreError, CoreThreadDispatcher},
@@ -922,7 +929,7 @@ pub(crate) mod tests {
         error::ConsensusResult,
         network::{BlockStream, ExtendedSerializedBlock, NetworkClient, NetworkService},
         round_prober::QuorumRound,
-        storage::mem_store::MemStore,
+        storage::{Store, WriteBatch, mem_store::MemStore},
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };
@@ -1192,6 +1199,143 @@ pub(crate) mod tests {
             let verified_block = VerifiedBlock::new_verified(signed_block, serialised_block);
 
             assert_eq!(verified_block.round(), 10);
+        }
+    }
+
+    /// Tests that handle_fetch_blocks preserves the original request order
+    /// of block refs when they span the GC boundary — i.e. some are fetched
+    /// from the persistent store (below GC) and others from in-memory
+    /// dag_state (at or above GC). The interleaved input order must be
+    /// maintained in the response.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_handle_fetch_blocks_commit_sync_order_across_gc_boundary() {
+        // GIVEN
+        let rounds = 20;
+        let gc_depth = 5;
+        let (mut context, _keys) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_batched_block_sync_for_testing(true);
+        context.protocol_config.set_gc_depth_for_testing(gc_depth);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher::new());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let synchronizer = Synchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            true,
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store.clone(),
+        ));
+
+        // Build DAG and persist all blocks to dag_state
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=rounds)
+            .build()
+            .persist_layers(dag_state.clone());
+
+        // Also write all blocks to the store so below-GC refs can be found
+        let all_blocks = dag_builder.blocks(1..=rounds);
+        store
+            .write(WriteBatch::new(all_blocks, vec![], vec![], vec![]))
+            .expect("Failed to write blocks to store");
+
+        // Set last_commit so gc_round() = leader_round - gc_depth = 15 - 5 = 10
+        let leader_round = 15;
+        let leader_ref = dag_builder
+            .blocks(leader_round..=leader_round)
+            .first()
+            .unwrap()
+            .reference();
+        let commit =
+            TrustedCommit::new_for_test(1, CommitDigest::MIN, 0, leader_ref, vec![leader_ref]);
+        dag_state.write().set_last_commit(commit);
+
+        let gc_round = dag_state.read().gc_round();
+        assert!(
+            gc_round > GENESIS_ROUND && gc_round < rounds,
+            "GC round {gc_round} should be between genesis and max round"
+        );
+
+        // Collect blocks per round for easy access
+        let mut blocks_by_round: Vec<Vec<VerifiedBlock>> = vec![vec![]; (rounds + 1) as usize];
+        for round in 1..=rounds {
+            blocks_by_round[round as usize] = dag_builder.blocks(round..=round);
+        }
+
+        // Create interleaved block_refs that alternate between below-GC and above-GC
+        let below_gc_rounds: Vec<Round> = (1..gc_round).collect();
+        let above_gc_rounds: Vec<Round> = (gc_round..=rounds).collect();
+        let validators = context.committee.size();
+        let mut interleaved_refs = Vec::new();
+        let max_pairs = std::cmp::min(below_gc_rounds.len(), above_gc_rounds.len());
+        for i in 0..max_pairs {
+            let below_round = below_gc_rounds[i];
+            let auth_idx = i % validators;
+            if auth_idx < blocks_by_round[below_round as usize].len() {
+                interleaved_refs.push(blocks_by_round[below_round as usize][auth_idx].reference());
+            }
+            let above_round = above_gc_rounds[i];
+            let auth_idx2 = (i + 1) % validators;
+            if auth_idx2 < blocks_by_round[above_round as usize].len() {
+                interleaved_refs.push(blocks_by_round[above_round as usize][auth_idx2].reference());
+            }
+        }
+
+        // Verify we have refs from both sides of the GC boundary
+        assert!(
+            interleaved_refs.iter().any(|r| r.round < gc_round),
+            "Should have refs below GC round"
+        );
+        assert!(
+            interleaved_refs.iter().any(|r| r.round >= gc_round),
+            "Should have refs above GC round"
+        );
+
+        // WHEN: call handle_fetch_blocks with empty highest_accepted_rounds (commit
+        // sync path)
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let returned_blocks = authority_service
+            .handle_fetch_blocks(peer, interleaved_refs.clone(), vec![])
+            .await
+            .expect("Should return valid serialized blocks");
+
+        // THEN: each returned block should match the corresponding input ref
+        assert_eq!(
+            returned_blocks.len(),
+            interleaved_refs.len(),
+            "Should receive all requested blocks"
+        );
+        for (i, serialized_block) in returned_blocks.into_iter().enumerate() {
+            let signed_block: SignedBlock =
+                bcs::from_bytes(&serialized_block).expect("Error while deserialising block");
+            let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
+            assert_eq!(
+                verified_block.reference(),
+                interleaved_refs[i],
+                "Block at index {i} should match requested ref. \
+                 Expected {:?}, got {:?}",
+                interleaved_refs[i],
+                verified_block.reference()
+            );
         }
     }
 }
