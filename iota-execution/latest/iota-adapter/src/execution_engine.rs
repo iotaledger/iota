@@ -50,7 +50,7 @@ mod checked {
             Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GasData, GenesisTransaction,
             InputObjects, ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef,
-            TransactionKind,
+            SystemPackage, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1306,6 +1306,9 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        _ => unimplemented!(
+                            "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                        ),
                     }
                 }
                 unreachable!(
@@ -1536,7 +1539,7 @@ mod checked {
     fn advance_epoch_impl(
         advance_epoch_pt: ProgrammableTransaction,
         params: AdvanceEpochParams,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        system_packages: Vec<SystemPackage>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: Rc<RefCell<TxContext>>,
         move_vm: &Arc<MoveVM>,
@@ -1610,7 +1613,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch.epoch,
-            next_protocol_version: change_epoch.protocol_version,
+            next_protocol_version: change_epoch.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch.storage_charge,
             computation_charge: change_epoch.computation_charge,
@@ -1658,7 +1661,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v2.epoch,
-            next_protocol_version: change_epoch_v2.protocol_version,
+            next_protocol_version: change_epoch_v2.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v2.storage_charge,
             computation_charge: change_epoch_v2.computation_charge,
@@ -1705,7 +1708,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v3.epoch,
-            next_protocol_version: change_epoch_v3.protocol_version,
+            next_protocol_version: change_epoch_v3.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v3.storage_charge,
             computation_charge: change_epoch_v3.computation_charge,
@@ -1752,7 +1755,7 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let params = AdvanceEpochParams {
             epoch: change_epoch_v4.epoch,
-            next_protocol_version: change_epoch_v4.protocol_version,
+            next_protocol_version: change_epoch_v4.protocol_version.into(),
             validator_subsidy: protocol_config.validator_target_reward(),
             storage_charge: change_epoch_v4.storage_charge,
             computation_charge: change_epoch_v4.computation_charge,
@@ -1782,7 +1785,7 @@ mod checked {
     }
 
     fn process_system_packages(
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        system_packages: Vec<SystemPackage>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: Rc<RefCell<TxContext>>,
         move_vm: &MoveVM,
@@ -1792,7 +1795,12 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
         let binary_config = to_binary_config(protocol_config);
-        for (version, modules, dependencies) in system_packages.into_iter() {
+        for SystemPackage {
+            version,
+            modules,
+            dependencies,
+        } in system_packages.into_iter()
+        {
             let deserialized_modules: Vec<_> = modules
                 .iter()
                 .map(|m| CompiledModule::deserialize_with_config(m, &binary_config).unwrap())

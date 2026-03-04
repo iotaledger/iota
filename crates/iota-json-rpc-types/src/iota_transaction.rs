@@ -584,6 +584,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
+                            _ => unimplemented!(
+                                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                            ),
                         })
                         .collect(),
                 }))

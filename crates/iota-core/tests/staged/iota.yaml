@@ -46,8 +46,7 @@ CallArg:
 ChangeEpoch:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
+    - protocol_version: U64
     - storage_charge: U64
     - computation_charge: U64
     - storage_rebate: U64
@@ -55,17 +54,11 @@ ChangeEpoch:
     - epoch_start_timestamp_ms: U64
     - system_packages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
+          TYPENAME: SystemPackage
 ChangeEpochV2:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
+    - protocol_version: U64
     - storage_charge: U64
     - computation_charge: U64
     - computation_charge_burned: U64
@@ -74,17 +67,11 @@ ChangeEpochV2:
     - epoch_start_timestamp_ms: U64
     - system_packages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
+          TYPENAME: SystemPackage
 ChangeEpochV3:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
+    - protocol_version: U64
     - storage_charge: U64
     - computation_charge: U64
     - computation_charge_burned: U64
@@ -93,19 +80,13 @@ ChangeEpochV3:
     - epoch_start_timestamp_ms: U64
     - system_packages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
+          TYPENAME: SystemPackage
     - eligible_active_validators:
         SEQ: U64
 ChangeEpochV4:
   STRUCT:
     - epoch: U64
-    - protocol_version:
-        TYPENAME: ProtocolVersion
+    - protocol_version: U64
     - storage_charge: U64
     - computation_charge: U64
     - computation_charge_burned: U64
@@ -114,12 +95,7 @@ ChangeEpochV4:
     - epoch_start_timestamp_ms: U64
     - system_packages:
         SEQ:
-          TUPLE:
-            - U64
-            - SEQ:
-                SEQ: U8
-            - SEQ:
-                TYPENAME: ObjectId
+          TYPENAME: SystemPackage
     - eligible_active_validators:
         SEQ: U64
     - scores:
@@ -870,6 +846,14 @@ StructTag:
     - type_params:
         SEQ:
           TYPENAME: TypeTag
+SystemPackage:
+  STRUCT:
+    - version: U64
+    - modules:
+        SEQ: BYTES
+    - dependencies:
+        SEQ:
+          TYPENAME: ObjectId
 TransactionData:
   ENUM:
     0:

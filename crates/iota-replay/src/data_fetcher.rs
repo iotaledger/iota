@@ -589,6 +589,9 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
+                    _ => unimplemented!(
+                        "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+                    ),
                 };
 
                 // Backfill cache
