@@ -1,5 +1,6 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 mod fields_v1;
 
 pub use fields_v1::*;
