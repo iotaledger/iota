@@ -152,7 +152,7 @@ runs:
             - ".github/workflows/turbo_hierarchy.yml"
           isStarfishSynchronization:
             - "crates/starfish/core/src/header_synchronizer.rs"
-            - "crates/starfish/core/src/commit_syncer.rs"
+            - "crates/starfish/core/src/commit_syncer/**"
             - "crates/starfish/core/src/transactions_synchronizer.rs"
             - "crates/starfish/core/src/authority_service.rs"
             - "crates/starfish/core/src/commit.rs"

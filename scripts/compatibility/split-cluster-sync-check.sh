@@ -209,11 +209,11 @@ fi
 NODE3_COMMIT_AFTER_JOIN=$(get_metric_value "$METRICS_DIR/node-3-after-join.txt" "consensus_last_commit_index")
 
 if [ "$CONSENSUS_TYPE" = "starfish" ]; then
-  # Starfish: commit_sync_fetched_commits is a plain (unlabeled) counter
-  NODE3_COMMIT_SYNC=$(get_metric_value "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
+  # Starfish: commit_sync_fetched_commits is labeled by source (commit_sync, fast_commit_sync), so sum across labels
+  NODE3_COMMIT_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
   NODE3_HEADER_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_synchronizer_fetched_block_headers_by_peer")
   NODE3_TXN_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_transaction_synchronizer_fetched_transactions_by_peer")
-  NODE3_COMMIT_SYNC_TXN_SIZE=$(get_metric_value "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_total_fetched_transactions_size")
+  NODE3_COMMIT_SYNC_TXN_SIZE=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_total_fetched_transactions_size")
 else
   # Mysticeti: commit_sync_fetched_commits is labeled by authority, so sum across labels
   NODE3_COMMIT_SYNC=$(sum_metric_values "$METRICS_DIR/node-3-after-join.txt" "consensus_commit_sync_fetched_commits")
