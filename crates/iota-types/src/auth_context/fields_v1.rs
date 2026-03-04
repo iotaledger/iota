@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    base_types::ObjectID,
+    base_types::{ObjectDigest, ObjectID, SequenceNumber},
     transaction::{Argument, CallArg, Command, ObjectArg},
     type_input::TypeName,
 };
@@ -120,19 +120,63 @@ impl AuthContextCommand {
 // AuthContextCallArg
 // ---------------------------------------------------------------------------
 
+/// Mirrors [`crate::transaction::ObjectArg`], matching the BCS layout expected
+/// by the Move-side `ptb_call_arg::ObjectArg`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AuthContextObjectArg {
+    ImmOrOwnedObject((ObjectID, SequenceNumber, ObjectDigest)),
+    SharedObject {
+        id: ObjectID,
+        initial_shared_version: SequenceNumber,
+        mutable: bool,
+    },
+    Receiving((ObjectID, SequenceNumber, ObjectDigest)),
+}
+
+impl From<&ObjectArg> for AuthContextObjectArg {
+    fn from(obj: &ObjectArg) -> Self {
+        match obj {
+            ObjectArg::ImmOrOwnedObject(r) => AuthContextObjectArg::ImmOrOwnedObject(*r),
+            ObjectArg::SharedObject {
+                id,
+                initial_shared_version,
+                mutable,
+            } => AuthContextObjectArg::SharedObject {
+                id: *id,
+                initial_shared_version: *initial_shared_version,
+                mutable: *mutable,
+            },
+            ObjectArg::Receiving(r) => AuthContextObjectArg::Receiving(*r),
+        }
+    }
+}
+
+impl AuthContextObjectArg {
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: CALL_ARG_MODULE_NAME.to_owned(),
+            name: OBJECT_ARG_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+}
+
 /// Mirrors [`crate::transaction::CallArg`], matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::CallArg`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthContextCallArg {
     Pure(Vec<u8>),
-    Object(ObjectArg),
+    Object(AuthContextObjectArg),
 }
 
 impl From<&CallArg> for AuthContextCallArg {
     fn from(arg: &CallArg) -> Self {
         match arg {
             CallArg::Pure(bytes) => AuthContextCallArg::Pure(bytes.clone()),
-            CallArg::Object(obj_arg) => AuthContextCallArg::Object(*obj_arg),
+            CallArg::Object(obj_arg) => {
+                AuthContextCallArg::Object(AuthContextObjectArg::from(obj_arg))
+            }
         }
     }
 }
@@ -192,13 +236,13 @@ mod tests {
 
     #[test]
     fn call_arg_imm_or_owned_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::ImmOrOwnedObject(obj_ref()));
+        let arg = AuthContextCallArg::Object(AuthContextObjectArg::ImmOrOwnedObject(obj_ref()));
         assert_eq!(round_trip(&arg), arg);
     }
 
     #[test]
     fn call_arg_shared_object_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::SharedObject {
+        let arg = AuthContextCallArg::Object(AuthContextObjectArg::SharedObject {
             id: obj_id(),
             initial_shared_version: SequenceNumber::from(5),
             mutable: true,
@@ -208,7 +252,7 @@ mod tests {
 
     #[test]
     fn call_arg_receiving_round_trip() {
-        let arg = AuthContextCallArg::Object(ObjectArg::Receiving(obj_ref()));
+        let arg = AuthContextCallArg::Object(AuthContextObjectArg::Receiving(obj_ref()));
         assert_eq!(round_trip(&arg), arg);
     }
 
@@ -225,7 +269,10 @@ mod tests {
     fn call_arg_from_object() {
         let obj_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
         let converted = AuthContextCallArg::from(&CallArg::Object(obj_arg));
-        assert_eq!(converted, AuthContextCallArg::Object(obj_arg));
+        assert_eq!(
+            converted,
+            AuthContextCallArg::Object(AuthContextObjectArg::ImmOrOwnedObject(obj_ref()))
+        );
     }
 
     #[test]
@@ -233,6 +280,42 @@ mod tests {
         let call_arg = CallArg::Pure(vec![99]);
         let converted = AuthContextCallArg::from(&call_arg);
         assert!(matches!(converted, AuthContextCallArg::Pure(_)));
+    }
+
+    // ── BCS compatibility: AuthContextObjectArg ↔ ObjectArg ─────────────────
+
+    #[test]
+    fn object_arg_bcs_compatible_imm_or_owned() {
+        let tx_arg = ObjectArg::ImmOrOwnedObject(obj_ref());
+        let ctx_arg = AuthContextObjectArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
+
+    #[test]
+    fn object_arg_bcs_compatible_shared() {
+        let tx_arg = ObjectArg::SharedObject {
+            id: obj_id(),
+            initial_shared_version: SequenceNumber::from(5),
+            mutable: true,
+        };
+        let ctx_arg = AuthContextObjectArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
+    }
+
+    #[test]
+    fn object_arg_bcs_compatible_receiving() {
+        let tx_arg = ObjectArg::Receiving(obj_ref());
+        let ctx_arg = AuthContextObjectArg::from(&tx_arg);
+        assert_eq!(
+            bcs::to_bytes(&tx_arg).unwrap(),
+            bcs::to_bytes(&ctx_arg).unwrap()
+        );
     }
 
     // ── AuthContextCommand round-trips ────────────────────────────────────────
