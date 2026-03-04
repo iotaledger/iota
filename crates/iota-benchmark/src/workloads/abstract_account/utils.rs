@@ -11,6 +11,10 @@ use iota_types::{
     Identifier,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, KeypairTraits},
+    move_package::{
+        PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME, PACKAGE_MODULE_NAME,
+        UPGRADECAP_STRUCT_NAME,
+    },
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Transaction, TransactionData},
@@ -23,8 +27,8 @@ use crate::{
     workloads::{
         Gas,
         abstract_account::{
-            AA_MODULE_NAME, ABSTRACT_ACCOUNT_TY, AuthenticatorKind, GAS_BUDGET,
-            PACKAGE_METADATA_TY, PAY_CHUNK_SIZE, UPGRADE_CAP_TY, WORKLOAD_LABEL, WORKLOAD_PATH,
+            AA_MODULE_NAME, ABSTRACT_ACCOUNT_TY, AuthenticatorKind, GAS_BUDGET, PAY_CHUNK_SIZE,
+            WORKLOAD_LABEL, WORKLOAD_PATH,
         },
     },
 };
@@ -43,6 +47,12 @@ pub async fn publish_aa_package_and_find_metadata(
     gas_price: u64,
 ) -> Result<(ObjectID, ObjectRef)> {
     info!("[{WORKLOAD_LABEL}] publishing Move package: {WORKLOAD_PATH}");
+
+    let package_metadata_ty = format!(
+        "::{}::{}",
+        PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME
+    );
+    let upgrade_cap_ty = format!("::{}::{}", PACKAGE_MODULE_NAME, UPGRADECAP_STRUCT_NAME);
 
     let tx = TestTransactionBuilder::new(owner.0, init_coin.0, gas_price)
         .publish_examples(WORKLOAD_PATH)
@@ -111,11 +121,11 @@ pub async fn publish_aa_package_and_find_metadata(
 
         if !is_package {
             // Ignore UpgradeCap explicitly.
-            if ty.contains(UPGRADE_CAP_TY) {
+            if ty.contains(&upgrade_cap_ty) {
                 continue;
             }
 
-            if ty.contains(PACKAGE_METADATA_TY) {
+            if ty.contains(&package_metadata_ty) {
                 metadata_ref = Some(r);
             }
         }

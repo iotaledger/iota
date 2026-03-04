@@ -33,8 +33,6 @@ use crate::{
 };
 
 const GAS_BUDGET: u64 = 1_000_000_000;
-const PACKAGE_METADATA_TY: &str = "::package_metadata::PackageMetadataV1";
-const UPGRADE_CAP_TY: &str = "::package::UpgradeCap";
 const ABSTRACT_ACCOUNT_TY: &str = "::abstract_account::AbstractAccount";
 const AA_MODULE_NAME: &str = "abstract_account";
 
