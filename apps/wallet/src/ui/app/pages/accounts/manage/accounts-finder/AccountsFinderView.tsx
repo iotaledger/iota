@@ -333,7 +333,7 @@ export function AccountsFinderView(): JSX.Element {
                             // for ledger
                             setPassword(password);
                         }
-                        setPasswordModalVisible(true);
+                        setPasswordModalVisible(false);
                     }}
                     onClose={() => setPasswordModalVisible(false)}
                 />
