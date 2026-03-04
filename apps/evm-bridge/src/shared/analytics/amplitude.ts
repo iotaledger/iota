@@ -6,6 +6,7 @@ import { attachEnvironmentPlugin, getAmplitudeConsentStatus, PersistableStorage 
 
 import { ampli } from './ampli';
 import { getDefaultNetwork } from '../../config';
+import { Identify } from '@amplitude/analytics-browser';
 
 const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
@@ -116,7 +117,7 @@ export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
     }
 
     // Build identify event with current state
-    const identifyEvent = new amplitude.Identify();
+    const identifyEvent = new Identify();
 
     // Always set activeNetwork to maintain state
     identifyEvent.set('activeNetwork', currentIdentity.activeNetwork);
