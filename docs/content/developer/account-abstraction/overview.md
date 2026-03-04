@@ -1,5 +1,4 @@
 ---
-title: Account Abstraction
 description: "Conceptual overview of Account Abstraction in IOTA: components, authentication model, and developer guidance"
 tags:
   - move-sc
