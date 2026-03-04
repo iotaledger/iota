@@ -68,7 +68,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
         return (
             <VerifyPasswordModal
                 open={isOpen}
-                onVerify={async (password) => {
+                onVerify={() => {
                     setPasswordModalVisible(false);
                 }}
                 onClose={() => {

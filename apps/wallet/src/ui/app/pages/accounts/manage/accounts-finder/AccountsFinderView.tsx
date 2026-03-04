@@ -332,8 +332,8 @@ export function AccountsFinderView(): JSX.Element {
                         if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived) {
                             // for ledger
                             setPassword(password);
-                            setPasswordModalVisible(true);
                         }
+                        setPasswordModalVisible(true);
                     }}
                     onClose={() => setPasswordModalVisible(false)}
                 />
