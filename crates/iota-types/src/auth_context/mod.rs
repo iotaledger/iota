@@ -176,25 +176,23 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::ObjectID,
-        transaction::{Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction},
-        type_input::{TypeInput, TypeName},
+        base_types::{Identifier, ObjectID, TypeTag},
+        transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+        type_input::TypeName,
     };
 
     #[test]
     fn auth_context_new_from_components() {
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(vec![0xab])],
-            commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: ObjectID::from_prefixed_short_hex(
-                    "0x0000000000000000000000000000000000000001",
-                )
-                .unwrap(),
-                module: "mod".to_string(),
-                function: "fun".to_string(),
-                type_arguments: vec![TypeInput::U8],
-                arguments: vec![Argument::Gas],
-            }))],
+            commands: vec![Command::move_call(
+                ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001")
+                    .unwrap(),
+                Identifier::new_unchecked("mod"),
+                Identifier::new_unchecked("fun"),
+                vec![TypeTag::U8],
+                vec![Argument::Gas],
+            )],
         };
 
         let ctx = AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb);

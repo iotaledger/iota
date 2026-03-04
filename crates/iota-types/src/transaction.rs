@@ -737,7 +737,7 @@ fn left_union_shared_input_objects(
 }
 
 impl TransactionKind {
-    /// present to make migrations to programmable transactions eaier.
+    /// present to make migrations to programmable transactions easier.
     /// Will be removed
     pub fn programmable(pt: ProgrammableTransaction) -> Self {
         TransactionKind::ProgrammableTransaction(pt)
