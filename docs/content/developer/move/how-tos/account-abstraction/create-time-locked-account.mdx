@@ -1,5 +1,5 @@
 ---
-title: Time-Locked IOTAccount
+title: Create Time-Locked Account
 description: "How to create and manage time-locked accounts with unlock time restrictions"
 tags:
   - how-to
@@ -12,7 +12,6 @@ import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 <AccountAbstraction /> 
 
 This how-to demonstrates how to create and manage time-locked accounts that combine public key authentication with time-based access control.
-If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
 
 :::tip Recommended reading
 
@@ -22,50 +21,33 @@ This guide builds on patterns from the [Public Key Authentication](create-public
 
 ## Example Code
 
-1. Create a time-locked IOTAccount with both public key and unlock time protection.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L36-L63
+1. Define the authenticator. It verifies the Ed25519 signature and then checks that the current time has passed the unlock time stored on the account. Two variants are available: one using the `Clock` shared object for precise timestamps, and one using the epoch timestamp from the transaction context.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L110-L142
+```
+2. Both variants delegate the actual time check to `authenticate_unlock_time`, which reads the stored unlock time and asserts that the current timestamp is greater than or equal to it.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/unlock_time_authentication.move#L71-L78
+```
+3. Create the account with a public key and an unlock time attached as dynamic fields.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L43-L63
 ```
 
-2. Attach unlock time as a dynamic field during account construction.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L65-L68
-```
+:::note
 
-3. Manage unlock time after account creation (rotate, add, or remove restrictions).
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L73-L91
-```
+Managing the unlock time after account creation (rotating, adding, or removing it) follows the same dynamic field pattern described in [Manage Account Dynamic Fields](manage-iotaccount-fields.mdx). See the full example for the helpers.
 
-4. Authenticate by verifying both the signature and that the Clock's current time has passed the unlock time.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L111-L124
-```
+:::
 
-5. Authenticate using the transaction context's epoch timestamp instead of Clock.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L130-L142
-```
-
-6. Define the core unlock time verification logic.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/unlock_time_authentication.move#L71-L79
-```
-
-7. Manage unlock time data as dynamic fields (low-level primitives).
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/unlock_time_authentication.move#L33-L53
-```
-
-8. Use view functions to check and query unlock time on an account.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move#L147-L154
-```
 ## Expected Behavior
-- Transactions fail with `EAccountStillLocked` error if executed before the unlock time.
-- Once the unlock time is reached, transactions succeed with valid signatures.
-- Two authenticator options: Clock-based (requires Clock object) or epoch-based (uses transaction context).
-- The unlock time can be rotated to extend or shorten the lock period.
+
+- Transactions are rejected with `EAccountStillLocked` if the current time has not yet reached the unlock time.
+- Once the unlock time is reached, any transaction with a valid signature is accepted.
+- Use the `Clock`-based authenticator for precise time control, or the epoch-based one to avoid requiring a `Clock` object in the transaction.
 
 ## Full Example Code
 
-The complete Move package, including comments and setup logic, is available here:
-
 <Tabs groupId="module" queryString>
 
-<TabItem value="timelock" label="Time-locked IOTAccount module">
+<TabItem value="timelock" label="Time-locked account">
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/time_locked/sources/time_locked_iotaccount.move
 ```

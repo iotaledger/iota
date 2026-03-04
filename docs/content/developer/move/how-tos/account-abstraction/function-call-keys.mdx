@@ -1,64 +1,59 @@
 ---
-title: Function Call Keys
-description: "How to attach function-call-key based delegation to an IOTAccount in Move"
+description: 'How to control which Move functions a key can call on an account'
 tags:
   - how-to
   - move-sc
   - move-vm
 ---
 
+# Control function call permissions of Account
+
 import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
-<AccountAbstraction /> 
+<AccountAbstraction />
 
-This how-to demonstrates how to attach function-call-key based delegation to an IOTAccount, allowing the owner to delegate specific Move function calls to other public keys.
-If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
+This how-to demonstrates how to grant another user permission to call specific Move functions on an account, while keeping the owner unrestricted.
+
+:::tip Why is this possible?
+
+With native signatures, the protocol only verifies that a transaction was signed by the correct key — it has no visibility into what the transaction actually does. Account Abstraction authenticator functions receive both `AuthContext` and `TxContext`, giving them access to the full list of PTB commands via `auth_ctx.tx_commands()`. This makes it possible to inspect and enforce what a key is allowed to call, directly at authentication time, before any execution happens.
+
+:::
 
 :::tip Recommended reading
 
-This guide builds on patterns from the [IOTAccount (builder & core ops)](create-iotaccount.mdx) and [Public Key Authentication](create-public-key-authentication.mdx) how-tos. Reviewing those first will help you understand the account creation and public key verification used here.
+This guide builds on the [Create an Account Using the Builder Pattern](create-iotaccount.mdx) and [Authenticate an Account with a Public Key](create-public-key-authentication.mdx) how-tos. Reviewing those first will help you understand the account creation and public key verification used here.
 
 :::
 
 ## Example Code
 
-1. Create an IOTAccount with an owner public key and an attached function-call-keys store.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L73-L102
-```
-
-2. Grant, revoke, or check a function permission for a delegated public key (owner-only).
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L166-L222
-```
-
-3. Define the core authenticator with dual flow: owner bypass (full power) or delegated key (single pre-approved function call per transaction).
-
+1. Define the dual-flow authenticator. If the provided key matches the stored owner key, the transaction passes immediately with no restrictions. Otherwise the key is checked against an on-chain allow-set: the signature is verified, the transaction must contain exactly one command, and that command must call a function the key has been granted access to.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L111-L164
 ```
-
-4. Define the FunctionCallKeysStore with FunctionRef type, allow/disallow operations, and PTB extractor.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys_store.move#L40-L127
+2. Create the account with the owner public key and an empty `FunctionCallKeysStore` attached as a dynamic field.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L73-L101
+```
+3. Grant or revoke function call access for a key. Only the account owner can modify the store.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move#L168-L206
 ```
 
 ## Expected Behavior
-- The account owner can execute any programmable transaction without restriction, while delegated keys are limited to one pre-approved Move function call per transaction.
-- Transactions signed by delegated keys succeed only when the called (package, module, function) exists in the on-chain allow-set; otherwise, they are rejected during authentication.
 
+- The owner key can execute any programmable transaction without restriction.
+- Any other key is limited to exactly one Move function call per transaction, and only if that function has been explicitly granted.
+- Transactions are rejected during authentication if the called function is not in the allow-set, if the transaction contains more than one command, or if signature verification fails.
 
 ## Full Example Code
 
-The complete Move package, including comments and setup logic, is available here:
-
 <Tabs groupId="module" queryString>
-<TabItem value="function_call_keys" label="Function call">
+<TabItem value="function_call_keys" label="Function call keys">
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys.move
 ```
 
 </TabItem>
-<TabItem value="store" label="Function call key store module">
+<TabItem value="store" label="Function call keys store">
 
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/function_call_keys/sources/function_call_keys_store.move
 ```
