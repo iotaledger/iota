@@ -56,7 +56,7 @@ mod checked {
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
             EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ProgrammableTransaction,
-            RandomnessStateUpdate, SharedObjectRef, TransactionKind,
+            RandomnessStateUpdate, SharedObjectRef, SystemPackage, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1492,7 +1492,7 @@ mod checked {
     fn advance_epoch_impl(
         advance_epoch_pt: ProgrammableTransaction,
         params: AdvanceEpochParams,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        system_packages: Vec<SystemPackage>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -1587,11 +1587,7 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch
-                .system_packages
-                .into_iter()
-                .map(|sp| (sp.version, sp.modules, sp.dependencies))
-                .collect(),
+            change_epoch.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1638,11 +1634,7 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch_v2
-                .system_packages
-                .into_iter()
-                .map(|sp| (sp.version, sp.modules, sp.dependencies))
-                .collect(),
+            change_epoch_v2.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1689,11 +1681,7 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch_v3
-                .system_packages
-                .into_iter()
-                .map(|sp| (sp.version, sp.modules, sp.dependencies))
-                .collect(),
+            change_epoch_v3.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1738,11 +1726,7 @@ mod checked {
         advance_epoch_impl(
             advance_epoch_pt,
             params,
-            change_epoch_v4
-                .system_packages
-                .into_iter()
-                .map(|sp| (sp.version, sp.modules, sp.dependencies))
-                .collect(),
+            change_epoch_v4.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1754,7 +1738,7 @@ mod checked {
     }
 
     fn process_system_packages(
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        system_packages: Vec<SystemPackage>,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &MoveVM,
@@ -1764,7 +1748,12 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) {
         let binary_config = to_binary_config(protocol_config);
-        for (version, modules, dependencies) in system_packages.into_iter() {
+        for SystemPackage {
+            version,
+            modules,
+            dependencies,
+        } in system_packages.into_iter()
+        {
             let deserialized_modules: Vec<_> = modules
                 .iter()
                 .map(|m| CompiledModule::deserialize_with_config(m, &binary_config).unwrap())

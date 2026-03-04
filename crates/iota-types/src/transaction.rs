@@ -184,12 +184,10 @@ pub enum TransactionKind {
 }
 
 /// Extension trait for `EndOfEpochTransactionKind` that adds methods requiring
-/// iota-types-specific types (like `InputObjectKind`,
-/// `SharedObjectReference`, and `ProtocolConfig`) that are not available
-/// in the SDK.
+/// iota-types-specific types (like `InputObjectKind` and `ProtocolConfig`) that
+/// are not available in the SDK.
 pub(crate) trait EndOfEpochTransactionKindExt {
     fn input_objects(&self) -> Vec<InputObjectKind>;
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
 }
 
@@ -214,28 +212,9 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            _ => unreachable!("a new EndOfEpochTransactionKind variant was added"),
-        }
-    }
-
-    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
-        match self {
-            Self::ChangeEpoch(_)
-            | Self::ChangeEpochV2(_)
-            | Self::ChangeEpochV3(_)
-            | Self::ChangeEpochV4(_) => {
-                Either::Left(vec![SharedObjectRef::IOTA_SYSTEM_STATE_OBJ_MUTABLE].into_iter())
-            }
-            Self::AuthenticatorStateExpire(expire) => Either::Left(
-                vec![SharedObjectRef {
-                    object_id: ObjectID::AUTHENTICATOR_STATE,
-                    initial_shared_version: expire.authenticator_obj_initial_shared_version,
-                    mutable: true,
-                }]
-                .into_iter(),
+            _ => unreachable!(
+                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),
-            Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
-            _ => unreachable!("a new EndOfEpochTransactionKind variant was added"),
         }
     }
 
@@ -331,7 +310,9 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                     ));
                 }
             }
-            _ => unimplemented!("a new EndOfEpochTransactionKind variant was added"),
+            _ => unimplemented!(
+                "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
+            ),
         }
         Ok(())
     }

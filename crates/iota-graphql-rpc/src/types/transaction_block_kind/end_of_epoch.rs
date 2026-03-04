@@ -489,7 +489,7 @@ impl EndOfEpochTransactionKind {
                     checkpoint_viewed_at,
                 })
             }
-            _ => unreachable!("unknown NativeEndOfEpochTransactionKind variant"),
+            _ => unreachable!("unknown EndOfEpochTransactionKind variant"),
         }
     }
 }
