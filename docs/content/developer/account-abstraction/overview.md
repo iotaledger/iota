@@ -54,7 +54,7 @@ The account's **ObjectID** becomes its on-chain address. Objects that are owned 
 
 Abstract accounts exist in two forms:
 
-- **Mutable shared** (created in Move with `iota::account::create_account_v1`): the main account object use case, that can be modified by anyone on tha basis of an access control implemented in Move code. This is the form used when the account holds mutable state. For example: member lists, approval records, or key stores.
+- **Mutable shared** (created in Move with `iota::account::create_account_v1`): the main account object use case, that can be modified by anyone on the basis of an access control implemented in Move code. This is the form used when the account holds mutable state. For example: member lists, approval records, or key stores.
 
 - **Immutable** (created in Move with `iota::account::create_immutable_account_v1`): the account object that can never change state, but that can own other objects. This is appropriate when authentication logic is fully self-contained (or "static") and the account holds no mutable state.
 
