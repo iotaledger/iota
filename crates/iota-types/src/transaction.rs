@@ -17,8 +17,8 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, ChangeEpoch, ChangeEpochV2,
-    ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind, RandomnessStateUpdate,
-    SharedObjectReference as SharedObjectRef, SystemPackage,
+    ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind, GasPayment as GasData,
+    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,

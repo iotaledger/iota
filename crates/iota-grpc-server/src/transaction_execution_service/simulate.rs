@@ -267,7 +267,7 @@ pub async fn simulate_transaction(
                 .as_ref()
                 .expect("system state should be available")
                 .reference_gas_price(),
-            transaction_data.gas_data().payment.len(),
+            transaction_data.gas_data().objects.len(),
             &protocol_config,
         );
 
