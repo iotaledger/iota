@@ -24,6 +24,7 @@ use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
     base_types::TransactionEffectsDigest,
     effects::TransactionEffectsAPI,
+    message_envelope::Message,
     error::*,
     fp_ensure,
     iota_system_state::IotaSystemState,
@@ -1520,19 +1521,27 @@ impl ValidatorService {
             let tx_digest = *transaction.digest();
 
             // Check if already executed.
-            // TODO: we don't need to sign the effects in the called method!
-            if let Some(effects) =
-                state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
+            if let Some(effects) = state
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&tx_digest)?
             {
-                let effects_digest = *effects.digest();
-                // TODO: populate `details` with effects/events/objects to allow the
-                // TransactionDriver to skip the get_full_effects RPC call. The client
-                // already handles Some(details) in effects_certifier.rs.
+                let effects_digest = effects.digest();
+                let events = effects
+                    .events_digest()
+                    .and_then(|digest| state.get_transaction_events(digest).ok());
+                let input_objects = state.get_transaction_input_objects(&effects).ok();
+                let output_objects = state.get_transaction_output_objects(&effects).ok();
+                let details = Some(Box::new(ExecutedData {
+                    effects,
+                    events,
+                    input_objects: input_objects.unwrap_or_default(),
+                    output_objects: output_objects.unwrap_or_default(),
+                }));
                 return Ok((
                     tonic::Response::new(SubmitTransactionsResponse {
                         results: vec![SubmitTransactionResult::Executed {
                             effects_digest,
-                            details: None,
+                            details,
                         }],
                     }),
                     Weight::one(),
