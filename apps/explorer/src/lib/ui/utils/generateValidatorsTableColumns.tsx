@@ -190,7 +190,7 @@ export function generateValidatorsTableColumns({
             id: 'effectiveCommissionRate',
             enableSorting: true,
             sortingFn: (rowA, rowB) => {
-                // TODO: This funciton should be reverted to 'sortByNumber'
+                // TODO: This function should be reverted to 'sortByNumber'
                 // once the effectiveCommission is available directly from validator data
                 const { original: validatorA } = rowA;
                 const { original: validatorB } = rowB;
