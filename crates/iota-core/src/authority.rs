@@ -878,15 +878,15 @@ impl AuthorityState {
     /// This is a private method and should be kept that way. It doesn't check
     /// whether the provided transaction is a system transaction, and hence
     /// can only be called internally.
+    /// Runs deny list, input object validation, gas checks, coin deny list, and
+    /// MoveAuthenticator checks. Returns the owned object refs for optional
+    /// version validation. Does NOT acquire locks or sign the transaction.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
-    async fn handle_transaction_impl(
+    async fn handle_transaction_deny_checks(
         &self,
-        transaction: VerifiedTransaction,
+        transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<VerifiedSignedTransaction> {
-        // Ensure that validator cannot reconfigure while we are signing the tx
-        let _execution_lock = self.execution_lock_for_signing()?;
-
+    ) -> IotaResult<Vec<ObjectRef>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
@@ -911,7 +911,7 @@ impl AuthorityState {
         // call if there is a sender `MoveAuthenticator` signature present in the
         // transaction.
         let (tx_input_objects, tx_receiving_objects, auth_input_objects, account_object) =
-            self.read_objects_for_signing(&transaction, epoch)?;
+            self.read_objects_for_signing(transaction, epoch)?;
 
         // Get the sender `MoveAuthenticator`, if any.
         // Only one `MoveAuthenticator` signature is possible, since it is not
@@ -985,8 +985,22 @@ impl AuthorityState {
             }
         }
 
-        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
+        Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
 
+    async fn handle_transaction_impl(
+        &self,
+        transaction: VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<VerifiedSignedTransaction> {
+        // Ensure that validator cannot reconfigure while we are signing the tx
+        let _execution_lock = self.execution_lock_for_signing();
+
+        let owned_objects = self
+            .handle_transaction_deny_checks(&transaction, epoch_store)
+            .await?;
+
+        let epoch = epoch_store.epoch();
         let signed_transaction =
             VerifiedSignedTransaction::new(epoch, transaction, self.name, &*self.secret);
 

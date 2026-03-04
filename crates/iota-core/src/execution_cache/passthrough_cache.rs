@@ -12,7 +12,7 @@ use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
-    error::{IotaError, IotaResult},
+    error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
@@ -23,7 +23,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 use tap::TapFallible;
-use tracing::instrument;
+use tracing::{debug, instrument};
 use typed_store::Map;
 
 use super::{
@@ -307,6 +307,51 @@ impl ExecutionCacheWrite for PassthroughCache {
     ) -> IotaResult {
         self.store
             .acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
+    }
+
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult {
+        for obj_ref in owned_input_objects {
+            match self
+                .store
+                .try_get_object(&obj_ref.0)
+                .map_err(IotaError::from)?
+            {
+                None => {
+                    return Err(IotaError::UserInput {
+                        error: UserInputError::ObjectNotFound {
+                            object_id: obj_ref.0,
+                            version: None,
+                        },
+                    });
+                }
+                Some(live_object) => {
+                    debug_assert_eq!(obj_ref.0, live_object.id());
+                    if obj_ref.1 != live_object.version() {
+                        debug!(
+                            "object version unavailable for consumption: {:?} (current: {})",
+                            obj_ref,
+                            live_object.version()
+                        );
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::ObjectVersionUnavailableForConsumption {
+                                provided_obj_ref: *obj_ref,
+                                current_version: live_object.version(),
+                            },
+                        });
+                    }
+                    let live_digest = live_object.digest();
+                    if obj_ref.2 != live_digest {
+                        return Err(IotaError::UserInput {
+                            error: UserInputError::InvalidObjectDigest {
+                                object_id: obj_ref.0,
+                                expected_digest: live_digest,
+                            },
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 
