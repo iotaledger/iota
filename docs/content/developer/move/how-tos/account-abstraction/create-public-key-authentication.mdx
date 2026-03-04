@@ -11,254 +11,43 @@ import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction /> 
 
-## About Public Key Authentication
+This how-to demonstrates how to create and authenticate an IOTAccount using public key verification.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../explanations/account-abstraction.mdx).
 
-Public key authentication allows an IOTAccount to verify transactions using cryptographic signatures. The account stores a public key as a dynamic field, and authenticators verify signatures against this key to authenticate transactions.
+## Example Code
 
-## What this example shows
+1. Attach and manage public keys as dynamic fields on an account.
 
-- Create an IOTAccount with a public key for authentication.
-- Support multiple signature schemes: Ed25519, Secp256k1, and Secp256r1.
-- Attach, rotate, and manage public keys on an IOTAccount.
-- Authenticate transactions by verifying signatures against the stored public key.
-
-## Example code (core functionality)
-
-### Attach and manage public keys
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move#L42-L63
 ```
 
-**What this does**
-- Attaches a public key to an account as a dynamic field.
-- Allows rotating or detaching the public key when needed.
-
-### Public key authenticators (Ed25519, Secp256k1, Secp256r1)
+2. Define public key authenticators for different cryptographic schemes (Ed25519, Secp256k1, Secp256r1).
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move#L67-L92
 ```
 
-**What this does**
-- Verifies signatures using the stored public key for different cryptographic schemes.
-- Each authenticator checks that the signature is valid for the transaction digest.
-
-### Create IOTAccount with public key
+3. Create an IOTAccount with an attached public key and authenticator.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L31-L52
 ```
 
-**What this does**
-- Creates a new IOTAccount with an attached public key and authenticator.
-- Optionally sets an admin address for account management.
-
-### Attach public key to builder
+4. Attach a public key when building an IOTAccount via the builder pattern.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L56-L58
 ```
 
-**What this does**
-- Helper function to attach a public key when building an IOTAccount.
-
-### Rotate public key and authenticator
+5. Rotate the public key and authenticator function in a single operation.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L63-L74
 ```
 
-**What this does**
-- Updates both the public key and the authenticator function in a single operation.
-- Only the account itself can perform this rotation.
-
-### Add public key to existing account
+6. Add a public key to an existing account that doesn't already have one.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L79-L90
 ```
 
-**What this does**
-- Attaches a public key to an account that doesn't already have one.
-- Updates the authenticator function to use the new public key.
-
-### IOTAccount authenticators
+7. Define IOTAccount-level authenticator functions for Ed25519, Secp256k1, and Secp256r1.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L96-L125
 ```
 
-**What this does**
-- Provides authenticator functions for Ed25519, Secp256k1, and Secp256r1 signatures.
-- Each authenticator verifies the signature against the account's stored public key.
-
-### View functions
+8. Use view functions to check if an account has a public key and to borrow it.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L130-L137
 ```
-
-**What this does**
-- Utility functions to check if an account has a public key and to borrow the public key.
-
-## Verify the result
-
-
-**Create account with Ed25519 public key**
-
-```bash
-export PTB_JSON=$(iota client ptb \
---move-call 0x2::authenticator_function::create_auth_function_ref_v1 '<'$PACKAGE_ID'::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'>' @$METADATA_ID '"'$AUTH_MODULE_NAME'"' '"'$AUTH_FUNCTION_NAME'"' \
---assign ref \
---move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$SIGN_PUB_KEY_BYTES" ref \
---json)
-export ABSTRACTACCOUNT=$(echo $PTB_JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'"))) | .objectId')
-echo "Account Object ID: $ABSTRACTACCOUNT"
-```
-
-<details>
-
-<summary>Expected output</summary>
-
-```bash
-Account Object ID: 0xa14ad974f73959......
-```
-
-</details>
-
-
-**Execute transaction with signature authentication**
-
-```bash
-export SIGNED_TX_BYTES=$(iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-call-args 0x$SIGNATURE_HEX --serialize-signed-transaction)
-echo "Signed tx bytes: $SIGNED_TX_BYTES"
-iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
-```
-
-<details>
-<summary>Expected output</summary>
-
-```bash
-Signed tx bytes: AQAAAAAAAgAIAQAAAAAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQChStl09zlZcL7duDiwObew5alZjsMgKHs0CAT4w4A45gH5IRoZNb9NjBeCFZqGgvpwB2J6a0r+dy6DUYIvPQJLPgIAAAAAAAAAIGSTzBamBug6jfMVsh61jrzAdG5PN3Z0ojFbr6aka2haoUrZdPc5WXC+3bg4sDm3sOWpWY7DICh7NAgE+MOAOOboAwAAAAAAAOBvPAAAAAAAAAFxBwEAQUCxcreR/WdGsv0WWuEzT4df9PBJv4xLk1AMgKeUbUxeRmaCdXh2hhmN2pccdZA/twmio5WFrOsbBkwBDLOvJKQMAAEBoUrZdPc5WXC+3bg4sDm3sOWpWY7DICh7NAgE+MOAOOYEAAAAAAAAAAA=
-Transaction Digest: 5bihJczygbCNdTwwVvVgrUYceYL6vE4jHECifW6BP28R
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Transaction Data                                                                                                                                            │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Sender: 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6                                                                                  │
-│ Gas Owner: 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6                                                                               │
-│ Gas Budget: 3960800 NANOS                                                                                                                                   │
-│ Gas Price: 1000 NANOS                                                                                                                                       │
-│ Gas Payment:                                                                                                                                                │
-│  ┌──                                                                                                                                                        │
-│  │ ID: 0xf9211a1935bf4d8c1782159a8682fa7007627a6b4afe772e8351822f3d024b3e                                                                                   │
-│  │ Version: 2                                                                                                                                               │
-│  │ Digest: 7mcUykYS9ictomnYwcxLyXPpqqPKnr8ZmFsj6sWSya6d                                                                                                     │
-│  └──                                                                                                                                                        │
-│                                                                                                                                                             │
-│ Transaction Kind: Programmable                                                                                                                              │
-│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮                                                │
-│ │ Input Objects                                                                                            │                                                │
-│ ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                │
-│ │ 0   Pure Arg: Type: u64, Value: "1"                                                                      │                                                │
-│ │ 1   Pure Arg: Type: address, Value: "0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215" │                                                │
-│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                │
-│ ╭─────────────────────────╮                                                                                                                                 │
-│ │ Commands                │                                                                                                                                 │
-│ ├─────────────────────────┤                                                                                                                                 │
-│ │ 0  SplitCoins:          │                                                                                                                                 │
-│ │  ┌                      │                                                                                                                                 │
-│ │  │ Coin: GasCoin        │                                                                                                                                 │
-│ │  │ Amounts:             │                                                                                                                                 │
-│ │  │   Input  0           │                                                                                                                                 │
-│ │  └                      │                                                                                                                                 │
-│ │                         │                                                                                                                                 │
-│ │ 1  TransferObjects:     │                                                                                                                                 │
-│ │  ┌                      │                                                                                                                                 │
-│ │  │ Arguments:           │                                                                                                                                 │
-│ │  │   Nested Result 0: 0 │                                                                                                                                 │
-│ │  │ Address: Input  1    │                                                                                                                                 │
-│ │  └                      │                                                                                                                                 │
-│ ╰─────────────────────────╯                                                                                                                                 │
-│                                                                                                                                                             │
-│ Signatures:                                                                                                                                                 │
-│    BwEAQUCxcreR/WdGsv0WWuEzT4df9PBJv4xLk1AMgKeUbUxeRmaCdXh2hhmN2pccdZA/twmio5WFrOsbBkwBDLOvJKQMAAEBoUrZdPc5WXC+3bg4sDm3sOWpWY7DICh7NAgE+MOAOOYEAAAAAAAAAAA= │
-│                                                                                                                                                             │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Transaction Effects                                                                               │
-├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Digest: 5bihJczygbCNdTwwVvVgrUYceYL6vE4jHECifW6BP28R                                              │
-│ Status: Success                                                                                   │
-│ Executed Epoch: 12                                                                                │
-│                                                                                                   │
-│ Created Objects:                                                                                  │
-│  ┌──                                                                                              │
-│  │ ID: 0x813ea6173de683d2459f5afda9e526c72abdc8dad9b4310f7ae0405f02a48abc                         │
-│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
-│  │ Version: 5                                                                                     │
-│  │ Digest: 8soPPotB8guxU2KJ4BrhMmiVDTxCosRWoJ5FXpD3PjNS                                           │
-│  └──                                                                                              │
-│ Mutated Objects:                                                                                  │
-│  ┌──                                                                                              │
-│  │ ID: 0xf9211a1935bf4d8c1782159a8682fa7007627a6b4afe772e8351822f3d024b3e                         │
-│  │ Owner: Account Address ( 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6 )  │
-│  │ Version: 5                                                                                     │
-│  │ Digest: DwLadjYDWXnWmWh1zQSrgyZPhi4HG5yRhLGRZLaBTxiN                                           │
-│  └──                                                                                              │
-│ Shared Objects:                                                                                   │
-│  ┌──                                                                                              │
-│  │ ID: 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6                         │
-│  │ Version: 4                                                                                     │
-│  │ Digest: 73kBDzrLUnUz7fzxq8anFd4UrAhRaYcEGqMXdXxGgc5A                                           │
-│  └──                                                                                              │
-│ Gas Object:                                                                                       │
-│  ┌──                                                                                              │
-│  │ ID: 0xf9211a1935bf4d8c1782159a8682fa7007627a6b4afe772e8351822f3d024b3e                         │
-│  │ Owner: Account Address ( 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6 )  │
-│  │ Version: 5                                                                                     │
-│  │ Digest: DwLadjYDWXnWmWh1zQSrgyZPhi4HG5yRhLGRZLaBTxiN                                           │
-│  └──                                                                                              │
-│ Gas Cost Summary:                                                                                 │
-│    Storage Cost: 1960800 NANOS                                                                    │
-│    Computation Cost: 1000000 NANOS                                                                │
-│    Computation Cost Burned: 1000000 NANOS                                                         │
-│    Storage Rebate: 980400 NANOS                                                                   │
-│    Non-refundable Storage Fee: 0 NANOS                                                            │
-│                                                                                                   │
-│ Transaction Dependencies:                                                                         │
-│    8Nazn2o44K1wSTCgfXjV4FoD9U5rE45uSGLWBvyjKhhS                                                   │
-│    9YouJ5YTHX1ty7XTxfRYHh35erg9BAZbuXhsefy2kz34                                                   │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─────────────────────────────╮
-│ No transaction block events │
-╰─────────────────────────────╯
-
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Object Changes                                                                                   │
-├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Created Objects:                                                                                 │
-│  ┌──                                                                                             │
-│  │ ObjectID: 0x813ea6173de683d2459f5afda9e526c72abdc8dad9b4310f7ae0405f02a48abc                  │
-│  │ Sender: 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6                    │
-│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 ) │
-│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
-│  │ Version: 5                                                                                    │
-│  │ Digest: 8soPPotB8guxU2KJ4BrhMmiVDTxCosRWoJ5FXpD3PjNS                                          │
-│  └──                                                                                             │
-│ Mutated Objects:                                                                                 │
-│  ┌──                                                                                             │
-│  │ ObjectID: 0xf9211a1935bf4d8c1782159a8682fa7007627a6b4afe772e8351822f3d024b3e                  │
-│  │ Sender: 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6                    │
-│  │ Owner: Account Address ( 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6 ) │
-│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
-│  │ Version: 5                                                                                    │
-│  │ Digest: DwLadjYDWXnWmWh1zQSrgyZPhi4HG5yRhLGRZLaBTxiN                                          │
-│  └──                                                                                             │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Balance Changes                                                                                   │
-├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│  ┌──                                                                                              │
-│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
-│  │ CoinType: 0x2::iota::IOTA                                                                      │
-│  │ Amount: 1                                                                                      │
-│  └──                                                                                              │
-│  ┌──                                                                                              │
-│  │ Owner: Account Address ( 0xa14ad974f7395970beddb838b039b7b0e5a9598ec320287b340804f8c38038e6 )  │
-│  │ CoinType: 0x2::iota::IOTA                                                                      │
-│  │ Amount: -1980401                                                                               │
-│  └──                                                                                              │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-</details>
-
-
 ## Expected Behavior
 - The account verifies transaction signatures against the stored public key using the configured cryptographic scheme (Ed25519, Secp256k1, or Secp256r1).
 - Only transactions with valid signatures from the corresponding private key are accepted and executed.
