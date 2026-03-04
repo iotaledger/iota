@@ -209,7 +209,7 @@ The `tx_inputs` and `tx_commands` fields of `AuthContext` expose the full PTB. A
 
 ### Authenticatation is signaled by execution, not return value
 
-The authenticator function has no return type. Returning succesfully means "authenticated"; aborting means "rejected". Use `assert!` and standard Move abort patterns to express rejection conditions.
+The authenticator function has no return type. Returning successfully means "authenticated"; aborting means "rejected". Use `assert!` and standard Move abort patterns to express rejection conditions.
 
 Avoid silent failures: if authentication should fail, abort with a descriptive error.
 
