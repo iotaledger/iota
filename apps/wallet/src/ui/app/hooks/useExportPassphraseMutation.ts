@@ -12,9 +12,13 @@ export function useExportPassphraseMutation() {
     const backgroundClient = useBackgroundClient();
     return useMutation({
         mutationKey: ['export passphrase'],
-        mutationFn: async (args: MethodPayload<'getAccountSourceEntropy'>['args']) =>
-            entropyToMnemonic(
+        mutationFn: async (args: MethodPayload<'getAccountSourceEntropy'>['args']) => {
+            if (args.password) {
+                await backgroundClient.unlockAllAccountsAndSources({ password: args.password });
+            }
+            return entropyToMnemonic(
                 toEntropy((await backgroundClient.getAccountSourceEntropy(args)).entropy),
-            ).split(' '),
+            ).split(' ');
+        },
     });
 }

@@ -47,7 +47,12 @@ async fn simulate_transaction_scenarios() {
     // Test: minimal read mask
     let transaction = create_transaction_for_simulation(&test_cluster).await;
     let result = client
-        .simulate_transaction(transaction, false, false, Some("transaction.effects"))
+        .simulate_transaction(
+            transaction,
+            false,
+            false,
+            Some("executed_transaction.effects"),
+        )
         .await
         .expect("Failed to simulate transaction with minimal mask");
 

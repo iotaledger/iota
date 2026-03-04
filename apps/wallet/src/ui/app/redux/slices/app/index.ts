@@ -10,10 +10,9 @@ import { getDefaultNetwork, type Network } from '@iota/iota-sdk/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
-import { AppType, ExtensionViewType } from './appType';
+import { ExtensionViewType } from './appType';
 
 type AppState = {
-    appType: AppType;
     network: Network;
     customRpc: string | null;
     navVisible: boolean;
@@ -23,13 +22,12 @@ type AppState = {
 };
 
 const initialState: AppState = {
-    appType: AppType.Unknown,
     network: getDefaultNetwork(),
     customRpc: null,
     navVisible: true,
     activeOrigin: null,
     activeOriginFavIcon: null,
-    extensionViewType: ExtensionViewType.Popup,
+    extensionViewType: ExtensionViewType.Unknown,
 };
 
 export const changeActiveNetwork = createAsyncThunk<
@@ -47,9 +45,6 @@ export const changeActiveNetwork = createAsyncThunk<
 const slice = createSlice({
     name: 'app',
     reducers: {
-        initAppType: (state, { payload }: PayloadAction<AppType>) => {
-            state.appType = payload;
-        },
         setActiveNetwork: (
             state,
             { payload: { network, customRpcUrl } }: PayloadAction<NetworkEnvType>,
@@ -74,7 +69,7 @@ const slice = createSlice({
     initialState,
 });
 
-export const { initAppType, setNavVisibility, setActiveOrigin, setAppViewType } = slice.actions;
+export const { setNavVisibility, setActiveOrigin, setAppViewType } = slice.actions;
 export const getNavIsVisible = ({ app }: RootState) => app.navVisible;
 
 export default slice.reducer;

@@ -251,6 +251,7 @@ export class MoveAuthenticatorBuilder {
         }
 
         return {
+            version: 'V1' as const,
             callArgs: resolvedCallArgs,
             typeArgs: this.typeArgs,
             objectToAuthenticate,

@@ -108,6 +108,10 @@ fn setup_env(token: CancellationToken) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls crypto provider");
+
     let token = CancellationToken::new();
     let child_token = token.child_token();
     setup_env(token);

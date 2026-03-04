@@ -66,10 +66,7 @@ fragment RPC_VALIDATOR_FIELDS on Validator {
     atRisk
     commissionRate
     exchangeRatesSize
-    exchangeRates {
-        contents {
-            json
-        }
+    exchangeRatesTable {
         address
     }
     description
@@ -95,9 +92,7 @@ fragment RPC_VALIDATOR_FIELDS on Validator {
     poolTokenBalance
     projectUrl
     rewardsPool
-    stakingPool {
-        address
-    }
+    stakingPoolId
     stakingPoolActivationEpoch
     stakingPoolIotaBalance
     address {

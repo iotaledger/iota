@@ -1,12 +1,8 @@
 ---
-tags: [ typescript, sdk, testnet, devnet, mainnet, localnet, ts-sdk]
+tags: [ typescript, sdk, ts-sdk]
 teams:
    - iotaledger/tooling
 ---
-
-import NetworkInfo from "@site/src/components/NetworkInfo/index.tsx";
-import { Networks } from '@site/src/components/constant.tsx';
-import HighTrafficRpcs from "@site/../content/_snippets/info-high-traffic.mdx";
 
 # IOTA TypeScript SDK Quick Start
 
@@ -18,30 +14,6 @@ to send queries to RPC nodes, build and sign transactions, and interact with an 
 ```sh npm2yarn
 npm i @iota/iota-sdk
 ```
-
-## Network locations
-
-The following table lists the locations for IOTA networks.
-
-## IOTA Mainnet
-
-<NetworkInfo.L1 {...Networks['iota']}/>
-
-<HighTrafficRpcs />
-
-## IOTA Testnet
-
-<NetworkInfo.L1 {...Networks['iota_testnet']}/>
-
-## IOTA Devnet
-
-<NetworkInfo.L1 {...Networks['iota_devnet']}/>
-
-## IOTA Localnet
-
-To create a local IOTA network, you can refer to [Local Development](/developer/getting-started/local-network) page.
-
-<NetworkInfo.L1 {...Networks['iota_localnet']}/>
 
 ## Module packages
 
