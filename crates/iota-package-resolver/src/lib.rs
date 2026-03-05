@@ -553,7 +553,12 @@ impl<S: PackageStore> Resolver<S> {
                     };
 
                     for (open_sig, arg) in signature.parameters.iter().zip(call.arguments.iter()) {
-                        let sig = open_sig.instantiate(&call.type_arguments)?;
+                        let type_inputs = call
+                            .type_arguments
+                            .iter()
+                            .map(|type_tag| type_tag.clone().into())
+                            .collect::<Vec<TypeInput>>();
+                        let sig = open_sig.instantiate(&type_inputs)?;
                         register_type(arg, &sig.body)?;
                     }
                 }
@@ -569,7 +574,8 @@ impl<S: PackageStore> Resolver<S> {
                     type_: Some(tag),
                     elements,
                 }) => {
-                    let tag = as_type_tag(tag)?;
+                    // TODO
+                    // let tag = as_type_tag(tag)?;
                     if is_primitive_type_tag(&tag) {
                         for elem in elements {
                             register_type(elem, &tag)?;
