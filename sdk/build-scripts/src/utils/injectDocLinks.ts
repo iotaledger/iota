@@ -1,159 +1,105 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Post-build utility that injects `@see` JSDoc tags into generated `.d.ts`
- * declaration files, pointing to the hosted TypeDoc API reference for each
- * exported symbol.
- *
- * VS Code's IntelliSense hover tooltip renders `@see` tags as clickable links,
- * so consumers of the SDK packages will see "Documentation" links when hovering
- * any exported type, function, class, interface, or enum.
- *
- * TypeDoc's default URL structure (kind router):
- *   classes/<Name>.html
- *   functions/<Name>.html
- *   interfaces/<Name>.html
- *   types/<Name>.html          (type aliases)
- *   enumerations/<Name>.html
- *   variables/<Name>.html
- *   modules/<Name>.html        (namespaces / modules)
- */
-
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
-const KIND_FOLDER: Record<string, string> = {
+const KIND_FOLDERS: Record<string, string> = {
     class: 'classes',
+    abstract: 'classes',
     interface: 'interfaces',
     function: 'functions',
-    'type alias': 'types',
+    type: 'types',
     enum: 'enumerations',
-    variable: 'variables',
+    const: 'variables',
+    let: 'variables',
+    var: 'variables',
     namespace: 'modules',
     module: 'modules',
 };
 
-function kindFolder(keyword: string): string | null {
-    switch (keyword) {
-        case 'class':
-            return KIND_FOLDER['class'];
-        case 'abstract':
-        case 'interface':
-            return KIND_FOLDER['interface'];
-        case 'function':
-            return KIND_FOLDER['function'];
-        case 'type':
-            return KIND_FOLDER['type alias'];
-        case 'enum':
-            return KIND_FOLDER['enum'];
-        case 'const':
-        case 'let':
-        case 'var':
-            return KIND_FOLDER['variable'];
-        case 'namespace':
-        case 'module':
-            return KIND_FOLDER['namespace'];
-        default:
-            return null;
-    }
+const DECL_RE =
+    /^(?:export\s+(?:declare\s+)?|declare\s+)?(abstract\s+)?(class|interface|function|type|enum|const|let|var|namespace|module)\s+([\w$]+)/;
+
+/** Returns the TypeDoc URL for an exported top-level declaration line, or null. */
+function urlForLine(line: string, base: string): string | null {
+    if (line.startsWith(' ') || line.startsWith('\t')) return null;
+    if (!line.startsWith('export ') && !line.startsWith('declare ')) return null;
+
+    const m = line.trimStart().match(DECL_RE);
+    if (!m) return null;
+
+    const keyword = m[1]?.trim() === 'abstract' ? 'abstract' : m[2];
+    const name = m[3];
+    if (name.startsWith('_')) return null;
+
+    const folder = KIND_FOLDERS[keyword];
+    if (!folder) return null;
+
+    return `${base.replace(/\/$/, '')}/${folder}/${name}.html`;
 }
 
-/**
- * Injects a `@see` JSDoc tag into a JSDoc block immediately preceding a
- * top-level exported declaration, if one does not already exist.
- *
- * Strategy:
- * - Walk through the file line-by-line.
- * - Track open JSDoc comment blocks (`/** … *\/`).
- * - When a top-level exported declaration is found on the line immediately
- *   after the closing `*\/` of a JSDoc block, inject `@see <url>` before the
- *   closing `*\/` of that block.
- * - If the declaration has no preceding JSDoc block, create a minimal one.
- */
+/** Injects `@see` tags into all top-level exported declarations in a .d.ts file. */
 function processFileContent(content: string, docsBaseUrl: string): string {
     const lines = content.split('\n');
     const result: string[] = [];
-
     let i = 0;
+
     while (i < lines.length) {
         const line = lines[i];
-
-        // Detect start of a JSDoc block
         const trimmed = line.trimStart();
+
         if (trimmed.startsWith('/**')) {
-            // Collect the full JSDoc block
-            const jsdocLines: string[] = [line];
             const indent = line.match(/^(\s*)/)?.[1] ?? '';
 
-            // Single-line JSDoc: /** ... */
+            // Normalise single-line /** ... */ to multi-line so we handle both uniformly
+            let jsdocLines: string[];
             if (trimmed.includes('*/') && trimmed.indexOf('*/') > trimmed.indexOf('/**') + 2) {
-                // Look ahead to see if the next non-empty line is an exported decl
-                const nextIdx = i + 1;
-                const url = getUrlForLine(lines, nextIdx, docsBaseUrl);
-                if (url && !trimmed.includes('@see')) {
-                    // Expand the single-line JSDoc to multi-line and add @see
-                    const inner = trimmed.replace(/^\/\*\*\s*/, '').replace(/\s*\*\/$/, '');
-                    result.push(`${indent}/**`);
-                    if (inner) result.push(`${indent} * ${inner}`);
-                    result.push(`${indent} * @see {@link ${url}}`);
-                    result.push(`${indent} */`);
-                    i++;
-                    continue;
-                }
-                result.push(line);
+                const inner = trimmed.replace(/^\/\*\*\s*/, '').replace(/\s*\*\/$/, '');
+                jsdocLines = [
+                    `${indent}/**`,
+                    ...(inner ? [`${indent} * ${inner}`] : []),
+                    `${indent} */`,
+                ];
                 i++;
-                continue;
+            } else {
+                jsdocLines = [line];
+                i++;
+                while (i < lines.length) {
+                    jsdocLines.push(lines[i]);
+                    if (lines[i].trimStart().startsWith('*/')) {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
             }
 
-            // Multi-line JSDoc: collect until */
-            i++;
-            while (i < lines.length) {
-                jsdocLines.push(lines[i]);
-                if (lines[i].trimStart().startsWith('*/')) {
-                    i++;
-                    break;
-                }
-                i++;
-            }
-
-            // Look at next non-empty line for declaration
+            // Find the next non-empty line to check if it's a declaration
             let nextIdx = i;
-            while (nextIdx < lines.length && lines[nextIdx].trim() === '') {
-                nextIdx++;
-            }
+            while (nextIdx < lines.length && lines[nextIdx].trim() === '') nextIdx++;
 
-            const url = getUrlForLine(lines, nextIdx, docsBaseUrl);
-            const alreadyHasSee = jsdocLines.some((l) => l.includes('@see'));
+            const url = urlForLine(lines[nextIdx] ?? '', docsBaseUrl);
+            const hasSee = jsdocLines.some((l) => l.includes('@see'));
 
-            if (url && !alreadyHasSee) {
-                // Insert @see before the closing */
+            if (url && !hasSee) {
                 const closeIdx = jsdocLines.length - 1;
-                const closeLine = jsdocLines[closeIdx];
-                // Preserve indentation
-                const lineIndent = closeLine.match(/^(\s*)/)?.[1] ?? '';
-                jsdocLines.splice(closeIdx, 0, `${lineIndent} * @see {@link ${url}}`);
+                const closeIndent = jsdocLines[closeIdx].match(/^(\s*)/)?.[1] ?? '';
+                jsdocLines.splice(closeIdx, 0, `${closeIndent} * @see {@link ${url}}`);
             }
 
             result.push(...jsdocLines);
             continue;
         }
 
-        // Detect a top-level exported declaration that has NO preceding JSDoc
-        const url = getUrlForLine(lines, i, docsBaseUrl);
+        // Declaration with no preceding JSDoc — create a minimal one
+        const url = urlForLine(line, docsBaseUrl);
         if (url) {
-            // Check that the previous non-empty line did NOT end with */
-            // (which would mean we already handled it above)
             let prevIdx = result.length - 1;
-            while (prevIdx >= 0 && result[prevIdx].trim() === '') {
-                prevIdx--;
-            }
-            const prevLine = prevIdx >= 0 ? result[prevIdx].trimEnd() : '';
-            if (!prevLine.endsWith('*/')) {
+            while (prevIdx >= 0 && result[prevIdx].trim() === '') prevIdx--;
+            if (!result[prevIdx]?.trimEnd().endsWith('*/')) {
                 const indent = line.match(/^(\s*)/)?.[1] ?? '';
-                result.push(`${indent}/**`);
-                result.push(`${indent} * @see {@link ${url}}`);
-                result.push(`${indent} */`);
+                result.push(`${indent}/**`, `${indent} * @see {@link ${url}}`, `${indent} */`);
             }
         }
 
@@ -162,43 +108,6 @@ function processFileContent(content: string, docsBaseUrl: string): string {
     }
 
     return result.join('\n');
-}
-
-/**
- * Given an array of lines and an index, check if the line at that index
- * represents a top-level exported declaration. If so, return the TypeDoc URL
- * for that declaration; otherwise return null.
- */
-function getUrlForLine(lines: string[], idx: number, docsBaseUrl: string): string | null {
-    if (idx >= lines.length) return null;
-
-    const line = lines[idx];
-    const trimmed = line.trimStart();
-
-    // Only process top-level declarations (no indentation beyond 0 spaces)
-    // Nested members inside classes/interfaces should not get @see tags here.
-    if (line.startsWith(' ') || line.startsWith('\t')) return null;
-
-    // Must start with export
-    if (!trimmed.startsWith('export ') && !trimmed.startsWith('declare ')) return null;
-
-    const match = trimmed.match(
-        /^(?:export\s+(?:declare\s+)?)?(?:declare\s+)?(abstract\s+)?(class|interface|function|type|enum|const|let|var|namespace|module)\s+([\w$]+)/,
-    );
-
-    if (!match) return null;
-
-    const keyword = match[1]?.trim() === 'abstract' ? 'class' : match[2];
-    const name = match[3];
-
-    // Skip internal/private-by-convention names
-    if (name.startsWith('_')) return null;
-
-    const folder = kindFolder(keyword);
-    if (!folder) return null;
-
-    const base = docsBaseUrl.replace(/\/$/, '');
-    return `${base}/${folder}/${name}.html`;
 }
 
 async function walkDts(dir: string, files: string[] = []): Promise<string[]> {
@@ -210,23 +119,18 @@ async function walkDts(dir: string, files: string[] = []): Promise<string[]> {
     }
     for (const entry of entries) {
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-            await walkDts(full, files);
-        } else if (entry.name.endsWith('.d.ts')) {
-            files.push(full);
-        }
+        if (entry.isDirectory()) await walkDts(full, files);
+        else if (entry.name.endsWith('.d.ts')) files.push(full);
     }
     return files;
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
-
 /**
- * Walk all `.d.ts` files under `dist/` in the current working directory and
- * inject `@see` tags pointing to the TypeDoc-hosted API reference.
+ * Walks all `.d.ts` files under `dist/` and injects `@see` tags pointing to
+ * the hosted TypeDoc API reference, making them clickable in VS Code hover tooltips.
  *
- * @param docsBaseUrl  The base URL of the hosted TypeDoc docs for this package,
- *                     e.g. `https://docs.iota.org/developer/ts-sdk/dapp-kit/api`
+ * @param docsBaseUrl Base URL of the TypeDoc site for this package,
+ *                    e.g. `https://docs.iota.org/developer/ts-sdk/dapp-kit/api`
  */
 export async function injectDocLinks(docsBaseUrl: string): Promise<void> {
     const distDir = path.join(process.cwd(), 'dist');
