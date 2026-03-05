@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import * as amplitude from '@amplitude/analytics-browser';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
@@ -29,7 +30,7 @@ const ANTI_BOT_CONFIG = {
 
 let IS_BOT_CLEARED = false;
 
-export async function initAmplitude() {
+export async function initAmplitude(network?: string) {
     const consentStatus = getAmplitudeConsentStatus();
 
     if (ampli.isLoaded || consentStatus === 'declined') {
@@ -64,6 +65,11 @@ export async function initAmplitude() {
     }).promise;
 
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
+
+    // Set initial identity with network if provided
+    if (network) {
+        setAmplitudeIdentity(network);
+    }
 
     setupAntiBotProtection();
 }
@@ -106,4 +112,20 @@ function setupAntiBotProtection() {
             }
         }, ANTI_BOT_CONFIG.REGULAR_FLUSH_INTERVAL_MS);
     }, ANTI_BOT_CONFIG.DETECTION_DELAY_MS);
+}
+
+/**
+ * Set the Amplitude user identity with the current network context.
+ * Updates user property: network.
+ * This allows filtering and segmenting analytics events by network dimension.
+ */
+export function setAmplitudeIdentity(network: string): void {
+    if (!ampli.isLoaded) {
+        return;
+    }
+
+    const identifyEvent = new amplitude.Identify();
+    identifyEvent.set('network', network);
+
+    ampli.client.identify(identifyEvent);
 }
