@@ -443,15 +443,7 @@ const developer = [
                             'developer/move/how-tos/account-abstraction/create-onesig-account',
                             'developer/move/how-tos/account-abstraction/create-spending-limit-account',
                             'developer/move/how-tos/account-abstraction/create-lean-imt-account',
-                            {
-                                type: 'category',
-                                label: 'Dynamic Multisig',
-                                items: [
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/dynamic-multisig-account',
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/multisig-members',
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/transactions',
-                                ],
-                            },
+                            'developer/move/how-tos/account-abstraction/dynamic-multisig-account',
                         ],
                     },
                     {
