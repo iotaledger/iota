@@ -7,7 +7,6 @@ import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ampli } from './ampli';
-import store from '_src/ui/app/redux/store';
 import { type ExtensionViewType, getAppViewType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
@@ -46,8 +45,6 @@ export async function initAmplitude() {
             },
         },
     });
-
-    setAmplitudeIdentity();
 
     // Add dialog context plugin to enrich events with dialog information
     if (IS_ENABLED) {
@@ -92,9 +89,9 @@ export function getNetworkName(network: Network, customRpc?: string | null): str
 }
 
 type AmplitudeIdentityOptions = {
-    network?: Network;
-    customRpc?: string | null;
-    extensionViewType?: ExtensionViewType;
+    network: Network;
+    customRpc: string | null;
+    extensionViewType: ExtensionViewType;
 };
 
 /**
@@ -102,22 +99,14 @@ type AmplitudeIdentityOptions = {
  * Updates user properties: network, walletAppMode, and walletVersion.
  * This allows filtering and segmenting analytics events by these dimensions.
  */
-export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
+export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
     if (!ampli.isLoaded) {
         return;
     }
-    const {
-        network: stateNetwork,
-        customRpc: stateCustomRpc,
-        extensionViewType: stateExtensionViewType,
-    } = store.getState().app;
 
-    const networkName = getNetworkName(
-        options?.network ?? stateNetwork,
-        options?.customRpc ?? stateCustomRpc,
-    );
+    const networkName = getNetworkName(options.network, options.customRpc);
 
-    const walletAppMode = options?.extensionViewType ?? stateExtensionViewType ?? getAppViewType();
+    const walletAppMode = options.extensionViewType ?? getAppViewType();
     const walletVersion = Browser.runtime.getManifest().version;
 
     const identifyEvent = new amplitude.Identify();

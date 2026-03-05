@@ -11,7 +11,7 @@ import type { Middleware } from '@reduxjs/toolkit';
  * ensuring all subsequent events include the latest user context.
  */
 export const amplitudeMiddleware: Middleware<{}, RootState> = (storeAPI) => (next) => (action) => {
-    const { network, customRpc, appType } = storeAPI.getState().app;
+    const { network, customRpc, extensionViewType } = storeAPI.getState().app;
 
     const result = next(action);
 
@@ -19,9 +19,13 @@ export const amplitudeMiddleware: Middleware<{}, RootState> = (storeAPI) => (nex
     if (
         newApp.network !== network ||
         newApp.customRpc !== customRpc ||
-        newApp.appType !== appType
+        newApp.extensionViewType !== extensionViewType
     ) {
-        setAmplitudeIdentity();
+        setAmplitudeIdentity({
+            network: newApp.network,
+            customRpc: newApp.customRpc,
+            extensionViewType: newApp.extensionViewType,
+        });
     }
 
     return result;
