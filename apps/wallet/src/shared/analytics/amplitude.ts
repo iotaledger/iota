@@ -7,7 +7,7 @@ import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ampli } from './ampli';
-import { type ExtensionViewType, getAppViewType } from '_src/ui/app/redux/slices/app/appType';
+import { type ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
 
@@ -104,15 +104,10 @@ export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
         return;
     }
 
-    const networkName = getNetworkName(options.network, options.customRpc);
-
-    const walletAppMode = options.extensionViewType ?? getAppViewType();
-    const walletVersion = Browser.runtime.getManifest().version;
-
     const identifyEvent = new amplitude.Identify();
-    identifyEvent.set('network', networkName);
-    identifyEvent.set('walletAppMode', walletAppMode);
-    identifyEvent.set('walletVersion', walletVersion);
+    identifyEvent.set('network', getNetworkName(options.network, options.customRpc));
+    identifyEvent.set('walletAppMode', options.extensionViewType);
+    identifyEvent.set('walletVersion', Browser.runtime.getManifest().version);
 
     ampli.client.identify(identifyEvent);
 }

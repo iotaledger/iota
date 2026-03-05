@@ -7,8 +7,6 @@ import type { Middleware } from '@reduxjs/toolkit';
 
 /**
  * Redux middleware that keeps the Amplitude user identity in sync with Redux state.
- * Automatically updates identity when network, customRpc, or appType changes,
- * ensuring all subsequent events include the latest user context.
  */
 export const amplitudeMiddleware: Middleware<{}, RootState> = (storeAPI) => (next) => (action) => {
     const { network, customRpc, extensionViewType } = storeAPI.getState().app;
