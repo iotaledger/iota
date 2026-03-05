@@ -111,6 +111,10 @@ jobs:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
 
+  split-cluster-sync-check:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    uses: ./.github/workflows/_split_cluster_sync_check.yml
+
   rosetta:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rosetta.yml

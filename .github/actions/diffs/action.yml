@@ -34,6 +34,9 @@ outputs:
   isTypeScriptCodegenSync:
     description: True when changes happened that affect TypeScript codegen synchronization
     value: "${{ steps.diff.outputs.isTypeScriptCodegenSync }}"
+  isStarfishSynchronization:
+    description: True when changes happened to synchronization components (commit syncer, header synchronizer, transaction synchronizer)
+    value: "${{ steps.diff.outputs.isStarfishSynchronization }}"
 
 runs:
   using: composite
@@ -147,3 +150,15 @@ runs:
             - "sdk/typescript/genversion.mjs"
             # Turbo hierarchy workflow and related scripts
             - ".github/workflows/turbo_hierarchy.yml"
+          isStarfishSynchronization:
+            - "crates/starfish/core/src/header_synchronizer.rs"
+            - "crates/starfish/core/src/commit_syncer/**"
+            - "crates/starfish/core/src/transactions_synchronizer.rs"
+            - "crates/starfish/core/src/authority_service.rs"
+            - "crates/starfish/core/src/commit.rs"
+            - "crates/starfish/core/src/block_header.rs"
+            - "crates/starfish/core/src/transaction.rs"
+            - "crates/starfish/core/src/shard_reconstructor.rs"
+            - "scripts/compatibility/split-cluster-sync-check.sh"
+            - ".github/workflows/_split_cluster_sync_check.yml"
+            - ".github/workflows/hierarchy.yml"
