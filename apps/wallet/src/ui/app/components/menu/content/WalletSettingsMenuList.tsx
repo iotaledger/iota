@@ -3,13 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useLogoutMutation,
-    useUnlockMutation,
-} from '_hooks';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -63,7 +57,6 @@ export function MenuList() {
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
     const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
     const logoutMutation = useLogoutMutation();
-    const unlockAllAccountsMutation = useUnlockMutation();
 
     function handleAutoLockSubtitle(): string {
         if (autoLockInterval.data === null) {
@@ -196,8 +189,7 @@ export function MenuList() {
                     ))}
                     <VerifyPasswordModal
                         open={isPasswordModalVisible}
-                        onVerify={async (password) => {
-                            await unlockAllAccountsMutation.mutateAsync({ password });
+                        onVerify={() => {
                             setIsPasswordModalVisible(false);
                             setIsLogoutDialogOpen(true);
                         }}
