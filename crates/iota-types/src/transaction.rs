@@ -20,6 +20,7 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind,
     RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
+    TransactionExpiration,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -1166,15 +1167,6 @@ pub struct GasData {
     pub budget: u64,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub enum TransactionExpiration {
-    /// The transaction has no expiration
-    None,
-    /// Validators wont sign a transaction unless the expiration Epoch
-    /// is greater than or equal to the current epoch
-    Epoch(EpochId),
-}
-
 #[enum_dispatch(TransactionDataAPI)]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum TransactionData {
@@ -2044,6 +2036,9 @@ impl SenderSignedData {
         if match &tx_data.expiration() {
             TransactionExpiration::None => false,
             TransactionExpiration::Epoch(exp_poch) => *exp_poch < epoch,
+            _ => unimplemented!(
+                "a new TransactionExpiration variant was added and needs to be handled"
+            ),
         } {
             return Err(IotaError::TransactionExpired);
         }
