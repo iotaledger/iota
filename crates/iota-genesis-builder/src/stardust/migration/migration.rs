@@ -457,7 +457,7 @@ pub(super) fn create_migration_context(
         0,
         0,
         None,
-        &protocol_config,
+        protocol_config,
     );
 
     Rc::new(RefCell::new(tx_ctx))
