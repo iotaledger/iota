@@ -3775,7 +3775,7 @@ mod tests {
         let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
         store
             .write(
-                crate::storage::WriteBatch::new(vec![], all_headers, vec![], vec![], vec![], false),
+                crate::storage::WriteBatch::new(vec![], all_headers, vec![], vec![], vec![], Some(false)),
                 context.clone(),
             )
             .expect("Failed to write block headers to store");
