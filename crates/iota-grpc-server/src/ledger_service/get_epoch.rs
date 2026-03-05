@@ -61,21 +61,19 @@ impl Merge<&EpochReadSource> for Epoch {
                 self.first_checkpoint = Some(epoch_info.start_checkpoint);
             }
 
-            if mask.contains(Self::LAST_CHECKPOINT_FIELD.name) {
-                if let Some(end_checkpoint) = epoch_info.end_checkpoint {
+            if mask.contains(Self::LAST_CHECKPOINT_FIELD.name)
+                && let Some(end_checkpoint) = epoch_info.end_checkpoint {
                     self.last_checkpoint = Some(end_checkpoint);
                 }
-            }
 
             if mask.contains(Self::START_FIELD.name) {
                 self.start = Some(timestamp_ms_to_proto(epoch_info.start_timestamp_ms));
             }
 
-            if mask.contains(Self::END_FIELD.name) {
-                if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
+            if mask.contains(Self::END_FIELD.name)
+                && let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
                     self.end = Some(timestamp_ms_to_proto(end_timestamp_ms));
                 }
-            }
 
             if mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name) {
                 self.reference_gas_price = Some(epoch_info.reference_gas_price);

@@ -412,22 +412,19 @@ impl CommitObserver {
             // Even though there are no commits to resend, we still need to initialize
             // last solid subdag in dag state so that fast sync knows where to start
             // fetching.
-            if last_processed_commit_index > 0 {
-                if let Some(commit) = self
+            if last_processed_commit_index > 0
+                && let Some(commit) = self
                     .store
                     .scan_commits(
                         (last_processed_commit_index..=last_processed_commit_index).into(),
                     )
                     .ok()
                     .and_then(|commits| commits.into_iter().next())
-                {
-                    if let Some(committed_subdag) =
+                    && let Some(committed_subdag) =
                         self.build_committed_subdag_from_commit(&commit, vec![])
                     {
                         self.update_with_solid_subdags_and_flush(&[committed_subdag]);
                     }
-                }
-            }
 
             return;
         }

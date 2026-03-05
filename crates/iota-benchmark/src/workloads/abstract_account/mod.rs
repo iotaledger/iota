@@ -178,15 +178,14 @@ impl Workload<dyn Payload> for AbstractAccountWorkload {
                 .await
                 .expect("init_bench_objects failed");
 
-                if let Some(expected) = self.authenticator.expected_bench_objects_count() {
-                    if objs.len() < expected {
+                if let Some(expected) = self.authenticator.expected_bench_objects_count()
+                    && objs.len() < expected {
                         panic!(
                             "MaxArgs requires at least {} bench objects, got {}",
                             expected,
                             objs.len()
                         );
                     }
-                }
 
                 info!(
                     "[{WORKLOAD_LABEL}] prepared bench_objects: count={}",

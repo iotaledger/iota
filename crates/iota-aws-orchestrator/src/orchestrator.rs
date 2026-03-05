@@ -683,11 +683,10 @@ done"#
                     let elapsed = Instant::now().duration_since(start).as_secs_f64().ceil() as u64;
                     display::status(format!("{elapsed}s"));
 
-                    if let Some(limit) = parameters.run_interval.time_limit_secs() {
-                        if elapsed >= limit {
+                    if let Some(limit) = parameters.run_interval.time_limit_secs()
+                        && elapsed >= limit {
                             break;
                         }
-                    }
                 }
 
                 res = &mut wait_clients_future => {
@@ -1143,8 +1142,8 @@ done"#
 
             parameters.benchmark_dir = benchmark_dir.join(format!("{parameters:?}"));
 
-            if !self.skip_monitoring {
-                if let Some(metrics) = &self.metrics_instance {
+            if !self.skip_monitoring
+                && let Some(metrics) = &self.metrics_instance {
                     let host_ip = if generator.use_internal_ip_address {
                         metrics.private_ip
                     } else {
@@ -1162,7 +1161,6 @@ done"#
                         sampler_arg: "0.1".to_string(),
                     });
                 }
-            }
             // Cleanup the testbed (in case the previous run was not completed).
             self.cleanup(true).await?;
             // Create benchmark directory.

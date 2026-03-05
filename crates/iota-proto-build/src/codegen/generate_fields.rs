@@ -183,8 +183,8 @@ fn collect_external_types(
                     if let Some(info) = transparent_messages.get(full_type_name) {
                         // For transparent non-map types, import the inner type instead of the
                         // wrapper. The field_info code will reference the inner type directly.
-                        if !info.is_map {
-                            if let Some(inner_full_name) = &info.inner_full_type_name {
+                        if !info.is_map
+                            && let Some(inner_full_name) = &info.inner_full_type_name {
                                 let inner_msg_name =
                                     inner_full_name.split('.').next_back().unwrap();
                                 if let Some(package) =
@@ -193,7 +193,6 @@ fn collect_external_types(
                                     external_types.insert(inner_msg_name.to_owned(), package);
                                 }
                             }
-                        }
                         // For transparent map types, no inner message to import
                         // (the field becomes a leaf/map
                         // field and doesn't reference a message type)

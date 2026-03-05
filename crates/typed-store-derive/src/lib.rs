@@ -45,15 +45,13 @@ fn parse_deprecated_db_map_migration(attr: &Attribute) -> Option<syn::Path> {
         Ok(Meta::Path(_)) => None, // #[deprecated_db_map] with no args
         Ok(Meta::List(ml)) => {
             for nested in &ml.nested {
-                if let syn::NestedMeta::Meta(Meta::NameValue(nv)) = nested {
-                    if nv.path.is_ident("migration") {
-                        if let Lit::Str(s) = &nv.lit {
+                if let syn::NestedMeta::Meta(Meta::NameValue(nv)) = nested
+                    && nv.path.is_ident("migration")
+                        && let Lit::Str(s) = &nv.lit {
                             let fn_path: syn::Path =
                                 s.parse().expect("migration value must be a valid path");
                             return Some(fn_path);
                         }
-                    }
-                }
             }
             None
         }

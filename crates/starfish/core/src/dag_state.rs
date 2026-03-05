@@ -686,8 +686,8 @@ impl DagState {
             .accepted_block_headers_round_gap
             .with_label_values(&[source.as_str()])
             .observe(clock_round_gap as f64);
-        if source != DataSource::CommitSyncer && source != DataSource::Recover {
-            if let Some((sender, _)) = &self.cordial_knowledge_senders {
+        if source != DataSource::CommitSyncer && source != DataSource::Recover
+            && let Some((sender, _)) = &self.cordial_knowledge_senders {
                 // Fetch transaction commitments for all acknowledged blocks in batch
                 let acknowledgments = block_header.acknowledgments();
                 let ack_transactions_commitments =
@@ -705,7 +705,6 @@ impl DagState {
                     warn!("Failed to send cordial knowledge update: channel closed");
                 }
             }
-        }
     }
 
     fn update_transaction_metadata(
@@ -1364,8 +1363,8 @@ impl DagState {
     /// in DAG State for the most recent header, as that could happen for
     /// instance when own header is synced and the node is restarted.
     pub(crate) fn get_last_own_non_genesis_block(&self) -> Option<VerifiedBlock> {
-        if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
-            if last.round > GENESIS_ROUND {
+        if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last()
+            && last.round > GENESIS_ROUND {
                 let last_header_opt = self.recent_block_headers.get(last);
                 if let Some(last_header) = last_header_opt {
                     let transaction_ref =
@@ -1389,7 +1388,6 @@ impl DagState {
                     }
                 }
             }
-        }
         None
     }
 
