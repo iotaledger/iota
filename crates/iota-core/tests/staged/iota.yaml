@@ -53,6 +53,14 @@ AuthorityQuorumSignInfo:
           CONTENT: U8
           SIZE: 48
     - signers_map: BYTES
+BinaryConsensusDeterminedVersionAssignments:
+  ENUM:
+    0:
+      CancelledTransactions:
+        STRUCT:
+          - cancelled_transactions:
+              SEQ:
+                TYPENAME: CancelledTransaction
 CallArg:
   ENUM:
     0:
@@ -62,6 +70,13 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
+CancelledTransaction:
+  STRUCT:
+    - digest:
+        TYPENAME: Digest
+    - versionAssignments:
+        SEQ:
+          TYPENAME: VersionAssignment
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -296,25 +311,13 @@ ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
     - round: U64
-    - sub_dag_index:
+    - subDagIndex:
         OPTION: U64
-    - commit_timestamp_ms: U64
-    - consensus_commit_digest:
+    - commitTimestampMs: U64
+    - consensusCommitDigest:
         TYPENAME: Digest
-    - consensus_determined_version_assignments:
-        TYPENAME: ConsensusDeterminedVersionAssignments
-ConsensusDeterminedVersionAssignments:
-  ENUM:
-    0:
-      CancelledTransactions:
-        NEWTYPE:
-          SEQ:
-            TUPLE:
-              - TYPENAME: Digest
-              - SEQ:
-                  TUPLE:
-                    - TYPENAME: ObjectId
-                    - U64
+    - consensusDeterminedVersionAssignments:
+        TYPENAME: BinaryConsensusDeterminedVersionAssignments
 Data:
   ENUM:
     0:
@@ -1103,6 +1106,11 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectId
     - upgraded_version: U64
+VersionAssignment:
+  STRUCT:
+    - objectId:
+        TYPENAME: ObjectId
+    - version: U64
 ZkLoginAuthenticatorAsBytes:
   NEWTYPESTRUCT:
     SEQ: U8
