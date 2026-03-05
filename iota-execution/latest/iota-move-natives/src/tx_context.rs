@@ -359,10 +359,10 @@ pub struct TxContextReplaceCostParams {
     pub tx_context_replace_cost_base: InternalGas,
 }
 /// ****************************************************************************
-/// ********************* native fun native_replace
+/// ********************* native fun replace
 /// Implementation of the Move native function
-/// ```
-/// fun native_replace(
+/// `
+/// fun replace(
 ///   sender: address,
 ///   tx_hash: vector<u8>,
 ///   epoch: u64,
@@ -372,7 +372,7 @@ pub struct TxContextReplaceCostParams {
 ///   gas_budget: u64,
 ///   sponsor: vector<address>,
 /// )
-/// ```
+/// `
 /// Used by all testing functions that have to change a value in the
 /// `TransactionContext`. ******************************************************
 /// *****************************************
