@@ -248,10 +248,6 @@ describe('Arguments helpers', () => {
 			      "UnresolvedObject": {
 			        "mutable": false,
 			        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000008",
-
-
-
-
 			      },
 			    },
 			    {
