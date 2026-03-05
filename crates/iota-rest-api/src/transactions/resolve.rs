@@ -149,7 +149,7 @@ async fn resolve_transaction(
     };
 
     // If the user didn't provide any gas payment we need to do gas selection now
-    if resolved_transaction.gas_data().payment.is_empty() {
+    if resolved_transaction.gas_data().objects.is_empty() {
         let input_objects = resolved_transaction
             .input_objects()
             .map_err(anyhow::Error::from)?
@@ -168,7 +168,7 @@ async fn resolve_transaction(
             protocol_config.max_gas_payment_objects(),
             &input_objects,
         )?;
-        resolved_transaction.gas_data_mut().payment = gas_coins;
+        resolved_transaction.gas_data_mut().objects = gas_coins;
     }
 
     let simulation = if parameters.simulate {
@@ -296,14 +296,14 @@ fn resolve_unresolved_transaction(
             .map(|unresolved| resolve_object_reference(reader, unresolved))
             .collect::<Result<Vec<_>>>()?;
         GasData {
-            payment,
+            objects: payment,
             owner: unresolved_gas_payment.owner,
             price: unresolved_gas_payment.price.unwrap_or(reference_gas_price),
             budget: unresolved_gas_payment.budget.unwrap_or(max_gas_budget),
         }
     } else {
         GasData {
-            payment: vec![],
+            objects: vec![],
             owner: sender,
             price: reference_gas_price,
             budget: max_gas_budget,

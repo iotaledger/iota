@@ -215,12 +215,7 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
         Self {
             kind: value.kind.try_into()?,
             sender: value.sender,
-            gas_data: crate::transaction::GasData {
-                payment: value.gas_payment.objects.into_iter().collect(),
-                owner: value.gas_payment.owner,
-                price: value.gas_payment.price,
-                budget: value.gas_payment.budget,
-            },
+            gas_data: value.gas_payment,
             expiration: value.expiration,
         }
         .pipe(Ok)

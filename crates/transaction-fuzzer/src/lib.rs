@@ -86,7 +86,7 @@ fn generate_random_gas_data(
 
     GasDataWithObjects {
         gas_data: GasData {
-            payment: object_refs,
+            objects: object_refs,
             owner: sender,
             price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
             budget: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas()),
