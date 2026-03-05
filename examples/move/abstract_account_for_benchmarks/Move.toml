@@ -1,0 +1,10 @@
+[package]
+name = "abstract_account_for_benchmarks"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+abstract_account_for_benchmarks = "0x0"

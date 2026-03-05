@@ -39,8 +39,9 @@ use crate::{
         VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
-    commit::{CertifiedCommits, PendingSubDag},
-    commit_observer::CommitObserver,
+    commit::{CertifiedCommits, CommitAPI, PendingSubDag},
+    commit_observer::{CommitObserver, CommittedSubDagSource},
+    commit_syncer::fast::FastSyncOutput,
     context::Context,
     dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
@@ -48,6 +49,7 @@ use crate::{
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction::TransactionConsumer,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
     universal_committer::{
         UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
@@ -121,6 +123,8 @@ pub(crate) enum ReasonToCreateBlock {
     Recover,
     QuorumSubscribersExist,
     KnownLastBlock,
+    #[allow(dead_code)]
+    FastSyncComplete,
 }
 
 impl ReasonToCreateBlock {
@@ -133,6 +137,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
+            ReasonToCreateBlock::FastSyncComplete => "FastSyncComplete",
         }
     }
 
@@ -147,6 +152,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
+            ReasonToCreateBlock::FastSyncComplete => true,
         }
     }
 }
@@ -252,7 +258,7 @@ impl Core {
         // to storage. The returned committed subdags and missing transaction
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
-        self.try_commit().unwrap();
+        self.try_commit(CommittedSubDagSource::Recover).unwrap();
         let last_own_non_genesis_block =
             match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
                 (Some(block), _) => Some(block),
@@ -295,7 +301,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_blocks");
         let _s = self
@@ -323,7 +329,8 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) =
+                self.try_commit(CommittedSubDagSource::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlock)?;
@@ -358,7 +365,7 @@ impl Core {
         source: DataSource,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_block_headers");
         let _s = self
@@ -387,7 +394,8 @@ impl Core {
             );
 
             // Try to commit the new blocks if possible.
-            let (_subdags, new_missing_committed_txns) = self.try_commit()?;
+            let (_subdags, new_missing_committed_txns) =
+                self.try_commit(CommittedSubDagSource::Consensus)?;
 
             // Try to propose now since there are new blocks accepted.
             self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;
@@ -440,7 +448,8 @@ impl Core {
         // Commit observer is called with an empty vector of new leaders to check if all
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
-        self.commit_observer.handle_committed_leaders(Vec::new())?;
+        self.commit_observer
+            .handle_committed_leaders(Vec::new(), CommittedSubDagSource::Consensus)?;
 
         Ok(())
     }
@@ -479,7 +488,7 @@ impl Core {
         certified_commits: CertifiedCommits,
     ) -> ConsensusResult<(
         BTreeSet<BlockRef>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
 
@@ -507,6 +516,147 @@ impl Core {
 
         // Add block headers in certified commits to the block manager.
         self.add_block_headers(block_headers, DataSource::CommitSyncer)
+    }
+
+    /// Handle committed subdags from fast sync.
+    /// First stores the commits, transactions in DagState, then processes the
+    /// subdags. Also updates the leader schedule from commits that contain
+    /// reputation scores.
+    ///
+    /// This method follows a similar flow to `try_commit`:
+    /// 1. Store commits and transactions in DagState
+    /// 2. For commits with reputation scores, update leader schedule and store
+    ///    CommitInfo
+    /// 3. Flush to storage
+    /// 4. Process subdags via commit_observer
+    ///
+    /// Commits must be stored so that recovery/reinitialization can rebuild
+    /// the Linearizer's transaction acknowledgment tracker.
+    /// Transactions must be stored so they are available for recovery and
+    /// cache.
+    pub(crate) fn handle_committed_sub_dags_from_fast_sync(
+        &mut self,
+        output: FastSyncOutput,
+    ) -> ConsensusResult<()> {
+        let FastSyncOutput {
+            commits,
+            committed_subdags,
+            voting_block_headers,
+        } = output;
+        let _scope = monitored_scope("Core::handle_committed_sub_dags_from_fast_sync");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::handle_committed_sub_dags_from_fast_sync"])
+            .start_timer();
+        // First, store commits and transactions in DagState
+        {
+            let mut dag_state = self.dag_state.write();
+            // Store commits for recovery and track those with reputation scores
+            for commit in &commits {
+                // Update leader schedule for commits with reputation scores.
+                // This mirrors the flow in try_commit where update_leader_schedule is called
+                // when commits_until_update reaches 0.
+                let reputation_scores = commit.reputation_scores();
+                if !reputation_scores.is_empty() {
+                    // update_from_commit_scores will:
+                    // 1. Clear scoring_subdag
+                    // 2. Add commit_info for previous commit index to DagState
+                    // 3. Update leader swap table
+                    // 4. Update metrics
+                    self.leader_schedule.update_from_commit_scores(
+                        &mut dag_state,
+                        commit.index(),
+                        reputation_scores,
+                    );
+                }
+
+                dag_state.add_commit(commit.clone());
+            }
+
+            // Store transactions for each subdag
+            for subdag in &committed_subdags {
+                for transactions in &subdag.transactions {
+                    dag_state.add_transactions(transactions.clone(), DataSource::FastCommitSyncer);
+                }
+            }
+
+            // Store voting block headers for later use when serving fetch_commits requests
+            dag_state.add_voting_block_headers(voting_block_headers);
+            dag_state.set_fast_sync_ongoing_flag(true);
+        }
+
+        // Flush commits to storage so they're available for
+        // get_block_refs_for_recent_commits when close-to-quorum mode
+        // triggers header fetching.
+        self.dag_state.write().flush();
+
+        // Then process subdags as usual
+        self.commit_observer.finalize_and_send_solid_subdags(
+            &[],
+            &committed_subdags,
+            CommittedSubDagSource::FastCommitSyncer,
+        )
+    }
+
+    /// Reinitialize consensus components after fast sync completes.
+    /// This stores block headers on disk and reinitializes DagState,
+    /// BlockManager, and CommitObserver so that regular syncer can take
+    /// over.
+    ///
+    /// Block headers should cover the cached_rounds window (~500 rounds).
+    pub(crate) fn reinitialize_components(
+        &mut self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> ConsensusResult<()> {
+        info!(
+            "Reinitializing components with {} block headers",
+            block_headers.len(),
+        );
+
+        // Hold the dag_state lock for the entire flow to ensure consistency
+        let (last_commit_index, threshold_round, last_commit_leader) = {
+            let mut dag_state = self.dag_state.write();
+
+            // 1. Store block headers on disk
+            dag_state.accept_block_headers(block_headers, DataSource::FastCommitSyncer);
+
+            // 1.5. Clear fast sync flag (will be persisted with the flush)
+            dag_state.set_fast_sync_ongoing_flag(false);
+
+            // 2. Flush everything to storage
+            dag_state.flush();
+
+            // 3. Get current state before reinitializing
+            let last_commit_index = dag_state.last_commit_index();
+
+            // 4. Reinitialize DagState
+            dag_state.reinitialize();
+
+            let threshold_round = dag_state.threshold_clock_round();
+            let last_commit_leader = dag_state.last_commit_leader();
+            (last_commit_index, threshold_round, last_commit_leader)
+        };
+
+        // 5. Reinitialize LeaderSchedule from stored commit info
+        self.leader_schedule.reinitialize(&self.dag_state);
+
+        // 6. Reinitialize BlockManager
+        self.block_manager.reinitialize();
+
+        // 7. Update last_decided_leader to match the new DAG state
+        self.last_decided_leader = last_commit_leader;
+
+        // 8. Reinitialize CommitObserver with recovery (uses recover_and_send_commits)
+        self.commit_observer.reinitialize(last_commit_index);
+
+        // 9. Reset signaling state
+        self.last_signaled_round = threshold_round.saturating_sub(1);
+
+        info!("Components reinitialized successfully");
+        Ok(())
     }
 
     /// If needed, signals a new clock round and sets up leader timeout.
@@ -543,7 +693,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
@@ -563,7 +713,7 @@ impl Core {
         reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
@@ -574,7 +724,7 @@ impl Core {
             fail_point!("consensus-after-propose");
 
             // The new block may help commit.
-            let (_, missing_committed_txns) = self.try_commit()?;
+            let (_, missing_committed_txns) = self.try_commit(CommittedSubDagSource::Consensus)?;
             return Ok((Some(verified_block), missing_committed_txns));
         }
         Ok((None, BTreeMap::new()))
@@ -794,8 +944,8 @@ impl Core {
         // Construct verified transactions to be used for storing and broadcasting
         let verified_transactions = VerifiedTransactions::new(
             transactions,
-            verified_block_header.reference(),
-            transactions_commitment,
+            verified_block_header.transaction_ref(),
+            Some(verified_block_header.digest()),
             serialized_transactions,
         );
         let verified_block = VerifiedBlock {
@@ -814,7 +964,12 @@ impl Core {
         drop(dag_state_guard);
         // Now acknowledge the transactions for their inclusion to block
         let block_ref = verified_block.reference();
-        ack_transactions(block_ref);
+        let gen_transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
+            GenericTransactionRef::from(verified_block.transaction_ref())
+        } else {
+            GenericTransactionRef::from(block_ref)
+        };
+        ack_transactions(gen_transaction_ref);
 
         info!("Created block {block_ref} for round {clock_round}");
 
@@ -834,9 +989,10 @@ impl Core {
     #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
+        source: CommittedSubDagSource,
     ) -> ConsensusResult<(
         Vec<PendingSubDag>,
-        BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+        BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _s = self
             .context
@@ -865,7 +1021,8 @@ impl Core {
                     "Leader schedule change triggered at commit index {last_commit_index}"
                 );
 
-                self.leader_schedule.update_leader_schedule(&self.dag_state);
+                self.leader_schedule
+                    .update_leader_schedule(&mut self.dag_state.write());
 
                 commits_until_update = self
                     .leader_schedule
@@ -927,7 +1084,7 @@ impl Core {
             // TODO: refcount subdags
             let (subdags, missing_transactions_refs) = self
                 .commit_observer
-                .handle_committed_leaders(sequenced_leaders)?;
+                .handle_committed_leaders(sequenced_leaders, source)?;
 
             // Check for duplicates before extending
             assert!(
@@ -953,7 +1110,7 @@ impl Core {
             .iter()
             .flat_map(|sub_dag| sub_dag.committed_transaction_refs.iter())
             .filter_map(|block_ref| {
-                (block_ref.author == self.context.own_index).then_some(*block_ref)
+                (block_ref.author() == self.context.own_index).then_some(*block_ref)
             })
             .collect::<Vec<_>>();
 
@@ -978,7 +1135,7 @@ impl Core {
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_transaction_data");
         let _s = self
             .context
@@ -1276,10 +1433,10 @@ impl CoreTextFixture {
 
         let context = Arc::new(context);
         let store: Arc<dyn Store> = if !with_rocksdb {
-            Arc::new(MemStore::new())
+            Arc::new(MemStore::new(context.clone()))
         } else {
             let store_path = context.parameters.db_path.as_path().to_str().unwrap();
-            Arc::new(RocksDBStore::new(store_path))
+            Arc::new(RocksDBStore::new(store_path, context.clone()))
         };
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
@@ -1355,16 +1512,24 @@ mod test {
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::{BlockStatus, TransactionClient},
+        transaction_ref::TransactionRef,
     };
 
     /// Recover Core and continue proposing from the last round which forms a
     /// quorum.
+    #[rstest]
     #[tokio::test]
-    async fn test_core_recover_from_store_for_full_round() {
+    async fn test_core_recover_from_store_for_full_round(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -1379,8 +1544,19 @@ mod test {
         // able to commit transactions up to round 2.
         for block in dag_builder.block_headers(1..=2) {
             if block.author() == context.own_index {
+                let generic_ref = if consensus_fast_commit_sync {
+                    // When consensus_fast_commit_sync is enabled, create TransactionRef variant
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block.round(),
+                        author: block.author(),
+                        transactions_commitment: block.transactions_commitment(),
+                    })
+                } else {
+                    // When disabled, use BlockRef variant
+                    GenericTransactionRef::from(block.reference())
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
@@ -1391,6 +1567,7 @@ mod test {
                 WriteBatch::default()
                     .block_headers(dag_builder.block_headers(1..=num_rounds))
                     .transactions(dag_builder.transactions(1..=num_rounds)),
+                context.clone(),
             )
             .expect("We should expect a successful storing of headers");
 
@@ -1480,7 +1657,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
@@ -1519,6 +1696,7 @@ mod test {
                 WriteBatch::default()
                     .block_headers(block_headers)
                     .transactions(block_transactions),
+                context.clone(),
             )
             .expect("Storage error");
 
@@ -1584,7 +1762,7 @@ mod test {
         }
 
         // Run commit rule.
-        core.try_commit().ok();
+        core.try_commit(CommittedSubDagSource::Consensus).ok();
         let last_commit = store
             .read_last_commit()
             .unwrap()
@@ -1610,7 +1788,7 @@ mod test {
 
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1768,7 +1946,7 @@ mod test {
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1858,7 +2036,7 @@ mod test {
             ..Default::default()
         }));
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2074,7 +2252,7 @@ mod test {
         telemetry_subscribers::init_for_testing();
         let (context, mut key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2265,11 +2443,36 @@ mod test {
     #[tokio::test]
     #[serial]
     async fn test_sequenced_transactions_no_headers(
-        #[values(true, false)] commit_only_for_traversed_headers: bool,
+        #[values((true, true), (true, false), (false, false))] params: (bool, bool),
+    ) {
+        let (commit_only_for_traversed_headers, consensus_fast_commit_sync) = params;
+        test_sequenced_transactions_no_headers_impl(
+            commit_only_for_traversed_headers,
+            consensus_fast_commit_sync,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    #[should_panic(
+        expected = "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+    )]
+    async fn test_sequenced_transactions_no_headers_invalid_config() {
+        test_sequenced_transactions_no_headers_impl(false, true).await;
+    }
+
+    async fn test_sequenced_transactions_no_headers_impl(
+        commit_only_for_traversed_headers: bool,
+        consensus_fast_commit_sync: bool,
     ) {
         telemetry_subscribers::init_for_testing();
         let committee_size = 10;
         let (mut context, _key_pairs) = Context::new_for_test(committee_size);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         context
             .protocol_config
             .set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
@@ -2326,7 +2529,6 @@ mod test {
             (core_fixture_own.core, core_fixture_own.commit_receiver);
         let _ = core_own.add_blocks(dag_builder.blocks(1..=total_rounds), DataSource::Test);
         let mut existing_headers = HashSet::new();
-        let mut all_traversed_headers = Vec::new();
         let mut all_sequenced_transactions = Vec::new();
         // Check the commits that are produced after processing blocks.
         // Record traversed headers and sequenced transactions
@@ -2334,28 +2536,38 @@ mod test {
             let sub_dag_leader_round = sub_dag.leader.round;
             let CommittedSubDag { base, transactions } = sub_dag;
 
-            for header in &base.headers {
-                existing_headers.insert(header.reference());
+            for block_ref in &base.committed_header_refs {
+                existing_headers.insert(*block_ref);
             }
-            all_traversed_headers.extend(base.headers.clone());
             for transaction in &transactions {
                 // Transactions from all authors except authority_to_skip should also have a
                 // corresponding block_ref being traversed in the committed sub_dag
                 // Same after num_rounds_with_skip_ancestors
-                if transaction.block_ref().author != authority_to_skip
-                    || transaction.block_ref().round >= num_rounds_with_skip_ancestors
+                if transaction.author() != authority_to_skip
+                    || transaction.round() >= num_rounds_with_skip_ancestors
                 {
                     assert!(
-                        existing_headers.contains(&transaction.block_ref()),
+                        existing_headers.contains(
+                            &transaction
+                                .block_ref()
+                                .expect("block_ref should be set in test")
+                        ),
                         "{}",
-                        transaction.block_ref()
+                        transaction
+                            .block_ref()
+                            .expect("block_ref should be set in test")
                     );
                 } else {
                     assert!(
-                        !existing_headers.contains(&transaction.block_ref())
-                            && !commit_only_for_traversed_headers,
+                        !existing_headers.contains(
+                            &transaction
+                                .block_ref()
+                                .expect("block_ref should be set in test")
+                        ) && !commit_only_for_traversed_headers,
                         "{}",
-                        transaction.block_ref()
+                        transaction
+                            .block_ref()
+                            .expect("block_ref should be set in test")
                     );
                 }
             }
@@ -2377,28 +2589,37 @@ mod test {
         assert!(missing_references.is_empty());
         let first_missing_transaction_from_skipped = *missing_transactions
             .iter()
-            .find(|(a, _)| a.author == authority_to_skip)
+            .find(|(a, _)| a.author() == authority_to_skip)
             .unwrap()
             .0;
         if commit_only_for_traversed_headers {
             assert_eq!(
-                first_missing_transaction_from_skipped.round,
+                first_missing_transaction_from_skipped.round(),
                 num_rounds_with_skip_ancestors
             );
         } else {
-            assert_eq!(first_missing_transaction_from_skipped.round, 1);
+            assert_eq!(first_missing_transaction_from_skipped.round(), 1);
         }
         // Ensure that the block header corresponding to the
         // first_missing_transaction_from_skipped is not in dag_state
         // if commit_only_for_traversed_headers=false and in dag_state otherwise
-        assert_eq!(
-            core_catch_up
-                .dag_state
-                .read()
-                .get_verified_block_headers(&[first_missing_transaction_from_skipped])[0]
-                .is_some(),
-            commit_only_for_traversed_headers
-        );
+        let is_in_dag_state = {
+            let dag = core_catch_up.dag_state.read();
+            match first_missing_transaction_from_skipped {
+                GenericTransactionRef::BlockRef(ref b) => {
+                    let block_ref = BlockRef::new(b.round, b.author, b.digest);
+                    dag.get_verified_block_headers(&[block_ref])[0].is_some()
+                }
+                GenericTransactionRef::TransactionRef(ref t) => {
+                    // resolve_block_ref returns None iff the block header is absent from
+                    // dag_state, which is exactly the condition we want to check.
+                    dag.resolve_block_ref(t).is_some_and(|block_ref| {
+                        dag.get_verified_block_headers(&[block_ref])[0].is_some()
+                    })
+                }
+            }
+        };
+        assert_eq!(is_in_dag_state, commit_only_for_traversed_headers);
         let last_solid_commit_round = core_catch_up
             .dag_state
             .read()
@@ -2412,12 +2633,21 @@ mod test {
         // synchronizer
         let missing_verified_transactions: Vec<_> = all_sequenced_transactions
             .into_iter()
-            .filter(|tx| missing_transactions.contains_key(&tx.block_ref()))
+            .filter(|tx| {
+                let generic_ref = if consensus_fast_commit_sync {
+                    GenericTransactionRef::TransactionRef(tx.transaction_ref())
+                } else {
+                    GenericTransactionRef::BlockRef(
+                        tx.block_ref().expect("block_ref should be set in test"),
+                    )
+                };
+                missing_transactions.contains_key(&generic_ref)
+            })
             .collect();
         core_catch_up
             .add_transactions(
                 missing_verified_transactions,
-                crate::dag_state::DataSource::TransactionSynchronizer,
+                DataSource::TransactionSynchronizer,
             )
             .unwrap();
 
@@ -2496,7 +2726,7 @@ mod test {
 
         // Now try to commit up to the latest leader (round = 4). Do not provide any
         // certified commits.
-        let (committed_sub_dags, _) = core.try_commit().unwrap();
+        let (committed_sub_dags, _) = core.try_commit(CommittedSubDagSource::Consensus).unwrap();
 
         // We should have committed up to round 4
         assert_eq!(committed_sub_dags.len(), 4);
@@ -2875,14 +3105,21 @@ mod test {
         *receiver.borrow_and_update()
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_commit_and_notify_for_block_status() {
+    async fn test_commit_and_notify_for_block_status(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
         telemetry_subscribers::init_for_testing();
-        let (context, mut key_pairs) = Context::new_for_test(4);
+        let (mut context, mut key_pairs) = Context::new_for_test(4);
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
 
         let context = Arc::new(context);
 
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
         let mut block_status_subscriptions = FuturesUnordered::new();
@@ -2896,20 +3133,37 @@ mod test {
         // able to commit transactions up to round 4.
         for block in dag_builder.block_headers(1..=4) {
             if block.author() == context.own_index {
+                let generic_ref = if consensus_fast_commit_sync {
+                    // When consensus_fast_commit_sync is enabled, create TransactionRef variant
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block.round(),
+                        author: block.author(),
+                        transactions_commitment: block.transactions_commitment(),
+                    })
+                } else {
+                    // When disabled, use BlockRef variant
+                    GenericTransactionRef::from(block.reference())
+                };
                 let subscription =
-                    transaction_consumer.subscribe_for_block_status_testing(block.reference());
+                    transaction_consumer.subscribe_for_block_status_testing(generic_ref);
                 block_status_subscriptions.push(subscription);
             }
         }
 
         // write headers in store
         store
-            .write(WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)))
+            .write(
+                WriteBatch::default().block_headers(dag_builder.block_headers(1..=8)),
+                context.clone(),
+            )
             .expect("We should expect a successful storing of headers");
 
         // write transactions in store
         store
-            .write(WriteBatch::default().transactions(dag_builder.transactions(1..=8)))
+            .write(
+                WriteBatch::default().transactions(dag_builder.transactions(1..=8)),
+                context.clone(),
+            )
             .expect("We should expect a successful storing of transactions");
 
         // create dag state after all blocks have been written to store
@@ -2960,11 +3214,43 @@ mod test {
         // The latest committed leader is from round 6 as the DAG is fully connected
         assert_eq!(last_commit.index(), 6);
 
-        while let Some(result) = block_status_subscriptions.next().await {
-            let status = result.unwrap();
+        // Add timeout to prevent infinite waiting
+        let timeout_duration = Duration::from_secs(10);
+        let mut received_notifications = 0;
+        let expected_notifications = block_status_subscriptions.len();
 
-            // otherwise all of them should be committed
-            assert!(matches!(status, BlockStatus::Sequenced(_)));
+        loop {
+            tokio::select! {
+                result = block_status_subscriptions.next() => {
+                    match result {
+                        Some(status_result) => {
+                            let status = status_result.unwrap();
+                            assert!(matches!(status, BlockStatus::Sequenced(_)));
+                            received_notifications += 1;
+
+                            // If we received all expected notifications, break
+                            if received_notifications >= expected_notifications {
+                                break;
+                            }
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                }
+                _ = tokio::time::sleep(timeout_duration) => {
+                    panic!("Test timed out after {:?}. Received {}/{} notifications. \
+                           This suggests notifications are not being sent properly.",
+                           timeout_duration, received_notifications, expected_notifications);
+                }
+            }
         }
+
+        // Verify we got all expected notifications
+        assert_eq!(
+            received_notifications, expected_notifications,
+            "Expected {} notifications but only received {}",
+            expected_notifications, received_notifications
+        );
     }
 }

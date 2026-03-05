@@ -26,8 +26,12 @@ export function Input({ input }: InputProps) {
                 <KeyValueInfo
                     keyText="Object"
                     value={
-                        <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId || ''}>
-                            {formatAddress(objectId || '')}
+                        <ExplorerLink
+                            type={ExplorerLinkType.Object}
+                            objectID={objectId || ''}
+                            eventType="object"
+                        >
+                            <span data-amp-mask>{formatAddress(objectId || '')}</span>
                         </ExplorerLink>
                     }
                     fullwidth

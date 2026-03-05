@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { resolve } from 'path';
@@ -335,6 +335,9 @@ describe('coinWithBalance', () => {
                     type: testTypeZero,
                     balance: 0n,
                 }),
+                coinWithBalance({
+                    balance: 0n,
+                }),
             ],
             receiver.toIotaAddress(),
         );
@@ -374,10 +377,23 @@ describe('coinWithBalance', () => {
                     },
                 },
                 {
+                    $Intent: {
+                        data: {
+                            balance: '0',
+                            type: 'gas',
+                        },
+                        inputs: {},
+                        name: 'CoinWithBalance',
+                    },
+                },
+                {
                     TransferObjects: {
                         objects: [
                             {
                                 Result: 0,
+                            },
+                            {
+                                Result: 1,
                             },
                         ],
                         address: {
@@ -410,6 +426,11 @@ describe('coinWithBalance', () => {
                         bytes: toBase64(fromHex(receiver.toIotaAddress())),
                     },
                 },
+                {
+                    Pure: {
+                        bytes: toBase64(bcs.u64().serialize(0).toBytes()),
+                    },
+                },
             ],
             sender: publishToolbox.keypair.toIotaAddress(),
             commands: [
@@ -424,8 +445,20 @@ describe('coinWithBalance', () => {
                     },
                 },
                 {
+                    SplitCoins: {
+                        coin: {
+                            GasCoin: true,
+                        },
+                        amounts: [
+                            {
+                                Input: 1,
+                            },
+                        ],
+                    },
+                },
+                {
                     TransferObjects: {
-                        objects: [{ Result: 0 }],
+                        objects: [{ Result: 0 }, { NestedResult: [1, 0] }],
                         address: {
                             Input: 0,
                         },

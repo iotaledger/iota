@@ -434,6 +434,7 @@ pub(super) fn simulate_transaction_impl(
         effects,
         execution_result: _,
         mock_gas_id,
+        suggested_gas_price: _,
     } = executor
         .simulate_transaction(transaction.try_into()?, dry_run_checks)
         .map_err(anyhow::Error::from)?;

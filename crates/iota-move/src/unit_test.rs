@@ -2,19 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{cell::RefCell, collections::BTreeMap, path::Path, sync::Arc};
+use std::{cell::RefCell, collections::BTreeMap, path::Path, rc::Rc, sync::Arc};
 
 use anyhow::bail;
 use clap::Parser;
 use iota_move_build::{decorate_warnings, implicit_deps};
 use iota_move_natives::{
-    NativesCostTable, object_runtime::ObjectRuntime, test_scenario::InMemoryTestStore,
+    NativesCostTable, authentication_context::AuthenticationContext, object_runtime::ObjectRuntime,
+    test_scenario::InMemoryTestStore,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
-    metrics::LimitsMetrics,
+    auth_context::AuthContext, gas_model::tables::initial_cost_schedule_for_unit_tests,
+    in_memory_storage::InMemoryStorage, metrics::LimitsMetrics,
 };
 use move_cli::base::{
     self,
@@ -139,6 +140,9 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     ext.add(NativesCostTable::from_protocol_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
     ));
+    ext.add(AuthenticationContext::new_for_testing(Rc::new(
+        RefCell::new(AuthContext::new_for_testing()),
+    )));
 
     ext.add(store);
 }

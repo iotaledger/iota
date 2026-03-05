@@ -17,6 +17,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useAccounts, useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
+import { ampli } from '_src/shared/analytics/ampli';
 
 const formSchema = z.object({
     nickname: z.string().trim().max(256, 'Nickname must be 256 characters or less'),
@@ -52,6 +53,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
                     id: accountID,
                     nickname: nickname || null,
                 });
+                ampli.accountRenamed();
                 setOpen(false);
             } catch (e) {
                 toast.error((e as Error).message || 'Failed to set nickname');

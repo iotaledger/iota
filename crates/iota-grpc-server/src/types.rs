@@ -33,7 +33,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
 
-use crate::merge::Merge;
+use crate::{error::RpcError, merge::Merge};
 
 /// Flags indicating which optional transaction fields to fetch from storage.
 /// Derived from a `FieldMaskTree` to skip unnecessary storage reads.
@@ -588,11 +588,11 @@ impl GrpcReader {
 
             // Use Merge to populate based on mask
             Merge::merge(&mut checkpoint_proto, &sdk_summary, &checkpoint_mask)
-                .map_err(|e| Status::internal(format!("merge error for summary: {e}")))?;
+                .map_err(|e| e.with_context("failed to merge summary"))?;
             Merge::merge(&mut checkpoint_proto, sdk_contents, &checkpoint_mask)
-                .map_err(|e| Status::internal(format!("merge error for contents: {e}")))?;
+                .map_err(|e| e.with_context("failed to merge contents"))?;
             Merge::merge(&mut checkpoint_proto, sdk_signature, &checkpoint_mask)
-                .map_err(|e| Status::internal(format!("merge error for signature: {e}")))?;
+                .map_err(|e| e.with_context("failed to merge signature"))?;
 
             yield Ok(grpc_ledger_service::CheckpointData::default().with_checkpoint(checkpoint_proto));
 
@@ -633,7 +633,7 @@ impl GrpcReader {
                                             .try_into()
                                             .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
                                         let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
-                                            .map_err(|e| Status::internal(format!("event merge error: {e}")))?;
+                                            .map_err(|e| e.with_context("failed to merge event"))?;
                                         let event_size = grpc_event.encoded_len();
 
                                         // Check if adding this event would exceed limit
@@ -669,14 +669,14 @@ impl GrpcReader {
                                     checkpoint_tx_ctx,
                                     &tx_mask,
                                 )
-                                .map_err(|e| Status::internal(format!("transaction merge error: {e}")))?;
+                                .map_err(|e| e.with_context("failed to merge transaction"))?;
                                 let tx_size = executed_tx.encoded_len();
 
                                 // Check if adding this tx would exceed limit
                                 if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
                                     yield Ok(grpc_ledger_service::CheckpointData::default()
-                                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
+                                        .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
 
                                     // Reset transaction batch
                                     current_batch = vec![executed_tx];
@@ -697,7 +697,7 @@ impl GrpcReader {
                 // Send final batch of transactions if any
                 if transactions_mask.is_some() && !current_batch.is_empty() {
                     yield Ok(grpc_ledger_service::CheckpointData::default()
-                        .with_transactions(grpc_transaction::ExecutedTransactions::default().with_transactions(current_batch)));
+                        .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
                 }
 
                 // Send final batch of events if any
@@ -1208,11 +1208,13 @@ impl CheckpointTransactionWithContext {
 impl Merge<CheckpointTransactionWithContext>
     for iota_grpc_types::v0::transaction::ExecutedTransaction
 {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: CheckpointTransactionWithContext,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
             self.transaction = Some(iota_grpc_types::v0::transaction::Transaction::merge_from(
                 source.transaction.transaction.clone(),
@@ -1236,12 +1238,15 @@ impl Merge<CheckpointTransactionWithContext>
             );
         }
 
-        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name)
-            && let Some(events) = source.transaction.events
-        {
-            self.events = Some(
-                iota_grpc_types::v0::transaction::TransactionEvents::merge_from(events, &submask)?,
-            );
+        if let Some(submask) = mask.subtree(Self::EVENTS_FIELD.name) {
+            // Use unwrap_or_default so that when no events were emitted we still
+            // compute a real digest (hash of the empty list) and populate an empty
+            // events vec — to distinguish between "no events" and "events
+            // not requested in the mask".
+            self.events = Some(grpc_transaction::TransactionEvents::merge_from(
+                source.transaction.events.unwrap_or_default(),
+                &submask,
+            )?);
         }
 
         // Set checkpoint sequence number if requested

@@ -65,6 +65,8 @@ impl FieldMaskUtil for FieldMask {
                 if let Some(field) = fields.iter().find(|field| field.name == field_name) {
                     match (field.message_fields, remainder) {
                         (None, None) | (Some(_), None) => return true,
+                        // If the matched field is a map, any key name after it is valid
+                        (None, Some(_)) if field.is_map => return true,
                         (None, Some(_)) => return false,
                         (Some(sub_message_fields), Some(remainder)) => {
                             fields = sub_message_fields;
@@ -186,6 +188,7 @@ mod tests {
                     json_name: "a",
                     number: 1,
                     is_optional: false,
+                    is_map: false,
                     message_fields: None,
                 },
                 &MessageField {
@@ -193,6 +196,7 @@ mod tests {
                     json_name: "b",
                     number: 2,
                     is_optional: false,
+                    is_map: false,
                     message_fields: None,
                 },
             ];
@@ -214,5 +218,58 @@ mod tests {
         assert_eq!(mask.validate::<Foo>(), Err("baz.a"));
         let mask = FieldMask::from_str("foobar");
         assert_eq!(mask.validate::<Foo>(), Err("foobar"));
+    }
+
+    #[test]
+    fn test_validate_map_key() {
+        // Simulates ProtocolConfig-like structure:
+        //   Outer.map_wrapper (message) -> MapWrapper.entries (map<string, string>)
+        struct Outer;
+        struct MapWrapper;
+
+        // MapWrapper has a single map field
+        const MAP_FIELD: &MessageField = &MessageField {
+            name: "entries",
+            json_name: "entries",
+            number: 1,
+            is_optional: false,
+            is_map: true,
+            message_fields: None,
+        };
+
+        impl MessageFields for MapWrapper {
+            const FIELDS: &'static [&'static MessageField] = &[MAP_FIELD];
+        }
+
+        impl MessageFields for Outer {
+            const FIELDS: &'static [&'static MessageField] = &[
+                &MessageField::new("scalar"),
+                &MessageField::new("map_wrapper").with_message_fields(MapWrapper::FIELDS),
+            ];
+        }
+
+        // Exact field name is valid
+        let mask = FieldMask::from_str("map_wrapper");
+        assert_eq!(mask.validate::<Outer>(), Ok(()));
+
+        // Exact map field name is valid
+        let mask = FieldMask::from_str("map_wrapper.entries");
+        assert_eq!(mask.validate::<Outer>(), Ok(()));
+
+        // Any key after the map field is valid
+        let mask = FieldMask::from_str("map_wrapper.entries.my_key");
+        assert_eq!(mask.validate::<Outer>(), Ok(()));
+
+        // Multiple keys
+        let mask = FieldMask::from_str("map_wrapper.entries.key1,map_wrapper.entries.key2");
+        assert_eq!(mask.validate::<Outer>(), Ok(()));
+
+        // Non-map scalar field still rejects sub-paths
+        let mask = FieldMask::from_str("scalar.bad");
+        assert_eq!(mask.validate::<Outer>(), Err("scalar.bad"));
+
+        // Non-existent top-level field is rejected
+        let mask = FieldMask::from_str("no_such_field");
+        assert_eq!(mask.validate::<Outer>(), Err("no_such_field"));
     }
 }

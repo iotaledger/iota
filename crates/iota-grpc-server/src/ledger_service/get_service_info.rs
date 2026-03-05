@@ -6,6 +6,7 @@ use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     google::rpc::bad_request::FieldViolation,
     proto::timestamp_ms_to_proto,
+    read_masks::GET_SERVICE_INFO_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
@@ -15,9 +16,30 @@ use prost_types::FieldMask;
 
 use crate::{error::RpcError, ledger_service::LedgerGrpcService};
 
-pub const READ_MASK_DEFAULT: &str =
-    crate::field_mask!("chain_id", "epoch", "executed_checkpoint_height");
-
+/// Available Read Mask Fields
+///
+/// The `get_service_info` function supports the following `read_mask` fields to
+/// control which data is included in the response:
+///
+/// ## Network Fields
+/// - `chain_id` - the ID of the chain, which can be used to identify the
+///   network
+/// - `chain` - the chain identifier, which can be used to identify the network
+///
+/// ## Current State Fields
+/// - `epoch` - the current epoch
+/// - `executed_checkpoint_height` - the height of the last executed checkpoint
+/// - `executed_checkpoint_timestamp` - the timestamp of the last executed
+///   checkpoint
+///
+/// ## Availability Fields
+/// - `lowest_available_checkpoint` - lowest available checkpoint for which
+///   transaction and checkpoint data can be requested
+/// - `lowest_available_checkpoint_objects` - lowest available checkpoint for
+///   which object data can be requested
+///
+/// ## Server Fields
+/// - `server` - the server version
 #[tracing::instrument(skip(service))]
 pub fn get_service_info(
     service: &LedgerGrpcService,
@@ -26,7 +48,7 @@ pub fn get_service_info(
     let read_mask = {
         let read_mask = request
             .read_mask
-            .unwrap_or_else(|| FieldMask::from_str(READ_MASK_DEFAULT));
+            .unwrap_or_else(|| FieldMask::from_str(GET_SERVICE_INFO_READ_MASK));
         read_mask
             .validate::<GetServiceInfoResponse>()
             .map_err(|path| {

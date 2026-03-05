@@ -12,6 +12,15 @@ import { WebsocketClient } from './rpc-websocket-client.js';
  */
 export type HttpHeaders = { [header: string]: string };
 
+/**
+ * A function that can inspect and modify RPC requests before they are executed.
+ * Useful for monitoring, tracing, and error handling.
+ */
+export type RequestInspector = <T>(
+    input: IotaTransportRequestOptions,
+    executeRequest: () => Promise<T>,
+) => Promise<T>;
+
 export interface IotaHTTPTransportOptions {
     fetch?: typeof fetch;
     WebSocketConstructor?: typeof WebSocket;
@@ -23,11 +32,13 @@ export interface IotaHTTPTransportOptions {
     websocket?: WebsocketClientOptions & {
         url?: string;
     };
+    inspector?: RequestInspector;
 }
 
 export interface IotaTransportRequestOptions {
     method: string;
     params: unknown[];
+    signal?: AbortSignal;
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-types
@@ -37,6 +48,7 @@ export interface IotaTransportSubscribeOptions<T> {
     unsubscribe: string;
     params: unknown[];
     onMessage: (event: T) => void;
+    signal?: AbortSignal;
 }
 
 export interface IotaTransport {
@@ -91,42 +103,56 @@ export class IotaHTTPTransport implements IotaTransport {
     async request<T>(input: IotaTransportRequestOptions): Promise<T> {
         this.#requestId += 1;
 
-        const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Client-Sdk-Type': 'typescript',
-                'Client-Sdk-Version': PACKAGE_VERSION,
-                'Client-Target-Api-Version': TARGETED_RPC_VERSION,
-                ...this.#options.rpc?.headers,
-            },
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: this.#requestId,
-                method: input.method,
-                params: input.params,
-            }),
-        });
+        const executeRequest = async () => {
+            const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
+                method: 'POST',
+                signal: input.signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Client-Sdk-Type': 'typescript',
+                    'Client-Sdk-Version': PACKAGE_VERSION,
+                    'Client-Target-Api-Version': TARGETED_RPC_VERSION,
+                    ...this.#options.rpc?.headers,
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: this.#requestId,
+                    method: input.method,
+                    params: input.params,
+                }),
+            });
 
-        if (!res.ok) {
-            throw new IotaHTTPStatusError(
-                `Unexpected status code: ${res.status}`,
-                res.status,
-                res.statusText,
-            );
-        }
+            if (!res.ok) {
+                throw new IotaHTTPStatusError(
+                    `Unexpected status code: ${res.status}`,
+                    res.status,
+                    res.statusText,
+                );
+            }
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if ('error' in data && data.error != null) {
-            throw new JsonRpcError(data.error.message, data.error.code);
-        }
+            if ('error' in data && data.error != null) {
+                throw new JsonRpcError(data.error.message, data.error.code);
+            }
 
-        return data.result;
+            return data.result;
+        };
+
+        return this.#options.inspector
+            ? this.#options.inspector(input, executeRequest)
+            : executeRequest();
     }
 
     async subscribe<T>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {
         const unsubscribe = await this.#getWebsocketClient().subscribe(input);
+
+        if (input.signal) {
+            input.signal.throwIfAborted();
+            input.signal.addEventListener('abort', () => {
+                unsubscribe();
+            });
+        }
 
         return async () => !!(await unsubscribe());
     }

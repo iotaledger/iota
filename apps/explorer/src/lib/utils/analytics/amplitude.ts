@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { getAmplitudeConsentStatus } from '@iota/core';
+import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
 import { LogLevel } from '@amplitude/analytics-types';
@@ -11,6 +11,8 @@ import { LogLevel } from '@amplitude/analytics-types';
 const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
     import.meta.env.VITE_AMPLITUDE_ENABLED === 'true';
+
+const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 
 export async function initAmplitude() {
     // Check consent status to determine initial opt-out state
@@ -40,6 +42,11 @@ export async function initAmplitude() {
                         formInteractions: IS_ENABLED,
                         pageViews: IS_ENABLED,
                         sessions: IS_ENABLED,
+                        elementInteractions: IS_ENABLED,
+                        frustrationInteractions: false,
+                        networkTracking: false,
+                        webVitals: false,
+                        pageUrlEnrichment: IS_ENABLED,
                     },
                     // set LogLevel to Debug for more verbose logging during development
                     logLevel: LogLevel.None,
@@ -54,4 +61,7 @@ export async function initAmplitude() {
             amplitude.flush();
         });
     }, 1000);
+
+    // Add environment plugin to set prefix dev events
+    ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 }

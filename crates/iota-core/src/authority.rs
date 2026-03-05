@@ -1003,7 +1003,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(name = "handle_transaction", level = "trace", skip_all)]
+    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction_data().gas_owner().to_string()))]
     pub async fn handle_transaction(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1330,7 +1330,7 @@ impl AuthorityState {
         .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()))]
     pub(crate) fn process_certificate(
         &self,
         tx_guard: CertTxGuard,
@@ -2172,6 +2172,9 @@ impl AuthorityState {
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
             execution_result,
+            suggested_gas_price: self
+                .congestion_tracker
+                .get_prediction_suggested_gas_price(&transaction),
             mock_gas_id,
         })
     }
@@ -3531,8 +3534,13 @@ impl AuthorityState {
         self.committee_store
             .checkpoint_db(&checkpoint_path_tmp.join("epochs"))?;
 
-        if checkpoint_indexes && let Some(indexes) = self.indexes.as_ref() {
-            indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
+        if checkpoint_indexes {
+            if let Some(indexes) = self.indexes.as_ref() {
+                indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
+            }
+            if let Some(rest_index) = self.rest_index.as_ref() {
+                rest_index.checkpoint_db(&checkpoint_path_tmp.join("grpc_indexes"))?;
+            }
         }
 
         fs::rename(checkpoint_path_tmp, checkpoint_path)

@@ -126,7 +126,7 @@ pub struct KvStoreClient {
     table_name: String,
     /// The representation of the uptime of the service.
     start_time: Instant,
-    /// Cached AWS components sttaus.
+    /// Cached AWS components status.
     cached_status: Arc<RwLock<Option<CachedAwsStatus>>>,
     /// The TTL of the [`CachedAwsStatus`].
     cache_duration: Duration,

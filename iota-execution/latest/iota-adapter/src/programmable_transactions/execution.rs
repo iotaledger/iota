@@ -1056,7 +1056,7 @@ mod checked {
                 auth_context.is_some(),
                 "The `iota::auth_context::AuthContext` value is expected to be read from the storage"
             );
-            serialized_arguments.push(auth_context.unwrap().to_bcs_bytes());
+            serialized_arguments.push(auth_context.unwrap().borrow().to_move_bcs_bytes());
         }
         match tx_context_kind {
             TxContextKind::None => (),

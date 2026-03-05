@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet, HashSet},
+    rc::Rc,
+};
 
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
@@ -81,7 +85,7 @@ pub struct TemporaryStore<'backing> {
     loaded_per_epoch_config_objects: RwLock<BTreeSet<ObjectID>>,
 
     /// The auth context used to verify the transaction.
-    auth_context: Option<AuthContext>,
+    auth_context: Option<Rc<RefCell<AuthContext>>>,
 }
 
 impl<'backing> TemporaryStore<'backing> {
@@ -658,7 +662,7 @@ impl TemporaryStore<'_> {
         Ok(())
     }
 
-    pub fn store_auth_context(&mut self, auth_context: AuthContext) {
+    pub fn store_auth_context(&mut self, auth_context: Rc<RefCell<AuthContext>>) {
         debug_assert!(self.auth_context.is_none());
         self.auth_context = Some(auth_context);
     }
@@ -1097,8 +1101,8 @@ impl Storage for TemporaryStore<'_> {
         result
     }
 
-    fn read_auth_context(&self) -> Option<&AuthContext> {
-        self.auth_context.as_ref()
+    fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>> {
+        self.auth_context.clone()
     }
 }
 

@@ -111,6 +111,10 @@ jobs:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
 
+  split-cluster-sync-check:
+    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
+    uses: ./.github/workflows/_split_cluster_sync_check.yml
+
   rosetta:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rosetta.yml
@@ -126,10 +130,12 @@ jobs:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ env.IOTA_REF }}
+
       - name: Get latest simtest script from commit that triggered this workflow
         run: |
           git fetch origin ${{ github.sha }}
           git checkout ${{ github.sha }} -- scripts/simtest/simtest-run.sh
+
       - name: Run simtest
         run: scripts/simtest/simtest-run.sh
 
@@ -144,9 +150,11 @@ jobs:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ env.IOTA_REF }}
+
       - name: Get latest simtest script from commit that triggered this workflow
         run: |
           git fetch origin ${{ github.sha }}
           git checkout ${{ github.sha }} -- scripts/simtest/simtest-run.sh
+
       - name: Run simtest
         run: scripts/simtest/simtest-run.sh
