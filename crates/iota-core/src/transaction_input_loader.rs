@@ -67,27 +67,28 @@ impl TransactionInputLoader {
                         object: ObjectReadResultKind::Object(package),
                     });
                 }
-                InputObjectKind::SharedMoveObject { id, .. } => match self
-                    .cache
-                    .try_get_object(id)?
-                {
-                    Some(object) => {
-                        input_results[i] = Some(ObjectReadResult::new(*kind, object.into()))
-                    }
-                    None => {
-                        if let Some((version, digest)) = self
-                            .cache
-                            .try_get_last_shared_object_deletion_info(id, epoch_id)?
-                        {
-                            input_results[i] = Some(ObjectReadResult {
-                                input_object_kind: *kind,
-                                object: ObjectReadResultKind::DeletedSharedObject(version, digest),
-                            });
-                        } else {
-                            return Err(IotaError::from(kind.object_not_found_error()));
+                InputObjectKind::SharedMoveObject { id, .. } => {
+                    match self.cache.try_get_object(id)? {
+                        Some(object) => {
+                            input_results[i] = Some(ObjectReadResult::new(*kind, object.into()))
+                        }
+                        None => {
+                            if let Some((version, digest)) = self
+                                .cache
+                                .try_get_last_consensus_stream_end_info(id, epoch_id)?
+                            {
+                                input_results[i] = Some(ObjectReadResult {
+                                    input_object_kind: *kind,
+                                    object: ObjectReadResultKind::ObjectConsensusStreamEnded(
+                                        version, digest,
+                                    ),
+                                });
+                            } else {
+                                return Err(IotaError::from(kind.object_not_found_error()));
+                            }
                         }
                     }
-                },
+                }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
                     object_refs.push(*objref);
                     fetch_indices.push(i);
@@ -225,15 +226,17 @@ impl TransactionInputLoader {
                 },
                 (None, InputObjectKind::SharedMoveObject { id, .. }) => {
                     assert!(key.1.is_valid());
-                    // Check if the object was deleted by a concurrently certified tx
+                    // Check if the object was removed from consensus by a concurrently certified tx
                     let version = key.1;
                     if let Some(dependency) = self
                         .cache
-                        .try_get_deleted_shared_object_previous_tx_digest(id, version, epoch_id)?
+                        .try_get_consensus_stream_end_tx_digest(id, version, epoch_id)?
                     {
                         ObjectReadResult {
                             input_object_kind: *input,
-                            object: ObjectReadResultKind::DeletedSharedObject(version, dependency),
+                            object: ObjectReadResultKind::ObjectConsensusStreamEnded(
+                                version, dependency,
+                            ),
                         }
                     } else {
                         panic!(

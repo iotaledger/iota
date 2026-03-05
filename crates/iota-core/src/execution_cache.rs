@@ -402,16 +402,15 @@ pub trait ObjectCacheRead: Send + Sync {
                     )?;
                 versioned_results.push((*idx, is_available));
             } else if self
-                .try_get_deleted_shared_object_previous_tx_digest(
+                .try_get_consensus_stream_end_tx_digest(
                     &input_key.id(),
                     input_key.version().unwrap(),
                     epoch,
                 )?
                 .is_some()
             {
-                // If the object is an already deleted shared object, mark it as available if
-                // the version for that object is in the shared deleted marker
-                // table.
+                // If the object is an already-removed consensus object, mark it as available if
+                // the version for that object is in the marker table.
                 versioned_results.push((*idx, true));
             } else {
                 versioned_results.push((*idx, false));
@@ -548,52 +547,54 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    /// If the shared object was deleted, return deletion info for the current
-    /// live version
-    fn try_get_last_shared_object_deletion_info(
+    /// If the given consensus object stream was ended, return related
+    /// version and transaction digest.
+    fn try_get_last_consensus_stream_end_info(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
     ) -> IotaResult<Option<(SequenceNumber, TransactionDigest)>> {
         match self.try_get_latest_marker(object_id, epoch_id)? {
-            Some((version, MarkerValue::SharedDeleted(digest))) => Ok(Some((version, digest))),
+            Some((version, MarkerValue::ConsensusStreamEnded(digest))) => {
+                Ok(Some((version, digest)))
+            }
             _ => Ok(None),
         }
     }
 
-    /// Non-fallible version of `try_get_last_shared_object_deletion_info`.
-    fn get_last_shared_object_deletion_info(
+    /// Non-fallible version of `try_get_last_consensus_stream_end_info`.
+    fn get_last_consensus_stream_end_info(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
     ) -> Option<(SequenceNumber, TransactionDigest)> {
-        self.try_get_last_shared_object_deletion_info(object_id, epoch_id)
+        self.try_get_last_consensus_stream_end_info(object_id, epoch_id)
             .expect("storage access failed")
     }
 
-    /// If the shared object was deleted, return deletion info for the specified
-    /// version.
-    fn try_get_deleted_shared_object_previous_tx_digest(
+    /// If the given consensus object stream was ended at the specified version,
+    /// return related transaction digest.
+    fn try_get_consensus_stream_end_tx_digest(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<TransactionDigest>> {
         match self.try_get_marker_value(object_id, version, epoch_id)? {
-            Some(MarkerValue::SharedDeleted(digest)) => Ok(Some(digest)),
+            Some(MarkerValue::ConsensusStreamEnded(digest)) => Ok(Some(digest)),
             _ => Ok(None),
         }
     }
 
     /// Non-fallible version of
-    /// `try_get_deleted_shared_object_previous_tx_digest`.
-    fn get_deleted_shared_object_previous_tx_digest(
+    /// `try_get_consensus_stream_end_tx_digest`.
+    fn get_consensus_stream_end_tx_digest(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
         epoch_id: EpochId,
     ) -> Option<TransactionDigest> {
-        self.try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch_id)
+        self.try_get_consensus_stream_end_tx_digest(object_id, version, epoch_id)
             .expect("storage access failed")
     }
 

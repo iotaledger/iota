@@ -75,11 +75,11 @@ impl InnerTemporaryStore {
             });
         output_keys.extend(deleted_output_keys);
 
-        // For any previously deleted shared objects that appeared mutably in the
+        // For any consensus stream ended objects that appeared mutably in the
         // transaction, synthesize a notification for the next version of the
         // object.
         let smeared_version = self.lamport_version;
-        let deleted_accessed_objects = effects.deleted_mutably_accessed_shared_objects();
+        let deleted_accessed_objects = effects.stream_ended_mutably_accessed_consensus_objects();
         for object_id in deleted_accessed_objects.into_iter() {
             let key = InputKey::VersionedObject {
                 id: object_id,

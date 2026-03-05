@@ -122,7 +122,7 @@ mod checked {
         let shared_object_refs = input_objects.filter_shared_objects();
         let receiving_objects = transaction_kind.receiving_objects();
         let transaction_dependencies = input_objects.transaction_dependencies();
-        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let contains_stream_ended_input = input_objects.contains_consensus_stream_ended_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
         let temporary_store = TemporaryStore::new(
@@ -151,7 +151,7 @@ mod checked {
             &mutable_inputs,
             shared_object_refs,
             transaction_dependencies,
-            contains_deleted_input,
+            contains_stream_ended_input,
             cancelled_objects,
             transaction_kind,
             transaction_signer,
@@ -177,7 +177,7 @@ mod checked {
         mutable_inputs: &HashSet<ObjectID>,
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
-        contains_deleted_input: bool,
+        contains_stream_ended_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
@@ -214,7 +214,7 @@ mod checked {
             metrics,
             enable_expensive_checks,
             deny_cert,
-            contains_deleted_input,
+            contains_stream_ended_input,
             cancelled_objects,
             trace_builder_opt,
             pre_execution_result_opt,
@@ -341,7 +341,7 @@ mod checked {
         let transaction_dependencies = input_objects.transaction_dependencies();
         // Deleted and cancelled objects come from both authentication and transaction
         // inputs
-        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let contains_stream_ended_input = input_objects.contains_consensus_stream_ended_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
         // Prepare the temporary store.
@@ -417,7 +417,7 @@ mod checked {
             &mutable_inputs,
             shared_object_refs,
             transaction_dependencies,
-            contains_deleted_input,
+            contains_stream_ended_input,
             cancelled_objects,
             transaction_kind,
             transaction_signer,
@@ -558,7 +558,8 @@ mod checked {
             "No receiving inputs are allowed"
         );
 
-        let contains_deleted_input = authenticator_input_objects.contains_deleted_objects();
+        let contains_stream_ended_input =
+            authenticator_input_objects.contains_consensus_stream_ended_objects();
         let cancelled_objects = authenticator_input_objects.get_cancelled_objects();
 
         // Prepare the authentication context.
@@ -586,7 +587,7 @@ mod checked {
             protocol_config,
             metrics.clone(),
             false,
-            contains_deleted_input,
+            contains_stream_ended_input,
             cancelled_objects,
             trace_builder_opt,
         );
@@ -630,7 +631,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
-        contains_deleted_input: bool,
+        contains_stream_ended_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
@@ -646,7 +647,7 @@ mod checked {
         run_inputs_checks(
             protocol_config,
             deny_cert,
-            contains_deleted_input,
+            contains_stream_ended_input,
             cancelled_objects,
         )
         .and_then(|()| {
@@ -727,7 +728,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         enable_expensive_checks: bool,
         deny_cert: bool,
-        contains_deleted_input: bool,
+        contains_stream_ended_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
@@ -762,7 +763,7 @@ mod checked {
             run_inputs_checks(
                 protocol_config,
                 deny_cert,
-                contains_deleted_input,
+                contains_stream_ended_input,
                 cancelled_objects,
             )?;
 
@@ -979,7 +980,7 @@ mod checked {
     fn run_inputs_checks(
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
-        contains_deleted_input: bool,
+        contains_stream_ended_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
@@ -987,7 +988,7 @@ mod checked {
                 ExecutionErrorKind::CertificateDenied,
                 None,
             ))
-        } else if contains_deleted_input {
+        } else if contains_stream_ended_input {
             Err(ExecutionError::new(
                 ExecutionErrorKind::InputObjectDeleted,
                 None,

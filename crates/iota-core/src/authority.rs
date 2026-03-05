@@ -5304,7 +5304,7 @@ impl AuthorityState {
     ) -> IotaResult<AuthenticatorFunctionRefForExecution> {
         let account_object = match account_object.object {
             ObjectReadResultKind::Object(object) => Ok(object),
-            ObjectReadResultKind::DeletedSharedObject(version, digest) => {
+            ObjectReadResultKind::ObjectConsensusStreamEnded(version, digest) => {
                 Err(UserInputError::AccountObjectDeleted {
                     account_id: account_object.id(),
                     account_version: version,
@@ -5996,8 +5996,8 @@ impl NodeStateDump {
                         shared_objects.push(ObjDumpFormat::new(w))
                     }
                 }
-                InputSharedObject::ReadDeleted(..)
-                | InputSharedObject::MutateDeleted(..)
+                InputSharedObject::ReadConsensusStreamEnded(..)
+                | InputSharedObject::MutateConsensusStreamEnded(..)
                 | InputSharedObject::Cancelled(..) => (), /* TODO: consider record congested
                                                            * objects. */
             }

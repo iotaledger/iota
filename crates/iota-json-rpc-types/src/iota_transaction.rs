@@ -1062,7 +1062,10 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
                 native
                     .input_shared_objects()
                     .into_iter()
-                    .map(|kind| kind.object_ref())
+                    .map(|kind| {
+                        #[allow(deprecated)]
+                        kind.object_ref()
+                    })
                     .collect(),
             ),
             transaction_digest: *native.transaction_digest(),

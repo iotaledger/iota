@@ -1004,12 +1004,12 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                     version: version.value(),
                                     digest: digest.into(),
                                 },
-                                crate::effects::UnchangedSharedKind::MutateDeleted(
+                                crate::effects::UnchangedSharedKind::MutateConsensusStreamEnded(
                                     sequence_number,
                                 ) => UnchangedSharedKind::MutateDeleted {
                                     version: sequence_number.value(),
                                 },
-                                crate::effects::UnchangedSharedKind::ReadDeleted(
+                                crate::effects::UnchangedSharedKind::ReadConsensusStreamEnded(
                                     sequence_number,
                                 ) => UnchangedSharedKind::ReadDeleted {
                                     version: sequence_number.value(),
@@ -1125,12 +1125,12 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                             ))
                                         }
                                         UnchangedSharedKind::MutateDeleted { version } => {
-                                            crate::effects::UnchangedSharedKind::MutateDeleted(
+                                            crate::effects::UnchangedSharedKind::MutateConsensusStreamEnded(
                                                 version.into(),
                                             )
                                         }
                                         UnchangedSharedKind::ReadDeleted { version } => {
-                                            crate::effects::UnchangedSharedKind::ReadDeleted(
+                                            crate::effects::UnchangedSharedKind::ReadConsensusStreamEnded(
                                                 version.into(),
                                             )
                                         }
@@ -2498,8 +2498,12 @@ impl From<UnchangedSharedKind> for crate::effects::UnchangedSharedKind {
             UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
                 Self::ReadOnlyRoot((version.into(), digest.into()))
             }
-            UnchangedSharedKind::MutateDeleted { version } => Self::MutateDeleted(version.into()),
-            UnchangedSharedKind::ReadDeleted { version } => Self::ReadDeleted(version.into()),
+            UnchangedSharedKind::MutateDeleted { version } => {
+                Self::MutateConsensusStreamEnded(version.into())
+            }
+            UnchangedSharedKind::ReadDeleted { version } => {
+                Self::ReadConsensusStreamEnded(version.into())
+            }
             UnchangedSharedKind::Cancelled { version } => Self::Cancelled(version.into()),
             UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
             _ => unreachable!("a new enum variant was added and needs to be handled"),
@@ -2516,12 +2520,16 @@ impl From<crate::effects::UnchangedSharedKind> for UnchangedSharedKind {
                     digest: digest.into(),
                 }
             }
-            crate::effects::UnchangedSharedKind::MutateDeleted(version) => Self::MutateDeleted {
-                version: version.into(),
-            },
-            crate::effects::UnchangedSharedKind::ReadDeleted(version) => Self::ReadDeleted {
-                version: version.into(),
-            },
+            crate::effects::UnchangedSharedKind::MutateConsensusStreamEnded(version) => {
+                Self::MutateDeleted {
+                    version: version.into(),
+                }
+            }
+            crate::effects::UnchangedSharedKind::ReadConsensusStreamEnded(version) => {
+                Self::ReadDeleted {
+                    version: version.into(),
+                }
+            }
             crate::effects::UnchangedSharedKind::Cancelled(version) => Self::Cancelled {
                 version: version.into(),
             },

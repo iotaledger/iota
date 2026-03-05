@@ -75,25 +75,25 @@ impl TransactionOutputs {
                     .get(&object_id)
                     .is_some_and(|object| object.is_shared())
                 {
-                    (object_key, MarkerValue::SharedDeleted(tx_digest))
+                    (object_key, MarkerValue::ConsensusStreamEnded(tx_digest))
                 } else {
                     (object_key, MarkerValue::OwnedDeleted)
                 }
             });
 
-            // We "smear" shared deleted objects in the marker table to allow for proper
-            // sequencing of transactions that are submitted after the deletion
-            // of the shared object. NB: that we do _not_ smear shared objects
+            // We "smear" removed consensus objects in the marker table to allow for proper
+            // sequencing of transactions that are submitted after the consensus stream
+            // ends. NB: that we do _not_ smear shared objects
             // that were taken immutably in the transaction.
-            let smeared_objects = effects.deleted_mutably_accessed_shared_objects();
-            let shared_smears = smeared_objects.into_iter().map(move |object_id| {
+            let smeared_objects = effects.stream_ended_mutably_accessed_consensus_objects();
+            let consensus_smears = smeared_objects.into_iter().map(move |object_id| {
                 (
                     ObjectKey(object_id, lamport_version),
-                    MarkerValue::SharedDeleted(tx_digest),
+                    MarkerValue::ConsensusStreamEnded(tx_digest),
                 )
             });
 
-            received.chain(deleted).chain(shared_smears).collect()
+            received.chain(deleted).chain(consensus_smears).collect()
         };
 
         let live_object_markers_to_delete: Vec<_> = mutable_inputs
