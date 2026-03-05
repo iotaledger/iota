@@ -8113,7 +8113,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=08b249bf7d5f136c8af22733c26af1e17fd40c54#08b249bf7d5f136c8af22733c26af1e17fd40c54"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=31843dd81c04f257c882c17b10cc4a784af2293c#31843dd81c04f257c882c17b10cc4a784af2293c"
 dependencies = [
  "bip32",
  "bip39",
@@ -8128,32 +8128,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=08b249bf7d5f136c8af22733c26af1e17fd40c54#08b249bf7d5f136c8af22733c26af1e17fd40c54"
-dependencies = [
- "base64ct",
- "bcs",
- "blake2",
- "bnum",
- "bs58 0.5.1",
- "bytestring",
- "derive_more 2.1.1",
- "hex",
- "itertools 0.13.0",
- "paste",
- "roaring",
- "serde",
- "serde_json",
- "serde_repr",
- "serde_with",
- "strum 0.27.2",
- "thiserror 2.0.18",
- "winnow 0.7.14",
-]
-
-[[package]]
-name = "iota-sdk-types"
-version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=9a85f1d5e55ea91f09ae1759974d92e98692e197#9a85f1d5e55ea91f09ae1759974d92e98692e197"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=31843dd81c04f257c882c17b10cc4a784af2293c#31843dd81c04f257c882c17b10cc4a784af2293c"
 dependencies = [
  "base64ct",
  "bcs",
