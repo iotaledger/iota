@@ -29,10 +29,8 @@ use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
-    node::{
-        AuthorityOverloadConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
-        StateDebugDumpConfig,
-    },
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
+        StateDebugDumpConfig},
 };
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_json_rpc_types::{
@@ -159,7 +157,7 @@ use crate::{
     },
     authority_client::NetworkAuthorityClient,
     checkpoints::CheckpointStore,
-    congestion_tracker::CongestionTracker,
+    congestion_tracker::{CongestionTracker, CongestionTrackerParams},
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
     execution_cache::{
@@ -3072,11 +3070,15 @@ impl AuthorityState {
             _pruner,
             _authority_per_epoch_pruner,
             db_checkpoint_config: db_checkpoint_config.clone(),
-            config,
+            config: config.clone(),
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
             chain_identifier,
-            congestion_tracker: Arc::new(CongestionTracker::new(rgp, prometheus_registry)),
+            congestion_tracker: Arc::new(CongestionTracker::new_with_params(
+                rgp,
+                prometheus_registry,
+                CongestionTrackerParams::from(&config.congestion_tracker_config),
+            )),
         });
 
         // Start a task to execute ready certificates.

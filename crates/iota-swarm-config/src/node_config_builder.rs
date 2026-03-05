@@ -252,6 +252,7 @@ impl ValidatorConfigBuilder {
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
             execution_cache: self.execution_cache_type.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
+            congestion_tracker_config: Default::default(),
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
@@ -615,6 +616,7 @@ impl FullnodeConfigBuilder {
             firewall_config: self.fw_config,
             execution_cache: ExecutionCacheType::default(),
             execution_cache_config: ExecutionCacheConfig::default(),
+            congestion_tracker_config: Default::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),

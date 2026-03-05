@@ -10,6 +10,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_config::node::CongestionTrackerConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::ObjectID,
@@ -22,7 +23,7 @@ use iota_types::{
 use moka::{ops::compute::Op, sync::Cache};
 use prometheus::Registry;
 use serde::Deserialize;
-use tracing::info;
+use tracing::{debug, info};
 
 #[cfg(feature = "gas-nn")]
 use crate::model_updater::{
@@ -34,21 +35,31 @@ use crate::{
     gas_metrics::{GasMetrics, init_gas_metrics},
 };
 
-/// Capacity of the congestion tracker's cache.
-const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
+/// Parameters controlling congestion tracker behaviour.
+#[derive(Clone, Copy, Debug)]
+pub struct CongestionTrackerParams {
+    pub cache_capacity: u64,
+    pub hotness_cutoff: f64,
+    pub hotness_adjustment_factor: f64,
+    pub max_decay_factor: f64,
+}
 
-/// Threshold for hotness below which an object is considered cold.
-/// Values should be > 0.0. If HOTNESS_CUTOFF = 0.0, then no pruning will
-/// happen.
-const HOTNESS_CUTOFF: f64 = 1.0;
+impl Default for CongestionTrackerParams {
+    fn default() -> Self {
+        CongestionTrackerParams::from(&CongestionTrackerConfig::default())
+    }
+}
 
-/// Controls how quickly congestion tracker updates object hotness.
-/// Values should be > 0.0. Higher values mean faster adjustments.
-const HOTNESS_ADJUSTMENT_FACTOR: f64 = 1.0;
-
-/// Controls how quickly hotness decays for objects not seen in congestion.
-/// Values should be >= 1.0: set to > 1.0 for decay, or 1.0 for no decay.
-const MAX_DECAY_FACTOR: f64 = 2.0;
+impl From<&CongestionTrackerConfig> for CongestionTrackerParams {
+    fn from(config: &CongestionTrackerConfig) -> Self {
+        Self {
+            cache_capacity: config.cache_capacity(),
+            hotness_cutoff: config.hotness_cutoff(),
+            hotness_adjustment_factor: config.hotness_adjustment_factor(),
+            max_decay_factor: config.max_decay_factor(),
+        }
+    }
+}
 
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
@@ -109,17 +120,24 @@ impl CongestionInfo {
         }
     }
 
-    fn update_hotness(&mut self, new: &CongestionInfo, number_transactions: usize, is_new: bool) {
+    fn update_hotness(
+        &mut self,
+        new: &CongestionInfo,
+        number_transactions: usize,
+        is_new: bool,
+        hotness_adjustment_factor: f64,
+        max_decay_factor: f64,
+    ) {
         if number_transactions > 0 {
             // Compute hotness adjustment
             let hotness_adjustment =
-                new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_transactions as f64;
+                new.hotness * hotness_adjustment_factor / number_transactions as f64;
 
             // Apply hotness change depending on whether the object is new
             let updated_hotness = if is_new {
                 -hotness_adjustment
             } else {
-                (self.hotness - hotness_adjustment).max(self.hotness / MAX_DECAY_FACTOR)
+                (self.hotness - hotness_adjustment).max(self.hotness / max_decay_factor)
             };
 
             // Ensure hotness is non-negative
@@ -149,6 +167,7 @@ impl CongestionInfo {
 /// The info is then used to calculated a suggested gas price.
 pub struct CongestionTracker {
     reference_gas_price: u64,
+    params: CongestionTrackerParams,
     /// Key-value cache for storing congestion info of objects.
     object_congestion_info: Cache<ObjectID, CongestionInfo>,
     /// HTTP client for posting model updates/training batches.
@@ -281,9 +300,28 @@ impl CongestionTracker {
         let _t = h.start_timer();
         self.metrics.record_hw_sample("congestion.inform_model");
     }
-    /// Create a new `CongestionTracker`. The cache capacity will be
-    /// set to `CONGESTION_TRACKER_CACHE_CAPACITY`, which is `10_000`.
+    /// Create a new `CongestionTracker` with default parameters.
     pub fn new(reference_gas_price: u64, registry: &Registry) -> Self {
+        Self::new_with_params(
+            reference_gas_price,
+            registry,
+            CongestionTrackerParams::default(),
+        )
+    }
+
+    /// Create a new `CongestionTracker` with the provided parameters.
+    pub fn new_with_params(
+        reference_gas_price: u64,
+        registry: &Registry,
+        params: CongestionTrackerParams,
+    ) -> Self {
+        debug!(
+            cache_capacity = params.cache_capacity,
+            hotness_cutoff = params.hotness_cutoff,
+            hotness_adjustment_factor = params.hotness_adjustment_factor,
+            max_decay_factor = params.max_decay_factor,
+            "Initializing CongestionTracker with parameters",
+        );
         // Remove and recreate the results folder
         let mut results_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         results_path.push("src");
@@ -300,7 +338,8 @@ impl CongestionTracker {
         let model_reader = model_updater.reader();
         Self {
             reference_gas_price,
-            object_congestion_info: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
+            params,
+            object_congestion_info: Cache::new(params.cache_capacity),
             #[cfg(feature = "gas-nn")]
             model_updater,
             #[cfg(feature = "gas-nn")]
@@ -862,6 +901,14 @@ impl CongestionTracker {
         let _scope = monitored_scope("CongestionTracker::update_congestion_info_cache");
         let h = self.metrics.latency_component("congestion.update_cache");
         let _timer = h.start_timer();
+        debug!(
+            cache_capacity = self.params.cache_capacity,
+            hotness_cutoff = self.params.hotness_cutoff,
+            hotness_adjustment_factor = self.params.hotness_adjustment_factor,
+            max_decay_factor = self.params.max_decay_factor,
+            number_transactions,
+            "Updating congestion info cache with current parameters",
+        );
         // Store the object IDs that are touched in this checkpoint
         let touched_objects: std::collections::HashSet<_> =
             congestion_info_map.keys().cloned().collect();
@@ -873,11 +920,23 @@ impl CongestionTracker {
                     if let Some(e) = maybe_entry {
                         let mut e = e.into_value();
                         e.update_with_new_congestion_info(&info);
-                        e.update_hotness(&info, number_transactions, false);
+                        e.update_hotness(
+                            &info,
+                            number_transactions,
+                            false,
+                            self.params.hotness_adjustment_factor,
+                            self.params.max_decay_factor,
+                        );
                         Op::Put(e)
                     } else {
                         let mut new_info = info;
-                        new_info.update_hotness(&info, number_transactions, true);
+                        new_info.update_hotness(
+                            &info,
+                            number_transactions,
+                            true,
+                            self.params.hotness_adjustment_factor,
+                            self.params.max_decay_factor,
+                        );
                         Op::Put(new_info)
                     }
                 });
@@ -891,8 +950,8 @@ impl CongestionTracker {
                     .and_compute_with(|maybe_entry| {
                         if let Some(e) = maybe_entry {
                             let mut e = e.into_value();
-                            e.hotness /= MAX_DECAY_FACTOR;
-                            if e.hotness < HOTNESS_CUTOFF {
+                            e.hotness /= self.params.max_decay_factor;
+                            if e.hotness < self.params.hotness_cutoff {
                                 Op::Remove
                             } else {
                                 Op::Put(e)
@@ -1295,11 +1354,13 @@ mod tests {
         tracker.process_congestion_and_clearing_txs_data(now, &congestion_events, &cleared_events);
 
         assert!(
-            tracker.get_hotness_for_object(&obj1).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 16.25,
+            tracker.get_hotness_for_object(&obj1).unwrap()
+                == tracker.params.hotness_adjustment_factor * 16.25,
             "obj1 should have positive hotness"
         );
         assert!(
-            tracker.get_hotness_for_object(&obj2).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 200.0,
+            tracker.get_hotness_for_object(&obj2).unwrap()
+                == tracker.params.hotness_adjustment_factor * 200.0,
             "obj2 should have positive hotness"
         );
         // obj3 is included in transactions with obj2, which gets all hotness updates.
@@ -1503,7 +1564,7 @@ mod tests {
         );
         let hotness = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
         assert!(
-            hotness == 1.25 * HOTNESS_ADJUSTMENT_FACTOR,
+            hotness == 1.25 * tracker.params.hotness_adjustment_factor,
             "hotness for obj2 should be 1.25"
         );
     }

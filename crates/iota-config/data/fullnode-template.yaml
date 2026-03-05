@@ -24,3 +24,12 @@ authority-store-pruning-config:
   max-checkpoints-in-batch: 10
   max-transactions-in-batch: 1000
   pruning-run-delay-seconds: 60
+
+# Optional congestion tracker tuning. All fields are optional and
+# have defaults defined in the node config (see `CongestionTrackerConfig` in `node.rs`).
+# The defaults are:
+# congestion-tracker-config:
+#   cache-capacity: 10000
+#   hotness-cutoff: 1.0
+#   hotness-adjustment-factor: 1.0
+#   max-decay-factor: 2.0
