@@ -784,7 +784,7 @@ impl LocalExec {
             .expect("Failed to create gas status")
         };
         let gas_data = GasData {
-            payment: tx_info.gas.clone(),
+            objects: tx_info.gas.clone(),
             owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
             price: tx_info.gas_price,
             budget: tx_info.gas_budget,
@@ -926,7 +926,7 @@ impl LocalExec {
 
         let skip_checks = true;
         let gas_data = GasData {
-            payment: tx_info.gas.clone(),
+            objects: tx_info.gas.clone(),
             owner: tx_info.gas_owner.unwrap_or(tx_info.sender),
             price: tx_info.gas_price,
             budget: tx_info.gas_budget,
@@ -1867,7 +1867,7 @@ impl LocalExec {
             .get_epoch_start_timestamp_and_rgp(epoch_id, tx_digest)
             .await?;
         let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment;
+        let gas_object_refs: Vec<_> = gas_data.clone().objects;
 
         Ok(OnChainTransactionInfo {
             kind: tx_kind_orig.clone(),

@@ -127,7 +127,7 @@ mod checked {
         let rgp = gas_status.reference_gas_price();
         let gas_charger = GasCharger::new(
             transaction_digest,
-            gas_data.payment,
+            gas_data.objects,
             gas_status,
             protocol_config,
         );
@@ -364,7 +364,7 @@ mod checked {
         let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
             transaction_digest,
-            gas_data.payment,
+            gas_data.objects,
             gas_status,
             protocol_config,
         );

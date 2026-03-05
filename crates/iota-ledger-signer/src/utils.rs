@@ -43,9 +43,9 @@ fn object_ids_from_transaction(
 ) -> Result<Vec<ObjectID>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
-        .payment
+        .objects
         .iter()
-        .map(|payment| payment.object_id);
+        .map(|object| object.object_id);
 
     let input_objects = transaction
         .input_objects()?

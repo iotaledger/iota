@@ -1440,7 +1440,7 @@ async fn test_handle_sponsored_transaction() {
         tx_kind.clone(),
         sender,
         GasData {
-            payment: vec![gas_object.compute_object_reference()],
+            objects: vec![gas_object.compute_object_reference()],
             owner: sponsor,
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1460,7 +1460,7 @@ async fn test_handle_sponsored_transaction() {
         tx_kind.clone(),
         sender,
         GasData {
-            payment: vec![gas_object.compute_object_reference()],
+            objects: vec![gas_object.compute_object_reference()],
             owner: sender, // <-- wrong
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1489,7 +1489,7 @@ async fn test_handle_sponsored_transaction() {
         tx_kind.clone(),
         sender,
         GasData {
-            payment: vec![gas_object.compute_object_reference()],
+            objects: vec![gas_object.compute_object_reference()],
             owner: wrong_owner, // <-- wrong
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,
@@ -1518,7 +1518,7 @@ async fn test_handle_sponsored_transaction() {
         tx_kind,
         sender,
         GasData {
-            payment: vec![gas_object.compute_object_reference()],
+            objects: vec![gas_object.compute_object_reference()],
             owner: third_party,
             price: rgp,
             budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * rgp,

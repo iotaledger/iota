@@ -733,7 +733,7 @@ fn test_sponsored_transaction_message() {
     let kind = TransactionKind::programmable(pt);
     let gas_obj_ref = random_object_ref();
     let gas_data = GasData {
-        payment: vec![gas_obj_ref],
+        objects: vec![gas_obj_ref],
         owner: sponsor,
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -823,7 +823,7 @@ fn test_sponsored_transaction_validity_check() {
     let gas_price = 10;
     assert_ne!(sender, sponsor);
     let gas_data = GasData {
-        payment: vec![random_object_ref()],
+        objects: vec![random_object_ref()],
         owner: sponsor,
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -1230,7 +1230,7 @@ fn test_unique_input_objects() {
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
     let gas_data = GasData {
-        payment: vec![gas_object_ref],
+        objects: vec![gas_object_ref],
         owner: sender,
         price: gas_price,
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
