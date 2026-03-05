@@ -121,11 +121,11 @@ impl TransactionHandler {
                 for cmd in &pt.commands {
                     match cmd {
                         Command::MoveCall(_) => move_calls_count += 1,
-                        Command::TransferObjects(_, _) => transfers += 1,
-                        Command::SplitCoins(_, _) => split_coins += 1,
-                        Command::MergeCoins(_, _) => merge_coins += 1,
-                        Command::Publish(_, _) => publish += 1,
-                        Command::Upgrade(_, _, _, _) => upgrade += 1,
+                        Command::TransferObjects(_) => transfers += 1,
+                        Command::SplitCoins(_) => split_coins += 1,
+                        Command::MergeCoins(_) => merge_coins += 1,
+                        Command::Publish(_) => publish += 1,
+                        Command::Upgrade(_) => upgrade += 1,
                         _ => others += 1,
                     }
                 }

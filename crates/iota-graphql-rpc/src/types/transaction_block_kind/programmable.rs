@@ -9,8 +9,9 @@ use async_graphql::{
 use iota_json_rpc_types::IotaArgument;
 use iota_types::transaction::{
     Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
-    ProgrammableMoveCall as NativeMoveCallTransaction,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectRef,
+    MakeMoveVector, MergeCoins, ProgrammableMoveCall as NativeMoveCallTransaction,
+    ProgrammableTransaction as NativeProgrammableTransactionBlock, Publish, SharedObjectRef,
+    SplitCoins, TransferObjects, Upgrade,
 };
 
 use crate::{
@@ -369,46 +370,56 @@ impl ProgrammableTransaction {
         use ProgrammableTransaction as P;
         match pt {
             N::MoveCall(call) => P::MoveCall(MoveCallTransaction {
-                native: *call,
+                native: call,
                 checkpoint_viewed_at,
             }),
-
-            N::TransferObjects(inputs, address) => P::TransferObjects(TransferObjectsTransaction {
-                inputs: inputs.into_iter().map(TransactionArgument::from).collect(),
-                address: address.into(),
-            }),
-
-            N::SplitCoins(coin, amounts) => P::SplitCoins(SplitCoinsTransaction {
+            N::TransferObjects(TransferObjects { objects, address }) => {
+                P::TransferObjects(TransferObjectsTransaction {
+                    inputs: objects.into_iter().map(TransactionArgument::from).collect(),
+                    address: address.into(),
+                })
+            }
+            N::SplitCoins(SplitCoins { coin, amounts }) => P::SplitCoins(SplitCoinsTransaction {
                 coin: coin.into(),
                 amounts: amounts.into_iter().map(TransactionArgument::from).collect(),
             }),
-
-            N::MergeCoins(coin, coins) => P::MergeCoins(MergeCoinsTransaction {
+            N::MergeCoins(MergeCoins {
+                coin,
+                coins_to_merge,
+            }) => P::MergeCoins(MergeCoinsTransaction {
                 coin: coin.into(),
-                coins: coins.into_iter().map(TransactionArgument::from).collect(),
-            }),
-
-            N::Publish(modules, dependencies) => P::Publish(PublishTransaction {
-                modules: modules.into_iter().map(Base64::from).collect(),
-                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-            }),
-
-            N::MakeMoveVec(type_, elements) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: type_.map(Into::into),
-                elements: elements
+                coins: coins_to_merge
                     .into_iter()
                     .map(TransactionArgument::from)
                     .collect(),
             }),
-
-            N::Upgrade(modules, dependencies, current_package, upgrade_ticket) => {
-                P::Upgrade(UpgradeTransaction {
-                    modules: modules.into_iter().map(Base64::from).collect(),
-                    dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-                    current_package: current_package.into(),
-                    upgrade_ticket: upgrade_ticket.into(),
+            N::Publish(Publish {
+                modules,
+                dependencies,
+            }) => P::Publish(PublishTransaction {
+                modules: modules.into_iter().map(Base64::from).collect(),
+                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
+            }),
+            N::MakeMoveVector(MakeMoveVector { type_, elements }) => {
+                P::MakeMoveVec(MakeMoveVecTransaction {
+                    type_: type_.map(Into::into),
+                    elements: elements
+                        .into_iter()
+                        .map(TransactionArgument::from)
+                        .collect(),
                 })
             }
+            N::Upgrade(Upgrade {
+                modules,
+                dependencies,
+                package,
+                ticket,
+            }) => P::Upgrade(UpgradeTransaction {
+                modules: modules.into_iter().map(Base64::from).collect(),
+                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
+                current_package: package.into(),
+                upgrade_ticket: ticket.into(),
+            }),
         }
     }
 }

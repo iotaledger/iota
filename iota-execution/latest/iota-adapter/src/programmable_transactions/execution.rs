@@ -40,7 +40,7 @@ mod checked {
             Publish, SplitCoins, TransferObjects, Upgrade,
         },
         transfer::RESOLVED_RECEIVING_STRUCT,
-        type_input::{TypeInput, TypeName},
+        type_input::TypeName,
     };
     use iota_verifier::{
         INIT_FN_NAME,
@@ -1751,22 +1751,23 @@ mod checked {
         Ok(())
     }
 
-    fn to_identifier(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        ident: String,
-    ) -> Result<Identifier, ExecutionError> {
-        if context.protocol_config.validate_identifier_inputs() {
-            Identifier::new(ident).map_err(|e| {
-                ExecutionError::new_with_source(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    e.to_string(),
-                )
-            })
-        } else {
-            // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(Identifier::new_unchecked(&ident))
-        }
-    }
+    // TODO
+    // fn to_identifier(
+    //     context: &mut ExecutionContext<'_, '_, '_>,
+    //     ident: String,
+    // ) -> Result<Identifier, ExecutionError> {
+    //     if context.protocol_config.validate_identifier_inputs() {
+    //         Identifier::new(ident).map_err(|e| {
+    //             ExecutionError::new_with_source(
+    //                 ExecutionErrorKind::VmInvariantViolation,
+    //                 e.to_string(),
+    //             )
+    //         })
+    //     } else {
+    //         // SAFETY: Preserving existing behaviour for identifier
+    // deserialization.         Ok(Identifier::new_unchecked(&ident))
+    //     }
+    // }
 
     // TODO
     // fn to_type_tag(

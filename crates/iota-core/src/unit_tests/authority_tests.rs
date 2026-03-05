@@ -5651,7 +5651,7 @@ async fn test_for_inc_201_dev_inspect() {
         .get_package_bytes(false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.command(Command::Publish(
+    builder.command(Command::publish(
         modules,
         BuiltInFramework::all_package_ids(),
     ));

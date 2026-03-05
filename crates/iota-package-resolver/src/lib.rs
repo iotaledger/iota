@@ -2992,7 +2992,6 @@ mod tests {
     #[tokio::test]
     async fn test_pure_input_layouts_conflicting() {
         use CallArg as I;
-        use TypeInput as TI;
         use TypeTag as T;
 
         let (_, cache) = package_cache([
@@ -3023,7 +3022,7 @@ mod tests {
                 ),
                 // This command is using the input that was previously used as a U64, but now as a
                 // U32, which will cause an error.
-                Command::MakeMoveVec(Some(TI::U32), vec![Argument::Input(3)]),
+                Command::make_move_vector(Some(T::U32), vec![Argument::Input(3)]),
             ],
         };
 

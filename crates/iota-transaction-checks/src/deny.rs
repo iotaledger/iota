@@ -9,7 +9,9 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
-    transaction::{Command, InputObjectKind, TransactionData, TransactionDataAPI},
+    transaction::{
+        Command, InputObjectKind, Publish, TransactionData, TransactionDataAPI, Upgrade,
+    },
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -178,17 +180,23 @@ fn check_package_dependencies(
     let mut dependencies = vec![];
     for command in tx_data.kind().iter_commands() {
         match command {
-            Command::Publish(_, deps) => {
+            Command::Publish(Publish {
+                dependencies: deps, ..
+            }) => {
                 // It is possible that the deps list is inaccurate since it's provided
                 // by the user. But that's OK because this publish transaction will fail
                 // to execute in the end. Similar reasoning for Upgrade.
                 dependencies.extend(deps.iter().copied());
             }
-            Command::Upgrade(_, deps, package_id, _) => {
+            Command::Upgrade(Upgrade {
+                dependencies: deps,
+                package,
+                ..
+            }) => {
                 dependencies.extend(deps.iter().copied());
                 // It's crucial that we don't allow upgrading a package in the deny list,
                 // otherwise one can bypass the deny list by upgrading a package.
-                dependencies.push(*package_id);
+                dependencies.push(*package);
             }
             Command::MoveCall(call) => {
                 let package = package_store.get_package_object(&call.package)?.ok_or(
@@ -216,7 +224,8 @@ fn check_package_dependencies(
             Command::TransferObjects(..)
             | &Command::SplitCoins(..)
             | &Command::MergeCoins(..)
-            | &Command::MakeMoveVec(..) => {}
+            | &Command::MakeMoveVector(..) => {}
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
     for dep in dependencies {
