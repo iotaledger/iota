@@ -1,12 +1,12 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel, type UserSession } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus, PersistableStorage } from '@iota/core';
 
 import { ampli } from './ampli';
 import { getDefaultNetwork } from '../../config';
+import { Identify } from '@amplitude/analytics-browser';
 
 const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
@@ -65,8 +65,8 @@ export async function initAmplitude() {
     setAmplitudeIdentity();
 
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport('beacon');
-        amplitude.flush();
+        ampli.client.setTransport('beacon');
+        ampli.flush();
     });
 
     // Add environment plugin to set prefix dev events
@@ -122,7 +122,7 @@ export function setAmplitudeIdentity(options?: AmplitudeIdentityOptions): void {
     }
 
     // Build identify event with current state
-    const identifyEvent = new amplitude.Identify();
+    const identifyEvent = new Identify();
 
     // Always set activeNetwork to maintain state
     identifyEvent.set('activeNetwork', currentIdentity.activeNetwork);

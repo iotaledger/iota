@@ -87,7 +87,7 @@ export function MenuList() {
         if (!isSidePanelVisible) {
             // Track before the mutation: SidePanel.close() destroys this window, so we must flush before it runs
             ampli.sidePanelChanged({ enabled: false });
-            await ampli.client.flush?.();
+            await ampli.flush();
         }
 
         try {
@@ -100,7 +100,7 @@ export function MenuList() {
         if (isSidePanelVisible) {
             // Track after the mutation: the popup is still alive, so it's safe to flush before closing
             ampli.sidePanelChanged({ enabled: true });
-            await ampli.client.flush?.();
+            await ampli.flush();
             window.close();
         }
     }
