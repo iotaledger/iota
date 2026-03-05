@@ -31,8 +31,8 @@ use iota_sdk_types::{
         CancelledTransaction, Command, ConsensusCommitPrologueV1,
         ConsensusDeterminedVersionAssignments, GasPayment, GenesisTransaction, MakeMoveVector,
         MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, Transaction, TransactionExpiration, TransactionKind,
-        TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+        SignedTransaction, SplitCoins, Transaction, TransactionKind, TransactionV1,
+        TransferObjects, Upgrade, VersionAssignment,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -201,12 +201,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
                 price: value.gas_data().price,
                 budget: value.gas_data().budget,
             },
-            expiration: match value.expiration() {
-                crate::transaction::TransactionExpiration::None => TransactionExpiration::None,
-                crate::transaction::TransactionExpiration::Epoch(e) => {
-                    TransactionExpiration::Epoch(*e)
-                }
-            },
+            expiration: value.expiration,
             kind: value.into_kind().try_into()?,
         }
         .pipe(Ok)
@@ -221,13 +216,7 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
             kind: value.kind.try_into()?,
             sender: value.sender,
             gas_data: value.gas_payment,
-            expiration: match value.expiration {
-                TransactionExpiration::None => crate::transaction::TransactionExpiration::None,
-                TransactionExpiration::Epoch(e) => {
-                    crate::transaction::TransactionExpiration::Epoch(e)
-                }
-                _ => unimplemented!("a new enum variant was added and needs to be handled"),
-            },
+            expiration: value.expiration,
         }
         .pipe(Ok)
     }
@@ -1257,25 +1246,6 @@ impl From<crate::effects::UnchangedSharedKind> for UnchangedSharedKind {
             }
             crate::effects::UnchangedSharedKind::Cancelled(version) => Self::Cancelled { version },
             crate::effects::UnchangedSharedKind::PerEpochConfig => Self::PerEpochConfig,
-        }
-    }
-}
-
-impl From<crate::transaction::TransactionExpiration> for TransactionExpiration {
-    fn from(value: crate::transaction::TransactionExpiration) -> Self {
-        match value {
-            crate::transaction::TransactionExpiration::None => Self::None,
-            crate::transaction::TransactionExpiration::Epoch(epoch) => Self::Epoch(epoch),
-        }
-    }
-}
-
-impl From<TransactionExpiration> for crate::transaction::TransactionExpiration {
-    fn from(value: TransactionExpiration) -> Self {
-        match value {
-            TransactionExpiration::None => Self::None,
-            TransactionExpiration::Epoch(epoch) => Self::Epoch(epoch),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
     }
 }
