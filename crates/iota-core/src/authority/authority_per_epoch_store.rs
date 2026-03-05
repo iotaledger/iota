@@ -3357,10 +3357,7 @@ impl AuthorityPerEpochStore {
 
         fail_point_arg!(
             "additional_cancelled_txns_for_tests",
-            |additional_cancelled_txns: Vec<(
-                TransactionDigest,
-                Vec<(ObjectID, SequenceNumber)>
-            )>| {
+            |additional_cancelled_txns: Vec<CancelledTransaction>| {
                 version_assignment.extend(additional_cancelled_txns);
             }
         );
