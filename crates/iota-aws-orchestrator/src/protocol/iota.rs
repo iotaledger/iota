@@ -2,13 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
+use eyre::Result;
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{base_types::IotaAddress, multiaddr::Multiaddr};
 use serde::{Deserialize, Serialize};
@@ -22,32 +18,58 @@ use crate::{
     settings::{BinaryBuildConfig, Settings, build_cargo_command, join_non_empty_strings},
 };
 
-#[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct IotaBenchmarkType {
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IotaBenchmarkType {
     /// Percentage of shared vs owned objects; 0 means only owned objects and
     /// 100 means only shared objects.
-    shared_objects_ratio: u16,
+    SharedObjectsRatio(u16),
+    /// Benchmark for Abstract Account functionality.
+    AbstractAccountBench,
 }
 
-impl Debug for IotaBenchmarkType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.shared_objects_ratio)
+impl Default for IotaBenchmarkType {
+    fn default() -> Self {
+        Self::SharedObjectsRatio(0)
     }
 }
 
-impl Display for IotaBenchmarkType {
+impl std::fmt::Debug for IotaBenchmarkType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}% shared objects", self.shared_objects_ratio)
+        match self {
+            Self::SharedObjectsRatio(shared_objects_ratio) => write!(f, "{shared_objects_ratio}"),
+            Self::AbstractAccountBench => write!(f, "abstract_account_bench"),
+        }
+    }
+}
+
+impl std::fmt::Display for IotaBenchmarkType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SharedObjectsRatio(shared_objects_ratio) => {
+                write!(f, "bench ({}% shared objects)", shared_objects_ratio)
+            }
+            Self::AbstractAccountBench => write!(f, "abstract-account-bench"),
+        }
     }
 }
 
 impl FromStr for IotaBenchmarkType {
-    type Err = std::num::ParseIntError;
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self {
-            shared_objects_ratio: s.parse::<u16>()?.min(100),
-        })
+        let v = s.trim().to_ascii_lowercase();
+
+        // Backward compatible: numeric => bench(shared_ratio)
+        if let Ok(n) = v.parse::<u16>() {
+            return Ok(Self::SharedObjectsRatio(n.min(100)));
+        }
+
+        match v.as_str() {
+            "abstract-account-bench" => Ok(Self::AbstractAccountBench),
+            _ => Err(format!(
+                "Unknown benchmark type '{s}'. Expected 0..=100 or abstract-account-bench"
+            )),
+        }
     }
 }
 
@@ -116,6 +138,33 @@ impl IotaProtocol {
                 additional_args,
             )
         }
+    }
+
+    fn otel_env(
+        &self,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        service_name: &str,
+    ) -> Vec<String> {
+        let Some(otel) = &parameters.otel else {
+            return vec![];
+        };
+        // TRACE_FILTER values can be implemented as params as well. For now, we keep
+        // them fixed to trace handle_transaction and process_certificate which are the
+        // most relevant spans for benchmarks.
+        vec![
+            format!("export OTEL_EXPORTER_OTLP_ENDPOINT={}", otel.otlp_endpoint),
+            "export TRACE_FILTER=[handle_transaction]=trace,[process_certificate]=trace"
+                .to_string(),
+            format!(
+                "export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT={}",
+                otel.otlp_endpoint
+            ),
+            format!("export OTEL_EXPORTER_OTLP_PROTOCOL={}", otel.protocol),
+            format!("export OTEL_TRACES_SAMPLER={}", otel.sampler),
+            format!("export OTEL_TRACES_SAMPLER_ARG={}", otel.sampler_arg),
+            format!("export OTEL_SERVICE_NAME={service_name}"),
+            format!("export OTEL_RESOURCE_ATTRIBUTES=service.name={service_name}"),
+        ]
     }
 }
 
@@ -218,24 +267,32 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
                 let max_pipeline_delay = parameters.max_pipeline_delay;
+
+                let mut setup: Vec<String> = vec![
+                    match parameters.consensus_protocol {
+                        ConsensusProtocol::Starfish => {
+                            "export CONSENSUS_PROTOCOL=starfish".to_string()
+                        }
+                        ConsensusProtocol::Mysticeti => {
+                            "export CONSENSUS_PROTOCOL=mysticeti".to_string()
+                        }
+                        ConsensusProtocol::SwapEachEpoch => {
+                            "export CONSENSUS_PROTOCOL=swap_each_epoch".to_string()
+                        }
+                    },
+                    format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}"),
+                ];
+
+                if self.enable_flamegraph {
+                    setup.push("export TRACE_FLAMEGRAPH=1".to_string());
+                }
+
+                setup.extend(self.otel_env(parameters, &format!("iota-validator-{i}")));
+
                 let iota_node_command = self.run_binary_command(
                     "iota-node",
-                    &[
-                        match parameters.consensus_protocol {
-                            ConsensusProtocol::Starfish => "export CONSENSUS_PROTOCOL=starfish",
-                            ConsensusProtocol::Mysticeti => "export CONSENSUS_PROTOCOL=mysticeti",
-                            ConsensusProtocol::SwapEachEpoch => {
-                                "export CONSENSUS_PROTOCOL=swap_each_epoch"
-                            }
-                        },
-                        format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}").as_str(),
-                        if self.enable_flamegraph {
-                            "export TRACE_FLAMEGRAPH=1"
-                        } else {
-                            ""
-                        },
-                    ],
-                    &[&format!(
+                    &setup,
+                    &[format!(
                         "--config-path {} --listen-address {}",
                         config_path.display(),
                         network_address.with_zero_ip()
@@ -271,11 +328,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     false => &instance.main_ip,
                 };
 
-                let iota_node_command = self.run_binary_command(
-                    "iota-node",
-                    &[
-                        // Overwrite listen address and external address with 0.0.0.0 and actual fullnode IP.
-                        // Escape quotes for proper handling inside tmux wrapper
+                let mut setup = vec![
                         format!(
                             "sed -i 's|listen-address: \\\"127.0.0.1:|listen-address: \\\"0.0.0.0:|' {0} && sed -i 's|external-address: /ip4/127.0.0.1/|external-address: /ip4/{1}/|' {0}",
                             config_path.display(),
@@ -285,8 +338,13 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                             "export TRACE_FLAMEGRAPH=1".to_string()
                         } else {
                             "".to_string()
-                        },
-                    ],
+                        }
+                ];
+                setup.extend(self.otel_env(parameters, &format!("iota-node-{i}")));
+
+                let iota_node_command = self.run_binary_command(
+                    "iota-node",
+                    &setup,
                     &[&format!("--config-path {}", config_path.display())],
                 );
 
@@ -321,8 +379,6 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         let committee_size = parameters.nodes;
         let clients: Vec<_> = instances.into_iter().collect();
         let load_share = parameters.load / clients.len();
-        let shared_counter = parameters.benchmark_type.shared_objects_ratio;
-        let transfer_objects = 100 - shared_counter;
         let metrics_port = Self::CLIENT_METRICS_PORT;
         // Get gas keys for all validators and clients
         let gas_keys =
@@ -340,26 +396,51 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let gas_key = &gas_keys[client_key_offset + i];
                 let gas_address = IotaAddress::from(&gas_key.public());
 
+                let client_threads = parameters.stress_num_client_threads;
+                let server_threads = parameters.stress_num_server_threads;
+
                 let mut stress_args: Vec<String> = vec![
-                    "--num-client-threads 24 --num-server-threads 1".to_string(),
+                    format!("--num-client-threads {client_threads} --num-server-threads {server_threads}"),
                     "--local false --num-transfer-accounts 2".to_string(),
                     format!("--genesis-blob-path {genesis} --keystore-path {keystore}"),
                     format!("--primary-gas-owner-id {gas_address}"),
-                    "bench".to_string(),
-                    format!("--in-flight-ratio 30 --num-workers 24 --target-qps {load_share}"),
-                    format!(
-                        "--shared-counter {shared_counter} --transfer-object {transfer_objects}"
-                    ),
+                    // Run interval param
+                    parameters.run_interval.as_stress_flag(),
                     format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
+                    if let Some(stats_path) = &parameters.benchmark_stats_path {
+                        format!("--benchmark-stats-path {stats_path}")
+                    } else {
+                        "".to_string()
+                    },
                 ];
 
-                // Add optional shared counter hotness factor if specified
-                let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
-                stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
+                match parameters.benchmark_type {
+                    IotaBenchmarkType::SharedObjectsRatio(shared_objects_ratio) => {
+                        let transfer_objects = 100 - shared_objects_ratio;
+                        let hotness_factor = parameters.shared_counter_hotness_factor.unwrap_or(50);
+                        stress_args.push("bench".to_string());
+                        stress_args.push(format!("--target-qps {load_share}"));
+                        stress_args.push(format!("--num-workers {}", parameters.stress_num_workers));
+                        stress_args.push(format!("--in-flight-ratio {}", parameters.stress_in_flight_ratio));
+                        stress_args.push(format!("--shared-counter {shared_objects_ratio} --transfer-object {transfer_objects}"));
+                        stress_args.push(format!("--shared-counter-hotness-factor {hotness_factor}"));
+                        if let Some(num_counters) = parameters.num_shared_counters {
+                            stress_args.push(format!("--num-shared-counters {num_counters}"));
+                        }
+                    }
 
-                // Add optional num shared counters if specified
-                if let Some(num_counters) = parameters.num_shared_counters {
-                    stress_args.push(format!("--num-shared-counters {num_counters}"));
+                    IotaBenchmarkType::AbstractAccountBench => {
+                        stress_args.push("abstract-account-bench".to_string());
+                        stress_args.push(format!("--authenticator {}", parameters.aa_authenticator));
+                        stress_args.push(format!("--tx-payload-obj-type {}", parameters.tx_payload_obj_type));
+                        stress_args.push(format!("--target-qps {load_share}"));
+                        stress_args.push(format!("--num-workers {}", parameters.stress_num_workers));
+                        stress_args.push(format!("--in-flight-ratio {}", parameters.stress_in_flight_ratio));
+                        stress_args.push(format!("--split-amount {}", parameters.aa_split_amount));
+                        if parameters.should_fail {
+                            stress_args.push("--should-fail".to_string());
+                        }
+                    }
                 }
 
                 if self.use_fullnode_for_execution {
@@ -367,16 +448,14 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     stress_args.push("--fullnode-rpc-addresses http://127.0.0.1:9000".to_string());
                 }
 
-                let stress_command = self.run_binary_command(
-                    "stress",
-                    // required for stress binary, otherwise it will use the CARGO_MANIFEST_DIR,
-                    // which is set during compilation time
-                    &[
-                        "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move",
-                        "export RUST_LOG=iota_benchmark=debug",
-                    ],
-                    &stress_args,
-                );
+                let mut setup = vec![
+                    "export MOVE_EXAMPLES_DIR=$(pwd)/examples/move".to_string(),
+                    "export RUST_LOG=iota_benchmark=debug".to_string(),
+                ];
+
+                setup.extend(self.otel_env(parameters, &format!("iota-stress-{i}")));
+
+                let stress_command = self.run_binary_command("stress", &setup, &stress_args);
 
                 display::action(format!("\n Stress Command ({i}): {stress_command}"));
 

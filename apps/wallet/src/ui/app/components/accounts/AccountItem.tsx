@@ -38,15 +38,17 @@ export function AccountItem({ icon, accountID, hideExplorerLink, hideCopy }: Acc
         if (newWindow) newWindow.opener = null;
     }
     return (
-        <Account
-            title={accountName}
-            subtitle={formatAddress(account.address)}
-            onOpen={handleOpen}
-            avatarContent={() => <AccountAvatar icon={icon} />}
-            onCopy={copyAddress}
-            isCopyable={!hideCopy}
-            isExternal={!hideExplorerLink}
-        />
+        <div data-amp-mask>
+            <Account
+                title={accountName}
+                subtitle={formatAddress(account.address)}
+                onOpen={handleOpen}
+                avatarContent={() => <AccountAvatar icon={icon} />}
+                onCopy={copyAddress}
+                isCopyable={!hideCopy}
+                isExternal={!hideExplorerLink}
+            />
+        </div>
     );
 }
 

@@ -189,7 +189,21 @@ export function generateValidatorsTableColumns({
             accessorKey: 'effectiveCommissionRate',
             id: 'effectiveCommissionRate',
             enableSorting: true,
-            sortingFn: sortByNumber,
+            sortingFn: (rowA, rowB) => {
+                // TODO: This function should be reverted to 'sortByNumber'
+                // once the effectiveCommission is available directly from validator data
+                const { original: validatorA } = rowA;
+                const { original: validatorB } = rowB;
+                const rowAEffectiveRate = Math.max(
+                    Number(validatorA.commissionRate),
+                    Number(validatorA.votingPower),
+                );
+                const rowBEffectiveRate = Math.max(
+                    Number(validatorB.commissionRate),
+                    Number(validatorB.votingPower),
+                );
+                return rowAEffectiveRate - rowBEffectiveRate > 0 ? 1 : -1;
+            },
             cell({ row }) {
                 const { original: validator } = row;
                 const commissionRate = Number(validator.commissionRate);
