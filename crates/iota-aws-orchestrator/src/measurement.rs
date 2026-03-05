@@ -9,7 +9,8 @@ use prometheus_parse::Scrape;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    benchmark::{BenchmarkParameters, BenchmarkType},
+    IotaBenchmarkType,
+    benchmark::{BenchmarkParameters, BenchmarkType, RunInterval},
     display,
     protocol::ProtocolMetrics,
     settings::Settings,
@@ -361,32 +362,46 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         log_dir: &Path,
     ) {
         display::action("Processing metrics files");
-        let duration_secs = self.parameters.duration.as_secs();
+
+        // IMPORTANT:
+        // - Time-mode: keep only samples within [0 ..= duration_secs]
+        // - Count-mode: do NOT cut by time (the run ends by tx-count, not wall clock)
+        let time_limit_secs: Option<u64> = match self.parameters.run_interval {
+            RunInterval::Time(d) => Some(d.as_secs()),
+            RunInterval::Count(_) => None,
+        };
 
         for i in 0..num_clients {
             let metrics_file = log_dir.join(format!("metrics-{i}.log"));
 
-            if metrics_file.exists() {
-                match fs::read_to_string(&metrics_file) {
-                    Ok(content) => {
-                        display::action(format!("Processing: {}\n", metrics_file.display()));
+            if !metrics_file.exists() {
+                continue;
+            }
 
-                        let chunks = self.split_into_chunks(&content);
-                        for chunk in chunks.iter() {
-                            let mut measurements: HashMap<String, Measurement> =
-                                Measurement::from_prometheus::<M>(chunk);
-                            // Retain only measurements within the benchmark duration
-                            measurements.retain(|_, m| m.timestamp.as_secs() <= duration_secs);
+            match fs::read_to_string(&metrics_file) {
+                Ok(content) => {
+                    display::action(format!("Processing: {}\n", metrics_file.display()));
 
-                            self.add(i, measurements);
+                    let chunks = self.split_into_chunks(&content);
+                    for chunk in &chunks {
+                        let mut measurements: HashMap<String, Measurement> =
+                            Measurement::from_prometheus::<M>(chunk);
+
+                        if let Some(limit) = time_limit_secs {
+                            // Retain only measurements within the benchmark duration (seconds since
+                            // start).
+                            measurements.retain(|_, m| m.timestamp.as_secs() <= limit);
                         }
 
-                        display::action(format!("Processed metrics for client {i}\n"));
+                        self.add(i, measurements);
                     }
-                    Err(e) => display::warn(format!("Failed to read metrics file {i}: {e}")),
+
+                    display::action(format!("Processed metrics for client {i}\n"));
                 }
+                Err(e) => display::warn(format!("Failed to read metrics file {i}: {e}")),
             }
         }
+
         display::done();
     }
 
@@ -434,38 +449,87 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         let workload_stdev_latency = self.workload_stdev_latency();
         let stdev_latency = self.aggregate_stdev_latency();
 
+        let target = self.parameters.load as f64;
+        let achieved = total_tps as f64;
+        let efficiency = if target > 0.0 {
+            100.0 * achieved / target
+        } else {
+            0.0
+        };
+
         let mut table = Table::new();
         table.set_format(display::default_table_format());
 
         table.set_titles(row![bH2->"Benchmark Summary"]);
+
         table.add_row(row![b->"Benchmark type:", self.parameters.benchmark_type]);
         table.add_row(row![bH2->""]);
+
         table.add_row(row![b->"Nodes:", self.parameters.nodes]);
         table.add_row(
             row![b->"Use internal IPs:", format!("{}", self.parameters.use_internal_ip_address)],
         );
         table.add_row(row![b->"Faults:", self.parameters.faults]);
-        table.add_row(row![b->"Load:", format!("{} tx/s", self.parameters.load)]);
+
+        // Workload config
+        table.add_row(row![b->"Load (target):", format!("{} tx/s", self.parameters.load)]);
         table.add_row(row![b->"Duration:", format!("{} s", duration.as_secs())]);
+
+        // Efficiency / saturation signal
+        table.add_row(row![b->"Achieved TPS:", format!("{total_tps} tx/s")]);
+        table.add_row(row![b->"Efficiency:", format!("{:.1}%", efficiency)]);
         table.add_row(row![bH2->""]);
-        table.add_row(row![b->"TPS:", format!("{total_tps} tx/s")]);
+
+        // AA-specific block
+
+        if self.parameters.benchmark_type.to_string()
+            == IotaBenchmarkType::AbstractAccountBench.to_string()
+        {
+            table.add_row(row![bH2->"AA config"]);
+            table.add_row(row![b->"Authenticator:", self.parameters.aa_authenticator.to_string()]);
+            table.add_row(row![b->"Stress workers:", self.parameters.stress_num_workers]);
+            table.add_row(
+                row![b->"Stress in-flight ratio:", self.parameters.stress_in_flight_ratio],
+            );
+
+            table.add_row(row![b->"AA split amount:", self.parameters.aa_split_amount]);
+
+            table.add_row(
+                row![b->"Stress client threads:", self.parameters.stress_num_client_threads],
+            );
+            table.add_row(
+                row![b->"Stress server threads:", self.parameters.stress_num_server_threads],
+            );
+            table.add_row(row![bH2->""]);
+        }
+
+        println!("Grafana UI:");
+        println!(
+            "ssh -i /Users/pk/.ssh/aws_orchestrator -L 3000:127.0.0.1:3000 <ubuntu@<metrics_public_ip>"
+        );
+
+        table.add_row(row![bH2->"Per-workload throughput"]);
         for (workload, tps) in &workload_tps {
             table.add_row(row![b->format!("  {workload} TPS:"), format!("{tps} tx/s")]);
         }
         table.add_row(row![bH2->""]);
 
+        table.add_row(row![bH2->"Latency"]);
         table.add_row(row![b->"Latency (avg):", format!("{} ms", average_latency.as_millis())]);
+        table.add_row(row![b->"Latency (stdev):", format!("{} ms", stdev_latency.as_millis())]);
+
+        table.add_row(row![bH2->""]);
+        table.add_row(row![bH2->"Per-workload average latency"]);
         for (workload, latency) in &workload_latency {
             table.add_row(
-                row![b->format!("  {workload} Latency:" ), format!("{} ms", latency.as_millis())],
+                row![b->format!("  {workload} avg:"), format!("{} ms", latency.as_millis())],
             );
         }
         table.add_row(row![bH2->""]);
-
-        table.add_row(row![b->"Latency (stdev):", format!("{} ms", stdev_latency.as_millis())]);
+        table.add_row(row![bH2->"Per-workload stdev latency"]);
         for (workload, latency) in &workload_stdev_latency {
             table.add_row(
-                row![b->format!("  {workload} Latency:"), format!("{} ms", latency.as_millis())],
+                row![b->format!("  {workload} stdev:"), format!("{} ms", latency.as_millis())],
             );
         }
 
@@ -495,7 +559,8 @@ mod test {
 
     use super::{BenchmarkParameters, Measurement, MeasurementsCollection};
     use crate::{
-        benchmark::test::TestBenchmarkType, protocol::test_protocol_metrics::TestProtocolMetrics,
+        benchmark::{RunInterval, test::TestBenchmarkType},
+        protocol::test_protocol_metrics::TestProtocolMetrics,
         settings::Settings,
     };
 
@@ -769,7 +834,7 @@ mod test {
         let num_clients = 10;
         // Define benchmark parameters matching the real benchmark
         let benchmark_parameters = BenchmarkParameters {
-            duration: Duration::from_secs(180),
+            run_interval: RunInterval::Time(Duration::from_secs(180)),
             load: 1000,
             nodes: num_clients,
             ..Default::default()

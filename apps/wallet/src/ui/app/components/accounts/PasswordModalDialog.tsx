@@ -189,6 +189,7 @@ export function PasswordModalDialog({
                                         }
                                         {...register('password')}
                                         name="password"
+                                        data-amp-mask
                                     />
                                     {showForgotPassword && (
                                         <span

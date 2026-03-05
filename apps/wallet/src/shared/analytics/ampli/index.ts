@@ -155,6 +155,7 @@ export interface ApplicationDisconnectedProperties {
      * | Type | number |
      */
     disconnectedAccounts?: number;
+    partial?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -396,6 +397,16 @@ export interface ConnectedHardwareWalletProperties {
      * | Regex |  |
      */
     hardwareWalletType?: string;
+}
+
+export interface DappConnectStartedProperties {
+    applicationName?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    applicationUrl?: string;
 }
 
 export interface DisconnectedApplicationProperties {
@@ -641,6 +652,11 @@ export interface SwitchedNetworkProperties {
 
 export interface ThemeChangedProperties {
     theme: string;
+}
+
+export interface TransactionOpenedProperties {
+    success?: boolean;
+    transactionType?: string;
 }
 
 export interface UnpinnedCoinProperties {
@@ -930,6 +946,14 @@ export class ConnectedHardwareWallet implements BaseEvent {
     }
 }
 
+export class DappConnectStarted implements BaseEvent {
+    event_type = 'dapp connect started';
+
+    constructor(public event_properties?: DappConnectStartedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class DisconnectedApplication implements BaseEvent {
     event_type = 'disconnected application';
 
@@ -953,6 +977,7 @@ export class ExternalLinkOpened implements BaseEvent {
         this.event_properties = event_properties;
     }
 }
+
 export class IotaStaked implements BaseEvent {
     event_type = 'iota staked';
 
@@ -1101,6 +1126,14 @@ export class ThemeChanged implements BaseEvent {
     event_type = 'theme changed';
 
     constructor(public event_properties: ThemeChangedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class TransactionOpened implements BaseEvent {
+    event_type = 'transaction opened';
+
+    constructor(public event_properties?: TransactionOpenedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1772,6 +1805,23 @@ export class Ampli {
   }
 
   /**
+   * dapp connect started
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/dapp%20connect%20started)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. applicationName)
+   * @param options Amplitude event options.
+   */
+  dappConnectStarted(
+    properties?: DappConnectStartedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new DappConnectStarted(properties), options);
+  }
+
+  /**
    * disconnected application
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/disconnected%20application)
@@ -2144,6 +2194,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ThemeChanged(properties), options);
+  }
+
+  /**
+   * transaction opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/transaction%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. success)
+   * @param options Amplitude event options.
+   */
+  transactionOpened(
+    properties?: TransactionOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new TransactionOpened(properties), options);
   }
 
   /**

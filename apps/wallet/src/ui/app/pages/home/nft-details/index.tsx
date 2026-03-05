@@ -131,7 +131,9 @@ export function NFTDetailsPage() {
                                                                 address={ownerAddress}
                                                                 eventType="address"
                                                             >
-                                                                {formatAddress(ownerAddress)}
+                                                                <span data-amp-mask>
+                                                                    {formatAddress(ownerAddress)}
+                                                                </span>
                                                             </ExplorerLink>
                                                         }
                                                         fullwidth
@@ -140,7 +142,11 @@ export function NFTDetailsPage() {
                                                 {nftId && (
                                                     <KeyValueInfo
                                                         keyText="Object ID"
-                                                        value={formatAddress(nftId)}
+                                                        value={
+                                                            <span data-amp-mask>
+                                                                {formatAddress(nftId)}
+                                                            </span>
+                                                        }
                                                         fullwidth
                                                     />
                                                 )}
