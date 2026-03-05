@@ -14,6 +14,12 @@ import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
 This how-to demonstrates how to create and manage time-locked accounts that combine public key authentication with time-based access control.
 
+:::tip Why is this possible?
+
+Authenticator functions can accept additional inputs alongside the account reference — including shared objects like `Clock`. This makes it possible to read the current on-chain time at authentication, before any execution happens, and reject the transaction outright if the unlock condition is not yet met.
+
+:::
+
 :::tip Recommended reading
 
 This guide builds on patterns from the [Public Key Authentication](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand public key verification used here.
