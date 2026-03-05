@@ -23,7 +23,7 @@ use iota_network::{
 use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
     base_types::TransactionEffectsDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     error::*,
     fp_ensure,
     iota_system_state::IotaSystemState,
@@ -1530,32 +1530,38 @@ impl ValidatorService {
                 .expect("single transaction expected: ping and soft-bundle cases already handled");
             let tx_digest = *transaction.digest();
 
+            // Helper to build an Executed response from transaction effects.
+            let build_executed_response =
+                |effects: TransactionEffects| -> Result<_, tonic::Status> {
+                    let effects_digest = effects.digest();
+                    let events = effects
+                        .events_digest()
+                        .and_then(|digest| state.get_transaction_events(digest).ok());
+                    let input_objects = state.get_transaction_input_objects(&effects).ok();
+                    let output_objects = state.get_transaction_output_objects(&effects).ok();
+                    let details = Some(Box::new(ExecutedData {
+                        effects,
+                        events,
+                        input_objects: input_objects.unwrap_or_default(),
+                        output_objects: output_objects.unwrap_or_default(),
+                    }));
+                    Ok((
+                        tonic::Response::new(SubmitTransactionsResponse {
+                            result: SubmitTransactionResult::Executed {
+                                effects_digest,
+                                details,
+                            },
+                        }),
+                        Weight::one(),
+                    ))
+                };
+
             // Check if already executed.
             if let Some(effects) = state
                 .get_transaction_cache_reader()
                 .try_get_executed_effects(&tx_digest)?
             {
-                let effects_digest = effects.digest();
-                let events = effects
-                    .events_digest()
-                    .and_then(|digest| state.get_transaction_events(digest).ok());
-                let input_objects = state.get_transaction_input_objects(&effects).ok();
-                let output_objects = state.get_transaction_output_objects(&effects).ok();
-                let details = Some(Box::new(ExecutedData {
-                    effects,
-                    events,
-                    input_objects: input_objects.unwrap_or_default(),
-                    output_objects: output_objects.unwrap_or_default(),
-                }));
-                return Ok((
-                    tonic::Response::new(SubmitTransactionsResponse {
-                        result: SubmitTransactionResult::Executed {
-                            effects_digest,
-                            details,
-                        },
-                    }),
-                    Weight::one(),
-                ));
+                return build_executed_response(effects);
             }
 
             // Verify user signature.
@@ -1583,10 +1589,21 @@ impl ValidatorService {
                 .handle_transaction_deny_checks(&verified_tx, &epoch_store)
                 .await
                 .map_err(tonic::Status::from)?;
-            state
+            if let Err(e) = state
                 .get_cache_writer()
                 .validate_owned_object_versions(&owned_objects)
-                .map_err(tonic::Status::from)?;
+            {
+                // Check if the transaction was executed while being validated, and that's why
+                // the owned object version validation failed. This is an edge
+                // case so checking executed effects twice is acceptable.
+                if let Some(effects) = state
+                    .get_transaction_cache_reader()
+                    .try_get_executed_effects(&tx_digest)?
+                {
+                    return build_executed_response(effects);
+                }
+                return Err(tonic::Status::from(e));
+            }
 
             // Reconfig check.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
