@@ -57,7 +57,7 @@ pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
         gas_budget_selection_strategy(),
     )
         .prop_map(move |(obj_refs, price, budget)| GasData {
-            payment: obj_refs,
+            objects: obj_refs,
             owner: sender,
             price,
             budget,
