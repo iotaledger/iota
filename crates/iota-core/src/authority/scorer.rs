@@ -9,7 +9,7 @@ use std::sync::{
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     messages_consensus::VersionedMisbehaviorReport, misbehavior_counts::MisbehaviorsV1,
-    scoring_metrics::VersionedScoringMetrics,
+    misbehaviors::VersionedMisbehaviors,
 };
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
@@ -19,11 +19,11 @@ const SCALE_FACTOR: u64 = 2_u64.pow(16);
 pub struct Scorer {
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
-    pub(crate) current_local_metrics_count: Arc<VersionedScoringMetrics>,
+    pub(crate) current_local_metrics_count: Arc<VersionedMisbehaviors>,
     // The metrics counts received from other authorities, i.e., the information contained in the
     // MisbehaviourReports received by the authority. If an authority has not sent a report, its
     // entry in this vector will be all zeroed.
-    received_metrics: Vec<VersionedScoringMetrics>,
+    received_metrics: Vec<VersionedMisbehaviors>,
     // Indicates whether an authority did not send any misbehavior reports in the epoch. We use
     // this to differentiate an authority that did not send a report from another one who sent
     // zeroed reports.
@@ -48,16 +48,14 @@ impl Scorer {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => {
                 // Local metrics count are always initialized as zero.
-                let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
-                    committee_size,
-                    protocol_config,
-                ));
+                let current_local_metrics_count =
+                    Arc::new(VersionedMisbehaviors::new(committee_size, protocol_config));
                 let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
                     (0..committee_size)
                         .map(|_| {
                             (
                                 // Received metrics initialized to zero.
-                                VersionedScoringMetrics::new(committee_size, protocol_config),
+                                VersionedMisbehaviors::new(committee_size, protocol_config),
                                 // Initially, none of the authorities had sent any valid report.
                                 AtomicBool::new(true),
                                 // Current scores initialized to max score.

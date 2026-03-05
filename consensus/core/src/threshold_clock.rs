@@ -101,7 +101,7 @@ mod tests {
     use consensus_config::AuthorityIndex;
 
     use super::*;
-    use crate::{block::BlockDigest, scoring_metrics_store::MysticetiScoringMetricsStore};
+    use crate::{block::BlockDigest, misbehaviors_store::MysticetiMisbehaviorsStore};
 
     #[tokio::test]
     async fn test_threshold_clock_add_block() {
@@ -225,7 +225,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
 
-        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::dummy_for_test(
+        let misbehaviors_store = Arc::new(MysticetiMisbehaviorsStore::dummy_for_test(
             committee_size,
             &protocol_config,
         ));
@@ -240,7 +240,7 @@ mod tests {
             },
             protocol_config,
             metrics,
-            scoring_metrics_store,
+            misbehaviors_store,
             Arc::new(crate::context::Clock::default()),
         ));
 

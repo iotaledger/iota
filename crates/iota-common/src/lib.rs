@@ -10,4 +10,4 @@ pub mod stream_ext;
 pub mod sync;
 pub mod try_iterator_ext;
 
-pub use iota_types::{misbehavior_counts, scoring_metrics};
+pub use iota_types::{misbehavior_counts, misbehaviors};

@@ -8,7 +8,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::VersionedScoringMetrics;
+use iota_common::misbehaviors::VersionedMisbehaviors;
 use parking_lot::RwLock;
 
 use super::{Store, WriteBatch};
@@ -32,7 +32,7 @@ struct Inner {
     commits: BTreeMap<(CommitIndex, CommitDigest), TrustedCommit>,
     commit_votes: BTreeSet<(CommitIndex, CommitDigest, BlockRef)>,
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
-    misbehavior_counts: Option<VersionedScoringMetrics>,
+    misbehavior_counts: Option<VersionedMisbehaviors>,
 }
 
 impl MemStore {
@@ -134,7 +134,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn scan_scoring_metrics(&self) -> ConsensusResult<Option<VersionedScoringMetrics>> {
+    fn scan_misbehaviors(&self) -> ConsensusResult<Option<VersionedMisbehaviors>> {
         Ok(self
             .inner
             .read()

@@ -20,8 +20,8 @@ use crate::{
     context::Context,
     dag_state::DagState,
     error::ConsensusError,
+    misbehaviors_store::ErrorSource,
     network::{NetworkClient, NetworkService},
-    scoring_metrics_store::ErrorSource,
 };
 
 /// Subscriber manages the block stream subscriptions to other peers, taking
@@ -232,8 +232,8 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .await;
                         if let Err(e) = result {
                             context
-                                .scoring_metrics_store
-                                .update_scoring_metrics_on_block_receival(
+                                .misbehaviors_store
+                                .update_misbehaviors_on_block_receival(
                                     peer,
                                     peer_hostname,
                                     e.clone(),

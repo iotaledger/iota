@@ -42,8 +42,8 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    misbehaviors_store::ErrorSource,
     network::NetworkClient,
-    scoring_metrics_store::ErrorSource,
 };
 
 /// The number of concurrent fetch blocks requests per authority
@@ -567,7 +567,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
-                                context.scoring_metrics_store.update_scoring_metrics_on_block_receival(
+                                context.misbehaviors_store.update_misbehaviors_on_block_receival(
                                     peer_index,
                                     peer_hostname,
                                     err.clone(),

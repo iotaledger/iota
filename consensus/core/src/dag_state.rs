@@ -246,22 +246,19 @@ impl DagState {
             );
         }
 
-        // Initialize scoring metrics according to the metrics in store and the blocks
+        // Initialize misbehaviors according to the counts in store and the blocks
         // that were loaded to cache.
-        let recovered_scoring_metrics = state
+        let recovered_misbehaviors = state
             .store
-            .scan_scoring_metrics()
+            .scan_misbehaviors()
             .expect("database scan should succeed");
-        state
-            .context
-            .scoring_metrics_store
-            .initialize_scoring_metrics(
-                recovered_scoring_metrics,
-                &state.recent_refs_by_authority,
-                state.threshold_clock_round(),
-                &state.evicted_rounds,
-                &state.context,
-            );
+        state.context.misbehaviors_store.initialize_misbehaviors(
+            recovered_misbehaviors,
+            &state.recent_refs_by_authority,
+            state.threshold_clock_round(),
+            &state.evicted_rounds,
+            &state.context,
+        );
 
         if state.gc_enabled() {
             if let Some(last_commit) = last_commit {
@@ -1057,14 +1054,14 @@ impl DagState {
                 .join(","),
         );
 
-        // Update the scoring metrics accordingly to the blocks being flushed.
+        // Update the misbehaviors accordingly to the blocks being flushed.
         let threshold_clock_round = self.threshold_clock_round();
         for (authority_index, authority) in self.context.committee.authorities() {
             let last_eviction_round = self.evicted_rounds[authority_index];
             let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
             self.context
-                .scoring_metrics_store
-                .update_scoring_metrics_on_eviction(
+                .misbehaviors_store
+                .update_misbehaviors_on_eviction(
                     authority_index,
                     authority.hostname.as_str(),
                     &self.recent_refs_by_authority[authority_index],
@@ -1075,11 +1072,7 @@ impl DagState {
                 );
         }
 
-        let metrics_to_write = self
-            .context
-            .scoring_metrics_store
-            .uncached_metrics
-            .snapshot();
+        let metrics_to_write = self.context.misbehaviors_store.uncached_metrics.snapshot();
 
         self.store
             .write(WriteBatch::new(
@@ -1096,7 +1089,7 @@ impl DagState {
             .inc();
 
         // Clean up old cached data. After flushing, all cached blocks are guaranteed to
-        // be persisted. This clean up also triggers some of the scoring metrics
+        // be persisted. This clean up also triggers some of the misbehavior count
         // updates.
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
