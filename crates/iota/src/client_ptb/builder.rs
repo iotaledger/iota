@@ -831,7 +831,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 self.last_command = Some(
                     self.ptb
-                        .command(Tx::Command::TransferObjects(transfer_args, to_arg)),
+                        .command(Tx::Command::transfer_objects(transfer_args, to_arg)),
                 );
             }
             ParsedPTBCommand::Assign(sp!(ident_loc, i), None) => {
@@ -874,7 +874,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 let res = self
                     .ptb
-                    .command(Tx::Command::make_move_vec(Some(ty_arg), vec_args));
+                    .command(Tx::Command::make_move_vector(Some(ty_arg), vec_args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::SplitCoins(pre_coin, sp!(_, amounts)) => {
@@ -884,7 +884,7 @@ impl<'a> PTBBuilder<'a> {
                     let arg = self.resolve(arg, ToPure::new(TypeTag::U64)).await?;
                     args.push(arg);
                 }
-                let res = self.ptb.command(Tx::Command::SplitCoins(coin, args));
+                let res = self.ptb.command(Tx::Command::split_coins(coin, args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MergeCoins(pre_coin, sp!(_, coins)) => {
@@ -894,7 +894,7 @@ impl<'a> PTBBuilder<'a> {
                     let arg = self.resolve(arg, ToObject::default()).await?;
                     args.push(arg);
                 }
-                let res = self.ptb.command(Tx::Command::MergeCoins(coin, args));
+                let res = self.ptb.command(Tx::Command::merge_coins(coin, args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(

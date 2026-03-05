@@ -188,7 +188,7 @@ async fn simulate_transaction_readmask_scenarios() {
         .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let amount = builder.pure(1000u64).unwrap();
-    let split_result = builder.command(iota_types::transaction::Command::SplitCoins(
+    let split_result = builder.command(iota_types::transaction::Command::split_coins(
         gas_coin_arg,
         vec![amount],
     ));
@@ -219,7 +219,7 @@ async fn simulate_transaction_readmask_scenarios() {
         .obj(CallArg::ImmutableOrOwned(*obj_to_split))
         .unwrap();
     let huge_amount = failing_builder.pure(u64::MAX).unwrap();
-    failing_builder.command(iota_types::transaction::Command::SplitCoins(
+    failing_builder.command(iota_types::transaction::Command::split_coins(
         failing_coin_arg,
         vec![huge_amount],
     ));

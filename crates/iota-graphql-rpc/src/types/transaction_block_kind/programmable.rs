@@ -420,6 +420,7 @@ impl ProgrammableTransaction {
                 current_package: package.into(),
                 upgrade_ticket: ticket.into(),
             }),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
