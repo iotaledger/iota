@@ -48,9 +48,9 @@ pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
     /// The authentication input objects or primitive values
-    tx_inputs: Vec<AuthContextCallArg>,
+    tx_inputs: Vec<MoveCallArg>,
     /// The authentication commands to be executed sequentially.
-    tx_commands: Vec<AuthContextCommand>,
+    tx_commands: Vec<MoveCommand>,
 }
 
 impl AuthContext {
@@ -60,8 +60,8 @@ impl AuthContext {
     ) -> Self {
         Self {
             auth_digest,
-            tx_inputs: ptb.inputs.iter().map(AuthContextCallArg::from).collect(),
-            tx_commands: ptb.commands.iter().map(AuthContextCommand::from).collect(),
+            tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
+            tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
         }
     }
 
@@ -77,11 +77,11 @@ impl AuthContext {
         &self.auth_digest
     }
 
-    pub fn tx_inputs(&self) -> &Vec<AuthContextCallArg> {
+    pub fn tx_inputs(&self) -> &Vec<MoveCallArg> {
         &self.tx_inputs
     }
 
-    pub fn tx_commands(&self) -> &Vec<AuthContextCommand> {
+    pub fn tx_commands(&self) -> &Vec<MoveCommand> {
         &self.tx_commands
     }
 
@@ -132,8 +132,8 @@ impl AuthContext {
     pub fn replace(
         &mut self,
         auth_digest: MoveAuthenticatorDigest,
-        tx_inputs: Vec<AuthContextCallArg>,
-        tx_commands: Vec<AuthContextCommand>,
+        tx_inputs: Vec<MoveCallArg>,
+        tx_commands: Vec<MoveCommand>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
@@ -147,8 +147,8 @@ impl AuthContext {
 #[derive(Default, Serialize)]
 pub struct MoveAuthContext {
     auth_digest: MoveAuthenticatorDigest,
-    tx_inputs: Vec<AuthContextCallArg>,
-    tx_commands: Vec<AuthContextCommand>,
+    tx_inputs: Vec<MoveCallArg>,
+    tx_commands: Vec<MoveCommand>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -200,10 +200,10 @@ mod tests {
         assert_eq!(ctx.tx_inputs().len(), 1);
         assert_eq!(ctx.tx_commands().len(), 1);
 
-        assert!(matches!(ctx.tx_inputs()[0], AuthContextCallArg::Pure(_)));
+        assert!(matches!(ctx.tx_inputs()[0], MoveCallArg::Pure(_)));
 
         // Commands must have TypeName substituted for TypeInput.
-        let AuthContextCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
+        let MoveCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
             panic!("expected MoveCall");
         };
         assert_eq!(
@@ -227,7 +227,7 @@ mod tests {
 
         ctx.replace(
             MoveAuthenticatorDigest::default(),
-            vec![AuthContextCallArg::Pure(vec![1])],
+            vec![MoveCallArg::Pure(vec![1])],
             vec![],
         );
         let non_empty_bytes = ctx.to_bcs_bytes();
