@@ -118,6 +118,8 @@ jobs:
           version: "latest"
       - name: Build
         run: pnpm turbo build
+      - name: Typecheck docs TypeScript examples
+        run: pnpm --filter @iota/docs-ts-sdk-examples typecheck
       - name: Test
         env:
           VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}

@@ -10,11 +10,6 @@ tx.moveCall({
         tx.pure.option('u8', 1),
         tx.pure.option('u8', null),
 
-        tx.pure('vector<u8>', [1, 2, 3]),
-        tx.pure('option<u8>', 1),
-        tx.pure('option<u8>', null),
-        tx.pure('vector<option<u8>>', [1, null, 2]),
-
         tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3])),
         tx.pure(bcs.option(bcs.U8).serialize(1)),
         tx.pure(bcs.option(bcs.U8).serialize(null)),
