@@ -6786,7 +6786,7 @@ async fn test_move_authenticator_nested_vec() -> Result<(), anyhow::Error> {
         .unwrap()
         .parent()
         .unwrap()
-        .join("examples/move/account_multi_auth");
+        .join("examples/move/abstract_iota_accounts/account_multi_auth");
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
     let resp = IotaClientCommands::Publish {
