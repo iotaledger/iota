@@ -245,6 +245,10 @@ pub struct NodeConfig {
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
 
+    /// Configuration for congestion tracking parameters.
+    #[serde(default)]
+    pub congestion_tracker_config: CongestionTrackerConfig,
+
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
 
@@ -384,6 +388,57 @@ impl GrpcApiConfig {
             )
     }
 }
+
+/// Configuration for the congestion tracker behaviour.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct CongestionTrackerConfig {
+    /// Capacity of the congestion tracker cache.
+    ///
+    /// If not set, defaults to 10_000.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_capacity: Option<u64>,
+
+    /// Threshold for hotness below which an object is considered cold.
+    /// Values should be > 0.0. If set to 0.0, no pruning will happen.
+    ///
+    /// If not set, defaults to 1.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotness_cutoff: Option<f64>,
+
+    /// Controls how quickly congestion tracker updates object hotness.
+    /// Values should be > 0.0. Higher values mean faster adjustments.
+    ///
+    /// If not set, defaults to 1.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hotness_adjustment_factor: Option<f64>,
+
+    /// Controls how quickly hotness decays for objects not seen in congestion.
+    /// Values should be >= 1.0: set to > 1.0 for decay, or 1.0 for no decay.
+    ///
+    /// If not set, defaults to 2.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_decay_factor: Option<f64>,
+}
+
+impl CongestionTrackerConfig {
+    pub fn cache_capacity(&self) -> u64 {
+        self.cache_capacity.unwrap_or(10_000)
+    }
+
+    pub fn hotness_cutoff(&self) -> f64 {
+        self.hotness_cutoff.unwrap_or(1.0)
+    }
+
+    pub fn hotness_adjustment_factor(&self) -> f64 {
+        self.hotness_adjustment_factor.unwrap_or(1.0)
+    }
+
+    pub fn max_decay_factor(&self) -> f64 {
+        self.max_decay_factor.unwrap_or(2.0)
+    }
+}
+
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
