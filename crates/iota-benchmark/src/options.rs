@@ -1,13 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
 
 use clap::*;
-use strum_macros::EnumString;
 
-use crate::drivers::Interval;
+use crate::{
+    drivers::{Interval, SetupInfo},
+    workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType},
+};
 
 #[derive(Parser)]
 #[command(name = "Stress Testing Framework")]
@@ -111,8 +113,9 @@ pub struct Opts {
     pub protocol_version: Option<u64>,
 }
 
-#[derive(Debug, Clone, Parser, Eq, PartialEq, EnumString)]
+#[derive(Debug, Clone, Parser, Eq, PartialEq)]
 #[non_exhaustive]
+#[allow(clippy::large_enum_variant)]
 pub enum RunSpec {
     // Allow the ability to mix shared object and
     // single owner transactions in the benchmarking
@@ -245,4 +248,121 @@ pub enum RunSpec {
         #[arg(long, num_args(1..), value_delimiter = ',', default_values_t = [Interval::from_str("unbounded").unwrap()])]
         duration: Vec<Interval>,
     },
+
+    AbstractAccountBench {
+        #[arg(long, default_value = "ed25519")]
+        authenticator: AuthenticatorKind,
+
+        #[arg(long, default_value = "1000")]
+        split_amount: u64,
+
+        // Works only for ed25519 authenticator.
+        #[arg(long, default_value = "false")]
+        should_fail: bool,
+
+        // It determines whether to use owned object transactions
+        // or shared object transactions in the benchmark.
+        #[arg(long, default_value = "owned-object")]
+        tx_payload_obj_type: TxPayloadObjType,
+        // --- generic options ---
+        /// Target offered load in "transactions per second" for the benchmark
+        /// driver. The scheduler uses this to pace how many txs it
+        /// *attempts* to submit per second (aggregate).
+        #[arg(long, default_value = "1000")]
+        target_qps: u64,
+
+        /// Number of concurrent worker tasks generating/submitting
+        /// transactions.
+        ///
+        /// Effect on the flow:
+        /// - Workers execute in parallel: build tx payloads, sign/authenticate,
+        ///   submit, and track completions according to the driver design.
+        /// - Higher num_workers increases concurrency and can improve
+        ///   throughput *only if* the workload is shardable (independent input
+        ///   objects / accounts).
+        /// - For contention-heavy workloads (e.g, many txs touching the same
+        ///   shared object), increasing num_workers often *reduces* TPS and
+        ///   increases tail latency due to serialized execution and extra
+        ///   queuing.
+        #[arg(long, default_value = "12")]
+        num_workers: u64,
+
+        /// Maximum pipeline depth relative to the target send rate
+        /// (backpressure).
+        ///
+        /// Effect on the flow:
+        /// - The driver limits how many transactions can be "in flight"
+        ///   (submitted but not yet observed as complete) at a time.
+        /// - Larger values keep the pipeline full when end-to-end latency is
+        ///   high, which can improve throughput up to capacity.
+        /// - Too large values increase memory/CPU overhead, amplify queueing,
+        ///   and typically worsen p99 latency.
+        #[arg(long, default_value = "5")]
+        in_flight_ratio: u64,
+
+        /// Benchmark run duration (measurement window).
+        /// - "unbounded" typically means run until externally stopped (Ctrl+C
+        ///   or orchestrator stop).
+        /// - it's better to keet it unbounded and use run_duration from the
+        ///   top-level options,
+        #[arg(long, default_value = "unbounded")]
+        duration: Interval,
+    },
+}
+
+impl RunSpec {
+    pub fn get_setup_info(&self) -> SetupInfo {
+        match self {
+            RunSpec::Bench {
+                target_qps,
+                num_workers,
+                transfer_object,
+                shared_counter,
+                shared_counter_hotness_factor,
+                in_flight_ratio,
+                ..
+            } => SetupInfo {
+                test_type: "standard".to_string(),
+                scenario: format!(
+                    "transfer_object={} - shared_counter={} - shared_counter_hotness_factor={}",
+                    transfer_object
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    shared_counter
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    shared_counter_hotness_factor
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+                target_qps: target_qps.clone(),
+                workers: num_workers.clone(),
+                in_flight_ratio: in_flight_ratio.clone(),
+            },
+            RunSpec::AbstractAccountBench {
+                target_qps,
+                num_workers,
+                authenticator,
+                tx_payload_obj_type,
+                in_flight_ratio,
+                should_fail,
+                ..
+            } => SetupInfo {
+                test_type: "abstract_account".to_string(),
+                scenario: format!(
+                    "authenticator={} - obj_type={}, should_fail={}",
+                    authenticator, tx_payload_obj_type, should_fail
+                ),
+                target_qps: vec![*target_qps],
+                workers: vec![*num_workers],
+                in_flight_ratio: vec![*in_flight_ratio],
+            },
+        }
+    }
 }

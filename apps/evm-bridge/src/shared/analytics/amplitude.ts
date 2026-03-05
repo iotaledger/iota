@@ -45,11 +45,16 @@ export async function initAmplitude() {
             configuration: {
                 optOut: false,
                 autocapture: {
-                    attribution: IS_ENABLED,
-                    fileDownloads: IS_ENABLED,
-                    formInteractions: IS_ENABLED,
+                    attribution: false,
+                    fileDownloads: false,
+                    formInteractions: false,
                     pageViews: IS_ENABLED,
                     sessions: IS_ENABLED,
+                    elementInteractions: IS_ENABLED,
+                    frustrationInteractions: false,
+                    networkTracking: false,
+                    webVitals: false,
+                    pageUrlEnrichment: IS_ENABLED,
                 },
                 // set LogLevel to Debug for more verbose logging during development
                 logLevel: LogLevel.None,
