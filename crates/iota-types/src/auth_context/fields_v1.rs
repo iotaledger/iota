@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, ObjectRef, SequenceNumber},
-    transaction::{Argument, CallArg, Command},
+    transaction::{
+        Argument, CallArg, Command, MakeMoveVector, MergeCoins, ProgrammableMoveCall, Publish,
+        SplitCoins, TransferObjects, Upgrade,
+    },
     type_input::TypeName,
 };
 
@@ -98,6 +101,18 @@ impl From<&Command> for MoveCommand {
                     *upgrade_ticket,
                 )
             }
+            Command::Upgrade(Upgrade {
+                modules,
+                dependencies,
+                package,
+                ticket,
+            }) => AuthContextCommand::Upgrade(
+                modules.clone(),
+                dependencies.clone(),
+                *package,
+                *ticket,
+            ),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
@@ -202,8 +217,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
-        transaction::{Argument, CallArg, Command, ProgrammableMoveCall},
+        base_types::{Identifier, IotaAddress, ObjectDigest, ObjectID, SequenceNumber, TypeTag},
+        transaction::{Argument, CallArg, Command, ProgrammableMoveCall, SharedObjectRef},
         type_input::{StructInput, TypeInput},
     };
 
@@ -448,6 +463,7 @@ mod tests {
             type_params: vec![TypeInput::U64],
         }));
         let expected = TypeName::from(&type_input);
+        let type_tag = TypeTag::from(type_input);
 
         let cmd = Command::MoveCall(Box::new(ProgrammableMoveCall {
             package: obj_id(),
