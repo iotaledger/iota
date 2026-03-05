@@ -21,9 +21,21 @@ const typedocBaseConfig = {
   sort: ['source-order'],
   excludeInternal: true,
   excludePrivate: true,
+  excludeExternals: true,
   disableSources: true,
   hideBreadcrumbs: true,
   intentionallyNotExported: [],
+  useCodeBlocks: true,
+  parametersFormat: 'table',
+  interfacePropertiesFormat: 'table',
+  classPropertiesFormat: 'table',
+  typeDeclarationFormat: 'table',
+  enumMembersFormat: 'table',
+  indexFormat: 'table',
+  tableColumnSettings: {
+    hideSources: true,
+    leftAlignHeaders: true,
+  },
 };
 
 /** @type {import('@docusaurus/types').Config} */
