@@ -1,364 +1,72 @@
 ---
-title: Lean IMT Account - ZK Group Authentication
-description: "How to create shared accounts with zero-knowledge Merkle tree membership proofs"
+title: Authenticate Group Members with Zero-Knowledge Proofs
+description: "How to create accounts that allow any member of a group to authenticate using zero-knowledge Merkle tree membership proofs"
 tags:
   - how-to
   - move-sc
   - move-vm
 ---
 
-## About Lean IMT Accounts
+# Authenticate Group Members with Zero-Knowledge Proofs
 
-Lean IMT (Incremental Merkle Tree) Accounts enable shared account control by a large group of addresses using zero-knowledge proofs. Public keys are hashed with Poseidon and inserted into a Lean IMT. Any address in the tree can authenticate without revealing their identity (secret mode) or by disclosing their public key (public key mode).
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
-This is ideal for airdrops, DAOs, or any scenario where many addresses need to act through a single account without individual on-chain transactions for each member.
+<AccountAbstraction />
 
-:::note
-This is a proof-of-concept. A production implementation would require salt mechanisms and additional security measures to prevent unauthorized access if a public key is disclosed.
+This how-to demonstrates how to create an account controlled by a group of members, where any member can authenticate by proving they belong to the group using a Groth16 zero-knowledge proof — without revealing other members or the full member list.
+
+:::tip Recommended reading
+
+This guide builds on the [Authenticate an Account with a Public Key](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand the public key verification used here.
+
 :::
 
-## What this example shows
+:::tip Why is this possible?
 
-- Create a LeanIMTAccount with a Merkle tree root representing authorized addresses.
-- Authenticate using Groth16 zero-knowledge proofs of Merkle tree membership.
-- Support two modes: secret (anonymous) and public key (disclosed identity).
-- Hash addresses using Poseidon for efficient zero-knowledge verification.
-- Verify membership proofs on-chain without revealing the prover's identity.
+Account Abstraction allows the authenticator function to receive arbitrary byte arguments and call any available Move primitive. This means any cryptographic proof system expressible in Move can serve as the authentication mechanism — including Groth16 zk-SNARKs on BN254, which IOTA provides natively via `iota::groth16`.
 
-## How it works
+:::
 
-### Step 1: Define LeanIMTAccount structure
+## Example Code
 
-The account struct holds the UID and the Merkle tree root.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L20-L30
+1. Define the two authenticators. The account offers two modes: **secret mode**, where the user provides a separate signing key and an opaque leaf (preserving anonymity); and **public key mode**, where the signing key is the same key that was inserted into the tree (simpler, but discloses identity). Both receive a Groth16 proof and a verifying key as arguments.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L63-L105
 ```
-
-**What this does**
-- Stores the account's unique identifier (UID).
-- Holds the root hash of the Lean Incremental Merkle Tree.
-- The root represents all addresses authorized to use this account.
-- Dynamic fields can be added for additional functionality.
-
-### Step 2: Create Lean IMT account with tree root
-
-Create an account that stores the root of a Merkle tree containing authorized addresses.
+2. The authentication helpers called by each authenticator. Both verify the Ed25519 signature over the transaction digest first, then call `verify_proof`. In public key mode, the leaf is derived from the public key via a double Poseidon hash before proof verification.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L112-L142
+```
+3. The Groth16 membership proof verifier. It combines the stored tree root and the submitted leaf as the public inputs, then verifies the proof against the prepared verifying key on BN254. If the proof is invalid — meaning the leaf is not in the tree with that root — the call aborts.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move#L12-L26
+```
+4. Create the account with the Merkle tree root representing the initial set of authorized members.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L34-L45
 ```
 
-**What this does**
-- Creates a new LeanIMTAccount as a shared object.
-- Stores the Merkle tree root representing all authorized addresses.
-- Sets up the authenticator for zero-knowledge proof verification.
-- The root is generated off-chain from a set of hashed addresses.
+:::note
 
-### Step 3: Rotate account root (admin only)
+To add or remove members, call `rotate_root` with a new Merkle tree root. This function requires the transaction sender to be the account itself. In a production deployment, consider protecting this with an admin capability to prevent unauthorized membership changes.
 
-Update the Merkle tree root to change the set of authorized addresses.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L51-L57
-```
-
-**What this does**
-- Allows updating the root to add/remove authorized addresses.
-- Only the account itself can call this function (sender must be account).
-- **Warning**: This is unsafe without proper access control; consider using an admin capability.
-- Rotating the root effectively changes which addresses can authenticate.
-
-### Step 4: Secret mode authenticator (anonymous)
-
-Authenticate without revealing the public key by using a separate signing key.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L64-L82
-```
-
-**What this does**
-- Uses a `signing_public_key` different from the main public key for transaction signing.
-- Accepts a `leaf` (hash of the actual public key) without revealing it.
-- Verifies the signature against the signing key.
-- Proves the leaf is in the Merkle tree using a zero-knowledge proof.
-- Maintains privacy by not disclosing the main public key on-chain.
-
-
-### Step 5: Public key mode authenticator (disclosed identity)
-
-Authenticate with the public key disclosed on-chain.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L88-L104
-```
-
-**What this does**
-- Uses the same key for both signing and tree membership.
-- Derives the leaf directly from the public key.
-- Verifies the signature and proof in one step.
-- Simpler than secret mode but reveals the user's identity.
-
-### Step 6: Secret mode authentication logic
-
-Core authentication implementation for secret mode with separate signing key.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L112-L124
-```
-
-**What this does**
-- Verifies the Ed25519 signature using the signing public key.
-- Validates the zero-knowledge proof that the leaf is in the tree.
-- Ensures the transaction digest matches the signature.
-- Prevents replay attacks through signature verification.
-
-### Step 7: Public key mode authentication logic
-
-Authentication implementation when disclosing the public key.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L129-L141
-```
-
-**What this does**
-- Verifies the signature using the disclosed public key.
-- Derives the leaf from the public key (double Poseidon hash).
-- Validates the proof that this derived leaf is in the tree.
-- Simpler flow since signing key and tree membership key are the same.
-
-### Step 8: Verify Groth16 zero-knowledge proof
-
-Core proof verification using the Groth16 proving system.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move#L12-L26
-```
-
-**What this does**
-- Prepares the verifying key for the BN254 elliptic curve.
-- Combines the root and leaf as public inputs to the proof.
-- Converts proof points and public inputs from bytes.
-- Verifies the Groth16 proof on-chain using the BN254 curve.
-- Aborts if the proof is invalid (member not in tree).
-
-### Step 9: Hash address using Poseidon
-
-Hash an address for inclusion in the Merkle tree using Poseidon hash.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move#L32-L54
-```
-
-**What this does**
-- Converts address/bytes to two vectors of u256 values.
-- Splits the 32-byte input into two 16-byte chunks.
-- Applies Poseidon hash (BN254) to each chunk separately.
-- Combines the two hashes with a final Poseidon hash.
-- Produces a hash suitable for zero-knowledge circuits.
-
-### Step 10: Derive leaf from public key
-
-Generate the Merkle tree leaf from a public key.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move#L56-L60
-```
-
-**What this does**
-- Hashes the public key with Blake2b256 to derive an address.
-- Hashes the address bytes with Poseidon (first hash).
-- Hashes the result again with Poseidon (double hash).
-- Returns the final leaf value for Merkle tree insertion.
-- This double-hashing provides the structure needed for ZK proofs.
-
-## Verify the result
-
-**Generate tree and proofs**
-```bash
-# Clone the repository for proof generation
-git clone https://github.com/miker83z/iota-lean-imt-account
-cd iota-lean-imt-account
-
-# Generate the tree root from a set of addresses
-# This creates the Merkle tree and outputs the root
-ADDRESS=0x6b72f63997aa75e2aff.... cargo run --bin hash_address
-
-# Generate a membership proof for a specific address
-ADDRESS=0x6b72f63997aa75e2aff8e7c..... cargo run --bin generate_claim_proof
-```
-
-**Create Lean IMT account**
-```bash
-# Set the Merkle tree root
-export ROOT_HEX="4b61023a56e6b37edec2ba55c1b3f0cf0f4789431aafd6da10d32de09bb97402"
-export ROOT_BYTES=$(python3 -c "import sys; print([int('$ROOT_HEX'[i:i+2],16) for i in range(0,len('$ROOT_HEX'),2)])")
-export PTB_JSON=$(iota client ptb \
---move-call 0x2::authenticator_function::create_auth_function_ref_v1 '<'$PACKAGE_ID'::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'>' @$METADATA_ID '"'$AUTH_MODULE_NAME'"' '"'$AUTH_FUNCTION_NAME'"' \
---assign ref \
---move-call $PACKAGE_ID::$CREATE_MODULE_NAME::$CREATE_FUNCTION_NAME vector"$ROOT_BYTES" ref \
---json)
-export ABSTRACTACCOUNT=$(echo $PTB_JSON | jq -r '.objectChanges[] | select(.type == "created" and (.objectType | endswith("::'$ACCOUNT_MODULE_NAME'::'$ACCOUNT_TYPE_NAME'"))) | .objectId')
-echo "Account Object ID: $ABSTRACTACCOUNT"
-```
-
-<details>
-
-<summary>Expected output</summary>
-```bash
-Account Object ID:  0x2b5160dbaae18d79.......
-```
-
-</details>
-
-**Execute transaction with zero-knowledge proof**
-```bash
-export DOUBLE_HASHED_PUB_KEY_LEAF="3bdfd5246d42721d0a65eb7700be407b537b71f491cded4e1743b6253e353322"
-export VERIFYINGKEY="bbebdc7c4023eeb6a81fcbbc37613366f4dac6687cbe9abc5d09e4cef8899b173a2747c5442ddb898d34de2429a9b43f86b12aeea35d58ec1d97a009eb2a9c2d34d3f96ebdb7416fbedf83ff29abee30941a380166aac2b2557476f50ffe2094777610b217740ac57c573cbf6af8bce106f7772241dce3406f0b1f2b845570074dd670d78f1c9e0d29fa7113753e384f56775627c9c64dd899566f90b7813301b20482628c99f957ff584f940965bc6b711d377c76b12921e0816b421cae5c098432218eb209bb104559ddc0ad78173ebde47c918c540b82e7e6b658b52bb19e0300000000000000926536117de81e192a1c9bec13bbdfb102852c05911d2ebb306e09706547dfac4dfc834de8b175761425b0dd4080c5c3700a63a4da9548d08ab47ba968d8d09969cdb618703b45502a39c93ce22bbd739c946fba6fd4e10285806ed6de1acaa0"
-export PROOF_POINTS="641a8593665c9e415c6f7f2c57ad992566ee5af86d86f00812541e97ef1fa4182493694830c22645274d619dbdb95886a8cbf23c5f3683dd3b1a39a7953898243eab26e677c31f863201c3339c427d46ebc1390203917f39c8479135f275bf17456182c1f59a574d3390206bd51f8373384a56c407f94f677089d3d0ce9999a3"
-export SIGNED_TX_BYTES=$(iota client pay-iota --recipients 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 --amounts 1 --auth-call-args 0x$SIGNATURE_HEX 0x$SIGN_PUB_KEY_HEX 0x$DOUBLE_HASHED_PUB_KEY_LEAF 0x$VERIFYINGKEY 0x$PROOF_POINTS --serialize-signed-transaction)
-echo "Signed tx bytes: $SIGNED_TX_BYTES"
-iota client execute-combined-signed-tx --signed-tx-bytes $SIGNED_TX_BYTES
-```
-
-<details>
-<summary>Expected output</summary>
-```bash
-Signed tx bytes: AQAAAAAAAgAIAQAAAAAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQArUWDbquGNec/ssRBUp1FJTSqZoW6GJoj3DgmLxw4T2AHskWhUt9/2N4LY7JqaJGfOPdQSzPEkCILQ7w9TrusYGQIAAAAAAAAAIEsinOIXauzG6y3sgG2pqeFiuzJpYZcqzxmKTR6W2/ilK1Fg26rhjXnP7LEQVKdRSU0qmaFuhiaI9w4Ji8cOE9joAwAAAAAAAOBvPAAAAAAAAAGJBQcFAEFAFP81uMZK9yVWH3oqh3pnYSJKHhfx9RVapRE3WUHftOlZd2Ay3FAcFvLw65T0/9E0+UxD+8EcvH/DfkeZmSKrCgAhIJfr6c0GcLzyv3R4ApLydb1StlFhZBUYsS5gMjPeAjydACEgO9/VJG1Cch0KZet3AL5Ae1N7cfSRze1OF0O2JT41MyIAygLIArvr3HxAI+62qB/LvDdhM2b02sZofL6avF0J5M74iZsXOidHxUQt24mNNN4kKam0P4axKu6jXVjsHZegCesqnC000/luvbdBb77fg/8pq+4wlBo4AWaqwrJVdHb1D/4glHd2ELIXdArFfFc8v2r4vOEG93ciQdzjQG8LHyuEVXAHTdZw148cng0p+nETdT44T1Z3VifJxk3YmVZvkLeBMwGyBIJijJn5V/9YT5QJZbxrcR03fHaxKSHggWtCHK5cCYQyIY6yCbsQRVndwK14Fz695HyRjFQLgufmtli1K7GeAwAAAAAAAACSZTYRfegeGSocm+wTu9+xAoUsBZEdLrswbglwZUffrE38g03osXV2FCWw3UCAxcNwCmOk2pVI0Iq0e6lo2NCZac22GHA7RVAqOck84iu9c5yUb7pv1OEChYBu1t4ayqAAggGAAWQahZNmXJ5BXG9/LFetmSVm7lr4bYbwCBJUHpfvH6QYJJNpSDDCJkUnTWGdvblYhqjL8jxfNoPdOxo5p5U4mCQ+qybmd8MfhjIBwzOcQn1G68E5AgORfznIR5E18nW/F0VhgsH1mldNM5Aga9Ufg3M4SlbEB/lPZ3CJ09DOmZmjAAEBK1Fg26rhjXnP7LEQVKdRSU0qmaFuhiaI9w4Ji8cOE9gEAAAAAAAAAAA=
-Transaction Digest: 3bZU5JAAygMzmGvtg7pcCg8sMqYbHneud9qne4gYEBcZ
-╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Transaction Data                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        │
-├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Sender: 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              │
-│ Gas Owner: 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           │
-│ Gas Budget: 3960800 NANOS                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               │
-│ Gas Price: 1000 NANOS                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   │
-│ Gas Payment:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│  ┌──                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    │
-│  │ ID: 0xec916854b7dff63782d8ec9a9a2467ce3dd412ccf1240882d0ef0f53aeeb1819                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               │
-│  │ Version: 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           │
-│  │ Digest: 64JBy6hvjdzmDjNXEFHyuKQDXhM83srxo2exkAcTMywi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 │
-│  └──                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    │
-│                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         │
-│ Transaction Kind: Programmable                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          │
-│ ╭──────────────────────────────────────────────────────────────────────────────────────────────────────────╮                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│ │ Input Objects                                                                                            │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│ ├──────────────────────────────────────────────────────────────────────────────────────────────────────────┤                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│ │ 0   Pure Arg: Type: u64, Value: "1"                                                                      │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│ │ 1   Pure Arg: Type: address, Value: "0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215" │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            │
-│ ╭─────────────────────────╮                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │ Commands                │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ ├─────────────────────────┤                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │ 0  SplitCoins:          │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  ┌                      │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  │ Coin: GasCoin        │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  │ Amounts:             │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  │   Input  0           │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  └                      │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │                         │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │ 1  TransferObjects:     │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  ┌                      │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  │ Arguments:           │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  │   Nested Result 0: 0 │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  │ Address: Input  1    │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ │  └                      │                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│ ╰─────────────────────────╯                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         │
-│ Signatures:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             │
-│    BwUAQUAU/zW4xkr3JVYfeiqHemdhIkoeF/H1FVqlETdZQd+06Vl3YDLcUBwW8vDrlPT/0TT5TEP7wRy8f8N+R5mZIqsKACEgl+vpzQZwvPK/dHgCkvJ1vVK2UWFkFRixLmAyM94CPJ0AISA739UkbUJyHQpl63cAvkB7U3tx9JHN7U4XQ7YlPjUzIgDKAsgCu+vcfEAj7raoH8u8N2EzZvTaxmh8vpq8XQnkzviJmxc6J0fFRC3biY003iQpqbQ/hrEq7qNdWOwdl6AJ6yqcLTTT+W69t0Fvvt+D/ymr7jCUGjgBZqrCslV0dvUP/iCUd3YQshd0CsV8Vzy/avi84Qb3dyJB3ONAbwsfK4RVcAdN1nDXjxyeDSn6cRN1PjhPVndWJ8nGTdiZVm+Qt4EzAbIEgmKMmflX/1hPlAllvGtxHTd8drEpIeCBa0IcrlwJhDIhjrIJuxBFWd3ArXgXPr3kfJGMVAuC5+a2WLUrsZ4DAAAAAAAAAJJlNhF96B4ZKhyb7BO737EChSwFkR0uuzBuCXBlR9+sTfyDTeixdXYUJbDdQIDFw3AKY6TalUjQirR7qWjY0JlpzbYYcDtFUCo5yTziK71znJRvum/U4QKFgG7W3hrKoACCAYABZBqFk2ZcnkFcb38sV62ZJWbuWvhthvAIElQel+8fpBgkk2lIMMImRSdNYZ29uViGqMvyPF82g907GjmnlTiYJD6rJuZ3wx+GMgHDM5xCfUbrwTkCA5F/OchHkTXydb8XRWGCwfWaV00zkCBr1R+DczhKVsQH+U9ncInT0M6ZmaMAAQErUWDbquGNec/ssRBUp1FJTSqZoW6GJoj3DgmLxw4T2AQAAAAAAAAAAA== │
-│                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Transaction Effects                                                                               │
-├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Digest: 3bZU5JAAygMzmGvtg7pcCg8sMqYbHneud9qne4gYEBcZ                                              │
-│ Status: Success                                                                                   │
-│ Executed Epoch: 2                                                                                 │
-│                                                                                                   │
-│ Created Objects:                                                                                  │
-│  ┌──                                                                                              │
-│  │ ID: 0x50e2e9f0055e02997ed9b133ae980f935c785e6715a7d42cc8721770777cfb2a                         │
-│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
-│  │ Version: 5                                                                                     │
-│  │ Digest: Bytvq3i8zPgEamqdyj47jUTMMG9CSXgyBXNE595MSAv9                                           │
-│  └──                                                                                              │
-│ Mutated Objects:                                                                                  │
-│  ┌──                                                                                              │
-│  │ ID: 0xec916854b7dff63782d8ec9a9a2467ce3dd412ccf1240882d0ef0f53aeeb1819                         │
-│  │ Owner: Account Address ( 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8 )  │
-│  │ Version: 5                                                                                     │
-│  │ Digest: Gq6BN4Vd3KPaF26xwBdG5PYVYcFaf2beBYjNL31rxUvf                                           │
-│  └──                                                                                              │
-│ Shared Objects:                                                                                   │
-│  ┌──                                                                                              │
-│  │ ID: 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8                         │
-│  │ Version: 4                                                                                     │
-│  │ Digest: AXjHymGgWS8DBusPp1okLjS9dis4DEyqPmrDfqSxf4XB                                           │
-│  └──                                                                                              │
-│ Gas Object:                                                                                       │
-│  ┌──                                                                                              │
-│  │ ID: 0xec916854b7dff63782d8ec9a9a2467ce3dd412ccf1240882d0ef0f53aeeb1819                         │
-│  │ Owner: Account Address ( 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8 )  │
-│  │ Version: 5                                                                                     │
-│  │ Digest: Gq6BN4Vd3KPaF26xwBdG5PYVYcFaf2beBYjNL31rxUvf                                           │
-│  └──                                                                                              │
-│ Gas Cost Summary:                                                                                 │
-│    Storage Cost: 1960800 NANOS                                                                    │
-│    Computation Cost: 1000000 NANOS                                                                │
-│    Computation Cost Burned: 1000000 NANOS                                                         │
-│    Storage Rebate: 980400 NANOS                                                                   │
-│    Non-refundable Storage Fee: 0 NANOS                                                            │
-│                                                                                                   │
-│ Transaction Dependencies:                                                                         │
-│    2mF1DVbifLbngdi1pZgEojRuhYNmoJ7YwsaBX3m7EMTn                                                   │
-│    9FZCmS6g6ZTUrPCMyhPez3Lw1ydCpNHBU9ZrQ2kymFmN                                                   │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─────────────────────────────╮
-│ No transaction block events │
-╰─────────────────────────────╯
-
-╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Object Changes                                                                                   │
-├──────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Created Objects:                                                                                 │
-│  ┌──                                                                                             │
-│  │ ObjectID: 0x50e2e9f0055e02997ed9b133ae980f935c785e6715a7d42cc8721770777cfb2a                  │
-│  │ Sender: 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8                    │
-│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 ) │
-│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
-│  │ Version: 5                                                                                    │
-│  │ Digest: Bytvq3i8zPgEamqdyj47jUTMMG9CSXgyBXNE595MSAv9                                          │
-│  └──                                                                                             │
-│ Mutated Objects:                                                                                 │
-│  ┌──                                                                                             │
-│  │ ObjectID: 0xec916854b7dff63782d8ec9a9a2467ce3dd412ccf1240882d0ef0f53aeeb1819                  │
-│  │ Sender: 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8                    │
-│  │ Owner: Account Address ( 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8 ) │
-│  │ ObjectType: 0x2::coin::Coin<0x2::iota::IOTA>                                                  │
-│  │ Version: 5                                                                                    │
-│  │ Digest: Gq6BN4Vd3KPaF26xwBdG5PYVYcFaf2beBYjNL31rxUvf                                          │
-│  └──                                                                                             │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ Balance Changes                                                                                   │
-├───────────────────────────────────────────────────────────────────────────────────────────────────┤
-│  ┌──                                                                                              │
-│  │ Owner: Account Address ( 0x111111111504e9350e635d65cd38ccd2c029434c6a3a480d8947a9ba6a15b215 )  │
-│  │ CoinType: 0x2::iota::IOTA                                                                      │
-│  │ Amount: 1                                                                                      │
-│  └──                                                                                              │
-│  ┌──                                                                                              │
-│  │ Owner: Account Address ( 0x2b5160dbaae18d79cfecb11054a751494d2a99a16e862688f70e098bc70e13d8 )  │
-│  │ CoinType: 0x2::iota::IOTA                                                                      │
-│  │ Amount: -1980401                                                                               │
-│  └──                                                                                              │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
-```
-
-</details>
+:::
 
 ## Expected Behavior
-- Transactions with invalid zero-knowledge proofs are rejected.
-- Secret mode allows authentication without revealing the public key on-chain.
-- Public key mode simplifies the process by using one key for both signing and membership.
-- The account can be shared by many addresses without individual on-chain registrations.
-- Rotating the root changes which addresses are authorized to use the account.
 
+- Any member whose leaf is included in the tree can authenticate by providing a valid Groth16 proof and a signature over the transaction digest.
+- In secret mode, the submitted leaf is opaque — membership is proven without revealing the user's public key.
+- In public key mode, the leaf is derived on-chain from the disclosed public key.
+- A proof that does not correspond to the current tree root is rejected.
+- Rotating the root immediately changes which members can authenticate.
 
 ## Full Example Code
 
-The complete Move package, including comments and setup logic, is available here:
+<Tabs groupId="module" queryString>
+<TabItem value="account" label="Lean IMT account module">
 
-<Tabs groupId="language" queryString>
-
-<TabItem value="move" label="Move">
-
-**Lean IMT account module:**
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move
 ```
 
-**Lean IMT proof verification module:**
+</TabItem>
+<TabItem value="lean-imt" label="Lean IMT module">
+
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move
 ```
 
