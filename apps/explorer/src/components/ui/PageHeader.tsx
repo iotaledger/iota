@@ -103,7 +103,10 @@ export function PageHeader({
                                             {title}
                                         </span>
                                         {showCopyButton && (
-                                            <ButtonUnstyled onClick={handleCopyClick}>
+                                            <ButtonUnstyled
+                                                onClick={handleCopyClick}
+                                                aria-label="Copy to clipboard"
+                                            >
                                                 <Copy className="shrink-0 cursor-pointer" />
                                             </ButtonUnstyled>
                                         )}

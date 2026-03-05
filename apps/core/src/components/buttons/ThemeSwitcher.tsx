@@ -24,6 +24,7 @@ export function ThemeSwitcher(): React.JSX.Element {
             type={ButtonType.Ghost}
             onClick={handleOnClick}
             icon={<ThemeIcon className="h-5 w-5" />}
+            aria-label={theme === Theme.Dark ? 'Switch to light mode' : 'Switch to dark mode'}
         />
     );
 }
