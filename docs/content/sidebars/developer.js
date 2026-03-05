@@ -433,7 +433,6 @@ const developer = [
                         type: 'category',
                         label: 'Account Abstraction',
                         items: [
-                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
                             'developer/move/how-tos/account-abstraction/manage-iotaccount-fields',
                             'developer/move/how-tos/account-abstraction/rotate-iotaccount-properties',
