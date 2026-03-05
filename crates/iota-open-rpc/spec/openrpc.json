@@ -6167,6 +6167,25 @@
       "BigInt_for_uint64": {
         "type": "string"
       },
+      "CancelledTransaction": {
+        "description": "A transaction that was cancelled\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text cancelled-transaction = digest (vector version-assignment) ```",
+        "type": "object",
+        "required": [
+          "digest",
+          "versionAssignments"
+        ],
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/Digest"
+          },
+          "versionAssignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VersionAssignment"
+            }
+          }
+        }
+      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -6362,47 +6381,28 @@
         }
       },
       "ConsensusDeterminedVersionAssignments": {
-        "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
         "oneOf": [
           {
+            "description": "Cancelled transaction version assignment.",
             "type": "object",
             "required": [
-              "CancelledTransactions"
+              "cancelled_transactions",
+              "kind"
             ],
             "properties": {
-              "CancelledTransactions": {
+              "cancelled_transactions": {
                 "type": "array",
                 "items": {
-                  "type": "array",
-                  "items": [
-                    {
-                      "$ref": "#/components/schemas/Digest"
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "array",
-                        "items": [
-                          {
-                            "$ref": "#/components/schemas/ObjectId"
-                          },
-                          {
-                            "type": "integer",
-                            "format": "uint64",
-                            "minimum": 0.0
-                          }
-                        ],
-                        "maxItems": 2,
-                        "minItems": 2
-                      }
-                    }
-                  ],
-                  "maxItems": 2,
-                  "minItems": 2
+                  "$ref": "#/components/schemas/CancelledTransaction"
                 }
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "cancelled_transactions"
+                ]
               }
-            },
-            "additionalProperties": false
+            }
           }
         ]
       },
@@ -12732,6 +12732,24 @@
           },
           "epoch": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
+          }
+        }
+      },
+      "VersionAssignment": {
+        "description": "Object version assignment from consensus\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text version-assignment = object-id u64 ```",
+        "type": "object",
+        "required": [
+          "objectId",
+          "version"
+        ],
+        "properties": {
+          "objectId": {
+            "$ref": "#/components/schemas/ObjectId"
+          },
+          "version": {
+            "description": "Radix-10 encoded 64-bit unsigned integer",
+            "type": "string",
+            "format": "u64"
           }
         }
       }
