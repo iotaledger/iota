@@ -6657,16 +6657,16 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             if cancelled_transactions == &[CancelledTransaction{
                  digest: *cancelled_txn.digest(),
                  version_assignments: vec![
-                    VersionAssignment{
-                        object_id: shared_objects[0].id(),
-                        version: SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                            .unwrap()
-                    },
-                    VersionAssignment{
-                        object_id: shared_objects[1].id(),
-                        version: SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
-                            .unwrap()
-                    }
+                    VersionAssignment::new(
+                        shared_objects[0].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        .unwrap(),
+                    ),
+                    VersionAssignment::new(
+                        shared_objects[1].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+                        .unwrap(),
+                    )
                 ]
             }]
         ));

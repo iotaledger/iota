@@ -67,10 +67,7 @@ impl SharedObjVerManager {
             );
             assigned_versions.push((
                 TransactionKey::RandomnessRound(epoch_store.epoch(), round),
-                vec![VersionAssignment {
-                    object_id: ObjectID::RANDOMNESS_STATE,
-                    version: *version,
-                }],
+                vec![VersionAssignment::new(ObjectID::RANDOMNESS_STATE, *version)],
             ));
             version.increment().unwrap();
         }
@@ -211,10 +208,7 @@ impl SharedObjVerManager {
                     }
                     None => unreachable!("cancelled transaction should have cancellation info"),
                 };
-                assigned_versions.push(VersionAssignment {
-                    object_id: *id,
-                    version: assigned_version,
-                });
+                assigned_versions.push(VersionAssignment::new(*id, assigned_version));
                 is_mutable_input.push(false);
             }
         } else {
@@ -231,10 +225,7 @@ impl SharedObjVerManager {
                     *shared_input_next_versions.get(&obj.object_id).unwrap(),
                 )
             }) {
-                assigned_versions.push(VersionAssignment {
-                    object_id: *id,
-                    version: assigned_version,
-                });
+                assigned_versions.push(VersionAssignment::new(*id, assigned_version));
                 input_object_keys.push(ObjectKey(*id, assigned_version));
                 is_mutable_input.push(*mutable);
             }
@@ -254,10 +245,7 @@ impl SharedObjVerManager {
                 .zip(is_mutable_input)
                 .filter_map(|(VersionAssignment { object_id, .. }, mutable)| {
                     if mutable {
-                        Some(VersionAssignment {
-                            object_id: *object_id,
-                            version: next_version,
-                        })
+                        Some(VersionAssignment::new(*object_id, next_version))
                     } else {
                         None
                     }
@@ -391,31 +379,19 @@ mod tests {
             vec![
                 (
                     certs[0].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: init_shared_version
-                    }]
+                    vec![VersionAssignment::new(id, init_shared_version)]
                 ),
                 (
                     certs[1].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: SequenceNumber::from_u64(4)
-                    }]
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4))]
                 ),
                 (
                     certs[2].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: SequenceNumber::from_u64(4)
-                    }]
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4))]
                 ),
                 (
                     certs[3].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: SequenceNumber::from_u64(10)
-                    }]
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(10))]
                 ),
             ]
         );
@@ -473,28 +449,28 @@ mod tests {
             vec![
                 (
                     TransactionKey::RandomnessRound(0, RandomnessRound::new(1)),
-                    vec![VersionAssignment {
-                        object_id: ObjectID::RANDOMNESS_STATE,
-                        version: randomness_obj_version
-                    }]
+                    vec![VersionAssignment::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        randomness_obj_version
+                    )]
                 ),
                 (
                     certs[0].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![VersionAssignment {
-                        object_id: ObjectID::RANDOMNESS_STATE,
-                        version: next_randomness_obj_version
-                    }]
+                    vec![VersionAssignment::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
                 ),
                 (
                     certs[1].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
-                    vec![VersionAssignment {
-                        object_id: ObjectID::RANDOMNESS_STATE,
-                        version: next_randomness_obj_version
-                    }]
+                    vec![VersionAssignment::new(
+                        ObjectID::RANDOMNESS_STATE,
+                        next_randomness_obj_version
+                    )]
                 ),
             ]
         );
@@ -629,66 +605,48 @@ mod tests {
                 (
                     certs[0].key(),
                     vec![
-                        VersionAssignment {
-                            object_id: id1,
-                            version: init_shared_version_1
-                        },
-                        VersionAssignment {
-                            object_id: id2,
-                            version: init_shared_version_2
-                        }
+                        VersionAssignment::new(id1, init_shared_version_1),
+                        VersionAssignment::new(id2, init_shared_version_2)
                     ]
                 ),
                 (
                     certs[1].key(),
                     vec![
-                        VersionAssignment {
-                            object_id: id1,
-                            version: SequenceNumber::new_congested_with_suggested_gas_price(
+                        VersionAssignment::new(
+                            id1,
+                            SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
-                            .unwrap()
-                        },
-                        VersionAssignment {
-                            object_id: id2,
-                            version: SequenceNumber::CANCELLED_READ
-                        },
+                            .unwrap(),
+                        ),
+                        VersionAssignment::new(id2, SequenceNumber::CANCELLED_READ),
                     ]
                 ),
                 (
                     certs[2].key(),
-                    vec![VersionAssignment {
-                        object_id: id1,
-                        version: SequenceNumber::from_u64(4)
-                    }]
+                    vec![VersionAssignment::new(id1, SequenceNumber::from_u64(4))]
                 ),
                 (
                     certs[3].key(),
                     vec![
-                        VersionAssignment {
-                            object_id: id1,
-                            version: SequenceNumber::CANCELLED_READ
-                        },
-                        VersionAssignment {
-                            object_id: id2,
-                            version: SequenceNumber::new_congested_with_suggested_gas_price(
+                        VersionAssignment::new(id1, SequenceNumber::CANCELLED_READ),
+                        VersionAssignment::new(
+                            id2,
+                            SequenceNumber::new_congested_with_suggested_gas_price(
                                 suggested_gas_price
                             )
-                            .unwrap()
-                        }
+                            .unwrap(),
+                        )
                     ]
                 ),
                 (
                     certs[4].key(),
                     vec![
-                        VersionAssignment {
-                            object_id: ObjectID::RANDOMNESS_STATE,
-                            version: SequenceNumber::RANDOMNESS_UNAVAILABLE
-                        },
-                        VersionAssignment {
-                            object_id: id2,
-                            version: SequenceNumber::CANCELLED_READ
-                        }
+                        VersionAssignment::new(
+                            ObjectID::RANDOMNESS_STATE,
+                            SequenceNumber::RANDOMNESS_UNAVAILABLE
+                        ),
+                        VersionAssignment::new(id2, SequenceNumber::CANCELLED_READ)
                     ]
                 ),
             ]
@@ -746,31 +704,19 @@ mod tests {
             vec![
                 (
                     certs[0].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: init_shared_version
-                    },]
+                    vec![VersionAssignment::new(id, init_shared_version),]
                 ),
                 (
                     certs[1].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: SequenceNumber::from_u64(4)
-                    },]
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4)),]
                 ),
                 (
                     certs[2].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: SequenceNumber::from_u64(4)
-                    },]
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(4)),]
                 ),
                 (
                     certs[3].key(),
-                    vec![VersionAssignment {
-                        object_id: id,
-                        version: SequenceNumber::from_u64(10)
-                    },]
+                    vec![VersionAssignment::new(id, SequenceNumber::from_u64(10)),]
                 ),
             ]
         );
