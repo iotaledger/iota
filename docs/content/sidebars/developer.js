@@ -434,6 +434,7 @@ const developer = [
                         label: 'Account Abstraction',
                         link: {
                             type: 'generated-index',
+                            slug: 'developer/move/how-tos/account-abstraction',
                         },
                         items: [
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
