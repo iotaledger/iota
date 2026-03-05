@@ -67,9 +67,7 @@ IOTA Wallet and SDKs provide a flexible interface to sign transactions with vari
 <Tabs>
 <TabItem value="typescript" label="TypeScript">
 
-```typescript
-const keypair = Ed25519Keypair.deriveKeypair(TEST_MNEMONIC, `m/44'/4218'/0'/0'/0'`);
-const address = keypair.getPublicKey().toIotaAddress();
+```typescript file=../../../../examples/typescript/src/cryptography/transaction-auth/keys-addresses.ts
 ```
 
 </TabItem>

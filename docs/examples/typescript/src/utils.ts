@@ -6,10 +6,15 @@
 
 import * as path from 'path';
 import {Ed25519Keypair} from '@iota/iota-sdk/keypairs/ed25519';
-import {IotaClient, type IotaObjectChangePublished} from "@iota/iota-sdk/dist/cjs/client";
+import {IotaClient, type IotaObjectChangePublished} from "@iota/iota-sdk/client";
 import {Transaction} from '@iota/iota-sdk/transactions';
 import {execSync} from 'child_process';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+// Polyfill for __dirname in ESM context
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const SPONSOR_ADDRESS_MNEMONIC = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
 const CUSTOM_NFT_PACKAGE_PATH = "../../move/custom_nft";
@@ -119,7 +124,7 @@ async function publishPackage(iotaClient: IotaClient, keypair: Ed25519Keypair, p
     // expect(publishTxn.effects?.status.status).toEqual('success');
 
     const packageId = ((publishTxn.objectChanges?.filter(
-        (a) => a.type === 'published',
+        (a: { type: string }) => a.type === 'published',
     ) as IotaObjectChangePublished[]) ?? [])[0]?.packageId.replace(/^(0x)(0+)/, '0x') as string;
 
     // expect(packageId).toBeTypeOf('string');

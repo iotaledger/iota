@@ -64,9 +64,7 @@ let signature = Signature::new_secure(&intent_msg, signer);
 
 Here is an example in TypeScript:
 
-```typescript
-const intentMessage = messageWithIntent('TransactionData', transactionBytes);
-const signature = await this.sign(intentMessage);
+```typescript file=../../../../examples/typescript/src/cryptography/transaction-auth/intent-signing.ts
 ```
 
 Under the hood, the `new_secure` method in Rust and the `signData` method in TypesScript does the following: 

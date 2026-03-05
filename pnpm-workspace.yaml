@@ -2,6 +2,7 @@ packages:
   - "apps/**"
   - "dapps/**"
   - "docs/site"
+  - "docs/examples/typescript"
   - "sdk/**"
   - "!**/dist/**"
   - "!**/.next/**"
