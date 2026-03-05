@@ -38,8 +38,8 @@ use iota_types::{
     transaction::{
         Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ProgrammableMoveCall,
-        ProgrammableTransaction, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        ProgrammableTransaction, SenderSignedData, SharedObjectRef, SplitCoins, TransactionData,
+        TransactionDataAPI, TransactionKind, TransferObjects,
     },
 };
 use move_binary_format::CompiledModule;
@@ -2096,7 +2096,7 @@ impl IotaProgrammableTransactionBlock {
                         }
                     }
                 }
-                Command::SplitCoins(_, amounts) => {
+                Command::SplitCoins(SplitCoins { amounts, .. }) => {
                     for arg in amounts {
                         if let &Argument::Input(i) = arg {
                             if let Some(x) = result_types.get_mut(i as usize) {
@@ -2105,7 +2105,10 @@ impl IotaProgrammableTransactionBlock {
                         }
                     }
                 }
-                Command::TransferObjects(_, Argument::Input(i)) => {
+                Command::TransferObjects(TransferObjects {
+                    address: Argument::Input(i),
+                    ..
+                }) => {
                     if let Some(x) = result_types.get_mut((*i) as usize) {
                         x.replace(MoveTypeLayout::Address);
                     }

@@ -35,7 +35,10 @@ mod checked {
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
-        transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
+        transaction::{
+            Command, MakeMoveVector, MergeCoins, ProgrammableMoveCall, ProgrammableTransaction,
+            Publish, SplitCoins, TransferObjects, Upgrade,
+        },
         transfer::RESOLVED_RECEIVING_STRUCT,
         type_input::{TypeInput, TypeName},
     };
@@ -153,13 +156,14 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let mut argument_updates = Mode::empty_arguments();
         let results = match command {
-            Command::MakeMoveVec(tag_opt, args) if args.is_empty() => {
-                let Some(tag) = tag_opt else {
+            Command::MakeMoveVector(MakeMoveVector { type_, elements }) if elements.is_empty() => {
+                let Some(tag) = type_ else {
                     invariant_violation!(
-                        "input checker ensures if args are empty, there is a type specified"
+                        "input checker ensures if elements are empty, there is a type specified"
                     );
                 };
-                let tag = to_type_tag(context, tag)?;
+                // TODO
+                // let tag = to_type_tag(context, tag)?;
 
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
@@ -185,14 +189,15 @@ mod checked {
                     bytes,
                 )]
             }
-            Command::MakeMoveVec(tag_opt, args) => {
-                let args = context.splat_args(0, args)?;
+            Command::MakeMoveVector(MakeMoveVector { type_, elements }) => {
+                let args = context.splat_args(0, elements)?;
                 let mut res = vec![];
                 leb128::write::unsigned(&mut res, args.len() as u64).unwrap();
                 let mut arg_iter = args.into_iter().enumerate();
-                let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
+                let (mut used_in_non_entry_move_call, elem_ty) = match type_ {
                     Some(tag) => {
-                        let tag = to_type_tag(context, tag)?;
+                        // TODO
+                        // let tag = to_type_tag(context, tag)?;
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
                                 context.convert_type_argument_error(0, e)
@@ -240,10 +245,10 @@ mod checked {
                     res,
                 )]
             }
-            Command::TransferObjects(objs, addr_arg) => {
-                let unsplat_objs_len = objs.len();
-                let objs = context.splat_args(0, objs)?;
-                let addr_arg = context.one_arg(unsplat_objs_len, addr_arg)?;
+            Command::TransferObjects(TransferObjects { objects, address }) => {
+                let unsplat_objs_len = objects.len();
+                let objs = context.splat_args(0, objects)?;
+                let addr_arg = context.one_arg(unsplat_objs_len, address)?;
                 let objs: Vec<ObjectValue> = objs
                     .into_iter()
                     .enumerate()
@@ -257,9 +262,9 @@ mod checked {
                 }
                 vec![]
             }
-            Command::SplitCoins(coin_arg, amount_args) => {
-                let coin_arg = context.one_arg(0, coin_arg)?;
-                let amount_args = context.splat_args(1, amount_args)?;
+            Command::SplitCoins(SplitCoins { coin, amounts }) => {
+                let coin_arg = context.one_arg(0, coin)?;
+                let amount_args = context.splat_args(1, amounts)?;
                 let mut obj: ObjectValue = context.borrow_arg_mut(0, coin_arg)?;
                 let ObjectContents::Coin(coin) = &mut obj.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -287,9 +292,12 @@ mod checked {
                 context.restore_arg::<Mode>(&mut argument_updates, coin_arg, Value::Object(obj))?;
                 split_coins
             }
-            Command::MergeCoins(target_arg, coin_args) => {
-                let target_arg = context.one_arg(0, target_arg)?;
-                let coin_args = context.splat_args(1, coin_args)?;
+            Command::MergeCoins(MergeCoins {
+                coin,
+                coins_to_merge,
+            }) => {
+                let target_arg = context.one_arg(0, coin)?;
+                let coin_args = context.splat_args(1, coins_to_merge)?;
                 let mut target: ObjectValue = context.borrow_arg_mut(0, target_arg)?;
                 let ObjectContents::Coin(target_coin) = &mut target.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -338,13 +346,15 @@ mod checked {
             }) => {
                 let arguments = context.splat_args(0, arguments)?;
 
-                let module = to_identifier(context, module)?;
-                let function = to_identifier(context, function)?;
+                // TODO
+                // let module = to_identifier(context, module)?;
+                // let function = to_identifier(context, function)?;
 
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
                 for (ix, type_arg) in type_arguments.into_iter().enumerate() {
-                    let type_arg = to_type_tag(context, type_arg)?;
+                    // TODO
+                    // let type_arg = to_type_tag(context, type_arg)?;
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
@@ -374,23 +384,26 @@ mod checked {
                 context.linkage_view.reset_linkage();
                 return_values?
             }
-            Command::Publish(modules, dep_ids) => execute_move_publish::<Mode>(
+            Command::Publish(Publish {
+                modules,
+                dependencies,
+            }) => execute_move_publish::<Mode>(
                 context,
                 &mut argument_updates,
                 modules,
-                dep_ids,
+                dependencies,
                 trace_builder_opt,
             )?,
-            Command::Upgrade(modules, dep_ids, current_package_id, upgrade_ticket) => {
-                let upgrade_ticket = context.one_arg(0, upgrade_ticket)?;
-                execute_move_upgrade::<Mode>(
-                    context,
-                    modules,
-                    dep_ids,
-                    current_package_id,
-                    upgrade_ticket,
-                )?
+            Command::Upgrade(Upgrade {
+                modules,
+                dependencies,
+                package,
+                ticket,
+            }) => {
+                let ticket = context.one_arg(0, ticket)?;
+                execute_move_upgrade::<Mode>(context, modules, dependencies, package, ticket)?
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
 
         Mode::finish_command(context, mode_results, argument_updates, &results)?;
@@ -1755,23 +1768,24 @@ mod checked {
         }
     }
 
-    fn to_type_tag(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        type_input: TypeInput,
-    ) -> Result<TypeTag, ExecutionError> {
-        if context.protocol_config.validate_identifier_inputs() {
-            type_input.into_type_tag().map_err(|e| {
-                ExecutionError::new_with_source(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    e.to_string(),
-                )
-            })
-        } else {
-            // SAFETY: Preserving existing behaviour for identifier deserialization within
-            // type tags and inputs.
-            Ok(unsafe { type_input.into_type_tag_unchecked() })
-        }
-    }
+    // TODO
+    // fn to_type_tag(
+    //     context: &mut ExecutionContext<'_, '_, '_>,
+    //     type_input: TypeInput,
+    // ) -> Result<TypeTag, ExecutionError> {
+    //     if context.protocol_config.validate_identifier_inputs() {
+    //         type_input.into_type_tag().map_err(|e| {
+    //             ExecutionError::new_with_source(
+    //                 ExecutionErrorKind::VmInvariantViolation,
+    //                 e.to_string(),
+    //             )
+    //         })
+    //     } else {
+    //         // SAFETY: Preserving existing behaviour for identifier
+    // deserialization within         // type tags and inputs.
+    //         Ok(unsafe { type_input.into_type_tag_unchecked() })
+    //     }
+    // }
 
     fn get_datatype_ident(s: &CachedDatatype) -> (&AccountAddress, &IdentStr, &IdentStr) {
         let module_id = &s.defining_id;
