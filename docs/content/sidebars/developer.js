@@ -442,6 +442,7 @@ const developer = [
                             'developer/move/how-tos/account-abstraction/create-time-locked-account',
                             'developer/move/how-tos/account-abstraction/create-onesig-account',
                             'developer/move/how-tos/account-abstraction/create-spending-limit-account',
+                            'developer/move/how-tos/account-abstraction/create-lean-imt-account',
                             {
                                 type: 'category',
                                 label: 'Dynamic Multisig',
