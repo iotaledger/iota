@@ -449,7 +449,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             })?;
 
         let gas_data = iota_types::transaction::GasData {
-            payment: vec![object.compute_object_reference()],
+            objects: vec![object.compute_object_reference()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: NANOS_PER_IOTA,
@@ -905,7 +905,7 @@ impl Simulacrum {
 
         let kind = TransactionKind::ProgrammableTransaction(pt);
         let gas_data = GasData {
-            payment: vec![object.compute_object_reference()],
+            objects: vec![object.compute_object_reference()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: 1_000_000_000,
@@ -1002,7 +1002,7 @@ mod tests {
         let recipient = IotaAddress::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
-        let gas_id = tx.data().transaction_data().gas_data().payment[0].object_id;
+        let gas_id = tx.data().transaction_data().gas_data().objects[0].object_id;
         let effects = sim.execute_transaction(tx).unwrap().0;
         let gas_summary = effects.gas_cost_summary();
         let gas_paid = gas_summary.net_gas_usage();
