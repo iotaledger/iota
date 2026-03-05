@@ -19,8 +19,8 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, EndOfEpochTransactionKind,
-    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SystemPackage,
-    TransactionExpiration,
+    GasPayment as GasData, RandomnessStateUpdate, SharedObjectReference as SharedObjectRef,
+    SystemPackage, TransactionExpiration,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -1159,14 +1159,6 @@ impl Display for TransactionKind {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct GasData {
-    pub payment: Vec<ObjectRef>,
-    pub owner: IotaAddress,
-    pub price: u64,
-    pub budget: u64,
-}
-
 #[enum_dispatch(TransactionDataAPI)]
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum TransactionData {
@@ -1194,7 +1186,7 @@ impl TransactionData {
             gas_data: GasData {
                 price: GAS_PRICE_FOR_SYSTEM_TX,
                 owner: sender,
-                payment: vec![ObjectRef::new(
+                objects: vec![ObjectRef::new(
                     ObjectID::ZERO,
                     SequenceNumber::default(),
                     ObjectDigest::MIN,
@@ -1218,7 +1210,7 @@ impl TransactionData {
             gas_data: GasData {
                 price: gas_price,
                 owner: sender,
-                payment: vec![gas_payment],
+                objects: vec![gas_payment],
                 budget: gas_budget,
             },
             expiration: TransactionExpiration::None,
@@ -1256,7 +1248,7 @@ impl TransactionData {
             gas_data: GasData {
                 price: gas_price,
                 owner: gas_sponsor,
-                payment: gas_payment,
+                objects: gas_payment,
                 budget: gas_budget,
             },
             expiration: TransactionExpiration::None,
@@ -1705,7 +1697,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     fn gas(&self) -> &[ObjectRef] {
-        &self.gas_data.payment
+        &self.gas_data.objects
     }
 
     fn gas_price(&self) -> u64 {

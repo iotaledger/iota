@@ -540,9 +540,9 @@ GasCostSummary:
     - storage_cost: U64
     - storage_rebate: U64
     - non_refundable_storage_fee: U64
-GasData:
+GasPayment:
   STRUCT:
-    - payment:
+    - objects:
         SEQ:
           TYPENAME: TupleObjectReference
     - owner:
@@ -867,7 +867,7 @@ TransactionDataV1:
     - sender:
         TYPENAME: Address
     - gas_data:
-        TYPENAME: GasData
+        TYPENAME: GasPayment
     - expiration:
         TYPENAME: TransactionExpiration
 TransactionEffects:

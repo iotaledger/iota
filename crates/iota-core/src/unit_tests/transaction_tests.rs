@@ -126,7 +126,7 @@ async fn test_empty_gas_data() {
     do_transaction_test_skip_cert_checks(
         0,
         |tx| {
-            tx.gas_data_mut().payment = vec![];
+            tx.gas_data_mut().objects = vec![];
         },
         |_| {},
         |err| {
@@ -147,8 +147,8 @@ async fn test_duplicate_gas_data() {
         0,
         |tx| {
             let gas_data = tx.gas_data_mut();
-            let new_gas = gas_data.payment[0];
-            gas_data.payment.push(new_gas);
+            let new_gas = gas_data.objects[0];
+            gas_data.objects.push(new_gas);
         },
         |_| {},
         |err| {

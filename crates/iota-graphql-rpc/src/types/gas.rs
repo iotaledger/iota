@@ -182,7 +182,7 @@ impl GasInput {
             price: s.price,
             budget: s.budget,
             payment_obj_keys: s
-                .payment
+                .objects
                 .iter()
                 .map(|o| ObjectKey {
                     object_id: o.object_id.into(),
