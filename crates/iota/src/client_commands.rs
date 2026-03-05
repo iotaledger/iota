@@ -4061,22 +4061,8 @@ mod tests_process_auth_args {
     }
 
     #[test]
-    fn test_flat_vector_arg() {
+    fn test_vector_arg() {
         let signer = IotaAddress::ZERO;
-        let args = vec!["[0xAA,0xBB,0xCC]".to_string()];
-        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
-        assert_eq!(json_args.len(), 2);
-        let val = &json_args[1].to_json_value();
-        assert!(val.is_array());
-        let arr = val.as_array().unwrap();
-        assert_eq!(arr.len(), 3);
-        assert_eq!(arr[0].as_str().unwrap(), "0xAA");
-    }
-
-    #[test]
-    fn test_nested_vector_arg() {
-        let signer = IotaAddress::ZERO;
-        // Simulates: vector<vector<u8>> with two inner hex byte arrays
         let args = vec!["[0xAABBCC,0xDDEE]".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
         assert_eq!(json_args.len(), 2);
@@ -4084,27 +4070,32 @@ mod tests_process_auth_args {
         assert!(val.is_array());
         let arr = val.as_array().unwrap();
         assert_eq!(arr.len(), 2);
-        // Each element is a string (hex representation of a byte vector)
         assert_eq!(arr[0].as_str().unwrap(), "0xAABBCC");
         assert_eq!(arr[1].as_str().unwrap(), "0xDDEE");
     }
 
     #[test]
-    fn test_nested_vector_with_brackets() {
+    fn test_triple_nested_vector() {
         let signer = IotaAddress::ZERO;
-        // Simulates: vector<vector<u8>> passed as nested brackets
-        let proof1 = "0x806eedaacce5549d21251babd78c5299aac7079f48b1069537ea422f658408d2";
-        let proof2 = "0xf5bb8ca557084fc5f013cb1059c7be3dba7e4df4214ac1bba033cb4e28f2ca25";
-        let arg = format!("[{proof1},{proof2}]");
-        let args = vec![arg];
+        // Simulates: vector<vector<vector<u8>>> with nested brackets
+        let args = vec!["[[0xAA,0xBB],[0xCC]]".to_string()];
         let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
         assert_eq!(json_args.len(), 2);
         let val = &json_args[1].to_json_value();
         assert!(val.is_array());
-        let arr = val.as_array().unwrap();
-        assert_eq!(arr.len(), 2);
-        assert_eq!(arr[0].as_str().unwrap(), proof1);
-        assert_eq!(arr[1].as_str().unwrap(), proof2);
+        let outer = val.as_array().unwrap();
+        assert_eq!(outer.len(), 2);
+        // First inner array: ["0xAA", "0xBB"]
+        assert!(outer[0].is_array());
+        let first = outer[0].as_array().unwrap();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0].as_str().unwrap(), "0xAA");
+        assert_eq!(first[1].as_str().unwrap(), "0xBB");
+        // Second inner array: ["0xCC"]
+        assert!(outer[1].is_array());
+        let second = outer[1].as_array().unwrap();
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].as_str().unwrap(), "0xCC");
     }
 
     #[test]
