@@ -12,7 +12,6 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
-    MovePackage, SharedObjectReference, TypeOrigin, UpgradeInfo,
     address::Address,
     checkpoint::{
         CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
@@ -29,11 +28,9 @@ use iota_sdk_types::{
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{GenesisObject, MoveStruct, Object, ObjectData},
     transaction::{
-        CancelledTransaction, Command, ConsensusCommitPrologueV1,
-        ConsensusDeterminedVersionAssignments, GasPayment, GenesisTransaction, MakeMoveVector,
-        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, Transaction, TransactionKind, TransactionV1,
-        TransferObjects, Upgrade, VersionAssignment,
+        Command, GasPayment, GenesisTransaction, MakeMoveVector, MergeCoins, MoveCall,
+        ProgrammableTransaction, Publish, RandomnessStateUpdate, SignedTransaction, SplitCoins,
+        Transaction, TransactionKind, TransactionV1, TransferObjects, Upgrade,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -263,9 +260,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
             InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
                 TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1)
             }
-            InternalTxnKind::EndOfEpochTransaction(vec) => {
-                TransactionKind::EndOfEpoch(vec)
-            }
+            InternalTxnKind::EndOfEpochTransaction(vec) => TransactionKind::EndOfEpoch(vec),
             InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
                 TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,
@@ -317,9 +312,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
                 Self::AuthenticatorStateUpdateV1(authenticator_state_update_v1)
             }
-            TransactionKind::EndOfEpoch(vec) => {
-                Self::EndOfEpochTransaction(vec)
-            }
+            TransactionKind::EndOfEpoch(vec) => Self::EndOfEpochTransaction(vec),
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
                     epoch: randomness_state_update.epoch,

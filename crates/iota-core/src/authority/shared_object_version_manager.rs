@@ -218,10 +218,19 @@ impl SharedObjVerManager {
                 is_mutable_input.push(false);
             }
         } else {
-            for (SharedInputObject { id, mutable, .. }, assigned_version) in shared_input_objects
-                .iter()
-                .map(|obj| (obj, *shared_input_next_versions.get(&obj.id()).unwrap()))
-            {
+            for (
+                SharedObjectRef {
+                    object_id: id,
+                    mutable,
+                    ..
+                },
+                assigned_version,
+            ) in shared_input_objects.iter().map(|obj| {
+                (
+                    obj,
+                    *shared_input_next_versions.get(&obj.object_id).unwrap(),
+                )
+            }) {
                 assigned_versions.push(VersionAssignment {
                     object_id: *id,
                     version: assigned_version,
