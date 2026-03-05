@@ -107,6 +107,7 @@ jobs:
     needs:
       - diff
       - dprint-format
+      - license-check
       - typos
     if: (!cancelled() && !failure() && needs.diff.outputs.isRosetta == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_rosetta.yml
@@ -123,6 +124,9 @@ jobs:
   split-cluster:
     needs:
       - diff
+      - dprint-format
+      - license-check
+      - typos
       - rust
     if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
     uses: ./.github/workflows/_split_cluster.yml
