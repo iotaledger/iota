@@ -576,9 +576,9 @@ impl<S: PackageStore> Resolver<S> {
                 }) => {
                     // TODO
                     // let tag = as_type_tag(tag)?;
-                    if is_primitive_type_tag(&tag) {
+                    if is_primitive_type_tag(tag) {
                         for elem in elements {
-                            register_type(elem, &tag)?;
+                            register_type(elem, tag)?;
                         }
                     }
                 }

@@ -160,7 +160,7 @@ impl Display for Pretty<'_, Command> {
         let Pretty(command) = self;
         match command {
             Command::MoveCall(p) => {
-                write!(f, "{}", Pretty(&*p))
+                write!(f, "{}", Pretty(p))
             }
             Command::MakeMoveVector(cmd) => {
                 write!(f, "MakeMoveVector:\n ┌")?;

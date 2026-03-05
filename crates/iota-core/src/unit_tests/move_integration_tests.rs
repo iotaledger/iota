@@ -833,7 +833,7 @@ async fn test_entry_point_vector_empty() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec = builder.command(Command::make_move_vector(
-            Some(type_tag.clone().into()),
+            Some(type_tag.clone()),
             vec![],
         ));
         builder.programmable_move_call(
@@ -865,7 +865,7 @@ async fn test_entry_point_vector_empty() {
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let empty_vec = builder.command(Command::make_move_vector(
-            Some(type_tag.clone().into()),
+            Some(type_tag.clone()),
             vec![],
         ));
         builder.programmable_move_call(
@@ -2389,7 +2389,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
         args: Vec<Argument>,
     ) {
         let n = builder.pure(args.len() as u64).unwrap();
-        let vec = builder.command(Command::make_move_vector(Some(t.clone().into()), args));
+        let vec = builder.command(Command::make_move_vector(Some(t.clone()), args));
         builder.programmable_move_call(
             package,
             Identifier::from_static("entry_point_types"),
@@ -2509,7 +2509,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     );
     let inner_args = vec![arg, id_result, arg];
     let vec = builder.command(Command::make_move_vector(
-        Some(t.clone().into()),
+        Some(t.clone()),
         inner_args,
     ));
     let args = vec![vec, vec, vec];
@@ -2690,7 +2690,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     // invalid bcs
     let mut builder = ProgrammableTransactionBuilder::new();
     let args = vec![builder.pure_bytes(ALWAYS_INVALID_BYTES.to_vec(), false)];
-    builder.command(Command::make_move_vector(Some(t.clone().into()), args));
+    builder.command(Command::make_move_vector(Some(t.clone()), args));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2721,7 +2721,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         builder.pure(value).unwrap(),
         builder.pure_bytes(ALWAYS_INVALID_BYTES.to_vec(), false),
     ];
-    builder.command(Command::make_move_vector(Some(t.clone().into()), args));
+    builder.command(Command::make_move_vector(Some(t.clone()), args));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
