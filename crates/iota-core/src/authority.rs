@@ -1990,7 +1990,7 @@ impl AuthorityState {
             );
             let gas_object_ref = gas_object.compute_object_reference();
             // Add gas object to transaction gas payment
-            transaction.gas_data_mut().payment = vec![gas_object_ref];
+            transaction.gas_data_mut().objects = vec![gas_object_ref];
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -2189,7 +2189,7 @@ impl AuthorityState {
                 TransactionDigest::GENESIS_MARKER,
             );
             let mock_gas_object_ref = mock_gas_object.compute_object_reference();
-            transaction.gas_data_mut().payment = vec![mock_gas_object_ref];
+            transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
             Some(mock_gas_object.id())
         } else {
@@ -2323,7 +2323,7 @@ impl AuthorityState {
             kind: transaction_kind.clone(),
             sender,
             gas_data: GasData {
-                payment,
+                objects: payment,
                 owner,
                 price,
                 budget,
@@ -2373,7 +2373,7 @@ impl AuthorityState {
                     transaction.gas_owner(),
                 );
                 let gas_object_ref = dummy_gas_object.compute_object_reference();
-                transaction.gas_data_mut().payment = vec![gas_object_ref];
+                transaction.gas_data_mut().objects = vec![gas_object_ref];
                 input_objects.push(ObjectReadResult::new(
                     InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref),
                     dummy_gas_object.into(),
@@ -2404,7 +2404,7 @@ impl AuthorityState {
                     transaction.gas_owner(),
                 );
                 let gas_object_ref = dummy_gas_object.compute_object_reference();
-                transaction.gas_data_mut().payment = vec![gas_object_ref];
+                transaction.gas_data_mut().objects = vec![gas_object_ref];
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
                     reference_gas_price,
