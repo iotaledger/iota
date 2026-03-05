@@ -432,6 +432,9 @@ const developer = [
                     {
                         type: 'category',
                         label: 'Account Abstraction',
+                        link: {
+                            type: 'generated-index',
+                        },
                         items: [
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
                             'developer/move/how-tos/account-abstraction/manage-iotaccount-fields',
