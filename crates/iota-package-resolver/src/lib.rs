@@ -17,7 +17,10 @@ use iota_types::{
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{
+        Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction, SplitCoins,
+        TransferObjects,
+    },
     type_input::{StructInput, TypeInput},
 };
 use lru::LruCache;
@@ -554,19 +557,21 @@ impl<S: PackageStore> Resolver<S> {
                         register_type(arg, &sig.body)?;
                     }
                 }
-
-                Command::TransferObjects(_, arg) => register_type(arg, &TypeTag::Address)?,
-
-                Command::SplitCoins(_, amounts) => {
+                Command::TransferObjects(TransferObjects { address, .. }) => {
+                    register_type(address, &TypeTag::Address)?
+                }
+                Command::SplitCoins(SplitCoins { amounts, .. }) => {
                     for amount in amounts {
                         register_type(amount, &TypeTag::U64)?;
                     }
                 }
-
-                Command::MakeMoveVec(Some(tag), elems) => {
+                Command::MakeMoveVector(MakeMoveVector {
+                    type_: Some(tag),
+                    elements,
+                }) => {
                     let tag = as_type_tag(tag)?;
                     if is_primitive_type_tag(&tag) {
-                        for elem in elems {
+                        for elem in elements {
                             register_type(elem, &tag)?;
                         }
                     }

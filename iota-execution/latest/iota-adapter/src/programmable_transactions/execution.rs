@@ -329,14 +329,13 @@ mod checked {
                 )?;
                 vec![]
             }
-            Command::MoveCall(move_call) => {
-                let ProgrammableMoveCall {
-                    package,
-                    module,
-                    function,
-                    type_arguments,
-                    arguments,
-                } = *move_call;
+            Command::MoveCall(ProgrammableMoveCall {
+                package,
+                module,
+                function,
+                type_arguments,
+                arguments,
+            }) => {
                 let arguments = context.splat_args(0, arguments)?;
 
                 let module = to_identifier(context, module)?;
