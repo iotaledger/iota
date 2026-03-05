@@ -3995,11 +3995,44 @@ pub(crate) fn process_auth_args(
     Ok((type_args, json_args))
 }
 
+/// Creates a MoveAuthenticator signature for account addresses.
+async fn create_move_authenticator_signature(
+    client: &IotaClient,
+    address: IotaAddress,
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+) -> Result<GenericSignature, anyhow::Error> {
+    let auth_info = fetch_auth_info(client, address).await?;
+
+    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
+
+    let call_args = resolve_auth_call_args(
+        client,
+        auth_info.value.package,
+        &auth_info.value.module,
+        &auth_info.value.function,
+        &type_args,
+        json_args,
+    )
+    .await?;
+
+    let initial_shared_version = get_shared_object_version(client, &address).await?;
+
+    Ok(GenericSignature::MoveAuthenticator(
+        MoveAuthenticator::new_v1(
+            call_args,
+            type_args.into_iter().map(TypeInput::from).collect(),
+            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                id: ObjectID::from(address),
+                initial_shared_version,
+                mutable: false,
+            }),
+        ),
+    ))
+}
+
 #[cfg(test)]
 mod tests_process_auth_args {
-    use std::str::FromStr;
-
-    use iota_json::IotaJsonValue;
     use iota_types::base_types::IotaAddress;
     use serde_json::Value as JsonValue;
 
@@ -4112,40 +4145,4 @@ mod tests_process_auth_args {
         let (types, _) = process_auth_args(None, Some(&type_args), signer).unwrap();
         assert_eq!(types.len(), 2);
     }
-}
-
-/// Creates a MoveAuthenticator signature for account addresses.
-async fn create_move_authenticator_signature(
-    client: &IotaClient,
-    address: IotaAddress,
-    auth_call_args: Option<&Vec<String>>,
-    auth_type_args: Option<&Vec<String>>,
-) -> Result<GenericSignature, anyhow::Error> {
-    let auth_info = fetch_auth_info(client, address).await?;
-
-    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
-
-    let call_args = resolve_auth_call_args(
-        client,
-        auth_info.value.package,
-        &auth_info.value.module,
-        &auth_info.value.function,
-        &type_args,
-        json_args,
-    )
-    .await?;
-
-    let initial_shared_version = get_shared_object_version(client, &address).await?;
-
-    Ok(GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_v1(
-            call_args,
-            type_args.into_iter().map(TypeInput::from).collect(),
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(address),
-                initial_shared_version,
-                mutable: false,
-            }),
-        ),
-    ))
 }
