@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import * as amplitude from '@amplitude/analytics-browser';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
@@ -14,54 +13,97 @@ const IS_ENABLED =
 
 const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 
+/**
+ * Anti-bot configuration: Events are queued but not sent initially.
+ * After BOT_DETECTION_DELAY, we assume the user is human and start sending events.
+ */
+const ANTI_BOT_CONFIG = {
+    // Detection delay: bots typically leave within 2 seconds
+    DETECTION_DELAY_MS: 2000,
+    // Regular flush interval after bot detection passes
+    REGULAR_FLUSH_INTERVAL_MS: 1000,
+    // Initial flush settings (effectively disabled to queue events locally)
+    INITIAL_FLUSH_INTERVAL_MS: 3600000, // 1 hour
+    INITIAL_QUEUE_SIZE: 50,
+} as const;
+
+let IS_BOT_CLEARED = false;
+
 export async function initAmplitude() {
-    // Check consent status to determine initial opt-out state
     const consentStatus = getAmplitudeConsentStatus();
 
     if (ampli.isLoaded || consentStatus === 'declined') {
         return;
     }
-    // Delay initialization by 1s to filter out immediate ghost sessions
-    setTimeout(async () => {
-        // Abort if the user closed the tab or backgrounded the app during the delay
-        if (document.visibilityState === 'hidden') {
-            return;
-        }
 
-        // Load Amplitude normally for valid sessions
-        await ampli.load({
-            environment: 'iotaexplorer',
-            // Flip this if you'd like to test Amplitude locally
-            disabled: !IS_ENABLED,
-            client: {
-                configuration: {
-                    optOut: false,
-                    autocapture: {
-                        attribution: IS_ENABLED,
-                        fileDownloads: IS_ENABLED,
-                        formInteractions: IS_ENABLED,
-                        pageViews: IS_ENABLED,
-                        sessions: IS_ENABLED,
-                        elementInteractions: IS_ENABLED,
-                        frustrationInteractions: false,
-                        networkTracking: false,
-                        webVitals: false,
-                        pageUrlEnrichment: IS_ENABLED,
-                    },
-                    // set LogLevel to Debug for more verbose logging during development
-                    logLevel: LogLevel.None,
-                    flushIntervalMillis: 1000,
-                    flushQueueSize: 30,
+    // Load Amplitude with anti-bot flush settings
+    await ampli.load({
+        environment: 'iotaexplorer',
+        disabled: !IS_ENABLED,
+        client: {
+            configuration: {
+                optOut: false,
+                autocapture: {
+                    attribution: IS_ENABLED,
+                    fileDownloads: IS_ENABLED,
+                    formInteractions: IS_ENABLED,
+                    pageViews: IS_ENABLED,
+                    sessions: IS_ENABLED,
+                    elementInteractions: IS_ENABLED,
+                    frustrationInteractions: false,
+                    networkTracking: false,
+                    webVitals: false,
+                    pageUrlEnrichment: IS_ENABLED,
                 },
+                logLevel: LogLevel.None,
+                flushIntervalMillis: ANTI_BOT_CONFIG.INITIAL_FLUSH_INTERVAL_MS,
+                flushQueueSize: ANTI_BOT_CONFIG.INITIAL_QUEUE_SIZE,
+                identityStorage: 'localStorage',
             },
-        }).promise;
+        },
+    }).promise;
 
-        window.addEventListener('pagehide', () => {
-            amplitude.setTransport('beacon');
-            amplitude.flush();
-        });
-    }, 1000);
-
-    // Add environment plugin to set prefix dev events
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
+
+    setupAntiBotProtection();
+}
+
+/**
+ * Sets up anti-bot protection by:
+ * 1. Queueing events initially without sending them
+ * 2. After DETECTION_DELAY_MS, marking user as human and flushing events
+ * 3. Starting regular flush intervals for subsequent events
+ * 4. Handling page exit to flush remaining events
+ */
+function setupAntiBotProtection() {
+    let flushInterval: ReturnType<typeof setInterval> | null = null;
+
+    // Handle page exit: only flush if user passed bot detection
+    window.addEventListener(
+        'pagehide',
+        () => {
+            if (flushInterval) {
+                clearInterval(flushInterval);
+            }
+
+            if (IS_BOT_CLEARED) {
+                ampli.client.setTransport('beacon');
+                ampli.flush();
+            }
+        },
+        { once: true },
+    );
+
+    // After delay, assume user is human and enable regular flushing
+    setTimeout(() => {
+        IS_BOT_CLEARED = true;
+        ampli.flush(); // Send all queued events
+
+        // Start regular flushing since Amplitude's config can't be changed after init
+        flushInterval = setInterval(() => {
+            if (ampli.isLoaded) {
+                ampli.flush();
+            }
+        }, ANTI_BOT_CONFIG.REGULAR_FLUSH_INTERVAL_MS);
+    }, ANTI_BOT_CONFIG.DETECTION_DELAY_MS);
 }
