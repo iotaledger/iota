@@ -9,6 +9,7 @@ import { ampli } from './ampli';
 import { type ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
+import { Identify } from '@amplitude/analytics-browser';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
@@ -103,7 +104,7 @@ export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
         return;
     }
 
-    const identifyEvent = new amplitude.Identify();
+    const identifyEvent = new Identify();
     identifyEvent.set('network', getNetworkName(options.network, options.customRpc));
     identifyEvent.set('walletAppMode', options.extensionViewType);
     identifyEvent.set('walletVersion', Browser.runtime.getManifest().version);
