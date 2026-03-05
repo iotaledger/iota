@@ -14,14 +14,4 @@ export function useInitialPageView(activeNetwork: string): void {
     useEffect(() => {
         ampli.identify(undefined);
     }, [location.pathname, activeNetwork]);
-
-    // Log an initial page view event
-    useEffect(() => {
-        ampli.openedIotaExplorer({
-            pageDomain: window.location.hostname,
-            pagePath: location.pathname,
-            pageUrl: window.location.href,
-            activeNetwork,
-        });
-    }, []);
 }
