@@ -22,19 +22,35 @@ This how-to demonstrates how to use the builder pattern to create and share an a
 2. Optionally attach dynamic fields to the account during build time using `with_field`.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L85-L92
 ```
-3. Using dynamic fields we can all kind of additional properties to our Account like an Admin in this case.
+3. Using dynamic fields we can attach all kinds of additional properties to the account, such as an admin address.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L95-L97
 ```
 4. Finalize the account by calling `build`, which validates the authenticator and shares the account object.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L101-L113
 ```
+5. Define the authenticator function. The `#[authenticator]` attribute marks a `public`, non-`entry` function as eligible. Its parameters must be, in order: the account reference, any additional read-only inputs, `&AuthContext`, and `&TxContext`. It has no return type — returning normally authorizes the transaction; aborting rejects it. This example verifies an Ed25519 signature over the transaction digest against a public key stored as a dynamic field on the account.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L95-L103
+```
 
-## Expected Behavior
+:::tip Going further with `AuthContext`
 
-After calling `build`, the `IOTAccount` is shared on-chain and its address is returned.
-The account is ready to be used as a transaction sender, authenticated by the function reference attached during construction.
+The authenticator in step 5 only uses `TxContext` (to access the transaction digest for signature verification). More advanced authenticators can also use `AuthContext` to inspect what the transaction will do — which functions it calls, which objects it involves, and what values it passes — before deciding to authorize it. See [Enforce a Per-Transaction Spending Limit](create-spending-limit-account.mdx) and [Control Which Functions a Key Can Call](function-call-keys.mdx) for examples.
+
+:::
 
 ## Full Example Code
 
+<Tabs groupId="module" queryString>
+<TabItem value="iotaccount" label="IOTAccount module">
+
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move
 ```
+
+</TabItem>
+<TabItem value="authenticator" label="Public key authenticator module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move
+```
+
+</TabItem>
+</Tabs>

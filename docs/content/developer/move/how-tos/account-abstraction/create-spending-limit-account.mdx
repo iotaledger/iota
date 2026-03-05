@@ -1,87 +1,54 @@
 ---
-title: Spending Limit Account
-description: "How to create and manage accounts with per-transaction spending limits"
+description: "How to create accounts that enforce a maximum withdrawal amount per transaction using intent-aware authentication"
 tags:
   - how-to
   - move-sc
   - move-vm
 ---
 
+# Enforce a Per-Transaction Spending Limit
 
 import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
 
-<AccountAbstraction /> 
+<AccountAbstraction />
 
-This how-to demonstrates how to create and manage accounts with per-transaction spending limits.
+This how-to demonstrates how to create accounts that enforce a maximum withdrawal amount per transaction, by inspecting the transaction's commands before authorizing it.
 
 :::tip Recommended reading
 
-This guide builds on patterns from the [Public Key Authentication](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand public key verification used here.
+This guide builds on patterns from the [Authenticate an Account with a Public Key](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand public key verification used here.
+
+:::
+
+:::tip Why is this possible?
+
+The authenticator receives the full `AuthContext`, which includes `tx_commands()` — the ordered list of commands in the Programmable Transaction Block (PTB). This lets the authenticator inspect what the transaction will do before deciding whether to allow it. Rather than simply verifying who is sending the transaction, it can also verify what the transaction does.
 
 :::
 
 ## Example Code
 
-1. Create an account with public key authentication, an empty balance reserve, and a spending limit.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L89-L116
-```
-
-2. Define the balance reserve structure to hold withdrawable funds.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move#L22-L25
-```
-
-3. Attach the balance reserve as a dynamic field on the account.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move#L54-L59
-```
-
-4. Attach the spending limit as a dynamic field on the account.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move#L35-L40
-```
-
-5. Deposit funds to the balance reserve before withdrawing.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/balance_reserve.move#L38-L41
-```
-
-6. Define the Ed25519 authenticator that validates both signature and spending limit.
-
+1. Define the authenticator. It verifies the Ed25519 signature, scans the PTB for withdrawal commands and sums their amounts, then checks that the total does not exceed the stored spending limit.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L152-L172
 ```
-
-7. Analyze the transaction's PTB commands to find and calculate withdrawal operations.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L239-L275
+2. The two helpers called by the authenticator. `lookup_and_calculate_withdrawals` iterates over `auth_ctx.tx_commands()`, identifies calls to `withdraw_from_balance_reserve`, and resolves each amount from `auth_ctx.tx_inputs()`. `is_withdraw_call` validates that the call targets the correct package, module, function, and that the first argument is the account itself.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L239-L298
 ```
-
-8. Validate withdrawal call signatures to identify legitimate withdrawals from this account.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L276-L298
+3. Create the account with a public key, an empty balance reserve, and a spending limit — all attached as dynamic fields.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L89-L116
 ```
-
-9. Execute a withdrawal that transfers funds from the reserve within the spending limit.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L178-L194
-```
-
-10. Authenticate the total withdrawal amount against the configured spending limit.
-
-```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_authentication.move#L59-L65
+4. Fund the balance reserve and withdraw from it within the spending limit.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L178-L199
 ```
 
 ## Expected Behavior
-- Transactions with withdrawal amounts exceeding the spending limit fail with `ESpendingLimitExceeded` error.
-- Multiple withdrawal commands in a single transaction are summed and checked against the limit.
-- The spending limit decreases by the withdrawn amount after each successful withdrawal.
-- Withdrawals from insufficient balance reserves fail with `EInsufficientBalanceReserve`.
-- Only valid `withdraw_from_balance_reserve` calls from the correct package are counted.
+
+- The authenticator scans the full PTB before execution. If the sum of all `withdraw_from_balance_reserve` calls exceeds the spending limit, the transaction is rejected.
+- Only calls to `withdraw_from_balance_reserve` in this package, on the account object itself, are counted toward the limit.
+- The spending limit is also enforced at runtime inside `withdraw_from_balance_reserve` as a defense-in-depth check, and decremented after each successful withdrawal.
+- Withdrawals from an insufficient balance reserve fail with `EInsufficientBalanceReserve`.
 
 ## Full Example Code
-
-The complete Move package, including comments and setup logic, is available here:
 
 <Tabs groupId="module" queryString>
 <TabItem value="limit" label="Spending limit account module">

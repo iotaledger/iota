@@ -433,8 +433,11 @@ const developer = [
                     {
                         type: 'category',
                         label: 'Account Abstraction',
+                        link: {
+                            type: 'generated-index',
+                            slug: 'developer/move/how-tos/account-abstraction',
+                        },
                         items: [
-                            'developer/move/how-tos/account-abstraction/basic-account-authenticator',
                             'developer/move/how-tos/account-abstraction/create-iotaccount',
                             'developer/move/how-tos/account-abstraction/manage-iotaccount-fields',
                             'developer/move/how-tos/account-abstraction/rotate-iotaccount-properties',
@@ -443,15 +446,8 @@ const developer = [
                             'developer/move/how-tos/account-abstraction/create-time-locked-account',
                             'developer/move/how-tos/account-abstraction/create-onesig-account',
                             'developer/move/how-tos/account-abstraction/create-spending-limit-account',
-                            {
-                                type: 'category',
-                                label: 'Dynamic Multisig',
-                                items: [
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/dynamic-multisig-account',
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/multisig-members',
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig/transactions',
-                                ],
-                            },
+                            'developer/move/how-tos/account-abstraction/create-lean-imt-account',
+                            'developer/move/how-tos/account-abstraction/dynamic-multisig-account',
                         ],
                     },
                     {
