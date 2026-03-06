@@ -10,7 +10,7 @@ use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -255,9 +255,9 @@ impl TransactionCacheRead for PassthroughCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        self.store.multi_get_events(event_digests)
+        self.store.multi_get_events(tx_digests)
     }
 }
 

@@ -342,14 +342,14 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
 
     fn try_get_events(
         &self,
-        _digest: &iota_types::digests::TransactionEventsDigest,
+        _digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }
 
     fn get_events(
         &self,
-        digest: &iota_types::digests::TransactionEventsDigest,
+        digest: &iota_types::digests::TransactionDigest,
     ) -> Option<iota_types::effects::TransactionEvents> {
         self.try_get_events(digest).expect("storage access failed")
     }
