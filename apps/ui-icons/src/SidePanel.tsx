@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SVGProps } from 'react';
-export default function SvgSend(props: SVGProps<SVGSVGElement>) {
+export default function SvgSidePanel(props: SVGProps<SVGSVGElement>) {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -12,10 +12,11 @@ export default function SvgSend(props: SVGProps<SVGSVGElement>) {
             viewBox="0 0 24 24"
             {...props}
         >
+            <path fill="currentColor" d="m13 12-5 4V8z" />
             <path
                 fill="currentColor"
                 fillRule="evenodd"
-                d="m12.013 21.389-2.664-6.717-6.718-2.664c-.848-.337-.84-1.541.014-1.865l16.018-6.076c.806-.305 1.596.484 1.29 1.29l-6.076 16.018c-.324.854-1.528.863-1.864.014m-3.069-9.03 4.091-2.045a.5.5 0 0 1 .671.67l-2.045 4.092 1.26 3.18 4.374-11.53-11.53 4.373z"
+                d="M19.614 3c1.324 0 2.4 1.076 2.4 2.4L22 18.652C22 19.977 20.923 21 19.6 21l-15.2-.054c-1.323 0-2.4-1.023-2.4-2.346l.015-13.253c0-1.324 1.075-2.4 2.4-2.4zM4 18.999h11V5H4zm13 0h3V5h-3z"
                 clipRule="evenodd"
             />
         </svg>

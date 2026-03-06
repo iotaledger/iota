@@ -18,7 +18,7 @@ import {
     Logout,
     Expand,
     Discord,
-    Sidepanel,
+    SidePanel as SidePanelIcon,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -154,7 +154,7 @@ export function MenuList() {
                   {
                       title: 'Side Panel',
                       subtitle: sidePanel.data ? `Enabled` : 'Disabled',
-                      icon: <Sidepanel />,
+                      icon: <SidePanelIcon />,
                       tailIcon: <Toggle isToggled={!!sidePanel.data} onChange={onSidePanelClick} />,
                   },
               ]

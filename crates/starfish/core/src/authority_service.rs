@@ -1613,7 +1613,7 @@ mod tests {
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
             SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
         },
-        storage::{Store, mem_store::MemStore},
+        storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
         transaction_ref::GenericTransactionRef,
@@ -3775,7 +3775,7 @@ mod tests {
         let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
         store
             .write(
-                crate::storage::WriteBatch::new(vec![], all_headers, vec![], vec![], vec![], false),
+                WriteBatch::new(vec![], all_headers, vec![], vec![], vec![], Some(false)),
                 context.clone(),
             )
             .expect("Failed to write block headers to store");
