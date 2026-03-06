@@ -137,13 +137,7 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                             {txnData?.timestampMs && (
                                 <KeyValueInfo
                                     keyText="Date"
-                                    value={formatDate(Number(txnData.timestampMs), [
-                                        'day',
-                                        'month',
-                                        'year',
-                                        'hour',
-                                        'minute',
-                                    ])}
+                                    value={formatDate(Number(txnData.timestampMs))}
                                 />
                             )}
                         </div>
