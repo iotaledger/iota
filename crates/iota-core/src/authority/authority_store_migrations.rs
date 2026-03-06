@@ -27,38 +27,33 @@ pub async fn migrate_events(store: Arc<AuthorityStore>) {
                 continue;
             }
 
-            let effects = if let Some(effects) = store.get_effects(&effects_digest)? {
-                effects
-            } else {
+            let Some(effects) = store.get_effects(&effects_digest)? else {
                 // Skip this one if we can't find the effects
                 continue;
             };
 
-            let events_digest = if let Some(events_digest) = effects.events_digest() {
-                events_digest
-            } else {
+            let Some(events_digest) = effects.events_digest() else {
                 // There are no events so we can continue to the next entry
                 continue;
             };
 
-            let events = if let Some(events) = store.get_events_by_events_digest(events_digest)? {
-                // Check that the events we're loading do match the expected events digest for
-                // this transaction
-                let fetched_events_digest = events.digest();
-                if &fetched_events_digest != events_digest {
-                    tracing::warn!(
-                        expected_events_digest =? events_digest,
-                        fetched_events_digest =? fetched_events_digest,
-                        "fetched events don't match expected digest; skipping",
-                    );
-                    continue;
-                }
-                events
-            } else {
+            let Some(events) = store.get_events_by_events_digest(events_digest)? else {
                 // Skip this one if we can't find the events. This means they were liked already
                 // pruned
                 continue;
             };
+
+            // Check that the events we're loading do match the expected events digest for
+            // this transaction
+            let fetched_events_digest = events.digest();
+            if &fetched_events_digest != events_digest {
+                tracing::warn!(
+                    expected_events_digest =? events_digest,
+                    fetched_events_digest =? fetched_events_digest,
+                    "fetched events don't match expected digest; skipping",
+                );
+                continue;
+            }
 
             batch.insert_batch(&store.perpetual_tables.events_2, [(&txn_digest, &events)])?;
 

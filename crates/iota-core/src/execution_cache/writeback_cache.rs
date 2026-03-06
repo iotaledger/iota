@@ -929,7 +929,7 @@ impl WritebackCache {
 
         // note: if events.data.is_empty(), then there are no events for this
         // transaction. We store it anyway to avoid special cases in
-        // commint_transaction_outputs, and translate an empty events structure
+        // commit_transaction_outputs, and translate an empty events structure
         // to None when reading.
         self.metrics.record_cache_write("transaction_events");
         self.dirty
@@ -2031,7 +2031,7 @@ impl TransactionCacheRead for WritebackCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         fn map_events(events: TransactionEvents) -> Option<TransactionEvents> {
             if events.data.is_empty() {
@@ -2041,7 +2041,7 @@ impl TransactionCacheRead for WritebackCache {
             }
         }
 
-        let digests_and_tickets: Vec<_> = event_digests
+        let digests_and_tickets: Vec<_> = tx_digests
             .iter()
             .map(|d| (*d, self.cached.transaction_events.get_ticket_for_read(d)))
             .collect();

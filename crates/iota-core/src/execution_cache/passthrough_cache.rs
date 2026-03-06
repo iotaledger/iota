@@ -255,9 +255,9 @@ impl TransactionCacheRead for PassthroughCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionDigest],
+        tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        self.store.multi_get_events(event_digests)
+        self.store.multi_get_events(tx_digests)
     }
 }
 
