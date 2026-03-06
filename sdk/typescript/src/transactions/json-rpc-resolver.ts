@@ -218,7 +218,7 @@ async function resolveObjectReferences(
                 initialSharedVersion:
                     input.UnresolvedObject.initialSharedVersion ||
                     (object?.initialSharedVersion as string),
-                mutable: isUsedAsMutable(transactionData, index),
+                mutable: input.UnresolvedObject.mutable || isUsedAsMutable(transactionData, index),
             });
         } else if (isUsedAsReceiving(transactionData, index)) {
             updated = Inputs.ReceivingRef(
@@ -267,7 +267,10 @@ async function normalizeInputs(
                 return null;
             });
             const needsResolution = inputs.some(
-                (input) => input?.UnresolvedPure || input?.UnresolvedObject,
+                (input) =>
+                    input?.UnresolvedPure ||
+                    (input?.UnresolvedObject &&
+                        typeof input?.UnresolvedObject.mutable !== 'boolean'),
             );
 
             if (needsResolution) {
