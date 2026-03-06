@@ -24,7 +24,7 @@ use crate::{
     display,
     error::{TestbedError, TestbedResult},
     faults::CrashRecoverySchedule,
-    logger::{IS_LOOP, IS_OP, SwappableWriter},
+    logger::{IS_LOOP, SwappableWriter},
     logs::LogsAnalyzer,
     measurement::MeasurementsCollection,
     monitor::{Monitor, Prometheus},
@@ -1108,46 +1108,42 @@ done"#
         &mut self,
         mut generator: BenchmarkParametersGenerator<T>,
     ) -> TestbedResult<()> {
-        info!("Starting benchmarks execution");
+        display::header("Preparing testbed");
+        display::config("Commit", format!("'{}'", &self.settings.repository.commit));
+        display::newline();
 
-        let result = IS_OP
-            .scope(true, async {
-                display::header("Preparing testbed");
-                display::config("Commit", format!("'{}'", &self.settings.repository.commit));
-                display::newline();
+        // Cleanup the testbed (in case the previous run was not completed).
+        self.cleanup(true).await?;
+        let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
 
-                // Cleanup the testbed (in case the previous run was not completed).
-                self.cleanup(true).await?;
-                let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
+        display::config("dedicated_clients", self.dedicated_clients);
+        display::config("nodes", self.node_instances.len());
+        display::config("clients", self.client_instances.len());
+        display::config("metrics", self.metrics_instance.is_some());
 
-                display::config("dedicated_clients", self.dedicated_clients);
-                display::config("nodes", self.node_instances.len());
-                display::config("clients", self.client_instances.len());
-                display::config("metrics", self.metrics_instance.is_some());
-
-                display::config(
-                    "nodes",
-                    self.node_instances
-                        .iter()
-                        .map(|i| i.ssh_address().to_string())
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                );
-                display::config(
-                    "clients",
-                    self.client_instances
-                        .iter()
-                        .map(|i| i.ssh_address().to_string())
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                );
-                display::config(
-                    "metrics",
-                    self.metrics_instance
-                        .as_ref()
-                        .map(|i| i.ssh_address().to_string())
-                        .unwrap_or("<none>".to_string()),
-                );
+        display::config(
+            "nodes",
+            self.node_instances
+                .iter()
+                .map(|i| i.ssh_address().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        display::config(
+            "clients",
+            self.client_instances
+                .iter()
+                .map(|i| i.ssh_address().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        display::config(
+            "metrics",
+            self.metrics_instance
+                .as_ref()
+                .map(|i| i.ssh_address().to_string())
+                .unwrap_or("<none>".to_string()),
+        );
 
         // Update the software on all instances.
         if !self.skip_testbed_update {
@@ -1158,6 +1154,8 @@ done"#
         // Start the instance monitoring tools.
         self.start_monitoring(generator.use_internal_ip_address, &timestamp)
             .await?;
+
+        display::action("Testbed ready!");
 
         // Run all benchmarks.
         let mut i = 1;
@@ -1170,8 +1168,7 @@ done"#
                     display::config("Parameters", &parameters);
                     display::newline();
 
-                    parameters.benchmark_dir =
-                        self.benchmark_dir.join(format!("{parameters:?}"));
+                    parameters.benchmark_dir = self.benchmark_dir.join(format!("{parameters:?}"));
 
                     if !self.skip_monitoring {
                         if let Some(metrics) = &self.metrics_instance {
@@ -1305,9 +1302,5 @@ done"#
 
         display::header("Benchmark completed");
         Ok(())
-    })
-    .await;
-
-    result
-}
+    }
 }

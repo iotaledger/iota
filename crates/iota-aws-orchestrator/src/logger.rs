@@ -18,20 +18,17 @@ use tracing_subscriber::{
 
 // These act as our "Context" to route logs to the right file.
 tokio::task_local! {
-    pub static IS_OP: bool;
     pub static IS_LOOP: bool;
 }
 
 // Helper to check flags
-fn is_op() -> bool {
-    IS_OP.try_with(|v| *v).unwrap_or(false)
-}
 fn is_loop() -> bool {
     IS_LOOP.try_with(|v| *v).unwrap_or(false)
 }
 
 // Shared writer for the loop layer that can be swapped
-// This is used in `run_benchmark` to redirect logs to different set of parameters benchmarks
+// This is used in `run_benchmark` to redirect logs to different set of
+// parameters benchmarks
 pub struct SwappableWriter {
     inner: Arc<Mutex<Box<dyn Write + Send>>>,
 }
@@ -79,15 +76,9 @@ impl<'a> MakeWriter<'a> for SwappableWriter {
 }
 
 /// Initialize the logger with a file path
-pub fn init_logger<P: AsRef<Path>>(
-    benchmark_dir: P,
-    operation: &str,
-) -> std::io::Result<SwappableWriter> {
+pub fn init_logger<P: AsRef<Path>>(benchmark_dir: P) -> std::io::Result<SwappableWriter> {
     // Main logs: Accept everything that is NOT in the Op function
-    let main_filter = filter_fn(|_| !is_op());
-
-    // Op logs: Accept things inside Op, but NOT inside the Loop
-    let op_filter = filter_fn(|_| is_op() && !is_loop());
+    let main_filter = filter_fn(|_| !is_loop());
 
     // Loop logs: Accept ONLY things inside the Loop
     let loop_filter = filter_fn(|_| is_loop());
@@ -104,16 +95,7 @@ pub fn init_logger<P: AsRef<Path>>(
         .with_filter(main_filter)
         .with_filter(LevelFilter::INFO);
 
-    // Layer 2: Op Layer
-    let op_path = benchmark_dir.as_ref().join(format!("{operation}.log"));
-    let op_file = OpenOptions::new().create(true).append(true).open(op_path)?;
-    let op_layer = fmt::Layer::default()
-        .with_ansi(false)
-        .with_writer(Arc::new(op_file))
-        .with_filter(op_filter)
-        .with_filter(LevelFilter::INFO);
-
-    // Layer 3: Loop Layer - using swappable writer
+    // Layer 2: Loop Layer - using swappable writer
     let loop_writer = SwappableWriter::new();
     let loop_layer = fmt::Layer::default()
         .with_ansi(false)
@@ -121,11 +103,7 @@ pub fn init_logger<P: AsRef<Path>>(
         .with_filter(loop_filter)
         .with_filter(LevelFilter::INFO);
 
-    Registry::default()
-        .with(main_layer)
-        .with(op_layer)
-        .with(loop_layer)
-        .init();
+    Registry::default().with(main_layer).with(loop_layer).init();
 
     Ok(loop_writer)
 }

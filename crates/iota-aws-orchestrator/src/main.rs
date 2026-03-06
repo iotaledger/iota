@@ -414,7 +414,7 @@ fn init_benchmark_logger(
     let benchmark_dir = settings.results_dir.join(&commit).join(&timestamp);
     fs::create_dir_all(&benchmark_dir)?;
 
-    let swappable_writer = crate::logger::init_logger(&benchmark_dir, operation)?;
+    let swappable_writer = crate::logger::init_logger(&benchmark_dir)?;
 
     Ok((benchmark_dir, swappable_writer))
 }

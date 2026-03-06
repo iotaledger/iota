@@ -277,7 +277,6 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         // Collect all last measurements
         let last_measurements: Vec<_> = self.last_measurements_iter().collect();
 
-
         // Calculate and sum TPS for each measurement
         last_measurements.iter().map(|x| x.tps(&x.timestamp)).sum()
     }
