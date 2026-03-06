@@ -41,8 +41,9 @@ use iota_types::{
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, SenderSignedData,
-        SharedObjectRef, TransactionData, TransactionExpiration, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, MakeMoveVector,
+        MergeCoins, ProgrammableMoveCall, Publish, SenderSignedData, SharedObjectRef, SplitCoins,
+        TransactionData, TransactionExpiration, TransactionKind, TransferObjects, Upgrade,
     },
     type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
@@ -357,13 +358,92 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_type::<ObjectInfoRequestKind>(&samples)
         .unwrap();
-    tracer.trace_type::<TransactionKind>(&samples).unwrap();
     tracer
         .trace_type::<base_types::IotaAddress>(&samples)
         .unwrap();
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
-    tracer.trace_type::<Command>(&samples).unwrap();
+    // Trace all Command variants explicitly — MoveCall contains Identifier and
+    // TypeTag fields with custom serde, so trace_type alone cannot deserialize
+    // them.
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::MoveCall(ProgrammableMoveCall {
+                package: ObjectID::ZERO,
+                module: Identifier::from_static("foo"),
+                function: Identifier::from_static("bar"),
+                type_arguments: vec![TypeTag::U64],
+                arguments: vec![Argument::Gas],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::TransferObjects(TransferObjects {
+                objects: vec![Argument::Input(0)],
+                address: Argument::Gas,
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::SplitCoins(SplitCoins {
+                coin: Argument::Gas,
+                amounts: vec![Argument::Input(0)],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::MergeCoins(MergeCoins {
+                coin: Argument::Gas,
+                coins_to_merge: vec![Argument::Input(0)],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::Publish(Publish {
+                modules: vec![vec![0u8]],
+                dependencies: vec![ObjectID::ZERO],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::MakeMoveVector(MakeMoveVector {
+                type_: None,
+                elements: vec![Argument::Gas],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::MakeMoveVector(MakeMoveVector {
+                type_: Some(TypeTag::U64),
+                elements: vec![Argument::Input(0)],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &Command::Upgrade(Upgrade {
+                modules: vec![vec![0u8]],
+                dependencies: vec![ObjectID::ZERO],
+                package: ObjectID::ZERO,
+                ticket: Argument::Input(0),
+            }),
+        )
+        .unwrap();
+    tracer.trace_type::<TransactionKind>(&samples).unwrap();
     tracer.trace_type::<TypeArgumentError>(&samples).unwrap();
     tracer
         .trace_type::<TransactionExpiration>(&samples)
