@@ -832,10 +832,7 @@ async fn test_entry_point_vector_empty() {
             .unwrap();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::make_move_vector(
-            Some(type_tag.clone()),
-            vec![],
-        ));
+        let empty_vec = builder.command(Command::make_move_vector(Some(type_tag.clone()), vec![]));
         builder.programmable_move_call(
             package.object_id,
             Identifier::from_static("entry_point_vector"),
@@ -864,10 +861,7 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector whose type is generic
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::make_move_vector(
-            Some(type_tag.clone()),
-            vec![],
-        ));
+        let empty_vec = builder.command(Command::make_move_vector(Some(type_tag.clone()), vec![]));
         builder.programmable_move_call(
             package.object_id,
             Identifier::from_static("entry_point_vector"),
@@ -2508,10 +2502,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
         vec![arg],
     );
     let inner_args = vec![arg, id_result, arg];
-    let vec = builder.command(Command::make_move_vector(
-        Some(t.clone()),
-        inner_args,
-    ));
+    let vec = builder.command(Command::make_move_vector(Some(t.clone()), inner_args));
     let args = vec![vec, vec, vec];
     make_and_drop(
         &mut builder,
