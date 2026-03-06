@@ -6386,11 +6386,11 @@
             "description": "Cancelled transaction version assignment.",
             "type": "object",
             "required": [
-              "cancelled_transactions",
+              "cancelledTransactions",
               "kind"
             ],
             "properties": {
-              "cancelled_transactions": {
+              "cancelledTransactions": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/CancelledTransaction"
@@ -6399,7 +6399,7 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "cancelled_transactions"
+                  "cancelledTransactions"
                 ]
               }
             }
