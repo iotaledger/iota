@@ -53,14 +53,6 @@ AuthorityQuorumSignInfo:
           CONTENT: U8
           SIZE: 48
     - signers_map: BYTES
-BinaryConsensusDeterminedVersionAssignments:
-  ENUM:
-    0:
-      CancelledTransactions:
-        STRUCT:
-          - cancelled_transactions:
-              SEQ:
-                TYPENAME: CancelledTransaction
 CallArg:
   ENUM:
     0:
@@ -317,7 +309,15 @@ ConsensusCommitPrologueV1:
     - consensusCommitDigest:
         TYPENAME: Digest
     - consensusDeterminedVersionAssignments:
-        TYPENAME: BinaryConsensusDeterminedVersionAssignments
+        TYPENAME: ConsensusDeterminedVersionAssignments
+ConsensusDeterminedVersionAssignments:
+  ENUM:
+    0:
+      CancelledTransactions:
+        STRUCT:
+          - cancelled_transactions:
+              SEQ:
+                TYPENAME: CancelledTransaction
 Data:
   ENUM:
     0:
