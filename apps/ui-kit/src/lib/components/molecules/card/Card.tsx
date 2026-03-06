@@ -5,7 +5,7 @@ import cx from 'classnames';
 import { CARD_DISABLED_CLASSES, CARD_TYPE_CLASSES } from './card.classes';
 import { CardType } from './card.enums';
 
-export interface CardProps {
+export interface CardProps extends React.AriaAttributes {
     /**
      * If `true`, the card will be disabled.
      */
@@ -44,25 +44,29 @@ export function Card({
     onClick,
     children,
     testId,
+    ...ariaProps
 }: CardProps) {
     function handleOnClick() {
         if (!isDisabled) {
             onClick?.();
         }
     }
+    const isClickable = !isDisabled && onClick;
     return (
         <div
             onClick={handleOnClick}
+            role={isClickable ? 'button' : undefined}
             className={cx(
                 'relative inline-flex w-full items-center gap-3 rounded-xl px-sm py-xs',
                 CARD_TYPE_CLASSES[type],
                 {
-                    'state-layer': isHoverable || (!isDisabled && onClick),
+                    'state-layer': isHoverable || isClickable,
                     [CARD_DISABLED_CLASSES]: isDisabled,
                     'cursor-pointer': onClick,
                 },
             )}
             data-testid={testId}
+            {...ariaProps}
         >
             {children}
         </div>

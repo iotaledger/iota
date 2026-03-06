@@ -140,6 +140,9 @@ vercel.json @iotaledger/tooling
 /docs/ @iotaledger/devrel
 /examples/ @iotaledger/devrel
 
+# TS SDK docs are co-owned between tooling and devrel
+/docs/content/developer/ts-sdk/ @iotaledger/tooling @iotaledger/devrel
+
 # Override ownership of Boxfish Studio and the tooling team for the following files
 /docs/**/package.json @iotaledger/devrel
 /docs/**/vercel.json @iotaledger/devrel

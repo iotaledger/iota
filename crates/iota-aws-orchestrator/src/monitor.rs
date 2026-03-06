@@ -39,6 +39,7 @@ impl Monitor {
         let mut commands = Vec::new();
         commands.extend(Prometheus::install_commands());
         commands.extend(Grafana::install_commands());
+        commands.extend(Tempo::install_commands());
         commands
     }
 
@@ -78,6 +79,15 @@ impl Monitor {
     /// The public address of the grafana instance.
     pub fn grafana_address(&self) -> String {
         format!("http://{}:{}", self.instance.main_ip, Grafana::DEFAULT_PORT)
+    }
+
+    pub async fn start_tempo(&self) -> MonitorResult<()> {
+        let instance = std::iter::once(self.instance.clone());
+        let commands = Tempo::setup_commands();
+        self.ssh_manager
+            .execute(instance, commands, CommandContext::default())
+            .await?;
+        Ok(())
     }
 }
 
@@ -301,6 +311,8 @@ impl Grafana {
             "deleteDatasources:",
             "  - name: testbed",
             "    orgId: 1",
+            "  - name: tempo",
+            "    orgId: 1",
             "datasources:",
             "  - name: testbed",
             "    type: prometheus",
@@ -309,6 +321,14 @@ impl Grafana {
             &format!("    url: http://localhost:{}", Prometheus::DEFAULT_PORT),
             "    editable: true",
             "    uid: prometheus",
+            "",
+            "  - name: tempo",
+            "    type: tempo",
+            "    access: proxy",
+            "    orgId: 1",
+            &format!("    url: http://localhost:{}", Tempo::DEFAULT_PORT),
+            "    editable: true",
+            "    uid: tempo",
         ]
         .join("\n")
     }
@@ -408,5 +428,166 @@ impl LocalGrafana {
             &format!("    uid: UID-{index}"),
         ]
         .join("\n")
+    }
+}
+
+pub struct Tempo;
+
+impl Tempo {
+    pub const DEFAULT_PORT: u16 = 3200;
+    const BASE_DIR: &'static str = "/etc/iota-monitoring/tempo";
+    pub const OTLP_GRPC_PORT: u16 = 4317;
+    pub const OTLP_HTTP_PORT: u16 = 4318;
+
+    pub fn install_commands() -> Vec<&'static str> {
+        vec![
+            "sudo apt-get update",
+            // docker-compose-v2 is required for the docker compose file, but it is not available
+            // in all distributions, so we install it from the official docker repository. The
+            // docker.io package is required as a dependency for docker-compose-v2.
+            "sudo apt-get -y install software-properties-common",
+            "sudo add-apt-repository -y universe || true",
+            "sudo apt-get update",
+            // Install docker and compose v2, not docker-compose-plugin
+            "sudo apt-get -y install docker.io docker-compose-v2",
+            "sudo systemctl enable --now docker",
+            "sudo docker version",
+            "sudo docker compose version || true",
+        ]
+    }
+
+    pub fn setup_commands() -> String {
+        let dir = Self::BASE_DIR;
+
+        let docker_compose = format!(
+            r#"version: "3.8"
+services:
+  tempo:
+    image: grafana/tempo:2.9.0
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:{tempo}:{tempo}"
+
+  otelcol:
+    image: otel/opentelemetry-collector-contrib:0.90.0
+    command: ["--config=/etc/otelcol.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol.yaml:ro
+    ports:
+      - "0.0.0.0:{grpc}:{grpc}"
+      - "0.0.0.0:{http}:{http}"
+    depends_on:
+      - tempo
+
+volumes:
+  tempo-data: {{}}
+"#,
+            tempo = Self::DEFAULT_PORT,  // 3200
+            grpc = Self::OTLP_GRPC_PORT, // 4317
+            http = Self::OTLP_HTTP_PORT, // 4318
+        );
+
+        let tempo_yaml = format!(
+            r#"server:
+  http_listen_port: {tempo}
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:{grpc}
+        http:
+          endpoint: 0.0.0.0:{http}
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+metrics_generator:
+  storage:
+    path: /var/tempo/generator/wal
+  traces_storage:
+    path: /var/tempo/generator/traces
+  processor:
+    local_blocks:
+      filter_server_spans: false
+
+# Solution to RATE_LIMITED for ingestion
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [local-blocks]
+    ingestion:
+      rate_strategy: local
+      rate_limit_bytes: 100000000   # 100 MB/s
+      burst_size_bytes: 200000000   # 200 MB burst
+"#,
+            tempo = Self::DEFAULT_PORT,
+            grpc = Self::OTLP_GRPC_PORT,
+            http = Self::OTLP_HTTP_PORT,
+        );
+
+        let otel_yaml = r#"receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch:
+    timeout: 1s
+    send_batch_size: 256
+    send_batch_max_size: 512
+
+exporters:
+  otlphttp:
+    endpoint: http://tempo:4318
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp]
+"#;
+
+        format!(
+            r#"set -euo pipefail
+sudo mkdir -p {dir}
+
+sudo tee {dir}/docker-compose.yml >/dev/null <<'YAML'
+{docker_compose}
+YAML
+
+sudo tee {dir}/tempo.yaml >/dev/null <<'YAML'
+{tempo_yaml}
+YAML
+
+sudo tee {dir}/otel-collector.yaml >/dev/null <<'YAML'
+{otel_yaml}
+YAML
+
+cd {dir}
+sudo docker compose down --remove-orphans -v || true
+sudo docker compose up -d --remove-orphans
+"#,
+            dir = dir,
+            docker_compose = docker_compose,
+            tempo_yaml = tempo_yaml,
+            otel_yaml = otel_yaml,
+        )
     }
 }
