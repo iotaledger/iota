@@ -55,8 +55,8 @@ mod test {
         base_types::{ConciseableName, ObjectID, SequenceNumber},
         digests::TransactionDigest,
         full_checkpoint_content::CheckpointData,
-        messages_consensus::{CancelledTransaction, VersionAssignment},
         messages_checkpoint::VerifiedCheckpoint,
+        messages_consensus::{CancelledTransaction, VersionAssignment},
         supported_protocol_versions::SupportedProtocolVersions,
         traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType},
         transaction::{
