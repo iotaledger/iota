@@ -298,14 +298,16 @@ impl Store for RocksDBStore {
             }
         }
 
-        if write_batch.fast_commit_sync_flag {
-            batch
-                .insert_batch(&self.fast_commit_sync_flag, [((), ())])
-                .map_err(ConsensusError::RocksDBFailure)?;
-        } else {
-            batch
-                .delete_batch(&self.fast_commit_sync_flag, [()])
-                .map_err(ConsensusError::RocksDBFailure)?;
+        if let Some(flag) = write_batch.fast_commit_sync_flag {
+            if flag {
+                batch
+                    .insert_batch(&self.fast_commit_sync_flag, [((), ())])
+                    .map_err(ConsensusError::RocksDBFailure)?;
+            } else {
+                batch
+                    .delete_batch(&self.fast_commit_sync_flag, [()])
+                    .map_err(ConsensusError::RocksDBFailure)?;
+            }
         }
 
         batch.write()?;

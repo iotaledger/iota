@@ -15,6 +15,7 @@ import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { SidePanel } from '_src/polyfills/sidepanel';
+import { resolveApplicationName } from '_src/shared/utils';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
@@ -62,8 +63,12 @@ export function SiteConnectPage() {
                         allowed,
                     }),
                 );
+                const resolvedAppName = resolveApplicationName(
+                    permissionRequest.name,
+                    permissionRequest.origin,
+                );
                 ampli.respondedToConnectionRequest({
-                    applicationName: permissionRequest.name,
+                    applicationName: resolvedAppName,
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
@@ -97,6 +102,19 @@ export function SiteConnectPage() {
         },
         [handleOnSubmit],
     );
+
+    useEffect(() => {
+        if (permissionRequest) {
+            const resolvedAppName = resolveApplicationName(
+                permissionRequest.name,
+                permissionRequest.origin,
+            );
+            ampli.dappConnectStarted({
+                applicationName: resolvedAppName,
+                applicationUrl: permissionRequest.origin,
+            });
+        }
+    }, [permissionRequest]);
 
     return (
         <Loading loading={loading}>

@@ -17,6 +17,7 @@ chrono.workspace = true
 clap.workspace = true
 color-eyre = "0.6"
 crossterm.workspace = true
+duration-str.workspace = true
 eyre.workspace = true
 futures.workspace = true
 prettytable-rs = "0.10"
@@ -30,6 +31,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
 # internal dependencies
+iota-benchmark.workspace = true
 iota-build-cache-server.workspace = true
 iota-config.workspace = true
 iota-metrics.workspace = true
