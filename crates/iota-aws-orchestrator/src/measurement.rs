@@ -328,10 +328,97 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 
     /// Aggregate the stdev latency of multiple data points by taking the max.
     pub fn aggregate_stdev_latency(&self) -> Duration {
-        self.last_measurements_iter()
-            .map(|x| x.stdev_latency())
-            .max()
-            .unwrap_or_default()
+    pub fn workload_p50_latency(&self) -> HashMap<String, Duration> {
+        // Aggregate buckets and counts for each workload across all scrapers
+        let mut workload_data: HashMap<String, (HashMap<BucketId, usize>, usize)> = HashMap::new();
+
+        for measurement in self.last_measurements_iter() {
+            workload_data
+                .entry(measurement.workload.clone())
+                .and_modify(|(buckets, count)| {
+                    // Sum bucket counts
+                    for (bucket_id, bucket_count) in &measurement.buckets {
+                        *buckets.entry(bucket_id.clone()).or_insert(0) += bucket_count;
+                    }
+                    *count += measurement.count;
+                })
+                .or_insert((measurement.buckets.clone(), measurement.count));
+        }
+
+        // Calculate P50 for each workload from aggregated buckets
+        workload_data
+            .into_iter()
+            .map(|(workload, (buckets, count))| {
+                let p50 = p50_latency(&buckets, count);
+                (workload, p50)
+            })
+            .collect()
+    }
+
+    /// Aggregate the P50 latency by combining all histogram buckets and
+    /// calculating P50 from the combined histogram.
+    pub fn aggregate_p50_latency(&self) -> Duration {
+        let last_measurements: Vec<_> = self.last_measurements_iter().collect();
+
+        // Aggregate all buckets across all workloads and scrapers
+        let mut combined_buckets: HashMap<BucketId, usize> = HashMap::new();
+        let mut total_count = 0;
+
+        for measurement in &last_measurements {
+            for (bucket_id, bucket_count) in &measurement.buckets {
+                *combined_buckets.entry(bucket_id.clone()).or_insert(0) += bucket_count;
+            }
+            total_count += measurement.count;
+        }
+
+        // Calculate P50 from combined histogram
+        p50_latency(&combined_buckets, total_count)
+    }
+
+    pub fn workload_p99_latency(&self) -> HashMap<String, Duration> {
+        // Aggregate buckets and counts for each workload across all scrapers
+        let mut workload_data: HashMap<String, (HashMap<BucketId, usize>, usize)> = HashMap::new();
+
+        for measurement in self.last_measurements_iter() {
+            workload_data
+                .entry(measurement.workload.clone())
+                .and_modify(|(buckets, count)| {
+                    // Sum bucket counts
+                    for (bucket_id, bucket_count) in &measurement.buckets {
+                        *buckets.entry(bucket_id.clone()).or_insert(0) += bucket_count;
+                    }
+                    *count += measurement.count;
+                })
+                .or_insert((measurement.buckets.clone(), measurement.count));
+        }
+
+        // Calculate P99 for each workload from aggregated buckets
+        workload_data
+            .into_iter()
+            .map(|(workload, (buckets, count))| {
+                let p99 = p99_latency(&buckets, count);
+                (workload, p99)
+            })
+            .collect()
+    }
+
+    /// Aggregate the P99 latency by combining all histogram buckets and
+    /// calculating P99 from the combined histogram.
+    pub fn aggregate_p99_latency(&self) -> Duration {
+        let last_measurements: Vec<_> = self.last_measurements_iter().collect();
+
+        // Aggregate all buckets across all workloads and scrapers
+        let mut combined_buckets: HashMap<BucketId, usize> = HashMap::new();
+        let mut total_count = 0;
+
+        for measurement in &last_measurements {
+            for (bucket_id, bucket_count) in &measurement.buckets {
+                *combined_buckets.entry(bucket_id.clone()).or_insert(0) += bucket_count;
+            }
+            total_count += measurement.count;
+        }
+
+        p99_latency(&combined_buckets, total_count)
     }
 
     /// Save the collection of measurements as a json file.
@@ -435,6 +522,10 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         let average_latency = self.aggregate_average_latency();
         let workload_stdev_latency = self.workload_stdev_latency();
         let stdev_latency = self.aggregate_stdev_latency();
+        let workload_p50_latency = self.workload_p50_latency();
+        let p50_latency = self.aggregate_p50_latency();
+        let workload_p99_latency = self.workload_p99_latency();
+        let p99_latency = self.aggregate_p99_latency();
 
         let target = self.parameters.load as f64;
         let achieved = total_tps as f64;
@@ -513,7 +604,24 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             );
         }
         table.add_row(row![bH2->""]);
-        table.add_row(row![bH2->"Per-workload stdev latency"]);
+
+        table.add_row(row![b->"Latency (p50):", format!("{} ms", p50_latency.as_millis())]);
+        for (workload, latency) in &workload_p50_latency {
+            table.add_row(
+                row![b->format!("  {workload} p50 Latency:"), format!("{} ms", latency.as_millis())],
+            );
+        }
+        table.add_row(row![bH2->""]);
+
+        table.add_row(row![b->"Latency (p99):", format!("{} ms", p99_latency.as_millis())]);
+        for (workload, latency) in &workload_p99_latency {
+            table.add_row(
+                row![b->format!("  {workload} p99 Latency:"), format!("{} ms", latency.as_millis())],
+            );
+        }
+        table.add_row(row![bH2->""]);
+
+        table.add_row(row![b->"Latency (stdev):", format!("{} ms", stdev_latency.as_millis())]);
         for (workload, latency) in &workload_stdev_latency {
             table.add_row(
                 row![b->format!("  {workload} stdev:"), format!("{} ms", latency.as_millis())],
@@ -538,6 +646,98 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             .flat_map(|workload_map| workload_map.values())
             .filter_map(|measurements| measurements.last())
     }
+}
+
+/// Compute the P50 (median) latency from histogram buckets.
+fn p50_latency(buckets: &HashMap<BucketId, usize>, count: usize) -> Duration {
+    histogram_quantile(&buckets, count, 0.5)
+}
+
+/// Compute the P99 latency from histogram buckets using.
+fn p99_latency(buckets: &HashMap<BucketId, usize>, count: usize) -> Duration {
+    histogram_quantile(&buckets, count, 0.99)
+}
+
+/// Calculate a quantile from histogram buckets using linear interpolation,
+/// matching Prometheus's histogram_quantile behavior.
+fn histogram_quantile(buckets: &HashMap<BucketId, usize>, count: usize, quantile: f64) -> Duration {
+    if count == 0 || quantile < 0.0 || quantile > 1.0 {
+        return Duration::default();
+    }
+
+    // Parse and sort buckets by boundary
+    let mut buckets: Vec<(f64, usize)> = buckets
+        .iter()
+        .filter_map(|(bucket, count)| {
+            let bound = if bucket == "inf" {
+                f64::INFINITY
+            } else {
+                bucket.parse::<f64>().ok()?
+            };
+            Some((bound, *count))
+        })
+        .collect();
+
+    if buckets.is_empty() {
+        return Duration::default();
+    }
+
+    buckets.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+    // The rank we're looking for (0.5 for P50 means the middle observation)
+    let rank = quantile * count as f64;
+
+    // Handle edge cases
+    if rank < 0.0 {
+        return Duration::default();
+    }
+
+    // Find the two buckets between which the quantile falls
+    //
+    // Example: Calculate P50 (median) with 1000 total observations
+    // Buckets: [(0.5s, 400), (1.0s, 800), (2.0s, 1000)]
+    // This means: 400 observations ≤ 0.5s, 800 observations ≤ 1.0s, 1000 observations ≤ 2.0s
+    //
+    // rank = 0.5 * 1000 = 500 (we want the 500th observation)
+    //
+    // Iteration 1: bound=0.5s, count=400
+    //   - 400 < 500, so P50 is not in this bucket, continue
+    //   - prev_count=400, prev_bound=0.5
+    //
+    // Iteration 2: bound=1.0s, count=800
+    //   - 800 >= 500, so P50 is in this bucket (between observations 400-800)
+    //   - Linear interpolation:
+    //     fraction = (500 - 400) / (800 - 400) = 100 / 400 = 0.25
+    //     interpolated = 0.5 + (1.0 - 0.5) * 0.25 = 0.5 + 0.125 = 0.625s
+    //   - The 500th observation is estimated at 0.625s
+    let mut prev_count = 0.0;
+    let mut prev_bound = 0.0;
+
+    for (bound, count) in buckets {
+        let count_f64 = count as f64;
+
+        // If this bucket contains our quantile
+        if count_f64 >= rank {
+            // If this is the first bucket or all observations are in this bucket
+            if prev_count == 0.0 || count_f64 == prev_count {
+                return Duration::from_secs_f64(bound);
+            }
+
+            // Linear interpolation between prev_bound and bound
+            // Formula: prev_bound + (bound - prev_bound) * ((rank - prev_count) / (count -
+            // prev_count))
+            let fraction = (rank - prev_count) / (count_f64 - prev_count);
+            let interpolated = prev_bound + (bound - prev_bound) * fraction;
+
+            return Duration::from_secs_f64(interpolated);
+        }
+
+        prev_count = count_f64;
+        prev_bound = bound;
+    }
+
+    // If we get here, return the last finite bucket boundary
+    Duration::from_secs_f64(prev_bound)
 }
 
 #[cfg(test)]
@@ -586,6 +786,43 @@ mod test {
         // sqrt( squared_sum / count - avg^2 )
         let stdev = data.stdev_latency();
         assert_eq!((stdev.as_secs_f64() * 10.0).round(), 7.0);
+    }
+
+    #[test]
+    fn p50_latency() {
+        // Test with the example histogram from prometheus_parse test
+        // Total count: 1860, P50 should be at observation 930
+        // Buckets show: 506 at 0.5s, 1282 at 0.75s
+        // So P50 falls between 0.5s and 0.75s buckets
+        // Linear interpolation: 0.5 + (0.75 - 0.5) * ((930 - 506) / (1282 - 506))
+        //                     = 0.5 + 0.25 * (424 / 776)
+        //                     = 0.5 + 0.25 * 0.5464
+        //                     = 0.5 + 0.1366
+        //                     = 0.6366s ≈ 637ms
+        let data = Measurement {
+            workload: "transfer_object".into(),
+            timestamp: Duration::from_secs(30),
+            buckets: [
+                ("0.1".into(), 0),
+                ("0.25".into(), 0),
+                ("0.5".into(), 506),
+                ("0.75".into(), 1282),
+                ("1".into(), 1693),
+                ("1.25".into(), 1816),
+                ("1.5".into(), 1860),
+                ("inf".into(), 1860),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
+            sum: Duration::from_secs(1265),
+            count: 1860,
+            squared_sum: Duration::from_secs(952),
+        };
+
+        let p50 = super::p50_latency(&data.buckets, data.count);
+        // Should be around 636-637ms
+        assert!(p50.as_millis() >= 636 && p50.as_millis() <= 637);
     }
 
     #[test]
