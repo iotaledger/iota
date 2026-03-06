@@ -151,7 +151,6 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
         return accountInstances;
     });
     await backupDB();
-    accountsEvents.emit('accountsChanged');
     return accountsCreated;
 }
 

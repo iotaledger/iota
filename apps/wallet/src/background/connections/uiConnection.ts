@@ -352,6 +352,7 @@ export class UiConnection extends Connection {
 
                 // Actually persist the accounts
                 await addNewAccounts(derivedAccountsNonExistent);
+                accountsEvents.emit('accountsChanged');
 
                 this.send(
                     createMessage(
