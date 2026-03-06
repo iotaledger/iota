@@ -6057,6 +6057,8 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.64",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

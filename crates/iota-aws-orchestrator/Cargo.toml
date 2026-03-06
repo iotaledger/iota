@@ -37,6 +37,8 @@ iota-config.workspace = true
 iota-metrics.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

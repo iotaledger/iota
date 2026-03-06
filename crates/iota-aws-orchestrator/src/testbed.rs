@@ -13,6 +13,7 @@ use crate::{
     client::ServerProviderClient,
     display,
     error::{TestbedError, TestbedResult},
+    logger::IS_OP,
     settings::Settings,
     ssh::SshConnection,
 };
@@ -158,92 +159,108 @@ impl<C: ServerProviderClient> Testbed<C> {
     ) -> TestbedResult<()> {
         display::action(format!("Deploying instances ({quantity} per region)"));
 
-        let mut instances: Vec<Instance> = vec![];
+        let result: TestbedResult<()> = IS_OP
+            .scope(true, async {
+                let mut instances: Vec<Instance> = vec![];
 
-        if !skip_monitoring {
-            let metrics_region = self
-                .settings
-                .regions
-                .first()
-                .expect("At least one region must be present")
-                .clone();
-            let metrics_instance = self
-                .client
-                .create_instance(metrics_region, InstanceRole::Metrics, 1, false, id.clone())
-                .await?;
-            instances.extend(metrics_instance);
-        }
+                if !skip_monitoring {
+                    let metrics_region = self
+                        .settings
+                        .regions
+                        .first()
+                        .expect("At least one region must be present")
+                        .clone();
+                    let metrics_instance = self
+                        .client
+                        .create_instance(
+                            metrics_region,
+                            InstanceRole::Metrics,
+                            1,
+                            false,
+                            id.clone(),
+                        )
+                        .await?;
+                    instances.extend(metrics_instance);
+                }
 
-        let node_instances = {
-            // Multi-region case — call create_instance per region in parallel
-            let tasks = self.settings.regions.iter().map(|region| {
-                self.client.create_instance(
-                    region.clone(),
-                    InstanceRole::Node,
-                    quantity,
-                    use_spot_instances,
-                    id.clone(),
-                )
-            });
+                let node_instances = {
+                    // Multi-region case — call create_instance per region in parallel
+                    let tasks = self.settings.regions.iter().map(|region| {
+                        self.client.create_instance(
+                            region.clone(),
+                            InstanceRole::Node,
+                            quantity,
+                            use_spot_instances,
+                            id.clone(),
+                        )
+                    });
 
-            // Run them all concurrently, flatten Vec<Vec<Instance>> → Vec<Instance>
-            try_join_all(tasks)
-                .await?
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-        };
-        instances.extend(node_instances);
+                    // Run them all concurrently, flatten Vec<Vec<Instance>> → Vec<Instance>
+                    try_join_all(tasks)
+                        .await?
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                };
+                instances.extend(node_instances);
 
-        let client_instances = match dedicated_clients {
-            0 => vec![],
-            instance_quantity => {
-                // Multi-region case — call create_instance per region in parallel
-                let tasks = self.settings.regions.iter().map(|region| {
-                    self.client.create_instance(
-                        region.clone(),
-                        InstanceRole::Client,
-                        instance_quantity,
-                        false,
-                        id.clone(),
-                    )
-                });
+                let client_instances = match dedicated_clients {
+                    0 => vec![],
+                    instance_quantity => {
+                        // Multi-region case — call create_instance per region in parallel
+                        let tasks = self.settings.regions.iter().map(|region| {
+                            self.client.create_instance(
+                                region.clone(),
+                                InstanceRole::Client,
+                                instance_quantity,
+                                false,
+                                id.clone(),
+                            )
+                        });
 
-                // Run them all concurrently, flatten Vec<Vec<Instance>> → Vec<Instance>
-                try_join_all(tasks)
-                    .await?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>()
-            }
-        };
+                        // Run them all concurrently, flatten Vec<Vec<Instance>> →Vec<Instance>
+                        try_join_all(tasks)
+                            .await?
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>()
+                    }
+                };
 
-        instances.extend(client_instances);
+                instances.extend(client_instances);
 
-        // Wait until the instances are booted.
-        if cfg!(not(test)) {
-            self.wait_until_reachable(instances.iter()).await?;
-        }
-        let node_instances = self
-            .client
-            .list_instances_by_role(InstanceRole::Node)
-            .await?;
-        let client_instances = self
-            .client
-            .list_instances_by_role(InstanceRole::Client)
-            .await?;
-        let metrics_instance = self
-            .client
-            .list_instances_by_role(InstanceRole::Metrics)
-            .await?;
-        self.node_instances = node_instances;
-        self.client_instances = if client_instances.is_empty() {
-            None
-        } else {
-            Some(client_instances)
-        };
-        self.metrics_instance = metrics_instance.into_iter().next();
+                // Wait until the instances are booted.
+                if cfg!(not(test)) {
+                    self.wait_until_reachable(instances.iter()).await?;
+                }
+                let node_instances = self
+                    .client
+                    .list_instances_by_role(InstanceRole::Node)
+                    .await?;
+                let client_instances = self
+                    .client
+                    .list_instances_by_role(InstanceRole::Client)
+                    .await?;
+                let metrics_instance = self
+                    .client
+                    .list_instances_by_role(InstanceRole::Metrics)
+                    .await?;
+                self.node_instances = node_instances;
+                self.client_instances = if client_instances.is_empty() {
+                    None
+                } else {
+                    Some(client_instances)
+                };
+                self.metrics_instance = metrics_instance.into_iter().next();
+                display::action("testing");
 
+                Ok(())
+            })
+            .await;
+
+        result?;
+
+        display::action("Deployment completed\n\n");
         display::done();
         Ok(())
     }
