@@ -1,9 +1,18 @@
 import { KioskClient, KioskTransaction } from '@iota/kiosk';
+import { IotaClient, Network, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-declare const kioskClient: KioskClient;
-declare const cap: any;
-declare const signAndExecuteTransaction: (args: { tx: Transaction }) => Promise<void>;
+const kioskClient = new KioskClient({
+    client: new IotaClient({ url: getFullnodeUrl(Network.Testnet) }),
+    network: Network.Testnet,
+});
+
+const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address: '0x0' });
+const cap = kioskOwnerCaps[0];
+
+async function signAndExecuteTransaction(_args: { tx: Transaction }): Promise<void> {
+    // In a real app, use signAndExecuteTransaction from @iota/dapp-kit
+}
 
 const itemId = '0xHeroAddress';
 const itemType = '0x..::hero::Hero';

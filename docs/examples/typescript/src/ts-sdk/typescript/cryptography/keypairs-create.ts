@@ -1,6 +1,6 @@
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 
-declare const secretKey: Uint8Array;
+const secretKey = new Uint8Array(32).fill(1);
 
 const keypair1 = new Ed25519Keypair();
 const keypair2 = Ed25519Keypair.fromSecretKey(secretKey);

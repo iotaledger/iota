@@ -1,6 +1,6 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-declare const address: string;
+const address = '0x0';
 
 const tx = new Transaction();
 

@@ -1,10 +1,10 @@
 import { Transaction, Inputs } from '@iota/iota-sdk/transactions';
 
-declare const digest: string;
-declare const objectId: string;
-declare const version: string;
-declare const initialSharedVersion: string;
-declare const mutable: boolean;
+const digest = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+const objectId = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const version = '1';
+const initialSharedVersion = '1';
+const mutable = true;
 
 const tx = new Transaction();
 

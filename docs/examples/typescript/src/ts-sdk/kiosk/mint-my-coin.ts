@@ -2,7 +2,8 @@ import { KioskClient, KioskTransaction } from '@iota/kiosk';
 import { IotaClient, Network, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-declare function signAndExecuteTransaction(args: { tx: Transaction }): Promise<void>;
+// In a real app, use signAndExecuteTransaction from @iota/dapp-kit
+async function signAndExecuteTransaction(_args: { tx: Transaction }): Promise<void> {}
 
 const packageId = '0x...';
 const myType = `${packageId}::my_module::MyStruct<${packageId}::my_coin_module::MyCoin>`;

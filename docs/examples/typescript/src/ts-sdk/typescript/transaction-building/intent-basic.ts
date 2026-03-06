@@ -1,6 +1,6 @@
 import { Commands, Transaction } from '@iota/iota-sdk/transactions';
 
-declare const someId: string;
+const someId = '0x0';
 
 const transaction = new Transaction();
 

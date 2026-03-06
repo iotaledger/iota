@@ -1,17 +1,31 @@
 import { KioskClient, KioskTransaction, RuleResolvingParams } from '@iota/kiosk';
+import { IotaClient, Network, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-declare const kioskClient: KioskClient;
-declare const cap: any;
-declare const item: { itemType: string; itemId: string; price: bigint; sellerKiosk: string };
-declare const signAndExecuteTransaction: (args: { tx: Transaction }) => Promise<void>;
-declare const transferRequest: any;
+const kioskClient = new KioskClient({
+    client: new IotaClient({ url: getFullnodeUrl(Network.Testnet) }),
+    network: Network.Testnet,
+});
+
+const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address: '0x0' });
+const cap = kioskOwnerCaps[0];
+
+async function signAndExecuteTransaction(_args: { tx: Transaction }): Promise<void> {
+    // In a real app, use signAndExecuteTransaction from @iota/dapp-kit
+}
+
+const item = {
+    itemType: '0x..::hero::Hero',
+    itemId: '0x..',
+    price: 100000n,
+    sellerKiosk: '0xSellerKiosk',
+};
 
 const myCustomRule = {
     rule: `0xMyRuleAddress::game_rule::Rule`,
     packageId: `0xMyRuleAddress`,
     resolveRuleFunction: (params: RuleResolvingParams) => {
-        const { transaction, itemType, packageId, extraArgs } = params;
+        const { transaction, transferRequest, itemType, packageId, extraArgs } = params;
         const { gamePass } = extraArgs;
         if (!gamePass) throw new Error('GamePass not supplied');
 

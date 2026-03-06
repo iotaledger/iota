@@ -1,8 +1,8 @@
 import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
 
-declare const message: Uint8Array;
-declare const zkSignature: string;
+const message = new TextEncoder().encode('hello world');
+const zkSignature = ''; // In a real app, obtain this from a zkLogin signing flow
 
 // The client can be used to fetch the zklogin address for verification
 const _client = new IotaGraphQLClient({ url: 'https://graphql.testnet.iota.cafe' });

@@ -5,7 +5,13 @@ interface Transfer {
     amount: number;
 }
 
-declare function getTransfers(): Transfer[];
+function getTransfers(): Transfer[] {
+    // In a real app, return transfers from your data source
+    return [
+        { to: '0x0', amount: 100 },
+        { to: '0x1', amount: 200 },
+    ];
+}
 const transfers: Transfer[] = getTransfers();
 
 const tx = new Transaction();

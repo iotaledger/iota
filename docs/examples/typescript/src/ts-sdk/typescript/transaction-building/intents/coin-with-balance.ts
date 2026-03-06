@@ -1,8 +1,8 @@
 import { coinWithBalance, Transaction } from '@iota/iota-sdk/transactions';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 
-declare const keypair: Ed25519Keypair;
-declare const recipient: string;
+const keypair = new Ed25519Keypair();
+const recipient = '0x0';
 
 const tx = new Transaction();
 

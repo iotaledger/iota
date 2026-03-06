@@ -1,10 +1,20 @@
-import { KioskClient, KioskTransaction, TransferPolicyTransaction } from '@iota/kiosk';
+import { KioskClient, TransferPolicyTransaction } from '@iota/kiosk';
+import { IotaClient, Network, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-declare const kioskClient: KioskClient;
-declare const signAndExecuteTransaction: (args: { tx: Transaction }) => Promise<void>;
-declare const packageId: string;
-declare function percentageToBasisPoints(p: number): number;
+const kioskClient = new KioskClient({
+    client: new IotaClient({ url: getFullnodeUrl(Network.Testnet) }),
+    network: Network.Testnet,
+});
+
+// In a real app, use signAndExecuteTransaction from @iota/dapp-kit
+async function signAndExecuteTransaction(_args: { tx: Transaction }): Promise<void> {}
+
+const packageId = '0x0';
+
+function percentageToBasisPoints(percentage: number): number {
+    return percentage * 100;
+}
 
 const heroPolicyCaps = await kioskClient.getOwnedTransferPoliciesByType({
     type: `${packageId}::hero::Hero`,

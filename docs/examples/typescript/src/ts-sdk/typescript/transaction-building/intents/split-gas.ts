@@ -1,6 +1,6 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-declare const recipient: string;
+const recipient = '0x0';
 
 const tx = new Transaction();
 

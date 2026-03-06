@@ -1,5 +1,6 @@
-import { IotaClient } from '@iota/iota-sdk/client';
-declare const client: IotaClient;
+import { IotaClient, Network, getFullnodeUrl } from '@iota/iota-sdk/client';
+
+const client = new IotaClient({ url: getFullnodeUrl(Network.Testnet) });
 
 const page1 = await client.getCheckpoints({
     limit: 10,
