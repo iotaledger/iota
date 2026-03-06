@@ -9,6 +9,7 @@ use clap::{Parser, ValueEnum};
 use client::{ServerProviderClient, aws::AwsClient};
 use eyre::{Context, Result};
 use faults::FaultsType;
+use iota_benchmark::workloads::abstract_account::{AuthenticatorKind, TxPayloadObjType};
 use measurement::MeasurementsCollection;
 use orchestrator::Orchestrator;
 use protocol::iota::{IotaBenchmarkType, IotaProtocol};
@@ -17,7 +18,7 @@ use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
 
-use crate::net_latency::TopologyLayout;
+use crate::{benchmark::RunInterval, net_latency::TopologyLayout};
 
 pub mod benchmark;
 pub mod build_cache;
@@ -58,7 +59,12 @@ pub struct Opts {
     operation: Operation,
 }
 
+fn parse_run_interval(s: &str) -> Result<RunInterval, String> {
+    s.parse()
+}
+
 #[derive(Parser)]
+#[allow(clippy::large_enum_variant)]
 pub enum Operation {
     /// Get or modify the status of the testbed.
     Testbed {
@@ -68,10 +74,49 @@ pub enum Operation {
 
     /// Run a benchmark on the specified testbed.
     Benchmark {
-        /// Percentage of shared vs owned objects; 0 means only owned objects
-        /// and 100 means only shared objects.
+        /// The type of benchmark to run.
         #[arg(long, default_value = "0", global = true)]
         benchmark_type: String,
+
+        /// The AA authenticator to use.
+        #[arg(long, default_value = "ed25519", global = true)]
+        aa_authenticator: AuthenticatorKind,
+
+        /// Whether the AA transactions should fail.
+        #[arg(long, default_value = "false", global = true)]
+        should_fail: bool,
+
+        /// Type of object transaction uses - owned or shared.
+        #[arg(long, default_value = "owned-object", global = true)]
+        tx_payload_obj_type: TxPayloadObjType,
+
+        /// Number of worker tasks inside `stress`.
+        /// Higher -> more concurrency; too high can reduce throughput due to
+        /// contention.
+        #[arg(long, default_value = "2", global = true)]
+        stress_num_workers: u64,
+
+        /// AA workload: split amount inside `stress` for AA (number of coins to
+        /// split before transfer).
+        #[arg(long, default_value = "1000", global = true)]
+        aa_split_amount: u64,
+
+        /// In-flight ratio inside `stress` for AA (roughly,
+        /// allowed outstanding tx per worker). Higher -> more
+        /// outstanding requests; too high can inflate latency and trigger
+        /// backpressure.
+        #[arg(long, default_value = "10", global = true)]
+        stress_in_flight_ratio: u64,
+
+        /// Stress: number of client threads (applies to AA, kept constant for
+        /// bench to preserve behavior).
+        #[arg(long, default_value = "8", global = true)]
+        stress_num_client_threads: u64,
+
+        /// Stress: number of server threads (applies to AA, kept constant for
+        /// bench to preserve behavior).
+        #[arg(long, default_value = "8", global = true)]
+        stress_num_server_threads: u64,
 
         /// The committee size to deploy.
         #[arg(long, value_name = "INT")]
@@ -90,8 +135,8 @@ pub enum Operation {
         crash_interval: Duration,
 
         /// The minimum duration of the benchmark in seconds.
-        #[arg(long, value_parser = parse_duration, default_value = "600", global = true)]
-        duration: Duration,
+        #[arg(long, value_parser = parse_run_interval)]
+        run_interval: RunInterval,
 
         /// The interval between measurements collection in seconds.
         #[arg(long, value_parser = parse_duration, default_value = "15", global = true)]
@@ -196,6 +241,11 @@ pub enum Operation {
         /// Number of shared counters to use in the benchmark
         #[arg(long, value_name = "INT", global = true)]
         num_shared_counters: Option<usize>,
+
+        /// Optional path for the benchmark stats metadata to be downloaded
+        /// after the run
+        #[arg(long, value_name = "/home/ubuntu/benchmark_stats.json", global = true)]
+        benchmark_stats_path: Option<String>,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -411,7 +461,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             faults,
             crash_recovery,
             crash_interval,
-            duration,
+            run_interval,
             scrape_interval,
             skip_testbed_update,
             skip_testbed_configuration,
@@ -433,8 +483,17 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             blocking_connections,
             use_current_timestamp_for_genesis,
             max_pipeline_delay,
+            aa_authenticator,
+            should_fail,
+            tx_payload_obj_type,
+            stress_num_workers,
+            aa_split_amount,
+            stress_in_flight_ratio,
+            stress_num_client_threads,
+            stress_num_server_threads,
             shared_counter_hotness_factor,
             num_shared_counters,
+            benchmark_stats_path,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -453,7 +512,8 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .wrap_err("Failed to load testbed setup commands")?;
 
             let protocol_commands = Protocol::new(&settings);
-            let benchmark_type = BenchmarkType::from_str(&benchmark_type)?;
+            let benchmark_type =
+                BenchmarkType::from_str(&benchmark_type).map_err(|e| eyre::eyre!(e))?;
 
             let load = match load_type {
                 Load::FixedLoad { loads } => {
@@ -512,7 +572,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 use_internal_ip_addresses,
             )
             .with_benchmark_type(benchmark_type)
-            .with_custom_duration(duration)
+            .with_custom_run_interval(run_interval)
             .with_perturbation_spec(perturbation_spec)
             .with_latency_topology(latency_topology)
             .with_consensus_protocol(consensus_protocol)
@@ -520,7 +580,16 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_epoch_duration(epoch_duration_ms)
             .with_max_pipeline_delay(max_pipeline_delay)
             .with_current_timestamp_for_genesis(use_current_timestamp_for_genesis)
-            .with_faults(fault_type);
+            .with_faults(fault_type)
+            .with_aa_authenticator(aa_authenticator)
+            .with_should_fail(should_fail)
+            .with_tx_payload_obj_type(tx_payload_obj_type)
+            .with_stress_num_workers(stress_num_workers)
+            .with_aa_split_amount(aa_split_amount)
+            .with_stress_in_flight_ratio(stress_in_flight_ratio)
+            .with_stress_client_threads(stress_num_client_threads)
+            .with_stress_server_threads(stress_num_server_threads)
+            .with_benchmark_stats_path(benchmark_stats_path.clone());
 
             if let Some(factor) = shared_counter_hotness_factor {
                 generator = generator.with_shared_counter_hotness_factor(factor);

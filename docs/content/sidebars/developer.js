@@ -583,16 +583,10 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'SDKs',
-        items: [
-            {
-                type: 'category',
-                label: 'TS SDK',
-                items: tsSDK,
-            },
-            'developer/references/rust-sdk',
-        ],
+        label: 'TS SDK',
+        items: tsSDK,
     },
+    'developer/references/rust-sdk',
     {
         type: 'category',
         label: 'GraphQL',

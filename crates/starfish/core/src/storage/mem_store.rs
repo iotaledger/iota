@@ -148,7 +148,9 @@ impl Store for MemStore {
             inner.voting_block_headers.insert(key, header);
         }
 
-        inner.fast_sync_ongoing = write_batch.fast_commit_sync_flag;
+        if let Some(flag) = write_batch.fast_commit_sync_flag {
+            inner.fast_sync_ongoing = flag;
+        }
 
         Ok(())
     }
