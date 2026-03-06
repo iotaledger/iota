@@ -6386,23 +6386,25 @@
             "description": "Cancelled transaction version assignment.",
             "type": "object",
             "required": [
-              "cancelledTransactions",
-              "kind"
+              "CancelledTransactions"
             ],
             "properties": {
-              "cancelledTransactions": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/CancelledTransaction"
+              "CancelledTransactions": {
+                "type": "object",
+                "required": [
+                  "CancelledTransactions"
+                ],
+                "properties": {
+                  "CancelledTransactions": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/CancelledTransaction"
+                    }
+                  }
                 }
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "cancelledTransactions"
-                ]
               }
-            }
+            },
+            "additionalProperties": false
           }
         ]
       },

@@ -41,6 +41,19 @@ export interface BalanceChange {
     /** Owner of the balance change */
     owner: ObjectOwner;
 }
+/**
+ * A transaction that was cancelled
+ *
+ * # BCS
+ *
+ * The BCS serialized form for this type is defined by the following ABNF:
+ *
+ * `text cancelled-transaction = digest (vector version-assignment) `
+ */
+export interface CancelledTransaction {
+    digest: string;
+    versionAssignments: VersionAssignment[];
+}
 export interface Checkpoint {
     /** Commitments to checkpoint state */
     checkpointCommitments: CheckpointCommitment[];
@@ -89,10 +102,13 @@ export interface CommitteeInfo {
     epoch: string;
     validators: [string, string][];
 }
-/** Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments. */
-export type ConsensusDeterminedVersionAssignments = {
-    CancelledTransactions: [string, [string, string][]][];
-};
+export type ConsensusDeterminedVersionAssignments =
+    /** Cancelled transaction version assignment. */
+    {
+        CancelledTransactions: {
+            CancelledTransactions: CancelledTransaction[];
+        };
+    };
 export type IotaParsedData =
     | {
           dataType: 'moveObject';
@@ -1829,4 +1845,18 @@ export interface ValidatorApy {
 export interface ValidatorsApy {
     apys: ValidatorApy[];
     epoch: string;
+}
+/**
+ * Object version assignment from consensus
+ *
+ * # BCS
+ *
+ * The BCS serialized form for this type is defined by the following ABNF:
+ *
+ * `text version-assignment = object-id u64 `
+ */
+export interface VersionAssignment {
+    objectId: string;
+    /** Radix-10 encoded 64-bit unsigned integer */
+    version: string;
 }
