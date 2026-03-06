@@ -4,8 +4,7 @@
 > [`@mysten/prettier-plugin-move`](https://www.npmjs.com/package/@mysten/prettier-plugin-move) by
 > Mysten Labs, and there is a companion
 > [Move Formatter](https://marketplace.visualstudio.com/items?itemName=mysten.prettier-move) VSCode
-> extension on the Visual Studio Marketplace. A newer version of this plugin also exists at
-> [`external-crates/move/tooling/prettier-move`](../../../tooling/prettier-move/) in this repository.
+> extension on the Visual Studio Marketplace.
 
 This is a Move language plugin for the
 [Prettier](https://prettier.io/) code formatter. It uses a Move
