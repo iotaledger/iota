@@ -28,7 +28,7 @@ interface LabelTextProps {
     /**
      * The text of the LabelText.
      */
-    text: string;
+    text: React.ReactNode;
     /**
      * The tooltip position.
      */
