@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats } from '@iota/apps-ui-kit';
-import { formatDate } from '@iota/core';
-import { AddressLink, CheckpointSequenceLink, EpochLink } from '~/components';
+import { AddressLink, CheckpointSequenceLink, DateDisplay, EpochLink } from '~/components';
 import { onCopySuccess } from '~/lib/utils';
 
 interface TransactionDetailsProps {
@@ -51,7 +50,12 @@ export function TransactionDetails({
                 />
             )}
 
-            {timestamp && <DisplayStats label="Date" value={formatDate(Number(timestamp))} />}
+            {timestamp && (
+                <DisplayStats
+                    label="Date"
+                    value={<DateDisplay timestamp={timestamp} type="transaction" />}
+                />
+            )}
         </div>
     );
 }

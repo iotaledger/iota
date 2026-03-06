@@ -23,7 +23,7 @@ export function GraphTooltipContainer({ children }: React.PropsWithChildren): JS
 
 interface GraphTooltipContentProps {
     title: string;
-    overline: string;
+    overline: React.ReactNode;
     subtitle: string;
 }
 export function GraphTooltipContent({ title, overline, subtitle }: GraphTooltipContentProps) {

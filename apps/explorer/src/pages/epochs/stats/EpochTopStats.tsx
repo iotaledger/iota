@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ProgressBar } from '~/components';
+import { DateDisplay, ProgressBar } from '~/components';
 import { EpochStatsGrid } from './EpochStats';
 import { LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { formatDate } from '@iota/core';
 import { TokenStats } from './TokenStats';
 import { getSupplyChangeAfterEpochEnd } from '~/lib';
 import { useEpochProgress } from '../utils';
@@ -26,15 +25,20 @@ export function EpochTopStats({
 }: EpochProgressProps): React.JSX.Element {
     const { progress, label } = useEpochProgress();
 
-    const endTime = inProgress ? label : end ? formatDate(end) : undefined;
-
     return (
         <div className="flex w-full flex-col gap-md--rs">
             {inProgress ? <ProgressBar progress={progress || 0} /> : null}
 
             <EpochStatsGrid>
-                <LabelText text={formatDate(start)} label="Start" />
-                {endTime ? <LabelText text={endTime} label="End" /> : null}
+                <LabelText
+                    text={<DateDisplay timestamp={start} type="epoch" />}
+                    label="Start"
+                />
+                {inProgress && label ? (
+                    <LabelText text={label} label="End" />
+                ) : end ? (
+                    <LabelText text={<DateDisplay timestamp={end} type="epoch" />} label="End" />
+                ) : null}
                 {endOfEpochInfo && (
                     <>
                         <TokenStats

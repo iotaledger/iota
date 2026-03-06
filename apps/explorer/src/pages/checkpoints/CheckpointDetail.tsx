@@ -23,6 +23,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { useFormatCoin } from '@iota/core';
+import { DateDisplay } from '~/components';
 import { Info, Warning } from '@iota/apps-ui-icons';
 import { CoinFormat } from '@iota/iota-sdk/utils';
 
@@ -176,21 +177,14 @@ export function CheckpointDetail(): JSX.Element {
                                             size={LabelTextSize.Medium}
                                             label="Checkpoint Timestamp"
                                             text={
-                                                data.timestampMs
-                                                    ? new Date(
-                                                          Number(data.timestampMs),
-                                                      ).toLocaleString(undefined, {
-                                                          month: 'short',
-                                                          day: 'numeric',
-                                                          year: 'numeric',
-                                                          hour: 'numeric',
-                                                          minute: '2-digit',
-                                                          second: '2-digit',
-                                                          hour12: false,
-                                                          timeZone: 'UTC',
-                                                          timeZoneName: 'short',
-                                                      })
-                                                    : '--'
+                                                data.timestampMs ? (
+                                                    <DateDisplay
+                                                        timestamp={data.timestampMs}
+                                                        type="checkpoint"
+                                                    />
+                                                ) : (
+                                                    '--'
+                                                )
                                             }
                                         />
                                     </div>

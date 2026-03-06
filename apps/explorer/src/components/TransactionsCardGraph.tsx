@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate } from '@iota/core';
 import { formatAmount, CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
 import { StatisticsPanel } from './StatisticsPanel';
 import { GraphTooltipContent } from './GraphTooltipContent';
+import { DateDisplay } from './DateDisplay';
 
 interface TooltipContentProps {
     data: {
@@ -20,10 +20,14 @@ interface TooltipContentProps {
 function TooltipContent({
     data: { epochTotalTransactions, epochStartTimestamp, epoch },
 }: TooltipContentProps): JSX.Element {
-    const dateFormatted = formatDate(new Date(epochStartTimestamp), ['day', 'month']);
     const totalFormatted = formatAmount(epochTotalTransactions);
 
-    const overline = `${dateFormatted}, Epoch ${epoch}`;
+    const overline = (
+        <>
+            <DateDisplay timestamp={epochStartTimestamp} type="graph" />
+            {`, Epoch ${epoch}`}
+        </>
+    );
 
     return (
         <GraphTooltipContent

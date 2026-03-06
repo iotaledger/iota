@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatDate } from '@iota/core';
 import { formatAmount, CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 import type { AllEpochsAddressMetrics } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
@@ -11,15 +10,20 @@ import { useGetAllEpochAddressMetrics } from '~/hooks/useGetAllEpochAddressMetri
 import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
 import { StatisticsPanel } from './StatisticsPanel';
 import { GraphTooltipContent } from './GraphTooltipContent';
+import { DateDisplay } from './DateDisplay';
 
 const GRAPH_DATA_FIELD = 'cumulativeAddresses';
 const GRAPH_DATA_TEXT = 'Total addresses';
 
 function TooltipContent({ data }: { data: AllEpochsAddressMetrics[number] }): JSX.Element {
-    const dateFormatted = formatDate(new Date(data.timestampMs), ['day', 'month']);
     const totalFormatted = formatAmount(data[GRAPH_DATA_FIELD]);
 
-    const overline = `${dateFormatted}, Epoch ${data.epoch}`;
+    const overline = (
+        <>
+            <DateDisplay timestamp={data.timestampMs} type="graph" />
+            {`, Epoch ${data.epoch}`}
+        </>
+    );
     return (
         <GraphTooltipContent
             overline={overline}

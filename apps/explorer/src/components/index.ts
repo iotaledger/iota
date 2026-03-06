@@ -25,6 +25,7 @@ export * from './validator';
 
 export * from './AddressesCardGraph';
 export * from './AreaGraph';
+export * from './DateDisplay';
 export * from './GraphTooltipContent';
 export * from './IotaTokenCard';
 export * from './TransactionsCardGraph';

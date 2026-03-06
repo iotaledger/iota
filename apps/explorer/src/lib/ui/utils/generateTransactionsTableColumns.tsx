@@ -15,7 +15,7 @@ import {
     IOTA_TYPE_ARG,
     NANOS_PER_IOTA,
 } from '@iota/iota-sdk/utils';
-import { getElapsedTime } from '~/pages/epochs/utils';
+import { DateDisplay } from '~/components';
 
 /**
  * Generate table columns renderers for the transactions data.
@@ -147,12 +147,15 @@ export function generateTransactionsTableColumns(
             accessorKey: 'timestampMs',
             cell: ({ getValue }) => {
                 const timestampMs = getValue();
-                const elapsedTime = timestampMs
-                    ? getElapsedTime(Number(timestampMs), Date.now())
-                    : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText>{elapsedTime}</TableCellText>
+                        <TableCellText>
+                            {timestampMs ? (
+                                <DateDisplay timestamp={Number(timestampMs)} type="table" />
+                            ) : (
+                                '--'
+                            )}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

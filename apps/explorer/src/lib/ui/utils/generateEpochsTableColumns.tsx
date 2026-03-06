@@ -5,9 +5,8 @@
 import type { EpochMetrics } from '@iota/iota-sdk/client';
 import type { ColumnDef } from '@tanstack/react-table';
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
-import { CheckpointSequenceLink, EpochLink } from '~/components';
+import { CheckpointSequenceLink, DateDisplay, EpochLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
-import { getElapsedTime } from '~/pages/epochs/utils';
 import { CoinFormat, formatBalance, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 /**
@@ -113,9 +112,11 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
                 return (
                     <TableCellBase>
                         <TableCellText>
-                            {epochEndTimestamp
-                                ? getElapsedTime(Number(epochEndTimestamp), Date.now())
-                                : '--'}
+                            {epochEndTimestamp ? (
+                                <DateDisplay timestamp={epochEndTimestamp} type="table" />
+                            ) : (
+                                '--'
+                            )}
                         </TableCellText>
                     </TableCellBase>
                 );
