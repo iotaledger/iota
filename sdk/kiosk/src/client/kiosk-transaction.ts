@@ -128,6 +128,7 @@ export class KioskTransaction {
         this.#validateFinalizedStatus();
         const cap = kioskTx.createKioskAndShare(this.transaction);
         this.transaction.transferObjects([cap], this.transaction.pure.address(address));
+        return this;
     }
 
     /**
@@ -137,6 +138,7 @@ export class KioskTransaction {
         this.#validateKioskIsSet();
         this.#setPendingStatuses({ share: false });
         kioskTx.shareKiosk(this.transaction, this.kiosk!);
+        return this;
     }
 
     /**
@@ -149,6 +151,7 @@ export class KioskTransaction {
         this.#setPendingStatuses({ transfer: false });
         this.share();
         this.transaction.transferObjects([this.kioskCap!], this.transaction.pure.address(address));
+        return this;
     }
 
     /**
@@ -166,7 +169,7 @@ export class KioskTransaction {
 
         callback(itemObj);
 
-        this.return({ itemType, item: itemObj, promise });
+        return this.return({ itemType, item: itemObj, promise });
     }
 
     /**
