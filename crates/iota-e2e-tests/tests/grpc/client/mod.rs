@@ -6,6 +6,7 @@ mod common;
 mod epochs;
 mod execute;
 mod health;
+mod metadata;
 mod objects;
 mod simulate;
 mod transactions;

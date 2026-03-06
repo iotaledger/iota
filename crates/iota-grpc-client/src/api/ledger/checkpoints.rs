@@ -97,7 +97,7 @@ use iota_sdk_types::{CheckpointSequenceNumber, Digest};
 use crate::{
     Client, Error,
     api::{
-        CheckpointResponse, GET_CHECKPOINT_READ_MASK, Result, TryFromProtoError,
+        CheckpointResponse, GET_CHECKPOINT_READ_MASK, MetadataEnvelope, Result, TryFromProtoError,
         field_mask_with_default,
     },
 };
@@ -133,7 +133,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
             get_checkpoint_data_request::CheckpointId::Latest(true),
             read_mask,
@@ -177,7 +177,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
             get_checkpoint_data_request::CheckpointId::SequenceNumber(sequence_number),
             read_mask,
@@ -223,7 +223,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
             get_checkpoint_data_request::CheckpointId::Digest(digest.into()),
             read_mask,
@@ -240,7 +240,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         let mut request = match checkpoint_id {
             get_checkpoint_data_request::CheckpointId::Latest(val) => {
                 GetCheckpointDataRequest::default().with_latest(val)
@@ -268,16 +268,19 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let stream = client.get_checkpoint_data(request).await?.into_inner();
+        let response = client.get_checkpoint_data(request).await?;
+        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         let reassembled = Self::reassemble_checkpoint_data_stream(stream);
         futures::pin_mut!(reassembled);
 
-        reassembled
+        let checkpoint = reassembled
             .next()
             .await
             .ok_or_else(|| TryFromProtoError::missing("checkpoint data").into())
-            .and_then(|r| r)
+            .and_then(|r| r)?;
+
+        Ok(MetadataEnvelope::new(checkpoint, metadata))
     }
 
     /// Stream checkpoints across a range of checkpoints.
@@ -323,7 +326,8 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>> {
+    ) -> Result<MetadataEnvelope<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>>>
+    {
         let mut request = CheckpointDataStreamRequest::default()
             .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
 
@@ -344,9 +348,13 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let stream = client.stream_checkpoint_data(request).await?.into_inner();
+        let response = client.stream_checkpoint_data(request).await?;
+        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
-        Ok(Box::pin(Self::reassemble_checkpoint_data_stream(stream)))
+        Ok(MetadataEnvelope::new(
+            Box::pin(Self::reassemble_checkpoint_data_stream(stream)),
+            metadata,
+        ))
     }
 
     /// Reassemble a stream of checkpoint data chunks into complete checkpoints.

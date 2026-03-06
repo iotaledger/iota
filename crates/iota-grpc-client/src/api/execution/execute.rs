@@ -13,8 +13,8 @@ use iota_sdk_types::SignedTransaction;
 use crate::{
     Client,
     api::{
-        EXECUTE_TRANSACTION_READ_MASK, Error, Result, TryFromProtoError, build_proto_transaction,
-        field_mask_with_default,
+        EXECUTE_TRANSACTION_READ_MASK, Error, MetadataEnvelope, Result, TryFromProtoError,
+        build_proto_transaction, field_mask_with_default,
     },
 };
 
@@ -111,7 +111,7 @@ impl Client {
         &self,
         signed_transaction: SignedTransaction,
         read_mask: Option<&str>,
-    ) -> Result<ExecutedTransaction> {
+    ) -> Result<MetadataEnvelope<ExecutedTransaction>> {
         // Build proto transaction directly from SDK types
         let tx_digest = signed_transaction.transaction.digest();
         let proto_transaction =
@@ -139,11 +139,11 @@ impl Client {
         let response = self
             .execution_service_client()
             .execute_transaction(request)
-            .await?
-            .into_inner();
+            .await?;
 
-        response
-            .executed_transaction
-            .ok_or_else(|| TryFromProtoError::missing("executed_transaction").into())
+        MetadataEnvelope::from(response).try_map(|r| {
+            r.executed_transaction
+                .ok_or_else(|| TryFromProtoError::missing("executed_transaction").into())
+        })
     }
 }

@@ -44,7 +44,7 @@ async fn get_objects_scenarios() {
         object_ids.len(),
         "Should return same number of objects as requested"
     );
-    for object in &objects {
+    for object in objects.iter() {
         assert!(
             object
                 .object_reference()
