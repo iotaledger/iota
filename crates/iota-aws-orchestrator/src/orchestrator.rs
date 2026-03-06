@@ -1266,8 +1266,7 @@ done"#
 
                     // Download the log files.
                     if self.log_processing {
-                        let error_counter =
-                            self.download_logs(&parameters.benchmark_dir).await?;
+                        let error_counter = self.download_logs(&parameters.benchmark_dir).await?;
                         error_counter.print_summary();
                     }
 
