@@ -51,7 +51,18 @@ export function TransactionDetails({
                 />
             )}
 
-            {timestamp && <DisplayStats label="Date" value={formatDate(Number(timestamp))} />}
+            {timestamp && (
+                <DisplayStats
+                    label="Date"
+                    value={formatDate(Number(timestamp), [
+                        'day',
+                        'month',
+                        'year',
+                        'hour',
+                        'minute',
+                    ])}
+                />
+            )}
         </div>
     );
 }

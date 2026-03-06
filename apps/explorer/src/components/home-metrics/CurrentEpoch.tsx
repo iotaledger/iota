@@ -36,7 +36,7 @@ export function CurrentEpoch(): JSX.Element {
 
     const epochSubtitle =
         !progress && end
-            ? `End ${formatDate(end)}`
+            ? `End ${formatDate(end, ['day', 'month', 'year', 'hour', 'minute'])}`
             : formattedDateString
               ? `Started ${formattedDateString}`
               : '--';

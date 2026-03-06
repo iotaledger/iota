@@ -26,14 +26,21 @@ export function EpochTopStats({
 }: EpochProgressProps): React.JSX.Element {
     const { progress, label } = useEpochProgress();
 
-    const endTime = inProgress ? label : end ? formatDate(end) : undefined;
+    const endTime = inProgress
+        ? label
+        : end
+          ? formatDate(end, ['day', 'month', 'year', 'hour', 'minute'])
+          : undefined;
 
     return (
         <div className="flex w-full flex-col gap-md--rs">
             {inProgress ? <ProgressBar progress={progress || 0} /> : null}
 
             <EpochStatsGrid>
-                <LabelText text={formatDate(start)} label="Start" />
+                <LabelText
+                    text={formatDate(start, ['day', 'month', 'year', 'hour', 'minute'])}
+                    label="Start"
+                />
                 {endTime ? <LabelText text={endTime} label="End" /> : null}
                 {endOfEpochInfo && (
                     <>
