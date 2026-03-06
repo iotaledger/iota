@@ -30,10 +30,7 @@ export function EpochTopStats({
             {inProgress ? <ProgressBar progress={progress || 0} /> : null}
 
             <EpochStatsGrid>
-                <LabelText
-                    text={<DateDisplay timestamp={start} type="epoch" />}
-                    label="Start"
-                />
+                <LabelText text={<DateDisplay timestamp={start} type="epoch" />} label="Start" />
                 {inProgress && label ? (
                     <LabelText text={label} label="End" />
                 ) : end ? (
