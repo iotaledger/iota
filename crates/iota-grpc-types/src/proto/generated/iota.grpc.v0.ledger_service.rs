@@ -226,19 +226,35 @@ pub struct CheckpointDataStreamRequest {
     /// if no filter is passed, all events are included (if mentioned in the read_mask)
     #[prost(message, optional, tag = "5")]
     pub events_filter: ::core::option::Option<super::filter::EventFilter>,
+    /// When true, checkpoints with no matching transactions or events are skipped entirely.
+    /// At least one of transactions_filter or events_filter must be set.
+    /// A Progress message is sent periodically to indicate liveness and scan position.
+    #[prost(bool, optional, tag = "6")]
+    pub filter_checkpoints: ::core::option::Option<bool>,
+    /// Progress message interval in milliseconds when filter_checkpoints is enabled.
+    /// Defaults to 2000ms. Minimum value is 500ms; lower values are clamped.
+    #[prost(uint32, optional, tag = "7")]
+    pub progress_interval_ms: ::core::option::Option<u32>,
     /// Optional maximum message size the client can receive (1MB - 128MB)
     /// If not specified, server uses default chunking threshold (4MB)
-    #[prost(uint32, optional, tag = "6")]
+    #[prost(uint32, optional, tag = "8")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
 }
 #[non_exhaustive]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CheckpointData {
-    #[prost(oneof = "checkpoint_data::Payload", tags = "1, 2, 3, 4")]
+    #[prost(oneof = "checkpoint_data::Payload", tags = "1, 2, 3, 4, 5")]
     pub payload: ::core::option::Option<checkpoint_data::Payload>,
 }
 /// Nested message and enum types in `CheckpointData`.
 pub mod checkpoint_data {
+    #[non_exhaustive]
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+    pub struct Progress {
+        /// The sequence number of the latest scanned checkpoint.
+        #[prost(uint64, tag = "1")]
+        pub latest_scanned_sequence_number: u64,
+    }
     #[non_exhaustive]
     #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
     pub struct EndMarker {
@@ -256,6 +272,8 @@ pub mod checkpoint_data {
         #[prost(message, tag = "3")]
         Events(super::super::event::Events),
         #[prost(message, tag = "4")]
+        Progress(Progress),
+        #[prost(message, tag = "5")]
         EndMarker(EndMarker),
     }
 }

@@ -48,9 +48,51 @@ mod _field_impls {
     #[allow(unused_imports)]
     use crate::v0::types::ObjectReferenceFieldPathBuilder;
     #[allow(unused_imports)]
+    use crate::v0::ledger_service::checkpoint_data::Progress;
+    #[allow(unused_imports)]
     use crate::v0::ledger_service::checkpoint_data::EndMarker;
     pub mod checkpoint_data {
         use super::*;
+        impl Progress {
+            pub const LATEST_SCANNED_SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
+                name: "latest_scanned_sequence_number",
+                json_name: "latestScannedSequenceNumber",
+                number: 1i32,
+                is_optional: false,
+                is_map: false,
+                message_fields: None,
+            };
+        }
+        impl MessageFields for Progress {
+            const FIELDS: &'static [&'static MessageField] = &[
+                Self::LATEST_SCANNED_SEQUENCE_NUMBER_FIELD,
+            ];
+        }
+        impl Progress {
+            pub fn path_builder() -> ProgressFieldPathBuilder {
+                ProgressFieldPathBuilder::new()
+            }
+        }
+        pub struct ProgressFieldPathBuilder {
+            path: Vec<&'static str>,
+        }
+        impl ProgressFieldPathBuilder {
+            #[allow(clippy::new_without_default)]
+            pub fn new() -> Self {
+                Self { path: Default::default() }
+            }
+            #[doc(hidden)]
+            pub fn new_with_base(base: Vec<&'static str>) -> Self {
+                Self { path: base }
+            }
+            pub fn finish(self) -> String {
+                self.path.join(".")
+            }
+            pub fn latest_scanned_sequence_number(mut self) -> String {
+                self.path.push(Progress::LATEST_SCANNED_SEQUENCE_NUMBER_FIELD.name);
+                self.finish()
+            }
+        }
         impl EndMarker {
             pub const SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
                 name: "sequence_number",
@@ -1023,10 +1065,26 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(EventFilter::FIELDS),
         };
+        pub const FILTER_CHECKPOINTS_FIELD: &'static MessageField = &MessageField {
+            name: "filter_checkpoints",
+            json_name: "filterCheckpoints",
+            number: 6i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+        pub const PROGRESS_INTERVAL_MS_FIELD: &'static MessageField = &MessageField {
+            name: "progress_interval_ms",
+            json_name: "progressIntervalMs",
+            number: 7i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
             name: "max_message_size_bytes",
             json_name: "maxMessageSizeBytes",
-            number: 6i32,
+            number: 8i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -1039,6 +1097,8 @@ mod _field_impls {
             Self::READ_MASK_FIELD,
             Self::TRANSACTIONS_FILTER_FIELD,
             Self::EVENTS_FILTER_FIELD,
+            Self::FILTER_CHECKPOINTS_FIELD,
+            Self::PROGRESS_INTERVAL_MS_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
     }
@@ -1083,6 +1143,14 @@ mod _field_impls {
             self.path.push(CheckpointDataStreamRequest::EVENTS_FILTER_FIELD.name);
             EventFilterFieldPathBuilder::new_with_base(self.path)
         }
+        pub fn filter_checkpoints(mut self) -> String {
+            self.path.push(CheckpointDataStreamRequest::FILTER_CHECKPOINTS_FIELD.name);
+            self.finish()
+        }
+        pub fn progress_interval_ms(mut self) -> String {
+            self.path.push(CheckpointDataStreamRequest::PROGRESS_INTERVAL_MS_FIELD.name);
+            self.finish()
+        }
         pub fn max_message_size_bytes(mut self) -> String {
             self.path
                 .push(CheckpointDataStreamRequest::MAX_MESSAGE_SIZE_BYTES_FIELD.name);
@@ -1114,10 +1182,18 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(Event::FIELDS),
         };
+        pub const PROGRESS_FIELD: &'static MessageField = &MessageField {
+            name: "progress",
+            json_name: "progress",
+            number: 4i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(Progress::FIELDS),
+        };
         pub const END_MARKER_FIELD: &'static MessageField = &MessageField {
             name: "end_marker",
             json_name: "endMarker",
-            number: 4i32,
+            number: 5i32,
             is_optional: false,
             is_map: false,
             message_fields: Some(EndMarker::FIELDS),
@@ -1131,6 +1207,7 @@ mod _field_impls {
             Self::CHECKPOINT_FIELD,
             Self::EXECUTED_TRANSACTIONS_FIELD,
             Self::EVENTS_FIELD,
+            Self::PROGRESS_FIELD,
             Self::END_MARKER_FIELD,
         ];
     }
@@ -1165,6 +1242,10 @@ mod _field_impls {
         pub fn events(mut self) -> EventFieldPathBuilder {
             self.path.push(CheckpointData::EVENTS_FIELD.name);
             EventFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn progress(mut self) -> checkpoint_data::ProgressFieldPathBuilder {
+            self.path.push(CheckpointData::PROGRESS_FIELD.name);
+            checkpoint_data::ProgressFieldPathBuilder::new_with_base(self.path)
         }
         pub fn end_marker(mut self) -> checkpoint_data::EndMarkerFieldPathBuilder {
             self.path.push(CheckpointData::END_MARKER_FIELD.name);

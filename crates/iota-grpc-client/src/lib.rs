@@ -37,9 +37,9 @@ pub mod api;
 
 // Re-export types for convenience
 pub use api::{
-    CheckpointResponse, EXECUTE_TRANSACTION_READ_MASK, Error, GET_CHECKPOINT_READ_MASK,
-    GET_EPOCH_READ_MASK, GET_OBJECTS_READ_MASK, GET_SERVICE_INFO_READ_MASK,
-    GET_TRANSACTIONS_READ_MASK, MetadataEnvelope, Result, RpcStatus,
+    CheckpointResponse, CheckpointStreamItem, EXECUTE_TRANSACTION_READ_MASK, Error,
+    GET_CHECKPOINT_READ_MASK, GET_EPOCH_READ_MASK, GET_OBJECTS_READ_MASK,
+    GET_SERVICE_INFO_READ_MASK, GET_TRANSACTIONS_READ_MASK, MetadataEnvelope, Result, RpcStatus,
     SIMULATE_TRANSACTION_READ_MASK,
 };
 
