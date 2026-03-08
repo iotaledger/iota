@@ -38,6 +38,11 @@ The authenticator receives the full `AuthContext`, which includes `tx_commands()
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L89-L116
 ```
 4. Fund the balance reserve and withdraw from it within the spending limit.
+
+The authenticator itself cannot modify state. Instead, it validates that the transaction contains calls to `withdraw_from_balance_reserve` whose total amount does not exceed the stored spending limit.
+
+The actual state update (decreasing the spending limit) happens inside `withdraw_from_balance_reserve`, which subtracts the withdrawn amount from the stored limit after the transaction is authorized.
+
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/spending_limit/sources/spending_limit_account.move#L178-L199
 ```
 

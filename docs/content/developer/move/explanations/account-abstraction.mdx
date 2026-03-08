@@ -19,7 +19,7 @@ Traditional IOTA accounts, known as Externally Owned Accounts (EOAs), are contro
 
 Instead of forcing the authentication of an account to the checking of a cryptographic signature, the protocol calls a Move function _you_ define. That function decides whether the transaction is authorized. If the function executes successfully, the transaction proceeds; if the function aborts, the transaction is rejected.
 
-This means abstract accounts can authenticated using:
+This means abstract accounts can be authenticated using:
 
 - A cryptographic scheme not natively supported by IOTA (e.g., ECDSA on a custom curve)
 - A weighted threshold of multiple signers (multisig)
@@ -127,7 +127,7 @@ The `AuthContext` is a struct passed by the protocol to the authenticator functi
 - **`tx_inputs`**: The full list of inputs to the Programmable Transaction Block (PTB); this allows to read the object references and pure values passed as input to the AA transaction.
 - **`tx_commands`**: The ordered list of commands in the PTB; this allows to parse all the commands that are going to be executed for the AA transaction if the authentication is successful.
 
-The `AuthContext` allows to authenticator function inspect what the AA transaction will do before allowing it. This enables **intent-aware authentication**: for example, a function-keys authenticator can verify that the AA transaction calls only an approved Move function; a spending-limit authenticator can check that coin transfers do not exceed a threshold (in a specific scenario).
+The `AuthContext` allows the authenticator function to inspect what the AA transaction will do before allowing it. This enables **intent-aware authentication**: for example, a function-keys authenticator can verify that the AA transaction calls only an approved Move function; a spending-limit authenticator can check that coin transfers do not exceed a threshold (in a specific scenario).
 
 ---
 
@@ -158,7 +158,7 @@ When a developer publishes a package containing an `#[authenticator]` function, 
 
 ### 2. Account creation
 
-Any user (also through sponsorship) can call the package function for creating an account, which:
+Any user (also through sponsorship) can call a package-defined function that creates the account object and invokes `iota::account::create_account_v1`, which:
 
 1. Creates the account object (a Move struct with `key`) of type `CustomDevAccount`.
 2. Calls `iota::authenticator_function::create_auth_function_ref_v1` with the object id of the `PackageMetadataV1`, the module name, and the authenticator function name as inputs (this produces an `AuthenticatorFunctionRefV1<CustomDevAccount>`).

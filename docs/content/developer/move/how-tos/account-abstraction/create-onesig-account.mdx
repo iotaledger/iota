@@ -48,7 +48,7 @@ The authenticator receives `ctx.digest()` from `TxContext`, which is the unique 
 
 - A single signature over the Merkle root authorizes all transactions in the pre-approved set.
 - Each transaction must be submitted with its Merkle proof; transactions not in the tree are rejected.
-- Once the root is signed and the account created, any party with the transaction and its proof can submit it — no further interaction with the key is needed.
+- Once the root is signed, any party with the transaction and its proof can submit it — no further interaction with the key is needed.
 
 ## Full Example Code
 
