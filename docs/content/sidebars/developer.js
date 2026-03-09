@@ -665,6 +665,11 @@ const developer = [
         label: 'Kotlin',
         id: 'developer/getting-started/rust-sdk-bindings-getting-started/kotlin-binding-getting-started',
     },
+        {
+        type: 'doc',
+        label: 'Swift',
+        id: 'developer/getting-started/rust-sdk-bindings-getting-started/swift-binding-getting-started',
+    },
 ],
     },
     'developer/references/rust-sdk',

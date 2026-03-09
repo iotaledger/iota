@@ -1,0 +1,87 @@
+---
+description: Get started with the IOTA SDK Swift bindings to interact with the IOTA network.
+---
+
+# Getting Started with Swift
+
+The IOTA SDK Swift bindings allow iOS and macOS developers to build native applications that interact with the IOTA network. These bindings use UniFFI to bridge the Rust core SDK into a native Swift interface.
+
+## Prerequisites
+
+Before using the Swift bindings, ensure you have:
+* **Xcode**: Version 14.0 or higher.
+* **Swift**: Version 5.7 or higher.
+* **macOS**: 12.0 or higher (for development).
+
+---
+
+## Installation
+
+### Swift Package Manager (SPM)
+
+You can add the IOTA SDK to your project via Swift Package Manager. In Xcode:
+
+1. Select **File** > **Add Packages...**
+2. Enter the repository URL: `https://github.com/iotaledger/iota-rust-sdk`
+3. In the dependency rule, select the `develop` branch or a specific version.
+4. Select the `IotaSDK` library.
+
+---
+
+## Quick Start Example
+
+The following example demonstrates how to initialize a client and retrieve the **Chain ID** using Swift.
+
+### 1. Implementation
+You can use the following code snippet in your `main.swift` or within an `async` task in your app:
+
+```swift
+import IotaSDK
+
+func connectToIota() async {
+    do {
+        // 1. Create a client connected to devnet
+        let client = try IotaClientBuilder()
+            .withNode("[https://api.devnet.iota.cafe](https://api.devnet.iota.cafe)")
+            .build()
+
+        // 2. Query the chain ID
+        let chainId = try await client.getChainId()
+        
+        print("Successfully connected! Chain ID: \(chainId)")
+    } catch {
+        print("Error connecting to IOTA: \(error)")
+    }
+}
+```
+
+---
+
+## Network Connection Options
+
+The `IotaClientBuilder` provides a flexible way to connect to various IOTA environments:
+
+| Network | Client Initialization |
+| :--- | :--- |
+| **Devnet** | `.withNode("https://api.devnet.iota.cafe")` |
+| **Testnet** | `.withNode("https://api.testnet.iota.cafe")` |
+| **Mainnet** | `.withNode("https://api.mainnet.iota.cafe")` |
+| **Custom** | `.withNode("https://your-custom-node.com")` |
+
+---
+
+## Important: App Sandbox & Permissions
+
+If you are building for macOS or iOS, ensure your app has Outgoing Connections (Client) enabled in the "App Sandbox" or "Hardened Runtime" settings to allow the SDK to communicate with IOTA nodes.
+
+---
+
+## What's Next?
+
+Now that you have connected to the network, you can explore:
+
+* Wallet & Accounts: Manage secure storage and account state.
+* Stronghold Support: Use IOTA's Stronghold for secure secret management on mobile devices.
+* Advanced PTBs: Build complex Programmable Transaction Blocks directly in Swift.
+
+View more comprehensive examples in the official [Swift examples](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/swift/examples) directory.
