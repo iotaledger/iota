@@ -1,5 +1,5 @@
 ---
-'@iota/bcs': minor
+"@iota/bcs": minor
 ---
 
 Export new BcsStruct, BcsEnum and BcsTuple classes

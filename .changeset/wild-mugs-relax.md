@@ -1,5 +1,5 @@
 ---
-'@iota/iota-sdk': patch
+"@iota/iota-sdk": patch
 ---
 
 Fix system objects to avoid unnecessary network calls
