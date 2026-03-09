@@ -422,7 +422,14 @@ const developer = [
                             'developer/iota-101/move-overview/conventions',
                         ],
                     },
-                    'developer/move/explanations/account-abstraction',
+                    {
+                        type: 'category',
+                        label: 'Account Abstraction',
+                        items: [
+                            'developer/move/explanations/account-abstraction/introduction',
+                            'developer/move/explanations/account-abstraction/design-principles',
+                        ],
+                    },
                 ],
             },
             {
