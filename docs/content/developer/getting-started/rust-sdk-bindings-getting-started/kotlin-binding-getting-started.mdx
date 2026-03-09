@@ -1,0 +1,111 @@
+---
+description: Get started with the IOTA SDK Kotlin bindings to interact with the IOTA network.
+---
+
+# Getting Started with Kotlin
+
+The IOTA SDK Kotlin bindings allow JVM developers to interact with the IOTA network. These bindings use JNI (Java Native Interface) to bridge the performance of the Rust core SDK with the ease of use of Kotlin and Java.
+
+## Prerequisites
+
+Before using the Kotlin bindings, ensure you have:
+* **JDK**: Version 11 or higher (JDK 17 recommended).
+* **Build Tool**: Gradle or Maven.
+* **Architecture**: The SDK currently supports x86_64 and ARM64 (macOS/Linux).
+
+---
+
+## Installation
+
+### Gradle
+Add the IOTA SDK dependency to your `build.gradle.kts` file:
+
+```kotlin
+dependencies {
+    implementation("org.iota:iota-sdk:1.0.0") // Replace with latest version
+}
+```
+
+Maven
+
+Add the following to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.iota</groupId>
+    <artifactId>iota-sdk</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+---
+
+## Quick Start Example
+
+The following example demonstrates how to initialize a client and retrieve the Chain ID using Kotlin.
+
+## 1. Create a Main.kt
+
+Create a new file and paste the following code:
+
+```kotlin
+import org.iota.sdk.Client
+import org.iota.sdk.ClientBuilder
+
+fun main() {
+    // 1. Initialize the Client
+    val client = ClientBuilder()
+        .withNode("[https://api.devnet.iota.cafe](https://api.devnet.iota.cafe)")
+        .build()
+
+    // 2. Query the chain ID
+    val chainId = client.getChainId()
+    
+    println("Successfully connected! Chain ID: $chainId")
+}
+```
+
+---
+
+## 2. Run the code
+
+If using Gradle, run:
+
+```bash
+./gradlew run
+```
+
+---
+
+## Network Connection Options
+
+The `ClientBuilder` provides a flexible way to connect to various IOTA environments:
+
+| Network | Client Initialization |
+| :--- | :--- |
+| **Devnet** | `.withNode("https://api.devnet.iota.cafe")` |
+| **Testnet** | `.withNode("https://api.testnet.iota.cafe")` |
+| **Mainnet** | `.withNode("https://api.mainnet.iota.cafe")` |
+| **Custom** | `.withNode("https://your-custom-node.com")` |
+
+---
+
+## Important: Native Library Loading
+
+Since the Kotlin SDK wraps a Rust binary, the native library must be present in your library path. On some systems, you may need to specify the path manually when running your application:
+
+```bash
+java -Djava.library.path=/path/to/native/library -jar your-app.jar
+```
+
+---
+
+## What's Next?
+
+Now that you have connected to the network, you can explore:
+
+* Wallet API: Manage high-level accounts and automated address syncing.
+* Secret Manager: Securely handle Mnemonic, Stronghold, or Ledger hardware wallets.
+* Output Builders: Create complex transaction outputs (NFTs, Alias, etc.).
+
+View more comprehensive examples in the official [Kotlin examples](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/kotlin/examples) directory.

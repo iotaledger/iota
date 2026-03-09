@@ -661,9 +661,9 @@ const developer = [
         id: 'developer/getting-started/rust-sdk-bindings-getting-started/go-binding-getting-started',
     },
     {
-        type: 'link',
+        type: 'doc',
         label: 'Kotlin',
-        href: '#',
+        id: 'developer/getting-started/rust-sdk-bindings-getting-started/kotlin-binding-getting-started',
     },
 ],
     },
