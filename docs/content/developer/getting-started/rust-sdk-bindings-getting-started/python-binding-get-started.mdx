@@ -1,0 +1,82 @@
+---
+description: Get started with the IOTA SDK Python bindings to interact with the IOTA network.
+---
+
+# Getting Started with Python
+
+The IOTA SDK Python bindings allow you to interact with the IOTA network using Python. These bindings wrap the core Rust SDK, providing a high-level and "pythonic" interface for developers.
+
+## Prerequisites
+
+Before using the Python bindings, ensure you have:
+* **Python**: Version 3.8 or higher.
+* **pip**: Python package installer.
+* **Virtual Environment** (Recommended): To manage dependencies cleanly.
+
+---
+
+## Installation
+
+You can install the IOTA SDK directly from PyPI:
+
+```bash
+pip install iota-sdk
+```
+
+The package includes pre-compiled binary wheels for Windows, macOS, and Linux, so no Rust compiler is required for standard installation.
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+
+## 1. Create a script
+
+Create a new file named `main.py` and paste the following code:
+
+```python
+import asyncio
+from iota_sdk import IotaClient
+
+async def run():
+    # 1. Create a client connected to devnet
+    # The SDK uses an asynchronous API
+    client = IotaClient(url="[https://api.devnet.iota.cafe](https://api.devnet.iota.cafe)")
+
+    # 2. Query the chain ID
+    chain_id = await client.get_chain_id()
+    
+    print(f"Successfully connected! Chain ID: {chain_id}")
+
+if __name__ == "__main__":
+    asyncio.run(run())
+```
+
+## 2. Run the code
+
+In your terminal, run:
+
+```bash
+python main.py
+```
+
+## Network Connection Options
+
+The `IotaClient` can be initialized for different environments:
+
+| Network | Client Initialization |
+| :--- | :--- |
+| **Devnet** | `IotaClient(url="https://api.devnet.iota.cafe")` |
+| **Testnet** | `IotaClient(url="https://api.testnet.iota.cafe")` |
+| **Mainnet** | `IotaClient(url="https://api.mainnet.iota.cafe")` |
+| **Custom** | `IotaClient(url="https://your-custom-node.com")` |
+
+## What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* Accounts & Wallets: Use the IotaWallet class to manage multiple accounts and addresses.
+* Transactions: Build and sign transactions using the built-in builders.
+* Events: Subscribe to real-time events on the IOTA network.
+
+View more comprehensive examples in the official [Python examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/python/examples).
+    

@@ -651,9 +651,9 @@ const developer = [
         },
         items: [
     {
-        type: 'link',
+        type: 'doc',
         label: 'Python',
-        href: '#', 
+        id: 'developer/getting-started/rust-sdk-bindings-getting-started/python-binding-get-started',
     },
     {
         type: 'doc',
