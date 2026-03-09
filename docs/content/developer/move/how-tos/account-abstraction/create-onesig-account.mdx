@@ -26,6 +26,20 @@ The authenticator receives `ctx.digest()` from `TxContext`, which is the unique 
 
 :::
 
+:::note Relation to the OneSig protocol
+
+This example is inspired by the
+[OneSig protocol](https://github.com/LayerZero-Labs/onesig), which proposes
+authorizing multiple transactions using a single signature over a Merkle root.
+
+The implementation shown here demonstrates the core concept of verifying a
+transaction against a signed Merkle root. However, it is simplified for
+educational purposes and does **not fully implement all details of the
+OneSig protocol**.
+
+:::
+
+
 ## Example Code
 
 1. Define the authenticator. It runs two checks in sequence: first verifies the signature over the Merkle root, then verifies that the current transaction's digest is a leaf in that tree.
