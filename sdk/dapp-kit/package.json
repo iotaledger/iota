@@ -88,9 +88,9 @@
         "zustand": "^4.4.1"
     },
     "peerDependencies": {
+        "@iota/iota-names-sdk": "*",
         "@tanstack/react-query": "^5.50.1",
-        "react": "*",
-        "@iota/iota-names-sdk": "*"
+        "react": "*"
     },
     "sideEffects": [
         "*.css.ts",
