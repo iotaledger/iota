@@ -34,13 +34,9 @@ The authenticator receives `ctx.digest()` from `TxContext`, which is the unique 
 2. The two verification helpers called by the authenticator. `verify_merkle_root` checks the Ed25519 signature against the stored public key. `verify_merkle_proof` hashes the transaction digest and walks up the tree using the provided sibling hashes to reconstruct the root.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L90-L111
 ```
-3. Create the account with a public key for signature verification.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L40-L55
-```
-
 :::note
 
-`build_merkle_tree_with_proofs` in the Merkle module is a helper for constructing the tree and computing per-transaction proofs before submission. See the full example for its implementation.
+The example also creates a simple Account with a public key attached which you can check in the full example code if needed.
 
 :::
 
