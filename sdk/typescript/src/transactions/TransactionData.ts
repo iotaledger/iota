@@ -15,7 +15,7 @@ import type {
     GasData,
     TransactionExpiration,
 } from './data/internal.js';
-import { ArgumentSchema, TransactionData } from './data/internal.js';
+import { Argument as ArgumentSchema, TransactionData } from './data/internal.js';
 import { transactionDataFromV1 } from './data/v1.js';
 import type { SerializedTransactionDataV1 } from './data/v1.js';
 import type { SerializedTransactionDataV2 } from './data/v2.js';
