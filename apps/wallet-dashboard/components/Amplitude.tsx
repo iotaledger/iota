@@ -3,8 +3,9 @@
 
 'use client';
 
-import { ampli, initAmplitude } from '@/lib/utils/analytics';
+import { ampli, initAmplitude, setAmplitudeIdentity } from '@/lib/utils/analytics';
 import { useEffect, useRef } from 'react';
+import { useIotaClientContext } from '@iota/dapp-kit';
 
 // Initialize Amplitude immediately when this module loads (client-side only)
 let amplitudeInitialized = false;
@@ -30,6 +31,8 @@ async function trackPageOpen() {
 
 export function Amplitude() {
     const hasTracked = useRef(false);
+    const clientContext = useIotaClientContext();
+    const activeNetwork = clientContext.network;
 
     useEffect(() => {
         if (!hasTracked.current) {
@@ -37,6 +40,20 @@ export function Amplitude() {
             trackPageOpen();
         }
     }, []);
+
+    useEffect(() => {
+        let unmounded = false;
+        if (amplitudeInitPromise && !unmounded) {
+            (async () => {
+                await amplitudeInitPromise;
+                setAmplitudeIdentity({ network: activeNetwork });
+            })();
+        }
+
+        return () => {
+            unmounded = true;
+        };
+    }, [activeNetwork]);
 
     return null;
 }
