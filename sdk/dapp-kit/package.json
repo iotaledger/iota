@@ -56,6 +56,7 @@
     ],
     "devDependencies": {
         "@iota/build-scripts": "workspace:*",
+        "@iota/iota-names-sdk": "^0.6.1",
         "@size-limit/preset-small-lib": "^11.1.4",
         "@tanstack/react-query": "^5.50.1",
         "@testing-library/dom": "^10.3.1",

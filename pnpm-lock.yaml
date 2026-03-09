@@ -1700,6 +1700,9 @@ importers:
       '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
+      '@iota/iota-names-sdk':
+        specifier: ^0.6.1
+        version: 0.6.1(@iota/iota-sdk@sdk+typescript)
       '@size-limit/preset-small-lib':
         specifier: ^11.1.4
         version: 11.1.5(size-limit@11.1.5)
