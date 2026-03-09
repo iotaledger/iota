@@ -15,7 +15,8 @@ export function ulebEncode(num: number | bigint): number[] {
 
     while (bigNum > 0) {
         arr[len] = Number(bigNum & 0x7fn);
-        if ((bigNum >>= 7n)) {
+        bigNum >>= 7n;
+        if (bigNum > 0n) {
             arr[len] |= 0x80;
         }
         len += 1;
