@@ -22,7 +22,7 @@ This guide builds on patterns from the [Authenticate an Account with a Public Ke
 
 :::tip Why is this possible?
 
-The authenticator receives the full `AuthContext`, which includes `tx_commands()` — the ordered list of commands in the Programmable Transaction Block (PTB). This lets the authenticator inspect what the transaction will do before deciding whether to allow it. Rather than simply verifying who is sending the transaction, it can also verify what the transaction does.
+The authenticator receives the full `AuthContext`, which includes `tx_commands()` — the ordered list of commands in the Programmable Transaction Block (PTB). This lets the authenticator inspect what the transaction will do before deciding whether to allow it. Rather than simply verifying who is sending the transaction, it can also verify what the transaction intends to do.
 
 :::
 
