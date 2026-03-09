@@ -467,13 +467,14 @@ const developer = [
                                 },
                                 description: 'How to create and manage authenticators for accounts.',
                                 items: [
+                                    'developer/move/how-tos/account-abstraction/authenticator/basic',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-public-key-authentication',
                                     'developer/move/how-tos/account-abstraction/authenticator/function-call-keys',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-time-locked-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-onesig-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-spending-limit-account',
                                     'developer/move/how-tos/account-abstraction/authenticator/create-lean-imt-account',
-                                    'developer/move/how-tos/account-abstraction/dynamic-multisig-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/dynamic-multisig-account',
                                 ]
                             },
                         ],
