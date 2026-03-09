@@ -13,13 +13,15 @@ import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 export const IOTA_CLOCK_OBJECT_ID = normalizeIotaObjectId('0x6');
 
+const packagePath = __dirname + '/./data/serializer';
+
 describe('TransactionData.insertTransaction', () => {
     let toolbox: TestToolbox;
     let packageId: string;
     let sharedObjectId: string;
 
     beforeAll(async () => {
-        const { packageId: pkgId, publishTxn } = await publishPackage('serializer');
+        const { packageId: pkgId, publishTxn } = await publishPackage(packagePath);
         packageId = pkgId;
 
         // Find the shared object created during publish
