@@ -1,0 +1,94 @@
+---
+description: Get started with the IOTA SDK Go bindings to interact with the IOTA network.
+---
+
+# Getting Started with Go
+
+The IOTA SDK Go bindings allow you to build high-performance applications that interact with the IOTA network using native Go code. These bindings wrap the core Rust SDK via a Foreign Function Interface (FFI).
+
+## Prerequisites
+
+Before using the Go bindings, ensure you have:
+* **Go**: Version 1.21 or higher.
+* **CGO**: Enabled (required for the Rust-to-Go FFI layer).
+
+---
+
+## Installation
+
+Add the IOTA SDK to your Go project using `go get`:
+
+```bash
+go get [github.com/iotaledger/iota-sdk-go](https://github.com/iotaledger/iota-sdk-go)
+```
+
+The package automatically includes pre-built native libraries for most modern operating systems (Windows, macOS, and Linux).
+
+---
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+
+## 1. Create a `main.go` file
+
+Create a new file named `main.go` and paste the following code:
+
+```go
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"[github.com/iotaledger/iota-sdk-go/iota_sdk](https://github.com/iotaledger/iota-sdk-go/iota_sdk)"
+)
+
+func main() {
+	// 1. Create a GraphQL client connected to devnet
+	client := iota_sdk.GraphQlClientNewDevnet()
+
+	// 2. Query the chain ID
+	chainID, err := client.ChainId()
+	
+	// Check for SDK-specific FFI errors
+	if err.(*iota_sdk.SdkFfiError) != nil {
+		log.Fatalf("Failed to get chain ID: %v", err)
+	}
+	
+	fmt.Printf("Successfully connected! Chain ID: %s\n", chainID)
+}
+```
+
+## 2. Run the code
+
+In your terminal, run:
+
+```bash
+go run main.go
+```
+
+---
+
+## Network Connection Options
+
+You can easily switch between IOTA network environments using the built-in helper functions:
+
+| Network | Client Initialization |
+| :--- | :--- |
+| **Devnet** | `iota_sdk.GraphQlClientNewDevnet()` |
+| **Testnet** | `iota_sdk.GraphQlClientNewTestnet()` |
+| **Mainnet** | `iota_sdk.GraphQlClientNewMainnet()` |
+| **Custom** | `iota_sdk.GraphQlClientNew("https://your-url.com")` |
+
+---
+
+What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* Check Balances: Learn how to query coin balances for a specific address.
+* Transactions: Build and sign Programmable Transaction Blocks (PTBs).
+* Key Management: Use the SDK to generate and manage IOTA addresses.
+
+View more comprehensive examples in the official [Go examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/go/examples).
