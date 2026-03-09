@@ -449,7 +449,7 @@ const developer = [
                                 label: 'Account Creation and Management',
                                 link: {
                                     type: 'generated-index',
-                                    slug: 'developer/move/how-tos/account-abstraction',
+                                    slug: 'developer/move/how-tos/account-abstraction/create-manage',
                                 },
                                 description: 'How to create and manage accounts.',
                                 items: [
@@ -463,7 +463,7 @@ const developer = [
                                 label: 'Authenticator',
                                 link: {
                                     type: 'generated-index',
-                                    slug: 'developer/move/how-tos/account-abstraction',
+                                    slug: 'developer/move/how-tos/account-abstraction/authenticator',
                                 },
                                 description: 'How to create and manage authenticators for accounts.',
                                 items: [
