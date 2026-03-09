@@ -19,7 +19,7 @@ export interface Suggestion {
     type?: string;
 }
 
-export interface SearchProps {
+export interface SearchProps extends React.AriaAttributes {
     /**
      * The value of the search input.
      */
@@ -63,6 +63,7 @@ export function Search({
     isLoading = false,
     type = SearchBarType.Outlined,
     renderSuggestion,
+    ...ariaProps
 }: SearchProps): React.JSX.Element {
     const inputRef = useRef<HTMLInputElement>(null);
     const suggestionsListRef = useRef<HTMLDivElement>(null);
@@ -181,6 +182,11 @@ export function Search({
                         'search-placeholder-color w-full flex-1 outline-none',
                         backgroundColorClass,
                     )}
+                    role="combobox"
+                    aria-expanded={showSuggestions}
+                    aria-haspopup="listbox"
+                    aria-autocomplete="list"
+                    {...ariaProps}
                 />
                 <SearchIcon />
             </div>
@@ -191,6 +197,7 @@ export function Search({
                         'absolute left-0 top-full flex w-full flex-col items-center overflow-hidden',
                         suggestionsStyle,
                     )}
+                    role="listbox"
                 >
                     <Divider width="w-11/12" />
                     {isLoading ? (
@@ -207,6 +214,9 @@ export function Search({
                                     'w-full cursor-pointer px-md py-sm',
                                     selectedIndex === index ? 'search-selected-index-bg-color' : '',
                                 )}
+                                role="option"
+                                aria-selected={selectedIndex === index}
+                                aria-label={suggestion.label}
                             >
                                 {renderSuggestion(suggestion, index)}
                             </div>

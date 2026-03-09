@@ -16,7 +16,9 @@ export type SelectOption =
     | { id: string; renderLabel: () => React.JSX.Element }
     | { id: string; label: React.ReactNode };
 
-interface SelectProps extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled'> {
+interface SelectProps
+    extends Pick<React.HTMLProps<HTMLSelectElement>, 'disabled'>,
+        React.AriaAttributes {
     /**
      * The selected option value.
      */
@@ -83,6 +85,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             value,
             dropdownPosition = DropdownPosition.Bottom,
             size = SelectSize.Default,
+            ...ariaProps
         },
         ref,
     ) => {
@@ -156,10 +159,13 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         ref={ref}
                         onClick={onSelectorClick}
                         disabled={disabled}
+                        aria-expanded={isOpen}
+                        aria-haspopup="listbox"
                         className={cx(
                             'select-container select-border-color focus-visible:enabled:select-border-focus-color active:enabled:select-border-focus-color group-[.errored]:select-border-error-color group-[.opened]:select-border-focus-color [&:is(:focus,_:focus-visible,_:active)]:enabled:select-border-focus-color hover:enabled:select-border-hover-color flex flex-row items-center gap-x-3 rounded-lg border py-sm disabled:cursor-not-allowed [&_svg]:h-5 [&_svg]:w-5',
                             selectPadding,
                         )}
+                        {...ariaProps}
                     >
                         {leadingIcon && <span className="select-icon-color">{leadingIcon}</span>}
 

@@ -145,7 +145,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
-use tracing::{Instrument, debug, error, error_span, info, warn};
+use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 use typed_store::{
     DBMetrics,
     rocks::{check_and_mark_db_corruption, default_db_options, unmark_db_corruption},
@@ -1833,6 +1833,9 @@ impl IotaNode {
                 spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
                     node_clone
                         .send_signed_capability_notification_to_committee_with_retry(&epoch_store)
+                        .instrument(trace_span!(
+                            "send_signed_capability_notification_to_committee_with_retry"
+                        ))
                         .await;
                 }));
             }

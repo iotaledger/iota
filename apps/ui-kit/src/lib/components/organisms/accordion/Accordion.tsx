@@ -48,6 +48,8 @@ export function AccordionHeader({
     return (
         <div
             onClick={onToggle}
+            role="button"
+            aria-expanded={isExpanded}
             className={cx(
                 'state-layer relative flex cursor-pointer items-center justify-between gap-md overflow-hidden rounded-xl py-sm--rs',
                 {
