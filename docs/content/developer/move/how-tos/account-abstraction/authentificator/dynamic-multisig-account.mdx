@@ -22,8 +22,8 @@ The authenticator receives `ctx.digest()` from `TxContext`, which is the unique 
 
 ## Example Code
 
-1. Define the authenticator. It reads the digest of the AA transaction being submitted, sums the weights of members who have approved it, and checks that the total meets the threshold. The `total_approves` helper iterates the approvers list, skipping any addresses no longer in the current member set.
-```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L163-L211
+1. Define the authenticator. It reads the digest of the account abstraction transaction being submitted, looks up the stored approvals for that digest, and verifies that the accumulated member weight meets the configured threshold.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L157-L170
 ```
 2. Propose and approve a transaction. A member proposes the AA transaction by storing its digest on-chain. They are automatically the first approver. Other members then call `approve_transaction` to add their weight. Each member can only approve once.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L112-L138
