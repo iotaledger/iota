@@ -75,7 +75,6 @@
         "vitest": "^3.2.4"
     },
     "dependencies": {
-        "@iota/iota-names-sdk": "^0.6.1",
         "@iota/iota-sdk": "workspace:*",
         "@iota/wallet-standard": "workspace:*",
         "@radix-ui/react-dialog": "^1.1.1",
@@ -89,7 +88,8 @@
     },
     "peerDependencies": {
         "@tanstack/react-query": "^5.50.1",
-        "react": "*"
+        "react": "*",
+        "@iota/iota-names-sdk": "*"
     },
     "sideEffects": [
         "*.css.ts",
