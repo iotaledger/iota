@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
+import type { Resolution } from '@iota/ledgerjs-hw-app-iota';
 import type { IotaClient } from '@iota/iota-sdk/client';
 import type { SignatureWithBytes } from '@iota/iota-sdk/cryptography';
 import { messageWithIntent, Signer, toSerializedSignature } from '@iota/iota-sdk/cryptography';
@@ -69,20 +70,24 @@ export class LedgerSigner extends Signer {
      * Signs the provided transaction bytes.
      * @returns The signed transaction bytes and signature.
      */
-    override async signTransaction(bytes: Uint8Array): Promise<SignatureWithBytes> {
-        const transactionOptions = await getInputObjects(
-            Transaction.from(bytes),
-            this.#iotaClient,
-        ).catch(() => ({
-            // Fail gracefully so network errors or serialization issues don't break transaction signing:
-            bcsObjects: [],
-        }));
+    override async signTransaction(
+        bytes: Uint8Array,
+        bcsObjects?: Uint8Array[],
+        resolution?: Resolution,
+    ): Promise<SignatureWithBytes> {
+        const transactionOptions = bcsObjects
+            ? { bcsObjects }
+            : await getInputObjects(Transaction.from(bytes), this.#iotaClient).catch(() => ({
+                  // Fail gracefully so network errors or serialization issues don't break transaction signing:
+                  bcsObjects: [],
+              }));
 
         const intentMessage = messageWithIntent('TransactionData', bytes);
         const { signature } = await this.#ledgerClient.signTransaction(
             this.#derivationPath,
             intentMessage,
             transactionOptions,
+            resolution,
         );
 
         return {
