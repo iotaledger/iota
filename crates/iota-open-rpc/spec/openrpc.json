@@ -6168,23 +6168,20 @@
         "type": "string"
       },
       "CancelledTransaction": {
-        "description": "A transaction that was cancelled\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text cancelled-transaction = digest (vector version-assignment) ```",
-        "type": "object",
-        "required": [
-          "digest",
-          "versionAssignments"
-        ],
-        "properties": {
-          "digest": {
+        "type": "array",
+        "items": [
+          {
             "$ref": "#/components/schemas/Digest"
           },
-          "versionAssignments": {
+          {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/VersionAssignment"
             }
           }
-        }
+        ],
+        "maxItems": 2,
+        "minItems": 2
       },
       "Checkpoint": {
         "type": "object",
@@ -6381,26 +6378,18 @@
         }
       },
       "ConsensusDeterminedVersionAssignments": {
+        "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
         "oneOf": [
           {
-            "description": "Cancelled transaction version assignment.",
             "type": "object",
             "required": [
               "CancelledTransactions"
             ],
             "properties": {
               "CancelledTransactions": {
-                "type": "object",
-                "required": [
-                  "CancelledTransactions"
-                ],
-                "properties": {
-                  "CancelledTransactions": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/CancelledTransaction"
-                    }
-                  }
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/CancelledTransaction"
                 }
               }
             },
@@ -12738,22 +12727,19 @@
         }
       },
       "VersionAssignment": {
-        "description": "Object version assignment from consensus\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text version-assignment = object-id u64 ```",
-        "type": "object",
-        "required": [
-          "objectId",
-          "version"
-        ],
-        "properties": {
-          "objectId": {
+        "type": "array",
+        "items": [
+          {
             "$ref": "#/components/schemas/ObjectId"
           },
-          "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
-        }
+        ],
+        "maxItems": 2,
+        "minItems": 2
       }
     }
   }
