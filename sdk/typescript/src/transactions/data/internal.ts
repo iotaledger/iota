@@ -83,7 +83,7 @@ export const ObjectRef = object({
 export type ObjectRef = InferOutput<typeof ObjectRef>;
 
 // https://github.com/iotaledger/iota/blob/df41d5fa8127634ff4285671a01ead00e519f806/crates/iota-types/src/transaction.rs#L690-L702
-export const Argument = pipe(
+export const ArgumentSchema = pipe(
     union([
         object({ GasCoin: literal(true) }),
         object({ Input: pipe(number(), integer()), type: optional(literal('pure')) }),
@@ -110,7 +110,7 @@ export const Argument = pipe(
     | { $kind: 'NestedResult'; NestedResult: [number, number] }
 >;
 
-export type Argument = InferOutput<typeof Argument>;
+export type Argument = InferOutput<typeof ArgumentSchema>;
 
 // https://github.com/iotaledger/iota/blob/df41d5fa8127634ff4285671a01ead00e519f806/crates/iota-types/src/transaction.rs#L1387-L1392
 export const GasData = object({
@@ -187,14 +187,14 @@ const ProgrammableMoveCall = object({
     function: string(),
     // snake case in rust
     typeArguments: array(string()),
-    arguments: array(Argument),
+    arguments: array(ArgumentSchema),
     _argumentTypes: optional(nullable(array(OpenMoveTypeSignature))),
 });
 export type ProgrammableMoveCall = InferOutput<typeof ProgrammableMoveCall>;
 
 export const $Intent = object({
     name: string(),
-    inputs: record(string(), union([Argument, array(Argument)])),
+    inputs: record(string(), union([ArgumentSchema, array(ArgumentSchema)])),
     data: record(string(), unknown()),
 });
 
@@ -202,16 +202,16 @@ export const $Intent = object({
 export const Command = safeEnum({
     MoveCall: ProgrammableMoveCall,
     TransferObjects: object({
-        objects: array(Argument),
-        address: Argument,
+        objects: array(ArgumentSchema),
+        address: ArgumentSchema,
     }),
     SplitCoins: object({
-        coin: Argument,
-        amounts: array(Argument),
+        coin: ArgumentSchema,
+        amounts: array(ArgumentSchema),
     }),
     MergeCoins: object({
-        destination: Argument,
-        sources: array(Argument),
+        destination: ArgumentSchema,
+        sources: array(ArgumentSchema),
     }),
     Publish: object({
         modules: array(BCSBytes),
@@ -219,13 +219,13 @@ export const Command = safeEnum({
     }),
     MakeMoveVec: object({
         type: nullable(string()),
-        elements: array(Argument),
+        elements: array(ArgumentSchema),
     }),
     Upgrade: object({
         modules: array(BCSBytes),
         dependencies: array(ObjectID),
         package: ObjectID,
-        ticket: Argument,
+        ticket: ArgumentSchema,
     }),
     $Intent,
 });
