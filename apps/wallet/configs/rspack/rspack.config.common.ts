@@ -135,6 +135,8 @@ const commonConfig: () => Promise<Configuration> = async () => {
             alias,
             fallback: {
                 crypto: false,
+                https: require.resolve('https-browserify'),
+                http: require.resolve('http-browserify'),
                 stream: require.resolve('stream-browserify'),
                 buffer: require.resolve('buffer/'),
             },
