@@ -835,8 +835,8 @@ importers:
         specifier: ^0.11.4
         version: 0.11.4
       '@ledgerhq/errors':
-        specifier: ^6.12.4
-        version: 6.19.1
+        specifier: ^6.26.0
+        version: 6.29.0
       '@ledgerhq/hw-transport':
         specifier: ^6.31.12
         version: 6.31.12
@@ -1944,7 +1944,7 @@ importers:
         specifier: ^1.3.0
         version: 1.3.0
       semver:
-        specifier: ^7
+        specifier: ^7.5.4
         version: 7.7.3
     devDependencies:
       '@iota/build-scripts':
@@ -1963,7 +1963,7 @@ importers:
         specifier: ^24.0.0
         version: 24.10.12
       '@types/semver':
-        specifier: ^7
+        specifier: ^7.5.0
         version: 7.5.8
       axios:
         specifier: ^1.13.5
@@ -6322,9 +6322,6 @@ packages:
 
   '@ledgerhq/devices@8.6.1':
     resolution: {integrity: sha512-PQR2fyWz7P/wMFHY9ZLz17WgFdxC/Im0RVDcWXpp24+iRQRyxhQeX2iG4mBKUzfaAW6pOIEiWt+vmJh88QP9rQ==}
-
-  '@ledgerhq/errors@6.19.1':
-    resolution: {integrity: sha512-75yK7Nnit/Gp7gdrJAz0ipp31CCgncRp+evWt6QawQEtQKYEDfGo10QywgrrBBixeRxwnMy1DP6g2oCWRf1bjw==}
 
   '@ledgerhq/errors@6.26.0':
     resolution: {integrity: sha512-4OlisaDBafkn7KN5emue08lCGMVREX6T+nxj47C7W30EBA/leLAEDaVvUw5/gFOWrv8Q2A9Scb8aMM3uokyt0w==}
@@ -28041,19 +28038,17 @@ snapshots:
 
   '@ledgerhq/devices@8.4.4':
     dependencies:
-      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/logs': 6.13.0
       rxjs: 7.8.1
       semver: 7.7.3
 
   '@ledgerhq/devices@8.6.1':
     dependencies:
-      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/logs': 6.13.0
       rxjs: 7.8.1
       semver: 7.7.3
-
-  '@ledgerhq/errors@6.19.1': {}
 
   '@ledgerhq/errors@6.26.0': {}
 
@@ -28071,7 +28066,7 @@ snapshots:
 
   '@ledgerhq/hw-transport-node-speculos-http@6.30.2':
     dependencies:
-      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.13.0
       axios: 1.13.5(debug@4.3.7)
@@ -28082,21 +28077,21 @@ snapshots:
   '@ledgerhq/hw-transport-webhid@6.29.4':
     dependencies:
       '@ledgerhq/devices': 8.4.4
-      '@ledgerhq/errors': 6.19.1
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport-webusb@6.29.4':
     dependencies:
       '@ledgerhq/devices': 8.4.4
-      '@ledgerhq/errors': 6.19.1
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport@6.31.12':
     dependencies:
       '@ledgerhq/devices': 8.6.1
-      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/logs': 6.13.0
       events: 3.3.0
 
@@ -28126,7 +28121,7 @@ snapshots:
 
   '@ledgerhq/live-network@2.0.19':
     dependencies:
-      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/errors': 6.29.0
       '@ledgerhq/live-env': 2.18.0
       '@ledgerhq/live-promise': 0.1.1
       '@ledgerhq/logs': 6.13.0
