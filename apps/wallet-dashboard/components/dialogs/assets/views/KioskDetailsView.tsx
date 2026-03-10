@@ -8,7 +8,6 @@ import {
     NFTMediaDisplayCard,
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
-    OutlinedCopyButton,
     toast,
 } from '@iota/core';
 import { Badge, BadgeType, Header, LoadingIndicator } from '@iota/apps-ui-kit';
@@ -16,6 +15,7 @@ import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { ExplorerLink } from '@/components/ExplorerLink';
+import { OutlinedCopyButton } from '@/components/buttons';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -76,6 +76,7 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={objectId ?? ''}
+                            type="kiosk-object-id"
                             onCopySuccess={() =>
                                 toast.success('Kiosk Object ID copied to clipboard')
                             }

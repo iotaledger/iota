@@ -6,13 +6,13 @@ import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from './layout';
 import { ExplorerLink } from '../ExplorerLink';
 import {
     ExplorerLinkType,
-    OutlinedCopyButton,
     toast,
     TransactionReceipt,
     useGetTransactionWithSummary,
     ViewTxnOnExplorerButton,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { OutlinedCopyButton } from '@/components/buttons';
 
 interface TransactionViewProps {
     onClose: () => void;
@@ -61,6 +61,7 @@ export function TransactionDialogView({
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={txDigest ?? ''}
+                            type="transaction-digest"
                             onCopySuccess={() =>
                                 toast.success('Transaction digest copied to clipboard')
                             }

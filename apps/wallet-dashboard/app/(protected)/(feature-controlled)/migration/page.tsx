@@ -6,7 +6,11 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useGetStardustMigratableObjects, useGroupedStardustObjects } from '@/hooks';
+import {
+    useGetStardustMigratableObjects,
+    useGroupedStardustObjects,
+    useCopyToClipboard,
+} from '@/hooks';
 import { getStardustObjectsTotals } from '@/lib/utils';
 import {
     Address,
@@ -25,9 +29,7 @@ import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
-    toast,
     addressToStardustBech32,
-    useCopyToClipboard,
     useFormatCoin,
     useStardustIndexerClientContext,
 } from '@iota/core';
@@ -181,11 +183,10 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
-    const copyToClipBoard = useCopyToClipboard(() => toast('Address copied'));
-
-    async function handleCopy() {
-        await copyToClipBoard(bech32Address);
-    }
+    const onCopySuccess = useCopyToClipboard(bech32Address, {
+        copySuccessMessage: 'Address copied',
+        textType: 'stardust-address',
+    });
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
@@ -227,7 +228,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 externalLink={`https://explorer.iota.org/mainnet/addr/${bech32Address}`}
                                 isCopyable
                                 copyText={bech32Address}
-                                onCopySuccess={handleCopy}
+                                onCopySuccess={onCopySuccess}
                             />
                         </div>
                     </Panel>

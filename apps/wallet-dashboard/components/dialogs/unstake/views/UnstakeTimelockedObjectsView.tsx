@@ -91,6 +91,7 @@ export function UnstakeTimelockedObjectsView({
 
     function handleCopySuccess() {
         toast('Copied to clipboard');
+        ampli.elementCopied({ type: 'stake-id' });
     }
 
     async function handleUnstake(): Promise<void> {
