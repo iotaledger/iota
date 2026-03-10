@@ -47,11 +47,12 @@ fn parse_deprecated_db_map_migration(attr: &Attribute) -> Option<syn::Path> {
             for nested in &ml.nested {
                 if let syn::NestedMeta::Meta(Meta::NameValue(nv)) = nested
                     && nv.path.is_ident("migration")
-                        && let Lit::Str(s) = &nv.lit {
-                            let fn_path: syn::Path =
-                                s.parse().expect("migration value must be a valid path");
-                            return Some(fn_path);
-                        }
+                    && let Lit::Str(s) = &nv.lit
+                {
+                    let fn_path: syn::Path =
+                        s.parse().expect("migration value must be a valid path");
+                    return Some(fn_path);
+                }
             }
             None
         }

@@ -210,7 +210,7 @@ pub(crate) struct DagState {
     voting_block_headers_to_write: Vec<VerifiedBlockHeader>,
 
     /// Fast sync ongoing flag to be flushed to storage.
-    fast_sync_ongoing_flag_to_write: bool,
+    fast_sync_ongoing_flag_to_write: Option<bool>,
 
     /// Buffer the reputation scores & last_committed_rounds to be flushed with
     /// the next dag state flush. This is okay because we can recover
@@ -321,7 +321,7 @@ impl DagState {
             block_headers_to_write: vec![],
             commits_to_write: vec![],
             voting_block_headers_to_write: vec![],
-            fast_sync_ongoing_flag_to_write: fast_sync_ongoing,
+            fast_sync_ongoing_flag_to_write: None,
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
@@ -591,7 +591,7 @@ impl DagState {
     }
 
     pub(crate) fn set_fast_sync_ongoing_flag(&mut self, flag: bool) {
-        self.fast_sync_ongoing_flag_to_write = flag;
+        self.fast_sync_ongoing_flag_to_write = Some(flag);
     }
 
     pub(crate) fn fast_sync_ongoing(&self) -> bool {
@@ -686,25 +686,27 @@ impl DagState {
             .accepted_block_headers_round_gap
             .with_label_values(&[source.as_str()])
             .observe(clock_round_gap as f64);
-        if source != DataSource::CommitSyncer && source != DataSource::Recover
-            && let Some((sender, _)) = &self.cordial_knowledge_senders {
-                // Fetch transaction commitments for all acknowledged blocks in batch
-                let acknowledgments = block_header.acknowledgments();
-                let ack_transactions_commitments =
-                    if self.context.protocol_config.consensus_fast_commit_sync() {
-                        self.get_transactions_commitments_batch(acknowledgments)
-                    } else {
-                        vec![None; acknowledgments.len()]
-                    };
-
-                let cordial_message = CordialKnowledgeMessage::NewHeader {
-                    header: block_header.clone(),
-                    ack_transactions_commitments,
+        if source != DataSource::CommitSyncer
+            && source != DataSource::Recover
+            && let Some((sender, _)) = &self.cordial_knowledge_senders
+        {
+            // Fetch transaction commitments for all acknowledged blocks in batch
+            let acknowledgments = block_header.acknowledgments();
+            let ack_transactions_commitments =
+                if self.context.protocol_config.consensus_fast_commit_sync() {
+                    self.get_transactions_commitments_batch(acknowledgments)
+                } else {
+                    vec![None; acknowledgments.len()]
                 };
-                if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
-                    warn!("Failed to send cordial knowledge update: channel closed");
-                }
+
+            let cordial_message = CordialKnowledgeMessage::NewHeader {
+                header: block_header.clone(),
+                ack_transactions_commitments,
+            };
+            if let Err(TrySendError::Closed(_)) = sender.try_send(cordial_message) {
+                warn!("Failed to send cordial knowledge update: channel closed");
             }
+        }
     }
 
     fn update_transaction_metadata(
@@ -1364,30 +1366,30 @@ impl DagState {
     /// instance when own header is synced and the node is restarted.
     pub(crate) fn get_last_own_non_genesis_block(&self) -> Option<VerifiedBlock> {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last()
-            && last.round > GENESIS_ROUND {
-                let last_header_opt = self.recent_block_headers.get(last);
-                if let Some(last_header) = last_header_opt {
-                    let transaction_ref =
-                        if self.context.protocol_config.consensus_fast_commit_sync() {
-                            GenericTransactionRef::from(TransactionRef {
-                                round: last.round,
-                                author: last.author,
-                                transactions_commitment: last_header.transactions_commitment(),
-                            })
-                        } else {
-                            GenericTransactionRef::from(*last)
-                        };
+            && last.round > GENESIS_ROUND
+        {
+            let last_header_opt = self.recent_block_headers.get(last);
+            if let Some(last_header) = last_header_opt {
+                let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
+                    GenericTransactionRef::from(TransactionRef {
+                        round: last.round,
+                        author: last.author,
+                        transactions_commitment: last_header.transactions_commitment(),
+                    })
+                } else {
+                    GenericTransactionRef::from(*last)
+                };
 
-                    if let Some(last_transactions) =
-                        self.recent_transactions_by_authority[last.author].get(&transaction_ref)
-                    {
-                        return Some(VerifiedBlock::new(
-                            last_header.clone(),
-                            last_transactions.clone(),
-                        ));
-                    }
+                if let Some(last_transactions) =
+                    self.recent_transactions_by_authority[last.author].get(&transaction_ref)
+                {
+                    return Some(VerifiedBlock::new(
+                        last_header.clone(),
+                        last_transactions.clone(),
+                    ));
                 }
             }
+        }
         None
     }
 
@@ -2178,7 +2180,7 @@ impl DagState {
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info = std::mem::take(&mut self.commit_info_to_write);
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
-        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write;
+        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
         // Early return if there's nothing to flush
         if transactions.is_empty()
@@ -2186,6 +2188,7 @@ impl DagState {
             && commits.is_empty()
             && commit_info.is_empty()
             && voting_block_headers.is_empty()
+            && fast_commit_sync_flag.is_none()
         {
             return;
         }
@@ -2210,6 +2213,8 @@ impl DagState {
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
             fast_commit_sync_flag
+                .map(|f| f.to_string())
+                .unwrap_or_else(|| "unchanged".to_string())
         );
 
         // Write all buffered data to storage

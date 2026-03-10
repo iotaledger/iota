@@ -397,9 +397,10 @@ pub async fn simulate_transaction(
 
                     // Set the command index if available
                     if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name)
-                        && let Some(command_idx) = execution_error.command() {
-                            exec_error.command_index = Some(command_idx as u64);
-                        }
+                        && let Some(command_idx) = execution_error.command()
+                    {
+                        exec_error.command_index = Some(command_idx as u64);
+                    }
 
                     response.execution_result = Some(ExecutionResult::ExecutionError(exec_error));
                 }

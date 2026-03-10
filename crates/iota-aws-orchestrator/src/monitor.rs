@@ -48,6 +48,7 @@ impl Monitor {
         &self,
         protocol_commands: &P,
         use_internal_ip_address: bool,
+        use_fullnode_for_execution: bool,
         snapshot_dir: Option<&str>,
     ) -> MonitorResult<()> {
         let instance = std::iter::once(self.instance.clone());
@@ -56,6 +57,7 @@ impl Monitor {
             self.nodes.clone(),
             protocol_commands,
             use_internal_ip_address,
+            use_fullnode_for_execution,
             snapshot_dir,
         );
         self.ssh_manager
@@ -118,6 +120,7 @@ impl Prometheus {
         nodes: I,
         protocol: &P,
         use_internal_ip_address: bool,
+        use_fullnode_for_execution: bool,
         snapshot_dir: Option<&str>,
     ) -> String
     where
@@ -133,9 +136,18 @@ impl Prometheus {
         for (i, (_, clients_metrics_path)) in clients_metrics_path.into_iter().enumerate() {
             let id = format!("client-{i}");
             let client_ip = clients_metrics_path.split(":").next().unwrap().to_string();
-            client_ips.push(client_ip);
+            client_ips.push(client_ip.clone());
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);
             config.push(scrape_config);
+
+            // When using fullnode for execution, also scrape fullnode metrics on port 9184
+            if use_fullnode_for_execution {
+                let fullnode_metrics_path = format!("{client_ip}:9184/metrics");
+                let fullnode_id = format!("fullnode-{i}");
+                let fullnode_scrape_config =
+                    Self::scrape_configuration(&fullnode_id, &fullnode_metrics_path);
+                config.push(fullnode_scrape_config);
+            }
         }
         // Add configurations to scrape the nodes.
         let mut node_ips = vec![];

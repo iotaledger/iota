@@ -199,6 +199,7 @@ class RustTestOrchestrator:
             'simtest_timeout': get_arg_with_default('simtest_timeout', 180000),
             'base_branch': get_arg_with_default('base_branch', 'origin/develop'),
             'dry_run': get_arg_with_default('dry_run', False),
+            'no_fail_fast': get_arg_with_default('no_fail_fast', False),
         }
     
     # parse the crates-filters.yml file using regex.
@@ -554,6 +555,9 @@ class RustTestOrchestrator:
         if self.config['no_capture']:
             parts.append("--nocapture")
         
+        if self.config.get('no_fail_fast'):
+            parts.append("--no-fail-fast")
+        
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
@@ -575,6 +579,9 @@ class RustTestOrchestrator:
         
         if self.config['no_capture']:
             parts.append("--nocapture")
+        
+        if self.config.get('no_fail_fast'):
+            parts.append("--no-fail-fast")
         
         # Set simtest timeout
         test_env = {
@@ -622,6 +629,19 @@ class RustTestOrchestrator:
             self.logger.error("No conditions are set to run tests. Exiting.")
             return 1
         
+        no_fail_fast = self.config.get('no_fail_fast', False)
+        first_failure = 0
+
+        def handle_result(res: int) -> Optional[int]:
+            """Returns the result to propagate immediately (fail-fast), or None to continue."""
+            nonlocal first_failure
+            if res != 0:
+                if first_failure == 0:
+                    first_failure = res
+                if not no_fail_fast:
+                    return res
+            return None
+
         # check if external crates are set
         if tests_crates_external or filter_overwrite_external:
             external_filter = ""
@@ -648,8 +668,8 @@ class RustTestOrchestrator:
                         "external-crates/move/Cargo.toml",
                         "tracing"
                     )
-                    if result != 0:
-                        return result
+                    if (propagate := handle_result(result)) is not None:
+                        return propagate
             else:
                 self.logger.info("Skipping external crates tests - no external crates changed")
         
@@ -660,7 +680,7 @@ class RustTestOrchestrator:
             tests_move_example_used_by_others,
             filter_overwrite,
         ]):
-            return 0
+            return first_failure
         
         # Build main test filter set
         combined_set, tests_added = "", False
@@ -686,8 +706,8 @@ class RustTestOrchestrator:
         # Run tests based on type
         if test_type == self.TEST_TYPE_NEXTEST:
             result = self.run_cargo_nextest(combined_set)
-            if result != 0:
-                return result
+            if (propagate := handle_result(result)) is not None:
+                return propagate
                 
             # Run special postgres shared runtime tests with cargo test
             if tests_pg_integration:
@@ -701,16 +721,18 @@ class RustTestOrchestrator:
                 rpc_test_cmd = "cargo test --profile simulator --package iota-indexer --test rpc-tests --all-features"
                 if self.config['no_capture']:
                     rpc_test_cmd += " --nocapture"
+                if self.config.get('no_fail_fast'):
+                    rpc_test_cmd += " --no-fail-fast"
                 result = self.print_and_run_command(rpc_test_cmd)
-                if result != 0:
-                    return result
+                if (propagate := handle_result(result)) is not None:
+                    return propagate
                     
         elif test_type == self.TEST_TYPE_SIMTEST:
             result = self.run_cargo_simtest(combined_set)
-            if result != 0:
-                return result
+            if (propagate := handle_result(result)) is not None:
+                return propagate
         
-        return 0
+        return first_failure
     
     ### Step execution methods
 
@@ -869,6 +891,7 @@ PostgreSQL Environment variables (infrastructure config):
     parser.add_argument('--simtest-timeout', type=int, help='Timeout in milliseconds for simulation tests (default: 180000)')
     parser.add_argument('--base-branch', type=str, help='Base branch to compare for changed crates detection if no changed crates are given (default: origin/develop)')
     parser.add_argument('--dry-run', action='store_true', help='Print commands that would be executed without actually running them')
+    parser.add_argument('--no-fail-fast', action='store_true', help='Continue running all test commands even if one fails, instead of stopping on the first failure. The script still exits with a non-zero code if any command failed.')
 
     parser.add_argument(
         '--verbose', '-v',

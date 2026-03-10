@@ -67,6 +67,8 @@ jobs:
   examples:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rust_examples.yml
+    with:
+      isNightly: true
 
   tests:
     if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
@@ -79,6 +81,7 @@ jobs:
       runSimtest: false
       # run all tests by default
       testOnlyChangedCrates: false
+      isNightly: true
 
   tests-with-starfish:
     if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
@@ -92,6 +95,7 @@ jobs:
       runSimtest: false
       # run all tests by default
       testOnlyChangedCrates: false
+      isNightly: true
 
   deny:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
@@ -106,6 +110,8 @@ jobs:
   execution-cut:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_execution_cut.yml
+    with:
+      isNightly: true
 
   split-cluster:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
@@ -118,6 +124,8 @@ jobs:
   rosetta:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rosetta.yml
+    with:
+      isNightly: true
 
   simtest:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}

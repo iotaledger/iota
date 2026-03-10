@@ -49,7 +49,7 @@ use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{Instrument, debug, error, error_span, info};
+use tracing::{Instrument, debug, error, error_span, info, trace_span};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -604,6 +604,7 @@ impl ValidatorService {
             epoch_store
                 .signature_verifier
                 .multi_verify_certs(certificates.into())
+                .instrument(trace_span!("SignatureVerifier::multi_verify_certs"))
                 .await
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?
@@ -719,7 +720,9 @@ impl ValidatorService {
         &self,
         request: tonic::Request<Transaction>,
     ) -> WrappedServiceResponse<HandleTransactionResponse> {
-        self.handle_transaction(request).await
+        self.handle_transaction(request)
+            .instrument(trace_span!("ValidatorService::handle_transaction"))
+            .await
     }
 
     async fn submit_certificate_impl(

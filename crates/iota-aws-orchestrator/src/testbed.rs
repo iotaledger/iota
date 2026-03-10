@@ -244,6 +244,7 @@ impl<C: ServerProviderClient> Testbed<C> {
         };
         self.metrics_instance = metrics_instance.into_iter().next();
 
+        display::action("Deployment completed\n\n");
         display::done();
         Ok(())
     }

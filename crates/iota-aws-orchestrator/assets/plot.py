@@ -8,6 +8,9 @@ import glob
 import json
 import math
 import os
+# Set the backend before importing pyplot to avoid macOS icon issues
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as tick
 from glob import glob
@@ -23,58 +26,98 @@ def gen_data(measurement):
             yield data
 
 def aggregate_tps(measurement, i=-1):
-    max_duration = 0
-    for data in gen_data(measurement):
-        duration = float(data[i]['timestamp']['secs'])
-        max_duration = max(duration, max_duration)
-
+    # Calculate TPS for each scraper based on its own timestamp, then sum
+    # This matches: sum of (count / timestamp) for each measurement
     tps = []
     for data in gen_data(measurement):
-        count = float(data[i]['count'])
-        tps += [(count / max_duration) if max_duration != 0 else 0]
+        last = data[i]
+        count = float(last['count'])
+        duration = float(last['timestamp']['secs'])
+        tps += [(count / duration) if duration != 0 else 0]
     return sum(tps)
 
 
 def aggregate_average_latency(measurement, i=-1):
-    latency = []
+    # Calculate weighted average: (sum of all latency_sum) / (sum of all counts)
+    total_sum = 0
+    total_count = 0
     for data in gen_data(measurement):
         last = data[i]
-        count = float(last['count'])
-        total = float(last['sum']['secs'])
-        latency += [total / count if count != 0 else 0]
-    return sum(latency) / len(latency) if latency else 0
+        total_sum += float(last['sum']['secs'])
+        total_count += float(last['count'])
+    return total_sum / total_count if total_count != 0 else 0
 
 
 def aggregate_stdev_latency(measurement, i=-1):
-    stdev = []
+    # Calculate pooled standard deviation using combined squared_sum, sum, and count
+    # Formula: sqrt((Σsquared_sum / Σcount) - (Σsum / Σcount)^2)
+    total_sum = 0
+    total_squared_sum = 0
+    total_count = 0
+    
     for data in gen_data(measurement):
         last = data[i]
-        count = float(last['count'])
-        if count == 0:
-            stdev += [0]
-        else:
-            first_term = float(last['squared_sum']['secs']) / count
-            second_term = (float(last['sum']['secs']) / count)**2
-            # Ensure we don't take square root of a negative number due to floating-point precision
-            variance = max(0, first_term - second_term)
-            stdev += [math.sqrt(variance)]
-    return max(stdev)
+        total_sum += float(last['sum']['secs'])
+        total_squared_sum += float(last['squared_sum']['secs'])
+        total_count += float(last['count'])
+    
+    if total_count == 0:
+        return 0
+    
+    first_term = total_squared_sum / total_count
+    avg = total_sum / total_count
+    variance = max(0, first_term - avg**2)
+    return math.sqrt(variance)
 
 
 def aggregate_p_latency(measurement, p=50, i=-1):
-    latency = []
+    # Aggregate all histogram buckets, then calculate quantile with linear interpolation
+    # This matches Prometheus's histogram_quantile behavior
+    combined_buckets = {}
+    total_count = 0
+    
     for data in gen_data(measurement):
         last = data[i]
-        count = float(last['count'])
-        buckets = [(float(l), c) for l, c in last['buckets'].items()]
-        buckets.sort(key=lambda x: x[0])
-
-        for l, c in buckets:
-            if c >= count * p / 100:
-                latency += [l]
-                break
-
-    return sum(latency) / len(latency) if latency else 0
+        total_count += float(last['count'])
+        for bucket_id, bucket_count in last['buckets'].items():
+            combined_buckets[bucket_id] = combined_buckets.get(bucket_id, 0) + bucket_count
+    
+    if total_count == 0:
+        return 0
+    
+    # Parse and sort buckets
+    buckets = []
+    for bucket_id, count in combined_buckets.items():
+        if bucket_id == 'inf':
+            bound = float('inf')
+        else:
+            bound = float(bucket_id)
+        buckets.append((bound, count))
+    buckets.sort(key=lambda x: x[0])
+    
+    # Calculate the rank for the desired quantile
+    rank = (p / 100.0) * total_count
+    
+    # Find the bucket containing the quantile using linear interpolation
+    prev_count = 0.0
+    prev_bound = 0.0
+    
+    for bound, count in buckets:
+        if count >= rank:
+            # If this is the first bucket or all observations are in this bucket
+            if prev_count == 0.0 or count == prev_count:
+                return bound
+            
+            # Linear interpolation between prev_bound and bound
+            fraction = (rank - prev_count) / (count - prev_count)
+            interpolated = prev_bound + (bound - prev_bound) * fraction
+            return interpolated
+        
+        prev_count = count
+        prev_bound = bound
+    
+    # Fallback
+    return prev_bound
 
 
 class PlotType(Enum):
