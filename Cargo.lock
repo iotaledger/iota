@@ -7315,6 +7315,7 @@ dependencies = [
  "iota-indexer",
  "iota-keys",
  "iota-macros",
+ "iota-metrics",
  "iota-protocol-config",
  "iota-sdk",
  "iota-simulator",

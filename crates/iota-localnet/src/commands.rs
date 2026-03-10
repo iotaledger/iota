@@ -1100,8 +1100,6 @@ pub fn parse_host_port(
         input.parse::<SocketAddr>()
     } else if input.contains('.') {
         format!("{input}:{default_port_if_missing}").parse::<SocketAddr>()
-    } else if input.is_empty() {
-        format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
     } else if !input.is_empty() {
         format!("{default_host}:{input}").parse::<SocketAddr>()
     } else {

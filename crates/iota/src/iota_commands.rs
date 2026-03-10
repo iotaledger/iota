@@ -5,7 +5,6 @@
 use std::{
     io,
     io::{Write, stdout},
-    net::{AddrParseError, SocketAddr},
     path::{Path, PathBuf},
 };
 
@@ -512,28 +511,4 @@ fn read_line() -> Result<String, anyhow::Error> {
     let _ = stdout().flush();
     io::stdin().read_line(&mut s)?;
     Ok(s.trim_end().to_string())
-}
-
-/// Parse the input string into a SocketAddr, with a default port if none is
-/// provided.
-pub fn parse_host_port(
-    input: String,
-    default_port_if_missing: u16,
-) -> Result<SocketAddr, AddrParseError> {
-    let default_host = "0.0.0.0";
-    let mut input = input;
-    if input.contains("localhost") {
-        input = input.replace("localhost", "127.0.0.1");
-    }
-    if input.contains(':') {
-        input.parse::<SocketAddr>()
-    } else if input.contains('.') {
-        format!("{input}:{default_port_if_missing}").parse::<SocketAddr>()
-    } else if input.is_empty() {
-        format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
-    } else if !input.is_empty() {
-        format!("{default_host}:{input}").parse::<SocketAddr>()
-    } else {
-        format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
-    }
 }
