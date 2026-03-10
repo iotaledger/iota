@@ -4,6 +4,8 @@
 use iota_grpc_client::Error;
 use iota_macros::sim_test;
 use iota_sdk_types::UserSignature;
+use iota_test_transaction_builder::make_transfer_iota_transaction;
+use iota_types::base_types::IotaAddress;
 
 use super::{
     super::utils::setup_grpc_test,
@@ -46,6 +48,42 @@ async fn execute_transaction_transfer() {
     assert!(
         result.output_objects.is_some(),
         "Output objects should be present with default mask"
+    );
+}
+
+/// Verify that a transfer creates the expected output objects: the mutated gas
+/// coin for the sender and a new coin for the recipient.
+#[sim_test]
+async fn execute_transaction_transfer_outputs() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let recipient = IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    let tx =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+    let signed_tx: iota_sdk_types::SignedTransaction =
+        tx.try_into().expect("SDK type conversion failed");
+
+    let result = client
+        .execute_transaction(signed_tx, None)
+        .await
+        .expect("Failed to execute transaction");
+
+    let effects = result
+        .effects()
+        .expect("Failed to get effects")
+        .effects()
+        .expect("Failed to get inner effects");
+
+    assert!(is_success(effects.status()), "Transaction should succeed");
+
+    // A SplitCoins + TransferObjects transfer produces at least 2 output objects:
+    // the mutated gas coin (sender) and the new coin (recipient).
+    let output_objects = result.output_objects.as_ref().expect("output objects");
+    assert!(
+        output_objects.objects.len() >= 2,
+        "Expected at least 2 output objects (gas + recipient coin), got {}",
+        output_objects.objects.len()
     );
 }
 
