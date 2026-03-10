@@ -6,7 +6,6 @@ import EventEmitter from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IotaHTTPTransport } from '../../../src/client';
-import { PACKAGE_VERSION, TARGETED_RPC_VERSION } from '../../../src/version';
 
 describe('IotaHTTPTransport', () => {
     describe('rpc requests', () => {
@@ -60,9 +59,6 @@ describe('IotaHTTPTransport', () => {
                 }),
                 headers: {
                     'Content-Type': 'application/json',
-                    'Client-Sdk-Type': 'typescript',
-                    'Client-Sdk-Version': PACKAGE_VERSION,
-                    'Client-Target-Api-Version': TARGETED_RPC_VERSION,
                 },
                 method: 'POST',
             });
