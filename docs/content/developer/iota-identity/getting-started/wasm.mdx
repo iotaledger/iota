@@ -70,7 +70,7 @@ import { IotaDID } from "@iota/identity-wasm/web";
 import { IotaClient } from "@iota/iota-sdk/client";
 import { createDocumentForNetwork, getFundedClient, getMemstorage, NETWORK_URL } from "../util";
 
-/** Demonstrate how to create a DID Document and publish it. */
+/* Demonstrate how to create a DID Document and publish it. */
 export async function createIdentity(): Promise<void> {
     // create new client to connect to IOTA network
     const iotaClient = new IotaClient({ url: NETWORK_URL });

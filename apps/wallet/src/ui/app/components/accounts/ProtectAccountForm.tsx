@@ -113,6 +113,7 @@ export function ProtectAccountForm({
                     {...register('password.input', { shouldUnregister: true })}
                     name="password.input"
                     data-testid="password.input"
+                    data-amp-mask
                 />
                 <Input
                     type={InputType.Password}
@@ -123,6 +124,7 @@ export function ProtectAccountForm({
                     {...register('password.confirmation', { shouldUnregister: true })}
                     name="password.confirmation"
                     data-testid="password.confirmation"
+                    data-amp-mask
                 />
                 <AutoLockSelector />
             </div>

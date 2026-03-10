@@ -213,7 +213,6 @@ impl ValidatorConfigBuilder {
                 .to_socket_addr()
                 .unwrap(),
             consensus_config: Some(consensus_config),
-            remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
@@ -574,7 +573,6 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis,
             migration_tx_data_path,

@@ -148,10 +148,12 @@ export function EnterValuesFormView({
                                 totalGas={sendCoinTransactionQuery.data?.gasSummary?.totalGas}
                                 coinMetadata={coinMetadata.data}
                             />
-                            <AddressInput
-                                {...RECEIVING_ADDRESS_FIELD_IDS}
-                                placeholder="Enter Address"
-                            />
+                            <div data-amp-mask>
+                                <AddressInput
+                                    {...RECEIVING_ADDRESS_FIELD_IDS}
+                                    placeholder="Enter Address"
+                                />
+                            </div>
                         </div>
                     </Form>
                 </div>

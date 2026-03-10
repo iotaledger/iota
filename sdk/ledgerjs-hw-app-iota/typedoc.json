@@ -1,0 +1,6 @@
+{
+    "entryPoints": ["src/Iota.ts"],
+    "excludeInternal": true,
+    "excludePrivate": true,
+    "intentionallyNotExported": []
+}

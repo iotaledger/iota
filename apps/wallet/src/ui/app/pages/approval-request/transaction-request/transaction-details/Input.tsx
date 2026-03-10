@@ -31,7 +31,7 @@ export function Input({ input }: InputProps) {
                             objectID={objectId || ''}
                             eventType="object"
                         >
-                            {formatAddress(objectId || '')}
+                            <span data-amp-mask>{formatAddress(objectId || '')}</span>
                         </ExplorerLink>
                     }
                     fullwidth

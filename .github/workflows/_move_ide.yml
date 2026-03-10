@@ -1,6 +1,11 @@
 name: Move IDE
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: move-ide-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,6 +35,16 @@ jobs:
         working-directory: ./external-crates/move/crates/move-analyzer/prettier-plugin
         shell: bash
         run: npm run test
+
+  move-auto-formatter-test-cancel:
+    needs: [move-auto-formatter-test]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   move-ide-test:
     name: Move IDE Test
@@ -72,6 +87,16 @@ jobs:
         shell: bash
         run: npm run pretest && DISPLAY=:99.0 npm run test
 
+  move-ide-test-cancel:
+    needs: [move-ide-test]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   move-vscode-extension-build:
     name: Move VSCode extension build
     runs-on: [self-hosted-x64]
@@ -94,3 +119,13 @@ jobs:
       - name: Build VSCode extension
         working-directory: ./external-crates/move/crates/move-analyzer/editors/code
         run: npm run package
+
+  move-vscode-extension-build-cancel:
+    needs: [move-vscode-extension-build]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
