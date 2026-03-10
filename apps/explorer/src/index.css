@@ -120,7 +120,8 @@ body,
             'heroImage description'
             'objectId type'
             'owner storageRebate'
-            'version lastTxBlock';
+            'version lastTxBlock'
+            'digest digest';
     }
 
     .address-grid-container-top.no-description.no-image {
@@ -128,7 +129,8 @@ body,
         grid-template-areas:
             'objectId version'
             'owner type'
-            'lastTxBlock storageRebate';
+            'lastTxBlock storageRebate'
+            'digest digest';
     }
 
     @screen md {
@@ -138,20 +140,23 @@ body,
                 'heroImage name owner'
                 'heroImage description storageRebate'
                 'heroImage objectId version'
-                'heroImage type lastTxBlock';
+                'heroImage type lastTxBlock'
+                'heroImage digest digest';
         }
         .address-grid-container-top.no-description.no-image {
             @apply grid grid-cols-3 grid-rows-2;
             grid-template-areas:
                 'objectId version owner'
-                'type lastTxBlock storageRebate';
+                'type lastTxBlock storageRebate'
+                'digest digest digest';
         }
         .address-grid-container-top.no-image {
             @apply grid grid-cols-3 grid-rows-3;
             grid-template-areas:
                 'name description type'
                 'objectId version type'
-                'owner lastTxBlock storageRebate';
+                'owner lastTxBlock storageRebate'
+                'digest digest digest';
         }
     }
 }
