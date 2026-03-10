@@ -106,16 +106,6 @@ the latest stable release for the network you are working on.
     1. In the Edit environment variable window, click **New** and add the path to your expanded folder. Using the example path, this would be `C:\iota`.
     1. Click **OK**.
 
-    :::info Requirement: PostgreSQL
-
-    For the IOTA binary to work you have to have PostgreSQL installed on your system.
-    
-    You can for example use Chocolatey to install it with the following command:
-
-    ```bash
-    choco install postgresql
-    ```
-
     :::
 
 </TabItem>
@@ -192,7 +182,6 @@ The prerequisites needed for the Linux operating system include:
 - GCC
 - libssl-dev
 - libclang-dev
-- libpq-dev
 - build-essential
 
 :::info
@@ -286,17 +275,6 @@ sudo apt-get install libclang-dev
 If the version of Linux you use doesn't support `libclang-dev`, find an equivalent package for it on
 the [ROS Index](https://index.ros.org/d/libclang-dev/).
 
-##### libpq-dev
-
-Use the following command to install `libpq-dev`:
-
-```bash
-sudo apt-get install libpq-dev
-```
-
-If the version of Linux you use doesn't support `libpq-dev`, find an equivalent package for it on
-the [ROS Index](https://index.ros.org/d/libpq-dev/).
-
 ##### build-essential
 
 Use the following command to install `build-essential`:
@@ -315,7 +293,6 @@ The prerequisites needed for the macOS operating system include:
 - Homebrew
 - cURL
 - CMake
-- libpq
 - Git CLI
 
 MacOS includes a version of cURL that you can use to install Homebrew. Use Homebrew to install other tools, including a
@@ -360,14 +337,6 @@ brew install cmake
 ```
 
 To customize the installation, see [Installing CMake](https://cmake.org/install/) on the CMake website.
-
-##### libpq
-
-Use the following command to install libpq:
-
-```bash
-brew install libpq
-```
 
 ##### Git CLI
 
@@ -448,6 +417,62 @@ rustup update stable
 ```
 
 The command installs IOTA components in the `~/.cargo/bin` folder.
+
+#### Additional Binaries
+
+The `iota` binary provides client commands for interacting with the network. If you need to run a local network for development, install the `iota-localnet` binary separately:
+
+```shell
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota-localnet
+```
+
+To also enable the local indexer and GraphQL server, build with the `indexer` feature:
+
+```shell
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet --features indexer iota-localnet
+```
+
+:::info Requirement: PostgreSQL
+
+Building `iota-localnet` with the `indexer` feature requires PostgreSQL to be installed on your system.
+
+<Tabs groupId="operating-systems">
+
+<TabItem value="linux" label="Linux">
+
+```bash
+sudo apt-get install -y libpq-dev
+```
+
+</TabItem>
+
+<TabItem value="mac" label="macOS">
+
+```bash
+brew install libpq
+```
+
+</TabItem>
+
+<TabItem value="win" label="Windows">
+
+You can use Chocolatey to install PostgreSQL:
+
+```bash
+choco install postgresql
+```
+
+</TabItem>
+
+</Tabs>
+
+:::
+
+For advanced tools like transaction replay, genesis ceremony, and fire drill, install `iota-tool`:
+
+```shell
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota-tool
+```
 
 ### Upgrade IOTA Binaries
 

@@ -1,10 +1,9 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
 use colored::Colorize;
-use iota::iota_commands::IotaCommand;
+use iota_localnet::commands::LocalnetCommand;
 use iota_types::exit_main;
 use tracing::debug;
 
@@ -13,15 +12,15 @@ bin_version::bin_version!();
 
 #[derive(Parser)]
 #[command(
-    name = env!("CARGO_BIN_NAME"),
-    about = env!("CARGO_PKG_DESCRIPTION"),
+    name = "iota-localnet",
+    about = "Start and manage IOTA local networks",
     author,
     version = VERSION,
     propagate_version = true,
 )]
 struct Args {
     #[command(subcommand)]
-    command: IotaCommand,
+    command: LocalnetCommand,
 }
 
 #[tokio::main]
@@ -30,21 +29,20 @@ async fn main() {
     colored::control::set_virtual_terminal(true).unwrap();
 
     let args = Args::parse();
-    let _guard = match args.command {
-        IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => Some(
+    let _guard = match &args.command {
+        LocalnetCommand::Start { .. } => Some(
             telemetry_subscribers::TelemetryConfig::new()
-                .with_log_level("error")
+                .with_log_level("info")
                 .with_env()
                 .init(),
         ),
-        IotaCommand::Analyzer => None,
-        _ => Some(
+        LocalnetCommand::Genesis { .. } => Some(
             telemetry_subscribers::TelemetryConfig::new()
-                .with_log_level("error")
+                .with_log_level("info")
                 .with_env()
                 .init(),
         ),
     };
-    debug!("IOTA CLI version: {VERSION}");
+    debug!("iota-localnet version: {VERSION}");
     exit_main!(args.command.execute().await);
 }

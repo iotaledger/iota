@@ -10,9 +10,6 @@ mod clever_error_rendering;
 #[cfg(feature = "gen-completions")]
 mod completions;
 pub mod displays;
-pub mod fire_drill;
-pub mod genesis_ceremony;
-pub mod genesis_inspector;
 pub mod iota_commands;
 pub mod key_identity;
 pub mod keytool;
