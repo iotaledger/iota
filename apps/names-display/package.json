@@ -1,0 +1,40 @@
+{
+    "name": "names-display",
+    "version": "1.0.0",
+    "description": "",
+    "private": true,
+    "main": "index.js",
+    "type": "module",
+    "scripts": {
+        "build": "rm -rf dist && tsc -p tsconfig.json",
+        "postbuild": "cp -R src/fonts dist/fonts && cp -R src/svg dist/svg",
+        "start": "node ./dist/index.js | pino-pretty",
+        "dev": "tsx watch src/index.ts | pino-pretty",
+        "dev:debug": "DEBUG_DISPLAY=true pnpm dev",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore ."
+    },
+    "keywords": [],
+    "author": "IOTA Foundation <info@iota.org>",
+    "license": "Apache-2.0",
+    "dependencies": {
+        "@fastify/cors": "^11.1.0",
+        "@iota/iota-names-sdk": "workspace:*",
+        "@types/text-to-svg": "^3.1.4",
+        "dotenv": "^17.3.1",
+        "fastify": "^5.7.2",
+        "pino-pretty": "^13.0.0",
+        "text-to-svg": "^3.1.5",
+        "tsx": "^4.20.3",
+        "zod": "^4.0.5"
+    },
+    "devDependencies": {
+        "@types/jsdom": "^21.1.7",
+        "@types/node": "^24.0.14",
+        "jsdom": "^26.1.0",
+        "typescript": "^5.8.3",
+        "vitest": "^2.1.8"
+    }
+}

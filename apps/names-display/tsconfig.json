@@ -1,0 +1,14 @@
+{
+    "extends": "../../sdk/build-scripts/tsconfig.shared.json",
+    "include": ["src", "types"],
+    "compilerOptions": {
+        "module": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "isolatedModules": true,
+        "noEmit": false,
+        "emitDeclarationOnly": false,
+        "declaration": false,
+        "composite": false
+    }
+}

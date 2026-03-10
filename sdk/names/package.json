@@ -1,0 +1,64 @@
+{
+    "name": "@iota/iota-names-sdk",
+    "author": "IOTA Foundation <info@iota.org>",
+    "description": "IOTA-Names SDK",
+    "version": "0.6.1",
+    "license": "Apache-2.0",
+    "private": false,
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/cjs/index.d.ts",
+    "keywords": [
+        "IOTA",
+        "IOTA-Names"
+    ],
+    "exports": {
+        ".": {
+            "import": "./dist/esm/index.js",
+            "require": "./dist/cjs/index.js"
+        }
+    },
+    "sideEffects": false,
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+        "build": "build-package",
+        "typecheck": "tsc --noEmit --project tsconfig.lint.json",
+        "prepublishOnly": "pnpm build",
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "test:e2e": "vitest run",
+        "run:example": "tsx"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "dependencies": {
+        "@iota/iota-sdk": "workspace:*",
+        "@noble/hashes": "^1.4.0"
+    },
+    "devDependencies": {
+        "@iota/build-scripts": "workspace:*",
+        "@iota/graphql-transport": "workspace:*",
+        "@types/tmp": "^0.2.6",
+        "ts-retry-promise": "^0.8.1",
+        "tsx": "^4.19.3",
+        "typescript": "^5.7.2",
+        "vite": "^6.0.7",
+        "vitest": "^2.1.8"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/iotaledger/iota.git"
+    },
+    "bugs": {
+        "url": "https://github.com/iotaledger/iota/issues"
+    }
+}

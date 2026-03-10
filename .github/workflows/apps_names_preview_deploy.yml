@@ -1,0 +1,27 @@
+name: Preview Deploy for IOTA Names
+
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "sdk/names/**"
+      - "apps/names/**"
+      - ".github/workflows/apps_names_preview_deploy.yml"
+      - ".github/workflows/_apps_names_vercel_deploy.yml"
+
+jobs:
+  deploy-preview:
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    uses: ./.github/workflows/_apps_names_vercel_deploy.yml
+    with:
+      VERCEL_ENVIRONMENT: preview
+      NAMES_DAPP_DEFAULT_NETWORK: devnet
+    secrets:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.IOTA_NAMES_VERCEL_PROJECT_ID }}
+      VERCEL_SCOPE: ${{ secrets.VERCEL_SCOPE }}
+      NAMES_DAPP_CONFIG: ${{ secrets.NAMES_DAPP_CONFIG }}
+      NAMES_DAPP_FORBIDDEN_LIST: ${{ secrets.NAMES_DAPP_FORBIDDEN_LIST }}

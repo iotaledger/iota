@@ -1,0 +1,80 @@
+name: Reusable Vercel Deploy for IOTA Names
+
+on:
+  workflow_call:
+    inputs:
+      VERCEL_ENVIRONMENT:
+        type: string
+        required: true
+        description: "The Vercel environment to deploy to. Can be 'production' or 'preview'."
+      NAMES_DAPP_DEFAULT_NETWORK:
+        type: string
+        required: true
+    secrets:
+      VERCEL_TOKEN:
+        required: true
+      VERCEL_ORG_ID:
+        required: true
+      VERCEL_PROJECT_ID:
+        required: true
+      VERCEL_SCOPE:
+        required: true
+      VERCEL_ALIAS:
+        required: false
+      NAMES_DAPP_CONFIG:
+        required: true
+      NAMES_DAPP_FORBIDDEN_LIST:
+        required: true
+      NAMES_DAPP_SENTRY_AUTH_TOKEN:
+        required: false
+
+env:
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_ENVIRONMENT: ${{ inputs.VERCEL_ENVIRONMENT }}
+  NEXT_PUBLIC_NAMES_DAPP_CONFIG: ${{ secrets.NAMES_DAPP_CONFIG }}
+  NEXT_PUBLIC_NAMES_DAPP_DEFAULT_NETWORK: ${{ inputs.NAMES_DAPP_DEFAULT_NETWORK }}
+  NEXT_PUBLIC_NAMES_DAPP_FORBIDDEN_LIST: ${{ secrets.NAMES_DAPP_FORBIDDEN_LIST }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.NAMES_DAPP_SENTRY_AUTH_TOKEN }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ inputs.VERCEL_ENVIRONMENT != 'production' }}
+
+jobs:
+  vercel-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      deployments: write
+      issues: write
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+
+      - name: Install Vercel CLI
+        run: pnpm add --global vercel@canary
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --token=${{ secrets.VERCEL_TOKEN }} --yes --environment=${{ inputs.VERCEL_ENVIRONMENT }}
+
+      - name: Build Project
+        env:
+          BUILD_ENV: ${{ inputs.VERCEL_ENVIRONMENT == 'preview' && 'staging' || 'production' }}
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --target=${{ inputs.VERCEL_ENVIRONMENT }}
+
+      - name: Deploy to Vercel
+        uses: iotaledger/deploy-to-vercel-action@9c73fe8ff3eb32d6ba30d623ac1b0c5708a25bb7
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREBUILT: true
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_SCOPE: ${{ secrets.VERCEL_SCOPE }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DELETE_EXISTING_COMMENT: true
+          VERCEL_TARGET: ${{ inputs.VERCEL_ENVIRONMENT }}
+          CREATE_COMMENT: ${{ inputs.VERCEL_ENVIRONMENT == 'preview' }}
+          ALIAS_DOMAINS: ${{ secrets.VERCEL_ALIAS || '' }}
