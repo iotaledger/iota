@@ -24,6 +24,38 @@ export type CopyOptions = {
 };
 
 /**
+ * Returns a simple callback (no event parameter) for use with components that expect () => void
+ * Use this variant when "copy" managed by component and need just callback onCopySuccess (e.g., KeyValueInfo's onCopySuccess)
+ *
+ * @param copySuccessMessage - Success message to show when copy succeeds
+ * @param textType - Type of element being copied for analytics tracking
+ * @param trackEvent - Whether to track the copy event in analytics
+ * @returns Simple callback function that tracks analytics
+ *
+ * @example
+ * ```tsx
+ * const handleCopy = useCopySuccessCallback('stake-id', 'Copied to clipboard');
+ *
+ * <KeyValueInfo
+ *   copyText={stakeId}
+ *   onCopySuccess={handleCopy}
+ * />
+ * ```
+ */
+export function useCopySuccessCallback(
+    copySuccessMessage = 'Copied to clipboard',
+    textType?: string,
+    trackEvent: boolean = true,
+): () => void {
+    return useCallback(() => {
+        toast(copySuccessMessage);
+        if (trackEvent && textType) {
+            ampli.elementCopied({ type: textType });
+        }
+    }, [textType, copySuccessMessage, trackEvent]);
+}
+
+/**
  * Custom hook that wraps @iota/core's useCopyToClipboard with automatic analytics tracking.
  *
  * This hook provides a MouseEventHandler that:

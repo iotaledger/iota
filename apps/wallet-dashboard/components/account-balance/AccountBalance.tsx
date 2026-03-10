@@ -13,7 +13,7 @@ import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/a
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import { useState } from 'react';
-import { useCopyToClipboard } from '@/hooks';
+import { useCopySuccessCallback } from '@/hooks';
 
 export function AccountBalance() {
     const account = useCurrentAccount();
@@ -36,10 +36,7 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    const onCopySuccess = useCopyToClipboard(address || '', {
-        copySuccessMessage: 'Address copied',
-        textType: 'address',
-    });
+    const onCopySuccess = useCopySuccessCallback('Address copied', 'address');
 
     const sendTokenCoin = coinBalance?.totalBalance === '0' ? coinBalances?.[0] : coinBalance;
 

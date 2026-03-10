@@ -9,7 +9,7 @@ import clsx from 'clsx';
 import {
     useGetStardustMigratableObjects,
     useGroupedStardustObjects,
-    useCopyToClipboard,
+    useCopySuccessCallback,
 } from '@/hooks';
 import { getStardustObjectsTotals } from '@/lib/utils';
 import {
@@ -183,10 +183,7 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
-    const onCopySuccess = useCopyToClipboard(bech32Address, {
-        copySuccessMessage: 'Address copied',
-        textType: 'stardust-address',
-    });
+    const onCopySuccess = useCopySuccessCallback('Address copied', 'stardust-address');
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
