@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
 use iota_types::{
-    auth_context::{AuthContext, AuthContextCallArg, AuthContextCommand},
+    auth_context::{AuthContext, MoveCallArg, MoveCommand},
     digests::MoveAuthenticatorDigest,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -175,12 +175,12 @@ impl AuthenticationContext {
         let tx_commands = tx_commands_value
             .into_iter()
             .map(|value| from_value(value, &command_move_layout))
-            .collect::<PartialVMResult<Vec<AuthContextCommand>>>()?;
+            .collect::<PartialVMResult<Vec<MoveCommand>>>()?;
 
         let tx_inputs = tx_inputs_value
             .into_iter()
             .map(|value| from_value(value, &input_move_layout))
-            .collect::<PartialVMResult<Vec<AuthContextCallArg>>>()?;
+            .collect::<PartialVMResult<Vec<MoveCallArg>>>()?;
 
         let auth_digest =
             MoveAuthenticatorDigest::try_from(auth_digest_value.as_slice()).map_err(|err| {
