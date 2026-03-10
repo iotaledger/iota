@@ -16,7 +16,7 @@ This how-to demonstrates how to create an account that requires multiple members
 
 :::tip Why is this possible?
 
-The authenticator receives `ctx.digest()` from `TxContext`, which is the unique digest of the AA transaction being submitted. This allows the authenticator to look up pre-collected on-chain approvals for that exact transaction. Members approve in separate transactions beforehand; the authenticator checks the accumulated weight at submission time — without any off-chain coordination.
+The authenticator receives `ctx.digest()` from [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), which is the unique digest of the AA transaction being submitted. This allows the authenticator to look up pre-collected on-chain approvals for that exact transaction. Members approve in separate transactions beforehand; the authenticator checks the accumulated weight at submission time — without any off-chain coordination.
 
 :::
 

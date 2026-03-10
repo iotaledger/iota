@@ -39,10 +39,10 @@ public fun authenticate_function(
     assert!(msg == std::ascii::string(b"hello"), 0);
 ```
 
-:::tip Going further with `AuthContext`
+:::tip Going further with [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext)
 
-The authenticator above only uses `TxContext` (to access the transaction digest for signature verification).
-More advanced authenticators can also use `AuthContext` to inspect what the transaction will do — which functions it calls, which objects it involves, and what values it passes — before deciding to authorize it.
+The authenticator above only uses [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext) (to access the transaction digest for signature verification).
+More advanced authenticators can also use [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) to inspect what the transaction will do — which functions it calls, which objects it involves, and what values it passes — before deciding to authorize it.
 See the following how-tos:
 
 - [Control function call permissions of Account](./function-call-keys.mdx)

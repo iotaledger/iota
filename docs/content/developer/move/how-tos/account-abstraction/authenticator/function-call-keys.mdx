@@ -16,7 +16,7 @@ This how-to demonstrates how to create an account with a single unrestricted own
 
 :::tip Why is this possible?
 
-With native signatures, the protocol only verifies that a transaction was signed by the correct key — it has no visibility into what the transaction actually does. Account Abstraction authenticator functions receive both `AuthContext` and `TxContext`, giving them access to the full list of PTB commands via `auth_ctx.tx_commands()`. This makes it possible to inspect and enforce what a key is allowed to call, directly at authentication time, before any execution happens.
+With native signatures, the protocol only verifies that a transaction was signed by the correct key — it has no visibility into what the transaction actually does. Account Abstraction authenticator functions receive both [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) and [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), giving them access to the full list of PTB commands via [`auth_ctx.tx_commands()`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands). This makes it possible to inspect and enforce what a key is allowed to call, directly at authentication time, before any execution happens.
 
 :::
 

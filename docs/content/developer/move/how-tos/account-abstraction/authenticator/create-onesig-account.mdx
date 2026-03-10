@@ -22,7 +22,7 @@ This guide builds on the [Authenticate an Account with a Public Key](create-publ
 
 :::tip Why is this possible?
 
-The authenticator receives `ctx.digest()` from `TxContext`, which is the unique digest of the current transaction. This allows the on-chain authenticator to verify that the transaction being submitted was part of the pre-approved set, without requiring another signature.
+The authenticator receives `ctx.digest()` from [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), which is the unique digest of the current transaction. This allows the on-chain authenticator to verify that the transaction being submitted was part of the pre-approved set, without requiring another signature.
 
 :::
 
