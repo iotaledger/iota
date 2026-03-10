@@ -49,10 +49,10 @@
         "@iota/graphql-transport": "workspace:*",
         "@types/tmp": "^0.2.6",
         "ts-retry-promise": "^0.8.1",
-        "tsx": "^4.19.3",
-        "typescript": "^5.7.2",
-        "vite": "^6.0.7",
-        "vitest": "^2.1.8"
+        "tsx": "^3.12.7",
+        "typescript": "^5.5.3",
+        "vite": "^5.4.12",
+        "vitest": "^3.2.4"
     },
     "repository": {
         "type": "git",

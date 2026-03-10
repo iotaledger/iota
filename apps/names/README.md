@@ -1,1 +1,0 @@
-# IOTA Names dApp

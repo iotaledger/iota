@@ -4,10 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/apps_names_ci.yml"
-      - ".github/scripts/setup-e2e-network.sh"
       - "sdk/names/**"
-      - "apps/names/**"
-      - "apps/names-display/**"
   push:
     branches: [develop]
   workflow_call:
@@ -37,23 +34,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run pnpm build
-        env:
-          NEXT_PUBLIC_NAMES_DAPP_DEFAULT_NETWORK: "devnet"
-          NEXT_PUBLIC_NAMES_DAPP_CONFIG: |
-            {
-              "devnet":{
-                  "network": "devnet",
-                  "namesDisplayUrl": "http://localhost",
-                  "indexerUrl": "http://localhost:3030",
-                  "baseUrl": "http://localhost:3005"
-              }
-            }
         run: |
-          pnpm turbo build --filter=./sdk/names --filter=./apps/names --filter=./apps/names-display
+          pnpm turbo build --filter=./sdk/names
 
       - name: Run pnpm lint
         run: |
-          pnpm turbo lint --filter=./sdk/names --filter=./apps/names --filter=./apps/names-display
+          pnpm turbo lint --filter=./sdk/names
 
   sdk-test:
     name: SDK Tests
@@ -127,156 +113,3 @@ jobs:
 
           cd ../sdk/names
           VITE_IOTA_BIN="iota" pnpm test:e2e
-
-  dapp-e2e-test:
-    name: Run dapp E2E Tests
-    if: (github.event_name == 'workflow_call') || (github.event_name == 'push') || (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
-    runs-on: ubuntu-latest
-    env:
-      ADMIN_MNEMONIC: "say credit unknown distance behave outside convince embrace planet ginger phrase isolate"
-      NEXT_PUBLIC_NAMES_DAPP_DEFAULT_NETWORK: localnet
-      NEXT_PUBLIC_NAMES_DAPP_CONFIG: |
-        {
-          "localnet": {
-            "network": "localnet",
-            "namesDisplayUrl": "http://localhost",
-            "indexerUrl": "http://localhost:3030",
-            "baseUrl": "http://localhost:3005"
-          }
-        }
-    defaults:
-      run:
-        working-directory: ./apps/names
-    steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-        with:
-          fetch-depth: 1
-
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
-
-      - name: Install Nodejs
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "24"
-          cache: "pnpm"
-
-      - name: Start Postgres
-        run: |
-          docker run -d --name postgres \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=postgrespw \
-            -e POSTGRES_DB=iota_indexer \
-            -e POSTGRES_HOST_AUTH_METHOD=trust \
-            -p 5432:5432 \
-            postgres:15 \
-            postgres -c max_connections=1000
-          until docker exec postgres pg_isready; do sleep 1; done
-        working-directory: ./
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: ./
-
-      - name: Download IOTA Wallet Extension
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pnpm run test:prepare
-
-      - name: Install Playwright Browsers
-        run: pnpm run playwright:install
-
-      - name: Setup E2E Network
-        working-directory: ./
-        env:
-          DB_URL: "postgres://postgres:postgrespw@localhost:5432/iota_indexer"
-        run: .github/scripts/setup-e2e-network.sh
-
-      - name: Wait for indexer to catch up
-        run: sleep 45
-        working-directory: ./
-
-      - name: Inject localnet config and start indexer
-        working-directory: ./
-        run: |
-          cd apps/names
-          pnpm inject-localnet
-
-          cd ../..
-          INDEXER_ENV_FILE="$(mktemp)"
-          cd scripts && pnpm run envsForIndexer localnet bash "$INDEXER_ENV_FILE" && sed -i 's/^export //' "$INDEXER_ENV_FILE" && cd ..
-
-          docker pull ghcr.io/iotaledger/iota-names/iota-names-indexer:latest
-          docker rm -f localnet-iota-names-indexer || true
-          docker run -d \
-            --name localnet-iota-names-indexer \
-            --env-file "$INDEXER_ENV_FILE" \
-            --add-host host.docker.internal:host-gateway \
-            -p 3030:3030 \
-            -p 9189:9189 \
-            ghcr.io/iotaledger/iota-names/iota-names-indexer:latest \
-            start \
-            --node-url=http://host.docker.internal:9000 \
-            --checkpoint-url=http://host.docker.internal:9000 \
-            --reset-metrics
-
-      - name: Build and run E2E tests
-        working-directory: ./
-        run: |
-          pnpm names build
-          cd apps/names
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- env ADMIN_MNEMONIC="$ADMIN_MNEMONIC" pnpm run test:e2e
-
-      - name: Upload Playwright Report
-        if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: playwright-report
-          path: apps/names/playwright-report/
-          retention-days: 7
-
-      - name: Upload Network Logs
-        if: always()
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-        with:
-          name: network-logs
-          path: |
-            iota-node.log
-            indexer-writer.log
-            indexer-reader.log
-            graphql.log
-          retention-days: 7
-
-  names-display-test:
-    name: Names Display Tests
-    if: (github.event_name == 'workflow_call') || (github.event_name == 'push') || (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./apps/names-display
-    steps:
-      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
-
-      - name: Install Nodejs
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "24"
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: ./
-
-      - name: Build SDK
-        run: pnpm --filter @iota/iota-names-sdk run build
-
-      - name: Build names-display service
-        run: pnpm --filter names-display run build
-        working-directory: ./
-
-      - name: Run names-display tests
-        run: pnpm --filter names-display run test
-        working-directory: ./

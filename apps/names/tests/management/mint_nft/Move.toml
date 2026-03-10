@@ -1,8 +1,0 @@
-[package]
-name = "tooling/mint_nft"
-edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
-
-[dependencies]
-
-[addresses]
-mint_nft = "0x0"
