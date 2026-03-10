@@ -156,7 +156,7 @@ export function AddressItem({ address }: { address: string }) {
     return (
         <div className="flex w-full flex-col items-center gap-xxs py-xxs">
             <div className="flex w-full flex-row justify-between">
-                <span>{formatAddress(address)}</span>
+                <span data-amp-mask>{formatAddress(address)}</span>
                 <span>{amountLabel}</span>
             </div>
             <div className="flex w-full flex-row gap-xxs">

@@ -53,6 +53,7 @@ export function ImportPrivateKeyForm({ onSubmit }: ImportPrivateKeyFormProps) {
                 rows={4}
                 {...register('privateKey')}
                 errorMessage={form.formState.errors.privateKey?.message}
+                data-amp-mask
             />
             {isHexadecimal ? (
                 <InfoBox

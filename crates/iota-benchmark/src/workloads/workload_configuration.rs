@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, str::FromStr, sync::Arc};
@@ -21,6 +21,7 @@ use crate::{
     system_state_observer::SystemStateObserver,
     workloads::{
         ExpectedFailureType, GroupID, WorkloadBuilderInfo, WorkloadInfo,
+        abstract_account::AbstractAccountWorkloadBuilder,
         batch_payment::BatchPaymentWorkloadBuilder, delegation::DelegationWorkloadBuilder,
         shared_counter::SharedCounterWorkloadBuilder,
         transfer_object::TransferObjectWorkloadBuilder,
@@ -135,6 +136,54 @@ impl WorkloadConfiguration {
 
                 Self::build(
                     workload_builders,
+                    bank,
+                    system_state_observer,
+                    opts.gas_request_chunk_size,
+                )
+                .await
+            }
+            RunSpec::AbstractAccountBench {
+                authenticator,
+                should_fail,
+                split_amount,
+                tx_payload_obj_type,
+                target_qps,
+                num_workers,
+                in_flight_ratio,
+                duration,
+            } => {
+                info!(
+                    "AA bench: auth={:?}, split_amount={} \
+                    target_qps={}, num_workers={}, in_flight_ratio={}, duration={:?}",
+                    authenticator, split_amount, target_qps, num_workers, in_flight_ratio, duration,
+                );
+
+                let builder = AbstractAccountWorkloadBuilder::from(
+                    // weight
+                    1.0,
+                    target_qps,
+                    num_workers,
+                    in_flight_ratio,
+                    authenticator,
+                    tx_payload_obj_type,
+                    split_amount,
+                    should_fail,
+                    duration,
+                    // group
+                    0,
+                );
+
+                if builder.is_none() {
+                    anyhow::bail!(
+                        "AA bench produced no workload (target_qps={}, num_workers={}, in_flight_ratio={})",
+                        target_qps,
+                        num_workers,
+                        in_flight_ratio
+                    );
+                }
+
+                Self::build(
+                    vec![builder],
                     bank,
                     system_state_observer,
                     opts.gas_request_chunk_size,

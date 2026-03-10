@@ -51,3 +51,5 @@ export {
 } from './constants.js';
 
 export { deriveDynamicFieldID } from './dynamic-fields.js';
+
+export { deriveObjectID } from './derived-objects.js';

@@ -30,7 +30,7 @@ use tokio::{
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::{
     BlockAPI, CommitIndex, Round,
@@ -751,6 +751,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .collect::<Vec<_>>()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_blocks(
         serialized_blocks: Vec<Bytes>,
         block_verifier: Arc<V>,

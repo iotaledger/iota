@@ -333,3 +333,13 @@ jobs:
             echo "Failed test groups: ${failed[*]}"
             exit 1
           fi
+
+  localnet-cancel:
+    needs: [localnet]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
