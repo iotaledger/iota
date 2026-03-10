@@ -8,6 +8,7 @@ import { Network } from '@iota/iota-sdk/client';
 import { toTitleCase, ThemeSwitcher, Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { Settings } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
+import { ampli } from '@/lib/utils/analytics/ampli';
 
 export function TopNav() {
     const { persistedNetwork } = usePersistedNetwork();
@@ -41,7 +42,7 @@ export function TopNav() {
                 view={settingsDialogView}
                 setView={setSettingsDialogView}
             />
-            <ThemeSwitcher />
+            <ThemeSwitcher onThemeChange={(theme) => ampli.themeChanged({ theme })} />
             <Button
                 icon={<Settings />}
                 type={ButtonType.Ghost}
