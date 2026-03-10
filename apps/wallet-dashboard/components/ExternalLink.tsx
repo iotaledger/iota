@@ -45,7 +45,7 @@ export function ExternalLink({
             href={href}
             target="_blank"
             className={className}
-            rel="noreferrer noopener"
+            rel="noopener noreferrer"
             title={title}
             onClick={handleClick}
         >

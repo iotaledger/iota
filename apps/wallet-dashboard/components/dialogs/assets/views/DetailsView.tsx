@@ -48,7 +48,7 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     const handleMoreAboutKiosk = useExternalLink('https://docs.iota.org/developer/ts-sdk/kiosk/', {
-        type: 'ts-sdk documentation',
+        type: 'ts-sdk-documentation',
     });
 
     const handleMarketplace = useExternalLink('https://docs.iota.org/developer/ts-sdk/kiosk/', {
