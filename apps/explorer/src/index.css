@@ -118,19 +118,19 @@ body,
         grid-template-areas:
             'heroImage name'
             'heroImage description'
-            'objectId type'
+            'objectId digest'
             'owner storageRebate'
             'version lastTxBlock'
-            'digest digest';
+            'type type';
     }
 
     .address-grid-container-top.no-description.no-image {
         @apply grid grid-cols-2 gap-4;
         grid-template-areas:
             'objectId version'
-            'owner type'
+            'owner digest'
             'lastTxBlock storageRebate'
-            'digest digest';
+            'type type';
     }
 
     @screen md {
@@ -140,23 +140,23 @@ body,
                 'heroImage name owner'
                 'heroImage description storageRebate'
                 'heroImage objectId version'
-                'heroImage type lastTxBlock'
-                'heroImage digest digest';
+                'heroImage digest lastTxBlock'
+                'heroImage type type';
         }
         .address-grid-container-top.no-description.no-image {
             @apply grid grid-cols-3 grid-rows-2;
             grid-template-areas:
                 'objectId version owner'
-                'type lastTxBlock storageRebate'
-                'digest digest digest';
+                'digest lastTxBlock storageRebate'
+                'type type type';
         }
         .address-grid-container-top.no-image {
             @apply grid grid-cols-3 grid-rows-3;
             grid-template-areas:
-                'name description type'
-                'objectId version type'
+                'name description digest'
+                'objectId version digest'
                 'owner lastTxBlock storageRebate'
-                'digest digest digest';
+                'type type type';
         }
     }
 }
