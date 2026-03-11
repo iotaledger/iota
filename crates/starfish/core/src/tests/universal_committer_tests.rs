@@ -255,7 +255,7 @@ async fn direct_skip_no_leader_votes() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -375,7 +375,7 @@ async fn indirect_commit() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -457,7 +457,7 @@ async fn indirect_skip() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -543,7 +543,7 @@ async fn undecided() {
     let dag_builder = parse_dag(dag_str).expect("Invalid dag");
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(dag_builder.context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),
@@ -740,7 +740,7 @@ fn basic_test_setup() -> (
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),
@@ -768,11 +768,11 @@ struct TestSetup {
 fn basic_dag_builder_test_setup() -> TestSetup {
     telemetry_subscribers::init_for_testing();
     let context = Arc::new(Context::new_for_test(4).0);
-    let dag_builder = DagBuilder::new(context);
+    let dag_builder = DagBuilder::new(context.clone());
 
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),

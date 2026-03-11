@@ -7,7 +7,7 @@ use iota_grpc_types::v0::ledger_service::{GetServiceInfoRequest, GetServiceInfoR
 
 use crate::{
     Client,
-    api::{Result, SERVICE_INFO_READ_MASK, field_mask_with_default},
+    api::{GET_SERVICE_INFO_READ_MASK, Result, field_mask_with_default},
 };
 
 impl Client {
@@ -16,23 +16,32 @@ impl Client {
     /// Returns the [`GetServiceInfoResponse`] proto type with fields populated
     /// according to the `read_mask`.
     ///
-    /// # Field Mask
+    /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`SERVICE_INFO_READ_MASK`].
+    /// returns. If `None`, uses [`GET_SERVICE_INFO_READ_MASK`].
     ///
-    /// **Optional fields:**
-    /// - `chain_id` - The chain identifier (digest of the genesis checkpoint)
-    /// - `chain` - Human-readable chain name (e.g., `mainnet`, `testnet`)
-    /// - `epoch` - Current epoch of the node
-    /// - `executed_checkpoint_height` - Height of the most recently executed
+    /// ## Network Fields
+    /// - `chain_id` - the ID of the chain, which can be used to identify the
+    ///   network
+    /// - `chain` - the chain identifier, which can be used to identify the
+    ///   network
+    ///
+    /// ## Current State Fields
+    /// - `epoch` - the current epoch
+    /// - `executed_checkpoint_height` - the height of the last executed
     ///   checkpoint
-    /// - `executed_checkpoint_timestamp` - Timestamp of the most recently
-    ///   executed checkpoint
-    /// - `lowest_available_checkpoint` - Lowest checkpoint with data available
-    /// - `lowest_available_checkpoint_objects` - Lowest checkpoint with object
-    ///   data available
-    /// - `server` - Software version of the service
+    /// - `executed_checkpoint_timestamp` - the timestamp of the last executed
+    ///   checkpoint
+    ///
+    /// ## Availability Fields
+    /// - `lowest_available_checkpoint` - lowest available checkpoint for which
+    ///   transaction and checkpoint data can be requested
+    /// - `lowest_available_checkpoint_objects` - lowest available checkpoint
+    ///   for which object data can be requested
+    ///
+    /// ## Server Fields
+    /// - `server` - the server version
     ///
     /// # Example
     ///
@@ -61,8 +70,10 @@ impl Client {
         &self,
         read_mask: Option<&str>,
     ) -> Result<GetServiceInfoResponse> {
-        let request = GetServiceInfoRequest::default()
-            .with_read_mask(field_mask_with_default(read_mask, SERVICE_INFO_READ_MASK));
+        let request = GetServiceInfoRequest::default().with_read_mask(field_mask_with_default(
+            read_mask,
+            GET_SERVICE_INFO_READ_MASK,
+        ));
 
         let mut client = self.ledger_service_client();
         let response = client.get_service_info(request).await?.into_inner();

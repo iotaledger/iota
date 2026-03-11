@@ -80,15 +80,17 @@ pub(crate) async fn sign_transaction(
         let initial_shared_version =
             get_shared_object_version(&iota_client, signer_address).await?;
 
-        return Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-            auth_call_args,
-            auth_type_args,
-            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-                id: ObjectID::from(*signer_address),
-                initial_shared_version,
-                mutable: false,
-            }),
-        )));
+        return Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(
+                auth_call_args,
+                auth_type_args,
+                CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                    id: ObjectID::from(*signer_address),
+                    initial_shared_version,
+                    mutable: false,
+                }),
+            ),
+        ));
     }
 
     let key = context.config().keystore().get_key(signer_address)?;

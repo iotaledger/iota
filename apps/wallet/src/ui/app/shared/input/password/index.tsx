@@ -8,7 +8,7 @@ import { useField } from 'formik';
 export function PasswordInputField({ ...props }: InputProps) {
     const [field] = useField(props.name!);
     return (
-        <div className="relative flex w-full items-center">
+        <div className="relative flex w-full items-center" data-amp-mask>
             <Input placeholder="Password" {...props} {...field} />
         </div>
     );

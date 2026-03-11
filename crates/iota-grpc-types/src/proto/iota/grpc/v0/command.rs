@@ -94,16 +94,22 @@ impl Argument {
 
 impl CommandOutput {
     /// Deserialize the argument to SDK type.
+    ///
+    /// Requires `argument` in the read_mask.
     pub fn argument(&self) -> Result<iota_sdk_types::transaction::Argument, TryFromProtoError> {
         get_inner_field!(self.argument, Self::ARGUMENT_FIELD, argument)
     }
 
     /// Deserialize the type tag to SDK type.
+    ///
+    /// Requires `type_tag` in the read_mask.
     pub fn type_tag(&self) -> Result<iota_sdk_types::TypeTag, TryFromProtoError> {
         get_inner_field!(self.type_tag, Self::TYPE_TAG_FIELD, type_tag)
     }
 
     /// Get the raw BCS bytes.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn output_bcs(&self) -> Result<&[u8], TryFromProtoError> {
         self.bcs
             .as_ref()
@@ -112,6 +118,8 @@ impl CommandOutput {
     }
 
     /// Get the JSON value.
+    ///
+    /// Requires `json` in the read_mask.
     pub fn output_json(&self) -> Result<serde_json::Value, TryFromProtoError> {
         self.json
             .as_ref()
@@ -124,12 +132,18 @@ impl CommandOutput {
 //
 
 impl CommandResult {
+    /// Get the mutated-by-reference outputs.
+    ///
+    /// Requires `mutated_by_ref` in the read_mask.
     pub fn mutated_by_ref(&self) -> Result<&CommandOutputs, TryFromProtoError> {
         self.mutated_by_ref
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::MUTATED_BY_REF_FIELD.name))
     }
 
+    /// Get the return value outputs.
+    ///
+    /// Requires `return_values` in the read_mask.
     pub fn return_values(&self) -> Result<&CommandOutputs, TryFromProtoError> {
         self.return_values
             .as_ref()

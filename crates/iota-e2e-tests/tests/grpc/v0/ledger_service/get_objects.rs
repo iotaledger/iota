@@ -5,6 +5,7 @@
 use futures::StreamExt;
 use iota_grpc_types::{
     field::FieldMaskUtil,
+    read_masks::GET_OBJECTS_READ_MASK,
     v0::{
         ledger_service::{
             GetObjectsRequest, GetObjectsResponse, ObjectRequest, ObjectRequests,
@@ -17,7 +18,7 @@ use iota_macros::sim_test;
 use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, setup_grpc_test};
+use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
 
 async fn assert_get_objects_request(
     ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -58,6 +59,7 @@ async fn assert_get_objects_request(
                 assert_field_presence(
                     object,
                     expected_field_mask_paths,
+                    &[],
                     &format!("{scenario} (response {response_count}, object {idx})"),
                 );
             }
@@ -105,38 +107,22 @@ async fn get_objects_readmask_scenarios() {
     let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
 
     // Tests for single-object readmask scenarios
-    type TestCase<'a> = (&'a str, Option<FieldMask>, &'a [&'a str]);
+    type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         (
             "default readmask",
             None,
-            &[
-                "reference.object_id",
-                "reference.version",
-                "reference.digest",
-            ],
+            comma_separated_field_mask_to_paths(GET_OBJECTS_READ_MASK),
         ),
         (
             "empty readmask",
             Some(FieldMask::from_paths(&[] as &[&str])),
-            &[],
+            vec![],
         ),
         (
             "full readmask",
-            Some(FieldMask::from_paths([
-                "reference.object_id",
-                "reference.version",
-                "reference.digest",
-                "bcs",
-            ])),
-            &[
-                "reference.object_id",
-                "reference.version", // comment out to check absence of nested field
-                "reference.digest",
-                "bcs", /* comment out to check absence of bcs field
-                        * "reference", // Remove comment to check existence of reference field
-                        * "reference.id", // Remove comment to check existence of nested field */
-            ],
+            Some(FieldMask::from_paths(["reference", "bcs"])),
+            vec!["reference", "bcs"],
         ),
         (
             "partial readmask (reference fields only)",
@@ -144,12 +130,12 @@ async fn get_objects_readmask_scenarios() {
                 "reference.object_id",
                 "reference.version",
             ])),
-            &["reference.object_id", "reference.version"],
+            vec!["reference.object_id", "reference.version"],
         ),
         (
             "partial readmask (bcs only)",
             Some(FieldMask::from_paths(["bcs"])),
-            &["bcs"],
+            vec!["bcs"],
         ),
     ];
 
@@ -162,7 +148,7 @@ async fn get_objects_readmask_scenarios() {
             ],
             mask,
             None,
-            expected_paths,
+            &expected_paths,
             scenario,
         )
         .await;
@@ -264,20 +250,10 @@ async fn get_objects_streaming() {
     let responses = assert_get_objects_request(
         &mut ledger_client,
         requests,
-        Some(FieldMask::from_paths([
-            "reference.object_id",
-            "reference.version",
-            "reference.digest",
-            "bcs",
-        ])),
+        Some(FieldMask::from_paths(["reference", "bcs"])),
         // Use minimum allowed message size to maximize chance of streaming
         Some(1024 * 1024_u32), // 1MB (minimum allowed)
-        &[
-            "reference.object_id",
-            "reference.version",
-            "reference.digest",
-            "bcs",
-        ],
+        &["reference", "bcs"],
         "streaming with 100 objects",
     )
     .await;

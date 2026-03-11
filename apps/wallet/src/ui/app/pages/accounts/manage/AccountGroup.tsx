@@ -50,6 +50,8 @@ const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.LedgerDerived,
 ];
 
+const SOURCE_FLOW = 'Manage Accounts';
+
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
@@ -78,6 +80,7 @@ export function AccountGroup({
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
+
     const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
@@ -99,6 +102,7 @@ export function AccountGroup({
         } else {
             createAccountsMutation.mutate({
                 type: accountsFormType,
+                sourceFlow: SOURCE_FLOW,
             });
         }
     }
@@ -313,6 +317,7 @@ export function AccountGroup({
                         if (accountsFormValues.current) {
                             await createAccountsMutation.mutateAsync({
                                 type: accountsFormValues.current.type,
+                                sourceFlow: SOURCE_FLOW,
                             });
                         }
                         setPasswordModalVisible(false);

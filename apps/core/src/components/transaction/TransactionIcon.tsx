@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { clsx } from 'clsx';
 import {
     ArrowBottomLeft,
     ArrowTopRight,
@@ -19,17 +20,16 @@ const ICON_COLORS = {
 };
 
 const icons = {
-    [TransactionAction.Send]: <ArrowTopRight className={ICON_COLORS.primary} />,
-    [TransactionAction.Receive]: <ArrowBottomLeft className={ICON_COLORS.primary} />,
-    [TransactionAction.Transaction]: <ArrowTopRight className={ICON_COLORS.primary} />,
-    [TransactionAction.Staked]: <Stake className={ICON_COLORS.primary} />,
-    [TransactionAction.Unstaked]: <Unstake className={ICON_COLORS.primary} />,
-    [TransactionAction.Failed]: <Info className={ICON_COLORS.error} />,
-    [TransactionAction.PersonalMessage]: <Person className={ICON_COLORS.primary} />,
-    [TransactionAction.TimelockedStaked]: <Stake className={ICON_COLORS.primary} />,
-    [TransactionAction.TimelockedUnstaked]: <Unstake className={ICON_COLORS.primary} />,
-    [TransactionAction.Migration]: <Migration className={ICON_COLORS.primary} />,
-    [TransactionAction.TimelockedCollect]: <Vesting className={ICON_COLORS.primary} />,
+    [TransactionAction.Send]: <ArrowTopRight />,
+    [TransactionAction.Receive]: <ArrowBottomLeft />,
+    [TransactionAction.Transaction]: <ArrowTopRight />,
+    [TransactionAction.Staked]: <Stake />,
+    [TransactionAction.Unstaked]: <Unstake />,
+    [TransactionAction.PersonalMessage]: <Person />,
+    [TransactionAction.TimelockedStaked]: <Stake />,
+    [TransactionAction.TimelockedUnstaked]: <Unstake />,
+    [TransactionAction.Migration]: <Migration />,
+    [TransactionAction.TimelockedCollect]: <Vesting />,
 };
 
 interface TransactionIconProps {
@@ -39,8 +39,13 @@ interface TransactionIconProps {
 
 export function TransactionIcon({ txnFailed, variant }: TransactionIconProps) {
     return (
-        <div className="[&_svg]:h-5 [&_svg]:w-5">
-            {icons[txnFailed ? TransactionAction.Failed : variant]}
+        <div
+            className={clsx(
+                '[&_svg]:h-5 [&_svg]:w-5',
+                txnFailed ? ICON_COLORS.error : ICON_COLORS.primary,
+            )}
+        >
+            {txnFailed ? <Info /> : icons[variant]}
         </div>
     );
 }

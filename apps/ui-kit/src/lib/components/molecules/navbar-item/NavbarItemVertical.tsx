@@ -19,6 +19,7 @@ export function NavbarItemVertical({
     hasBadge,
     onClick,
     isDisabled = false,
+    ...ariaProps
 }: Omit<NavbarItemProps, 'type'>): React.JSX.Element {
     const fillClasses = isSelected ? SELECTED_ICON : UNSELECTED_ICON;
     const backgroundColors = isSelected && SELECTED_BACKGROUND;
@@ -36,11 +37,13 @@ export function NavbarItemVertical({
     return (
         <div
             onClick={handleClick}
+            role="button"
             className={cx(
                 'relative inline-flex w-full flex-row items-center justify-between rounded-full p-sm',
                 backgroundColors,
                 disabledClasses,
             )}
+            {...ariaProps}
         >
             <div className="flex items-center gap-3">
                 <div className={cx('inline-flex [&_svg]:h-6 [&_svg]:w-6', fillClasses)}>{icon}</div>

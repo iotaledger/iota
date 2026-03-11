@@ -4005,13 +4005,15 @@ async fn create_move_authenticator_signature(
 
     let initial_shared_version = get_shared_object_version(client, &address).await?;
 
-    Ok(GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
-        call_args,
-        type_args.into_iter().map(TypeInput::from).collect(),
-        CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
-            id: ObjectID::from(address),
-            initial_shared_version,
-            mutable: false,
-        }),
-    )))
+    Ok(GenericSignature::MoveAuthenticator(
+        MoveAuthenticator::new_v1(
+            call_args,
+            type_args.into_iter().map(TypeInput::from).collect(),
+            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                id: ObjectID::from(address),
+                initial_shared_version,
+                mutable: false,
+            }),
+        ),
+    ))
 }

@@ -100,6 +100,7 @@ export interface UnresolvedObjectArg {
     version?: string | null | undefined;
     digest?: string | null | undefined;
     initialSharedVersion?: string | null | undefined;
+    mutable?: boolean | null | undefined;
 }
 
 export type Argument =
