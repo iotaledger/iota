@@ -134,7 +134,7 @@ export function AccountGroup({
     const dropdownVisibility = {
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
-        showBalanceFinder: showBalanceFinder,
+        showBalanceFinder,
     };
     const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
 
