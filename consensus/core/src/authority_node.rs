@@ -5,7 +5,6 @@
 use std::{sync::Arc, time::Instant};
 
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use itertools::Itertools;
 use parking_lot::RwLock;
@@ -60,7 +59,6 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
-        current_local_metrics_count: Arc<VersionedScoringMetrics>,
         // A counter that keeps track of how many times the authority node has been booted while
         // the binary or the component that is calling the `ConsensusAuthority` has been
         // running. It's mostly useful to make decisions on whether amnesia recovery should
@@ -82,7 +80,6 @@ impl ConsensusAuthority {
                     transaction_verifier,
                     commit_consumer,
                     registry,
-                    current_local_metrics_count,
                     boot_counter,
                 )
                 .await;
@@ -168,7 +165,6 @@ where
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
-        current_local_metrics_count: Arc<VersionedScoringMetrics>,
         boot_counter: u64,
     ) -> Self {
         assert!(
@@ -192,7 +188,6 @@ where
 
         let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
             committee.size(),
-            current_local_metrics_count,
             &protocol_config,
         ));
 
@@ -478,10 +473,6 @@ mod tests {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
         let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
-            committee.size(),
-            &protocol_config,
-        ));
 
         let authority = ConsensusAuthority::start(
             network_type,
@@ -496,7 +487,6 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
-            current_local_metrics_count,
             0,
         )
         .await;
@@ -883,10 +873,6 @@ mod tests {
 
         let (sender, receiver) = unbounded_channel("consensus_output");
         let commit_consumer = CommitConsumer::new(sender, 0);
-        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
-            committee.size(),
-            &protocol_config,
-        ));
 
         let authority = ConsensusAuthority::start(
             network_type,
@@ -901,7 +887,6 @@ mod tests {
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
-            current_local_metrics_count,
             boot_counter,
         )
         .await;

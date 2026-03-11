@@ -68,19 +68,14 @@ impl Context {
     pub(crate) fn new_for_test(
         committee_size: usize,
     ) -> (Self, Vec<(NetworkKeyPair, ProtocolKeyPair)>) {
-        use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
-
         let (committee, keypairs) =
             consensus_config::local_committee_and_keys(0, vec![1; committee_size]);
         let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
         let clock = Arc::new(Clock::default());
-        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::V1(
-            ScoringMetricsV1::new(committee_size),
-        ));
+
         let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
             committee_size,
-            current_local_metrics_count,
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         ));
         let context = Context::new(

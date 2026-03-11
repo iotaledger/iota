@@ -25,14 +25,12 @@ pub(crate) struct MysticetiScoringMetricsStore {
 }
 
 impl MysticetiScoringMetricsStore {
-    pub(crate) fn new(
-        committee_size: usize,
-        current_local_metrics_count: Arc<VersionedScoringMetrics>,
-        protocol_config: &ProtocolConfig,
-    ) -> Self {
+    pub(crate) fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self {
-                current_local_metrics_count,
+                current_local_metrics_count: Arc::new(VersionedScoringMetrics::V1(
+                    ScoringMetricsV1::new(committee_size),
+                )),
                 cached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(committee_size)),
 
                 uncached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(
