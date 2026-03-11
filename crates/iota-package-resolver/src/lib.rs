@@ -563,9 +563,9 @@ impl<S: PackageStore> Resolver<S> {
                 }
 
                 Command::MakeMoveVec(Some(tag), elems) => {
-                    if is_primitive_type_tag(&tag) {
+                    if is_primitive_type_tag(tag) {
                         for elem in elems {
-                            register_type(elem, &tag)?;
+                            register_type(elem, tag)?;
                         }
                     }
                 }

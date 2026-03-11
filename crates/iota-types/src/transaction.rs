@@ -129,7 +129,7 @@ pub fn type_input_validity_check(
                         }
                     );
                     fp_ensure!(
-                        Identifier::is_valid(&s.name().as_str()),
+                        Identifier::is_valid(s.name().as_str()),
                         UserInputError::InvalidIdentifier {
                             error: s.name().as_str().to_owned()
                         }
@@ -523,7 +523,6 @@ impl Command {
     ) -> Self {
         let module = module.to_string();
         let function = function.to_string();
-        let type_arguments = type_arguments.into_iter().map(TypeTag::from).collect();
         Command::MoveCall(Box::new(ProgrammableMoveCall {
             package,
             module,
@@ -534,7 +533,7 @@ impl Command {
     }
 
     pub fn make_move_vec(ty: Option<TypeTag>, args: Vec<Argument>) -> Self {
-        Command::MakeMoveVec(ty.map(TypeTag::from), args)
+        Command::MakeMoveVec(ty, args)
     }
 
     fn input_objects(&self) -> Vec<InputObjectKind> {
