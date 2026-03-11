@@ -45,15 +45,20 @@ export function PageMainLayout({
     return (
         <div
             className={cn(
-                'flex max-h-full w-full flex-1 flex-col flex-nowrap items-stretch justify-center overflow-hidden',
-                useSidebar ? 'rounded-xl' : '',
+                'flex max-h-full w-full flex-1 flex-col flex-nowrap items-stretch overflow-hidden',
+                useSidebar ? 'h-full rounded-xl' : 'justify-center',
             )}
         >
-            {useSidebar && bottomNavEnabled ? (
-                // Fullscreen: sidebar on the left, content on the right
-                <div className="flex h-full w-full flex-1 flex-row overflow-hidden">
+            {useSidebar ? (
+                // Sidebar on the left for popup/fullscreen
+                <div className="flex w-full flex-1 flex-row overflow-hidden">
                     <Navigation />
-                    <div className="flex flex-1 flex-col flex-nowrap overflow-hidden px-md py-sm">
+                    <div
+                        className={cn(
+                            'flex flex-1 flex-col flex-nowrap overflow-hidden',
+                            bottomNavEnabled ? 'px-md py-sm' : '',
+                        )}
+                    >
                         {isHomePage ? (
                             <Header
                                 leftContent={<LeftContent account={activeAccount} />}
@@ -64,6 +69,7 @@ export function PageMainLayout({
                             />
                         ) : null}
                         <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
+                            <div id="overlay-portal-container" />
                             <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
                                 <main
                                     className={cn('flex w-full flex-grow flex-col', {
@@ -91,6 +97,7 @@ export function PageMainLayout({
                         />
                     ) : null}
                     <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
+                        <div id="overlay-portal-container" />
                         <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
                             <main
                                 className={cn('flex w-full flex-grow flex-col', {

@@ -125,7 +125,6 @@ function AppWrapper() {
                                                                         <ErrorBoundary>
                                                                             <App />
                                                                         </ErrorBoundary>
-                                                                        <div id="overlay-portal-container"></div>
                                                                         <div id="toaster-portal-container"></div>
                                                                     </div>
                                                                 </KeystoneProvider>

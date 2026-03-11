@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import React from 'react';
 import toast, { Toaster as ToasterLib, type ToastType, resolveValue, Toast } from 'react-hot-toast';
 import { Snackbar, SnackbarType } from '@iota/apps-ui-kit';
 import cl from 'clsx';
@@ -8,6 +9,7 @@ import cl from 'clsx';
 export type ToasterProps = {
     bottomNavEnabled?: boolean;
     containerClassName?: string;
+    containerStyle?: React.CSSProperties;
     snackbarWrapClassName?: string;
 };
 
@@ -31,6 +33,7 @@ export function Toaster(props: ToasterProps) {
         <ToasterLib
             position="bottom-right"
             containerClassName={cl('!z-[9999999] toast-layer', props.containerClassName)}
+            containerStyle={props.containerStyle}
         >
             {(t) => (
                 <div style={{ opacity: t.visible ? 1 : 0 }} className={props.snackbarWrapClassName}>
