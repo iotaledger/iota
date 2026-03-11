@@ -884,8 +884,14 @@ impl IotaNode {
                 .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
+        let grpc_server_handle = build_grpc_server(
+            &config,
+            state.clone(),
+            state_sync_store.clone(),
+            executor,
+            &registry_service.default_registry(),
+        )
+        .await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -2424,6 +2430,7 @@ async fn build_grpc_server(
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    prometheus_registry: &Registry,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2448,6 +2455,9 @@ async fn build_grpc_server(
         Some(env!("CARGO_PKG_VERSION").to_string()),
     ));
 
+    // Create gRPC server metrics
+    let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
+
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
@@ -2456,6 +2466,7 @@ async fn build_grpc_server(
         grpc_config.clone(),
         shutdown_token,
         chain_id,
+        Some(grpc_server_metrics),
     )
     .await?;
 
