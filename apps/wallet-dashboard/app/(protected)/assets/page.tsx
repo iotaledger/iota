@@ -65,8 +65,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
         if (selectedAssetCategory === AssetCategory.Visual) {
-            ampli.clickedCollectibleCard({
-                objectId: asset.objectId,
+            ampli.collectibleCardClicked({
                 collectibleType: asset.type!,
             });
         }
