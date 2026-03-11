@@ -31,7 +31,7 @@ interface AddressProps {
     /**
      * The onCopySuccess event of the Address  (optional).
      */
-    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
+    onCopySuccess?: (e: React.MouseEvent<HTMLElement>, text: string) => void;
     /**
      * The onCopyError event of the Address  (optional).
      */
@@ -39,7 +39,7 @@ interface AddressProps {
     /**
      * The onOpen event of the Address  (optional).
      */
-    onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+    onOpen?: (e: React.MouseEvent<HTMLElement>) => void;
 }
 
 export function Address({
@@ -52,7 +52,7 @@ export function Address({
     onCopyError,
     onOpen,
 }: AddressProps): React.JSX.Element {
-    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
+    async function handleCopyClick(event: React.MouseEvent<HTMLElement>) {
         if (!navigator.clipboard) {
             return;
         }
@@ -67,7 +67,7 @@ export function Address({
         }
     }
 
-    function handleOpenClick(event: React.MouseEvent<HTMLButtonElement>) {
+    function handleOpenClick(event: React.MouseEvent<HTMLElement>) {
         event?.stopPropagation();
         if (externalLink) {
             const newWindow = window.open(externalLink, '_blank', 'noopener noreferrer');
@@ -82,7 +82,7 @@ export function Address({
             {isCopyable && (
                 <ButtonUnstyled
                     onClick={handleCopyClick}
-                    className="opacity-0 group-hover:opacity-100"
+                    className="opacity-100"
                     aria-label="Copy to clipboard"
                 >
                     <Copy />
@@ -91,7 +91,7 @@ export function Address({
             {isExternal && (
                 <ButtonUnstyled
                     onClick={handleOpenClick}
-                    className="opacity-0 group-hover:opacity-100"
+                    className="opacity-100"
                     aria-label="Open in new tab"
                 >
                     <ArrowTopRight />
