@@ -166,14 +166,13 @@ export function Navigation() {
                     >
                         <div
                             className={cx(
-                                'flex shrink-0 items-center justify-center',
-                                isFullScreen ? 'h-6 w-6' : 'h-6 w-6',
+                                'flex shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6',
                             )}
                         >
                             {isFullScreen ? (
-                                <Globe className="navbar-item-icon-color [&_svg]:h-6 [&_svg]:w-6" />
+                                <Globe className="navbar-item-icon-color" />
                             ) : (
-                                <Globe className="navbar-item-icon-color [&_svg]:h-8 [&_svg]:w-8" />
+                                <Globe className="navbar-item-icon-color" />
                             )}
                         </div>
                         {isFullScreen && (
