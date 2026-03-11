@@ -175,7 +175,7 @@ export function Navigation() {
                                     <span className="mr-2 h-2.5 w-2.5 rounded-full bg-iota-primary-30" />
                                 </>
                             ) : (
-                                <Globe className="navbar-item-icon-color [&_svg]:h-6 [&_svg]:w-6" />
+                                <Globe className="navbar-item-icon-color [&_svg]:h-8 [&_svg]:w-8" />
                             )}
                         </div>
                         {isFullScreen && (
