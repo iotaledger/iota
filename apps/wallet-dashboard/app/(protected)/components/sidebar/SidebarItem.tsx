@@ -15,7 +15,7 @@ export function SidebarItem({ icon, title, path, id }: ProtectedRoute) {
     return (
         <Tooltip text={title} position={TooltipPosition.Right}>
             <Link href={path} className="relative px-sm py-xxs" data-testid={`sidebar-${id}`}>
-                <NavbarItem isSelected={isActive} icon={<RouteIcon />} />
+                <NavbarItem isSelected={isActive} icon={<RouteIcon />} aria-label={title} />
             </Link>
         </Tooltip>
     );

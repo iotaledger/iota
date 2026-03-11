@@ -46,6 +46,7 @@ export function TopNav() {
                 icon={<Settings />}
                 type={ButtonType.Ghost}
                 onClick={onOpenSettingsDialogClick}
+                aria-label="Settings"
             />
         </div>
     );

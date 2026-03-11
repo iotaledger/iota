@@ -98,6 +98,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                 type={CardType.Default}
                 isHoverable
                 onClick={openDetailsDialog}
+                aria-label={`View ${transaction.action ?? 'transaction'} details`}
             >
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
