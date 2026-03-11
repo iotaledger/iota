@@ -53,6 +53,48 @@ export const BASE_CONFIG: Config = {
             backgroundImage: {
                 ...NAMES_GRADIENTS,
             },
+            keyframes: {
+                'dialog-overlay-show': {
+                    from: { opacity: '0' },
+                    to: { opacity: '1' },
+                },
+                'dialog-content-show': {
+                    from: {
+                        opacity: '0',
+                        transform: 'translate(-50%, -50%) scale(0.88)',
+                    },
+                    to: {
+                        opacity: '1',
+                        transform: 'translate(-50%, -50%) scale(1)',
+                    },
+                },
+                'dialog-panel-show': {
+                    from: {
+                        opacity: '0',
+                        transform: 'translateX(12px)',
+                    },
+                    to: {
+                        opacity: '1',
+                        transform: 'translateX(0)',
+                    },
+                },
+                'dropdown-show': {
+                    from: {
+                        opacity: '0',
+                        transform: 'scale(0.9)',
+                    },
+                    to: {
+                        opacity: '1',
+                        transform: 'scale(1)',
+                    },
+                },
+            },
+            animation: {
+                'dialog-overlay-show': 'dialog-overlay-show 200ms cubic-bezier(0.32, 0.72, 0, 1)',
+                'dialog-content-show': 'dialog-content-show 200ms cubic-bezier(0.32, 0.72, 0, 1)',
+                'dialog-panel-show': 'dialog-panel-show 250ms cubic-bezier(0.32, 0.72, 0, 1)',
+                'dropdown-show': 'dropdown-show 150ms cubic-bezier(0.32, 0.72, 0, 1)',
+            },
         },
     },
 };
