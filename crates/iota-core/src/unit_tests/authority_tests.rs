@@ -8,10 +8,6 @@ use std::{collections::HashSet, convert::TryInto, env, fs, str::FromStr};
 use bcs;
 use fastcrypto::traits::KeyPair;
 use futures::{StreamExt, stream::FuturesUnordered};
-use iota_json_rpc_types::{
-    IotaArgument, IotaExecutionResult, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
-    IotaTypeTag,
-};
 use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
@@ -24,6 +20,7 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
         random_committee_key_pairs_of_size,
     },
+    dev_inspect::DevInspectExecutionResult,
     digests::Digest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
@@ -225,7 +222,7 @@ async fn test_dry_run_transaction_block() {
             transaction_digest,
         )
         .unwrap();
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(*response.effects.status(), ExecutionStatus::Success);
     let gas_usage = response.effects.gas_cost_summary();
 
     // Make sure that objects are not mutated after dry run.
@@ -250,7 +247,7 @@ async fn test_dry_run_transaction_block() {
         .dry_exec_transaction(txn_data, transaction_digest)
         .unwrap();
     let gas_usage_no_gas = response.effects.gas_cost_summary();
-    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(*response.effects.status(), ExecutionStatus::Success);
     assert_eq!(gas_usage, gas_usage_no_gas);
 }
 
@@ -282,7 +279,7 @@ async fn test_dry_run_no_gas_big_transfer() {
             *signed.digest(),
         )
         .unwrap();
-    assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
+    assert_eq!(*dry_run_res.effects.status(), ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -319,7 +316,7 @@ async fn test_dev_inspect_object_by_bytes() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -385,7 +382,7 @@ async fn test_dev_inspect_object_by_bytes() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -482,7 +479,7 @@ async fn test_dev_inspect_unowned_object() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -591,7 +588,7 @@ async fn test_dev_inspect_dynamic_field() {
 
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -650,7 +647,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -659,8 +656,7 @@ async fn test_dev_inspect_return_values() {
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // borrow a value from it's bytes
     let DevInspectResults { results, .. } = call_dev_inspect(
@@ -677,7 +673,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -686,8 +682,7 @@ async fn test_dev_inspect_return_values() {
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // read one value from it's bytes
     let DevInspectResults { results, .. } = call_dev_inspect(
@@ -704,7 +699,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -713,8 +708,7 @@ async fn test_dev_inspect_return_values() {
     let (return_value_1, return_type) = return_values.pop().unwrap();
     let deserialized_rv1: u64 = bcs::from_bytes(&return_value_1).unwrap();
     assert_eq!(init_value, deserialized_rv1);
-    let type_tag: TypeTag = return_type.try_into().unwrap();
-    assert!(matches!(type_tag, TypeTag::U64));
+    assert!(matches!(return_type, TypeTag::U64));
 
     // An unused value without drop is an error normally
     let effects = call_move_(
@@ -758,7 +752,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -771,7 +765,6 @@ async fn test_dev_inspect_return_values() {
         name: Identifier::new("Wrapper").unwrap(),
         type_params: vec![],
     }));
-    let return_type: TypeTag = return_type.try_into().unwrap();
     assert_eq!(return_type, expected_type);
 }
 
@@ -799,14 +792,14 @@ async fn test_dev_inspect_gas_coin_argument() {
         .unwrap();
     assert_eq!(results.len(), 2);
     // Split results
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = &results[0];
     // check argument is the gas coin updated
     assert_eq!(mutable_reference_outputs.len(), 1);
     let (arg, arg_value, arg_type) = &mutable_reference_outputs[0];
-    assert_eq!(arg, &IotaArgument::GasCoin);
+    assert_eq!(arg, &Argument::GasCoin);
     check_coin_value(
         arg_value,
         arg_type,
@@ -818,7 +811,7 @@ async fn test_dev_inspect_gas_coin_argument() {
     check_coin_value(ret_value, ret_type, amount);
 
     // Transfer results
-    let IotaExecutionResult {
+    let DevInspectExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = &results[1];
@@ -877,9 +870,8 @@ async fn test_dev_inspect_gas_price() {
     );
 }
 
-fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_value: u64) {
-    let actual_type: TypeTag = actual_type.clone().try_into().unwrap();
-    assert_eq!(actual_type, TypeTag::Struct(Box::new(GasCoin::type_())));
+fn check_coin_value(actual_value: &[u8], actual_type: &TypeTag, expected_value: u64) {
+    assert_eq!(actual_type, &TypeTag::Struct(Box::new(GasCoin::type_())));
     let actual_coin: GasCoin = bcs::from_bytes(actual_value).unwrap();
     assert_eq!(actual_coin.value(), expected_value);
 }
@@ -1122,7 +1114,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         .dev_inspect_transaction_block(sender, kind, Some(rgp + 100), None, None, None, None, None)
         .await
         .unwrap();
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
 
     // dry run
     let data = TransactionData::new_programmable(
@@ -1136,7 +1128,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let digest = *transaction.digest();
     let DryRunTransactionBlockResponse { effects, .. } =
         fullnode.dry_exec_transaction(data, digest).unwrap().0;
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -5598,6 +5590,13 @@ async fn test_gas_smashing() {
     run_and_check(three_coin_gas, 3, three_coin_gas - 1, false).await;
 }
 
+/// Helper struct for BCS deserialization of events emitted by the
+/// `publish_with_event` test package.
+#[derive(serde::Deserialize)]
+struct PublishEvent {
+    foo: String,
+}
+
 #[tokio::test]
 async fn test_for_inc_201_dev_inspect() {
     use iota_move_build::BuildConfig;
@@ -5640,7 +5639,10 @@ async fn test_for_inc_201_dev_inspect() {
         "PublishEvent".to_string(),
         events.data[0].type_.name.to_string()
     );
-    assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
+    // Verify the event contents via direct BCS deserialization (native Event
+    // does not carry parsed_json — that is a JSON-RPC presentation concern).
+    let pe: PublishEvent = bcs::from_bytes(&events.data[0].contents).unwrap();
+    assert_eq!(pe.foo, "bar");
 }
 
 #[tokio::test]
@@ -5687,14 +5689,15 @@ async fn test_for_inc_201_dry_run() {
             *signed.digest(),
         )
         .unwrap();
-    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
+    assert_eq!(effects.status(), &ExecutionStatus::Success);
 
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
         events.data[0].type_.name.to_string()
     );
-    assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
+    let pe: PublishEvent = bcs::from_bytes(&events.data[0].contents).unwrap();
+    assert_eq!(pe.foo, "bar");
 }
 
 #[tokio::test]
@@ -5741,12 +5744,13 @@ async fn test_function_not_found() {
             *signed.digest(),
         )
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         effects.status(),
-        &IotaExecutionStatus::Failure {
-            error: "Function Not Found. in command 0".to_string(),
+        ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::FunctionNotFound,
+            command: Some(0),
         }
-    );
+    ));
 
     assert_eq!(execution_error_source, Some("Could not resolve function 'bad_function' in module 0000000000000000000000000000000000000000000000000000000000000001::option".to_string()),)
 }
@@ -5797,12 +5801,13 @@ async fn test_arity_mismatch() {
             *signed.digest(),
         )
         .unwrap();
-    assert_eq!(
+    assert!(matches!(
         effects.status(),
-        &IotaExecutionStatus::Failure {
-            error: "Arity mismatch for Move function. The number of arguments does not match the number of parameters in command 0".to_string(),
+        ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::ArityMismatch,
+            command: Some(0),
         }
-    );
+    ));
 
     assert_eq!(
         execution_error_source,

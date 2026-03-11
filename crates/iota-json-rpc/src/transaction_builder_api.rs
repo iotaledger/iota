@@ -10,14 +10,14 @@ use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{TransactionBuilderOpenRpc, TransactionBuilderServer, internal_error};
 use iota_json_rpc_types::{
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
-    TransactionBlockBytes,
+    IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockBuilderMode, IotaTypeTag,
+    RPCTransactionRequestParams, TransactionBlockBytes,
 };
 use iota_open_rpc::Module;
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
+    filter::ObjectDataFilter,
     iota_serde::BigInt,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -63,7 +63,7 @@ impl DataReader for AuthorityStateDataReader {
                 address,
                 cursor,
                 limit + 1,
-                Some(IotaObjectDataFilter::StructType(object_type)),
+                Some(ObjectDataFilter::StructType(object_type)),
             )?
             .into_iter()
             .map(|info| {

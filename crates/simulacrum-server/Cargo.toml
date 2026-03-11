@@ -34,7 +34,6 @@ iota-execution.workspace = true
 iota-faucet.workspace = true
 iota-grpc-server.workspace = true
 iota-node-storage.workspace = true
-iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc_types::IotaMoveStruct;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, base_types::ObjectID, gas_coin::GasCoin,
-    object::bounded_visitor::BoundedVisitor,
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, base_types::ObjectID,
+    dynamic_field::move_value_to_json, gas_coin::GasCoin, object::bounded_visitor::BoundedVisitor,
 };
 use move_core_types::{
     account_address::AccountAddress,
-    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout, MoveValue},
     ident_str,
     identifier::Identifier,
     language_storage::StructTag,
@@ -30,11 +29,9 @@ fn test_to_json_value() {
         ],
     };
     let event_bytes = bcs::to_bytes(&move_event).unwrap();
-    let iota_move_struct: IotaMoveStruct =
-        BoundedVisitor::deserialize_struct(&event_bytes, &TestEvent::layout())
-            .unwrap()
-            .into();
-    let json_value = iota_move_struct.to_json_value();
+    let move_struct =
+        BoundedVisitor::deserialize_struct(&event_bytes, &TestEvent::layout()).unwrap();
+    let json_value = move_value_to_json(MoveValue::Struct(move_struct));
     assert_eq!(
         Some(&json!("1000000")),
         json_value.pointer("/coins/0/balance")

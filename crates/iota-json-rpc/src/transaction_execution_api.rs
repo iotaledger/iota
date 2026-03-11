@@ -13,8 +13,9 @@ use iota_core::{
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
-    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaArgument,
+    IotaExecutionResult, IotaMoveViewCallResults, IotaTransactionBlock, IotaTransactionBlockData,
+    IotaTransactionBlockEffects, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
@@ -27,8 +28,9 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::default_hash,
     digests::TransactionDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffectsAPI, TransactionEvents},
     iota_serde::BigInt,
+    object::Object,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
     },
@@ -72,6 +74,31 @@ impl TransactionExecutionApi {
             metrics,
             transaction_builder: TransactionBuilder::new(reader),
         }
+    }
+
+    /// Resolve transaction events into JSON-RPC presentation types using a
+    /// layout resolver that can access newly published packages from
+    /// `output_objects`.
+    fn resolve_events(
+        &self,
+        events: TransactionEvents,
+        digest: TransactionDigest,
+        output_objects: &Option<Vec<Object>>,
+    ) -> Result<IotaTransactionBlockEvents, Error> {
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let backing_package_store = PostExecutionPackageResolver::new(
+            self.state.get_backing_package_store().clone(),
+            output_objects,
+        );
+        let mut layout_resolver = epoch_store
+            .executor()
+            .type_layout_resolver(Box::new(backing_package_store));
+        Ok(IotaTransactionBlockEvents::try_from(
+            events,
+            digest,
+            None,
+            layout_resolver.as_mut(),
+        )?)
     }
 
     pub fn convert_bytes<T: serde::de::DeserializeOwned>(
@@ -206,19 +233,10 @@ impl TransactionExecutionApi {
 
         let events = if opts.show_events {
             tracing::trace!("Resolving events");
-            let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            let backing_package_store = PostExecutionPackageResolver::new(
-                self.state.get_backing_package_store().clone(),
-                &response.output_objects,
-            );
-            let mut layout_resolver = epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(backing_package_store));
-            Some(IotaTransactionBlockEvents::try_from(
+            Some(self.resolve_events(
                 response.events.unwrap_or_default(),
                 digest,
-                None,
-                layout_resolver.as_mut(),
+                &response.output_objects,
             )?)
         } else {
             None
@@ -319,6 +337,14 @@ impl TransactionExecutionApi {
             .await
             .map_err(Error::from)??;
 
+        // Extract output objects for layout resolver before consuming written_objects
+        let output_objects: Option<Vec<_>> = Some(
+            written_objects
+                .values()
+                .map(|(_, obj, _)| obj.clone())
+                .collect(),
+        );
+
         let object_cache = ObjectProviderCache::new_with_cache(self.state.clone(), written_objects);
         let balance_changes = get_balance_changes_from_effect(
             &object_cache,
@@ -336,12 +362,19 @@ impl TransactionExecutionApi {
         )
         .await?;
 
+        // Convert native types to JSON-RPC presentation types
+        let iota_effects = resp.effects.try_into()?;
+        let iota_events = self.resolve_events(resp.events, txn_digest, &output_objects)?;
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let iota_input =
+            IotaTransactionBlockData::try_from(resp.input, epoch_store.module_cache(), txn_digest)?;
+
         Ok(DryRunTransactionBlockResponse {
-            effects: resp.effects,
-            events: resp.events,
+            effects: iota_effects,
+            events: iota_events,
             object_changes,
             balance_changes,
-            input: resp.input,
+            input: iota_input,
             suggested_gas_price: resp.suggested_gas_price,
             execution_error_source: resp.execution_error_source,
         })
@@ -429,7 +462,8 @@ impl WriteApiServer for TransactionExecutionApi {
                 skip_checks,
             } = additional_args.unwrap_or_default();
             let tx_kind: TransactionKind = self.convert_bytes(tx_bytes)?;
-            self.state
+            let native_result = self
+                .state
                 .dev_inspect_transaction_block(
                     sender_address,
                     tx_kind,
@@ -441,7 +475,44 @@ impl WriteApiServer for TransactionExecutionApi {
                     skip_checks,
                 )
                 .await
-                .map_err(Error::from)
+                .map_err(Error::from)?;
+
+            // Convert native types to JSON-RPC presentation types
+            let tx_digest = *native_result.effects.transaction_digest();
+            let iota_effects: IotaTransactionBlockEffects = native_result.effects.try_into()?;
+
+            let output_objects = Some(native_result.output_objects);
+            let iota_events =
+                self.resolve_events(native_result.events, tx_digest, &output_objects)?;
+
+            let results = native_result.results.map(|results| {
+                results
+                    .into_iter()
+                    .map(|r| IotaExecutionResult {
+                        mutable_reference_outputs: r
+                            .mutable_reference_outputs
+                            .into_iter()
+                            .map(|(a, bytes, tag)| {
+                                (IotaArgument::from(a), bytes, IotaTypeTag::from(tag))
+                            })
+                            .collect(),
+                        return_values: r
+                            .return_values
+                            .into_iter()
+                            .map(|(bytes, tag)| (bytes, IotaTypeTag::from(tag)))
+                            .collect(),
+                    })
+                    .collect()
+            });
+
+            Ok(DevInspectResults {
+                effects: iota_effects,
+                events: iota_events,
+                results,
+                error: native_result.error,
+                raw_txn_data: native_result.raw_txn_data,
+                raw_effects: native_result.raw_effects,
+            })
         }
         .trace()
         .await

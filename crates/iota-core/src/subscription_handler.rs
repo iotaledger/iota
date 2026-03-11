@@ -4,11 +4,13 @@
 
 use std::sync::Arc;
 
-use iota_json_rpc_types::{
-    EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
+use iota_types::{
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::IotaResult,
+    event::EventEnvelope,
+    filter::{EffectsWithInput, EventFilter, TransactionFilter},
+    transaction::TransactionData,
 };
-use iota_types::{error::IotaResult, transaction::TransactionData};
 use prometheus::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
@@ -67,9 +69,8 @@ impl SubscriptionMetrics {
 }
 
 pub struct SubscriptionHandler {
-    event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
-    transaction_streamer:
-        Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
+    event_streamer: Streamer<EventEnvelope, EventEnvelope, EventFilter>,
+    transaction_streamer: Streamer<EffectsWithInput, TransactionEffects, TransactionFilter>,
 }
 
 impl SubscriptionHandler {
@@ -83,16 +84,21 @@ impl SubscriptionHandler {
 }
 
 impl SubscriptionHandler {
+    /// Process a committed transaction for subscription dispatch.
+    ///
+    /// `event_envelopes` must have `parsed_json` populated by the caller using
+    /// a layout resolver so that `MoveEventField` filters work correctly.
     #[instrument(level = "trace", skip_all, fields(tx_digest =? effects.transaction_digest()), err)]
     pub fn process_tx(
         &self,
         input: &TransactionData,
-        effects: &IotaTransactionBlockEffects,
-        events: &IotaTransactionBlockEvents,
+        effects: &TransactionEffects,
+        event_envelopes: Vec<EventEnvelope>,
     ) -> IotaResult {
+        let tx_digest = *effects.transaction_digest();
         trace!(
-            num_events = events.data.len(),
-            tx_digest =? effects.transaction_digest(),
+            num_events = event_envelopes.len(),
+            ?tx_digest,
             "Processing tx/event subscription"
         );
 
@@ -103,24 +109,23 @@ impl SubscriptionHandler {
             error!(error =? e, "Failed to send transaction to dispatch");
         }
 
-        // serially dispatch event processing to honor events' orders.
-        for event in events.data.clone() {
-            // Send to unified event streamer (serves both JSON-RPC and gRPC subscribers)
-            if let Err(e) = self.event_streamer.try_send(event) {
+        // Serially dispatch event processing to honor events' ordering.
+        for envelope in event_envelopes {
+            if let Err(e) = self.event_streamer.try_send(envelope) {
                 error!(error =? e, "Failed to send event to dispatch");
             }
         }
         Ok(())
     }
 
-    pub fn subscribe_events(&self, filter: EventFilter) -> impl Stream<Item = IotaEvent> {
+    pub fn subscribe_events(&self, filter: EventFilter) -> impl Stream<Item = EventEnvelope> {
         self.event_streamer.subscribe(filter)
     }
 
     pub fn subscribe_transactions(
         &self,
         filter: TransactionFilter,
-    ) -> impl Stream<Item = IotaTransactionBlockEffects> {
+    ) -> impl Stream<Item = TransactionEffects> {
         self.transaction_streamer.subscribe(filter)
     }
 }

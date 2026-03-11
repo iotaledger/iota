@@ -2,22 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{env, str::FromStr};
-
-use iota_config::NodeConfig;
-use tap::TapFallible;
 use tokio::runtime::Runtime;
-use tracing::warn;
 
 pub struct IotaRuntimes {
     // Order in this struct is the order in which runtimes are stopped
-    pub json_rpc: Runtime,
     pub iota_node: Runtime,
     pub metrics: Runtime,
 }
 
 impl IotaRuntimes {
-    pub fn new(_config: &NodeConfig) -> Self {
+    pub fn new() -> Self {
         let iota_node = tokio::runtime::Builder::new_multi_thread()
             .thread_name("iota-node-runtime")
             .enable_all()
@@ -30,25 +24,12 @@ impl IotaRuntimes {
             .build()
             .unwrap();
 
-        let worker_thread = env::var("RPC_WORKER_THREAD")
-            .ok()
-            .and_then(|o| {
-                usize::from_str(&o)
-                    .tap_err(|e| warn!("Cannot parse RPC_WORKER_THREAD to usize: {e}"))
-                    .ok()
-            })
-            .unwrap_or(num_cpus::get() / 2);
+        Self { iota_node, metrics }
+    }
+}
 
-        let json_rpc = tokio::runtime::Builder::new_multi_thread()
-            .thread_name("jsonrpc-runtime")
-            .worker_threads(worker_thread)
-            .enable_all()
-            .build()
-            .unwrap();
-        Self {
-            iota_node,
-            metrics,
-            json_rpc,
-        }
+impl Default for IotaRuntimes {
+    fn default() -> Self {
+        Self::new()
     }
 }

@@ -10,14 +10,14 @@ use std::{
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_sdk_types::crypto::HashingIntentScope;
 use move_core_types::{
-    annotated_value::{MoveStruct, MoveValue},
+    annotated_value::{MoveStruct, MoveValue, MoveVariant},
     ident_str,
-    identifier::IdentStr,
+    identifier::{IdentStr, Identifier},
     language_storage::{StructTag, TypeTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use serde_json::Value;
+use serde_json::{Value, json};
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
@@ -348,4 +348,151 @@ where
     Ok(bcs::from_bytes::<Field<K, V>>(move_object.contents())
         .map_err(|err| IotaError::DynamicFieldRead(err.to_string()))?
         .value)
+}
+
+/// Convert an annotated `MoveValue` directly to a `serde_json::Value`.
+///
+/// This replicates the combined `IotaMoveValue::from(val).to_json_value()`
+/// pipeline from `iota-json-rpc-types` so that `iota-core` can produce JSON
+/// representations of dynamic field names and event payloads without depending
+/// on JSON-RPC types.
+///
+/// # Keeping in sync
+///
+/// The `iota-json-rpc-types` crate has an equivalent conversion split across
+/// two functions:
+///   - `IotaMoveValue::from(MoveValue)` in `iota_move.rs`
+///   - `IotaMoveValue::to_json_value()`  in `iota_move.rs`
+///
+/// Both implementations MUST produce identical JSON for any given `MoveValue`.
+/// The well-known type handlers (`try_convert_struct_to_json` here vs the
+/// match arms in `IotaMoveValue::from`) must handle the same set of types:
+///   `0x1::string::String`, `0x1::ascii::String`, `0x2::url::Url`,
+///   `0x2::object::ID`, `0x2::object::UID`, `0x2::balance::Balance`,
+///   `0x1::option::Option`.
+///
+/// TODO: Consider unifying these implementations so there is a single source
+/// of truth. The `IotaMoveValue` intermediate type serves the JSON-RPC schema,
+/// but the JSON output should ideally be derived from one shared function.
+pub fn move_value_to_json(value: MoveValue) -> Value {
+    match value {
+        MoveValue::U8(v) => json!(u32::from(v)),
+        MoveValue::U16(v) => json!(u32::from(v)),
+        MoveValue::U32(v) => json!(v),
+        MoveValue::U64(v) => json!(format!("{v}")),
+        MoveValue::U128(v) => json!(format!("{v}")),
+        MoveValue::U256(v) => json!(format!("{v}")),
+        MoveValue::Bool(v) => json!(v),
+        MoveValue::Vector(values) => {
+            let arr: Vec<Value> = values.into_iter().map(move_value_to_json).collect();
+            json!(arr)
+        }
+        MoveValue::Struct(value) => {
+            if let Some(v) = try_convert_struct_to_json(&value.type_, &value.fields) {
+                return v;
+            }
+            move_struct_to_json(value)
+        }
+        MoveValue::Signer(addr) | MoveValue::Address(addr) => {
+            json!(IotaAddress::from(ObjectID::from(addr)))
+        }
+        MoveValue::Variant(MoveVariant {
+            type_: _,
+            variant_name,
+            tag: _,
+            fields,
+        }) => {
+            let fields_map: std::collections::BTreeMap<String, Value> = fields
+                .into_iter()
+                .map(|(id, v)| (id.into_string(), move_value_to_json(v)))
+                .collect();
+            json!({
+                "variant": variant_name.into_string(),
+                "fields": fields_map,
+            })
+        }
+    }
+}
+
+fn move_struct_to_json(s: MoveStruct) -> Value {
+    let fields_map: std::collections::BTreeMap<String, Value> = s
+        .fields
+        .into_iter()
+        .map(|(id, v)| (id.into_string(), move_value_to_json(v)))
+        .collect();
+    json!(fields_map)
+}
+
+/// Attempt to convert well-known IOTA/Move framework types to a simpler JSON
+/// representation (strings, unwrapped scalars, etc.).
+fn try_convert_struct_to_json(
+    type_: &StructTag,
+    fields: &[(Identifier, MoveValue)],
+) -> Option<Value> {
+    let struct_name = format!(
+        "0x{}::{}::{}",
+        type_.address.short_str_lossless(),
+        type_.module,
+        type_.name
+    );
+    let mut values: std::collections::BTreeMap<String, &MoveValue> = fields
+        .iter()
+        .map(|(id, value)| (id.to_string(), value))
+        .collect();
+    match struct_name.as_str() {
+        "0x1::string::String" | "0x1::ascii::String" => {
+            if let Some(MoveValue::Vector(bytes)) = values.remove("bytes") {
+                return to_bytearray_json(bytes)
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .map(|s| json!(s));
+            }
+        }
+        "0x2::url::Url" => {
+            return values.remove("url").cloned().map(move_value_to_json);
+        }
+        "0x2::object::ID" => {
+            return values.remove("bytes").cloned().map(move_value_to_json);
+        }
+        "0x2::object::UID" => {
+            if let Some(id_value) = values.remove("id") {
+                if let Some(object_id) = extract_id_value(id_value) {
+                    return Some(json!({ "id": object_id }));
+                }
+            }
+        }
+        "0x2::balance::Balance" => {
+            return values.remove("value").cloned().map(move_value_to_json);
+        }
+        "0x1::option::Option" => {
+            if let Some(MoveValue::Vector(values)) = values.remove("vec") {
+                let opt = values.first().cloned().map(move_value_to_json);
+                return Some(json!(opt));
+            }
+        }
+        _ => return None,
+    }
+    tracing::debug!(
+        struct_name,
+        "failed to convert well-known type to simplified JSON"
+    );
+    None
+}
+
+fn to_bytearray_json(value: &[MoveValue]) -> Option<Vec<u8>> {
+    if value.iter().all(|v| matches!(v, MoveValue::U8(_))) {
+        Some(
+            value
+                .iter()
+                .filter_map(|v| {
+                    if let MoveValue::U8(u) = v {
+                        Some(*u)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        )
+    } else {
+        None
+    }
 }

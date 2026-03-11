@@ -18,7 +18,6 @@ use std::{
 use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
-use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{
@@ -29,6 +28,7 @@ use iota_types::{
     dynamic_field::{self, DynamicFieldInfo},
     effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
+    filter::{ObjectDataFilter, TransactionFilter},
     inner_temporary_store::TxCoins,
     object::{Object, Owner},
     parse_iota_struct_tag,
@@ -1346,7 +1346,7 @@ impl IndexStore {
         owner: IotaAddress,
         cursor: Option<ObjectID>,
         limit: usize,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
         let cursor = match cursor {
             Some(cursor) => cursor,
@@ -1424,7 +1424,7 @@ impl IndexStore {
         &self,
         owner: IotaAddress,
         starting_object_id: ObjectID,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
         Ok(self
             .tables

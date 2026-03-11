@@ -18,16 +18,18 @@ use iota_core::authority::{
     authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
-use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, VersionNumber},
     committee::EpochId,
+    dev_inspect::DevInspectResults,
     digests::{TransactionDigest, TransactionEventsDigest},
+    dry_run::DryRunTransactionBlockResponse,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::Event,
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
+    filter::EventFilter,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
         iota_system_state_summary::IotaSystemStateSummary,
@@ -212,7 +214,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
             .await
             .unwrap_or_default()
             .into_iter()
-            .map(|iota_event| iota_event.into())
+            .map(|envelope| envelope.event)
             .collect())
     }
 

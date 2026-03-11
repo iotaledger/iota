@@ -15,12 +15,11 @@ use iota_json_rpc_api::{
     ReadApiServer, validate_limit,
 };
 use iota_json_rpc_types::{
-    BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, EventFilter,
-    IotaEvent, IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant,
-    IotaObjectData, IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
-    IotaTransactionBlock, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    ProtocolConfigResponse,
+    BalanceChange, Checkpoint, CheckpointId, CheckpointPage, DisplayFieldsResponse, IotaEvent,
+    IotaGetPastObjectRequest, IotaMoveStruct, IotaMoveValue, IotaMoveVariant, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, ProtocolConfigResponse,
 };
 use iota_metrics::{add_server_timing, spawn_monitored_task};
 use iota_open_rpc::Module;
@@ -1184,7 +1183,9 @@ async fn get_display_object_by_type(
         .state
         .query_events(
             kv_store,
-            EventFilter::MoveEventType(DisplayVersionUpdatedEvent::type_(object_type)),
+            iota_types::filter::EventFilter::MoveEventType(DisplayVersionUpdatedEvent::type_(
+                object_type,
+            )),
             None,
             1,
             true,
@@ -1194,7 +1195,7 @@ async fn get_display_object_by_type(
     // If there's any recent version of Display, give it to the client.
     // TODO: add support for version query.
     if let Some(event) = events.pop() {
-        let display: DisplayVersionUpdatedEvent = bcs::from_bytes(&event.bcs.into_bytes())?;
+        let display: DisplayVersionUpdatedEvent = bcs::from_bytes(&event.event.contents)?;
         Ok(Some(display))
     } else {
         Ok(None)

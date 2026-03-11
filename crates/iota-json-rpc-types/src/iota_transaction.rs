@@ -8,7 +8,6 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
-use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
@@ -56,7 +55,7 @@ use tabled::{
 };
 
 use crate::{
-    Filter, IotaEvent, IotaMoveValue, IotaObjectRef, Page, balance_changes::BalanceChange,
+    IotaEvent, IotaMoveValue, IotaObjectRef, Page, balance_changes::BalanceChange,
     iota_transaction::GenericSignature::Signature, object_changes::ObjectChange,
 };
 
@@ -2605,18 +2604,6 @@ pub enum IotaObjectArg {
     },
 }
 
-#[derive(Clone)]
-pub struct EffectsWithInput {
-    pub effects: IotaTransactionBlockEffects,
-    pub input: TransactionData,
-}
-
-impl From<EffectsWithInput> for IotaTransactionBlockEffects {
-    fn from(e: EffectsWithInput) -> Self {
-        e.effects
-    }
-}
-
 #[serde_as]
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub enum TransactionFilter {
@@ -2683,55 +2670,6 @@ impl TransactionFilter {
             TransactionFilter::Checkpoint(checkpoint) => {
                 TransactionFilterV2::Checkpoint(*checkpoint)
             }
-        }
-    }
-}
-
-impl Filter<EffectsWithInput> for TransactionFilter {
-    fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilter::matches");
-        match self {
-            TransactionFilter::InputObject(o) => {
-                let Ok(input_objects) = item.input.input_objects() else {
-                    return false;
-                };
-                input_objects.iter().any(|object| object.object_id() == *o)
-            }
-            TransactionFilter::ChangedObject(o) => item
-                .effects
-                .mutated()
-                .iter()
-                .any(|oref: &OwnedObjectRef| &oref.reference.object_id == o),
-            TransactionFilter::FromAddress(a) => &item.input.sender() == a,
-            TransactionFilter::ToAddress(a) => {
-                let mutated: &[OwnedObjectRef] = item.effects.mutated();
-                mutated.iter().chain(item.effects.unwrapped().iter()).any(|oref: &OwnedObjectRef| {
-                    matches!(oref.owner, Owner::AddressOwner(owner) if owner == *a)
-                })
-            }
-            TransactionFilter::FromAndToAddress { from, to } => {
-                Self::FromAddress(*from).matches(item) && Self::ToAddress(*to).matches(item)
-            }
-            TransactionFilter::FromOrToAddress { addr } => {
-                Self::FromAddress(*addr).matches(item) || Self::ToAddress(*addr).matches(item)
-            }
-            TransactionFilter::MoveFunction {
-                package,
-                module,
-                function,
-            } => item.input.move_calls().into_iter().any(|(p, m, f)| {
-                p == package
-                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
-                    && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
-            }),
-            TransactionFilter::TransactionKind(kind) => {
-                kind == &IotaTransactionKind::from(item.input.kind())
-            }
-            TransactionFilter::TransactionKindIn(kinds) => kinds
-                .iter()
-                .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
-            // this filter is not supported, RPC will reject it on subscription
-            TransactionFilter::Checkpoint(_) => false,
         }
     }
 }
@@ -2811,27 +2749,6 @@ impl TransactionFilterV2 {
             }
             // V2-only variants which do not have a V1 equivalent
             TransactionFilterV2::WrappedOrDeletedObject(_) => None,
-        }
-    }
-}
-
-impl Filter<EffectsWithInput> for TransactionFilterV2 {
-    fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilterV2::matches");
-        if let Some(v1) = self.as_v1() {
-            return v1.matches(item);
-        }
-        // Fallback for new V2-only variants:
-        match self {
-            TransactionFilterV2::WrappedOrDeletedObject(o) => item
-                .effects
-                .wrapped()
-                .iter()
-                .chain(item.effects.deleted())
-                .chain(item.effects.unwrapped_then_deleted())
-                .any(|oref| &oref.object_id == o),
-
-            _ => false,
         }
     }
 }

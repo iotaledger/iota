@@ -27,10 +27,6 @@ use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthority
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
-};
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_storage::{
@@ -47,7 +43,9 @@ use iota_types::{
     },
     committee::EpochId,
     crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
+    dev_inspect::DevInspectResults,
     digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
+    dry_run::DryRunTransactionBlockResponse,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
     execution_status::ExecutionStatus,
@@ -1913,24 +1911,25 @@ impl IotaTestAdapter {
 
     fn tx_summary_from_effects(
         &mut self,
-        effects: IotaTransactionBlockEffects,
-        events: IotaTransactionBlockEvents,
+        effects: TransactionEffects,
+        events: TransactionEvents,
     ) -> anyhow::Result<TxnSummary> {
-        if let IotaExecutionStatus::Failure { error } = effects.status() {
+        if let ExecutionStatus::Failure { error, .. } = effects.status() {
             bail!(self.stabilize_str(format!(
                 "Transaction Effects Status: {error}\nExecution Error: {error}",
             )));
         }
-        let mut created_ids: Vec<_> = effects.created().iter().map(|o| o.object_id()).collect();
-        let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|o| o.object_id()).collect();
-        let mut unwrapped_ids: Vec<_> = effects.unwrapped().iter().map(|o| o.object_id()).collect();
-        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|o| o.object_id).collect();
+        let mut created_ids: Vec<_> = effects.created().iter().map(|(oref, _)| oref.0).collect();
+        let mut mutated_ids: Vec<_> = effects.mutated().iter().map(|(oref, _)| oref.0).collect();
+        let mut unwrapped_ids: Vec<_> =
+            effects.unwrapped().iter().map(|(oref, _)| oref.0).collect();
+        let mut deleted_ids: Vec<_> = effects.deleted().iter().map(|oref| oref.0).collect();
         let mut unwrapped_then_deleted_ids: Vec<_> = effects
             .unwrapped_then_deleted()
             .iter()
-            .map(|o| o.object_id)
+            .map(|oref| oref.0)
             .collect();
-        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|o| o.object_id).collect();
+        let mut wrapped_ids: Vec<_> = effects.wrapped().iter().map(|oref| oref.0).collect();
         let gas_summary = effects.gas_cost_summary();
 
         // make sure objects that have previously not been in storage get assigned a
@@ -1958,14 +1957,8 @@ impl IotaTestAdapter {
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
 
-        let events = events
-            .data
-            .into_iter()
-            .map(|iota_event| iota_event.into())
-            .collect();
-
         Ok(TxnSummary {
-            events,
+            events: events.data,
             gas_summary: gas_summary.clone(),
             created: created_ids,
             mutated: mutated_ids,

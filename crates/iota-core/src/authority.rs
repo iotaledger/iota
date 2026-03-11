@@ -35,11 +35,6 @@ use iota_config::{
     },
 };
 use iota_framework::{BuiltInFramework, SystemPackage};
-use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
-    IotaObjectDataFilter, IotaTransactionBlockData, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, TransactionFilter,
-};
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
@@ -70,23 +65,25 @@ use iota_types::{
         default_hash,
     },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
+    dev_inspect::DevInspectResults,
     digests::{ChainIdentifier, Digest, TransactionEventsDigest},
+    dry_run::DryRunTransactionBlockResponse,
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEvents, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
-    event::{Event, EventID, SystemEpochInfoEvent},
+    event::{Event, EventEnvelope, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
+    filter::{EventFilter, ObjectDataFilter, TransactionFilter},
     fp_ensure,
     gas::{GasCostSummary, IotaGasStatus},
     gas_coin::NANOS_PER_IOTA,
     inner_temporary_store::{
-        InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
-        WrittenObjects,
+        InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TxCoins, WrittenObjects,
     },
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
@@ -829,6 +826,17 @@ pub struct AuthorityState {
     chain_identifier: ChainIdentifier,
 
     pub(crate) congestion_tracker: Arc<CongestionTracker>,
+}
+
+/// Resolve an event's contents into a `serde_json::Value` using the type
+/// layout resolver.
+fn resolve_event_parsed_json(
+    event: &Event,
+    layout_resolver: &mut dyn LayoutResolver,
+) -> IotaResult<serde_json::Value> {
+    let layout = layout_resolver.get_annotated_layout(&event.type_)?;
+    let move_value = Event::move_event_to_move_value(&event.contents, layout)?;
+    Ok(dynamic_field::move_value_to_json(move_value))
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -1958,24 +1966,6 @@ impl AuthorityState {
                 transaction_digest,
                 &mut None,
             );
-        let tx_digest = *effects.transaction_digest();
-
-        let module_cache =
-            TemporaryModuleResolver::new(&inner_temp_store, epoch_store.module_cache().clone());
-
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    &inner_temp_store,
-                    self.get_backing_package_store(),
-                )));
-        // Returning empty vector here because we recalculate changes in the rpc layer.
-        let object_changes = Vec::new();
-
-        // Returning empty vector here because we recalculate changes in the rpc layer.
-        let balance_changes = Vec::new();
-
         let written_with_kind = effects
             .created()
             .into_iter()
@@ -2006,25 +1996,12 @@ impl AuthorityState {
 
         Ok((
             DryRunTransactionBlockResponse {
-                // to avoid cloning `transaction`, fields are populated in this order
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
-                    .map_err(|e| IotaError::TransactionSerialization {
-                        error: format!(
-                            "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                        ),
-                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
-                effects: effects.clone().try_into()?,
-                events: IotaTransactionBlockEvents::try_from(
-                    inner_temp_store.events.clone(),
-                    tx_digest,
-                    None,
-                    layout_resolver.as_mut(),
-                )?,
-                object_changes,
-                balance_changes,
+                input: transaction,
+                effects: effects.clone(),
+                events: inner_temp_store.events.clone(),
                 execution_error_source,
             },
             written_with_kind,
@@ -2374,22 +2351,15 @@ impl AuthorityState {
             vec![]
         };
 
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    &inner_temp_store,
-                    self.get_backing_package_store(),
-                )));
-
-        DevInspectResults::new(
+        let output_objects: Vec<_> = inner_temp_store.written.values().cloned().collect();
+        Ok(DevInspectResults::new(
             effects,
             inner_temp_store.events.clone(),
             execution_result,
             raw_txn_data,
             raw_effects,
-            layout_resolver.as_mut(),
-        )
+            output_objects,
+        ))
     }
 
     // Only used for testing because of how epoch store is loaded.
@@ -2676,7 +2646,7 @@ impl AuthorityState {
 
         let name = DynamicFieldName {
             type_: name_type,
-            value: IotaMoveValue::from(name_value).to_json_value(),
+            value: dynamic_field::move_value_to_json(name_value),
         };
 
         let value_metadata = field.value_metadata().map_err(|e| {
@@ -2773,17 +2743,36 @@ impl AuthorityState {
                 .tap_err(|e| error!(?tx_digest, "Post processing - Couldn't index tx: {e}"))
                 .expect("Indexing tx should not fail");
 
-            let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
-            let events = self.make_transaction_block_events(
-                events.clone(),
-                *tx_digest,
-                timestamp_ms,
-                epoch_store,
-                inner_temporary_store,
-            )?;
+            // Build event envelopes with resolved parsed_json for streaming
+            let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
+                PackageStoreWithFallback::new(
+                    inner_temporary_store,
+                    self.get_backing_package_store(),
+                ),
+            ));
+            let event_envelopes: Vec<EventEnvelope> = events
+                .data
+                .iter()
+                .enumerate()
+                .map(|(event_num, event)| {
+                    let parsed_json = resolve_event_parsed_json(event, layout_resolver.as_mut())?;
+                    Ok(EventEnvelope::new(
+                        timestamp_ms,
+                        *effects.transaction_digest(),
+                        event_num as u64,
+                        event.clone(),
+                        parsed_json,
+                    ))
+                })
+                .collect::<IotaResult<Vec<_>>>()?;
+
             // Emit events
             self.subscription_handler
-                .process_tx(certificate.data().transaction_data(), &effects, &events)
+                .process_tx(
+                    certificate.data().transaction_data(),
+                    effects,
+                    event_envelopes,
+                )
                 .tap_ok(|_| {
                     self.metrics
                         .post_processing_total_tx_had_event_processed
@@ -2801,29 +2790,6 @@ impl AuthorityState {
                 .inc_by(events.data.len() as u64);
         };
         Ok(())
-    }
-
-    fn make_transaction_block_events(
-        &self,
-        transaction_events: TransactionEvents,
-        digest: TransactionDigest,
-        timestamp_ms: u64,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        inner_temporary_store: &InnerTemporaryStore,
-    ) -> IotaResult<IotaTransactionBlockEvents> {
-        let mut layout_resolver =
-            epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    inner_temporary_store,
-                    self.get_backing_package_store(),
-                )));
-        IotaTransactionBlockEvents::try_from(
-            transaction_events,
-            digest,
-            Some(timestamp_ms),
-            layout_resolver.as_mut(),
-        )
     }
 
     pub fn unixtime_now_ms() -> u64 {
@@ -3783,7 +3749,7 @@ impl AuthorityState {
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<ObjectID>,
         limit: usize,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> IotaResult<Vec<ObjectInfo>> {
         if let Some(indexes) = &self.indexes {
             indexes.get_owner_objects(owner, cursor, limit, filter)
@@ -3814,7 +3780,7 @@ impl AuthorityState {
         owner: IotaAddress,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<ObjectID>,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> IotaResult<impl Iterator<Item = ObjectInfo> + '_> {
         let cursor_u = cursor.unwrap_or(ObjectID::ZERO);
         if let Some(indexes) = &self.indexes {
@@ -4169,7 +4135,7 @@ impl AuthorityState {
         cursor: Option<EventID>,
         limit: usize,
         descending: bool,
-    ) -> IotaResult<Vec<IotaEvent>> {
+    ) -> IotaResult<Vec<EventEnvelope>> {
         let index_store = self.get_indexes()?;
 
         // Get the tx_num from tx_digest
@@ -4294,16 +4260,19 @@ impl AuthorityState {
         let mut layout_resolver = epoch_store
             .executor()
             .type_layout_resolver(Box::new(backing_store));
-        let mut events = vec![];
-        for (e, tx_digest, event_seq, timestamp) in stored_events.into_iter() {
-            events.push(IotaEvent::try_from(
-                e.clone(),
-                tx_digest,
-                event_seq as u64,
-                Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.type_)?,
-            )?)
-        }
+        let events = stored_events
+            .into_iter()
+            .map(|(event, tx_digest, event_seq, timestamp)| {
+                let parsed_json = resolve_event_parsed_json(&event, layout_resolver.as_mut())?;
+                Ok(EventEnvelope::new(
+                    timestamp,
+                    tx_digest,
+                    event_seq as u64,
+                    event,
+                    parsed_json,
+                ))
+            })
+            .collect::<IotaResult<Vec<_>>>()?;
         Ok(events)
     }
 

@@ -15,21 +15,21 @@ use iota_core::{
     jsonrpc_index::TotalBalance,
     subscription_handler::SubscriptionHandler,
 };
-use iota_json_rpc_types::{
-    Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
-    IotaObjectDataFilter, TransactionFilter,
-};
+use iota_json_rpc_types::Coin as IotaCoin;
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
+    dev_inspect::DevInspectResults,
     digests::{ChainIdentifier, TransactionDigest},
+    dry_run::DryRunTransactionBlockResponse,
     dynamic_field::DynamicFieldInfo,
     effects::TransactionEffects,
     error::{IotaError, UserInputError},
-    event::EventID,
+    event::{EventEnvelope, EventID},
+    filter::{EventFilter, ObjectDataFilter, TransactionFilter},
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::IotaSystemState,
@@ -92,7 +92,7 @@ pub trait StateRead: Send + Sync {
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
 
     async fn query_events(
@@ -103,7 +103,7 @@ pub trait StateRead: Send + Sync {
         cursor: Option<EventID>,
         limit: usize,
         descending: bool,
-    ) -> StateReadResult<Vec<IotaEvent>>;
+    ) -> StateReadResult<Vec<EventEnvelope>>;
 
     // transaction_execution_api
     #[allow(clippy::type_complexity)]
@@ -138,7 +138,7 @@ pub trait StateRead: Send + Sync {
         owner: IotaAddress,
         cursor: Option<ObjectID>,
         limit: usize,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
 
     async fn get_transactions(
@@ -296,7 +296,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
         Ok(self
             .get_owner_objects_iterator(owner, cursor, filter)?
@@ -311,7 +311,7 @@ impl StateRead for AuthorityState {
         cursor: Option<EventID>,
         limit: usize,
         descending: bool,
-    ) -> StateReadResult<Vec<IotaEvent>> {
+    ) -> StateReadResult<Vec<EventEnvelope>> {
         Ok(self
             .query_events(kv_store, query, cursor, limit, descending)
             .await?)
@@ -364,7 +364,7 @@ impl StateRead for AuthorityState {
         owner: IotaAddress,
         cursor: Option<ObjectID>,
         limit: usize,
-        filter: Option<IotaObjectDataFilter>,
+        filter: Option<ObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
         Ok(self.get_owner_objects(owner, cursor, limit, filter)?)
     }
@@ -383,7 +383,6 @@ impl StateRead for AuthorityState {
     }
 
     fn get_dynamic_field_object_id(
-        // indexer
         &self,
         owner: ObjectID,
         name_type: TypeTag,

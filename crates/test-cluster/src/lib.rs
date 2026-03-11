@@ -27,7 +27,7 @@ use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClie
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, TransactionFilter,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
@@ -54,8 +54,9 @@ use iota_types::{
     committee::{Committee, CommitteeTrait, EpochId},
     crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
     digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaResult,
+    filter::TransactionFilter,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,

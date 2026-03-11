@@ -14,11 +14,11 @@ use iota_json_rpc_api::{
     cap_page_limit, validate_limit,
 };
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectDataFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaEvent, IotaNameRecord, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
-    IotaTransactionBlockResponseQueryV2, ObjectsPage, Page, TransactionBlocksPage,
-    TransactionFilter,
+    IotaTransactionBlockEffects, IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, Page,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_names::{
@@ -33,6 +33,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldName, Field},
     error::{IotaObjectResponseError, UserInputError},
     event::EventID,
+    filter::{
+        EventFilter as NativeEventFilter, ObjectDataFilter, SimpleTransactionKind,
+        TransactionFilter as NativeTransactionFilter,
+    },
 };
 use jsonrpsee::{
     PendingSubscriptionSink, RpcModule, SendTimeoutError, SubscriptionMessage,
@@ -50,6 +54,129 @@ use crate::{
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
 };
+
+/// Convert a JSON-RPC `EventFilter` to the native `iota-types` equivalent.
+fn convert_event_filter(f: EventFilter) -> NativeEventFilter {
+    match f {
+        EventFilter::Sender(a) => NativeEventFilter::Sender(a),
+        EventFilter::Transaction(d) => NativeEventFilter::Transaction(d),
+        EventFilter::Package(id) => NativeEventFilter::Package(id),
+        EventFilter::MoveModule { package, module } => {
+            NativeEventFilter::MoveModule { package, module }
+        }
+        EventFilter::MoveEventType(t) => NativeEventFilter::MoveEventType(t),
+        EventFilter::MoveEventModule { package, module } => {
+            NativeEventFilter::MoveEventModule { package, module }
+        }
+        EventFilter::MoveEventField { path, value } => {
+            NativeEventFilter::MoveEventField { path, value }
+        }
+        EventFilter::TimeRange {
+            start_time,
+            end_time,
+        } => NativeEventFilter::TimeRange {
+            start_time,
+            end_time,
+        },
+        EventFilter::All(fs) => {
+            NativeEventFilter::All(fs.into_iter().map(convert_event_filter).collect())
+        }
+        EventFilter::Any(fs) => {
+            NativeEventFilter::Any(fs.into_iter().map(convert_event_filter).collect())
+        }
+        EventFilter::And(a, b) => NativeEventFilter::And(
+            Box::new(convert_event_filter(*a)),
+            Box::new(convert_event_filter(*b)),
+        ),
+        EventFilter::Or(a, b) => NativeEventFilter::Or(
+            Box::new(convert_event_filter(*a)),
+            Box::new(convert_event_filter(*b)),
+        ),
+    }
+}
+
+fn convert_transaction_kind(k: IotaTransactionKind) -> SimpleTransactionKind {
+    match k {
+        IotaTransactionKind::SystemTransaction => SimpleTransactionKind::SystemTransaction,
+        IotaTransactionKind::ProgrammableTransaction => {
+            SimpleTransactionKind::ProgrammableTransaction
+        }
+        IotaTransactionKind::Genesis => SimpleTransactionKind::Genesis,
+        IotaTransactionKind::ConsensusCommitPrologueV1 => {
+            SimpleTransactionKind::ConsensusCommitPrologueV1
+        }
+        IotaTransactionKind::AuthenticatorStateUpdateV1 => {
+            SimpleTransactionKind::AuthenticatorStateUpdateV1
+        }
+        IotaTransactionKind::RandomnessStateUpdate => SimpleTransactionKind::RandomnessStateUpdate,
+        IotaTransactionKind::EndOfEpochTransaction => SimpleTransactionKind::EndOfEpochTransaction,
+        other => {
+            tracing::warn!(
+                ?other,
+                "Unknown IotaTransactionKind variant, defaulting to SystemTransaction"
+            );
+            SimpleTransactionKind::SystemTransaction
+        }
+    }
+}
+
+/// Convert a JSON-RPC `TransactionFilter` to the native `iota-types`
+/// equivalent.
+fn convert_transaction_filter(f: TransactionFilter) -> NativeTransactionFilter {
+    match f {
+        TransactionFilter::Checkpoint(c) => NativeTransactionFilter::Checkpoint(c),
+        TransactionFilter::MoveFunction {
+            package,
+            module,
+            function,
+        } => NativeTransactionFilter::MoveFunction {
+            package,
+            module,
+            function,
+        },
+        TransactionFilter::InputObject(o) => NativeTransactionFilter::InputObject(o),
+        TransactionFilter::ChangedObject(o) => NativeTransactionFilter::ChangedObject(o),
+        TransactionFilter::FromAddress(a) => NativeTransactionFilter::FromAddress(a),
+        TransactionFilter::ToAddress(a) => NativeTransactionFilter::ToAddress(a),
+        TransactionFilter::FromAndToAddress { from, to } => {
+            NativeTransactionFilter::FromAndToAddress { from, to }
+        }
+        TransactionFilter::FromOrToAddress { addr } => {
+            NativeTransactionFilter::FromOrToAddress { addr }
+        }
+        TransactionFilter::TransactionKind(k) => {
+            NativeTransactionFilter::TransactionKind(convert_transaction_kind(k))
+        }
+        TransactionFilter::TransactionKindIn(ks) => NativeTransactionFilter::TransactionKindIn(
+            ks.into_iter().map(convert_transaction_kind).collect(),
+        ),
+    }
+}
+
+/// Convert a JSON-RPC `IotaObjectDataFilter` to the native `ObjectDataFilter`.
+fn convert_object_filter(f: IotaObjectDataFilter) -> ObjectDataFilter {
+    match f {
+        IotaObjectDataFilter::MatchAll(fs) => {
+            ObjectDataFilter::MatchAll(fs.into_iter().map(convert_object_filter).collect())
+        }
+        IotaObjectDataFilter::MatchAny(fs) => {
+            ObjectDataFilter::MatchAny(fs.into_iter().map(convert_object_filter).collect())
+        }
+        IotaObjectDataFilter::MatchNone(fs) => {
+            ObjectDataFilter::MatchNone(fs.into_iter().map(convert_object_filter).collect())
+        }
+        IotaObjectDataFilter::Package(p) => ObjectDataFilter::Package(p),
+        IotaObjectDataFilter::MoveModule { package, module } => {
+            ObjectDataFilter::MoveModule { package, module }
+        }
+        IotaObjectDataFilter::StructType(s) => ObjectDataFilter::StructType(s),
+        IotaObjectDataFilter::AddressOwner(a) => ObjectDataFilter::AddressOwner(a),
+        IotaObjectDataFilter::ObjectOwner(o) => ObjectDataFilter::ObjectOwner(o),
+        IotaObjectDataFilter::ObjectId(id) => ObjectDataFilter::ObjectId(id),
+        IotaObjectDataFilter::ObjectIds(ids) => ObjectDataFilter::ObjectIds(ids),
+        IotaObjectDataFilter::Version(v) => ObjectDataFilter::Version(v),
+    }
+}
 
 async fn pipe_from_stream<T: Serialize>(
     pending: PendingSubscriptionSink,
@@ -211,9 +338,13 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             self.metrics.get_owned_objects_limit.observe(limit as f64);
             let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
             let options = options.unwrap_or_default();
-            let mut objects =
-                self.state
-                    .get_owner_objects_with_limit(address, cursor, limit + 1, filter)?;
+            let native_filter = filter.map(convert_object_filter);
+            let mut objects = self.state.get_owner_objects_with_limit(
+                address,
+                cursor,
+                limit + 1,
+                native_filter,
+            )?;
 
             // objects here are of size (limit + 1), where the last one is the cursor for
             // the next page
@@ -272,11 +403,12 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             let opts = query.options.unwrap_or_default();
 
             // Retrieve 1 extra item for next cursor
+            let native_filter = query.filter.map(convert_transaction_filter);
             let mut digests = self
                 .state
                 .get_transactions(
                     &self.transaction_kv_store,
-                    query.filter,
+                    native_filter,
                     cursor,
                     Some(limit + 1),
                     descending,
@@ -362,21 +494,28 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             let descending = descending_order.unwrap_or_default();
             let limit = cap_page_limit(limit);
             self.metrics.query_events_limit.observe(limit as f64);
+            let native_query = convert_event_filter(query);
             // Retrieve 1 extra item for next cursor
-            let mut data = self
+            let mut envelopes = self
                 .state
                 .query_events(
                     &self.transaction_kv_store,
-                    query,
+                    native_query,
                     cursor,
                     limit + 1,
                     descending,
                 )
                 .await
                 .map_err(Error::from)?;
-            let has_next_page = data.len() > limit;
-            data.truncate(limit);
-            let next_cursor = data.last().map_or(cursor, |e| Some(e.id));
+            let has_next_page = envelopes.len() > limit;
+            envelopes.truncate(limit);
+            let next_cursor = envelopes.last().map_or(cursor, |e| {
+                Some(EventID {
+                    tx_digest: e.tx_digest,
+                    event_seq: e.event_num,
+                })
+            });
+            let data: Vec<IotaEvent> = envelopes.into_iter().map(IotaEvent::from).collect();
             self.metrics
                 .query_events_result_size
                 .observe(data.len() as f64);
@@ -399,12 +538,14 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         sink: PendingSubscriptionSink,
         filter: EventFilter,
     ) -> SubscriptionResult {
+        let native_filter = convert_event_filter(filter);
         let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
             self.state
                 .get_subscription_handler()
-                .subscribe_events(filter),
+                .subscribe_events(native_filter)
+                .map(IotaEvent::from),
             Some(permit),
         );
         Ok(())
@@ -420,12 +561,26 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             return Err("checkpoint filter is not supported".into());
         }
 
+        let native_filter = convert_transaction_filter(filter);
         let permit = self.acquire_subscribe_permit()?;
         spawn_subscription(
             sink,
-            self.state
-                .get_subscription_handler()
-                .subscribe_transactions(filter),
+            Box::pin(
+                self.state
+                    .get_subscription_handler()
+                    .subscribe_transactions(native_filter)
+                    .filter_map(|effects| async {
+                        match IotaTransactionBlockEffects::try_from(effects) {
+                            Ok(e) => Some(e),
+                            Err(e) => {
+                                tracing::error!(
+                                    "Failed to convert TransactionEffects for subscription: {e}"
+                                );
+                                None
+                            }
+                        }
+                    }),
+            ),
             Some(permit),
         );
         Ok(())

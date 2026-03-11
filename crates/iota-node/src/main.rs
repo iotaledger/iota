@@ -73,7 +73,7 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
-    let runtimes = IotaRuntimes::new(&config);
+    let runtimes = IotaRuntimes::new();
     let metrics_rt = runtimes.metrics.enter();
     let registry_service = iota_metrics::start_prometheus_server(config.metrics_address);
     let prometheus_registry = registry_service.default_registry();
@@ -112,13 +112,12 @@ fn main() {
     // work if it deadlocks.
     let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
-    let rpc_runtime = runtimes.json_rpc.handle().clone();
 
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
     runtimes.iota_node.spawn(async move {
-        match IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
+        match IotaNode::start_async(config, registry_service, VERSION).await {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),

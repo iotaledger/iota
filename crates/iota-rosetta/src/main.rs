@@ -7,11 +7,8 @@ use std::{fs, net::SocketAddr, path::PathBuf, time::Duration};
 use anyhow::anyhow;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_config::{
-    Config, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME, NodeConfig, iota_config_dir,
-};
+use iota_config::{IOTA_KEYSTORE_FILENAME, iota_config_dir};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
-use iota_node::IotaNode;
 use iota_rosetta::{
     IOTA, RosettaOfflineServer, RosettaOnlineServer,
     types::{CurveType, IotaEnv, PrefundedAccount},
@@ -144,37 +141,17 @@ impl RosettaServerCommand {
                 rosetta.serve(addr).await;
             }
 
-            RosettaServerCommand::StartOnlineServer {
-                env,
-                addr,
-                node_config,
-                data_path,
-            } => {
-                info!("Starting Rosetta Online Server with embedded IOTA full node.");
-                info!("Data directory path: {data_path:?}");
-
-                let node_config = node_config.unwrap_or_else(|| {
-                    let path = iota_config_dir().unwrap().join(IOTA_FULLNODE_CONFIG);
-                    info!("Using default node config from {path:?}");
-                    path
-                });
-
-                let mut config = NodeConfig::load(&node_config)?;
-                config.db_path = data_path.join("iota_db");
-                info!("Overriding IOTA db path to : {:?}", config.db_path);
-
-                let registry_service =
-                    iota_metrics::start_prometheus_server(config.metrics_address);
-                // Staring a full node for the rosetta server.
-                let rpc_address = format!("http://127.0.0.1:{}", config.json_rpc_address.port());
-                let _node = IotaNode::start(config, registry_service, None).await?;
-
-                let iota_client = wait_for_iota_client(rpc_address).await;
-
-                let rosetta_path = data_path.join("rosetta_db");
-                info!("Rosetta db path : {rosetta_path:?}");
-                let rosetta = RosettaOnlineServer::new(env, iota_client);
-                rosetta.serve(addr).await;
+            // TODO(json-rpc-removal): The embedded IOTA node no longer serves
+            // JSON-RPC. Rosetta requires a JSON-RPC endpoint provided by an
+            // external indexer for coin, governance, and gas price APIs.
+            // Use the `OnlineRemoteServer` command with an external JSON-RPC
+            // URL instead.
+            RosettaServerCommand::StartOnlineServer { .. } => {
+                anyhow::bail!(
+                    "StartOnlineServer with an embedded node is currently unsupported: \
+                     the embedded IOTA node no longer serves JSON-RPC. \
+                     Use OnlineRemoteServer with an external JSON-RPC endpoint instead."
+                );
             }
         };
         Ok(())
