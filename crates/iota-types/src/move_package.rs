@@ -51,14 +51,13 @@ use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
 
 use crate::{
-    IotaAddress,
+    IotaAddress, TypeTag,
     base_types::{ObjectID, SequenceNumber, StructTag},
     collection_types::{Entry, VecMap},
     derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
-    type_input::TypeName,
 };
 
 pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
@@ -800,7 +799,7 @@ impl PackageMetadata {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
     ) -> Self {
         PackageMetadata::V1(PackageMetadataV1::new(
             uid,
@@ -881,7 +880,7 @@ impl PackageMetadataV1 {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeName>>,
+        modules_metadata_map: BTreeMap<String, BTreeMap<String, TypeTag>>,
     ) -> Self {
         let mut modules_metadata = VecMap { contents: vec![] };
 
@@ -943,5 +942,5 @@ impl ModuleMetadataV1 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
-    pub account_type: TypeName,
+    pub account_type: TypeTag,
 }

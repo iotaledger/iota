@@ -44,7 +44,6 @@ use iota_types::{
         Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, SenderSignedData,
         SharedObjectRef, TransactionData, TransactionExpiration, TransactionKind,
     },
-    type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
@@ -228,12 +227,8 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &tot).unwrap();
 
-    let si = StructInput {
-        address: IotaAddress::ZERO,
-        module: "foo".to_owned(),
-        name: "bar".to_owned(),
-        type_params: vec![TypeInput::Bool],
-    };
+    let si = StructTag::new(IotaAddress::ZERO, "foo", "bar", vec![TypeTag::Bool]);
+
     tracer.trace_value(&mut samples, &si).unwrap();
 
     // We need Event sample here, because our GenesisTransaction contains an
@@ -315,8 +310,6 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<PackageUpgradeError>(&samples).unwrap();
 
     // 2. Trace the main entry point(s) + every enum separately.
-    tracer.trace_type::<StructInput>(&samples).unwrap();
-    tracer.trace_type::<TypeInput>(&samples).unwrap();
     tracer.trace_type::<Owner>(&samples).unwrap();
     // Trace all CallArg (= iota_sdk_types::Input) variants
     tracer

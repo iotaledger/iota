@@ -57,7 +57,6 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
-    type_input::TypeInput,
 };
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
@@ -86,7 +85,7 @@ mod messages_tests;
 pub type CallArg = Input;
 
 pub fn type_input_validity_check(
-    tag: &TypeInput,
+    tag: &TypeTag,
     config: &ProtocolConfig,
     starting_count: &mut usize,
 ) -> UserInputResult<()> {
@@ -108,35 +107,35 @@ pub fn type_input_validity_check(
             }
         );
         match tag {
-            TypeInput::Bool
-            | TypeInput::U8
-            | TypeInput::U64
-            | TypeInput::U128
-            | TypeInput::Address
-            | TypeInput::Signer
-            | TypeInput::U16
-            | TypeInput::U32
-            | TypeInput::U256 => (),
-            TypeInput::Vector(t) => {
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::Address
+            | TypeTag::Signer
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U256 => (),
+            TypeTag::Vector(t) => {
                 stack.push((t, depth + 1));
             }
-            TypeInput::Struct(s) => {
+            TypeTag::Struct(s) => {
                 let next_depth = depth + 1;
                 if config.validate_identifier_inputs() {
                     fp_ensure!(
-                        Identifier::is_valid(&s.module),
+                        Identifier::is_valid(s.module().as_str()),
                         UserInputError::InvalidIdentifier {
-                            error: s.module.clone()
+                            error: s.module().as_str().to_owned()
                         }
                     );
                     fp_ensure!(
-                        Identifier::is_valid(&s.name),
+                        Identifier::is_valid(&s.name().as_str()),
                         UserInputError::InvalidIdentifier {
-                            error: s.name.clone()
+                            error: s.name().as_str().to_owned()
                         }
                     );
                 }
-                stack.extend(s.type_params.iter().map(|t| (t, next_depth)));
+                stack.extend(s.type_params().iter().map(|t| (t, next_depth)));
             }
         }
     }
@@ -372,23 +371,23 @@ impl CallArgExt for CallArg {
 }
 
 // Add package IDs, `ObjectID`, for types defined in modules.
-fn add_type_input_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeInput) {
+fn add_type_input_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
-            TypeInput::Bool
-            | TypeInput::U8
-            | TypeInput::U64
-            | TypeInput::U128
-            | TypeInput::Address
-            | TypeInput::Signer
-            | TypeInput::U16
-            | TypeInput::U32
-            | TypeInput::U256 => (),
-            TypeInput::Vector(inner) => stack.push(inner),
-            TypeInput::Struct(struct_tag) => {
-                packages.insert(ObjectID::new(struct_tag.address.into_bytes()));
-                stack.extend(struct_tag.type_params.iter())
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::Address
+            | TypeTag::Signer
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U256 => (),
+            TypeTag::Vector(inner) => stack.push(inner),
+            TypeTag::Struct(struct_tag) => {
+                packages.insert(ObjectID::new(struct_tag.address().into_bytes()));
+                stack.extend(struct_tag.type_params().iter())
             }
         }
     }
@@ -427,7 +426,7 @@ pub enum Command {
     /// `forall T: Vec<T> -> vector<T>`
     /// Given n-values of the same type, it constructs a vector. For non objects
     /// or an empty vector, the type input must be specified.
-    MakeMoveVec(Option<TypeInput>, Vec<Argument>),
+    MakeMoveVec(Option<TypeTag>, Vec<Argument>),
     /// Upgrades a Move package
     /// Takes (in order):
     /// 1. A vector of serialized modules for the package.
@@ -450,7 +449,7 @@ pub struct ProgrammableMoveCall {
     /// The function to be called.
     pub function: String,
     /// The type arguments to the function.
-    pub type_arguments: Vec<TypeInput>,
+    pub type_arguments: Vec<TypeTag>,
     /// The arguments to the function.
     pub arguments: Vec<Argument>,
 }
@@ -524,7 +523,7 @@ impl Command {
     ) -> Self {
         let module = module.to_string();
         let function = function.to_string();
-        let type_arguments = type_arguments.into_iter().map(TypeInput::from).collect();
+        let type_arguments = type_arguments.into_iter().map(TypeTag::from).collect();
         Command::MoveCall(Box::new(ProgrammableMoveCall {
             package,
             module,
@@ -535,7 +534,7 @@ impl Command {
     }
 
     pub fn make_move_vec(ty: Option<TypeTag>, args: Vec<Argument>) -> Self {
-        Command::MakeMoveVec(ty.map(TypeInput::from), args)
+        Command::MakeMoveVec(ty.map(TypeTag::from), args)
     }
 
     fn input_objects(&self) -> Vec<InputObjectKind> {
