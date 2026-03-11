@@ -39,28 +39,28 @@ The following sequence diagram illustrates how the components interact from pack
 sequenceDiagram
     participant Dev as Developer
     participant Protocol as Protocol
-    participant User as User/Client
+    participant User as User
     participant Validator as Validator
     participant MoveVM as Move VM
     participant Account as Abstract Account
 
     Note over Dev,Protocol: Package Publication Phase
-    Dev->>Protocol: Publish package with #[authenticator] function
+    Dev->>Protocol: Publish package with #35;[authenticator] function
     Protocol->>Protocol: Create PackageMetadataV1 (immutable)
     Protocol-->>Dev: Return package_id & metadata_id
 
-    Note over Dev,Account: Account Creation Phase
-    Dev->>Protocol: Call create_auth_function_ref_v1(metadata, module, function)
-    Protocol->>Protocol: Validate authenticator function signature
-    Protocol-->>Dev: Return AuthenticatorFunctionRefV1<Account>
-    Dev->>Account: Call create_account_v1(account, auth_ref)
+    Note over User,Account: Account Creation Phase
+    User->>Protocol: Call create_auth_function_ref_v1(metadata, module_name, function_name)
+    Protocol->>Protocol: Check if function has authenticator attribute
+    Protocol-->>User: Return AuthenticatorFunctionRefV1<Account>
+    User->>Account: Call create_account_v1(account, auth_ref)
     Account->>Account: Attach AuthenticatorFunctionRefV1 as dynamic field
     Account->>Protocol: Share account object
-    Protocol-->>Dev: Account.id becomes sender address
+    Protocol-->>User: Account.id becomes sender address
 
     Note over User,MoveVM: Transaction Submission Phase
     User->>User: Construct TransactionData with account address as sender
-    User->>User: Create MoveAuthenticator{object_to_authenticate, call_args}
+    User->>User: Create MoveAuthenticator{account, call_args}
     User->>Validator: Submit AA transaction
 
     Note over Validator,MoveVM: Pre-Consensus Validation
@@ -83,7 +83,7 @@ sequenceDiagram
     else Authentication Succeeds
         MoveVM-->>Validator: Return (authenticated)
         Validator->>MoveVM: Execute transaction commands
-        MoveVM-->>User: Transaction successful
+        MoveVM-->>User: Transaction successful or failed (due to a command abort)
     end
 
     Note over User,Account: Optional: Authenticator Rotation
@@ -103,9 +103,10 @@ flowchart TD
     
     Publish --> MetadataCreated[Protocol creates<br/>PackageMetadataV1<br/>immutable object]
     
-    MetadataCreated --> CreateAuthRef[Call create_auth_function_ref_v1<br/>metadata, module, function]
+    MetadataCreated --> UserPhase([User Creates Account])
+    UserPhase --> CreateAuthRef[Call create_auth_function_ref_v1<br/>metadata, module_name, function_name]
     
-    CreateAuthRef --> ValidateAuth{Validate<br/>authenticator<br/>signature?}
+    CreateAuthRef --> ValidateAuth{Check if function<br/>has authenticator<br/>attribute?}
     
     ValidateAuth -->|Invalid| Error1[Abort:<br/>Invalid authenticator]
     ValidateAuth -->|Valid| AuthRefCreated[AuthenticatorFunctionRefV1<br/>created]
@@ -124,7 +125,7 @@ flowchart TD
     
     AccountReady --> UserSubmit[User constructs AA transaction<br/>sender = account address]
     
-    UserSubmit --> CreateMoveAuth[Create MoveAuthenticator:<br/>- object_to_authenticate<br/>- call_args<br/>- type_arguments]
+    UserSubmit --> CreateMoveAuth[Create MoveAuthenticator:<br/>- account<br/>- call_args<br/>- type_arguments]
     
     CreateMoveAuth --> SubmitTx[Submit transaction to validator]
     
@@ -152,7 +153,7 @@ flowchart TD
     AuthCheck2 -->|Abort| Reject2[Transaction aborted<br/>Gas charged]
     AuthCheck2 -->|Return| Execute[Execute transaction commands]
     
-    Execute --> Success[Transaction successful]
+    Execute --> Success[Transaction successful <br/>or<br/> failed due to a command abort]
     
     Success --> NextAction{Need to update<br/>authenticator?}
     
