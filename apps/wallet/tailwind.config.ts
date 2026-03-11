@@ -35,6 +35,8 @@ export default {
                 'popup-width': '360px',
                 'sidepanel-height': '850px',
                 'sidepanel-width': '400px',
+                'expanded-width': '1400px',
+                'expanded-height': '800px',
                 'nav-height': '60px',
             },
             boxShadow: {
@@ -60,6 +62,10 @@ export default {
             maxWidth: {
                 'popup-width': '360px',
                 'token-width': '80px',
+                'expanded-width': '1200px',
+            },
+            maxHeight: {
+                'expanded-height': '800px',
             },
             dropShadow: {
                 accountModal: [

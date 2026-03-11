@@ -108,14 +108,18 @@ function AppWrapper() {
                                                                 <KeystoneProvider>
                                                                     <div
                                                                         className={cn(
-                                                                            'relative flex h-screen flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                                            'relative flex flex-col flex-nowrap items-center justify-center overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6',
                                                                             extensionViewType ===
                                                                                 ExtensionViewType.SidePanel
                                                                                 ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
-                                                                                : 'max-h-popup-height min-h-popup-minimum w-popup-width',
-                                                                            extensionViewType !==
-                                                                                ExtensionViewType.Popup &&
-                                                                                'rounded-xl shadow-lg',
+                                                                                : extensionViewType ===
+                                                                                    ExtensionViewType.FullScreen
+                                                                                  ? 'h-[90vh] w-4/5'
+                                                                                  : 'h-screen max-h-popup-height min-h-popup-minimum w-[480px]',
+                                                                            extensionViewType ===
+                                                                                ExtensionViewType.Popup
+                                                                                ? ''
+                                                                                : 'rounded-xl shadow-lg',
                                                                         )}
                                                                     >
                                                                         <ErrorBoundary>

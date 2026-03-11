@@ -62,7 +62,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    @apply rounded-xl bg-iota-neutral-100 dark:bg-iota-neutral-6;
+    width: 100%;
+    height: 100vh;
 }
 
 * {

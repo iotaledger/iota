@@ -10,6 +10,7 @@ import {
     useExplorerLink,
     useShouldOpenInNewTab,
 } from '_hooks';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
@@ -66,6 +67,8 @@ export function TokenDetails() {
     const activeAccountAddress = activeAccount?.address;
     const network = useAppSelector((state) => state.app.network);
     const shouldOpenNewTab = useShouldOpenInNewTab();
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
+    const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
     const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
@@ -225,49 +228,45 @@ export function TokenDetails() {
                 />
             )}
             <Loading loading={isFirstTimeLoading}>
-                <div
-                    className="flex h-full flex-1 flex-grow flex-col items-center gap-md"
-                    data-testid="coin-page"
-                >
-                    <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
-                        <div className="flex flex-col gap-xs" data-amp-mask>
-                            <Address
-                                isExternal={!!explorerHref}
-                                externalLink={explorerHref!}
-                                text={formatAddress(activeAccountAddress)}
-                                isCopyable
-                                copyText={activeAccountAddress}
-                                onCopySuccess={() => {
-                                    ampli.elementCopied({
-                                        type: 'address',
-                                    });
-                                    toast('Address copied');
-                                }}
-                                onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
-                            />
-                            <CoinBalance amount={tokenBalance} type={activeCoinType} />
-                        </div>
-                        <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
-                            <Button
-                                onClick={() => setDialogReceiveOpen(true)}
-                                type={ButtonType.Secondary}
-                                icon={<ArrowBottomLeft />}
-                                size={ButtonSize.Small}
-                                testId="receive-coin-button"
-                            />
-                            <Button
-                                onClick={onSendClick}
-                                icon={<Send />}
-                                size={ButtonSize.Small}
-                                disabled={!coinBalances?.length}
-                                testId="send-coin-button"
-                            />
-                        </div>
-                    </div>
-                    <div className="flex w-full flex-grow flex-col gap-md">
-                        <div
-                            className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
-                        >
+                {isFullScreen ? (
+                    <div className="grid h-full grid-cols-2 gap-lg" data-testid="coin-page">
+                        {/* Left column: account info, balance, actions, staking */}
+                        <div className="flex flex-col gap-md overflow-y-auto">
+                            <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
+                                <div className="flex flex-col gap-xs" data-amp-mask>
+                                    <Address
+                                        isExternal={!!explorerHref}
+                                        externalLink={explorerHref!}
+                                        text={formatAddress(activeAccountAddress)}
+                                        isCopyable
+                                        copyText={activeAccountAddress}
+                                        onCopySuccess={() => {
+                                            ampli.elementCopied({
+                                                type: 'address',
+                                            });
+                                            toast('Address copied');
+                                        }}
+                                        onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
+                                    />
+                                    <CoinBalance amount={tokenBalance} type={activeCoinType} />
+                                </div>
+                                <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
+                                    <Button
+                                        onClick={() => setDialogReceiveOpen(true)}
+                                        type={ButtonType.Secondary}
+                                        icon={<ArrowBottomLeft />}
+                                        size={ButtonSize.Small}
+                                        testId="receive-coin-button"
+                                    />
+                                    <Button
+                                        onClick={onSendClick}
+                                        icon={<Send />}
+                                        size={ButtonSize.Small}
+                                        disabled={!coinBalances?.length}
+                                        testId="send-coin-button"
+                                    />
+                                </div>
+                            </div>
                             <div className="flex w-full flex-col items-center gap-xs">
                                 {accountHasIota || delegatedStake?.length ? (
                                     <TokenStakingOverview accountAddress={activeAccountAddress} />
@@ -290,29 +289,123 @@ export function TokenDetails() {
                                         ) : null}
                                     </div>
                                 ) : null}
-                            </div>
-                            {!accountHasIota ? (
-                                <div className="flex flex-col gap-md">
-                                    <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                        <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                            {isMainnet
-                                                ? 'Start by buying IOTA'
-                                                : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
-                                        </span>
+                                {!accountHasIota ? (
+                                    <div className="flex flex-col gap-md">
+                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                                {isMainnet
+                                                    ? 'Start by buying IOTA'
+                                                    : "Need to send transactions on the IOTA network? You'll need IOTA in your wallet"}
+                                            </span>
+                                        </div>
+                                        {!isMainnet && <FaucetRequestButton />}
                                     </div>
-                                    {!isMainnet && <FaucetRequestButton />}
-                                </div>
+                                ) : null}
+                            </div>
+                        </div>
+                        {/* Right column: coin list */}
+                        <div className="flex flex-col overflow-y-auto">
+                            {coinBalances?.length ? (
+                                <MyTokens
+                                    coinBalances={coinBalances ?? []}
+                                    isLoading={isLoading}
+                                    isFetched={isFetched}
+                                />
                             ) : null}
                         </div>
-                        {coinBalances?.length ? (
-                            <MyTokens
-                                coinBalances={coinBalances ?? []}
-                                isLoading={isLoading}
-                                isFetched={isFetched}
-                            />
-                        ) : null}
                     </div>
-                </div>
+                ) : (
+                    <div
+                        className="flex h-full flex-1 flex-grow flex-col items-center gap-md"
+                        data-testid="coin-page"
+                    >
+                        <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
+                            <div className="flex flex-col gap-xs" data-amp-mask>
+                                <Address
+                                    isExternal={!!explorerHref}
+                                    externalLink={explorerHref!}
+                                    text={formatAddress(activeAccountAddress)}
+                                    isCopyable
+                                    copyText={activeAccountAddress}
+                                    onCopySuccess={() => {
+                                        ampli.elementCopied({
+                                            type: 'address',
+                                        });
+                                        toast('Address copied');
+                                    }}
+                                    onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
+                                />
+                                <CoinBalance amount={tokenBalance} type={activeCoinType} />
+                            </div>
+                            <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
+                                <Button
+                                    onClick={() => setDialogReceiveOpen(true)}
+                                    type={ButtonType.Secondary}
+                                    icon={<ArrowBottomLeft />}
+                                    size={ButtonSize.Small}
+                                    testId="receive-coin-button"
+                                />
+                                <Button
+                                    onClick={onSendClick}
+                                    icon={<Send />}
+                                    size={ButtonSize.Small}
+                                    disabled={!coinBalances?.length}
+                                    testId="send-coin-button"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex w-full flex-grow flex-col gap-md">
+                            <div
+                                className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
+                            >
+                                <div className="flex w-full flex-col items-center gap-xs">
+                                    {accountHasIota || delegatedStake?.length ? (
+                                        <TokenStakingOverview
+                                            accountAddress={activeAccountAddress}
+                                        />
+                                    ) : null}
+                                    {hasSupplyIncreaseVestingObjects || needsMigration ? (
+                                        <div className="flex w-full flex-row gap-x-xs">
+                                            {needsMigration ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogMigrationOpen(true)}
+                                                    title="Migration"
+                                                    icon={Migration}
+                                                />
+                                            ) : null}
+                                            {hasSupplyIncreaseVestingObjects ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogVestingOpen(true)}
+                                                    title="Vesting"
+                                                    icon={Vesting}
+                                                />
+                                            ) : null}
+                                        </div>
+                                    ) : null}
+                                </div>
+                                {!accountHasIota ? (
+                                    <div className="flex flex-col gap-md">
+                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                                {isMainnet
+                                                    ? 'Start by buying IOTA'
+                                                    : "Need to send transactions on the IOTA network? You'll need IOTA in your wallet"}
+                                            </span>
+                                        </div>
+                                        {!isMainnet && <FaucetRequestButton />}
+                                    </div>
+                                ) : null}
+                            </div>
+                            {coinBalances?.length ? (
+                                <MyTokens
+                                    coinBalances={coinBalances ?? []}
+                                    isLoading={isLoading}
+                                    isFetched={isFetched}
+                                />
+                            ) : null}
+                        </div>
+                    </div>
+                )}
                 <ReceiveTokensDialog
                     address={activeAccountAddress}
                     open={dialogReceiveOpen}

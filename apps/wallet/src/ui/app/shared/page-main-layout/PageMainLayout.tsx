@@ -37,6 +37,8 @@ export function PageMainLayout({
     const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     const activeAccount = useActiveAccount();
     const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
+    const isPopup = extensionViewType === ExtensionViewType.Popup;
+    const useSidebar = isFullScreen || isPopup;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isHomePage = window.location.hash === '#/tokens';
 
@@ -44,33 +46,69 @@ export function PageMainLayout({
         <div
             className={cn(
                 'flex max-h-full w-full flex-1 flex-col flex-nowrap items-stretch justify-center overflow-hidden',
-                isFullScreen ? 'rounded-xl' : '',
+                useSidebar ? 'rounded-xl' : '',
             )}
         >
-            {isHomePage ? (
-                <Header
-                    leftContent={<LeftContent account={activeAccount} />}
-                    middleContent={<div ref={setTitlePortalContainer} />}
-                    rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
-                />
-            ) : null}
-            <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
-                <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
-                    <main
-                        className={cn('flex w-full flex-grow flex-col', {
-                            'p-5': bottomNavEnabled && isHomePage,
-                            'h-full': !isHomePage,
-                        })}
-                    >
-                        <PageMainLayoutContext.Provider value={titlePortalContainer}>
-                            <ErrorBoundary>{children}</ErrorBoundary>
-                        </PageMainLayoutContext.Provider>
-                    </main>
-                    <Toaster bottomNavEnabled={bottomNavEnabled} />
+            {useSidebar && bottomNavEnabled ? (
+                // Fullscreen: sidebar on the left, content on the right
+                <div className="flex h-full w-full flex-1 flex-row overflow-hidden">
+                    <Navigation />
+                    <div className="flex flex-1 flex-col flex-nowrap overflow-hidden px-md py-sm">
+                        {isHomePage ? (
+                            <Header
+                                leftContent={<LeftContent account={activeAccount} />}
+                                middleContent={<div ref={setTitlePortalContainer} />}
+                                rightContent={
+                                    topNavMenuEnabled ? <WalletSettingsButton /> : undefined
+                                }
+                            />
+                        ) : null}
+                        <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
+                            <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
+                                <main
+                                    className={cn('flex w-full flex-grow flex-col', {
+                                        'h-full': !isHomePage,
+                                    })}
+                                >
+                                    <PageMainLayoutContext.Provider value={titlePortalContainer}>
+                                        <ErrorBoundary>{children}</ErrorBoundary>
+                                    </PageMainLayoutContext.Provider>
+                                </main>
+                                <Toaster bottomNavEnabled={bottomNavEnabled} />
+                            </div>
+                            {topNavMenuEnabled ? <MenuContent /> : null}
+                        </div>
+                    </div>
                 </div>
-                {topNavMenuEnabled ? <MenuContent /> : null}
-            </div>
-            {bottomNavEnabled ? <Navigation /> : null}
+            ) : (
+                // Popup / SidePanel: original bottom-nav layout
+                <>
+                    {isHomePage ? (
+                        <Header
+                            leftContent={<LeftContent account={activeAccount} />}
+                            middleContent={<div ref={setTitlePortalContainer} />}
+                            rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
+                        />
+                    ) : null}
+                    <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
+                        <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
+                            <main
+                                className={cn('flex w-full flex-grow flex-col', {
+                                    'p-5': bottomNavEnabled && isHomePage,
+                                    'h-full': !isHomePage,
+                                })}
+                            >
+                                <PageMainLayoutContext.Provider value={titlePortalContainer}>
+                                    <ErrorBoundary>{children}</ErrorBoundary>
+                                </PageMainLayoutContext.Provider>
+                            </main>
+                            <Toaster bottomNavEnabled={bottomNavEnabled} />
+                        </div>
+                        {topNavMenuEnabled ? <MenuContent /> : null}
+                    </div>
+                    {bottomNavEnabled ? <Navigation /> : null}
+                </>
+            )}
         </div>
     );
 }
