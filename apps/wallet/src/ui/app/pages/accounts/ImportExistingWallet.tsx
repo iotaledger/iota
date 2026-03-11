@@ -19,10 +19,10 @@ export function ImportExistingWallet() {
     const { theme } = useTheme();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const isPopupOrSidePanel = useAppSelector((state) =>
-        [ExtensionViewType.Popup, ExtensionViewType.SidePanel].includes(
-            state.app.extensionViewType,
-        ),
+    const isPopupOrSidePanel = useAppSelector(
+        (state) =>
+            state.app.extensionViewType === ExtensionViewType.Popup ||
+            state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';

@@ -1696,6 +1696,15 @@ tx_inputs
 tx_commands
 	public fun
 	0x2::auth_context
+native_digest
+	fun
+	0x2::auth_context
+native_tx_inputs
+	fun
+	0x2::auth_context
+native_tx_commands
+	fun
+	0x2::auth_context
 Receiving
 	public struct
 	0x2::transfer

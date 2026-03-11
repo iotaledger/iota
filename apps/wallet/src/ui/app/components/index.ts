@@ -6,7 +6,6 @@ export * from './DAppPermissionList';
 export * from './HideShowDisplayBox';
 export * from './Overlay';
 export * from './PageTemplate';
-export * from './PasswordInputDialog';
 export * from './SectionHeader';
 export * from './SummaryCard';
 export * from './WalletListSelect';

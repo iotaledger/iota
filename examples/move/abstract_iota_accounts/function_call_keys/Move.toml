@@ -1,0 +1,11 @@
+[package]
+name = "function_call_keys"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+iotaccount = { local = "../iotaccount" }
+public_key_authentication = { local = "../public_key_authentication" }
+
+[addresses]
+function_call_keys = "0x0"

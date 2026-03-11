@@ -5,15 +5,17 @@
 pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+    use std::{cell::RefCell, collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 
     use anyhow::Result;
     use iota_move_natives::{
         NativesCostTable,
+        authentication_context::AuthenticationContext,
         object_runtime::{self, ObjectRuntime},
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
+        auth_context::AuthContext,
         base_types::*,
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
@@ -99,6 +101,7 @@ mod checked {
         protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         current_epoch_id: EpochId,
+        auth_context: Option<Rc<RefCell<AuthContext>>>,
     ) -> NativeContextExtensions<'r> {
         // When changing the list of configured extensions, make sure you also
         // update the one used while executing `move test` command.
@@ -112,6 +115,9 @@ mod checked {
             current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
+        if let Some(auth_context) = auth_context {
+            extensions.add(AuthenticationContext::new(auth_context));
+        }
         extensions
     }
 
