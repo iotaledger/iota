@@ -1104,10 +1104,9 @@ UpgradeInfo:
         TYPENAME: ObjectId
     - upgraded_version: U64
 VersionAssignment:
-  STRUCT:
-    - object_id:
-        TYPENAME: ObjectId
-    - version: U64
+  TUPLESTRUCT:
+    - TYPENAME: ObjectId
+    - U64
 ZkLoginAuthenticatorAsBytes:
   NEWTYPESTRUCT:
     SEQ: U8
