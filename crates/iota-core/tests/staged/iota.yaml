@@ -303,12 +303,12 @@ ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
     - round: U64
-    - subDagIndex:
+    - sub_dag_index:
         OPTION: U64
-    - commitTimestampMs: U64
-    - consensusCommitDigest:
+    - commit_timestamp_ms: U64
+    - consensus_commit_digest:
         TYPENAME: Digest
-    - consensusDeterminedVersionAssignments:
+    - consensus_determined_version_assignments:
         TYPENAME: ConsensusDeterminedVersionAssignments
 ConsensusDeterminedVersionAssignments:
   ENUM:
