@@ -1,10 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
-};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
@@ -17,9 +14,6 @@ const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
-    // The current metrics counts collected by the authority, i.e., the local view of the node
-    // about the behaviour of the rest of the committee, according to the blocks received.
-    pub(crate) current_local_metrics_count: Arc<VersionedScoringMetrics>,
     // The metrics counts received from other authorities, i.e., the information contained in the
     // MisbehaviourReports received by the authority. If an authority has not sent a report, its
     // entry in this vector will be all zeroed.
@@ -57,11 +51,6 @@ impl Scorer {
         let committee_size = voting_power.len();
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => {
-                // Local metrics count are always initialized as zero.
-                let current_local_metrics_count = Arc::new(VersionedScoringMetrics::new(
-                    committee_size,
-                    protocol_config,
-                ));
                 let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
                     (0..committee_size)
                         .map(|_| {
@@ -134,7 +123,6 @@ impl Scorer {
                 );
 
                 Self {
-                    current_local_metrics_count,
                     received_metrics,
                     has_not_sent_report,
                     current_scores,
@@ -212,9 +200,6 @@ impl Scorer {
             .collect()
     }
 
-    pub(crate) fn generate_report_with_current_local_metrics(&self) -> VersionedMisbehaviorReport {
-        self.current_local_metrics_count.to_report()
-    }
 }
 
 // Methods for ScorerVersion::V1

@@ -91,6 +91,7 @@ use super::{
 use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
+        authority_per_epoch_store::misbehavior_monitor::MisbehaviorMonitor,
         epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
@@ -137,6 +138,8 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
+#[path = "misbehavior_monitor.rs"]
+pub(crate) mod misbehavior_monitor;
 #[path = "scorer.rs"]
 pub(crate) mod scorer;
 
@@ -666,6 +669,7 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
+    pub(crate) misbehavior_monitor: Arc<MisbehaviorMonitor>,
     /// Component including the local view about the other authorities'
     /// misbehavior metrics, and received reports.
     pub(crate) scorer: Arc<Scorer>,
@@ -1102,6 +1106,10 @@ impl AuthorityPerEpochStore {
             chain,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            misbehavior_monitor: Arc::new(MisbehaviorMonitor::new(
+                voting_power.clone(),
+                &protocol_config,
+            )),
             scorer: Arc::new(Scorer::new(voting_power, &protocol_config)),
         });
 
