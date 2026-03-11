@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
+import { ErrorBoundary, MenuContent, Navigation } from '_components';
 import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector, useActiveAccount } from '_hooks';
@@ -19,6 +19,7 @@ import { useGetDefaultIotaName } from '@iota/core';
 import { formatAccountName } from '../../helpers';
 import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
+import { WalletSettingsButton } from '_components';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -59,15 +60,6 @@ export function PageMainLayout({
                             bottomNavEnabled ? 'px-md py-sm' : '',
                         )}
                     >
-                        {isHomePage ? (
-                            <Header
-                                leftContent={<LeftContent account={activeAccount} />}
-                                middleContent={<div ref={setTitlePortalContainer} />}
-                                rightContent={
-                                    topNavMenuEnabled ? <WalletSettingsButton /> : undefined
-                                }
-                            />
-                        ) : null}
                         <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                             <div id="overlay-portal-container" />
                             <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
