@@ -199,7 +199,10 @@ impl ConsensusManagerTrait for MysticetiManager {
             Arc::new(tx_validator.clone()),
             consumer,
             registry.clone(),
-            epoch_store.scorer.current_local_metrics_count.clone(),
+            epoch_store
+                .misbehavior_monitor
+                .current_local_metrics_count
+                .clone(),
             *boot_counter,
         )
         .await;

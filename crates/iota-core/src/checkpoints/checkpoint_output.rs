@@ -130,7 +130,10 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         // point, due to periodicity reasons and to ensure a (approximate)
         // synchronization with the score updates.
         if epoch_store.protocol_config().calculate_validator_scores() {
-            let misbehavior_report = epoch_store.scorer.current_local_metrics_count.to_report();
+            let misbehavior_report = epoch_store
+                .misbehavior_monitor
+                .current_local_metrics_count
+                .to_report();
             let transaction = ConsensusTransaction::new_misbehavior_report(
                 epoch_store.name,
                 &misbehavior_report,
