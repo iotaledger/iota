@@ -427,6 +427,7 @@ const developer = [
                         label: 'Account Abstraction',
                         items: [
                             'developer/move/explanations/account-abstraction/introduction',
+                            'developer/move/explanations/account-abstraction/components',
                             'developer/move/explanations/account-abstraction/design-principles',
                         ],
                     },

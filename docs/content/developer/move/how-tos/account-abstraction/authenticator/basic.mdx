@@ -23,7 +23,7 @@ This guide builds on the [Create an Account Using the Builder Pattern](../create
 ## Example Code
 
 1. First create a function which has the `#[authenticator]` attribute. This makes the function eligible to be used as an authenticator for an account.
-2. Make sure the function parameters conform with the [authenticator requirements](../../../explanations/account-abstraction/introduction.mdx#authenticator-function).
+2. Make sure the function parameters conform with the [authenticator requirements](../../../explanations/account-abstraction/components.mdx#authenticator-function).
 In this example as a middle parameter we take a message of type `String` which the authenticator will check.
 ```move
 #[authenticator]
