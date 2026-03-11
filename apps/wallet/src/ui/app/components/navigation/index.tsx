@@ -72,7 +72,7 @@ export function Navigation() {
 
     if (useSidebar) {
         return (
-            <div className="flex h-full w-16 shrink-0 flex-col items-center border-r border-shader-neutral-light-8 bg-iota-neutral-100 py-xs dark:border-shader-neutral-dark-8 dark:bg-iota-neutral-6">
+            <div className="flex h-full w-16 shrink-0 flex-col items-center border-r border-shader-neutral-light-8 bg-iota-neutral-100 pb-xs pt-md dark:border-shader-neutral-dark-8 dark:bg-iota-neutral-6">
                 {/* Account icon at the top */}
                 <Tooltip text={accountName} position={TooltipPosition.Right}>
                     <Link
@@ -111,7 +111,7 @@ export function Navigation() {
                             className="flex h-8 w-8 items-center justify-center rounded-full no-underline hover:bg-iota-neutral-90 dark:hover:bg-iota-neutral-12"
                             aria-label={`Network: ${networkName}`}
                         >
-                            <span className="bg-iota-primary h-2.5 w-2.5 rounded-full" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-iota-primary-30" />
                         </Link>
                     </Tooltip>
                     <WalletSettingsButton />
