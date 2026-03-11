@@ -20,6 +20,9 @@ import "iota/grpc/v0/transaction.proto";
 import "iota/grpc/v0/types.proto";
 
 service LedgerService {
+  // Check the health of the node.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+
   // Query the service for general information about its current state.
   rpc GetServiceInfo(GetServiceInfoRequest) returns (GetServiceInfoResponse);
 
@@ -32,6 +35,27 @@ service LedgerService {
   rpc StreamCheckpointData (CheckpointDataStreamRequest) returns (stream CheckpointData);
 
   rpc GetEpoch(GetEpochRequest) returns (GetEpochResponse);
+}
+
+message GetHealthRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Optional threshold in milliseconds. The node is considered healthy only if
+  // the latest executed checkpoint timestamp is within this many milliseconds of
+  // the current system time. If not provided, the server applies a default
+  // threshold of 5 seconds.
+  optional uint64 threshold_ms = 1;
+}
+
+message GetHealthResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Checkpoint height of the most recently executed checkpoint.
+  optional uint64 executed_checkpoint_height = 1;
+
+  // Estimated validator latency in milliseconds.
+  // Reserved for future use.
+  optional uint32 estimated_validator_latency_ms = 2;
 }
 
 message GetServiceInfoRequest {

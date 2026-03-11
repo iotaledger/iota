@@ -92,6 +92,97 @@ mod _field_impls {
             }
         }
     }
+    impl GetHealthRequest {
+        pub const THRESHOLD_MS_FIELD: &'static MessageField = &MessageField {
+            name: "threshold_ms",
+            json_name: "thresholdMs",
+            number: 1i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl MessageFields for GetHealthRequest {
+        const FIELDS: &'static [&'static MessageField] = &[Self::THRESHOLD_MS_FIELD];
+    }
+    impl GetHealthRequest {
+        pub fn path_builder() -> GetHealthRequestFieldPathBuilder {
+            GetHealthRequestFieldPathBuilder::new()
+        }
+    }
+    pub struct GetHealthRequestFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl GetHealthRequestFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn threshold_ms(mut self) -> String {
+            self.path.push(GetHealthRequest::THRESHOLD_MS_FIELD.name);
+            self.finish()
+        }
+    }
+    impl GetHealthResponse {
+        pub const EXECUTED_CHECKPOINT_HEIGHT_FIELD: &'static MessageField = &MessageField {
+            name: "executed_checkpoint_height",
+            json_name: "executedCheckpointHeight",
+            number: 1i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+        pub const ESTIMATED_VALIDATOR_LATENCY_MS_FIELD: &'static MessageField = &MessageField {
+            name: "estimated_validator_latency_ms",
+            json_name: "estimatedValidatorLatencyMs",
+            number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl MessageFields for GetHealthResponse {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::EXECUTED_CHECKPOINT_HEIGHT_FIELD,
+            Self::ESTIMATED_VALIDATOR_LATENCY_MS_FIELD,
+        ];
+    }
+    impl GetHealthResponse {
+        pub fn path_builder() -> GetHealthResponseFieldPathBuilder {
+            GetHealthResponseFieldPathBuilder::new()
+        }
+    }
+    pub struct GetHealthResponseFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl GetHealthResponseFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn executed_checkpoint_height(mut self) -> String {
+            self.path.push(GetHealthResponse::EXECUTED_CHECKPOINT_HEIGHT_FIELD.name);
+            self.finish()
+        }
+        pub fn estimated_validator_latency_ms(mut self) -> String {
+            self.path.push(GetHealthResponse::ESTIMATED_VALIDATOR_LATENCY_MS_FIELD.name);
+            self.finish()
+        }
+    }
     impl GetServiceInfoRequest {
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
             name: "read_mask",

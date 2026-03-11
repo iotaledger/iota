@@ -176,6 +176,25 @@ mod _accessor_impls {
             self
         }
     }
+    impl super::GetHealthRequest {
+        /// Sets `threshold_ms` with the provided value.
+        pub fn with_threshold_ms(mut self, field: u64) -> Self {
+            self.threshold_ms = Some(field);
+            self
+        }
+    }
+    impl super::GetHealthResponse {
+        /// Sets `executed_checkpoint_height` with the provided value.
+        pub fn with_executed_checkpoint_height(mut self, field: u64) -> Self {
+            self.executed_checkpoint_height = Some(field);
+            self
+        }
+        /// Sets `estimated_validator_latency_ms` with the provided value.
+        pub fn with_estimated_validator_latency_ms(mut self, field: u32) -> Self {
+            self.estimated_validator_latency_ms = Some(field);
+            self
+        }
+    }
     impl super::GetObjectsRequest {
         /// Sets `requests` with the provided value.
         pub fn with_requests<T: Into<super::ObjectRequests>>(
