@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Navbar, type NavbarItemWithId, NavbarItemType } from '@iota/apps-ui-kit';
+import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
 import {
     Activity,
     Apps,
@@ -104,12 +104,38 @@ export function Navigation() {
                 {/* Nav items */}
                 <div className="flex w-full flex-col">
                     {NAVBAR_ITEMS.map((item) => (
-                        <div key={item.id} className="py-[1px]" data-testid={`nav-${item.id}`}>
-                            <Navbar
-                                items={[{ ...item, type: NavbarItemType.Vertical }]}
-                                activeId={activeId}
-                                onClickItem={handleItemClick}
-                            />
+                        <div
+                            key={item.id}
+                            role="button"
+                            onClick={() => handleItemClick(item.id)}
+                            data-testid={`nav-${item.id}`}
+                            className={cx(
+                                'state-layer-secondary relative flex w-full cursor-pointer flex-row items-center gap-3 rounded-full px-xs py-[6px]',
+                                item.id === activeId
+                                    ? 'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12'
+                                    : '',
+                            )}
+                        >
+                            <div
+                                className={cx(
+                                    'inline-flex [&_svg]:h-6 [&_svg]:w-6',
+                                    item.id === activeId
+                                        ? 'navbar-item-icon-selected-color'
+                                        : 'navbar-item-icon-color',
+                                )}
+                            >
+                                {item.icon}
+                            </div>
+                            <span
+                                className={cx(
+                                    'text-label-lg',
+                                    item.id === activeId
+                                        ? 'navbar-item-label-selected-color'
+                                        : 'navbar-item-label-color',
+                                )}
+                            >
+                                {item.text}
+                            </span>
                         </div>
                     ))}
                 </div>
