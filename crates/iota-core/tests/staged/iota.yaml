@@ -63,12 +63,10 @@ CallArg:
         NEWTYPE:
           TYPENAME: ObjectArg
 CancelledTransaction:
-  STRUCT:
-    - digest:
-        TYPENAME: Digest
-    - version_assignments:
-        SEQ:
-          TYPENAME: VersionAssignment
+  TUPLESTRUCT:
+    - TYPENAME: Digest
+    - SEQ:
+        TYPENAME: VersionAssignment
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -314,10 +312,9 @@ ConsensusDeterminedVersionAssignments:
   ENUM:
     0:
       CancelledTransactions:
-        STRUCT:
-          - cancelled_transactions:
-              SEQ:
-                TYPENAME: CancelledTransaction
+        NEWTYPE:
+          SEQ:
+            TYPENAME: CancelledTransaction
 Data:
   ENUM:
     0:
