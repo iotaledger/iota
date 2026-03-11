@@ -2,96 +2,186 @@
 
 This file instructs Claude Code on how to conduct code reviews in the IOTA monorepo. Read it fully before reviewing any pull request.
 
+`RUST_CONVENTIONS.md` is the canonical source for Rust coding conventions. This file adds **review-specific guidance** across all languages (Rust, TypeScript, Move) and defines review depth, cross-cutting checks, and output format. Do not duplicate rules already in `RUST_CONVENTIONS.md` — reference it instead.
+
 ---
 
 ## Review depth by path
 
-Not all code carries the same risk. Apply scrutiny accordingly.
+Apply scrutiny proportional to the blast radius of the code being changed.
 
-**Protocol and consensus code** (`crates/` paths related to networking, consensus, ledger, or node operation) requires the deepest review. Bugs here can cause network faults, data loss, or security vulnerabilities. Treat every change as potentially load-bearing until proven otherwise. Missing tests, unjustified panics, or unclear error handling in these paths are blocking issues.
+**Tier 1 — Critical (consensus, execution, system contracts):**
 
-**Infrastructure and shared libraries** (common utilities, shared types, RPC interfaces, storage abstractions) deserves thorough review but with slightly more tolerance for pragmatic tradeoffs. API stability and correct error propagation matter a lot here because other crates depend on them.
+- `consensus/core/`, `consensus/config/`
+- `iota-execution/`
+- `crates/iota-framework/packages/iota-system/`
 
-**TypeScript SDKs and tooling** should be reviewed for correctness and API consistency, but documentation gaps, relaxed test coverage on utilities, and minor style issues are non-blocking. The primary concern is whether the SDK accurately and safely exposes the underlying protocol behavior.
+Bugs here can cause network faults, forks, or asset loss. Every change is load-bearing until proven otherwise. Missing tests, unjustified panics, or unclear error handling are blocking.
 
-**Documentation, examples, and configuration** can be reviewed lightly. Flag factual errors or anything that would mislead a developer, but do not apply protocol-level scrutiny.
+**Tier 2 — High (protocol engine, types, Move VM):**
 
-When a PR touches multiple layers, apply the strictest relevant standard to the entire review.
+- `crates/iota-core/`, `crates/iota-types/`, `crates/iota-protocol-config/`
+- `crates/iota-transaction-checks/`, `crates/iota-node/`, `crates/iota-network*/`
+- `external-crates/move/`
+- `crates/iota-framework/packages/iota-framework/`
+
+Core protocol types and the Move language implementation. API stability, correct error propagation, and thorough tests matter here because many other crates depend on them.
+
+**Tier 3 — Standard (RPC, indexing, storage, Rust SDK):**
+
+- `crates/iota-json-rpc*/`, `crates/iota-graphql-rpc*/`, `crates/iota-rest-api/`, `crates/iota-grpc-*/`
+- `crates/iota-indexer*/`, `crates/iota-analytics-indexer/`, `crates/iota-storage/`, `crates/typed-store*/`
+- `crates/iota-sdk/`
+
+Bugs affect users but not consensus. Review for correctness, error handling, and API consistency.
+
+**Tier 4 — Moderate (TypeScript SDK, apps, dApps):**
+
+- `sdk/`, `apps/`, `dapps/`, `kiosk/`
+
+Review for correctness, API consistency, and security (XSS, injection). Documentation and minor style issues are non-blocking.
+
+**Tier 5 — Light (docs, examples, tooling):**
+
+- `docs/`, `examples/`, `scripts/`, `dev-tools/`, `docker/`, `setups/`
+
+Flag factual errors or anything that would mislead a developer. Do not apply protocol-level scrutiny.
+
+**Rule:** when a PR touches multiple tiers, apply the strictest relevant standard to the entire review.
 
 ---
 
-## Blocking issues
+## Cross-cutting checks
 
-These must be resolved before merge. Flag them explicitly.
+These apply regardless of language or tier.
 
-Any use of `unsafe` without a comment justifying why it is sound and why a safe alternative was not viable. The justification must be in the code, not just the PR description.
+**License headers (blocking):** New IOTA source files must have:
 
-Any `.unwrap()` outside of test code. Protocol and library code must use `.expect()` with a meaningful message, or propagate the error properly. An `.expect()` message that just restates the type ("expected Some value") is not sufficient. The message should explain what invariant was violated.
+```
+// Copyright (c) <year> IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+```
 
-Any `panic!()`, `unreachable!()`, or `.expect()` in protocol code that lacks a `# Panics` section in the function's rustdoc. If the function can panic, it must say so and under what conditions.
+Files originating from Mysten Labs must add a modification line:
 
-Error types that use `#[from]` in `thiserror` definitions where the wrapped error provides insufficient context. Prefer `#[source]` with a manual mapping that adds diagnostic context at the call site.
+```
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) <year> IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+```
 
-New dependencies added without justification in the PR description. Flag any dependency that is not widely used in the Rust ecosystem and ask for evidence it has been vetted. Flag unmaintained crates as blocking regardless of justification.
+Valid years: 2024 through the current year. This is enforced by `linting/license-check/` for TypeScript; apply the same standard to Rust and Move files manually.
 
-Public API changes that are breaking without a corresponding deprecation path. New public items should be additive. Items being removed must go through `#[deprecated]` first with a reason and target version.
+**Changesets (blocking for publishable SDK packages):** PRs modifying publishable packages under `sdk/` must include a `.changeset/` file with the correct semver bump. The following packages are excluded from this requirement: iota-wallet, iota-explorer, wallet-dashboard, apps-backend, iota-evm-bridge, @iota/core, sponsored-transactions, kiosk-demo, kiosk-cli, @iota/examples.
 
-Missing or incorrect error handling in protocol paths where a failure should propagate rather than be swallowed. Silent failures in networking or consensus code are bugs.
+**PR description (blocking if absent):** Must explain _why_ the change was made. A reviewer cannot assess correctness without understanding intent. If the reason is not obvious from the code and the description is missing, note this explicitly.
 
-Use of `use something::*` wildcard imports outside of public re-exports.
+**Breaking changes (blocking):** Public API changes (Rust, TypeScript, or Move) must be additive or follow a deprecation path. In Rust, items being removed go through `#[deprecated]` first. In TypeScript SDK, removed exports require a major version bump via changeset.
 
-Use of `super::` for import paths outside of test modules.
+**Test coverage:** Tiers 1–3 require tests covering failure modes and boundary conditions, not just the happy path. Tier 4 expects SDK functions tested against realistic inputs. Tier 5 tests are nice-to-have.
 
-Structs or enums in public APIs that are expected to grow but are not marked `#[non_exhaustive]`.
-
-New `anyhow` usage in library code. `anyhow` is for applications, not libraries. Library error types must be matchable.
-
-Tests that expose non-public APIs by making them `pub` rather than using `#[cfg(test)]`-gated APIs or defining tests locally.
+**Dependency hygiene (blocking if unjustified):** New dependencies (Rust crates or npm packages) require justification. Flag unmaintained or vulnerable dependencies as blocking regardless of justification.
 
 ---
 
-## Non-blocking issues
+## Rust review
 
-Raise these as suggestions. They should be addressed but will not block merge.
+Apply all rules from `RUST_CONVENTIONS.md`. The following are additional review-specific checks not covered there.
 
-Variable names that are too abbreviated or too generic in non-trivial contexts. Single-letter names outside of loop indexes and single-line closures are worth flagging.
+**Diff scan patterns — flag these in the diff:**
 
-`mod.rs` files that contain significant logic rather than just re-exports. This is a recommendation, not a hard rule, but worth noting if a file is growing.
+- `unwrap()` outside test code (must use `.expect()` with a meaningful message or propagate)
+- `unsafe` without a justifying comment
+- `panic!` / `unreachable!` / `.expect()` in Tier 1–2 code without a `# Panics` rustdoc section
+- `use something::*` outside public re-exports
+- `super::` imports outside test modules
+- New entries in `Cargo.toml` `[dependencies]` — verify `workspace = true` and `default-features = false` where applicable
+- `#[allow(..)]` attributes — require a comment explaining why the lint is suppressed
+- `#[from]` in `thiserror` definitions — prefer `#[source]` with manual context
 
-Missing contextual detail in error messages. Short messages are fine; uninformative ones are not. If an error message would not help a developer debug the problem quickly, suggest improving it.
+**Protocol config changes:** In `crates/iota-protocol-config/`, new fields must have defaults that preserve existing behavior. Snapshot tests must be updated.
 
-Public APIs that lack accompanying examples in the rustdoc, particularly if the usage is non-obvious.
+**Execution versioning:** `iota-execution/src/lib.rs` is generated by `./scripts/execution-layer`. New execution versions are added as new match arms; existing versions must not be modified.
 
-Generics or lifetimes in public APIs using single-letter names where a descriptive name would make the contract clearer (e.g. `'data` instead of `'a`, `Doc` instead of `D`).
+**Formatting is not a review concern:** `cargo +nightly fmt` with `rustfmt.toml` settings is enforced by CI.
 
-High-level library functionality that is not documented in `lib.rs`.
+---
 
-TypeScript SDK functions that do not validate inputs before passing them to protocol-level calls.
+## TypeScript / Frontend review
+
+**Blocking:**
+
+- `Buffer` usage in browser code outside `sdk/ledgerjs-hw-app-iota/` and `apps/wallet/` (causes bundle bloat, breaks web compatibility)
+- Missing license headers on new files
+- Circular imports in SDK packages (`import/no-cycle` is enforced)
+- Missing `.js` file extensions in `sdk/` package imports (ESM requirement enforced by `import/extensions`)
+- `dangerouslySetInnerHTML` usage in explorer (XSS risk)
+
+**Non-blocking:**
+
+- `any` type usage in SDK code — flag gratuitous cases
+- Inconsistent type imports — should use `import type` or `import { type X }`
+- Explorer components: prefer function declarations over arrow functions; use `LinkWithQuery` / `useSearchParamsMerged` / `useNavigateWithQuery` over bare react-router-dom equivalents
+- `console.log` / `console.warn` / `console.error` in wallet production code
+- Missing input validation in SDK public functions
+- Bundle size regressions from new dependencies in `apps/`
+- Test framework consistency: Vitest for `sdk/` and `apps/`, Jest for `apps-backend`
+
+**Not a review concern:** Prettier formatting (printWidth 100, tabWidth 4, singleQuote, trailingComma all) and Tailwind class sorting are enforced by CI.
+
+**SDK API design:** New exports should follow the existing subpath pattern (`./bcs`, `./client`, `./transaction`, etc.). Type-only exports should use `export type`.
+
+---
+
+## Move smart contract review
+
+Move code appears in three areas with different severity levels:
+
+- `crates/iota-framework/packages/` — Tier 1–2 (system contracts)
+- `external-crates/move/crates/` — Tier 2 (Move language implementation)
+- `examples/move/`, `dapps/` — Tier 5 (but flag anti-patterns that users might copy)
+
+**Blocking (framework and production code):**
+
+- **Access control:** `public entry` functions modifying state must validate caller authority via capabilities (`TreasuryCap`, `AdminCap`, etc.) or appropriate ownership checks
+- **Object safety:** Structs with the `key` ability must have `id: UID` as their first field; verify `transfer` vs `public_transfer` is appropriate for the object's intended transferability
+- **One-time witness (OTW) patterns:** Must have only the `drop` ability, uppercase module name as the type name, and no fields
+- **Shared objects:** Flag new shared objects in framework code — they create contention and are permanent once created
+- **Error codes:** Use descriptive constant names (e.g., `ENotEnough`, `EBadWitness`), not raw integer literals at abort points
+- **Event emission:** State changes that clients or indexers depend on should emit events
+- **Upgrade safety:** No removing struct fields, no changing public function signatures in published packages
+
+**Non-blocking:**
+
+- Missing edge-case tests (zero values, max values, empty collections)
+- Missing doc comments on public functions and structs
+- Using `vector` where `Table` / `VecMap` / `VecSet` would be more gas-efficient at scale
+- `#[expected_failure]` tests should specify `abort_code = module::ERROR_CONST` rather than a raw integer
+
+**Testing:** Test helpers should live in `#[test_only]` modules. Tests should cover both success and failure paths with specific abort codes.
 
 ---
 
 ## What to check in every review
 
-**Correctness.** Does the code do what the PR claims? Trace through the logic for the failure cases, not just the happy path. In protocol code, assume adversarial inputs and network conditions.
+**Correctness.** Does the code do what the PR claims? Trace through failure cases, not just the happy path. In protocol code, assume adversarial inputs and network conditions.
 
-**Tests.** Protocol and library changes must have tests covering meaningful behavior, including failure modes and boundary conditions. A test that only exercises the happy path on a function that can fail is not sufficient coverage. In TypeScript, check that SDK behavior is tested against realistic inputs. Use `.unwrap()` in test code rather than returning `Result`, so stack traces are visible on failure.
+**Error propagation.** Follow errors from origin to where they surface. Check that context is added at each layer. An error that says "IO error" when it reaches a user is missing context from every layer it passed through.
 
-**Error propagation.** Follow errors from where they originate to where they surface. Check that context is added at each layer, not just at the origin. An error that says "IO error" by the time it reaches a user is missing context from every layer it passed through.
+**API stability.** If the change touches a public interface (Rust, TypeScript, or Move), verify deprecation and versioning rules are followed.
 
-**API stability.** If the change touches a public interface, verify the deprecation and versioning rules are followed. Check that `Cargo.toml` dependency versions are as fine-grained as is non-breaking per SemVer, that `default-features = false` is set for workspace dependencies, and that workspace-level dependencies use `workspace = true` in crate manifests.
-
-**Dependency hygiene.** Any new dependency warrants scrutiny. Check whether it is maintained, whether a more widely-used alternative exists, and whether a lighter approach was considered.
-
-**Panic safety.** Search the diff for `unwrap`, `expect`, `panic!`, `unreachable!`, and `unsafe`. Each one needs a justification comment. In protocol code, treat unjustified panics as bugs.
+**Concurrency and state.** In node code, watch for race conditions, deadlocks, and lock ordering issues. In React code, watch for stale closures over state and missing dependency arrays in hooks.
 
 ---
 
 ## How to structure your output
 
-Group findings by severity: blocking issues first, then non-blocking suggestions. For each finding, state the file and line, describe the problem precisely, explain why it matters, and suggest what a fix looks like. Do not leave a comment that says something is wrong without explaining what better looks like.
+Group findings by severity: **blocking issues first**, then non-blocking suggestions.
 
-Do not flag style issues that are not covered by the conventions in this file. Do not comment on formatting: that is enforced by `cargo +nightly fmt` and is not a review concern.
+For each finding: state the file and line, describe the problem precisely, explain why it matters, and suggest what a fix looks like. Do not leave a comment that says something is wrong without explaining what better looks like.
 
-If the PR description does not explain why a change was made and the reason is not obvious from the code, note this explicitly. A reviewer cannot assess correctness without understanding intent.
+Do not flag formatting or style issues enforced by CI (`rustfmt`, Prettier, ESLint auto-fixable rules). These are not review concerns.
 
-If a change is in an area where you lack sufficient context to assess correctness (for example, a consensus algorithm change that requires deep knowledge of the protocol state machine), say so clearly rather than producing a shallow review that appears thorough.
+Acknowledge when you lack sufficient context to assess correctness deeply (e.g., consensus algorithm changes requiring knowledge of the protocol state machine). Say so clearly rather than producing a shallow review that appears thorough.
+
+For mechanical PRs (dependency bumps, generated code, automated refactors), focus on whether the automation ran correctly and the result is consistent, rather than reviewing each line individually.
