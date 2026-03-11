@@ -115,7 +115,7 @@ export function Navigation() {
                 </Link>
 
                 {/* Nav items */}
-                <div className="flex w-full flex-col">
+                <div className="flex w-full flex-col gap-xs">
                     {NAVBAR_ITEMS.map((item) => (
                         <div
                             key={item.id}
