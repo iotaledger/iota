@@ -3,6 +3,7 @@
 
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
@@ -41,6 +42,7 @@ pub struct MoveProgrammableMoveCall {
     pub package: ObjectID,
     pub module: String,
     pub function: String,
+    #[serde_as(as = "Vec<TypeName>")]
     pub type_arguments: Vec<TypeTag>,
     pub arguments: Vec<Argument>,
 }

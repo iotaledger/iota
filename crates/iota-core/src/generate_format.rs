@@ -227,10 +227,6 @@ fn get_registry() -> Result<Registry> {
     };
     tracer.trace_value(&mut samples, &tot).unwrap();
 
-    let si = StructTag::new(IotaAddress::ZERO, "foo", "bar", vec![TypeTag::Bool]);
-
-    tracer.trace_value(&mut samples, &si).unwrap();
-
     // We need Event sample here, because our GenesisTransaction contains an
     // Event while, sui's doesn't.
     let event = Event {

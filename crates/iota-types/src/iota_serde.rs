@@ -237,6 +237,28 @@ impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
     }
 }
 
+pub struct TypeName;
+
+impl SerializeAs<TypeTag> for TypeName {
+    fn serialize_as<S>(value: &TypeTag, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = value.to_canonical_string(false);
+        s.serialize(serializer)
+    }
+}
+
+impl<'de> DeserializeAs<'de, TypeTag> for TypeName {
+    fn deserialize_as<D>(deserializer: D) -> Result<TypeTag, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(D::Error::custom)
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy, JsonSchema)]
 pub struct BigInt<T>(

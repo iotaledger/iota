@@ -58,6 +58,7 @@ use crate::{
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
+    iota_serde::TypeName,
 };
 
 pub const PACKAGE_METADATA_MODULE_NAME: Identifier = Identifier::from_static("package_metadata");
@@ -939,8 +940,10 @@ impl ModuleMetadataV1 {
 }
 
 /// V1 of IOTA specific authenticator info metadata.
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
+    #[serde_as(as = "TypeName")]
     pub account_type: TypeTag,
 }
