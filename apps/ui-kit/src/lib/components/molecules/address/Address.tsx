@@ -31,7 +31,7 @@ interface AddressProps {
     /**
      * The onCopySuccess event of the Address  (optional).
      */
-    onCopySuccess?: (e: React.MouseEvent<HTMLElement>, text: string) => void;
+    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
     /**
      * The onCopyError event of the Address  (optional).
      */
@@ -39,7 +39,7 @@ interface AddressProps {
     /**
      * The onOpen event of the Address  (optional).
      */
-    onOpen?: (e: React.MouseEvent<HTMLElement>) => void;
+    onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function Address({
@@ -52,7 +52,7 @@ export function Address({
     onCopyError,
     onOpen,
 }: AddressProps): React.JSX.Element {
-    async function handleCopyClick(event: React.MouseEvent<HTMLElement>) {
+    async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         if (!navigator.clipboard) {
             return;
         }
@@ -67,7 +67,7 @@ export function Address({
         }
     }
 
-    function handleOpenClick(event: React.MouseEvent<HTMLElement>) {
+    function handleOpenClick(event: React.MouseEvent<HTMLButtonElement>) {
         event?.stopPropagation();
         if (externalLink) {
             const newWindow = window.open(externalLink, '_blank', 'noopener noreferrer');

@@ -27,7 +27,7 @@ interface AccountProps {
     /**
      * The onCopy event of the Address  (optional).
      */
-    onCopy?: (e: React.MouseEvent<HTMLElement>) => void;
+    onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
      * Text that need to be copied (optional).
      */
@@ -35,7 +35,7 @@ interface AccountProps {
     /**
      * The onOpen event of the Address  (optional).
      */
-    onOpen?: (e: React.MouseEvent<HTMLElement>) => void;
+    onOpen?: (e: React.MouseEvent<HTMLButtonElement>) => void;
     /**
      * Has copy icon (optional).
      */
