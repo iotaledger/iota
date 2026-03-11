@@ -88,6 +88,40 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
+export interface IotaStakedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
+    validatorName?: string;
+}
+
+export interface IotaUnstakedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    rewards?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    validatorAddress?: string;
+    validatorName?: string;
+}
+
 export interface MigrationProperties {
     /**
      * | Rule | Value |
@@ -193,6 +227,22 @@ export class ClickedUnstakeIota implements BaseEvent {
     event_type = 'clicked unstake IOTA';
 
     constructor(public event_properties?: ClickedUnstakeIotaProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class IotaStaked implements BaseEvent {
+    event_type = 'iota staked';
+
+    constructor(public event_properties?: IotaStakedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class IotaUnstaked implements BaseEvent {
+    event_type = 'iota unstaked';
+
+    constructor(public event_properties?: IotaUnstakedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -444,6 +494,40 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedUnstakeIota(properties), options);
+  }
+
+  /**
+   * iota staked
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/iota%20staked)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. stakedAmount)
+   * @param options Amplitude event options.
+   */
+  iotaStaked(
+    properties?: IotaStakedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new IotaStaked(properties), options);
+  }
+
+  /**
+   * iota unstaked
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/iota%20unstaked)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. rewards)
+   * @param options Amplitude event options.
+   */
+  iotaUnstaked(
+    properties?: IotaUnstakedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new IotaUnstaked(properties), options);
   }
 
   /**
