@@ -115,7 +115,7 @@ function AppWrapper() {
                                                                                 : extensionViewType ===
                                                                                     ExtensionViewType.FullScreen
                                                                                   ? 'h-[90vh] w-4/5'
-                                                                                  : 'h-screen max-h-popup-height min-h-popup-minimum w-[600px]',
+                                                                                  : 'h-screen max-h-popup-height min-h-popup-minimum w-[480px]',
                                                                             extensionViewType ===
                                                                                 ExtensionViewType.Popup
                                                                                 ? ''

@@ -9,6 +9,7 @@ import {
     Apps,
     Assets,
     Close,
+    Globe,
     Home,
     IotaLogoMark,
     Keystone,
@@ -77,12 +78,22 @@ export function Navigation() {
     const SettingsIcon = isMenuOpen ? Close : Settings;
 
     if (useSidebar) {
+        const sidebarWidth = isFullScreen ? 'w-44' : 'w-16';
+
         return (
-            <div className="flex h-full w-44 shrink-0 flex-col border-r border-shader-neutral-light-8 bg-iota-neutral-100 px-xs pb-sm pt-lg dark:border-shader-neutral-dark-8 dark:bg-iota-neutral-6">
+            <div
+                className={cx(
+                    'flex h-full shrink-0 flex-col border-r border-shader-neutral-light-8 bg-iota-neutral-100 px-xs pb-sm pt-lg dark:border-shader-neutral-dark-8 dark:bg-iota-neutral-6',
+                    sidebarWidth,
+                )}
+            >
                 {/* Account row */}
                 <Link
                     to="/accounts/manage"
-                    className="mb-sm flex w-full flex-row items-center gap-3 rounded-full px-xs no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+                    className={cx(
+                        'mb-sm flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
+                        isFullScreen ? 'gap-3 px-xs' : 'justify-center px-xs',
+                    )}
                     data-testid="accounts-manage"
                 >
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
@@ -96,9 +107,11 @@ export function Navigation() {
                             <IotaLogoMark />
                         )}
                     </div>
-                    <span className="navbar-item-label-color truncate text-label-lg">
-                        {accountName}
-                    </span>
+                    {isFullScreen && (
+                        <span className="navbar-item-label-color truncate text-label-lg">
+                            {accountName}
+                        </span>
+                    )}
                 </Link>
 
                 {/* Nav items */}
@@ -110,10 +123,8 @@ export function Navigation() {
                             onClick={() => handleItemClick(item.id)}
                             data-testid={`nav-${item.id}`}
                             className={cx(
-                                'state-layer-secondary relative flex w-full cursor-pointer flex-row items-center gap-3 rounded-full px-xs py-[6px]',
-                                item.id === activeId
-                                    ? 'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12'
-                                    : '',
+                                'state-layer-secondary relative flex cursor-pointer flex-row items-center rounded-full',
+                                isFullScreen ? 'gap-3 px-xs py-[6px]' : 'justify-center py-xs',
                             )}
                         >
                             <div
@@ -126,16 +137,18 @@ export function Navigation() {
                             >
                                 {item.icon}
                             </div>
-                            <span
-                                className={cx(
-                                    'text-label-lg',
-                                    item.id === activeId
-                                        ? 'navbar-item-label-selected-color'
-                                        : 'navbar-item-label-color',
-                                )}
-                            >
-                                {item.text}
-                            </span>
+                            {isFullScreen && (
+                                <span
+                                    className={cx(
+                                        'text-label-lg',
+                                        item.id === activeId
+                                            ? 'navbar-item-label-selected-color'
+                                            : 'navbar-item-label-color',
+                                    )}
+                                >
+                                    {item.text}
+                                </span>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -145,22 +158,39 @@ export function Navigation() {
                     {/* Network row */}
                     <Link
                         to={networkUrl}
-                        className="flex w-full flex-row items-center gap-3 rounded-full px-xs py-xs no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+                        className={cx(
+                            'flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
+                            isFullScreen ? 'gap-3 px-xs py-xs' : 'justify-center py-xs',
+                        )}
                         aria-label={`Network: ${networkName}`}
                     >
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center">
-                            <span className="h-2.5 w-2.5 rounded-full bg-iota-primary-30" />
+                        <div
+                            className={cx(
+                                'flex shrink-0 items-center justify-center',
+                                isFullScreen ? 'h-6 w-6' : 'h-6 w-6',
+                            )}
+                        >
+                            {isFullScreen ? (
+                                <>
+                                    <span className="mr-2 h-2.5 w-2.5 rounded-full bg-iota-primary-30" />
+                                </>
+                            ) : (
+                                <Globe className="navbar-item-icon-color [&_svg]:h-5 [&_svg]:w-5" />
+                            )}
                         </div>
-                        <span className="navbar-item-label-color truncate text-label-lg">
-                            {networkName}
-                        </span>
+                        {isFullScreen && (
+                            <span className="navbar-item-label-color truncate text-label-lg">
+                                {networkName}
+                            </span>
+                        )}
                     </Link>
 
                     {/* Settings row */}
                     <Link
                         to={menuUrl}
                         className={cx(
-                            'flex w-full flex-row items-center gap-3 rounded-full px-xs py-xs no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
+                            'flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
+                            isFullScreen ? 'gap-3 px-xs py-xs' : 'justify-center py-xs',
                             isMenuOpen &&
                                 'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
                         )}
@@ -169,7 +199,7 @@ export function Navigation() {
                     >
                         <div
                             className={cx(
-                                'flex h-6 w-6 shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6',
+                                'flex shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6',
                                 isMenuOpen
                                     ? 'navbar-item-icon-selected-color'
                                     : 'navbar-item-icon-color',
@@ -177,16 +207,18 @@ export function Navigation() {
                         >
                             <SettingsIcon />
                         </div>
-                        <span
-                            className={cx(
-                                'truncate text-label-lg',
-                                isMenuOpen
-                                    ? 'navbar-item-label-selected-color'
-                                    : 'navbar-item-label-color',
-                            )}
-                        >
-                            Settings
-                        </span>
+                        {isFullScreen && (
+                            <span
+                                className={cx(
+                                    'truncate text-label-lg',
+                                    isMenuOpen
+                                        ? 'navbar-item-label-selected-color'
+                                        : 'navbar-item-label-color',
+                                )}
+                            >
+                                Settings
+                            </span>
+                        )}
                     </Link>
                 </div>
             </div>
