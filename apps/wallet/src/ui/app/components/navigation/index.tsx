@@ -78,11 +78,11 @@ export function Navigation() {
 
     if (useSidebar) {
         return (
-            <div className="flex h-full w-44 shrink-0 flex-col border-r border-shader-neutral-light-8 bg-iota-neutral-100 pb-xs pt-md dark:border-shader-neutral-dark-8 dark:bg-iota-neutral-6">
+            <div className="flex h-full w-44 shrink-0 flex-col border-r border-shader-neutral-light-8 bg-iota-neutral-100 px-xs pb-sm pt-lg dark:border-shader-neutral-dark-8 dark:bg-iota-neutral-6">
                 {/* Account row */}
                 <Link
                     to="/accounts/manage"
-                    className="mb-sm flex w-full flex-row items-center gap-3 rounded-full px-sm no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+                    className="mb-sm flex w-full flex-row items-center gap-3 rounded-full px-xs no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
                     data-testid="accounts-manage"
                 >
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
@@ -104,7 +104,7 @@ export function Navigation() {
                 {/* Nav items */}
                 <div className="flex w-full flex-col">
                     {NAVBAR_ITEMS.map((item) => (
-                        <div key={item.id} className="px-xs py-xxs" data-testid={`nav-${item.id}`}>
+                        <div key={item.id} className="py-[1px]" data-testid={`nav-${item.id}`}>
                             <Navbar
                                 items={[{ ...item, type: NavbarItemType.Vertical }]}
                                 activeId={activeId}
@@ -119,7 +119,7 @@ export function Navigation() {
                     {/* Network row */}
                     <Link
                         to={networkUrl}
-                        className="flex w-full flex-row items-center gap-3 rounded-full px-sm py-sm no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+                        className="flex w-full flex-row items-center gap-3 rounded-full px-xs py-xs no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
                         aria-label={`Network: ${networkName}`}
                     >
                         <div className="flex h-6 w-6 shrink-0 items-center justify-center">
@@ -134,7 +134,7 @@ export function Navigation() {
                     <Link
                         to={menuUrl}
                         className={cx(
-                            'flex w-full flex-row items-center gap-3 rounded-full px-sm py-sm no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
+                            'flex w-full flex-row items-center gap-3 rounded-full px-xs py-xs no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
                             isMenuOpen &&
                                 'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
                         )}
