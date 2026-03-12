@@ -1127,7 +1127,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .collect();
 
         // Track metrics for voting storage hits vs fallbacks
-        let voting_hits = voting_headers.iter().filter(|h| h.is_some()).count();
+        let voting_hits = voting_headers.iter().flatten().count();
         self.context
             .metrics
             .node_metrics

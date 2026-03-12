@@ -44,7 +44,7 @@ impl ShardsDecoder for ReedSolomonDecoder {
             "Shards collection length must match total_length"
         );
 
-        let shards_count = shards_collection.iter().filter(|x| x.is_some()).count();
+        let shards_count = shards_collection.iter().flatten().count();
         if shards_count < info_length {
             return Err(ConsensusError::InsufficientShardsInDecoder(
                 shards_count,

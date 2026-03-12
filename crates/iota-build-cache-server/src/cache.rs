@@ -502,7 +502,7 @@ impl BuildCache {
             .await?;
 
         if output.status.success() {
-            let resolved_commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let resolved_commit = String::from_utf8_lossy(&output.stdout).trim().to_owned();
             if resolved_commit.len() >= 7 && resolved_commit.chars().all(|c| c.is_ascii_hexdigit())
             {
                 if commit_ref != resolved_commit {

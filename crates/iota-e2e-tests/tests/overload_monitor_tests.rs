@@ -34,9 +34,7 @@ mod simtests {
         );
 
         // Tests (indirectly) that fullnodes don't run overload monitor.
-        assert!(
-            test_cluster.swarm.all_nodes().collect::<Vec<_>>().len() > nodes_with_overload_monitor
-        );
+        assert!(test_cluster.swarm.all_nodes().count() > nodes_with_overload_monitor);
     }
 }
 

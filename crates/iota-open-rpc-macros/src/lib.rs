@@ -266,7 +266,10 @@ fn remove_iota_rpc_attributes(attributes: Attributes) -> TokenStream2 {
     let attrs = attributes
         .attrs
         .into_iter()
-        .filter(|r| !IOTA_RPC_ATTRS.contains(&r.key.to_string().as_str()))
+        .filter(|r| {
+            let key_str = r.key.to_string();
+            !IOTA_RPC_ATTRS.contains(&key_str.as_str())
+        })
         .collect::<Punctuated<Attr, Comma>>();
     quote! {(#attrs)}
 }

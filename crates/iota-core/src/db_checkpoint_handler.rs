@@ -414,7 +414,6 @@ mod tests {
     use iota_storage::object_store::util::{
         find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem,
     };
-    use itertools::Itertools;
     use tempfile::TempDir;
 
     use crate::db_checkpoint_handler::{
@@ -740,7 +739,7 @@ mod tests {
         )
         .await?;
         let mut expected_missing_epochs: Vec<u64> = (0..100).collect();
-        expected_missing_epochs.extend((101..200).collect_vec().iter());
+        expected_missing_epochs.extend(101..200);
         expected_missing_epochs.push(201);
         assert_eq!(missing_epochs, expected_missing_epochs);
         Ok(())

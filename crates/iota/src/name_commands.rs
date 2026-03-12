@@ -1866,7 +1866,7 @@ fn format_name_record(f: &mut std::fmt::Formatter, record: &NameRecord) -> std::
 }
 
 fn build_name_record_table(table_builder: &mut TableBuilder, record: &NameRecord) {
-    table_builder.push_record(["NFT ID", record.nft_id.bytes.to_string().as_str()]);
+    table_builder.push_record(["NFT ID", &record.nft_id.bytes.to_string()]);
     table_builder.push_record([
         "Target Address",
         record

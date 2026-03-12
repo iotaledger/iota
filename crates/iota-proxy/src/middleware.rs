@@ -58,7 +58,8 @@ pub async fn expect_iota_proxy_header(
     request: Request<Body>,
     next: Next,
 ) -> Result<Response, (StatusCode, &'static str)> {
-    match format!("{content_type}").as_str() {
+    let content_type_str = content_type.to_string();
+    match content_type_str.as_str() {
         prometheus::PROTOBUF_FORMAT => Ok(next.run(request).await),
         ct => {
             error!("invalid content-type; {ct}");

@@ -1561,7 +1561,7 @@ async fn test_handle_certificate_errors() {
     // Test handle certificate with invalid user input
     let signed_transaction = VerifiedSignedTransaction::new(
         epoch_store.epoch(),
-        VerifiedTransaction::new_unchecked(transfer_transaction.clone().clone()),
+        VerifiedTransaction::new_unchecked(transfer_transaction.clone()),
         authority_state.name,
         &*authority_state.secret,
     );

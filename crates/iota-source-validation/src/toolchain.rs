@@ -265,11 +265,13 @@ fn download_and_compile(
         std::fs::rename(dest_binary_os, dest_canonical_binary.clone())?;
     }
 
+    let edition_str = edition.to_string();
+    let flavor_str = flavor.to_string();
     debug!(
         "{} move build --default-move-edition {} --default-move-flavor {} -p {} --install-dir {}",
         dest_canonical_binary.display(),
-        edition.to_string().as_str(),
-        flavor.to_string().as_str(),
+        &edition_str,
+        &flavor_str,
         root.display(),
         install_dir.path().display(),
     );
@@ -284,9 +286,9 @@ fn download_and_compile(
             OsStr::new("move"),
             OsStr::new("build"),
             OsStr::new("--default-move-edition"),
-            OsStr::new(edition.to_string().as_str()),
+            OsStr::new(&edition_str),
             OsStr::new("--default-move-flavor"),
-            OsStr::new(flavor.to_string().as_str()),
+            OsStr::new(&flavor_str),
             OsStr::new("-p"),
             OsStr::new(root.as_path()),
             OsStr::new("--install-dir"),

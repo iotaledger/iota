@@ -24,7 +24,7 @@ fn main() {
 
 fn write_package_to_file(version: u64, package: &SystemPackage) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["bytecode_snapshot", version.to_string().as_str()]);
+    path.extend(["bytecode_snapshot", &version.to_string()]);
     fs::create_dir_all(&path)
         .or_else(|e| match e.kind() {
             std::io::ErrorKind::AlreadyExists => Ok(()),

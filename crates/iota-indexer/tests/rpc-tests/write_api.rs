@@ -1343,7 +1343,7 @@ fn move_view_function_call() {
         let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name.to_string(), format!("Wat"));
+        assert_eq!(type_.name.to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
     });
 }

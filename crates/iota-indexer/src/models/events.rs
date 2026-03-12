@@ -76,7 +76,7 @@ impl StoredEvent {
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<IotaEvent, IndexerError> {
-        let package_id = ObjectID::from_bytes(self.package.clone()).map_err(|_e| {
+        let package_id = ObjectID::from_bytes(&self.package).map_err(|_e| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Failed to parse event package ID: {:?}",
                 self.package

@@ -161,7 +161,7 @@ impl BuildConfig {
             let mod_name = u.named_module.module.name().to_string();
             let mod_is_test = u.attributes.is_test_or_test_only();
             for (_, s, info) in &u.function_infos {
-                let fn_name = s.as_str().to_string();
+                let fn_name = s.to_string();
                 let is_test = mod_is_test || info.attributes.is_test_or_test_only();
                 let authenticator_version = info.attributes.get_authenticator();
                 fn_info_map.insert(

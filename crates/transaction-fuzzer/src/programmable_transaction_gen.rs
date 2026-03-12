@@ -549,7 +549,7 @@ fn create_unpack_call(
     builder.programmable_move_call(
         package,
         Identifier::from_str("coin_factory").unwrap(),
-        Identifier::from_str(format!("unpack_{input_size}").as_str()).unwrap(),
+        Identifier::from_str(&format!("unpack_{input_size}")).unwrap(),
         vec![],
         vec![Argument::Result(prev_cmd_num as u16)],
     );

@@ -52,8 +52,8 @@ impl FromStr for RunInterval {
 impl std::fmt::Display for RunInterval {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            RunInterval::Count(count) => f.write_str(format!("{count}").as_str()),
-            RunInterval::Time(d) => f.write_str(format!("{}sec", d.as_secs()).as_str()),
+            RunInterval::Count(count) => write!(f, "{count}"),
+            RunInterval::Time(d) => write!(f, "{}sec", d.as_secs()),
         }
     }
 }

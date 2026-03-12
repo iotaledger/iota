@@ -43,12 +43,12 @@ impl FromStr for Interval {
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Interval::Count(count) => f.write_str(format!("{count}").as_str()),
+            Interval::Count(count) => write!(f, "{count}"),
             Interval::Time(d) => {
                 if *d == Duration::MAX {
                     f.write_str("unbounded")
                 } else {
-                    f.write_str(format!("{}sec", d.as_secs()).as_str())
+                    write!(f, "{}sec", d.as_secs())
                 }
             }
         }

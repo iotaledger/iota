@@ -211,7 +211,7 @@ async fn create_credential_and_sign_test_tx(
     PasskeyResponse {
         user_sig_bytes,
         authenticator_data: authenticator_data.to_vec(),
-        client_data_json: String::from_utf8_lossy(client_data_json).to_string(),
+        client_data_json: String::from_utf8_lossy(client_data_json).into_owned(),
         intent_msg,
     }
 }

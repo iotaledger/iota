@@ -746,7 +746,7 @@ impl IndexStore {
 
         batch.insert_batch(
             &self.tables.event_by_time,
-            events.data.iter().enumerate().map(|(i, _)| {
+            (0..events.data.len()).map(|i| {
                 (
                     (timestamp_ms, (sequence, i)),
                     (event_digest, *digest, timestamp_ms),

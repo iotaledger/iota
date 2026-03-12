@@ -841,7 +841,7 @@ impl<'a> BytecodeGenerator<'a> {
         let mut call_graph = CallGraph::new(module.function_handles.len());
         for fdef in fdefs.iter_mut() {
             if let Some(code) = &mut fdef.code {
-                let f_handle = &module.function_handles[fdef.function.0 as usize].clone();
+                let f_handle = &module.function_handles[fdef.function.0 as usize];
                 let locals_sigs = module.signatures[code.locals.0 as usize].0.clone();
                 let mut fn_context = FunctionGenerationContext::new(
                     fdef.function,

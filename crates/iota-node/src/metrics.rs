@@ -163,7 +163,7 @@ impl MetricsCallbackProvider for GrpcMetrics {
 
     fn on_response(&self, path: String, latency: Duration, _status: u16, grpc_status_code: Code) {
         self.grpc_requests
-            .with_label_values(&[path.as_str(), format!("{grpc_status_code:?}").as_str()])
+            .with_label_values(&[path.as_str(), &format!("{grpc_status_code:?}")])
             .inc();
         self.grpc_request_latency
             .with_label_values(&[path.as_str()])

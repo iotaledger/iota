@@ -214,7 +214,7 @@ mod testing {
 
     fn fmt_error_to_partial_vm_error(e: fmt::Error) -> PartialVMError {
         PartialVMError::new(StatusCode::UNKNOWN_STATUS)
-            .with_message("write! macro failed with: ".to_string() + e.to_string().as_str())
+            .with_message(format!("write! macro failed with: {e}"))
     }
 
     fn to_vec_u8_type_err<E>(_e: E) -> PartialVMError {
@@ -268,9 +268,8 @@ mod testing {
                 .map_err(to_vec_u8_type_err)?;
 
                 let str = String::from_utf8(buf).map_err(|e| {
-                    PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR).with_message(
-                        "Could not parse UTF8 bytes: ".to_string() + e.to_string().as_str(),
-                    )
+                    PartialVMError::new(StatusCode::INTERNAL_TYPE_ERROR)
+                        .with_message(format!("Could not parse UTF8 bytes: {e}"))
                 })?;
 
                 // We need to escape displayed double quotes " as \" and, as a result, also

@@ -1101,8 +1101,8 @@ impl RpcExampleProvider {
         let abilities = IotaMoveAbilitySet {
             abilities: vec![IotaMoveAbility::Store, IotaMoveAbility::Key],
         };
-        let fields = vec![].into_iter().collect::<Vec<_>>();
-        let type_parameters = vec![].into_iter().collect::<Vec<_>>();
+        let fields = vec![];
+        let type_parameters = vec![];
         let result = IotaMoveNormalizedStruct {
             abilities,
             fields,

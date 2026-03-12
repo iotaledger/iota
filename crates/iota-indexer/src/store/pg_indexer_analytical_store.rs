@@ -441,7 +441,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         let move_call_metrics: Vec<StoredMoveCallMetrics> = chained
             .into_iter()
             .filter_map(|queried_move_metrics| {
-                let package = ObjectID::from_bytes(queried_move_metrics.move_package.clone()).ok();
+                let package = ObjectID::from_bytes(&queried_move_metrics.move_package).ok();
                 let package_str = match package {
                     Some(p) => p.to_canonical_string(/* with_prefix */ true),
                     None => {

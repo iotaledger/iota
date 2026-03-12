@@ -108,7 +108,7 @@ pub fn display_var(s: Symbol) -> DisplayVar {
     } else if is_match_temp_name(s) {
         DisplayVar::MatchTmp(s.to_string())
     } else {
-        let mut orig = s.as_str().to_string();
+        let mut orig = s.to_string();
         if let Some(i) = orig.find(NEW_NAME_DELIM) {
             orig.truncate(i)
         }

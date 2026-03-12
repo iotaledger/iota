@@ -166,14 +166,14 @@ impl StoredHistoryObject {
         let object_status = ObjectStatus::try_from(self.object_status).map_err(|_| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "Object {} has an invalid object status: {}",
-                ObjectID::from_bytes(self.object_id.clone()).unwrap(),
+                ObjectID::from_bytes(&self.object_id).unwrap(),
                 self.object_status
             ))
         })?;
 
         if let ObjectStatus::WrappedOrDeleted = object_status {
             let object_ref = (
-                ObjectID::from_bytes(self.object_id.clone())?,
+                ObjectID::from_bytes(&self.object_id)?,
                 SequenceNumber::from_u64(self.object_version as u64),
                 ObjectDigest::OBJECT_DIGEST_DELETED,
             );
@@ -409,7 +409,7 @@ impl StoredObject {
     }
 
     pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
-        let object_id = ObjectID::from_bytes(self.object_id.clone()).map_err(|_| {
+        let object_id = ObjectID::from_bytes(&self.object_id).map_err(|_| {
             IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
         let object_digest =

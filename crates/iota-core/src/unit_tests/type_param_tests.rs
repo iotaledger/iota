@@ -52,7 +52,7 @@ async fn test_same_module_type_param() {
     .unwrap();
 
     let created_object_id = effects.created()[0].0.0;
-    let type_param = TypeTag::from_str(format!("{}::m1::Object", package.0).as_str()).unwrap();
+    let type_param = TypeTag::from_str(&format!("{}::m1::Object", package.0)).unwrap();
 
     let effects = call_move(
         &authority,
@@ -110,8 +110,7 @@ async fn test_different_module_type_param() {
     .unwrap();
 
     let created_object_id = effects.created()[0].0.0;
-    let type_param =
-        TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
+    let type_param = TypeTag::from_str(&format!("{}::m2::AnotherObject", package.0)).unwrap();
 
     let effects = call_move(
         &authority,
@@ -313,8 +312,7 @@ async fn test_different_package_type_param() {
     .unwrap();
 
     let created_object_id = effects.created()[0].0.0;
-    let type_param =
-        TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
+    let type_param = TypeTag::from_str(&format!("{}::m2::AnotherObject", package.0)).unwrap();
 
     let effects = call_move(
         &authority,

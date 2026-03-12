@@ -2473,7 +2473,7 @@ impl Display for IotaClientCommandResult {
         match self {
             IotaClientCommandResult::AddAccount(new_account) => {
                 let mut builder = TableBuilder::default();
-                builder.push_record(vec!["address", new_account.address.to_string().as_str()]);
+                builder.push_record(vec!["address", &new_account.address.to_string()]);
                 builder.push_record(vec!["alias", new_account.alias.as_str()]);
 
                 let mut table = builder.build();
@@ -2589,7 +2589,7 @@ impl Display for IotaClientCommandResult {
             IotaClientCommandResult::NewAddress(new_address) => {
                 let mut builder = TableBuilder::default();
                 builder.push_record(vec!["alias", new_address.alias.as_str()]);
-                builder.push_record(vec!["address", new_address.address.to_string().as_str()]);
+                builder.push_record(vec!["address", &new_address.address.to_string()]);
                 builder.push_record(vec![
                     "publicBase64Key",
                     new_address.public_base64_key.as_str(),
@@ -2598,13 +2598,10 @@ impl Display for IotaClientCommandResult {
                     "publicBase64KeyWithFlag",
                     new_address.public_base64_key_with_flag.as_str(),
                 ]);
-                builder.push_record(vec![
-                    "keyScheme",
-                    new_address.key_scheme.to_string().as_str(),
-                ]);
+                builder.push_record(vec!["keyScheme", &new_address.key_scheme.to_string()]);
                 builder.push_record(vec![
                     "recoveryPhrase",
-                    new_address.recovery_phrase.to_string().as_str(),
+                    &new_address.recovery_phrase.to_string(),
                 ]);
 
                 let mut table = builder.build();
@@ -2825,10 +2822,7 @@ impl Display for IotaClientCommandResult {
             }
             IotaClientCommandResult::Sign(sign_data) => {
                 let mut builder = TableBuilder::default();
-                builder.push_record(vec![
-                    "iota_address",
-                    sign_data.iota_address.to_string().as_str(),
-                ]);
+                builder.push_record(vec!["iota_address", &sign_data.iota_address.to_string()]);
                 builder.push_record(vec!["raw_tx_data", sign_data.raw_tx_data.as_str()]);
                 builder.push_record(vec!["intent", &format!("{:?}", sign_data.intent)]);
                 builder.push_record(vec!["raw_intent_msg", sign_data.raw_intent_msg.as_str()]);
@@ -3237,8 +3231,8 @@ fn pretty_print_balance(
             );
             for c in coins {
                 inner_table.push_record(vec![
-                    c.coin_object_id.to_string().as_str(),
-                    c.balance.to_string().as_str(),
+                    &c.coin_object_id.to_string(),
+                    &c.balance.to_string(),
                     format_balance(
                         c.balance as u128,
                         coin_decimals,
@@ -3263,8 +3257,8 @@ fn pretty_print_balance(
         } else {
             table_builder.push_record(vec![
                 name,
-                balance.to_string().as_str(),
-                format_balance(balance, coin_decimals, format_decimals, Some(symbol)).as_str(),
+                &balance.to_string(),
+                &format_balance(balance, coin_decimals, format_decimals, Some(symbol)),
             ]);
         }
     }

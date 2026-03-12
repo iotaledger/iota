@@ -156,7 +156,7 @@ fn main() {
     let accessor_map = codegen::accessor_config::parse_proto_accessors_from_pool(&descriptor_pool);
 
     let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
-    let files = fds.file.clone().into_iter().collect::<Vec<_>>();
+    let files = fds.file.clone();
     let graph = DescriptorGraph::new(files.iter());
     let context = context::Context::new(extern_paths, graph);
     codegen::accessors::generate_accessors(

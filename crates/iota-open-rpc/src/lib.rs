@@ -354,7 +354,7 @@ impl RpcModuleDocBuilder {
         tag: Option<String>,
         deprecated: bool,
     ) {
-        let tags = tag.map(|t| Tag::new(&t)).into_iter().collect::<Vec<_>>();
+        let tags = tag.into_iter().map(|t| Tag::new(&t)).collect::<Vec<_>>();
         self.add_method_internal(namespace, name, params, result, doc, tags, deprecated)
     }
 
@@ -368,7 +368,7 @@ impl RpcModuleDocBuilder {
         tag: Option<String>,
         deprecated: bool,
     ) {
-        let mut tags = tag.map(|t| Tag::new(&t)).into_iter().collect::<Vec<_>>();
+        let mut tags = tag.into_iter().map(|t| Tag::new(&t)).collect::<Vec<_>>();
         tags.push(Tag::new("Websocket"));
         tags.push(Tag::new("PubSub"));
         self.add_method_internal(namespace, name, params, result, doc, tags, deprecated)

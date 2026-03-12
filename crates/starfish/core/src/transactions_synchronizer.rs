@@ -1409,7 +1409,7 @@ mod tests {
         // returned with TransactionSynchronizerSaturated error.
         // The test should be deterministic because the responses will timeout, so all
         // tasks should be sent to the queue before the first request is processed.
-        let successes = results.iter().filter(|r| r.is_ok()).count();
+        let successes = results.iter().flatten().count();
         let saturated = results
             .iter()
             .filter(|r| matches!(r, Err(ConsensusError::TransactionSynchronizerSaturated)))

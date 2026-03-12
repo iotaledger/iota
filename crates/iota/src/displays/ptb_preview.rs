@@ -28,10 +28,10 @@ impl Display for PTBPreview {
             }
         }
         if let Some(gas_budget) = self.program_metadata.gas_budget {
-            builder.push_record([GAS_BUDGET, gas_budget.value.to_string().as_str()]);
+            builder.push_record([GAS_BUDGET, &gas_budget.value.to_string()]);
         }
         if let Some(gas_price) = self.program_metadata.gas_price {
-            builder.push_record([GAS_PRICE, gas_price.value.to_string().as_str()]);
+            builder.push_record([GAS_PRICE, &gas_price.value.to_string()]);
         }
         if let Some(gas_sponsor) = self.program_metadata.gas_sponsor {
             builder.push_record([

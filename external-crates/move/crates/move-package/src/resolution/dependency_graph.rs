@@ -1990,7 +1990,7 @@ fn dep_path_from_root(
             for next in i {
                 let dep = match graph.package_graph.edge_weight(*current, *next) {
                     Some(dep) => dep,
-                    None => return Ok(String::from("")),
+                    None => return Ok(String::new()),
                 };
                 path.push(dep.dep_name.as_str());
                 current = next;

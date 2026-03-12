@@ -2189,7 +2189,7 @@ fn parse_denied_error_string(error: &str) -> Option<String> {
     .unwrap();
 
     let caps = regulated_regex.captures(error)?;
-    Some(caps.get(1).or(caps.get(2))?.as_str().to_string())
+    Some(caps.get(1).or(caps.get(2))?.as_str().to_owned())
 }
 
 #[cfg(test)]

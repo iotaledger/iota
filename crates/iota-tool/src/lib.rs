@@ -1063,7 +1063,7 @@ pub async fn download_db_snapshot(
                 let counter_cloned = file_counter.clone();
                 async move {
                     counter_cloned.fetch_add(1, Ordering::Relaxed);
-                    let file_path = get_path(format!("epoch_{epoch}/{file}").as_str());
+                    let file_path = get_path(&format!("epoch_{epoch}/{file}"));
                     copy_file(&file_path, &file_path, &remote_store, &local_store).await?;
                     Ok::<::object_store::path::Path, anyhow::Error>(file_path.clone())
                 }
