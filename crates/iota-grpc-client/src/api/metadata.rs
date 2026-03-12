@@ -4,8 +4,6 @@
 //! MetadataEnvelope wrapper that preserves gRPC metadata headers alongside the
 //! body.
 
-use std::ops::{Deref, DerefMut};
-
 use crate::ResponseExt;
 
 /// A response from the gRPC API that carries both the response body and
@@ -15,16 +13,17 @@ use crate::ResponseExt;
 /// checkpoint height, and timestamps. Access them via the [`ResponseExt`]
 /// trait methods.
 ///
-/// The response body is accessible directly via [`Deref`], so you can use
-/// field access and method calls on it without unwrapping.
+/// Use [`body()`](Self::body) / [`body_mut()`](Self::body_mut) to access the
+/// response body, or [`into_inner()`](Self::into_inner) to consume the
+/// envelope and extract the body.
 ///
 /// # Example
 ///
 /// ```ignore
 /// let response = client.get_health(None).await?;
 ///
-/// // Access body fields via Deref
-/// println!("{:?}", response.executed_checkpoint_height);
+/// // Access body fields
+/// println!("{:?}", response.body().executed_checkpoint_height);
 ///
 /// // Access metadata headers via ResponseExt
 /// println!("epoch: {:?}", response.epoch());
@@ -48,6 +47,16 @@ impl<T> MetadataEnvelope<T> {
     /// Consume the response and return the body, discarding metadata.
     pub fn into_inner(self) -> T {
         self.inner
+    }
+
+    /// Get a reference to the response body.
+    pub fn body(&self) -> &T {
+        &self.inner
+    }
+
+    /// Get a mutable reference to the response body.
+    pub fn body_mut(&mut self) -> &mut T {
+        &mut self.inner
     }
 
     /// Consume the response and return both the body and metadata.
@@ -78,20 +87,6 @@ impl<T> MetadataEnvelope<T> {
             inner: f(self.inner)?,
             metadata: self.metadata,
         })
-    }
-}
-
-impl<T> Deref for MetadataEnvelope<T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        &self.inner
-    }
-}
-
-impl<T> DerefMut for MetadataEnvelope<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut self.inner
     }
 }
 

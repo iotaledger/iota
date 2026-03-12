@@ -48,9 +48,9 @@ async fn metadata_envelope_headers() {
         "server_version header should be present"
     );
 
-    // Verify that the body is also accessible through Deref.
+    // Verify that the body is also accessible through body().
     assert!(
-        response.chain_id.is_some(),
+        response.body().chain_id.is_some(),
         "service info body should contain chain_id"
     );
 

@@ -52,8 +52,8 @@ impl Client {
     ///
     /// // Get service info with default fields
     /// let info = client.get_service_info(None).await?;
-    /// println!("Chain ID: {:?}", info.chain_id);
-    /// println!("Epoch: {:?}", info.epoch);
+    /// println!("Chain ID: {:?}", info.body().chain_id);
+    /// println!("Epoch: {:?}", info.body().epoch);
     ///
     /// // Get service info with all fields
     /// let info = client

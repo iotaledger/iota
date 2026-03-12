@@ -33,6 +33,10 @@ impl Client {
     /// Results are returned in the same order as the input digests.
     /// If a transaction is not found, an error is returned.
     ///
+    /// # Errors
+    ///
+    /// Returns [`Error::EmptyRequest`] if `digests` is empty.
+    ///
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
@@ -100,7 +104,7 @@ impl Client {
     /// // Get transactions - returns proto types
     /// let txs = client.get_transactions(&[digest], None).await?;
     ///
-    /// for tx in txs.iter() {
+    /// for tx in txs.body() {
     ///     // Lazy conversion - only deserialize what you need
     ///     let effects = tx.effects()?.effects()?;
     ///     println!("Status: {:?}", effects.status());
@@ -118,7 +122,7 @@ impl Client {
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<Vec<ExecutedTransaction>>> {
         if digests.is_empty() {
-            return Ok(MetadataEnvelope::new(vec![], Default::default()));
+            return Err(Error::EmptyRequest);
         }
 
         let requests = TransactionRequests::default().with_requests(

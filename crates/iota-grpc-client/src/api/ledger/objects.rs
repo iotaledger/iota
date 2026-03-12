@@ -27,6 +27,10 @@ impl Client {
     /// Results are returned in the same order as the input refs.
     /// If an object is not found, an error is returned.
     ///
+    /// # Errors
+    ///
+    /// Returns [`Error::EmptyRequest`] if `refs` is empty.
+    ///
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
@@ -56,7 +60,7 @@ impl Client {
     /// // Get proto objects
     /// let objs = client.get_objects(&[(object_id, None)], None).await?;
     ///
-    /// for obj in objs.iter() {
+    /// for obj in objs.body() {
     ///     // Convert proto object to SDK type
     ///     let sdk_obj = obj.object()?;
     ///     println!("Got object ID: {:?}", sdk_obj.object_id());
@@ -72,7 +76,7 @@ impl Client {
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<Vec<Object>>> {
         if refs.is_empty() {
-            return Ok(MetadataEnvelope::new(vec![], Default::default()));
+            return Err(Error::EmptyRequest);
         }
 
         let requests = ObjectRequests::default().with_requests(

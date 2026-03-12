@@ -161,7 +161,7 @@ impl Client {
     /// let result = client.simulate_transaction(tx, false, false, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let executed_tx = result.executed_transaction()?;
+    /// let executed_tx = result.body().executed_transaction()?;
     /// let effects = executed_tx.effects()?.effects()?;
     /// println!("Simulation status: {:?}", effects.status());
     ///

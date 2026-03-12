@@ -23,6 +23,7 @@ async fn execute_transaction_transfer() {
         .expect("Failed to execute transaction");
 
     let effects = result
+        .body()
         .effects()
         .expect("Failed to get effects from execution result")
         .effects()
@@ -42,11 +43,11 @@ async fn execute_transaction_transfer() {
 
     // Verify response fields are present with default mask
     assert!(
-        result.input_objects.is_some(),
+        result.body().input_objects.is_some(),
         "Input objects should be present with default mask"
     );
     assert!(
-        result.output_objects.is_some(),
+        result.body().output_objects.is_some(),
         "Output objects should be present with default mask"
     );
 }
@@ -70,6 +71,7 @@ async fn execute_transaction_transfer_outputs() {
         .expect("Failed to execute transaction");
 
     let effects = result
+        .body()
         .effects()
         .expect("Failed to get effects")
         .effects()
@@ -79,7 +81,11 @@ async fn execute_transaction_transfer_outputs() {
 
     // A SplitCoins + TransferObjects transfer produces at least 2 output objects:
     // the mutated gas coin (sender) and the new coin (recipient).
-    let output_objects = result.output_objects.as_ref().expect("output objects");
+    let output_objects = result
+        .body()
+        .output_objects
+        .as_ref()
+        .expect("output objects");
     assert!(
         output_objects.objects.len() >= 2,
         "Expected at least 2 output objects (gas + recipient coin), got {}",
@@ -101,6 +107,7 @@ async fn execute_transaction_minimal_mask() {
     assert!(
         is_success(
             result
+                .body()
                 .effects()
                 .expect("Failed to get SDK effects from execution result with minimal mask")
                 .effects()
@@ -110,11 +117,11 @@ async fn execute_transaction_minimal_mask() {
         "Effects should show successful execution"
     );
     assert!(
-        result.input_objects.is_none(),
+        result.body().input_objects.is_none(),
         "Input objects should not be present with minimal mask"
     );
     assert!(
-        result.output_objects.is_none(),
+        result.body().output_objects.is_none(),
         "Output objects should not be present with minimal mask"
     );
 }
@@ -167,6 +174,7 @@ async fn execute_transaction_idempotency() {
     assert!(
         is_success(
             result1
+                .body()
                 .effects()
                 .expect("Failed to get SDK effects from first execution result")
                 .effects()
@@ -187,6 +195,7 @@ async fn execute_transaction_idempotency() {
     assert!(
         is_success(
             result2
+                .body()
                 .effects()
                 .expect("Failed to get SDK effects from re-execution result")
                 .effects()

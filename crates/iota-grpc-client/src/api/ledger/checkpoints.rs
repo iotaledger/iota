@@ -124,7 +124,7 @@ impl Client {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
     /// let checkpoint = client.get_checkpoint_latest(None, None, None).await?;
-    /// println!("Received checkpoint {}", checkpoint.sequence_number,);
+    /// println!("Received checkpoint {}", checkpoint.body().sequence_number,);
     /// # Ok(())
     /// # }
     /// ```
@@ -167,7 +167,7 @@ impl Client {
     /// let checkpoint = client
     ///     .get_checkpoint_by_sequence_number(100, None, None, None)
     ///     .await?;
-    /// println!("Received checkpoint {}", checkpoint.sequence_number,);
+    /// println!("Received checkpoint {}", checkpoint.body().sequence_number,);
     /// # Ok(())
     /// # }
     /// ```
@@ -213,7 +213,7 @@ impl Client {
     /// let checkpoint = client
     ///     .get_checkpoint_by_digest(digest, None, None, None)
     ///     .await?;
-    /// println!("Received checkpoint {}", checkpoint.sequence_number,);
+    /// println!("Received checkpoint {}", checkpoint.body().sequence_number,);
     /// # Ok(())
     /// # }
     /// ```
@@ -288,6 +288,10 @@ impl Client {
     /// Returns a stream of [`CheckpointResponse`] objects, each representing
     /// a complete checkpoint with its transactions and events.
     ///
+    /// **Note:** The metadata in the returned [`MetadataEnvelope`] is captured
+    /// from the initial gRPC response headers when the stream is opened. It is
+    /// **not** updated as subsequent checkpoint data arrives.
+    ///
     /// # Parameters
     ///
     /// * `start_sequence_number` - Optional starting checkpoint. If `None`,
@@ -312,7 +316,7 @@ impl Client {
     ///     .stream_checkpoints(Some(0), Some(10), None, None, None)
     ///     .await?;
     ///
-    /// while let Some(checkpoint) = stream.next().await {
+    /// while let Some(checkpoint) = stream.body_mut().next().await {
     ///     let checkpoint = checkpoint?;
     ///     println!("Received checkpoint {}", checkpoint.sequence_number);
     /// }
