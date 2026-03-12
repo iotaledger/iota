@@ -52,7 +52,7 @@ pub struct MoveProgrammableMoveCall {
 // ---------------------------------------------------------------------------
 
 /// Mirrors [`crate::transaction::Command`], substituting [`TypeTag`] for
-/// [`crate::type_input::TypeTag`] in `MoveCall` and `MakeMoveVec` so that
+/// a string in `MoveCall` and `MakeMoveVec` so that
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
 #[serde_as]
