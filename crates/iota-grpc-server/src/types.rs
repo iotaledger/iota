@@ -987,16 +987,18 @@ impl GrpcReader {
             *last_msg_time.lock().unwrap() = tokio::time::Instant::now();
             Ok(FilterCheckResult::Matched)
         } else {
-            let elapsed = last_msg_time.lock().unwrap().elapsed();
-            let progress = if elapsed >= progress_interval {
-                *last_msg_time.lock().unwrap() = tokio::time::Instant::now();
-                Some(
-                    grpc_ledger_service::CheckpointData::default().with_progress(
-                        Progress::default().with_latest_scanned_sequence_number(seq),
-                    ),
-                )
-            } else {
-                None
+            let progress = {
+                let mut guard = last_msg_time.lock().unwrap();
+                if guard.elapsed() >= progress_interval {
+                    *guard = tokio::time::Instant::now();
+                    Some(
+                        grpc_ledger_service::CheckpointData::default().with_progress(
+                            Progress::default().with_latest_scanned_sequence_number(seq),
+                        ),
+                    )
+                } else {
+                    None
+                }
             };
             Ok(FilterCheckResult::Skipped(progress))
         }

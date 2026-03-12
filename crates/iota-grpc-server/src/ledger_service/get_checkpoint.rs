@@ -284,6 +284,16 @@ pub(crate) fn get_checkpoint_data(
     let (transaction_filter, event_filter) =
         convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
 
+    if transaction_filter.is_some() && transactions_mask.is_none() {
+        return Err(Status::invalid_argument(
+            "transactions_filter requires transactions in read_mask",
+        )
+        .into());
+    }
+    if event_filter.is_some() && events_mask.is_none() {
+        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
+    }
+
     Ok(service.reader.get_checkpoint_data(
         sequence_number,
         checkpoint_mask,

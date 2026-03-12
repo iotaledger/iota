@@ -409,14 +409,17 @@ impl Client {
     ///
     /// ```no_run
     /// # use iota_grpc_client::{Client, CheckpointStreamItem};
+    /// # use iota_grpc_types::v0::filter as grpc_filter;
     /// # use futures::StreamExt;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
+    /// // At least one filter is required
+    /// let tx_filter = grpc_filter::TransactionFilter::default();
     /// let mut stream = client
-    ///     .stream_checkpoints_filtered(Some(0), None, None, None, None, None)
+    ///     .stream_checkpoints_filtered(Some(0), None, None, Some(tx_filter), None, None)
     ///     .await?;
     ///
-    /// while let Some(item) = stream.next().await {
+    /// while let Some(item) = stream.body_mut().next().await {
     ///     match item? {
     ///         CheckpointStreamItem::Checkpoint(cp) => {
     ///             println!("Matched checkpoint {}", cp.sequence_number);

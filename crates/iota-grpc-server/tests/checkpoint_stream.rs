@@ -1063,7 +1063,7 @@ async fn test_filter_checkpoints_streaming() {
 
     let mut results = Vec::new();
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(CheckpointStreamItem::Checkpoint(response)) => {
                     results.push(response.sequence_number());
@@ -1117,7 +1117,7 @@ async fn test_filter_checkpoints_streaming() {
 
     let mut results = Vec::new();
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(CheckpointStreamItem::Checkpoint(response)) => {
                     results.push(response.sequence_number());
