@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { setNetworkGroup } from '_src/shared/analytics/amplitude';
 import { getCustomNetwork } from '@iota/core';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { useEffect } from 'react';
@@ -21,11 +20,6 @@ export function useInitialPageView() {
     );
     const activeNetwork = customRpc ? getCustomNetwork(customRpc).url : getNetwork(network)?.url;
     const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
-
-    useEffect(() => {
-        ampli.identify(undefined);
-        setNetworkGroup(network, customRpc);
-    }, [network, customRpc]);
 
     useEffect(() => {
         ampli.openedWalletExtension({

@@ -210,7 +210,7 @@ pub(crate) struct DagState {
     voting_block_headers_to_write: Vec<VerifiedBlockHeader>,
 
     /// Fast sync ongoing flag to be flushed to storage.
-    fast_sync_ongoing_flag_to_write: bool,
+    fast_sync_ongoing_flag_to_write: Option<bool>,
 
     /// Buffer the reputation scores & last_committed_rounds to be flushed with
     /// the next dag state flush. This is okay because we can recover
@@ -321,7 +321,7 @@ impl DagState {
             block_headers_to_write: vec![],
             commits_to_write: vec![],
             voting_block_headers_to_write: vec![],
-            fast_sync_ongoing_flag_to_write: fast_sync_ongoing,
+            fast_sync_ongoing_flag_to_write: None,
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
@@ -591,7 +591,7 @@ impl DagState {
     }
 
     pub(crate) fn set_fast_sync_ongoing_flag(&mut self, flag: bool) {
-        self.fast_sync_ongoing_flag_to_write = flag;
+        self.fast_sync_ongoing_flag_to_write = Some(flag);
     }
 
     pub(crate) fn fast_sync_ongoing(&self) -> bool {
@@ -2180,7 +2180,7 @@ impl DagState {
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info = std::mem::take(&mut self.commit_info_to_write);
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
-        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write;
+        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
         // Early return if there's nothing to flush
         if transactions.is_empty()
@@ -2188,6 +2188,7 @@ impl DagState {
             && commits.is_empty()
             && commit_info.is_empty()
             && voting_block_headers.is_empty()
+            && fast_commit_sync_flag.is_none()
         {
             return;
         }
@@ -2212,6 +2213,8 @@ impl DagState {
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
             fast_commit_sync_flag
+                .map(|f| f.to_string())
+                .unwrap_or_else(|| "unchanged".to_string())
         );
 
         // Write all buffered data to storage

@@ -15,7 +15,7 @@ use iota_types::{
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use starfish_core;
 use tap::TapFallible;
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
@@ -50,6 +50,7 @@ impl IotaTxValidator {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn validate_transactions(&self, txs: Vec<ConsensusTransactionKind>) -> Result<(), IotaError> {
         let mut cert_batch = Vec::new();
         let mut ckpt_messages = Vec::new();
@@ -143,6 +144,7 @@ macro_rules! impl_tx_verifier_for {
         error = $err_path:path,
     ) => {
         impl $trait_path for $impl_ty {
+            #[instrument(level = "trace", skip_all)]
             fn verify_batch(&self, batch: &[&[u8]]) -> core::result::Result<(), $err_path> {
                 let _scope = monitored_scope("ValidateBatch");
 

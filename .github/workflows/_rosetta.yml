@@ -1,6 +1,11 @@
 name: Rosetta validation
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: rosetta-validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -43,24 +48,39 @@ jobs:
         shell: bash
 
       - name: Start local IOTA network
+        if: (!cancelled() && !failure())
         run: |
           iota start --no-full-node &
         shell: bash
 
       - name: Start Rosetta servers
+        if: (!cancelled() && !failure())
         run: .github/scripts/rosetta/start_rosetta.sh
         shell: bash
 
       - name: Sleep for 20 seconds
+        if: (!cancelled() && !failure())
         run: sleep 20s
         shell: bash
 
       - name: Run check:construction test
+        if: (!cancelled() && !failure())
         run: |
           ./bin/rosetta-cli --configuration-file rosetta_cli.json check:construction
         shell: bash
 
       - name: Run check:data test
+        if: (!cancelled() && !failure())
         run: |
           ./bin/rosetta-cli --configuration-file rosetta_cli.json check:data
         shell: bash
+
+  validation-cancel:
+    needs: [validation]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

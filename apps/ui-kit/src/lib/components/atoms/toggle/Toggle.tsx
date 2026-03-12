@@ -16,7 +16,7 @@ import {
 } from './toggle.classes';
 import cx from 'classnames';
 
-interface ToggleProps {
+interface ToggleProps extends React.AriaAttributes {
     /**
      * The label for the toggle.
      */
@@ -62,6 +62,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
             name,
             size = ToggleSize.Default,
             testId,
+            ...ariaProps
         }: ToggleProps,
         ref,
     ) => {
@@ -123,8 +124,10 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(
 
                 <span
                     role="switch"
+                    aria-checked={isToggled}
                     onClick={() => inputRef.current?.click()}
                     className={toggleClasses}
+                    {...ariaProps}
                 >
                     <span className={thumbClasses} />
                 </span>

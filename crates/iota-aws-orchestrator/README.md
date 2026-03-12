@@ -84,7 +84,7 @@ cargo run --bin iota-aws-orchestrator -- testbed deploy --id test1 --instances 2
 ### Note:
 
 - Use the `--skip-monitoring` command to skip deployment of a dedicated metrics instance.
-- Use the `--dedicated-clietns N` command to deploy dedicated client machines `N` per region.
+- Use the `--dedicated-clients N` command to deploy dedicated client machines `N` per region.
 
 To check the current status of the testbed instances, use the following command:
 
@@ -161,3 +161,20 @@ for example when running the command `cargo run --bin iota-aws-orchestrator -- b
 - `1 instance` to run the grafana dashboard (by default only 1 is needed), 0 if `--skip-monitoring` command is used
 - 'N of client instances' where N is the number passed by the `--dedicated-clients N` command
 - no additional instances to run the benchmarking clients, as those will be co-deployed on the validator nodes
+
+### It hangs during the testbed deploy stage
+
+#### It hangs during the testbed deploy stage
+
+In this case, you’re likely using SSH keys that are password-protected. During instance authorization, AWS prompts for the passphrase, but since the process is automated, there's no one to provide it - which causes the deployment to hang.
+
+To resolve this, you should use a separate SSH key pair without a passphrase.
+**Important**: Make sure to store this key securely and avoid exposing it to anyone, as it is not protected by a passphrase.
+
+#### Cleaning up testbed ...
+
+In this case, if you encounter a hang during the testbed deploy stage, the process may also hang later during the cleanup stage.
+
+This happens because the cleanup procedure also requires SSH access — and the SSH keys used during the failed deployment are linked and cached under your previous testbed name.
+
+To resolve this, you should rename your testbed before retrying the deployment. This will ensure that the orchestrator doesn't reuse the cached configuration associated with the old, possibly misconfigured, SSH key.
