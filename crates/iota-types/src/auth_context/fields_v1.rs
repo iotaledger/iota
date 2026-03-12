@@ -55,6 +55,7 @@ pub struct MoveProgrammableMoveCall {
 /// [`crate::type_input::TypeTag`] in `MoveCall` and `MakeMoveVec` so that
 /// the type matches the BCS layout expected by the Move-side
 /// `ptb_command::Command`.
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveCommand {
     MoveCall(Box<MoveProgrammableMoveCall>),
@@ -62,7 +63,10 @@ pub enum MoveCommand {
     SplitCoins(Argument, Vec<Argument>),
     MergeCoins(Argument, Vec<Argument>),
     Publish(Vec<Vec<u8>>, Vec<ObjectID>),
-    MakeMoveVec(Option<TypeTag>, Vec<Argument>),
+    MakeMoveVec(
+        #[serde_as(as = "Option<TypeName>")] Option<TypeTag>,
+        Vec<Argument>,
+    ),
     Upgrade(Vec<Vec<u8>>, Vec<ObjectID>, ObjectID, Argument),
 }
 
