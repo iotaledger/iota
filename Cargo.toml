@@ -136,7 +136,6 @@ members = [
   "crates/iota-replay",
   "crates/iota-rest-api",
   "crates/iota-rest-kv",
-  "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
   "crates/iota-simulator",
@@ -460,7 +459,6 @@ iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
-iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d", features = ["hash", "serde", "schemars"] }

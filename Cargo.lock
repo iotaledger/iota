@@ -7899,47 +7899,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-rosetta"
-version = "1.19.0-alpha"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum 0.8.4",
- "axum-extra",
- "bcs",
- "clap",
- "eyre",
- "fastcrypto",
- "futures",
- "iota-config",
- "iota-json-rpc-types",
- "iota-keys",
- "iota-metrics",
- "iota-move-build",
- "iota-node",
- "iota-sdk",
- "iota-sdk-types",
- "iota-swarm-config",
- "iota-types",
- "move-core-types",
- "once_cell",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "signature 1.6.4",
- "strum 0.27.2",
- "strum_macros 0.27.2",
- "telemetry-subscribers",
- "tempfile",
- "test-cluster",
- "thiserror 1.0.64",
- "tokio",
- "tracing",
- "typed-store",
-]
-
-[[package]]
 name = "iota-rpc-loadgen"
 version = "1.19.0-alpha"
 dependencies = [
@@ -13949,9 +13908,6 @@ name = "signature"
 version = "1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
-dependencies = [
- "rand_core 0.6.4",
-]
 
 [[package]]
 name = "signature"
