@@ -12,6 +12,7 @@ use iota_sdk_types::CheckpointSequenceNumber;
 mod common;
 pub mod execution;
 pub mod ledger;
+mod metadata;
 
 pub use common::{Error, Result, RpcStatus};
 pub(crate) use common::{
@@ -22,6 +23,7 @@ pub use iota_grpc_types::read_masks::{
     GET_OBJECTS_READ_MASK, GET_SERVICE_INFO_READ_MASK, GET_TRANSACTIONS_READ_MASK,
     SIMULATE_TRANSACTION_READ_MASK,
 };
+pub use metadata::MetadataEnvelope;
 
 /// Response for a checkpoint query.
 ///

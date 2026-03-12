@@ -552,7 +552,7 @@ async fn test_start_sequence_number_only() {
     spawn_checkpoint_sender(&server_handle, 11);
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -599,7 +599,7 @@ async fn test_start_and_future_end_sequence_number() {
     let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -644,7 +644,7 @@ async fn test_historical_end_sequence_number_only() {
     let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -686,7 +686,7 @@ async fn test_future_end_sequence_number_only_full() {
     let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -734,7 +734,7 @@ async fn test_both_indices_omitted() {
     tokio::time::timeout(Duration::from_secs(10), async {
         let mut count = 0;
 
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -791,7 +791,7 @@ async fn test_historical_to_live_gap_fill() {
 
     // Collect up to 151 checkpoints
     tokio::time::timeout(Duration::from_secs(10), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -861,7 +861,7 @@ async fn test_gap_fill_with_slow_client() {
     let mut results = Vec::new();
 
     tokio::time::timeout(Duration::from_secs(120), async {
-        while let Some(res) = stream.next().await {
+        while let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     let sequence_number = response.sequence_number();
@@ -914,8 +914,9 @@ async fn test_chunked_checkpoint_streaming() {
         .expect("get_checkpoint should work");
 
     // Verify the checkpoint data is correct
-    assert_eq!(individual_checkpoint.sequence_number(), 0);
+    assert_eq!(individual_checkpoint.body().sequence_number(), 0);
     let summary = individual_checkpoint
+        .body()
         .summary()
         .expect("should have summary")
         .summary()
@@ -923,14 +924,13 @@ async fn test_chunked_checkpoint_streaming() {
     assert_eq!(summary.epoch, 0);
 
     // Test streaming checkpoints - this should also work with small chunks
-    let mut stream = Box::pin(
-        client
-            .stream_checkpoints(Some(0), Some(0), None, None, None)
-            .await
-            .unwrap(),
-    );
+    let mut stream = client
+        .stream_checkpoints(Some(0), Some(0), None, None, None)
+        .await
+        .unwrap();
 
     let streamed_checkpoint = stream
+        .body_mut()
         .next()
         .await
         .expect("stream should have data")
