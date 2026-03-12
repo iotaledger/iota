@@ -97,7 +97,7 @@ use iota_sdk_types::{CheckpointSequenceNumber, Digest};
 use crate::{
     Client, Error,
     api::{
-        CheckpointResponse, GET_CHECKPOINT_READ_MASK, Result, TryFromProtoError,
+        CheckpointResponse, GET_CHECKPOINT_READ_MASK, MetadataEnvelope, Result, TryFromProtoError,
         field_mask_with_default,
     },
 };
@@ -124,7 +124,7 @@ impl Client {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
     /// let checkpoint = client.get_checkpoint_latest(None, None, None).await?;
-    /// println!("Received checkpoint {}", checkpoint.sequence_number,);
+    /// println!("Received checkpoint {}", checkpoint.body().sequence_number,);
     /// # Ok(())
     /// # }
     /// ```
@@ -133,7 +133,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
             get_checkpoint_data_request::CheckpointId::Latest(true),
             read_mask,
@@ -167,7 +167,7 @@ impl Client {
     /// let checkpoint = client
     ///     .get_checkpoint_by_sequence_number(100, None, None, None)
     ///     .await?;
-    /// println!("Received checkpoint {}", checkpoint.sequence_number,);
+    /// println!("Received checkpoint {}", checkpoint.body().sequence_number,);
     /// # Ok(())
     /// # }
     /// ```
@@ -177,7 +177,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
             get_checkpoint_data_request::CheckpointId::SequenceNumber(sequence_number),
             read_mask,
@@ -213,7 +213,7 @@ impl Client {
     /// let checkpoint = client
     ///     .get_checkpoint_by_digest(digest, None, None, None)
     ///     .await?;
-    /// println!("Received checkpoint {}", checkpoint.sequence_number,);
+    /// println!("Received checkpoint {}", checkpoint.body().sequence_number,);
     /// # Ok(())
     /// # }
     /// ```
@@ -223,7 +223,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
             get_checkpoint_data_request::CheckpointId::Digest(digest.into()),
             read_mask,
@@ -240,7 +240,7 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<CheckpointResponse> {
+    ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         let mut request = match checkpoint_id {
             get_checkpoint_data_request::CheckpointId::Latest(val) => {
                 GetCheckpointDataRequest::default().with_latest(val)
@@ -268,22 +268,29 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let stream = client.get_checkpoint_data(request).await?.into_inner();
+        let response = client.get_checkpoint_data(request).await?;
+        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         let reassembled = Self::reassemble_checkpoint_data_stream(stream);
         futures::pin_mut!(reassembled);
 
-        reassembled
+        let checkpoint = reassembled
             .next()
             .await
             .ok_or_else(|| TryFromProtoError::missing("checkpoint data").into())
-            .and_then(|r| r)
+            .and_then(|r| r)?;
+
+        Ok(MetadataEnvelope::new(checkpoint, metadata))
     }
 
     /// Stream checkpoints across a range of checkpoints.
     ///
     /// Returns a stream of [`CheckpointResponse`] objects, each representing
     /// a complete checkpoint with its transactions and events.
+    ///
+    /// **Note:** The metadata in the returned [`MetadataEnvelope`] is captured
+    /// from the initial gRPC response headers when the stream is opened. It is
+    /// **not** updated as subsequent checkpoint data arrives.
     ///
     /// # Parameters
     ///
@@ -309,7 +316,7 @@ impl Client {
     ///     .stream_checkpoints(Some(0), Some(10), None, None, None)
     ///     .await?;
     ///
-    /// while let Some(checkpoint) = stream.next().await {
+    /// while let Some(checkpoint) = stream.body_mut().next().await {
     ///     let checkpoint = checkpoint?;
     ///     println!("Received checkpoint {}", checkpoint.sequence_number);
     /// }
@@ -323,7 +330,8 @@ impl Client {
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>> {
+    ) -> Result<MetadataEnvelope<Pin<Box<dyn Stream<Item = Result<CheckpointResponse>> + Send>>>>
+    {
         let mut request = CheckpointDataStreamRequest::default()
             .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
 
@@ -344,9 +352,13 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let stream = client.stream_checkpoint_data(request).await?.into_inner();
+        let response = client.stream_checkpoint_data(request).await?;
+        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
-        Ok(Box::pin(Self::reassemble_checkpoint_data_stream(stream)))
+        Ok(MetadataEnvelope::new(
+            Box::pin(Self::reassemble_checkpoint_data_stream(stream)),
+            metadata,
+        ))
     }
 
     /// Reassemble a stream of checkpoint data chunks into complete checkpoints.

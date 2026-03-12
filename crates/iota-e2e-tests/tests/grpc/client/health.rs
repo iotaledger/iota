@@ -16,11 +16,11 @@ async fn get_health() {
         .await
         .expect("Health check should succeed with default threshold");
     assert!(
-        response.executed_checkpoint_height.is_some(),
+        response.body().executed_checkpoint_height.is_some(),
         "Response should include executed_checkpoint_height"
     );
     assert!(
-        response.estimated_validator_latency_ms.is_none(),
+        response.body().estimated_validator_latency_ms.is_none(),
         "estimated_validator_latency_ms should be None (not yet implemented)"
     );
 
@@ -30,7 +30,7 @@ async fn get_health() {
         .await
         .expect("Health check should succeed with a large threshold");
     assert!(
-        response.executed_checkpoint_height.unwrap() >= 1,
+        response.body().executed_checkpoint_height.unwrap() >= 1,
         "Executed checkpoint height should be at least 1"
     );
 
