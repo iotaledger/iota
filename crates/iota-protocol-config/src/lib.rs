@@ -127,6 +127,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 22;
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on all networks.
 //             Enable Move-based account authentication in testnet.
+//             Enable fast commit syncer for faster recovery on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2621,6 +2622,11 @@ impl ProtocolConfig {
                         // Increase the base cost for transfer receive object in testnet, since the
                         // implementation now does check if parent is not an account.
                         cfg.transfer_receive_object_cost_base = Some(100);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery on testnet.
+                        cfg.feature_flags.consensus_fast_commit_sync = true;
                     }
                 }
 
