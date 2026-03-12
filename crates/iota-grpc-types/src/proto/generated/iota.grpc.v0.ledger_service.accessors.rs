@@ -35,6 +35,15 @@ mod _accessor_impls {
             self.payload = Some(super::checkpoint_data::Payload::Events(field.into()));
             self
         }
+        /// Sets `progress` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_progress<T: Into<super::checkpoint_data::Progress>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.payload = Some(super::checkpoint_data::Payload::Progress(field.into()));
+            self
+        }
         /// Sets `end_marker` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_end_marker<T: Into<super::checkpoint_data::EndMarker>>(
@@ -51,6 +60,13 @@ mod _accessor_impls {
         /// Sets `sequence_number` with the provided value.
         pub fn with_sequence_number(mut self, field: u64) -> Self {
             self.sequence_number = Some(field);
+            self
+        }
+    }
+    impl super::checkpoint_data::Progress {
+        /// Sets `latest_scanned_sequence_number` with the provided value.
+        pub fn with_latest_scanned_sequence_number(mut self, field: u64) -> Self {
+            self.latest_scanned_sequence_number = field;
             self
         }
     }
@@ -86,6 +102,16 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.events_filter = Some(field.into());
+            self
+        }
+        /// Sets `filter_checkpoints` with the provided value.
+        pub fn with_filter_checkpoints(mut self, field: bool) -> Self {
+            self.filter_checkpoints = Some(field);
+            self
+        }
+        /// Sets `progress_interval_ms` with the provided value.
+        pub fn with_progress_interval_ms(mut self, field: u32) -> Self {
+            self.progress_interval_ms = Some(field);
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.

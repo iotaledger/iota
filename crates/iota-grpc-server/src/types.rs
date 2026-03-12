@@ -5,6 +5,7 @@ use std::{pin::Pin, sync::Arc};
 
 use anyhow::Result;
 use futures::StreamExt;
+use grpc_ledger_service::checkpoint_data::Progress;
 use iota_grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
@@ -129,6 +130,15 @@ impl GrpcCheckpointDataBroadcaster {
 pub type ObjectsStreamResult = Result<grpc_ledger_service::GetObjectsResponse, Status>;
 pub type TransactionsStreamResult = Result<grpc_ledger_service::GetTransactionsResponse, Status>;
 pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, Status>;
+
+/// Result of [`GrpcReader::match_checkpoint_filter_or_report_progress`].
+enum FilterCheckResult {
+    /// The checkpoint contains matching data; proceed with full processing.
+    Matched,
+    /// The checkpoint should be skipped, with an optional progress message to
+    /// yield before returning.
+    Skipped(Option<grpc_ledger_service::CheckpointData>),
+}
 
 // Storage abstraction traits for gRPC access
 // These traits provide an abstraction layer over the storage backend,
@@ -910,6 +920,90 @@ impl GrpcReader {
         }
     }
 
+    /// Lightweight check to determine if a checkpoint has any matching data
+    /// without performing full SDK conversion or Merge operations.
+    /// Returns true on first match (OR semantics when both filters are set).
+    async fn has_matching_data<S>(
+        state_reader: Arc<dyn GrpcStateReader>,
+        transaction_stream: S,
+        transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
+        event_filter: &Option<crate::event_filter::EventFilter>,
+    ) -> Result<bool, Status>
+    where
+        S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
+    {
+        let mut transaction_stream = std::pin::pin!(transaction_stream);
+        while let Some(result) = transaction_stream.next().await {
+            let checkpoint_transaction =
+                result.map_err(|e| Status::internal(format!("failed to read transaction: {e}")))?;
+
+            if let Some(ref tx_filter) = transaction_filter {
+                if tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
+                    return Ok(true);
+                }
+            }
+
+            if let Some(ref evt_filter) = event_filter {
+                if let Some(ref tx_events) = checkpoint_transaction.events {
+                    for event in &tx_events.data {
+                        if evt_filter.matches_event(state_reader.clone(), event) {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    /// Tests whether any transaction in a checkpoint matches the active
+    /// filters (transaction and/or event).
+    ///
+    /// Returns [`FilterCheckResult::Matched`] if at least one transaction
+    /// matches, signalling that the checkpoint should be fully processed.
+    /// Returns [`FilterCheckResult::Skipped`] otherwise, attaching a
+    /// progress heartbeat when `progress_interval` has elapsed since the
+    /// last emitted message.
+    async fn match_checkpoint_filter_or_report_progress<S>(
+        state_reader: Arc<dyn GrpcStateReader>,
+        transaction_stream: S,
+        transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
+        event_filter: &Option<crate::event_filter::EventFilter>,
+        last_msg_time: &std::sync::Mutex<tokio::time::Instant>,
+        progress_interval: std::time::Duration,
+        seq: u64,
+    ) -> Result<FilterCheckResult, Status>
+    where
+        S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
+    {
+        if Self::has_matching_data(
+            state_reader.clone(),
+            transaction_stream,
+            transaction_filter,
+            event_filter,
+        )
+        .await?
+        {
+            *last_msg_time.lock().unwrap() = tokio::time::Instant::now();
+            Ok(FilterCheckResult::Matched)
+        } else {
+            let progress = {
+                let mut guard = last_msg_time.lock().unwrap();
+                if guard.elapsed() >= progress_interval {
+                    *guard = tokio::time::Instant::now();
+                    Some(
+                        grpc_ledger_service::CheckpointData::default().with_progress(
+                            Progress::default().with_latest_scanned_sequence_number(seq),
+                        ),
+                    )
+                } else {
+                    None
+                }
+            };
+            Ok(FilterCheckResult::Skipped(progress))
+        }
+    }
+
     /// Create a checkpoint stream implementation
     pub fn create_checkpoint_data_stream(
         &self,
@@ -923,9 +1017,15 @@ impl GrpcReader {
         cancellation_token: CancellationToken,
         transaction_filter: Option<crate::transaction_filter::TransactionFilter>,
         event_filter: Option<crate::event_filter::EventFilter>,
+        filter_checkpoints: bool,
+        progress_interval: std::time::Duration,
     ) -> Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send + Unpin> {
         let reader = self.clone();
         let state_reader_clone = self.state_reader.clone();
+
+        // Shared timer for progress messages (used only when filter_checkpoints is
+        // true)
+        let last_message_time = Arc::new(std::sync::Mutex::new(tokio::time::Instant::now()));
 
         // Clone for closures
         let checkpoint_mask_historical = checkpoint_mask.clone();
@@ -953,6 +1053,7 @@ impl GrpcReader {
             // Historical data processor - uses transaction stream from DB
             {
                 let state_reader_historical = state_reader_clone.clone();
+                let last_message_time_historical = last_message_time.clone();
                 move |item: Arc<(CertifiedCheckpointSummary, CheckpointContents)>| {
                     let state_reader_inner = state_reader_historical.clone();
                     let checkpoint_summary = item.0.clone();
@@ -962,8 +1063,36 @@ impl GrpcReader {
                     let ev_mask = events_mask_historical.clone();
                     let tx_filter = transaction_filter_historical.clone();
                     let ev_filter = event_filter_historical.clone();
+                    let last_msg_time = last_message_time_historical.clone();
                     {
                         Box::pin(async_stream::stream! {
+                            let seq = checkpoint_summary.data().sequence_number;
+
+                            // Pass 1: lightweight filter check when filter_checkpoints is enabled
+                            if filter_checkpoints {
+                                let scan_stream = state_reader_inner.stream_checkpoint_transactions(checkpoint_contents.clone());
+                                match Self::match_checkpoint_filter_or_report_progress(
+                                    state_reader_inner.clone(),
+                                    scan_stream,
+                                    &tx_filter,
+                                    &ev_filter,
+                                    &last_msg_time,
+                                    progress_interval,
+                                    seq,
+                                ).await? {
+                                    FilterCheckResult::Matched => {}
+                                    FilterCheckResult::Skipped(progress) => {
+                                        if let Some(msg) = progress {
+                                            yield Ok(msg);
+                                        }
+
+                                        // no filter match, skip processing this checkpoint
+                                        return;
+                                    }
+                                }
+                            }
+
+                            // Pass 2 (or normal mode): full processing
                             let transaction_stream = state_reader_inner.stream_checkpoint_transactions(checkpoint_contents.clone());
                             let mut stream = Box::pin(Self::create_checkpoint_messages_stream(
                                 state_reader_inner.clone(),
@@ -988,6 +1117,7 @@ impl GrpcReader {
             // Live data processor - extracts transactions from CheckpointData
             {
                 let state_reader_live = state_reader_clone.clone();
+                let last_message_time_live = last_message_time;
                 move |item: Arc<IotaTypesCheckpointData>| {
                     let state_reader_inner = state_reader_live.clone();
                     let cp_mask = checkpoint_mask.clone();
@@ -995,28 +1125,62 @@ impl GrpcReader {
                     let ev_mask = events_mask.clone();
                     let tx_filter = transaction_filter.clone();
                     let ev_filter = event_filter.clone();
-                    Box::pin(
-                        {
+                    let last_msg_time = last_message_time_live.clone();
+                    Box::pin(async_stream::stream! {
+                        let seq = *item.checkpoint_summary.sequence_number();
+
+                        // Pass 1: lightweight filter check when filter_checkpoints is enabled
+                        if filter_checkpoints {
                             // Convert the transactions Vec to a stream
-                            let transaction_stream = futures::stream::iter(
+                            let scan_stream = futures::stream::iter(
                                 item.transactions.clone().into_iter().map(Ok)
                             );
-
-                            // Use the unified streaming function
-                            Self::create_checkpoint_messages_stream(
+                            match Self::match_checkpoint_filter_or_report_progress(
                                 state_reader_inner.clone(),
-                                item.checkpoint_summary.clone(),
-                                item.checkpoint_contents.clone(),
-                                transaction_stream,
-                                &cp_mask,
-                                tx_mask,
-                                ev_mask,
-                                max_message_size_bytes as usize,
-                                tx_filter,
-                                ev_filter,
-                            )
+                                scan_stream,
+                                &tx_filter,
+                                &ev_filter,
+                                &last_msg_time,
+                                progress_interval,
+                                seq,
+                            ).await? {
+                                FilterCheckResult::Matched => {}
+                                FilterCheckResult::Skipped(progress) => {
+                                    if let Some(msg) = progress {
+                                        yield Ok(msg);
+                                    }
+
+                                    // no filter match, skip processing this checkpoint
+                                    return;
+                                }
+                            }
                         }
-                    )
+
+                        // Pass 2 (or normal mode): full processing
+
+                        // Convert the transactions Vec to a stream
+                        let transaction_stream = futures::stream::iter(
+                            item.transactions.clone().into_iter().map(Ok)
+                        );
+
+                        // Use the unified streaming function
+                        let mut stream = Box::pin(Self::create_checkpoint_messages_stream(
+                            state_reader_inner.clone(),
+                            item.checkpoint_summary.clone(),
+                            item.checkpoint_contents.clone(),
+                            transaction_stream,
+                            &cp_mask,
+                            tx_mask,
+                            ev_mask,
+                            max_message_size_bytes as usize,
+                            tx_filter,
+                            ev_filter,
+                        ));
+
+                        while let Some(item) = stream.next().await {
+                            yield item;
+                        }
+                    })
                 }
             },
         )))

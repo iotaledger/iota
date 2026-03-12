@@ -8,11 +8,11 @@ use std::{
 };
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
-use iota_grpc_client::Client;
+use iota_grpc_client::{CheckpointStreamItem, Client};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{ObjectID, random_object_ref},
+    base_types::{IotaAddress, ObjectID, random_object_ref},
     committee::EpochId,
     crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
     effects::TestEffectsBuilder,
@@ -84,6 +84,31 @@ fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
         checkpoint_summary: summary.clone(),
         checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
         transactions: vec![],
+    }
+}
+
+/// Create checkpoint data with a transaction from a specific sender.
+fn mock_checkpoint_data_with_sender(
+    sequence_number: u64,
+    sender: IotaAddress,
+    key: &AccountKeyPair,
+) -> CheckpointData {
+    let summary = mock_summary(sequence_number);
+    let gas = random_object_ref();
+    let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+        .transfer(random_object_ref(), sender)
+        .build_and_sign(key);
+    let effects = TestEffectsBuilder::new(transaction.data()).build();
+    CheckpointData {
+        checkpoint_summary: summary,
+        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
+        transactions: vec![CheckpointTransaction {
+            transaction,
+            effects,
+            events: None,
+            input_objects: vec![],
+            output_objects: vec![],
+        }],
     }
 }
 
@@ -946,6 +971,168 @@ async fn test_chunked_checkpoint_streaming() {
     assert_eq!(streamed_summary.epoch, 0);
 
     // Clean up
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}
+
+#[tokio::test]
+async fn test_filter_checkpoints_validation() {
+    use iota_grpc_types::v0::filter;
+
+    let (server_handle, client, _) = test_server_and_client_setup(0..=5, |_| {}, None, None).await;
+
+    // filter_checkpoints=true with no filters should fail
+    let result = client
+        .stream_checkpoints_filtered(Some(0), Some(5), None, None, None, None)
+        .await;
+    assert!(result.is_err(), "expected error when no filters are set");
+
+    // tx filter without transactions in read_mask should fail
+    let (sender, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let sender_bytes = sender.to_inner();
+    let tx_filter = filter::TransactionFilter::default().with_sender(
+        filter::AddressFilter::default().with_address(
+            iota_grpc_types::v0::types::Address::default().with_address(sender_bytes.to_vec()),
+        ),
+    );
+
+    let result = client
+        .stream_checkpoints_filtered(
+            Some(0),
+            Some(5),
+            Some("checkpoint"),
+            Some(tx_filter),
+            None,
+            None,
+        )
+        .await;
+    assert!(
+        result.is_err(),
+        "expected error when tx filter is set but transactions not in read_mask"
+    );
+
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}
+
+#[tokio::test]
+async fn test_filter_checkpoints_streaming() {
+    let (server_handle, client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
+
+    let (sender, key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let sender_bytes = sender.to_inner();
+
+    // Create a sender filter matching our known sender
+    let make_tx_filter = || {
+        iota_grpc_types::v0::filter::TransactionFilter::default().with_sender(
+            iota_grpc_types::v0::filter::AddressFilter::default().with_address(
+                iota_grpc_types::v0::types::Address::default().with_address(sender_bytes.to_vec()),
+            ),
+        )
+    };
+
+    // Scenario 1: matching txs are returned, non-matching are skipped
+    let mut stream = client
+        .stream_checkpoints_filtered(
+            None,
+            None,
+            Some("checkpoint,transactions"),
+            Some(make_tx_filter()),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Broadcast checkpoint 1 with matching sender
+    server_handle
+        .checkpoint_data_broadcaster()
+        .send_traced(&mock_checkpoint_data_with_sender(1, sender, &key));
+    // Broadcast checkpoint 2 with no transactions (should be skipped)
+    server_handle
+        .checkpoint_data_broadcaster()
+        .send_traced(&mock_checkpoint_data(2));
+    // Broadcast checkpoint 3 with matching sender
+    server_handle
+        .checkpoint_data_broadcaster()
+        .send_traced(&mock_checkpoint_data_with_sender(3, sender, &key));
+
+    let mut results = Vec::new();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while let Some(res) = stream.body_mut().next().await {
+            match res {
+                Ok(CheckpointStreamItem::Checkpoint(response)) => {
+                    results.push(response.sequence_number());
+                    if results.len() >= 2 {
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => panic!("Unexpected error: {e:?}"),
+            }
+        }
+    })
+    .await
+    .expect("waiting for stream timed out");
+    // Only checkpoints 1 and 3 should be received (checkpoint 2 was filtered out)
+    assert_eq!(results, vec![1, 3]);
+    drop(stream);
+
+    // Scenario 2: non-matching checkpoints are skipped until a match
+    let mut stream = client
+        .stream_checkpoints_filtered(
+            None,
+            None,
+            Some("checkpoint,transactions"),
+            Some(make_tx_filter()),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+    // Broadcast checkpoints with no transactions (should all be skipped)
+    for i in 1..=5 {
+        server_handle
+            .checkpoint_data_broadcaster()
+            .send_traced(&mock_checkpoint_data(i));
+    }
+    // Broadcast checkpoint with a different sender (should be skipped)
+    let (other_sender, other_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    server_handle
+        .checkpoint_data_broadcaster()
+        .send_traced(&mock_checkpoint_data_with_sender(
+            6,
+            other_sender,
+            &other_key,
+        ));
+    // Finally broadcast one with the matching sender
+    server_handle
+        .checkpoint_data_broadcaster()
+        .send_traced(&mock_checkpoint_data_with_sender(7, sender, &key));
+
+    let mut results = Vec::new();
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while let Some(res) = stream.body_mut().next().await {
+            match res {
+                Ok(CheckpointStreamItem::Checkpoint(response)) => {
+                    results.push(response.sequence_number());
+                    return; // Just collect the first match
+                }
+                Ok(_) => {}
+                Err(e) => panic!("Unexpected error: {e:?}"),
+            }
+        }
+    })
+    .await
+    .expect("waiting for stream timed out");
+    // Only checkpoint 7 should be received (all others were filtered out)
+    assert_eq!(results, vec![7]);
+
     server_handle
         .shutdown()
         .await
