@@ -18,7 +18,7 @@ import {
 } from './chip.classes';
 import { ChipSize, ChipType } from './chip.enums';
 
-interface ChipProps {
+interface ChipProps extends React.AriaAttributes {
     /**
      * The label of the chip
      */
@@ -77,6 +77,7 @@ export function Chip({
     trailingElement,
     disabled,
     size = ChipSize.Default,
+    ...ariaProps
 }: ChipProps) {
     const isOutlineSelected = type === ChipType.Outline && selected;
     const outlineStyle = selected
@@ -104,6 +105,7 @@ export function Chip({
                 selected ? 'border-transparent' : BORDER_CLASSES[type],
             )}
             disabled={disabled}
+            {...ariaProps}
         >
             <span
                 className={cx(
@@ -128,9 +130,13 @@ export function Chip({
                 </span>
                 {trailingElement}
                 {showClose && (
-                    <div
-                        onClick={onClose}
-                        className={cx(disabled ? 'cursor-default' : 'cursor-pointer')}
+                    <ButtonUnstyled
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onClose?.();
+                        }}
+                        disabled={disabled}
+                        aria-label="Remove"
                     >
                         <Close
                             className={cx(
@@ -138,7 +144,7 @@ export function Chip({
                                 disabled ? '' : selected ? 'opacity-100' : CLOSE_ICON_INTERACTIVE,
                             )}
                         />
-                    </div>
+                    </ButtonUnstyled>
                 )}
             </span>
         </ButtonUnstyled>

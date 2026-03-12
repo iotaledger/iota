@@ -423,7 +423,15 @@ const developer = [
                             'developer/iota-101/move-overview/conventions',
                         ],
                     },
-                    'developer/move/explanations/account-abstraction',
+                    {
+                        type: 'category',
+                        label: 'Account Abstraction',
+                        items: [
+                            'developer/move/explanations/account-abstraction/introduction',
+                            'developer/move/explanations/account-abstraction/components',
+                            'developer/move/explanations/account-abstraction/design-principles',
+                        ],
+                    },
                 ],
             },
             {
@@ -438,16 +446,39 @@ const developer = [
                             slug: 'developer/move/how-tos/account-abstraction',
                         },
                         items: [
-                            'developer/move/how-tos/account-abstraction/create-iotaccount',
-                            'developer/move/how-tos/account-abstraction/manage-iotaccount-fields',
-                            'developer/move/how-tos/account-abstraction/rotate-iotaccount-properties',
-                            'developer/move/how-tos/account-abstraction/create-public-key-authentication',
-                            'developer/move/how-tos/account-abstraction/function-call-keys',
-                            'developer/move/how-tos/account-abstraction/create-time-locked-account',
-                            'developer/move/how-tos/account-abstraction/create-onesig-account',
-                            'developer/move/how-tos/account-abstraction/create-spending-limit-account',
-                            'developer/move/how-tos/account-abstraction/create-lean-imt-account',
-                            'developer/move/how-tos/account-abstraction/dynamic-multisig-account',
+                            {
+                                type: 'category',
+                                label: 'Account Creation and Management',
+                                link: {
+                                    type: 'generated-index',
+                                    slug: 'developer/move/how-tos/account-abstraction/create-manage',
+                                },
+                                description: 'How to create and manage accounts.',
+                                items: [
+                                    'developer/move/how-tos/account-abstraction/create-manage/create-iotaccount',
+                                    'developer/move/how-tos/account-abstraction/create-manage/manage-iotaccount-fields',
+                                    'developer/move/how-tos/account-abstraction/create-manage/rotate-iotaccount-properties',
+                                ]
+                            },
+                            {
+                                type: 'category',
+                                label: 'Authenticator',
+                                link: {
+                                    type: 'generated-index',
+                                    slug: 'developer/move/how-tos/account-abstraction/authenticator',
+                                },
+                                description: 'How to create and manage authenticators for accounts.',
+                                items: [
+                                    'developer/move/how-tos/account-abstraction/authenticator/basic',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-public-key-authentication',
+                                    'developer/move/how-tos/account-abstraction/authenticator/function-call-keys',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-time-locked-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-onesig-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-spending-limit-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-lean-imt-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/dynamic-multisig-account',
+                                ]
+                            },
                         ],
                     },
                     {
@@ -605,16 +636,10 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'SDKs',
-        items: [
-            {
-                type: 'category',
-                label: 'TS SDK',
-                items: tsSDK,
-            },
-            'developer/references/rust-sdk',
-        ],
+        label: 'TS SDK',
+        items: tsSDK,
     },
+    'developer/references/rust-sdk',
     {
         type: 'category',
         label: 'GraphQL',

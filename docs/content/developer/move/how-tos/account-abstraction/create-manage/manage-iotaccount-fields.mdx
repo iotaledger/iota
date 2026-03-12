@@ -8,11 +8,11 @@ tags:
 
 # Manage Account Dynamic Fields
 
-import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction />
 
-This how-to demonstrates how to add, remove, and borrow [dynamic fields](../../../iota-101/objects/dynamic-fields/dynamic-fields.mdx) on an existing account using basic dynamic field functions at runtime, using `IOTAccount` as an example.
+This how-to demonstrates how to add, remove, and borrow [dynamic fields](../../../../iota-101/objects/dynamic-fields/dynamic-fields.mdx) on an existing account using basic dynamic field functions at runtime, using `IOTAccount` as an example.
 
 ## Example Code
 
@@ -28,7 +28,7 @@ This how-to demonstrates how to add, remove, and borrow [dynamic fields](../../.
 
 :::note Dynamic Field Rotation
 
-To rotate a dynamic field you can just remove(`df::remove`) and add(`df::add`) a dynamic field with the same name.
+To rotate a dynamic field you can just remove([`df::remove`](../../../../references/framework/iota/dynamic_field.mdx#iota_dynamic_field_remove)) and add([`df::add`](../../../../references/framework/iota/dynamic_field.mdx#iota_dynamic_field_add)) a dynamic field with the same name.
 ```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L167-L179
 ```
 

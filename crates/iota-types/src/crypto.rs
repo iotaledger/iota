@@ -746,6 +746,7 @@ impl Signature {
         Signer::sign(secret, hashed_msg)
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Signature>) -> Self
     where
         T: Serialize,
@@ -1010,6 +1011,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         S::PubKey::SIGNATURE_SCHEME
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
@@ -1096,6 +1098,7 @@ pub struct AuthoritySignInfo {
 }
 
 impl AuthoritySignInfoTrait for AuthoritySignInfo {
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T: Serialize>(
         &self,
         data: &T,
@@ -1269,6 +1272,7 @@ static_assertions::assert_not_impl_any!(AuthorityStrongQuorumSignInfo: Hash, Eq,
 impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
     for AuthorityQuorumSignInfo<STRONG_THRESHOLD>
 {
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T: Serialize>(
         &self,
         data: &T,
@@ -1619,6 +1623,7 @@ impl<'a> VerificationObligation<'a> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_all(self) -> IotaResult<()> {
         let mut pks = Vec::with_capacity(self.public_keys.len());
         for pk in self.public_keys.clone() {

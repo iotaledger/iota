@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import * as amplitude from '@amplitude/analytics-browser';
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
@@ -30,11 +29,16 @@ export async function initAmplitude() {
             configuration: {
                 optOut: false,
                 autocapture: {
-                    attribution: IS_ENABLED,
-                    fileDownloads: IS_ENABLED,
-                    formInteractions: IS_ENABLED,
+                    attribution: false,
+                    fileDownloads: false,
+                    formInteractions: false,
                     pageViews: IS_ENABLED,
                     sessions: IS_ENABLED,
+                    elementInteractions: false,
+                    frustrationInteractions: false,
+                    networkTracking: false,
+                    webVitals: false,
+                    pageUrlEnrichment: IS_ENABLED,
                 },
 
                 // set LogLevel to Debug for more verbose logging during development
@@ -44,8 +48,8 @@ export async function initAmplitude() {
     }).promise;
 
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport('beacon');
-        amplitude.flush();
+        ampli.client.setTransport('beacon');
+        ampli.flush();
     });
 
     // Add environment plugin to set prefix dev events

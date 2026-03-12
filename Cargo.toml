@@ -181,7 +181,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.18.0-alpha"
+version = "1.19.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -275,6 +275,7 @@ diesel = "2.3.5"
 diffy = { version = "0.3" }
 dirs = "5.0"
 downcast = "0.11.0"
+duration-str = "0.5.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
 enum_dispatch = "^0.3"

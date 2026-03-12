@@ -8,7 +8,7 @@ tags:
 
 # Create Time-Locked Account
 
-import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction /> 
 
@@ -16,7 +16,7 @@ This how-to demonstrates how to create and manage time-locked accounts that comb
 
 :::tip Why is this possible?
 
-Authenticator functions can accept additional inputs alongside the account reference — including shared objects like `Clock`. This makes it possible to read the current on-chain time at authentication, before any execution happens, and reject the transaction outright if the unlock condition is not yet met.
+Authenticator functions can accept additional inputs alongside the account reference — including shared objects like [`Clock`](../../../../references/framework/iota/clock.mdx#iota_clock_Clock). This makes it possible to read the current on-chain time at authentication, before any execution happens, and reject the transaction outright if the unlock condition is not yet met.
 
 :::
 
@@ -40,7 +40,7 @@ This guide builds on patterns from the [Public Key Authentication](create-public
 
 :::note
 
-Managing the unlock time after account creation (rotating, adding, or removing it) follows the same dynamic field pattern described in [Manage Account Dynamic Fields](manage-iotaccount-fields.mdx). See the full example for the helpers.
+Managing the unlock time after account creation (rotating, adding, or removing it) follows the same dynamic field pattern described in [Manage Account Dynamic Fields](../create-manage/manage-iotaccount-fields.mdx). See the full example for the helpers.
 
 :::
 
