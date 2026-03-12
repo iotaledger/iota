@@ -99,7 +99,7 @@ async fn resolve_transaction(
     let (reference_gas_price, protocol_config) = {
         let system_state = state.reader.get_system_state_summary()?;
 
-        let current_protocol_version = state.reader.get_system_state_summary()?.protocol_version;
+        let current_protocol_version = system_state.protocol_version;
 
         let protocol_config = ProtocolConfig::get_for_version_if_supported(
             current_protocol_version.into(),

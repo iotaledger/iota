@@ -76,7 +76,10 @@ impl Blob {
         blob_size
     }
     pub fn to_bytes(&self) -> Vec<u8> {
-        [vec![self.encoding.into()], self.data.clone()].concat()
+        let mut v = Vec::with_capacity(1 + self.data.len());
+        v.push(self.encoding.into());
+        v.extend_from_slice(&self.data);
+        v
     }
     pub fn from_bytes<T: DeserializeOwned>(bytes: &[u8]) -> Result<T> {
         let (encoding, data) = bytes.split_first().ok_or(anyhow!("empty bytes"))?;

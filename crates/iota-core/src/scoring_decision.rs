@@ -178,17 +178,17 @@ mod tests {
     fn generate_committees(committee_size: usize) -> (Committee, ConsensusCommittee) {
         let (consensus_committee, _) = local_committee_and_keys(0, vec![1; committee_size]);
 
-        let public_keys = consensus_committee
-            .authorities()
-            .map(|(_i, authority)| authority.authority_key.inner())
-            .collect::<Vec<_>>();
-        let iota_authorities = public_keys
-            .iter()
-            .map(|key| (AuthorityPublicKeyBytes::from(*key), 1))
-            .collect::<Vec<_>>();
         let iota_committee = Committee::new_for_testing_with_normalized_voting_power(
             0,
-            iota_authorities.iter().cloned().collect(),
+            consensus_committee
+                .authorities()
+                .map(|(_i, authority)| {
+                    (
+                        AuthorityPublicKeyBytes::from(authority.authority_key.inner()),
+                        1,
+                    )
+                })
+                .collect(),
         );
 
         (iota_committee, consensus_committee)

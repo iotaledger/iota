@@ -751,10 +751,10 @@ impl CompiledPackage {
         // the compilation time but are not referenced in the source code.
         Ok(self
             .dependency_ids
-            .clone()
             .published
-            .into_iter()
+            .iter()
             .filter(|(pkg_name, _)| pkgs_to_keep.contains(pkg_name))
+            .map(|(k, v)| (*k, *v))
             .collect())
     }
 }

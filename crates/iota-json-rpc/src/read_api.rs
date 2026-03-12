@@ -229,10 +229,12 @@ impl ReadApi {
 
         if opts.require_input() {
             trace!("getting input");
-            let digests_clone = digests.clone();
-            let transactions =
-                self.transaction_kv_store.multi_get_tx(&digests_clone).await.tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get transactions: {:?}", err),
+            let transactions = self
+                .transaction_kv_store
+                .multi_get_tx(&digests)
+                .await
+                .tap_err(
+                    |err| debug!(digests=?digests, "Failed to multi get transactions: {:?}", err),
                 )?;
 
             for ((_digest, cache_entry), txn) in
@@ -245,12 +247,11 @@ impl ReadApi {
         // Fetch effects when `show_events` is true because events relies on effects
         if opts.require_effects() {
             trace!("getting effects");
-            let digests_clone = digests.clone();
             let effects_list = self.transaction_kv_store
-                .multi_get_fx_by_tx_digest(&digests_clone)
+                .multi_get_fx_by_tx_digest(&digests)
                 .await
                 .tap_err(
-                    |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
+                    |err| debug!(digests=?digests, "Failed to multi get effects for transactions: {:?}", err),
                 )?;
             for ((_digest, cache_entry), e) in
                 temp_response.iter_mut().zip(effects_list.into_iter())

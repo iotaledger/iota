@@ -533,14 +533,14 @@ impl DataFetcher for RemoteFetcher {
             .get_epoch_change_events(true)
             .await?
             .into_iter()
-            .find(|ev| match extract_epoch_and_version(ev.clone()) {
+            .find(|ev| match extract_epoch_and_version(ev) {
                 Ok((epoch, _)) => epoch == epoch_id,
                 Err(_) => false,
             })
             .ok_or(ReplayEngineError::EventNotFound { epoch: epoch_id })?;
 
         // Extract protocol version from the event
-        let (_, protocol_version) = extract_epoch_and_version(event.clone())?;
+        let (_, protocol_version) = extract_epoch_and_version(&event)?;
 
         let epoch_change_tx = event.id.tx_digest;
 
@@ -689,15 +689,15 @@ fn obj_from_iota_obj_data(o: &IotaObjectData) -> Result<Object, ReplayEngineErro
     }
 }
 
-pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngineError> {
-    if let serde_json::Value::Object(w) = ev.parsed_json {
+pub fn extract_epoch_and_version(ev: &IotaEvent) -> Result<(u64, u64), ReplayEngineError> {
+    if let serde_json::Value::Object(ref w) = ev.parsed_json {
         let epoch = u64::from_str(&w["epoch"].to_string().replace('\"', "")).unwrap();
         let version = u64::from_str(&w["protocol_version"].to_string().replace('\"', "")).unwrap();
         return Ok((epoch, version));
     }
 
     Err(ReplayEngineError::UnexpectedEventFormat {
-        event: Box::new(ev),
+        event: Box::new(ev.clone()),
     })
 }
 
@@ -825,8 +825,7 @@ impl DataFetcher for NodeStateDumpFetcher {
             .node_state_dump
             .loaded_child_objects
             .iter()
-            .map(|q| (q.id, q.version, q.digest))
-            .map(|w| (w.0, w.1))
+            .map(|q| (q.id, q.version))
             .collect())
     }
 

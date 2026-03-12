@@ -190,13 +190,14 @@ impl ArchiveReader {
         }
 
         let mut summary_files: Vec<_> = files
-            .clone()
-            .into_iter()
+            .iter()
             .filter(|f| f.file_type == FileType::CheckpointSummary)
+            .cloned()
             .collect();
         let mut contents_files: Vec<_> = files
-            .into_iter()
+            .iter()
             .filter(|f| f.file_type == FileType::CheckpointContent)
+            .cloned()
             .collect();
         assert_eq!(summary_files.len(), contents_files.len());
 

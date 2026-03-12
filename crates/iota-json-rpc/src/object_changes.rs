@@ -40,7 +40,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                     // modify_at_version should always be available for mutated object
                     previous_version: modify_at_version
                         .get(&object_id)
-                        .cloned()
+                        .copied()
                         .unwrap_or_default(),
                     digest,
                 }),

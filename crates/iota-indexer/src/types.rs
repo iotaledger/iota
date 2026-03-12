@@ -76,8 +76,8 @@ impl IndexedCheckpoint {
             epoch: checkpoint.epoch,
             tx_digests,
             previous_checkpoint_digest: checkpoint.previous_digest,
+            end_of_epoch: checkpoint.end_of_epoch_data.is_some(),
             end_of_epoch_data: checkpoint.end_of_epoch_data.clone(),
-            end_of_epoch: checkpoint.end_of_epoch_data.clone().is_some(),
             total_gas_cost,
             computation_cost: checkpoint.epoch_rolling_gas_cost_summary.computation_cost,
             computation_cost_burned: checkpoint
@@ -221,7 +221,8 @@ impl EventIndex {
             .type_
             .to_canonical_string(/* with_prefix */ true)
             .splitn(3, "::")
-            .collect::<Vec<_>>()[2]
+            .nth(2)
+            .expect("expected module::name::type format")
             .to_string();
         Self {
             tx_sequence_number,

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{Display, Formatter, Write};
+use std::fmt::{Display, Formatter};
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use getset::{Getters, MutGetters};
 use iota_config::Config;
 use iota_keys::keystore::{AccountKeystore, Keystore};
@@ -222,11 +222,14 @@ impl IotaEnv {
             builder = builder.ws_url(ws_url);
         }
         if let Some(basic_auth) = &self.basic_auth {
-            let fields: Vec<_> = basic_auth.split(':').collect();
-            if fields.len() != 2 {
-                bail!("Basic auth should be in the format `username:password`");
-            }
-            builder = builder.basic_auth(fields[0], fields[1]);
+            let mut fields = basic_auth.splitn(2, ':');
+            let username = fields
+                .next()
+                .ok_or_else(|| anyhow!("Basic auth should be in the format `username:password`"))?;
+            let password = fields
+                .next()
+                .ok_or_else(|| anyhow!("Basic auth should be in the format `username:password`"))?;
+            builder = builder.basic_auth(username, password);
         }
 
         if let Some(max_concurrent_requests) = max_concurrent_requests {
@@ -286,26 +289,25 @@ impl IotaEnv {
 
 impl Display for IotaEnv {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut writer = String::new();
-        writeln!(writer, "Active environment: {}", self.alias)?;
-        write!(writer, "RPC URL: {}", self.rpc)?;
+        writeln!(f, "Active environment: {}", self.alias)?;
+        write!(f, "RPC URL: {}", self.rpc)?;
         if let Some(graphql) = &self.graphql {
-            writeln!(writer)?;
-            write!(writer, "GraphQL URL: {graphql}")?;
+            writeln!(f)?;
+            write!(f, "GraphQL URL: {graphql}")?;
         }
         if let Some(ws) = &self.ws {
-            writeln!(writer)?;
-            write!(writer, "Websocket URL: {ws}")?;
+            writeln!(f)?;
+            write!(f, "Websocket URL: {ws}")?;
         }
         if let Some(basic_auth) = &self.basic_auth {
-            writeln!(writer)?;
-            write!(writer, "Basic Auth: {basic_auth}")?;
+            writeln!(f)?;
+            write!(f, "Basic Auth: {basic_auth}")?;
         }
         if let Some(faucet) = &self.faucet {
-            writeln!(writer)?;
-            write!(writer, "Faucet URL: {faucet}")?;
+            writeln!(f)?;
+            write!(f, "Faucet URL: {faucet}")?;
         }
-        write!(f, "{writer}")
+        Ok(())
     }
 }
 
@@ -313,22 +315,16 @@ impl Config for IotaClientConfig {}
 
 impl Display for IotaClientConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut writer = String::new();
-
-        writeln!(
-            writer,
-            "Managed addresses: {}",
-            self.keystore.addresses().len()
-        )?;
-        write!(writer, "Active address: ")?;
+        writeln!(f, "Managed addresses: {}", self.keystore.addresses().len())?;
+        write!(f, "Active address: ")?;
         match self.active_address {
-            Some(r) => writeln!(writer, "{r}")?,
-            None => writeln!(writer, "None")?,
+            Some(r) => writeln!(f, "{r}")?,
+            None => writeln!(f, "None")?,
         };
-        writeln!(writer, "{}", self.keystore)?;
+        writeln!(f, "{}", self.keystore)?;
         if let Ok(env) = self.get_active_env() {
-            write!(writer, "{env}")?;
+            write!(f, "{env}")?;
         }
-        write!(f, "{writer}")
+        Ok(())
     }
 }

@@ -171,9 +171,9 @@ impl Manifest {
             epoch,
         })
     }
-    pub fn files(&self) -> Vec<FileMetadata> {
+    pub fn files(&self) -> &[FileMetadata] {
         match self {
-            Manifest::V1(manifest) => manifest.file_metadata.clone(),
+            Manifest::V1(manifest) => &manifest.file_metadata,
         }
     }
     pub fn epoch_num(&self) -> u64 {
@@ -191,9 +191,9 @@ impl Manifest {
             Manifest::V1(manifest) => {
                 let mut summary_files: Vec<_> = manifest
                     .file_metadata
-                    .clone()
-                    .into_iter()
+                    .iter()
                     .filter(|f| f.file_type == FileType::CheckpointSummary)
+                    .cloned()
                     .collect();
                 summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
                 assert!(
@@ -216,9 +216,9 @@ impl Manifest {
             Manifest::V1(manifest) => {
                 let mut summary_files: Vec<_> = manifest
                     .file_metadata
-                    .clone()
-                    .into_iter()
+                    .iter()
                     .filter(|f| f.file_type == FileType::CheckpointSummary)
+                    .cloned()
                     .collect();
                 summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
                 assert_eq!(summary_files.first().unwrap().checkpoint_seq_range.start, 0);
@@ -250,7 +250,7 @@ impl Manifest {
             Manifest::V1(manifest) => {
                 manifest
                     .file_metadata
-                    .extend(vec![checkpoint_file_metadata, summary_file_metadata]);
+                    .extend([checkpoint_file_metadata, summary_file_metadata]);
                 manifest.epoch = epoch_num;
                 manifest.next_checkpoint_seq_num = checkpoint_sequence_number;
             }

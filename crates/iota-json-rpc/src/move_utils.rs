@@ -192,7 +192,7 @@ impl MoveUtilsServer for MoveUtils {
             let module = self.internal.get_move_module(package, module_name).await?;
             let structs = module.structs;
             let identifier = Identifier::new(struct_name.as_str())
-                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
+                .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?;
             match structs.get(&identifier) {
                 Some(struct_) => Ok((&**struct_).into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
@@ -215,7 +215,7 @@ impl MoveUtilsServer for MoveUtils {
             let module = self.internal.get_move_module(package, module_name).await?;
             let functions = module.functions;
             let identifier = Identifier::new(function_name.as_str())
-                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
+                .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?;
             match functions.get(&identifier) {
                 Some(function) => Ok((&**function).into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
@@ -262,10 +262,10 @@ impl MoveUtilsServer for MoveUtils {
             }?;
 
             let identifier = Identifier::new(function.as_str())
-                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
+                .map_err(|e| IotaRpcInputError::GenericInvalid(e.to_string()))?;
             let parameters = normalized
                 .get(&module)
-                .and_then(|m| m.functions.get(&identifier).map(|f| f.parameters.clone()));
+                .and_then(|m| m.functions.get(&identifier).map(|f| &f.parameters));
 
             match parameters {
                 Some(parameters) => Ok(parameters

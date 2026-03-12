@@ -1107,7 +1107,7 @@ where
                     )
                 },
                 |mut state, name, weight, response| {
-                    let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                    let display_name = validator_display_names.get(&name).cloned().unwrap_or_else(|| name.concise().to_string());
                     Box::pin(async move {
                         match self.handle_process_transaction_response(
                             tx_digest, &mut state, response, name, weight,
@@ -1603,7 +1603,7 @@ where
             move |mut state, name, weight, response| {
                 let committee_clone = committee.clone();
                 let metrics = metrics.clone();
-                let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                let display_name = validator_display_names.get(&name).cloned().unwrap_or_else(|| name.concise().to_string());
                 Box::pin(async move {
                     // We aggregate the effects response, until we have more than 2f
                     // and return.
@@ -1921,7 +1921,7 @@ where
                 })
             },
             |mut state, name, weight, response| {
-                let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                let display_name = validator_display_names.get(&name).cloned().unwrap_or_else(|| name.concise().to_string());
                 Box::pin(async move {
                     match response {
                         Ok(_) => {

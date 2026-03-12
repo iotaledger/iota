@@ -200,9 +200,8 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary = IotaSystemStateSummaryV2::try_from(
-            system_state.clone().into_iota_system_state_summary(),
-        )?;
+        let system_state_summary =
+            IotaSystemStateSummaryV2::try_from(system_state.into_iota_system_state_summary())?;
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
@@ -268,9 +267,8 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary = IotaSystemStateSummaryV2::try_from(
-            system_state.clone().into_iota_system_state_summary(),
-        )?;
+        let system_state_summary =
+            IotaSystemStateSummaryV2::try_from(system_state.into_iota_system_state_summary())?;
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?

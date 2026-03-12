@@ -576,9 +576,12 @@ impl IotaObjectResponse {
     /// Returns the object value if there is any, otherwise an Err if
     /// the object does not exist or is deleted.
     pub fn into_object(self) -> Result<IotaObjectData, IotaObjectResponseError> {
-        match self.object() {
-            Ok(data) => Ok(data.clone()),
-            Err(error) => Err(error),
+        if let Some(data) = self.data {
+            Ok(data)
+        } else if let Some(error) = self.error {
+            Err(error)
+        } else {
+            Err(IotaObjectResponseError::Unknown)
         }
     }
 }

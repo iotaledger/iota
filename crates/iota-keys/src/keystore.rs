@@ -487,8 +487,7 @@ impl FileBasedKeystore {
         };
 
         // check aliases
-        let mut aliases_path = path.clone();
-        aliases_path.set_extension("aliases");
+        let aliases_path = path.with_extension("aliases");
 
         let aliases = if aliases_path.exists() {
             let reader = BufReader::new(File::open(&aliases_path).with_context(|| {
@@ -555,8 +554,7 @@ impl FileBasedKeystore {
     }
 
     fn needs_migration(path: &PathBuf) -> Result<bool, anyhow::Error> {
-        let mut aliases_path = path.clone();
-        aliases_path.set_extension("aliases");
+        let aliases_path = path.with_extension("aliases");
         if aliases_path.exists() {
             // If the aliases file exists, we assume that the keystore is in v1 format
             debug!(
@@ -605,8 +603,7 @@ impl FileBasedKeystore {
                 backup_path.display()
             )
         })?;
-        let mut aliases_path = path.clone();
-        aliases_path.set_extension("aliases");
+        let aliases_path = path.with_extension("aliases");
         let mut backup_aliases_path = aliases_path.clone();
         backup_aliases_path.set_extension("aliases.migrated");
         fs::rename(&aliases_path, &backup_aliases_path).with_context(|| {

@@ -102,7 +102,7 @@ impl LiveObjectSetWriterV1 {
         self.finalize_obj()?;
         self.finalize_ref()?;
         self.sender = None;
-        Ok(self.files.clone())
+        Ok(self.files)
     }
 
     /// Creates a new object file for the provided bucket number and part

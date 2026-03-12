@@ -175,7 +175,7 @@ fn make_key_files(
         return Ok(());
     } else if is_authority_key {
         let (_, keypair) = get_authority_key_pair();
-        write_authority_keypair_to_file(&keypair, file_name.clone())?;
+        write_authority_keypair_to_file(&keypair, &file_name)?;
         println!("Generated new key file: {file_name:?}.");
     } else {
         let kp = match key {
@@ -263,7 +263,7 @@ impl IotaValidatorCommand {
                 // TODO set key files permission
                 let validator_info_file_name = dir.join("validator.info");
                 let validator_info_bytes = serde_yaml::to_string(&validator_info)?;
-                fs::write(validator_info_file_name.clone(), validator_info_bytes)?;
+                fs::write(&validator_info_file_name, validator_info_bytes)?;
                 println!("Generated validator info file: {validator_info_file_name:?}.");
                 IotaValidatorCommandResponse::MakeValidatorInfo
             }
@@ -282,28 +282,15 @@ impl IotaValidatorCommand {
                         )?)
                         .unwrap(),
                     ),
+                    CallArg::Pure(bcs::to_bytes(validator.network_key().as_bytes()).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(validator.protocol_key().as_bytes()).unwrap()),
                     CallArg::Pure(
-                        bcs::to_bytes(&validator.network_key().as_bytes().to_vec()).unwrap(),
+                        bcs::to_bytes(validator_info.proof_of_possession.as_ref()).unwrap(),
                     ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.protocol_key().as_bytes().to_vec()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator_info.proof_of_possession.as_ref().to_vec())
-                            .unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.name().to_owned().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.description.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.image_url.clone().into_bytes()).unwrap(),
-                    ),
-                    CallArg::Pure(
-                        bcs::to_bytes(&validator.project_url.clone().into_bytes()).unwrap(),
-                    ),
+                    CallArg::Pure(bcs::to_bytes(validator.name().as_bytes()).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(validator.description.as_bytes()).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(validator.image_url.as_bytes()).unwrap()),
+                    CallArg::Pure(bcs::to_bytes(validator.project_url.as_bytes()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(validator.network_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(validator.p2p_address()).unwrap()),
                     CallArg::Pure(bcs::to_bytes(validator.primary_address()).unwrap()),
@@ -1034,7 +1021,7 @@ async fn update_metadata(
             let network_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
             let args = vec![CallArg::Pure(
-                bcs::to_bytes(&network_pub_key.as_bytes().to_vec()).unwrap(),
+                bcs::to_bytes(network_pub_key.as_bytes()).unwrap(),
             )];
             call_0x5(
                 context,
@@ -1049,7 +1036,7 @@ async fn update_metadata(
             let protocol_pub_key: NetworkPublicKey =
                 read_network_keypair_from_file(file)?.public().clone();
             let args = vec![CallArg::Pure(
-                bcs::to_bytes(&protocol_pub_key.as_bytes().to_vec()).unwrap(),
+                bcs::to_bytes(protocol_pub_key.as_bytes()).unwrap(),
             )];
             call_0x5(
                 context,

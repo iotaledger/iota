@@ -142,8 +142,7 @@ pub(crate) fn units_for_toolchain(
     // replaced by a prior compiler's output.
     for (package, (toolchain_version, local_units)) in package_version_map {
         if toolchain_version.compiler_version == CURRENT_COMPILER_VERSION {
-            let local_units: Vec<_> = local_units.iter().map(|u| (package, u.clone())).collect();
-            units.extend(local_units);
+            units.extend(local_units.iter().map(|u| (package, u.clone())));
             continue;
         }
 

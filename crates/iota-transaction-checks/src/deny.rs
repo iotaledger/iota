@@ -55,7 +55,7 @@ fn check_receiving_objects(
 ) -> IotaResult {
     deny_if_true!(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
-        "Receiving objects is temporarily disabled".to_string()
+        "Receiving objects is temporarily disabled"
     );
     for (id, _, _) in receiving_objects {
         deny_if_true!(
@@ -170,20 +170,32 @@ fn check_package_dependencies(
     if deny_map.is_empty() {
         return Ok(());
     }
-    let mut dependencies = vec![];
     for command in tx_data.kind().iter_commands() {
         match command {
             Command::Publish(_, deps) => {
                 // It is possible that the deps list is inaccurate since it's provided
                 // by the user. But that's OK because this publish transaction will fail
                 // to execute in the end. Similar reasoning for Upgrade.
-                dependencies.extend(deps.iter().copied());
+                for dep in deps {
+                    deny_if_true!(
+                        deny_map.contains(dep),
+                        format!("Access to package {:?} is temporarily disabled", dep)
+                    );
+                }
             }
             Command::Upgrade(_, deps, package_id, _) => {
-                dependencies.extend(deps.iter().copied());
+                for dep in deps {
+                    deny_if_true!(
+                        deny_map.contains(dep),
+                        format!("Access to package {:?} is temporarily disabled", dep)
+                    );
+                }
                 // It's crucial that we don't allow upgrading a package in the deny list,
                 // otherwise one can bypass the deny list by upgrading a package.
-                dependencies.push(*package_id);
+                deny_if_true!(
+                    deny_map.contains(package_id),
+                    format!("Access to package {:?} is temporarily disabled", package_id)
+                );
             }
             Command::MoveCall(call) => {
                 let package = package_store.get_package_object(&call.package)?.ok_or(
@@ -199,26 +211,26 @@ fn check_package_dependencies(
                 // deny list. This means that we only make sure that the denied package is not
                 // currently used as a dependency. This allows us to deny an older version of
                 // package but permits the use of a newer version.
-                dependencies.extend(
-                    package
-                        .move_package()
-                        .linkage_table()
-                        .values()
-                        .map(|upgrade_info| upgrade_info.upgraded_id),
+                for upgrade_info in package.move_package().linkage_table().values() {
+                    deny_if_true!(
+                        deny_map.contains(&upgrade_info.upgraded_id),
+                        format!(
+                            "Access to package {:?} is temporarily disabled",
+                            upgrade_info.upgraded_id
+                        )
+                    );
+                }
+                let pkg_id = package.move_package().id();
+                deny_if_true!(
+                    deny_map.contains(&pkg_id),
+                    format!("Access to package {:?} is temporarily disabled", pkg_id)
                 );
-                dependencies.push(package.move_package().id());
             }
             Command::TransferObjects(..)
             | &Command::SplitCoins(..)
             | &Command::MergeCoins(..)
             | &Command::MakeMoveVec(..) => {}
         }
-    }
-    for dep in dependencies {
-        deny_if_true!(
-            deny_map.contains(&dep),
-            format!("Access to package {:?} is temporarily disabled", dep)
-        );
     }
     Ok(())
 }

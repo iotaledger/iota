@@ -53,7 +53,7 @@ pub fn iota_config_dir() -> Result<PathBuf, anyhow::Error> {
     }
     .and_then(|dir| {
         if !dir.exists() {
-            fs::create_dir_all(dir.clone())?;
+            fs::create_dir_all(&dir)?;
         }
         Ok(dir)
     })

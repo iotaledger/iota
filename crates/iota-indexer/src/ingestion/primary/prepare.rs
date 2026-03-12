@@ -208,14 +208,17 @@ impl PrimaryWorker {
     fn derive_object_versions(
         object_history_changes: &TransactionObjectChangesToCommit,
     ) -> Vec<StoredObjectVersion> {
-        let mut object_versions = vec![];
-        for changed_obj in object_history_changes.changed_objects.iter() {
-            object_versions.push(changed_obj.into());
-        }
-        for deleted_obj in object_history_changes.deleted_objects.iter() {
-            object_versions.push(deleted_obj.into());
-        }
-        object_versions
+        object_history_changes
+            .changed_objects
+            .iter()
+            .map(Into::into)
+            .chain(
+                object_history_changes
+                    .deleted_objects
+                    .iter()
+                    .map(Into::into),
+            )
+            .collect()
     }
 
     async fn index_checkpoint(
@@ -630,7 +633,7 @@ impl PrimaryWorker {
                 data.transactions
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
-                    .filter_map(|o| {
+                    .filter_map(move |o| {
                         if let iota_types::object::Data::Package(p) = &o.data {
                             Some(IndexedPackage {
                                 package_id: o.id(),
@@ -641,7 +644,6 @@ impl PrimaryWorker {
                             None
                         }
                     })
-                    .collect::<Vec<_>>()
             })
             .collect()
     }
@@ -756,11 +758,7 @@ impl ObjectProvider for InMemTxChanges {
         id: &ObjectID,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
-        let object = self
-            .object_cache
-            .get(id, Some(version))
-            .as_ref()
-            .map(|o| <&Object>::clone(o).clone());
+        let object = self.object_cache.get(id, Some(version)).cloned();
         if let Some(o) = object {
             self.metrics.indexing_get_object_in_mem_hit.inc();
             return Ok(o);
@@ -777,11 +775,7 @@ impl ObjectProvider for InMemTxChanges {
         version: &SequenceNumber,
     ) -> Result<Option<Object>, Self::Error> {
         // First look up the exact version in object_cache.
-        let object = self
-            .object_cache
-            .get(id, Some(version))
-            .as_ref()
-            .map(|o| <&Object>::clone(o).clone());
+        let object = self.object_cache.get(id, Some(version)).cloned();
         if let Some(o) = object {
             self.metrics.indexing_get_object_in_mem_hit.inc();
             return Ok(Some(o));
@@ -790,11 +784,7 @@ impl ObjectProvider for InMemTxChanges {
         // Second look up the latest version in object_cache. This may be
         // called when the object is deleted hence the version at deletion
         // is given.
-        let object = self
-            .object_cache
-            .get(id, None)
-            .as_ref()
-            .map(|o| <&Object>::clone(o).clone());
+        let object = self.object_cache.get(id, None).cloned();
         if let Some(o) = object {
             if o.version() > *version {
                 panic!(

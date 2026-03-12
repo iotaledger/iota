@@ -1288,16 +1288,10 @@ fn function_signature_mismatch_diag(
 
                 let mut secondary = Vec::new();
 
-                let old_param = format_param(
-                    old_param,
-                    func_sourcemap.type_parameters.clone(),
-                    &mut secondary,
-                )?;
-                let new_param = format_param(
-                    new_param,
-                    func_sourcemap.type_parameters.clone(),
-                    &mut Vec::new(),
-                )?;
+                let old_param =
+                    format_param(old_param, &func_sourcemap.type_parameters, &mut secondary)?;
+                let new_param =
+                    format_param(new_param, &func_sourcemap.type_parameters, &mut Vec::new())?;
 
                 let label = format!("Unexpected parameter '{new_param}', expected '{old_param}'");
 
@@ -1448,16 +1442,10 @@ fn function_signature_mismatch_diag(
 
             if old_return != new_return {
                 let mut secondary = Vec::new();
-                let old_return = format_param(
-                    old_return,
-                    func_sourcemap.type_parameters.clone(),
-                    &mut secondary,
-                )?;
-                let new_return = format_param(
-                    new_return,
-                    func_sourcemap.type_parameters.clone(),
-                    &mut Vec::new(),
-                )?;
+                let old_return =
+                    format_param(old_return, &func_sourcemap.type_parameters, &mut secondary)?;
+                let new_return =
+                    format_param(new_return, &func_sourcemap.type_parameters, &mut Vec::new())?;
 
                 let label = if new_function.return_.len() == 1 {
                     format!("Unexpected return type '{new_return}', expected '{old_return}'")

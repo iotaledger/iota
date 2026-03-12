@@ -644,16 +644,9 @@ impl PgIndexerStore {
         conn: &mut PgConnection,
         deleted_objects_chunk: Vec<StoredDeletedObject>,
     ) -> Result<(), IndexerError> {
-        diesel::delete(
-            objects::table.filter(
-                objects::object_id.eq_any(
-                    deleted_objects_chunk
-                        .iter()
-                        .map(|o| o.object_id.clone())
-                        .collect::<Vec<_>>(),
-                ),
-            ),
-        )
+        diesel::delete(objects::table.filter(
+            objects::object_id.eq_any(deleted_objects_chunk.iter().map(|o| o.object_id.clone())),
+        ))
         .execute(conn)
         .map_err(IndexerError::from)
         .context("Failed to write object deletion to PostgresDB")?;

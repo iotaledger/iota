@@ -222,10 +222,8 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_authority_pubkey",
         vec![
-            CallArg::Pure(
-                bcs::to_bytes(&new_authority_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
-            ),
-            CallArg::Pure(bcs::to_bytes(&pop.as_bytes().to_vec()).unwrap()),
+            CallArg::Pure(bcs::to_bytes(new_authority_key_pair_copy.public().as_bytes()).unwrap()),
+            CallArg::Pure(bcs::to_bytes(pop.as_bytes()).unwrap()),
         ],
         iota_client,
     )
@@ -236,7 +234,7 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_network_pubkey",
         vec![CallArg::Pure(
-            bcs::to_bytes(&new_network_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+            bcs::to_bytes(new_network_key_pair_copy.public().as_bytes()).unwrap(),
         )],
         iota_client,
     )
@@ -247,7 +245,7 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_protocol_pubkey",
         vec![CallArg::Pure(
-            bcs::to_bytes(&new_protocol_key_pair_copy.public().as_bytes().to_vec()).unwrap(),
+            bcs::to_bytes(new_protocol_key_pair_copy.public().as_bytes()).unwrap(),
         )],
         iota_client,
     )

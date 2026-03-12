@@ -74,7 +74,7 @@ impl GenesisStake {
 
         builder.set_pre_minted_supply(pre_minted_supply);
 
-        for allocation in self.token_allocation.clone() {
+        for allocation in self.token_allocation.iter().cloned() {
             builder.add_allocation(allocation);
         }
         builder.build()
@@ -96,7 +96,7 @@ impl GenesisStake {
     ) -> TokenDistributionSchedule {
         schedule_without_migration
             .allocations
-            .extend(self.token_allocation.clone());
+            .extend(self.token_allocation.iter().cloned());
         schedule_without_migration.pre_minted_supply =
             self.calculate_pre_minted_supply(total_supply_nanos);
         schedule_without_migration.validate();

@@ -499,11 +499,9 @@ impl StateSnapshotReaderV1 {
 
                             // Gets the sha3 digest of the partition
                             let sha3_digest = sha3_digests_cloned.lock().await;
-                            let bucket_map = sha3_digest
+                            let sha3_digest = *sha3_digest
                                 .get(bucket)
                                 .expect("Bucket not in digest map")
-                                .clone();
-                            let sha3_digest = *bucket_map
                                 .get(part_num)
                                 .expect("sha3 digest not in bucket map");
                             Ok::<(Bytes, FileMetadata, [u8; 32]), anyhow::Error>((

@@ -21,14 +21,14 @@ impl<S: fmt::Display> fmt::Display for FormattedType<'_, S> {
             write!(
                 f,
                 "{}",
-                format_param(self.type_, self.type_params.to_vec(), &mut Vec::new())
+                format_param(self.type_, self.type_params, &mut Vec::new())
                     .map_err(|_| fmt::Error)?,
             )
         } else {
             write!(
                 f,
                 "'{}'",
-                format_param(self.type_, self.type_params.to_vec(), &mut Vec::new())
+                format_param(self.type_, self.type_params, &mut Vec::new())
                     .map_err(|_| fmt::Error)?,
             )
         }
@@ -86,7 +86,7 @@ impl<S: fmt::Display> fmt::Display for FormattedField<'_, S> {
 /// label to include its location.
 pub(super) fn format_param<S: fmt::Display>(
     param: &Type<S>,
-    type_params: Vec<SourceName>,
+    type_params: &[SourceName],
     secondary: &mut Vec<(Loc, String)>,
 ) -> Result<String, Error> {
     Ok(match param {
@@ -118,7 +118,7 @@ pub(super) fn format_param<S: fmt::Display>(
                 dt.name,
                 dt.type_arguments
                     .iter()
-                    .map(|t| format_param(t, type_params.clone(), secondary))
+                    .map(|t| format_param(t, type_params, secondary))
                     .collect::<Result<Vec<_>, _>>()?
                     .join(", ")
             )

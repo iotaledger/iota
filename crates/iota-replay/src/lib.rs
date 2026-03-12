@@ -472,9 +472,10 @@ pub async fn execute_replay_command(
                 start, end, max_tasks, checkpoints_per_task
             );
 
-            let range: Vec<_> = (start..=end).collect();
-            for (task_count, checkpoints) in range.chunks(checkpoints_per_task).enumerate() {
-                let checkpoints = checkpoints.to_vec();
+            for (task_count, chunk_start) in (start..=end).step_by(checkpoints_per_task).enumerate()
+            {
+                let chunk_end = (chunk_start + checkpoints_per_task as u64 - 1).min(end);
+                let checkpoints: Vec<u64> = (chunk_start..=chunk_end).collect();
                 let rpc_url = rpc_url.clone();
                 let safety = safety.clone();
                 handles.push(tokio::spawn(async move {

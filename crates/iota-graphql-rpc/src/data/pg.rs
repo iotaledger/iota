@@ -163,7 +163,7 @@ mod query_cost {
     where
         Q: Query + QueryId + QueryFragment<Pg> + RunQueryDsl<PgConnection>,
     {
-        debug!("Estimating: {}", diesel::debug_query(&query).to_string());
+        debug!("Estimating: {}", diesel::debug_query(&query));
 
         let Some(cost) = explain(conn, query) else {
             warn!("Failed to extract cost from EXPLAIN.");

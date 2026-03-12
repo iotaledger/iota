@@ -121,7 +121,7 @@ impl TryFrom<&FoundryOutput> for NativeTokenPackageData {
             module: NativeTokenModuleData {
                 foundry_id: output.id(),
                 module_name: identifier.clone(),
-                otw_name: identifier.clone().to_ascii_uppercase(),
+                otw_name: identifier.to_ascii_uppercase(),
                 decimals,
                 symbol: identifier,
                 circulating_supply: token_scheme_u64.circulating_supply(),

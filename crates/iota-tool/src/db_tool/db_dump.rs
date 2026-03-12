@@ -56,18 +56,7 @@ pub fn list_tables(path: PathBuf) -> anyhow::Result<Vec<String>> {
         path,
     )
     .map_err(|e| e.into())
-    .map(|q| {
-        q.iter()
-            .filter_map(|s| {
-                // The `default` table is not used
-                if s != "default" {
-                    Some(s.clone())
-                } else {
-                    None
-                }
-            })
-            .collect()
-    })
+    .map(|q| q.iter().filter(|s| *s != "default").cloned().collect())
 }
 
 pub fn table_summary(

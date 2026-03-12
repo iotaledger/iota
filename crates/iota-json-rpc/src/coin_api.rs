@@ -45,7 +45,7 @@ use crate::{
 
 pub fn parse_to_struct_tag(coin_type: &str) -> Result<StructTag, IotaRpcInputError> {
     parse_iota_struct_tag(coin_type)
-        .map_err(|e| IotaRpcInputError::CannotParseIotaStructTag(format!("{e}")))
+        .map_err(|e| IotaRpcInputError::CannotParseIotaStructTag(e.to_string()))
 }
 
 pub fn parse_to_type_tag(coin_type: Option<String>) -> Result<TypeTag, IotaRpcInputError> {

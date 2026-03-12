@@ -1144,7 +1144,7 @@ impl LocalExec {
         let mut end_epoch_tx_digest = tx_digest;
 
         for event in epoch_change_events {
-            (curr_epoch, curr_protocol_version) = extract_epoch_and_version(event.clone())?;
+            (curr_epoch, curr_protocol_version) = extract_epoch_and_version(&event)?;
             end_epoch_tx_digest = event.id.tx_digest;
 
             if start_protocol_version == curr_protocol_version {
@@ -1388,7 +1388,7 @@ impl LocalExec {
         } else {
             let idx = epoch_change_events
                 .iter()
-                .position(|ev| match extract_epoch_and_version(ev.clone()) {
+                .position(|ev| match extract_epoch_and_version(ev) {
                     Ok((epoch, _)) => epoch == epoch_id,
                     Err(_) => false,
                 })
@@ -1479,15 +1479,14 @@ impl LocalExec {
         assert!(self.is_remote_replay());
         // Fetch full transaction content
         let tx_info = self.fetcher.get_transaction(tx_digest).await?;
-        let sender = match tx_info.clone().transaction.unwrap().data {
+        let sender = match &tx_info.transaction.as_ref().unwrap().data {
             iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.sender,
         };
-        let IotaTransactionBlockEffects::V1(effects) = tx_info.clone().effects.unwrap();
+        let IotaTransactionBlockEffects::V1(effects) = tx_info.effects.clone().unwrap();
 
         let config_objects = self.add_config_objects_if_needed(effects.status());
 
-        let raw_tx_bytes = tx_info.clone().raw_transaction;
-        let orig_tx: SenderSignedData = bcs::from_bytes(&raw_tx_bytes).unwrap();
+        let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
         let input_objs = orig_tx
             .transaction_data()
             .input_objects()
@@ -1510,7 +1509,7 @@ impl LocalExec {
                 }
             })
             .collect();
-        let gas_data = match tx_info.clone().transaction.unwrap().data {
+        let gas_data = match tx_info.transaction.unwrap().data {
             iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.gas_data,
         };
         let gas_object_refs: Vec<_> = gas_data
@@ -1605,7 +1604,7 @@ impl LocalExec {
             })
             .collect();
         let gas_data = orig_tx.transaction_data().gas_data();
-        let gas_object_refs: Vec<_> = gas_data.clone().payment;
+        let gas_object_refs: Vec<_> = gas_data.payment.clone();
         let receiving_objs = orig_tx
             .transaction_data()
             .receiving_objects()

@@ -400,7 +400,9 @@ impl Builder {
             &self.parameters,
             &token_distribution_schedule,
             self.validators.values(),
-            self.objects.clone().into_values().collect::<Vec<_>>(),
+            std::mem::take(&mut self.objects)
+                .into_values()
+                .collect::<Vec<_>>(),
             &mut self.genesis_stake,
             &mut self.migration_objects,
         );
@@ -456,7 +458,7 @@ impl Builder {
         let committee = Self::committee(&objects);
 
         let checkpoint = {
-            let signatures = self.signatures.clone().into_values().collect();
+            let signatures = self.signatures.into_values().collect();
 
             CertifiedCheckpointSummary::new(checkpoint, signatures, &committee).unwrap()
         };
@@ -650,7 +652,7 @@ impl Builder {
         assert_eq!(system_state.validators.validator_candidates.size, 0);
 
         // Check distribution is correct
-        let token_distribution_schedule = self.token_distribution_schedule.clone().unwrap();
+        let token_distribution_schedule = self.token_distribution_schedule.as_ref().unwrap();
 
         let allocations_amount: u64 = token_distribution_schedule
             .allocations
@@ -684,7 +686,7 @@ impl Builder {
                 })
                 .collect();
 
-        for allocation in token_distribution_schedule.allocations {
+        for allocation in &token_distribution_schedule.allocations {
             if let Some(staked_with_validator) = allocation.staked_with_validator {
                 let staking_pool_id = *address_to_pool_id
                     .get(&staked_with_validator)
