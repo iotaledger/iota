@@ -126,6 +126,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 22;
 //             mechanism on all networks.
 //             Enable a separate gas price feedback mechanism for transactions
 //             using randomness on all networks.
+//             Enable Move-based account authentication in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2607,6 +2608,20 @@ impl ProtocolConfig {
                     // randomness on all networks.
                     cfg.feature_flags
                         .separate_gas_price_feedback_mechanism_for_randomness = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in testnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in testnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max_auth_gas is 0.00025 IOTA
+                        cfg.max_auth_gas = Some(250_000);
+                        // Increase the base cost for transfer receive object in testnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
+                    }
                 }
 
                 // Use this template when making changes:
