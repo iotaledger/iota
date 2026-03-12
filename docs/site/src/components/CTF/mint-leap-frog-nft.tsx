@@ -4,17 +4,17 @@ import {
   useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
 import clsx from 'clsx';
-import { useConnectWallet, useWallets } from '@iota/dapp-kit';
+import { useCurrentAccount, useWallets } from '@iota/dapp-kit';
 import PopIn from './pop-in';
 import { handleMintLeapFrogSubmit } from "../../utils/ctf-utils"
 
 const MintLeapFrogNFT: React.FC = () => {
-  const { currentWallet, connectionStatus } = useCurrentWallet();
+  const account = useCurrentAccount();
   const [nft, setNFT] = useState({
     name:'',
     description:'',
     url:'',
-    address: currentWallet?.address || '',
+    address: account?.address || '',
   });
   const [coins, setCoins] = useState<string | null>(null);
   const [showPopIn, setShowPopIn] = useState<boolean>(false);
