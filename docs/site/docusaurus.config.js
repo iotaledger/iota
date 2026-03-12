@@ -244,7 +244,7 @@ const config = {
         ],
       }
     ],
-    path.resolve(__dirname, './src/plugins/llms-txt'),
+    path.resolve(__dirname, './src/plugins/llms-txt/index.ts'),
     [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
