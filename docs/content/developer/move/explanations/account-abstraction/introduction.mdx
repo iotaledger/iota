@@ -29,6 +29,7 @@ AA accounts offer two main properties that EOAs cannot provide:
 
 - **Stable address** — the account address is an `ObjectID`, not derived from a key pair. The address never changes, even when keys are rotated or the authentication scheme is replaced entirely.
 - **Programmable authentication** — any Move function (following the [authenticator function requirements](./components.mdx#authenticator-function)) can serve as the authenticator.
+
 Together, these enable use cases like:
 
 - Key rotation and recovery without address change
