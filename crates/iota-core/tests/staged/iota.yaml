@@ -53,10 +53,6 @@ AuthorityQuorumSignInfo:
           CONTENT: U8
           SIZE: 48
     - signers_map: BYTES
-BinaryEndOfEpochTransactionKindRef:
-  ENUM:
-    4:
-      AuthenticatorStateCreate: UNIT
 CallArg:
   ENUM:
     0:
@@ -979,7 +975,7 @@ TransactionKind:
       EndOfEpochTransaction:
         NEWTYPE:
           SEQ:
-            TYPENAME: BinaryEndOfEpochTransactionKindRef
+            TYPENAME: EndOfEpochTransactionKind
     5:
       RandomnessStateUpdate:
         NEWTYPE:
