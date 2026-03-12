@@ -203,13 +203,14 @@ async fn test_event_filter_scenarios() {
     );
 
     // --- Scenario D: Negation (NOT sender_1) ---
+    // 0x0 events: 1 DisplayCreated + 1 VersionUpdated = 2
     // sender_2 events: 1 NFTMinted + 1 TimeEvent = 2
     let not_sender_1_filter = grpc_filter::EventFilter::default()
         .with_negation(grpc_filter::NotEventFilter::default().with_filter(sender_1_filter.clone()));
     let count = stream_and_count_events(not_sender_1_filter).await;
     assert_eq!(
-        count, 2,
-        "Scenario D: NOT sender_1 should match 2 events from sender_2"
+        count, 4,
+        "Scenario D: NOT sender_1 should match 4 events from 0x0 and sender_2"
     );
 
     // --- Scenario E: All (AND) — sender_1 AND NFTMinted ---
