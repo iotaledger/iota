@@ -11,6 +11,8 @@ tags:
 
 Account Abstraction in IOTA replaces fixed cryptographic signature verification with a programmable Move function. An abstract account is a Move object whose ObjectID is its address; its authenticator function is registered on-chain via [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) and called by the protocol on every incoming AA transaction. The AA transaction sender provides a `MoveAuthenticator` instead of a traditional signature, supplying the arguments the authenticator function needs. The authenticator function receives the account, those arguments, an [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) describing the AA transaction, and a [`TxContext`](../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), and it either returns (authenticated) or aborts (rejected).
 
+![Account Abstraction Summary](/img/account-abstraction/summary.png)
+
 ## What Is Account Abstraction?
 
 Traditional IOTA accounts, known as Externally Owned Accounts (EOAs), are controlled by a single cryptographic key pair. Every transaction sent from an EOA must be signed with the corresponding private key; the protocol verifies the signature before allowing the transaction to proceed. This model is simple but rigid: authentication is always reduced to possession of a private key.
