@@ -15,6 +15,7 @@ use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
+use iota_common::tempdir;
 use iota_config::{
     Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
@@ -59,7 +60,6 @@ use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
-use tempfile::tempdir;
 use tracing::{self, info, warn};
 use url::Url;
 
@@ -1211,7 +1211,9 @@ async fn genesis(
                         * iota_swarm_config::genesis_config::DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT
                             as u64;
                 }
-                let total_available_amount = u64::MAX
+                // `u64::MAX - 1` is the max total supply value acceptable by
+                // `iota::balance::increase_supply`
+                let total_available_amount = (u64::MAX - 1)
                     .saturating_sub(validator_extra)
                     .saturating_sub(faucet_extra);
 

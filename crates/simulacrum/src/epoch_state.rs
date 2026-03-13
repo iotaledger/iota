@@ -280,6 +280,7 @@ impl EpochState {
             effects,
             execution_result,
             mock_gas_id,
+            suggested_gas_price: None,
         })
     }
 }

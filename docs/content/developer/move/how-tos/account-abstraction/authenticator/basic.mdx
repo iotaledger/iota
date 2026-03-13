@@ -1,0 +1,66 @@
+---
+description: 'How to create a basic authenticator function in Move'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Create an authenticator function
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to create a basic authenticator function in Move.
+
+:::tip Recommended reading
+
+This guide builds on the [Create an Account Using the Builder Pattern](../create-manage/create-iotaccount.mdx) how-to. Reviewing that one first will help you understand the account creation used here.
+
+:::
+
+## Example Code
+
+1. First create a function which has the `#[authenticator]` attribute. This makes the function eligible to be used as an authenticator for an account.
+2. Make sure the function parameters conform with the [authenticator requirements](../../../explanations/account-abstraction/components.mdx#authenticator-function).
+In this example as a middle parameter we take a message of type `String` which the authenticator will check.
+```move
+#[authenticator]
+public fun authenticate_function(
+    _account: &Account,
+    msg: std::ascii::String,
+    _auth_ctx: &iota::auth_context::AuthContext,
+    _ctx: &TxContext,
+) {
+```
+3. Implement the authentication logic. In this example, the authenticator simply checks that the provided message is "hello". If the assertion fails, the transaction will be rejected.
+```move
+    assert!(msg == std::ascii::string(b"hello"), 0);
+```
+
+:::tip Going further with [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext)
+
+The authenticator above only uses [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext) (to access the transaction digest for signature verification).
+More advanced authenticators can also use [`AuthContext`](../../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) to inspect what the transaction will do — which functions it calls, which objects it involves, and what values it passes — before deciding to authorize it.
+See the following how-tos:
+
+- [Control function call permissions of Account](./function-call-keys.mdx)
+- [Enforce a Per-Transaction Spending Limit](./create-spending-limit-account.mdx)
+- [Create Time-Locked Account](./create-time-locked-account.mdx)
+
+:::
+
+## Full Code Example
+
+```move
+#[authenticator]
+public fun authenticate_function(
+    _account: &Account,
+    msg: std::ascii::String,
+    _auth_ctx: &iota::auth_context::AuthContext,
+    _ctx: &TxContext,
+) {
+    assert!(msg == std::ascii::string(b"hello"), 0);
+}
+```

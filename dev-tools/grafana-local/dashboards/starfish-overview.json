@@ -12618,7 +12618,6 @@
       "panels": [
         {
           "datasource": {
-            "default": false,
             "type": "prometheus",
             "uid": "prometheus"
           },
@@ -12664,7 +12663,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -12703,7 +12703,7 @@
               "editorMode": "code",
               "expr": "consensus_commit_sync_inflight_fetches",
               "instant": false,
-              "legendFormat": "{{host}}",
+              "legendFormat": "{{host}}/{{source}}",
               "range": true,
               "refId": "A"
             }
@@ -12759,7 +12759,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -12854,7 +12855,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -12949,7 +12951,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -13009,13 +13012,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 31,
                 "gradientMode": "none",
@@ -13046,7 +13047,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -13106,13 +13108,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 49,
                 "gradientMode": "none",
@@ -13143,7 +13143,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -15894,8 +15895,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   }
                 ]
               },
@@ -15985,8 +15985,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16080,8 +16079,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16214,8 +16212,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   }
                 ]
               },
@@ -16306,8 +16303,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16401,8 +16397,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16536,8 +16531,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   }
                 ]
               },
@@ -16629,8 +16623,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   }
                 ]
               },
@@ -16749,8 +16742,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   }
                 ]
               },
@@ -16846,13 +16838,13 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "Europe/Berlin",
   "title": "IOTA Starfish Overview",
   "uid": "StarfishOverview",
-  "version": 3,
+  "version": 2,
   "weekStart": ""
 }

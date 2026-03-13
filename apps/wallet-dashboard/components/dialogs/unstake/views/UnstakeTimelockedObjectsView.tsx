@@ -229,7 +229,9 @@ function TimelockedStakeCollapsible({
                 <div className="flex flex-col gap-y-sm p-md--rs py-sm">
                     <KeyValueInfo
                         keyText="Stake ID"
-                        value={formatAddress(stake.timelockedStakedIotaId)}
+                        value={
+                            <span data-amp-mask>{formatAddress(stake.timelockedStakedIotaId)}</span>
+                        }
                         valueHoverTitle={stake.timelockedStakedIotaId}
                         onCopySuccess={handleCopySuccess}
                         copyText={stake.timelockedStakedIotaId}
@@ -243,7 +245,7 @@ function TimelockedStakeCollapsible({
                     {stake.label && (
                         <KeyValueInfo
                             keyText="Label"
-                            value={formatAddress(stake.label)}
+                            value={<span data-amp-mask>{formatAddress(stake.label)}</span>}
                             copyText={stake.label}
                             valueHoverTitle={stake.label}
                             onCopySuccess={handleCopySuccess}

@@ -43,6 +43,8 @@ impl TryFrom<&ValidatorAggregatedSignature> for iota_sdk_types::ValidatorAggrega
 
 impl ValidatorAggregatedSignature {
     /// Deserialize the validator aggregated signature.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn signature(
         &self,
     ) -> Result<iota_sdk_types::ValidatorAggregatedSignature, TryFromProtoError> {
@@ -82,6 +84,8 @@ impl TryFrom<&UserSignature> for iota_sdk_types::UserSignature {
 
 impl UserSignature {
     /// Deserialize the user signature.
+    ///
+    /// Requires `bcs` in the read_mask.
     pub fn signature(&self) -> Result<iota_sdk_types::UserSignature, TryFromProtoError> {
         self.try_into()
     }

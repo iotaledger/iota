@@ -458,6 +458,8 @@ impl SshConnection {
         while let Some(msg) = channel.wait().await {
             match msg {
                 russh::ChannelMsg::Data { ref data } => output.write_all(data).unwrap(),
+                // For better error reporting, we capture stderr as well.
+                russh::ChannelMsg::ExtendedData { ref data, .. } => output.write_all(data).unwrap(),
                 russh::ChannelMsg::ExitStatus { exit_status } => exit_code = Some(exit_status),
                 _ => {}
             }
