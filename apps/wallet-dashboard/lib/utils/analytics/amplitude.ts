@@ -62,9 +62,9 @@ type AmplitudeIdentityOptions = {
 };
 
 /**
- * Set the Amplitude user identity with current app context.
- * Updates user properties: network.
- * This allows filtering and segmenting analytics events by these dimensions.
+ * Set Amplitude user properties with the current app context.
+ * Currently updates the user property: network.
+ * This allows filtering and segmenting analytics events by this dimension.
  */
 export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
     if (!ampli.isLoaded) {

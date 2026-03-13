@@ -42,16 +42,18 @@ export function Amplitude() {
     }, []);
 
     useEffect(() => {
-        let unmounded = false;
-        if (amplitudeInitPromise && !unmounded) {
+        let unmounted = false;
+        if (amplitudeInitPromise && !unmounted) {
             (async () => {
                 await amplitudeInitPromise;
-                setAmplitudeIdentity({ network: activeNetwork });
+                if (!unmounted) {
+                    setAmplitudeIdentity({ network: activeNetwork });
+                }
             })();
         }
 
         return () => {
-            unmounded = true;
+            unmounted = true;
         };
     }, [activeNetwork]);
 
