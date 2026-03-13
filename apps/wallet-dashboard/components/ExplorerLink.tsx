@@ -5,8 +5,7 @@
 
 import { useExplorerLinkGetter } from '@/hooks';
 import { getExplorerLink } from '@iota/core';
-import Link from 'next/link';
-import { ampli } from '@/lib/utils/analytics/ampli';
+import { ExternalLink } from './ExternalLink';
 
 type GetExplorerLinkArgs = Parameters<typeof getExplorerLink>[0];
 
@@ -22,15 +21,9 @@ export function ExplorerLink({
     const getExplorerLink = useExplorerLinkGetter();
     const href = getExplorerLink(getLinkProps) ?? '#';
 
-    function handleClick() {
-        if (getLinkProps.type) {
-            ampli.externalLinkOpened({ type: getLinkProps.type });
-        }
-    }
-
     return (
-        <Link href={href} target="_blank" rel="noopener noreferrer" onClick={handleClick}>
+        <ExternalLink href={href} type={getLinkProps.type} trackEvent={href !== '#'}>
             {children}
-        </Link>
+        </ExternalLink>
     );
 }
