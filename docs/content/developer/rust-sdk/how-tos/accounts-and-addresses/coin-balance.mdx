@@ -1,0 +1,272 @@
+---
+title: Get Coin Balance
+description: Learn how to retrieve coin balances for an IOTA address using the GraphQL client across Rust, Go, Python, Kotlin, and Swift.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Get Coin Balance
+
+This guide explains how to retrieve coin balances for a given IOTA address using the IOTA SDK's GraphQL client. You will learn how to list individual coins held by an address and query the total aggregated balance.
+
+:::info
+The examples below connect to the **IOTA Testnet** via the GraphQL client. Make sure you are using a valid testnet address.
+:::
+
+---
+
+## Prerequisites
+
+Before running these examples, make sure you have:
+
+- The IOTA SDK installed for your target language see Installation
+- A valid IOTA address on the testnet
+- Basic familiarity with async programming in your chosen language
+
+---
+
+## Key Concepts
+
+| Concept | Description |
+|---|---|
+| `GraphQL Client` | The IOTA SDK client that communicates with the IOTA node via GraphQL. |
+| `coins(address)` | Returns a paginated list of individual coin objects owned by an address. |
+| `balance(address)` | Returns the total aggregated balance of all coins of a given type for an address. |
+| `Coin ID` | The unique object ID of an individual coin object. |
+| `Coin Type` | The Move struct tag identifying the coin type (e.g. `0x2::iota::IOTA`). |
+
+---
+
+## Code Examples
+
+The following examples connect to the IOTA Testnet, list all coins owned by an address, and print the total balance.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use iota_sdk::graphql_client::{Client, error::Result};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let client = Client::new_testnet();
+    let address = "0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151".parse()?;
+
+    // List all individual coin objects owned by the address
+    for coin in client
+        .coins(address, None, Default::default())
+        .await?
+        .data()
+    {
+        println!(
+            "Coin = {}, Coin Type = {}, Balance = {}",
+            coin.id(),
+            coin.coin_type().as_struct_tag(),
+            coin.balance()
+        );
+    }
+
+    // Get the total aggregated balance
+    let balance = client.balance(address, None).await?.unwrap_or_default();
+    println!("Total balance = {balance}");
+
+    Ok(())
+}
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"github.com/iotaledger/iota-rust-sdk/bindings/go/iota_sdk"
+)
+
+func main() {
+	client := iota_sdk.GraphQlClientNewTestnet()
+
+	address, err := iota_sdk.AddressFromHex(
+		"0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151")
+	if err != nil {
+		log.Fatalf("Failed to parse address: %v", err)
+	}
+
+	// List all individual coin objects owned by the address
+	coins, err := client.Coins(address, nil, nil)
+	if err.(*iota_sdk.SdkFfiError) != nil {
+		log.Fatalf("Failed to get coins: %v", err)
+	}
+
+	for _, coin := range coins.Data {
+		fmt.Printf(
+			"Coin = %s, Coin Type = %s, Balance = %d\n",
+			coin.Id().ToHex(),
+			coin.CoinType().AsStructTag(),
+			coin.Balance(),
+		)
+	}
+
+	// Get the total aggregated balance
+	balance, err := client.Balance(address, nil)
+	if err.(*iota_sdk.SdkFfiError) != nil {
+		log.Fatalf("Failed to get balance: %v", err)
+	}
+	fmt.Printf("Total Balance = %d\n", *balance)
+}
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python
+# Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+from lib.iota_sdk import *
+
+import asyncio
+
+
+async def main():
+    client = GraphQlClient.new_testnet()
+
+    address = Address.from_hex(
+        "0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151")
+
+    # List all individual coin objects owned by the address
+    coins = await client.coins(address)
+    for coin in coins.data:
+        print(
+            f"Coin = {coin.id().to_hex()}, "
+            f"Coin Type = {coin.coin_type().as_struct_tag()}, "
+            f"Balance = {coin.balance()}"
+        )
+
+    # Get the total aggregated balance
+    balance = await client.balance(address)
+    print(f"Total Balance = {balance}")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import iota_sdk.Address
+import iota_sdk.GraphQlClient
+import kotlinx.coroutines.runBlocking
+
+fun main() = runBlocking {
+    try {
+        val client = GraphQlClient.newTestnet()
+        val address = Address.fromHex(
+            "0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151")
+
+        // List all individual coin objects owned by the address
+        val coins = client.coins(address)
+        for (coin in coins.data) {
+            println(
+                "Coin = 0x${coin.id().toHex()}, " +
+                "Coin Type = ${coin.coinType().asStructTag()}, " +
+                "Balance = ${coin.balance()}"
+            )
+        }
+
+        // Get the total aggregated balance
+        val balance = client.balance(address)
+        println("Total Balance = $balance")
+    } catch (e: Exception) {
+        e.printStackTrace()
+        kotlin.system.exitProcess(1)
+    }
+}
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import IotaSDK
+
+@main
+struct CoinBalancesExample {
+  static func main() async throws {
+    let client = GraphQlClient.newTestnet()
+
+    let address = try Address.fromHex(
+      hex: "0xda1820edf693ee32b5729907b9b2ec8e64980ee8c008c17e89cfb4e5ecd72151")
+
+    // List all individual coin objects owned by the address
+    let coins = try await client.coins(owner: address)
+    for coin in coins.data {
+      print(
+        "Coin = \(coin.id().toHex()), " +
+        "Coin Type = \(coin.coinType().asStructTag()), " +
+        "Balance = \(coin.balance())"
+      )
+    }
+
+    // Get the total aggregated balance
+    let balance = try await client.balance(address: address)
+    print("Total Balance = \(String(describing: balance))")
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+---
+
+## API Differences by Language
+
+| Feature | Rust | Go | Python | Kotlin | Swift |
+|---|---|---|---|---|---|
+| Client init | `Client::new_testnet()` | `GraphQlClientNewTestnet()` | `GraphQlClient.new_testnet()` | `GraphQlClient.newTestnet()` | `GraphQlClient.newTestnet()` |
+| Parse address | `.parse()?` | `AddressFromHex(hex)` | `Address.from_hex(hex)` | `Address.fromHex(hex)` | `Address.fromHex(hex: hex)` |
+| List coins | `client.coins(addr, None, Default::default()).await?` | `client.Coins(addr, nil, nil)` | `await client.coins(addr)` | `client.coins(addr)` | `try await client.coins(owner: addr)` |
+| Get balance | `client.balance(addr, None).await?` | `client.Balance(addr, nil)` | `await client.balance(addr)` | `client.balance(addr)` | `try await client.balance(address: addr)` |
+| Async model | `async/await` + `tokio` | Synchronous | `asyncio` | `runBlocking` / coroutines | `async/await` |
+| Error handling | `?` operator / `Result` | Multiple return values | Exceptions | `try/catch` | `try/throws` |
+
+---
+
+## Expected Output
+
+Running any of the above examples should produce output in the following format:
+
+```
+Coin = 0x<object-id>, Coin Type = 0x2::iota::IOTA, Balance = <amount-in-nanos>
+Coin = 0x<object-id>, Coin Type = 0x2::iota::IOTA, Balance = <amount-in-nanos>
+...
+Total Balance = <total-amount-in-nanos>
+```
+
+:::tip
+Balances are denominated in **nanos** (the smallest IOTA unit). To convert to IOTA, divide by `1_000_000_000`.
+:::
+
+---
+
+## Next Steps
