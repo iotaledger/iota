@@ -3,4 +3,3 @@
 
 export * from './attachEnvironmentPlugin';
 export * from './dialogContextPlugin';
-export * from './contextSnapshotCache';
