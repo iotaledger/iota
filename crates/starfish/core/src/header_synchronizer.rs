@@ -2282,7 +2282,7 @@ mod tests {
         // Stub all headers to the third peer that will be chosen (quasi)-randomly as an
         // additional peer.
         let mut all_expected_headers = expected_block_headers_1.clone();
-        all_expected_headers.extend(expected_block_headers_2.clone());
+        all_expected_headers.extend(expected_block_headers_2.iter().cloned());
         network_client
             .stub_fetch_headers_response(
                 all_expected_headers.clone(),

@@ -1682,7 +1682,7 @@ mod test {
                     .build();
                 this_round_blocks.push(VerifiedBlock::new_for_test(block));
             }
-            all_blocks.extend(this_round_blocks.clone());
+            all_blocks.extend(this_round_blocks.iter().cloned());
             last_round_blocks = this_round_blocks;
         }
 

@@ -71,7 +71,7 @@ impl DescriptorGraph {
     /// would not compile in Rust. To allow recursive messages, the message
     /// graph is used to detect recursion and automatically box the recursive
     /// field. Since repeated messages are already put in a Vec, boxing them
-    /// isn’t necessary even if the reference is recursive.
+    /// isn't necessary even if the reference is recursive.
     fn add_message_edges(&mut self, package: &str, msg: &DescriptorProto) {
         let msg_name = format!("{}.{}", package, msg.name.as_ref().unwrap());
         let msg_index = self.get_or_insert_index(msg_name.clone());
@@ -327,7 +327,7 @@ impl<'a> FileParser<'a> {
         self.path.pop();
 
         self.path.push(4);
-        for (idx, nested_enum) in descriptor.enum_type.clone().into_iter().enumerate() {
+        for (idx, nested_enum) in descriptor.enum_type.iter().cloned().enumerate() {
             self.path.push(idx as i32);
             self.process_enum(nested_enum);
             self.path.pop();
@@ -355,7 +355,7 @@ impl<'a> FileParser<'a> {
         let mut values = Vec::new();
 
         self.path.push(2);
-        for (idx, value) in desc.value.clone().into_iter().enumerate() {
+        for (idx, value) in desc.value.iter().cloned().enumerate() {
             self.path.push(idx as i32);
             values.push(EnumValue {
                 inner: value,

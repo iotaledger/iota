@@ -314,7 +314,7 @@ async fn test_execution_with_dependencies() {
                 .collect_vec()
         })
         .collect_vec();
-    let all_gas_objects = gas_objects.clone().into_iter().flatten().collect_vec();
+    let all_gas_objects = gas_objects.iter().flatten().cloned().collect_vec();
 
     let (aggregator, authorities, _genesis, package) =
         init_local_authorities(4, all_gas_objects.clone()).await;

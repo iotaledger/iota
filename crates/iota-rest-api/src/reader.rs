@@ -51,7 +51,7 @@ impl StateReader {
     pub fn try_get_committee(&self, epoch: EpochId) -> Result<Option<ValidatorCommittee>> {
         self.inner
             .try_get_committee(epoch)
-            .map(|maybe| maybe.map(|committee| (*committee).clone().into()))
+            .map(|maybe| maybe.map(|committee| Arc::unwrap_or_clone(committee).into()))
     }
 
     pub fn get_system_state_summary(&self) -> Result<super::system::SystemStateSummary> {

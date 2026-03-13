@@ -545,8 +545,8 @@ async fn test_iter_with_bounds() {
     );
 
     // Specify a bound outside of dataset.
-    let db_iter = db.safe_iter_with_bounds(Some(200), Some(300));
-    assert!(db_iter.collect::<Vec<_>>().is_empty());
+    let mut db_iter = db.safe_iter_with_bounds(Some(200), Some(300));
+    assert!(db_iter.next().is_none());
 
     // Skip to first key in the bound (bound is [1, 50))
     let db_iter = get_iter_with_bounds(&db, Some(1), Some(50));

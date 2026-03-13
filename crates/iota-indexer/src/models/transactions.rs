@@ -523,12 +523,13 @@ pub async fn tx_events_to_iota_tx_events(
 ) -> Result<IotaTransactionBlockEvents, IndexerError> {
     let mut iota_event_futures = vec![];
     let tx_events_data_len = tx_events.data.len();
-    for tx_event in tx_events.data.clone() {
+    for tx_event in &tx_events.data {
         let package_resolver_clone = package_resolver.clone();
+        let event_type = tx_event.type_.clone();
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver
-                .type_layout(TypeTag::Struct(Box::new(tx_event.type_.clone())))
+                .type_layout(TypeTag::Struct(Box::new(event_type)))
                 .await
         }));
     }

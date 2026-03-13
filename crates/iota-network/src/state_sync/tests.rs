@@ -899,7 +899,7 @@ async fn sync_with_checkpoints_watermark() {
     timeout(Duration::from_secs(3), async {
         for (checkpoint, contents) in ordered_checkpoints[1..]
             .iter()
-            .zip(contents.clone().into_iter().skip(1))
+            .zip(contents.into_iter().skip(1))
         {
             assert_eq!(subscriber_4.recv().await.unwrap().data(), checkpoint.data());
             let content_digest = contents.into_checkpoint_contents_digest();

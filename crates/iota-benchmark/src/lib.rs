@@ -472,9 +472,9 @@ impl ValidatorProxy for FullNodeProxy {
         while let Some(object) = stream.try_next().await? {
             let o = object.data;
             if let Some(o) = o {
-                let temp: Object = o.clone().try_into()?;
+                let temp: Object = o.try_into()?;
                 let gas_coin = GasCoin::try_from(&temp)?;
-                values_objects.push((gas_coin.value(), o.clone().try_into()?));
+                values_objects.push((gas_coin.value(), temp));
             }
         }
 

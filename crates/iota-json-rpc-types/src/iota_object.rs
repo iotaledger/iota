@@ -594,7 +594,7 @@ impl TryInto<Object> for IotaObjectData {
         let data = match self.bcs {
             Some(IotaRawData::MoveObject(o)) => Data::Move({
                 MoveObject::new_from_execution(
-                    o.type_().clone().into(),
+                    o.type_.into(),
                     o.version,
                     o.bcs_bytes,
                     &protocol_config,
@@ -956,10 +956,12 @@ pub struct IotaRawMoveObject {
 
 impl From<MoveObject> for IotaRawMoveObject {
     fn from(o: MoveObject) -> Self {
+        let version = o.version();
+        let (type_, contents) = o.into_inner();
         Self {
-            type_: o.type_().clone().into(),
-            version: o.version(),
-            bcs_bytes: o.into_contents(),
+            type_: type_.into(),
+            version,
+            bcs_bytes: contents,
         }
     }
 }
@@ -969,10 +971,12 @@ impl IotaMoveObject for IotaRawMoveObject {
         object: MoveObject,
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
+        let version = object.version();
+        let (type_, contents) = object.into_inner();
         Ok(Self {
-            type_: object.type_().clone().into(),
-            version: object.version(),
-            bcs_bytes: object.into_contents(),
+            type_: type_.into(),
+            version,
+            bcs_bytes: contents,
         })
     }
 

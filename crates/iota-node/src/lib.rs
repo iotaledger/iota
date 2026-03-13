@@ -1108,7 +1108,7 @@ impl IotaNode {
             (None, false) => Ok((db_checkpoint_config, None)),
             (_, _) => {
                 let handler = DBCheckpointHandler::new(
-                    &db_checkpoint_config.checkpoint_path.clone().unwrap(),
+                    db_checkpoint_config.checkpoint_path.as_ref().unwrap(),
                     db_checkpoint_config.object_store_config.as_ref(),
                     60,
                     db_checkpoint_config

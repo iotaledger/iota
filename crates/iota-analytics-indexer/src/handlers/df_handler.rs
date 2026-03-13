@@ -112,7 +112,7 @@ impl DynamicFieldHandler {
         checkpoint: u64,
         timestamp_ms: u64,
         object: &Object,
-        all_written_objects: &HashMap<ObjectID, Object>,
+        all_written_objects: &HashMap<ObjectID, &Object>,
         state: &mut State,
     ) -> Result<()> {
         let move_obj_opt = object.data.try_as_move();
@@ -161,7 +161,7 @@ impl DynamicFieldHandler {
                 object_id: object.id().to_string(),
                 version: object.version().value(),
                 digest: object.digest().to_string(),
-                object_type: move_object.clone().into_type().into_type_params()[1]
+                object_type: move_object.type_().type_params()[1]
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {
@@ -205,7 +205,7 @@ impl DynamicFieldHandler {
         let all_objects: HashMap<_, _> = checkpoint_transaction
             .output_objects
             .iter()
-            .map(|x| (x.id(), x.clone()))
+            .map(|x| (x.id(), x))
             .collect();
         for object in checkpoint_transaction.output_objects.iter() {
             self.process_dynamic_field(

@@ -371,7 +371,7 @@ async fn test_acquire_locks() {
         object_1,
     ];
 
-    let locks = mutex_table.acquire_locks(objects.clone().into_iter());
+    let locks = mutex_table.acquire_locks(objects.iter().cloned());
     assert_eq!(locks.len(), 3);
 
     for object in objects.clone() {

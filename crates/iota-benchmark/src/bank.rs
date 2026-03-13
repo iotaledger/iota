@@ -109,9 +109,8 @@ impl BenchmarkBank {
         init_coin: &mut Gas,
         gas_price: u64,
     ) -> Result<UpdatedAndNewlyMintedGasCoins> {
-        let recipient_addresses: Vec<IotaAddress> =
-            coin_configs.iter().map(|g| g.address).collect();
-        let amounts: Vec<u64> = coin_configs.iter().map(|c| c.amount).collect();
+        let (recipient_addresses, amounts): (Vec<IotaAddress>, Vec<u64>) =
+            coin_configs.iter().map(|g| (g.address, g.amount)).unzip();
 
         info!(
             "Creating {} coin(s) of balance {}...",

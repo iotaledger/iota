@@ -2727,7 +2727,7 @@ mod test {
 
         // Now write in store the block headers from the first 4 rounds and the rest to
         // the dag state
-        block_headers.clone().into_iter().for_each(|block_header| {
+        block_headers.iter().cloned().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
                     .write(
@@ -2907,7 +2907,7 @@ mod test {
 
         // Now write the block headers from the first 4 rounds to the store, and the
         // rest to the dag state
-        block_headers.clone().into_iter().for_each(|block_header| {
+        block_headers.iter().cloned().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
                     .write(
@@ -3667,7 +3667,7 @@ mod test {
 
         // Now write the transactions from the first 4 rounds to the store and the rest
         // to the dag state
-        blocks.clone().into_iter().for_each(|block| {
+        blocks.iter().cloned().for_each(|block| {
             if block.round() <= 4 {
                 store
                     .write(

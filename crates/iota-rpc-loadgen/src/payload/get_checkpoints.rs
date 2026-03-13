@@ -107,7 +107,7 @@ impl<'a> ProcessPayload<'a, &'a GetCheckpoints> for RpcCommandProcessor {
             if cross_validate {
                 let valid_checkpoint = checkpoints.iter().enumerate().find_map(|(i, x)| {
                     if x.is_some() {
-                        Some((i, x.clone().unwrap()))
+                        Some((i, x.as_ref().unwrap().clone()))
                     } else {
                         None
                     }

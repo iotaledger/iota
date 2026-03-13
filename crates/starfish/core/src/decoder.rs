@@ -243,8 +243,7 @@ mod tests {
         );
 
         // Case 2: corrupted shard length
-        let mut shards_collection: Vec<Option<Shard>> =
-            shards.clone().into_iter().map(Some).collect();
+        let mut shards_collection: Vec<Option<Shard>> = shards.iter().cloned().map(Some).collect();
         shards_collection[1] = Some(vec![1, 2, 3]); // wrong size
         assert!(
             decoder

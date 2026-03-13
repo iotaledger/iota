@@ -555,7 +555,7 @@ impl DagBuilder {
                 let transaction_acks = if round == 1 {
                     HashMap::new()
                 } else {
-                    connections.clone().into_iter().collect()
+                    connections.iter().cloned().collect()
                 };
                 (transaction_acks, connections)
             }
