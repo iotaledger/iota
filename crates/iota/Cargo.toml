@@ -52,6 +52,7 @@ url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
+iota-common.workspace = true
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-faucet.workspace = true

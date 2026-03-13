@@ -12,6 +12,7 @@ use iota_sdk_types::CheckpointSequenceNumber;
 mod common;
 pub mod execution;
 pub mod ledger;
+mod metadata;
 
 pub use common::{Error, Result, RpcStatus};
 pub(crate) use common::{
@@ -22,6 +23,61 @@ pub use iota_grpc_types::read_masks::{
     GET_OBJECTS_READ_MASK, GET_SERVICE_INFO_READ_MASK, GET_TRANSACTIONS_READ_MASK,
     SIMULATE_TRANSACTION_READ_MASK,
 };
+pub use metadata::MetadataEnvelope;
+
+/// An item from a checkpoint data stream.
+///
+/// When `filter_checkpoints` is enabled, the server may skip checkpoints that
+/// don't match the provided filters. In that case, `Progress` items are sent
+/// periodically to indicate liveness and the current scan position. When
+/// `filter_checkpoints` is disabled, only `Checkpoint` items are produced.
+///
+/// For liveness detection with `filter_checkpoints`, wrap `stream.next()` in
+/// `tokio::time::timeout()` — if neither a `Checkpoint` nor a `Progress`
+/// arrives within your chosen duration plus some buffer for connection latency,
+/// the connection is likely dead.
+#[derive(Debug, Clone)]
+pub enum CheckpointStreamItem {
+    /// A complete checkpoint with its transactions and events.
+    Checkpoint(Box<CheckpointResponse>),
+    /// A progress indicator sent during filtered scanning.
+    /// Contains the sequence number of the latest scanned checkpoint.
+    Progress {
+        latest_scanned_sequence_number: CheckpointSequenceNumber,
+    },
+}
+
+impl CheckpointStreamItem {
+    /// Returns the contained checkpoint, or `None` if this is a progress
+    /// message.
+    pub fn into_checkpoint(self) -> Option<CheckpointResponse> {
+        match self {
+            Self::Checkpoint(c) => Some(*c),
+            Self::Progress { .. } => None,
+        }
+    }
+
+    /// Returns the progress sequence number, or `None` if this is a
+    /// checkpoint.
+    pub fn into_progress(self) -> Option<CheckpointSequenceNumber> {
+        match self {
+            Self::Checkpoint(_) => None,
+            Self::Progress {
+                latest_scanned_sequence_number,
+            } => Some(latest_scanned_sequence_number),
+        }
+    }
+
+    /// Returns `true` if this is a checkpoint item.
+    pub fn is_checkpoint(&self) -> bool {
+        matches!(self, Self::Checkpoint(_))
+    }
+
+    /// Returns `true` if this is a progress item.
+    pub fn is_progress(&self) -> bool {
+        matches!(self, Self::Progress { .. })
+    }
+}
 
 /// Response for a checkpoint query.
 ///

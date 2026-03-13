@@ -15,6 +15,7 @@ use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
+use iota_common::tempdir;
 use iota_config::{
     Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
@@ -59,7 +60,6 @@ use move_core_types::account_address::AccountAddress;
 use move_package::BuildConfig;
 use rand::rngs::OsRng;
 use serde_json::json;
-use tempfile::tempdir;
 use tracing::{self, info, warn};
 use url::Url;
 
