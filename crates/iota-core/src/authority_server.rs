@@ -560,8 +560,11 @@ impl ValidatorService {
                 .get_signed_effects_and_maybe_resign(&tx_digest, epoch_store)?
             {
                 let events = if include_events {
-                    if let Some(digest) = signed_effects.events_digest() {
-                        Some(self.state.get_transaction_events(digest)?)
+                    if signed_effects.events_digest().is_some() {
+                        Some(
+                            self.state
+                                .get_transaction_events(signed_effects.transaction_digest())?,
+                        )
                     } else {
                         None
                     }
@@ -678,8 +681,11 @@ impl ValidatorService {
                     .execute_certificate(&certificate, epoch_store)
                     .await?;
                 let events = if include_events {
-                    if let Some(digest) = effects.events_digest() {
-                        Some(self.state.get_transaction_events(digest)?)
+                    if effects.events_digest().is_some() {
+                        Some(
+                            self.state
+                                .get_transaction_events(effects.transaction_digest())?,
+                        )
                     } else {
                         None
                     }

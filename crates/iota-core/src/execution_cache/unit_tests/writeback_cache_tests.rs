@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     future::Future,
     path::PathBuf,
     sync::{
@@ -154,9 +154,7 @@ impl Scenario {
         let tx = VerifiedTransaction::new_unchecked(tx);
         let events: TransactionEvents = Default::default();
 
-        let effects = TestEffectsBuilder::new(tx.inner())
-            .with_events_digest(events.digest())
-            .build();
+        let effects = TestEffectsBuilder::new(tx.inner()).build();
 
         TransactionOutputs {
             transaction: Arc::new(tx),
@@ -359,7 +357,8 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        self.cache().commit_transaction_outputs(1, &[tx]);
+        let batch = self.cache().build_db_batch(1, &[tx]);
+        self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
 
@@ -555,7 +554,8 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        s.cache().commit_transaction_outputs(1, &[tx]);
+        let batch = s.cache().build_db_batch(1, &[tx]);
+        s.cache().commit_transaction_outputs(1, batch, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
 
@@ -642,42 +642,42 @@ async fn test_extra_outputs() {
 
         s.cache.get_transaction_block(&tx).unwrap();
         let fx = s.cache.get_executed_effects(&tx).unwrap();
-        let events_digest = fx.events_digest().unwrap();
-        s.cache.get_events(events_digest).unwrap();
+        let _events_digest = fx.events_digest().unwrap();
+        s.cache.get_events(&tx).unwrap();
 
         s.commit(tx).await;
 
         s.cache.get_transaction_block(&tx).unwrap();
         s.cache.get_executed_effects(&tx).unwrap();
-        s.cache.get_events(events_digest).unwrap();
+        s.cache.get_events(&tx).unwrap();
 
         // clear cache
         s.reset_cache();
 
         s.cache.get_transaction_block(&tx).unwrap();
         s.cache.get_executed_effects(&tx).unwrap();
-        s.cache.get_events(events_digest).unwrap();
+        s.cache.get_events(&tx).unwrap();
 
         s.with_created(&[3]);
         let tx = s.do_tx().await;
 
         // when Events is empty, it should be treated as None
         let fx = s.cache.get_executed_effects(&tx).unwrap();
-        let events_digest = fx.events_digest().unwrap();
+        assert!(fx.events_digest().is_none());
         assert!(
-            s.cache.get_events(events_digest).is_none(),
+            s.cache.get_events(&tx).is_none(),
             "empty events should be none"
         );
 
         s.commit(tx).await;
         assert!(
-            s.cache.get_events(events_digest).is_none(),
+            s.cache.get_events(&tx).is_none(),
             "empty events should be none"
         );
 
         s.reset_cache();
         assert!(
-            s.cache.get_events(events_digest).is_none(),
+            s.cache.get_events(&tx).is_none(),
             "empty events should be none"
         );
     })

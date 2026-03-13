@@ -492,7 +492,7 @@ impl ReadStore for CheckpointSummaryFileStore {
 
     fn try_get_events(
         &self,
-        _: &iota_types::digests::TransactionEventsDigest,
+        _: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
         unimplemented!()
     }

@@ -10,7 +10,9 @@ use iota_grpc_types::{
 
 use crate::{
     Client,
-    api::{GET_EPOCH_READ_MASK, Result, TryFromProtoError, field_mask_with_default},
+    api::{
+        GET_EPOCH_READ_MASK, MetadataEnvelope, Result, TryFromProtoError, field_mask_with_default,
+    },
 };
 
 impl Client {
@@ -77,7 +79,7 @@ impl Client {
     ///
     /// // Get current epoch with default fields
     /// let epoch = client.get_epoch(None, None).await?;
-    /// println!("Epoch: {:?}", epoch.epoch);
+    /// println!("Epoch: {:?}", epoch.body().epoch);
     ///
     /// // Get specific epoch with custom fields
     /// let epoch = client
@@ -87,7 +89,8 @@ impl Client {
     /// // Get all feature flags for the current epoch
     /// let epoch = client
     ///     .get_epoch(None, Some("protocol_config.feature_flags"))
-    ///     .await?;
+    ///     .await?
+    ///     .into_inner();
     /// let flags = epoch.protocol_config.unwrap().feature_flags.unwrap().flags;
     ///
     /// // Get a single named feature flag
@@ -98,7 +101,8 @@ impl Client {
     /// // Get all protocol attributes for the current epoch
     /// let epoch = client
     ///     .get_epoch(None, Some("protocol_config.attributes"))
-    ///     .await?;
+    ///     .await?
+    ///     .into_inner();
     /// let attributes = epoch
     ///     .protocol_config
     ///     .unwrap()
@@ -113,7 +117,11 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_epoch(&self, epoch: Option<u64>, read_mask: Option<&str>) -> Result<Epoch> {
+    pub async fn get_epoch(
+        &self,
+        epoch: Option<u64>,
+        read_mask: Option<&str>,
+    ) -> Result<MetadataEnvelope<Epoch>> {
         let mut request = GetEpochRequest::default()
             .with_read_mask(field_mask_with_default(read_mask, GET_EPOCH_READ_MASK));
 
@@ -122,11 +130,12 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let response = client.get_epoch(request).await?.into_inner();
+        let response = client.get_epoch(request).await?;
 
-        response
-            .epoch
-            .ok_or(TryFromProtoError::missing("epoch").into())
+        MetadataEnvelope::from(response).try_map(|r| {
+            r.epoch
+                .ok_or_else(|| TryFromProtoError::missing("epoch").into())
+        })
     }
 
     /// Get the reference gas price for the current epoch.
@@ -137,12 +146,12 @@ impl Client {
     /// # use iota_grpc_client::Client;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
-    /// let gas_price = client.get_reference_gas_price().await?;
+    /// let gas_price = client.get_reference_gas_price().await?.into_inner();
     /// println!("Reference gas price: {gas_price} NANOS");
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_reference_gas_price(&self) -> Result<u64> {
+    pub async fn get_reference_gas_price(&self) -> Result<MetadataEnvelope<u64>> {
         self.get_epoch_field("reference_gas_price", |e| e.reference_gas_price)
             .await
     }
@@ -152,18 +161,19 @@ impl Client {
         &self,
         field: &str,
         extractor: impl FnOnce(Epoch) -> Option<T>,
-    ) -> Result<T> {
+    ) -> Result<MetadataEnvelope<T>> {
         // Current epoch (no epoch field set)
         let request = GetEpochRequest::default().with_read_mask(FieldMask {
             paths: vec![field.to_string()],
         });
 
         let mut client = self.ledger_service_client();
-        let response = client.get_epoch(request).await?.into_inner();
+        let response = client.get_epoch(request).await?;
 
-        response
-            .epoch
-            .and_then(extractor)
-            .ok_or(TryFromProtoError::missing(field).into())
+        MetadataEnvelope::from(response).try_map(|r| {
+            r.epoch
+                .and_then(extractor)
+                .ok_or_else(|| TryFromProtoError::missing(field).into())
+        })
     }
 }

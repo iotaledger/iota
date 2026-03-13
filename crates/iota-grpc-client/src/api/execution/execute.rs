@@ -13,8 +13,8 @@ use iota_sdk_types::SignedTransaction;
 use crate::{
     Client,
     api::{
-        EXECUTE_TRANSACTION_READ_MASK, Error, Result, TryFromProtoError, build_proto_transaction,
-        field_mask_with_default,
+        EXECUTE_TRANSACTION_READ_MASK, Error, MetadataEnvelope, Result, TryFromProtoError,
+        build_proto_transaction, field_mask_with_default,
     },
 };
 
@@ -97,10 +97,10 @@ impl Client {
     /// let result = client.execute_transaction(signed_tx, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let effects = result.effects()?.effects()?;
+    /// let effects = result.body().effects()?.effects()?;
     /// println!("Status: {:?}", effects.status());
     ///
-    /// let events = result.events()?.events()?;
+    /// let events = result.body().events()?.events()?;
     /// if !events.0.is_empty() {
     ///     println!("Events: {}", events.0.len());
     /// }
@@ -111,7 +111,7 @@ impl Client {
         &self,
         signed_transaction: SignedTransaction,
         read_mask: Option<&str>,
-    ) -> Result<ExecutedTransaction> {
+    ) -> Result<MetadataEnvelope<ExecutedTransaction>> {
         // Build proto transaction directly from SDK types
         let tx_digest = signed_transaction.transaction.digest();
         let proto_transaction =
@@ -139,11 +139,11 @@ impl Client {
         let response = self
             .execution_service_client()
             .execute_transaction(request)
-            .await?
-            .into_inner();
+            .await?;
 
-        response
-            .executed_transaction
-            .ok_or_else(|| TryFromProtoError::missing("executed_transaction").into())
+        MetadataEnvelope::from(response).try_map(|r| {
+            r.executed_transaction
+                .ok_or_else(|| TryFromProtoError::missing("executed_transaction").into())
+        })
     }
 }
