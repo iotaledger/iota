@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const iotaSDK = [
@@ -28,6 +28,7 @@ const iotaSDK = [
                 label: 'Accounts and Addresses',
                 items: [
                     'developer/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
+                    'developer/rust-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
                 ],
             },
         ],
