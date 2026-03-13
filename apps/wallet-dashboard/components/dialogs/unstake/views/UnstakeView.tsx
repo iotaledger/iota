@@ -23,13 +23,10 @@ import {
     NOT_ENOUGH_BALANCE_ID,
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
+    useCoinMetadata,
 } from '@iota/core';
-import { CoinFormat } from '@iota/iota-sdk/utils';
-import {
-    useCurrentAccount,
-    useIotaClientQuery,
-    useSignAndExecuteTransaction,
-} from '@iota/dapp-kit';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
@@ -68,10 +65,8 @@ export function UnstakeView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const validatorName =
-        systemState?.activeValidators.find((v) => v.iotaAddress === extendedStake.validatorAddress)
-            ?.name ?? '';
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const decimals = metadata?.decimals ?? 0;
 
     const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
         useGetStakingValidatorDetails({
@@ -108,6 +103,11 @@ export function UnstakeView({
         (error.message.includes(NOT_ENOUGH_BALANCE_ID) ||
             error.message.includes(GAS_BALANCE_TOO_LOW_ID));
 
+    const validatorName =
+        systemDataResult.data?.activeValidators.find(
+            (v) => v.iotaAddress === extendedStake.validatorAddress,
+        )?.name ?? '';
+
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
 
@@ -120,10 +120,18 @@ export function UnstakeView({
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
 
+                    // Convert bigint to number using decimals for analytics
+                    const stakedAmountNumber = totalStakeOriginal
+                        ? Number(totalStakeOriginal) / Math.pow(10, decimals)
+                        : 0;
+                    const rewardsNumber = extendedStake.estimatedReward
+                        ? Number(extendedStake.estimatedReward) / Math.pow(10, decimals)
+                        : 0;
+
                     ampli.iotaUnstaked({
-                        stakedAmount: Number(totalStakeFormatted),
+                        stakedAmount: stakedAmountNumber,
                         validatorAddress: extendedStake.validatorAddress,
-                        rewards: Number(rewardsFormatted),
+                        rewards: rewardsNumber,
                         validatorName,
                     });
                 },

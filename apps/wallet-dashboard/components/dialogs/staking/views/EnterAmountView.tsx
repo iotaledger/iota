@@ -8,11 +8,11 @@ import {
     useNewStakeTransaction,
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
-    useGetValidatorsApy,
+    useValidatorInfo,
 } from '@iota/core';
 import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
-import { useIotaClientQuery, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
 import { ButtonPill, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
@@ -50,11 +50,10 @@ export function EnterAmountView({
     const amount = parseAmount(values.amount, decimals);
     const [stakedAmountFormatted] = useFormatCoin({ balance: amount });
 
-    const { data: rollingAverageApys } = useGetValidatorsApy();
-    const validatorApy = rollingAverageApys?.[selectedValidator]?.apy ?? 0;
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const validatorName =
-        systemState?.activeValidators.find((v) => v.iotaAddress === selectedValidator)?.name ?? '';
+    const { name: validatorName, apy } = useValidatorInfo({
+        validatorAddress: selectedValidator,
+    });
+    const validatorApy = apy ?? 0;
 
     const {
         data: newStakeData,
@@ -101,11 +100,17 @@ export function EnterAmountView({
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
+
+                    // Convert bigint to number using decimals for analytics
+                    const stakedAmountNumber = amount
+                        ? Number(amount) / Math.pow(10, decimals)
+                        : 0;
+
                     ampli.iotaStaked({
-                        stakedAmount: Number(stakedAmountFormatted),
+                        stakedAmount: stakedAmountNumber,
                         validatorAddress: selectedValidator,
                         validatorAPY: validatorApy,
-                        validatorName,
+                        validatorName: validatorName ?? '',
                     });
                     resetForm();
                 },
