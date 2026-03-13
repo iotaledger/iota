@@ -1430,7 +1430,7 @@ mod tests {
         loop {
             // Assert that all of these are SUCCEEDED
             status_results =
-                futures::future::join_all(response.clone().iter().map(|task| {
+                futures::future::join_all(response.iter().map(|task| {
                     faucet.get_batch_send_status(Uuid::parse_str(&task.task).unwrap())
                 }))
                 .await
@@ -2021,7 +2021,7 @@ mod tests {
         loop {
             // Assert that all of these are SUCCEEDED
             status_results =
-                futures::future::join_all(response.clone().iter().map(|task| {
+                futures::future::join_all(response.iter().map(|task| {
                     faucet.get_batch_send_status(Uuid::parse_str(&task.task).unwrap())
                 }))
                 .await

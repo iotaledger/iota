@@ -3233,13 +3233,12 @@ fn pretty_print_balance(
                 inner_table.push_record(vec![
                     &c.coin_object_id.to_string(),
                     &c.balance.to_string(),
-                    format_balance(
+                    &format_balance(
                         c.balance as u128,
                         coin_decimals,
                         format_decimals,
                         Some(symbol),
-                    )
-                    .as_str(),
+                    ),
                 ]);
             }
             let mut table = inner_table.build();

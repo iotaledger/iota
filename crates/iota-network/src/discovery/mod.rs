@@ -796,7 +796,7 @@ fn verify_peer_infos(
     // Acquire read lock once to get our peer ID and filter peers by cooldown
     let (our_peer_id, found_peers) = {
         let state_guard = state.read().unwrap();
-        let our_peer_id = state_guard.our_info.clone().unwrap().peer_id;
+        let our_peer_id = state_guard.our_info.as_ref().unwrap().peer_id;
 
         // Filter out peers that are in cooldown while holding the lock
         let filtered_peers: Vec<_> = found_peers

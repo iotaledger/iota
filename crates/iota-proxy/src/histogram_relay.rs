@@ -143,7 +143,7 @@ impl HistogramRelay {
             .lock()
             .expect("couldn't get mut lock on HistogramRelay");
 
-        let data: Vec<Wrapper> = queue.drain(..).collect();
+        let data: Vec<Wrapper> = std::mem::take(&mut *queue).into();
         let mut histograms = vec![];
         for mf in data {
             histograms.extend(mf.1);

@@ -126,7 +126,7 @@ impl CrashRecoverySchedule {
             FaultsType::Permanent { faults } => {
                 if self.dead == 0 {
                     self.dead = *faults;
-                    CrashRecoveryAction::kill(self.instances.clone().drain(0..*faults).collect())
+                    CrashRecoveryAction::kill(self.instances[..*faults].to_vec())
                 } else {
                     CrashRecoveryAction::no_op()
                 }
@@ -138,7 +138,7 @@ impl CrashRecoverySchedule {
 
                 // Recover all nodes if we already crashed them all.
                 if self.dead == *max_faults {
-                    let instances: Vec<_> = self.instances.clone().drain(0..*max_faults).collect();
+                    let instances: Vec<_> = self.instances[..*max_faults].to_vec();
                     self.dead = 0;
                     CrashRecoveryAction::boot(instances)
                 }
@@ -152,7 +152,7 @@ impl CrashRecoverySchedule {
                         (2 * min_faults, *max_faults)
                     };
 
-                    let instances: Vec<_> = self.instances.clone().drain(l..h).collect();
+                    let instances: Vec<_> = self.instances[l..h].to_vec();
                     self.dead += h - l;
                     CrashRecoveryAction::kill(instances)
                 }

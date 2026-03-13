@@ -1985,7 +1985,7 @@ fn dep_path_from_root(
             }
             let mut current = match i.next() {
                 Some(dep) => dep,
-                None => return Ok("".to_string()),
+                None => return Ok(String::new()),
             };
             for next in i {
                 let dep = match graph.package_graph.edge_weight(*current, *next) {

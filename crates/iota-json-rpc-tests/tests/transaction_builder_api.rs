@@ -77,8 +77,8 @@ async fn test_public_transfer_object() -> Result<(), anyhow::Error> {
         .await?
         .data;
 
-    let obj = objects.clone().first().unwrap().object().unwrap().object_id;
-    let gas = objects.clone().last().unwrap().object().unwrap().object_id;
+    let obj = objects.first().unwrap().object().unwrap().object_id;
+    let gas = objects.last().unwrap().object().unwrap().object_id;
 
     let transaction_bytes: TransactionBlockBytes = http_client
         .transfer_object(address, obj, Some(gas), 10_000_000.into(), address)

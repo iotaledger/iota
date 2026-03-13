@@ -839,7 +839,7 @@ async fn test_access_types() {
         "Node 1",
         &network_1,
         &state_1,
-        HashSet::from_iter(vec![]),
+        HashSet::new(),
         HashSet::from_iter(vec![
             peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8, peer_id_9,
             peer_id_10, peer_id_11,
@@ -941,7 +941,7 @@ async fn test_access_types() {
         "Node 9",
         &network_9,
         &state_9,
-        HashSet::from_iter(vec![]),
+        HashSet::new(),
         HashSet::from_iter(vec![
             peer_id_1, peer_id_2, peer_id_3, peer_id_4, peer_id_5, peer_id_6, peer_id_7, peer_id_8,
             peer_id_10, peer_id_11,

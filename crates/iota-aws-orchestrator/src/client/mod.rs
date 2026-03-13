@@ -180,7 +180,7 @@ pub trait ServerProviderClient: Display {
 
 #[cfg(test)]
 pub mod test_client {
-    use std::{collections::HashMap, fmt::Display, sync::Mutex};
+    use std::{collections::{HashMap, HashSet}, fmt::Display, sync::Mutex};
 
     use serde::Serialize;
 
@@ -241,7 +241,7 @@ pub mod test_client {
         where
             I: Iterator<Item = &'a Instance> + Send,
         {
-            let instance_ids: Vec<_> = instances.map(|x| x.id.clone()).collect();
+            let instance_ids: HashSet<_> = instances.map(|x| x.id.clone()).collect();
             let mut guard = self.instances.lock().unwrap();
             for instance in guard.iter_mut().filter(|x| instance_ids.contains(&x.id)) {
                 instance.status = "running".into();
@@ -253,7 +253,7 @@ pub mod test_client {
         where
             I: Iterator<Item = &'a Instance> + Send,
         {
-            let instance_ids: Vec<_> = instances.map(|x| x.id.clone()).collect();
+            let instance_ids: HashSet<_> = instances.map(|x| x.id.clone()).collect();
             let mut guard = self.instances.lock().unwrap();
             for instance in guard.iter_mut().filter(|x| instance_ids.contains(&x.id)) {
                 instance.status = "stopped".into();

@@ -577,12 +577,12 @@ pub(crate) mod tests {
     impl MockCoreThreadDispatcher {
         pub(crate) async fn get_and_drain_blocks(&self) -> Vec<VerifiedBlock> {
             let mut blocks = self.blocks.lock();
-            blocks.drain(0..).collect()
+            std::mem::take(&mut *blocks)
         }
 
         pub(crate) async fn get_and_drain_block_headers(&self) -> Vec<VerifiedBlockHeader> {
             let mut block_headers = self.block_headers.lock();
-            block_headers.drain(0..).collect()
+            std::mem::take(&mut *block_headers)
         }
 
         pub(crate) fn get_blocks(&self) -> Vec<VerifiedBlock> {

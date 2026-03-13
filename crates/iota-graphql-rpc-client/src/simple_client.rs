@@ -53,7 +53,7 @@ impl SimpleClient {
     ) -> Result<GraphqlResponse, ClientError> {
         if get_usage {
             headers.push((
-                LIMITS_HEADER.clone().as_str().try_into().unwrap(),
+                LIMITS_HEADER.as_str().try_into().unwrap(),
                 HeaderValue::from_static("true"),
             ));
         }

@@ -1115,7 +1115,7 @@ impl ValidatorService {
                 direct: client,
                 through_fullnode: None,
                 error_info: error.map(|e| {
-                    let error_type = String::from(e.clone().as_ref());
+                    let error_type = String::from(e.as_ref());
                     let error_weight = normalize(e);
                     (error_weight, error_type)
                 }),
