@@ -531,7 +531,40 @@ pub fn ptb_description() -> clap::Command {
         .arg(arg!(
             --"upgrade" <MOVE_PACKAGE_PATH>
             "Upgrade the Move package. It takes as input the folder where the package exists."
+        ).long_help(
+            "Upgrade the Move package. All three upgrade steps (authorize, execute, commit) \
+            are performed in a single command.\
+            \n\nExamples:\
+            \n --upgrade \"./my_package\" @upgrade_cap_id"
         ).value_hint(ValueHint::DirPath))
+        .arg(arg!(
+            --"upgrade-compile" <MOVE_PACKAGE_PATH>
+            "Compile a Move package for upgrade without executing any transaction commands."
+        ).long_help(
+            "Compile a Move package for upgrade. Returns the package digest as a pure value \
+            (vector<u8>) that can be assigned to a variable and passed to a custom authorize \
+            function. Stores the compiled package data internally for a subsequent \
+            --execute-upgrade command.\
+            \n\nExamples:\
+            \n --upgrade-compile \"./my_package\" @upgrade_cap_id\
+            \n --assign digest\
+            \n --move-call my_pkg::admin::authorize @shared_obj digest\
+            \n --assign ticket\
+            \n --execute-upgrade ticket\
+            \n --assign receipt\
+            \n --move-call my_pkg::admin::commit @shared_obj receipt"
+        ).value_hint(ValueHint::DirPath))
+        .arg(arg!(
+            --"execute-upgrade" <EXECUTE_UPGRADE>
+            "Execute the system upgrade using previously compiled package data."
+        ).long_help(
+            "Execute the system upgrade step. Must be preceded by --upgrade-compile in the \
+            same PTB. Takes the upgrade ticket (from an authorize call) as argument and \
+            returns the upgrade receipt.\
+            \n\nExamples:\
+            \n --execute-upgrade ticket\
+            \n --assign receipt"
+        ))
         .arg(arg!(
             --"preview"
             "Instead of executing the transaction, preview its PTB commands."

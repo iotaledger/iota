@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use iota_json::{is_receiving_argument, primitive_type};
 use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
+use iota_move_build::CompiledPackage;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
     base_types::{
@@ -200,6 +201,14 @@ impl<'a> Resolver<'a> for ToPure {
 // PTB Builder and PTB Creation
 // ===========================================================================
 
+/// Stores compiled package data from an authorize-upgrade or upgrade-compile
+/// command, so that a subsequent execute-upgrade can use it.
+struct StoredUpgradeCompile {
+    package_id: ObjectID,
+    compiled_modules: Vec<Vec<u8>>,
+    dependencies: Vec<ObjectID>,
+}
+
 /// The PTBBuilder struct is the main workhorse that transforms a sequence of
 /// `ParsedPTBCommand`s into an actual PTB that can be run. The main things to
 /// keep in mind are that this contains:
@@ -240,6 +249,9 @@ pub struct PTBBuilder<'a> {
     /// do not report errors eagerly but instead wait until we have
     /// processed all commands to report any errors.
     errors: Vec<PTBError>,
+    /// Stored compiled package data from authorize-upgrade or upgrade-compile,
+    /// available for a subsequent execute-upgrade command.
+    stored_upgrade_compile: Option<StoredUpgradeCompile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -294,6 +306,7 @@ impl<'a> PTBBuilder<'a> {
             reader,
             last_command: None,
             errors: Vec::new(),
+            stored_upgrade_compile: None,
         }
     }
 
@@ -1145,10 +1158,165 @@ impl<'a> PTBBuilder<'a> {
                 ));
                 self.last_command = Some(res);
             }
+            ParsedPTBCommand::ExecuteUpgrade(ticket_arg) => {
+                let stored = self.stored_upgrade_compile.take().ok_or_else(|| {
+                    err!(
+                        cmd_span,
+                        "No compiled package data available. \
+                         Use --upgrade-compile before --execute-upgrade."
+                    )
+                })?;
+
+                let ticket = self.resolve(ticket_arg, ToObject::default()).await?;
+
+                let upgrade_receipt = self.ptb.upgrade(
+                    stored.package_id,
+                    ticket,
+                    stored.dependencies,
+                    stored.compiled_modules,
+                );
+                self.last_command = Some(upgrade_receipt);
+            }
+            ParsedPTBCommand::UpgradeCompile(sp!(path_loc, package_path), mut cap_arg) => {
+                let (upgrade_cap_id, _upgrade_cap_arg) =
+                    self.resolve_upgrade_cap(&mut cap_arg).await?;
+
+                let (_upgrade_policy, compiled_package) = self
+                    .compile_for_upgrade(path_loc, &package_path, upgrade_cap_id)
+                    .await?;
+
+                let package_digest = compiled_package.get_package_digest(false);
+                let package_id = compiled_package
+                    .published_at
+                    .as_ref()
+                    .map_err(|e| err!(path_loc, "{e}"))?;
+                let compiled_modules = compiled_package.get_package_bytes(false);
+                let dependencies: Vec<ObjectID> = compiled_package
+                    .dependency_ids
+                    .published
+                    .into_values()
+                    .collect();
+
+                self.stored_upgrade_compile = Some(StoredUpgradeCompile {
+                    package_id: *package_id,
+                    compiled_modules,
+                    dependencies,
+                });
+
+                // Return the digest as a pure value so the user can pass it
+                // to their custom authorize function.
+                let digest_arg = self
+                    .ptb
+                    .pure(package_digest.to_vec())
+                    .map_err(|e| err!(cmd_span, "{e}"))?;
+                self.last_command = Some(digest_arg);
+            }
             ParsedPTBCommand::WarnShadows => {}
             ParsedPTBCommand::Preview => {}
         }
         Ok(())
+    }
+
+    /// Resolve an upgrade capability argument to its object ID and PTB
+    /// argument.
+    async fn resolve_upgrade_cap(
+        &mut self,
+        arg: &mut Spanned<PTBArg>,
+    ) -> PTBResult<(NumericalAddress, Tx::Argument)> {
+        if let sp!(id_loc, PTBArg::Identifier(id)) = arg {
+            *arg = self
+                .arguments_to_resolve
+                .get(id)
+                .and_then(|x| x.get_unresolved())
+                .ok_or_else(|| err!(*id_loc, "Unable to find object ID argument"))?
+                .clone();
+        }
+        let (cap_loc, upgrade_cap_id) = match arg {
+            sp!(loc, PTBArg::Address(id)) => (*loc, *id),
+            sp!(loc, _) => {
+                error!(*loc, "Expected upgrade capability object ID");
+            }
+        };
+
+        let upgrade_cap_arg = self
+            .resolve(
+                cap_loc.wrap(PTBArg::Address(upgrade_cap_id)),
+                ToObject::default(),
+            )
+            .await?;
+
+        Ok((upgrade_cap_id, upgrade_cap_arg))
+    }
+
+    /// Compile a package for upgrade, handling chain ID, lock file, and
+    /// directory management. Returns (upgrade_policy, compiled_package).
+    async fn compile_for_upgrade(
+        &mut self,
+        path_loc: Span,
+        package_path: &str,
+        upgrade_cap_id: NumericalAddress,
+    ) -> PTBResult<(u8, CompiledPackage)> {
+        let package_path = Path::new(package_path);
+
+        if !package_path.exists() {
+            error!(
+                path_loc,
+                "Package path '{}' does not exist",
+                package_path.display()
+            );
+        }
+
+        let package_path = package_path
+            .canonicalize()
+            .map_err(|e| err!(path_loc, "Failed to canonicalize package path: {e}"))?;
+
+        let chain_id = self.reader.get_chain_identifier().await.ok();
+        let build_config = MoveBuildConfig::default();
+
+        let initial_dir = std::env::current_dir()
+            .map_err(|e| err!(path_loc, "Failed to get current directory: {e}"))?;
+        let build_config = resolve_lock_file_path(build_config.clone(), Some(&package_path))
+            .map_err(|e| err!(path_loc, "{e}"))?;
+        let previous_id = if let Some(ref chain_id) = chain_id {
+            iota_package_management::set_package_id(
+                &package_path,
+                build_config.install_dir.clone(),
+                chain_id,
+                AccountAddress::ZERO,
+            )
+            .map_err(|e| err!(path_loc, "{e}"))?
+        } else {
+            None
+        };
+
+        let (upgrade_policy, compiled_package) = upgrade_package(
+            self.reader,
+            build_config.clone(),
+            &package_path,
+            ObjectID::from_address(upgrade_cap_id.into_inner()),
+            false, // with_unpublished_dependencies
+            true,  // skip_dependency_verification
+            None,
+        )
+        .await
+        .map_err(|e| err!(path_loc, "{e}"))?;
+
+        // Restore original ID
+        if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
+            let _ = iota_package_management::set_package_id(
+                &package_path,
+                build_config.install_dir.clone(),
+                &chain_id,
+                previous_id,
+            )
+            .map_err(|e| err!(path_loc, "{e}"))?;
+        }
+
+        // Restore the initial directory so subsequent commands are not affected
+        std::env::set_current_dir(initial_dir)
+            .map_err(|e| err!(path_loc, "Failed to restore initial directory: {e}"))?;
+
+        Ok((upgrade_policy, compiled_package))
     }
 }
 

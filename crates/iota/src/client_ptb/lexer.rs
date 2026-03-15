@@ -321,6 +321,18 @@ impl<'l, I: Iterator<Item = &'l str>> Iterator for Lexer<'l, I> {
                         file.widen(c).map(|src| Lexeme(T::Upgrade, src))
                     }
 
+                    sp!(_, "upgrade-compile") => {
+                        if let Some(next) = self.peek() {
+                            break 'command self.unexpected(next);
+                        }
+
+                        let Some(file) = self.eat_token() else {
+                            break 'command self.done(T::EarlyEof);
+                        };
+
+                        file.widen(c).map(|src| Lexeme(T::UpgradeCompile, src))
+                    }
+
                     sp!(_, _) => ident.widen(c).map(|src| Lexeme(T::Command, src)),
                 }
             }
