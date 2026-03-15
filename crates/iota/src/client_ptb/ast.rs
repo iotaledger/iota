@@ -158,11 +158,11 @@ pub enum ParsedPTBCommand {
     Assign(Spanned<String>, Option<Spanned<Argument>>),
     Publish(Spanned<String>),
     Upgrade(Spanned<String>, Spanned<Argument>),
-    /// execute-upgrade <ticket>
+    /// execute-upgrade \<ticket\>
     /// Executes the system upgrade using previously compiled package data.
     /// Returns the UpgradeReceipt.
     ExecuteUpgrade(Spanned<Argument>),
-    /// upgrade-compile <path> <upgrade_cap>
+    /// upgrade-compile \<path\> \<upgrade_cap\>
     /// Compiles the package and returns the digest as a pure value.
     /// Stores compiled data for a subsequent execute-upgrade.
     UpgradeCompile(Spanned<String>, Spanned<Argument>),
