@@ -57,12 +57,15 @@ pub struct IotaEnvConfig {
 #[derive(Parser)]
 pub enum IotaCommand {
     /// Deprecated: use `iota-localnet start` instead.
+    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
     #[command(hide = true)]
     Start {},
     /// Deprecated: use `iota-localnet genesis` instead.
+    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
     #[command(hide = true)]
     Genesis {},
     /// Deprecated: use `iota-tool genesis-ceremony` instead.
+    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
     #[command(hide = true)]
     GenesisCeremony {},
     /// IOTA keystore tool.
@@ -131,6 +134,7 @@ pub enum IotaCommand {
         cmd: name_commands::NameCommand,
     },
     /// Deprecated: use `iota-tool fire-drill` instead.
+    // Remove with v1.21.0: <https://github.com/iotaledger/iota/issues/10732>
     #[command(hide = true)]
     FireDrill {},
     /// Invoke IOTA's move-analyzer via CLI
