@@ -23,12 +23,14 @@ import { MultiSigSigner } from './signer.js';
 type CompressedSignature =
     | { ED25519: Uint8Array }
     | { Secp256k1: Uint8Array }
-    | { Secp256r1: Uint8Array };
+    | { Secp256r1: Uint8Array }
+    | { Passkey: Uint8Array };
 
 type PublicKeyEnum =
     | { ED25519: Uint8Array }
     | { Secp256k1: Uint8Array }
-    | { Secp256r1: Uint8Array };
+    | { Secp256r1: Uint8Array }
+    | { Passkey: Uint8Array };
 
 type PubkeyEnumWeightPair = {
     pubKey: PublicKeyEnum;

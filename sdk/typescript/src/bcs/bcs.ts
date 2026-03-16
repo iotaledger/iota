@@ -276,12 +276,14 @@ export const CompressedSignature = bcs.enum('CompressedSignature', {
     ED25519: bcs.bytes(64),
     Secp256k1: bcs.bytes(64),
     Secp256r1: bcs.bytes(64),
+    Passkey: bcs.byteVector(),
 });
 
 export const PublicKey = bcs.enum('PublicKey', {
     ED25519: bcs.bytes(32),
     Secp256k1: bcs.bytes(33),
     Secp256r1: bcs.bytes(33),
+    Passkey: bcs.bytes(33),
 });
 
 export const MultiSigPkMap = bcs.struct('MultiSigPkMap', {
