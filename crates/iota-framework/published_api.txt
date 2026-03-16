@@ -1165,13 +1165,19 @@ fresh_object_address
 fresh_id
 	fun
 	0x2::tx_context
-ids_created
+reference_gas_price
+	public fun
+	0x2::tx_context
+native_rgp
+	fun
+	0x2::tx_context
+gas_price
+	public fun
+	0x2::tx_context
+native_gas_price
 	fun
 	0x2::tx_context
 native_ids_created
-	fun
-	0x2::tx_context
-native_gas_price
 	fun
 	0x2::tx_context
 native_gas_budget
