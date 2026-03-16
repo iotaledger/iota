@@ -90,6 +90,7 @@ function parseSignature(signature: string) {
         };
     }
 
+    // @experimental
     if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
         const moveAuth = parsedSignature.moveAuthenticator;
         let authenticatedObjectId: string | undefined;
@@ -137,6 +138,7 @@ export function publicKeyFromRawBytes(
             return new MultiSigPublicKey(bytes);
         case 'Passkey':
             return new PasskeyPublicKey(bytes);
+        // @experimental
         case 'MoveAuthenticator':
             return new MoveAuthenticatorPublicKey(bytes);
         default:
