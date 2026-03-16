@@ -51,9 +51,9 @@ export function PageMainLayout({
             )}
         >
             {useSidebar ? (
-                // Sidebar on the left for popup/fullscreen
+                // Sidebar on the left for popup/fullscreen (only when bottom nav is enabled, i.e. not on dapp approval pages)
                 <div className="flex w-full flex-1 flex-row overflow-hidden">
-                    <Navigation />
+                    {bottomNavEnabled && <Navigation />}
                     <div
                         className={cn(
                             'flex flex-1 flex-col flex-nowrap overflow-hidden',
