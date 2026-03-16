@@ -49,12 +49,7 @@ You will implement a University Degree Verification system using the IOTA Identi
 Before starting this workshop, make sure you have:
 
 - **Rust** (latest stable version) and **Cargo** installed
-- A **local IOTA network** running with the IOTA Identity contract deployed
-    - See [Local Network Setup](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
-    - Ensure you can request test tokens from the faucet
-- (Optional but recommended) Basic familiarity with:
-    - **IOTA Decentralized Identifiers (DIDs)**
-    - **IOTA Verifiable Credentials (VCs)** and **IOTA Verifiable Presentations (VPs)**
+- Access to the **IOTA testnet** — test tokens can be requested from the [faucet](https://faucet.testnet.iota.cafe)
 
 :::info
 All code is in the [iota-community/workshops](https://github.com/iota-community/workshops/tree/main/workshop-module-10) repository — you can clone it and run the finished project directly, or use the scaffold files below to follow along:
@@ -66,11 +61,9 @@ All code is in the [iota-community/workshops](https://github.com/iota-community/
 In a real-world deployment, each party would run independently — the student would create their DID and sign their VP client-side using `@iota/identity-wasm`, keeping their private keys in the browser. For simplicity, this workshop runs all three roles (Student, University, Employer) on a single Rust backend.
 :::
 
-## Part 1: Backend
-
 The Rust Axum backend handles all IOTA Identity logic, exposed as four HTTP endpoints — one per step.
 
-### Step 1: Student and University Create DIDs
+## Step 1: Student and University Create DIDs
 
 Both the student and the university must establish their identity on the IOTA network before any credential exchange can happen. Each gets a DID anchored on-chain, with their private key stored securely in Stronghold.
 
@@ -170,10 +163,7 @@ async fn issuer_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidRespo
 
 Both endpoints follow the same pattern — `create_or_load_did` creates the DID and anchors it to the IOTA network on first run, or loads it from disk on subsequent runs. Each actor stores their own private key in a separate Stronghold file (`holder.stronghold` / `issuer.stronghold`).
 
-### Checkpoint
-
-- Verify that `holder_doc.json` and `issuer_doc.json` are created on disk.
-- Confirm both returned DIDs are valid `did:iota:...` strings.
+**Checkpoint:** Verify that `holder_doc.json` and `issuer_doc.json` are created on disk, and that both returned DIDs are valid `did:iota:...` strings.
 
 Output after a successful creation of the student's DID:
 
@@ -203,9 +193,22 @@ const handleCreateIssuerDid = async () => {
 };
 ```
 
-### Step 2: University Issues VC (`/issuer/issue-vc`)
+## Step 2: University Issues VC
 
 The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint. With both DIDs already created in Step 1, the university loads them, builds a `UniversityDegreeCredential`, signs it, and returns the signed JWT to the student.
+
+This step uses `get_stronghold_storage`, which opens the Stronghold file for a given path and returns a storage object the signing functions can use:
+
+```rust
+fn get_stronghold_storage(path: Option<PathBuf>) -> anyhow::Result<Storage<StrongholdSecretManager, StrongholdSecretManager>> {
+    let stronghold_path = path.unwrap_or_else(|| PathBuf::from("./default.stronghold"));
+    let password = Password::from("secure-password".to_owned());
+    let stronghold = StrongholdSecretManager::builder()
+        .password(password)
+        .build(stronghold_path)?;
+    Ok(Storage::new(stronghold.clone(), stronghold))
+}
+```
 
 ```rust
 /// Loads the university's DID and the student's DID, builds a `UniversityDegreeCredential`,
@@ -276,11 +279,7 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
 }
 ```
 
-### Checkpoint
-
-- Verify that `issuer_doc.json`, `issuer_fragment.txt`, and `issuer.stronghold` are created.
-- Confirm the VC JWT is a long string starting with `eyJ...`.
-- Use an online JWT decoder to inspect the credential contents (e.g., Alice's name, degree).
+**Checkpoint:** Verify that `issuer_doc.json`, `issuer_fragment.txt`, and `issuer.stronghold` are created. The returned VC JWT should be a long string starting with `eyJ...` — paste it into an online JWT decoder to inspect the credential contents.
 
 Output after a successful creation of the student's Verifiable Credential:
 
@@ -303,7 +302,7 @@ const handleIssueVc = async () => {
 };
 ```
 
-### Step 3: Student Creates VP (`/holder/create-vp`)
+## Step 3: Student Creates VP
 
 The `holder_create_vp` function handles the `/holder/create-vp` endpoint. The Student loads their DID, wraps the received VC JWT in a Verifiable Presentation, signs it with a challenge nonce and expiration, and returns the signed VP JWT.
 
@@ -390,9 +389,19 @@ const handleCreateVp = async () => {
 };
 ```
 
-### Step 4: Employer Validates (`/verifier/validate`)
+## Step 4: Employer Validates
 
 The `verifier_validate` function handles the `/verifier/validate` endpoint. This is the most network-intensive step — the Employer resolves both DIDs from the IOTA network, verifies the VP signature and challenge, then validates each embedded VC against the University's public key.
+
+This step uses `get_read_only_client`, which connects to the IOTA network without any keys or funds — suitable for resolving DIDs and verifying signatures, but not for publishing:
+
+```rust
+async fn get_read_only_client() -> anyhow::Result<IotaClient> {
+    Ok(IotaClientBuilder::default()
+        .build(std::env::var("IOTA_NODE_URL").unwrap_or_else(|_| "http://localhost:9000".to_string()))
+        .await?)
+}
+```
 
 ```rust
 /// Resolves both the student's and university's DIDs from the IOTA network, verifies the VP
