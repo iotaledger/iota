@@ -9,7 +9,7 @@ use iota_common::fatal;
 use iota_config::{ExecutionCacheConfig, ExecutionCacheType};
 use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -25,6 +25,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 use tracing::instrument;
+use typed_store::rocks::DBBatch;
 
 use crate::{
     authority::{
@@ -154,19 +155,30 @@ pub fn build_execution_cache_from_env(
     }
 }
 
+pub type Batch = (Vec<Arc<TransactionOutputs>>, DBBatch);
+
 pub trait ExecutionCacheCommit: Send + Sync {
+    /// Build a DBBatch containing the given transaction outputs.
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch;
+
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
     fn try_commit_transaction_outputs(
         &self,
         epoch: EpochId,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult;
 
     /// Non-fallible version of `try_commit_transaction_outputs`.
-    fn commit_transaction_outputs(&self, epoch: EpochId, digests: &[TransactionDigest]) {
-        self.try_commit_transaction_outputs(epoch, digests)
+    fn commit_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        batch: Batch,
+        digests: &[TransactionDigest],
+    ) {
+        self.try_commit_transaction_outputs(epoch, batch, digests)
             .expect("storage access failed");
     }
 
@@ -828,22 +840,16 @@ pub trait TransactionCacheRead: Send + Sync {
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>>;
 
     /// Non-fallible version of `try_multi_get_events`.
-    fn multi_get_events(
-        &self,
-        event_digests: &[TransactionEventsDigest],
-    ) -> Vec<Option<TransactionEvents>> {
-        self.try_multi_get_events(event_digests)
+    fn multi_get_events(&self, digests: &[TransactionDigest]) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(digests)
             .expect("storage access failed")
     }
 
-    fn try_get_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> IotaResult<Option<TransactionEvents>> {
+    fn try_get_events(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEvents>> {
         self.try_multi_get_events(&[*digest]).map(|mut events| {
             events
                 .pop()
@@ -852,7 +858,7 @@ pub trait TransactionCacheRead: Send + Sync {
     }
 
     /// Non-fallible version of `try_get_events`.
-    fn get_events(&self, digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
+    fn get_events(&self, digest: &TransactionDigest) -> Option<TransactionEvents> {
         self.try_get_events(digest).expect("storage access failed")
     }
 

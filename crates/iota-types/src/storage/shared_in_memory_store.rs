@@ -11,7 +11,7 @@ use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, TransactionDigest},
     committee::Committee,
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionEventsDigest},
+    digests::{CheckpointContentsDigest, CheckpointDigest},
     effects::{TransactionEffects, TransactionEvents},
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
@@ -137,10 +137,7 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
-    fn try_get_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
         self.inner()
             .get_transaction_events(digest)
             .cloned()
@@ -237,7 +234,7 @@ pub struct InMemoryStore {
     checkpoint_contents: HashMap<CheckpointContentsDigest, CheckpointContents>,
     transactions: HashMap<TransactionDigest, VerifiedTransaction>,
     effects: HashMap<TransactionDigest, TransactionEffects>,
-    events: HashMap<TransactionEventsDigest, TransactionEvents>,
+    events: HashMap<TransactionDigest, TransactionEvents>,
 
     epoch_to_committee: Vec<Committee>,
 
@@ -456,10 +453,7 @@ impl InMemoryStore {
         self.effects.get(digest)
     }
 
-    pub fn get_transaction_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Option<&TransactionEvents> {
+    pub fn get_transaction_events(&self, digest: &TransactionDigest) -> Option<&TransactionEvents> {
         self.events.get(digest)
     }
 }
@@ -559,10 +553,7 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
         self.0.try_get_transaction_effects(digest)
     }
 
-    fn try_get_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
         self.0.try_get_events(digest)
     }
 

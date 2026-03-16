@@ -69,7 +69,6 @@
 /crates/iota-replay/ @iotaledger/node
 /crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
 /crates/iota-rest-kv/ @iotaledger/infrastructure
-/crates/iota-rosetta/ @iotaledger/infrastructure
 /crates/iota-rpc-loadgen/ @iotaledger/infrastructure
 /crates/iota-sdk/ @iotaledger/dev-tools
 /crates/iota-simulator/ @iotaledger/core-protocol

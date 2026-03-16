@@ -21,9 +21,21 @@ const typedocBaseConfig = {
   sort: ['source-order'],
   excludeInternal: true,
   excludePrivate: true,
+  excludeExternals: true,
   disableSources: true,
   hideBreadcrumbs: true,
   intentionallyNotExported: [],
+  useCodeBlocks: true,
+  parametersFormat: 'table',
+  interfacePropertiesFormat: 'table',
+  classPropertiesFormat: 'table',
+  typeDeclarationFormat: 'table',
+  enumMembersFormat: 'table',
+  indexFormat: 'table',
+  tableColumnSettings: {
+    hideSources: true,
+    leftAlignHeaders: true,
+  },
 };
 
 /** @type {import('@docusaurus/types').Config} */
@@ -77,7 +89,7 @@ const config = {
         id:'testnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "developer/references/iota-api/iota-graphql/reference/testnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/Testnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -92,7 +104,7 @@ const config = {
         id:'devnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "developer/references/iota-api/iota-graphql/reference/devnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/Devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",

@@ -12,7 +12,10 @@ use iota_sdk_types::{ObjectId, Version};
 
 use crate::{
     Client,
-    api::{Error, GET_OBJECTS_READ_MASK, ProtoResult, Result, field_mask_with_default},
+    api::{
+        Error, GET_OBJECTS_READ_MASK, MetadataEnvelope, ProtoResult, Result,
+        field_mask_with_default,
+    },
 };
 
 impl Client {
@@ -23,6 +26,10 @@ impl Client {
     ///
     /// Results are returned in the same order as the input refs.
     /// If an object is not found, an error is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::EmptyRequest`] if `refs` is empty.
     ///
     /// # Available Read Mask Fields
     ///
@@ -53,7 +60,7 @@ impl Client {
     /// // Get proto objects
     /// let objs = client.get_objects(&[(object_id, None)], None).await?;
     ///
-    /// for obj in objs {
+    /// for obj in objs.body() {
     ///     // Convert proto object to SDK type
     ///     let sdk_obj = obj.object()?;
     ///     println!("Got object ID: {:?}", sdk_obj.object_id());
@@ -67,9 +74,9 @@ impl Client {
         &self,
         refs: &[(ObjectId, Option<Version>)],
         read_mask: Option<&str>,
-    ) -> Result<Vec<Object>> {
+    ) -> Result<MetadataEnvelope<Vec<Object>>> {
         if refs.is_empty() {
-            return Ok(vec![]);
+            return Err(Error::EmptyRequest);
         }
 
         let requests = ObjectRequests::default().with_requests(
@@ -96,7 +103,8 @@ impl Client {
 
         let mut client = self.ledger_service_client();
 
-        let mut stream = client.get_objects(request).await?.into_inner();
+        let response = client.get_objects(request).await?;
+        let (mut stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         // Server guarantees results are returned in request order
         let mut results = Vec::with_capacity(refs.len());
@@ -113,6 +121,6 @@ impl Client {
             return Err(Error::UnexpectedEndOfStream);
         }
 
-        Ok(results)
+        Ok(MetadataEnvelope::new(results, metadata))
     }
 }
