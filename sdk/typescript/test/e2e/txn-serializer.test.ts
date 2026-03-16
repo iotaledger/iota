@@ -17,7 +17,7 @@ let publishTxn: IotaTransactionBlockResponse;
 let sharedObjectId: string;
 beforeAll(async () => {
     toolbox = await setup();
-    const packagePath = __dirname + '/./data/serializer';
+    const packagePath = __dirname + '/data/serializer';
     ({ packageId, publishTxn } = await publishPackage(packagePath));
     const sharedObject = publishTxn.effects?.created!.find(
         (o) =>

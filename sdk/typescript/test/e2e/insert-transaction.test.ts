@@ -13,7 +13,7 @@ import { publishPackage, setup, TestToolbox } from './utils/setup';
 
 export const IOTA_CLOCK_OBJECT_ID = normalizeIotaObjectId('0x6');
 
-const packagePath = __dirname + '/./data/serializer';
+const packagePath = __dirname + '/data/serializer';
 
 describe('TransactionData.insertTransaction', () => {
     let toolbox: TestToolbox;
