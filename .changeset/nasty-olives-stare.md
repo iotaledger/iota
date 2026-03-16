@@ -1,5 +1,5 @@
 ---
-'@iota/dapp-kit': major
+'@iota/dapp-kit': minor
 ---
 
 Updated @iota/iota-sdk.
