@@ -99,8 +99,8 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
         inner.clear();
     }
 
-    // Initialize an empty cache when the cache is not needed (in testing scenarios,
-    // graphql and rosetta initialization).
+    // Initialize an empty cache when the cache is not needed (in testing scenarios
+    // and graphql initialization).
     pub fn new_empty() -> Self {
         Self::new(
             IntCounter::new("test_cache_hits", "test cache hits").unwrap(),
