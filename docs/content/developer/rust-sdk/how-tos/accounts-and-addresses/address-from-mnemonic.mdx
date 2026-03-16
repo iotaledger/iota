@@ -14,7 +14,6 @@ This guide explains how to derive a cryptographic key pair and an IOTA address f
 The mnemonic phrase used in these examples is for **demonstration only**. Never share or hard-code a real mnemonic in production code. Store mnemonics securely and never commit them to version control.
 :::
 
----
 
 ## Prerequisites
 
@@ -24,7 +23,6 @@ Before running these examples, make sure you have:
 - A valid BIP-39 mnemonic phrase (12 or 24 words)
 - Basic familiarity with your chosen language's build tooling
 
----
 
 ## Key Concepts
 
@@ -37,7 +35,6 @@ Before running these examples, make sure you have:
 | `Address` | A 32-byte IOTA address derived from the public key, displayed as a `0x`-prefixed hex string. |
 | `Derivation Path` | A BIP-44/SLIP-10 path (e.g. `m/74'/4218'/0'/0/2`) specifying which key to derive from the seed. |
 
----
 
 ## Supported Signature Schemes
 
@@ -49,7 +46,6 @@ The IOTA SDK supports three cryptographic schemes. Each has different derivation
 | **Secp256k1** | Derived from account index | Optional | Bitcoin-compatible curve. Accepts an optional passphrase. |
 | **Secp256r1** | Custom (e.g. `m/74'/4218'/0'/0/2`) | Optional | NIST P-256 curve. Uses `fromMnemonicWithPath` for full path control. |
 
----
 
 ## Code Examples
 
@@ -59,324 +55,40 @@ The following examples all use the same mnemonic and produce the same addresses 
   <TabItem value="rust" label="Rust" default>
 
 ```rust
-// Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-use base64ct::{Base64, Encoding};
-use iota_sdk::{
-    crypto::{
-        DERIVATION_PATH_COIN_TYPE, DERIVATION_PATH_PURPOSE_SECP256R1, FromMnemonic, ToFromBech32,
-        ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
-    },
-    types::PublicKeyExt,
-};
-
-const MNEMONIC: &str = "round attack kitchen wink winter music trip tiny nephew hire orange what";
-
-fn main() -> eyre::Result<()> {
-    // Ed25519 – default derivation path, no password
-    let private_key = Ed25519PrivateKey::from_mnemonic(MNEMONIC, None, None)?;
-    let private_key_bech32 = private_key.to_bech32()?;
-    let public_key = private_key.public_key();
-    let flagged_public_key = Base64::encode_string(&public_key.to_flagged_bytes());
-    let address = public_key.derive_address();
-
-    println!("Ed25519\n---");
-    println!("Private Key: {private_key_bech32}");
-    println!("Public Key: {public_key}");
-    println!("Public Key With Flag: {flagged_public_key}");
-    println!("Address: {address}");
-
-    // Secp256k1 – account index 1, with password
-    let private_key = Secp256k1PrivateKey::from_mnemonic(MNEMONIC, 1, "my_password".to_owned())?;
-    let private_key_bech32 = private_key.to_bech32()?;
-    let public_key = private_key.public_key();
-    let flagged_public_key = Base64::encode_string(&public_key.to_flagged_bytes());
-    let address = public_key.derive_address();
-
-    println!("\nSecp256k1\n---");
-    println!("Private Key: {private_key_bech32}");
-    println!("Public Key: {public_key}");
-    println!("Public Key With Flag: {flagged_public_key}");
-    println!("Address: {address}");
-
-    // Secp256r1 – custom derivation path
-    let private_key = Secp256r1PrivateKey::from_mnemonic_with_path(
-        MNEMONIC,
-        format!("m/{DERIVATION_PATH_PURPOSE_SECP256R1}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0/2"),
-        None,
-    )?;
-    let private_key_bech32 = private_key.to_bech32()?;
-    let public_key = private_key.public_key();
-    let flagged_public_key = Base64::encode_string(&public_key.to_flagged_bytes());
-    let address = public_key.derive_address();
-
-    println!("\nSecp256r1\n---");
-    println!("Private Key: {private_key_bech32}");
-    println!("Public Key: {public_key}");
-    println!("Public Key With Flag: {flagged_public_key}");
-    println!("Address: {address}");
-
-    Ok(())
-}
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/address_from_mnemonic.rs
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go
-// Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/iotaledger/iota-rust-sdk/bindings/go/iota_sdk"
-)
-
-const MNEMONIC = "round attack kitchen wink winter music trip tiny nephew hire orange what"
-
-func main() {
-	// Ed25519 – account index 0, no password
-	privateKeyEd25519, err := iota_sdk.Ed25519PrivateKeyFromMnemonic(MNEMONIC, 0, "")
-	if err != nil {
-		log.Fatalf("Failed to get key from mnemonic: %v", err)
-	}
-	privateKeyEd25519Bech32, err := privateKeyEd25519.ToBech32()
-	if err != nil {
-		log.Fatalf("Failed to convert to bech32: %v", err)
-	}
-	publicKeyEd25519 := privateKeyEd25519.PublicKey()
-	flaggedPublicKeyEd25519 := publicKeyEd25519.ToFlaggedBytes()
-	addressEd25519 := publicKeyEd25519.DeriveAddress()
-
-	fmt.Println("Ed25519\n---:")
-	fmt.Println("Private Key:", privateKeyEd25519Bech32)
-	fmt.Println("Public Key:", iota_sdk.Base64Encode(publicKeyEd25519.ToBytes()))
-	fmt.Println("Public Key With Flag:", iota_sdk.Base64Encode(flaggedPublicKeyEd25519))
-	fmt.Println("Address:", addressEd25519.ToHex())
-
-	// Secp256k1 – account index 1, with password
-	privateKeySecp256k1, err := iota_sdk.Secp256k1PrivateKeyFromMnemonic(MNEMONIC, 1, "my_password")
-	if err != nil {
-		log.Fatalf("Failed to get key from mnemonic: %v", err)
-	}
-	privateKeySecp256k1Bech32, err := privateKeySecp256k1.ToBech32()
-	if err != nil {
-		log.Fatalf("Failed to convert to bech32: %v", err)
-	}
-	publicKeySecp256k1 := privateKeySecp256k1.PublicKey()
-	flaggedPublicKeySecp256k1 := publicKeySecp256k1.ToFlaggedBytes()
-	addressSecp256k1 := publicKeySecp256k1.DeriveAddress()
-
-	fmt.Println("\nSecp256k1\n---:")
-	fmt.Println("Private Key:", privateKeySecp256k1Bech32)
-	fmt.Println("Public Key:", iota_sdk.Base64Encode(publicKeySecp256k1.ToBytes()))
-	fmt.Println("Public Key With Flag:", iota_sdk.Base64Encode(flaggedPublicKeySecp256k1))
-	fmt.Println("Address:", addressSecp256k1.ToHex())
-
-	// Secp256r1 – custom derivation path
-	privateKeySecp256r1, err := iota_sdk.Secp256r1PrivateKeyFromMnemonicWithPath(
-		MNEMONIC, "m/74'/4218'/0'/0/2", "")
-	if err != nil {
-		log.Fatalf("Failed to get key from mnemonic: %v", err)
-	}
-	privateKeySecp256r1Bech32, err := privateKeySecp256r1.ToBech32()
-	if err != nil {
-		log.Fatalf("Failed to convert to bech32: %v", err)
-	}
-	publicKeySecp256r1 := privateKeySecp256r1.PublicKey()
-	flaggedPublicKeySecp256r1 := publicKeySecp256r1.ToFlaggedBytes()
-	addressSecp256r1 := publicKeySecp256r1.DeriveAddress()
-
-	fmt.Println("\nSecp256r1\n---:")
-	fmt.Println("Private Key:", privateKeySecp256r1Bech32)
-	fmt.Println("Public Key:", iota_sdk.Base64Encode(publicKeySecp256r1.ToBytes()))
-	fmt.Println("Public Key With Flag:", iota_sdk.Base64Encode(flaggedPublicKeySecp256r1))
-	fmt.Println("Address:", addressSecp256r1.ToHex())
-}
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/address_from_mnemonic/main.go
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python
-# Copyright (c) 2025 IOTA Stiftung
-# SPDX-License-Identifier: Apache-2.0
-
-from lib.iota_sdk import *
-
-MNEMONIC = "round attack kitchen wink winter music trip tiny nephew hire orange what"
-
-
-def main():
-    # Ed25519 – default derivation
-    private_key = Ed25519PrivateKey.from_mnemonic(MNEMONIC)
-    private_key_bech32 = private_key.to_bech32()
-    public_key = private_key.public_key()
-    flagged_public_key = public_key.to_flagged_bytes()
-    address = public_key.derive_address()
-
-    print(f"Ed25519\n---")
-    print(f"Private Key: {private_key_bech32}")
-    print(f"Public Key: {base64_encode(public_key.to_bytes())}")
-    print(f"Public Key With Flag: {base64_encode(flagged_public_key)}")
-    print(f"Address: {address.to_hex()}")
-
-    # Secp256k1 – account index 1
-    private_key = Secp256k1PrivateKey.from_mnemonic(MNEMONIC, 1)
-    private_key_bech32 = private_key.to_bech32()
-    public_key = private_key.public_key()
-    flagged_public_key = public_key.to_flagged_bytes()
-    address = public_key.derive_address()
-
-    print(f"\nSecp256k1\n---")
-    print(f"Private Key: {private_key_bech32}")
-    print(f"Public Key: {base64_encode(public_key.to_bytes())}")
-    print(f"Public Key With Flag: {base64_encode(flagged_public_key)}")
-    print(f"Address: {address.to_hex()}")
-
-    # Secp256r1 – custom derivation path
-    private_key = Secp256r1PrivateKey.from_mnemonic_with_path(
-        MNEMONIC, "m/74'/4218'/0'/0/2")
-    private_key_bech32 = private_key.to_bech32()
-    public_key = private_key.public_key()
-    flagged_public_key = public_key.to_flagged_bytes()
-    address = public_key.derive_address()
-
-    print(f"\nSecp256r1\n---")
-    print(f"Private Key: {private_key_bech32}")
-    print(f"Public Key: {base64_encode(public_key.to_bytes())}")
-    print(f"Public Key With Flag: {base64_encode(flagged_public_key)}")
-    print(f"Address: {address.to_hex()}")
-
-
-if __name__ == "__main__":
-    main()
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/address_from_mnemonic.py
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin
-// Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-import iota_sdk.Ed25519PrivateKey
-import iota_sdk.Secp256k1PrivateKey
-import iota_sdk.Secp256r1PrivateKey
-import iota_sdk.base64Encode
-import kotlin.io.println
-
-const val MNEMONIC = "round attack kitchen wink winter music trip tiny nephew hire orange what"
-
-fun main() {
-    // Ed25519 – default derivation
-    val privateKeyEd25519 = Ed25519PrivateKey.fromMnemonic(MNEMONIC)
-    val privateKeyEd25519Bech32 = privateKeyEd25519.toBech32()
-    val publicKeyEd25519 = privateKeyEd25519.publicKey()
-    val flaggedPublicKeyEd25519 = publicKeyEd25519.toFlaggedBytes()
-    val addressEd25519 = publicKeyEd25519.deriveAddress()
-
-    println("Ed25519\n---")
-    println("Private Key: ${privateKeyEd25519Bech32}")
-    println("Public Key: ${base64Encode(publicKeyEd25519.toBytes())}")
-    println("Public Key With Flag: ${base64Encode(flaggedPublicKeyEd25519)}")
-    println("Address: ${addressEd25519.toHex()}")
-
-    // Secp256k1 – account index 1 (note: ULong literal in Kotlin)
-    val privateKeySecp256k1 = Secp256k1PrivateKey.fromMnemonic(MNEMONIC, 1uL)
-    val privateKeySecp256k1Bech32 = privateKeySecp256k1.toBech32()
-    val publicKeySecp256k1 = privateKeySecp256k1.publicKey()
-    val flaggedPublicKeySecp256k1 = publicKeySecp256k1.toFlaggedBytes()
-    val addressSecp256k1 = publicKeySecp256k1.deriveAddress()
-
-    println("\nSecp256k1\n---")
-    println("Private Key: ${privateKeySecp256k1Bech32}")
-    println("Public Key: ${base64Encode(publicKeySecp256k1.toBytes())}")
-    println("Public Key With Flag: ${base64Encode(flaggedPublicKeySecp256k1)}")
-    println("Address: ${addressSecp256k1.toHex()}")
-
-    // Secp256r1 – custom derivation path
-    val privateKeySecp256r1 =
-        Secp256r1PrivateKey.fromMnemonicWithPath(MNEMONIC, "m/74'/4218'/0'/0/2")
-    val privateKeySecp256r1Bech32 = privateKeySecp256r1.toBech32()
-    val publicKeySecp256r1 = privateKeySecp256r1.publicKey()
-    val flaggedPublicKeySecp256r1 = publicKeySecp256r1.toFlaggedBytes()
-    val addressSecp256r1 = publicKeySecp256r1.deriveAddress()
-
-    println("\nSecp256r1\n---")
-    println("Private Key: ${privateKeySecp256r1Bech32}")
-    println("Public Key: ${base64Encode(publicKeySecp256r1.toBytes())}")
-    println("Public Key With Flag: ${base64Encode(flaggedPublicKeySecp256r1)}")
-    println("Address: ${addressSecp256r1.toHex()}")
-}
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/AddressFromMnemonic.kt
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift
-// Copyright (c) 2026 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-
-import IotaSDK
-
-@main
-struct AddressFromMnemonicExample {
-  static func main() throws {
-    let mnemonic = "round attack kitchen wink winter music trip tiny nephew hire orange what"
-
-    // Ed25519 – default derivation
-    let ed25519Key = try Ed25519PrivateKey.fromMnemonic(phrase: mnemonic)
-    let ed25519Bech32 = try ed25519Key.toBech32()
-    let ed25519PubKey = ed25519Key.publicKey()
-    let ed25519Flagged = ed25519PubKey.toFlaggedBytes()
-    let ed25519Address = ed25519PubKey.deriveAddress()
-
-    print("Ed25519\n---")
-    print("Private Key: \(ed25519Bech32)")
-    print("Public Key: \(base64Encode(input: ed25519PubKey.toBytes()))")
-    print("Public Key With Flag: \(base64Encode(input: ed25519Flagged))")
-    print("Address: \(ed25519Address.toHex())")
-
-    // Secp256k1 – account index 1
-    let secp256k1Key = try Secp256k1PrivateKey.fromMnemonic(phrase: mnemonic, accountIndex: 1)
-    let secp256k1Bech32 = try secp256k1Key.toBech32()
-    let secp256k1PubKey = secp256k1Key.publicKey()
-    let secp256k1Flagged = secp256k1PubKey.toFlaggedBytes()
-    let secp256k1Address = secp256k1PubKey.deriveAddress()
-
-    print("\nSecp256k1\n---")
-    print("Private Key: \(secp256k1Bech32)")
-    print("Public Key: \(base64Encode(input: secp256k1PubKey.toBytes()))")
-    print("Public Key With Flag: \(base64Encode(input: secp256k1Flagged))")
-    print("Address: \(secp256k1Address.toHex())")
-
-    // Secp256r1 – custom derivation path
-    let secp256r1Key = try Secp256r1PrivateKey.fromMnemonicWithPath(
-      phrase: mnemonic, path: "m/74'/4218'/0'/0/2")
-    let secp256r1Bech32 = try secp256r1Key.toBech32()
-    let secp256r1PubKey = secp256r1Key.publicKey()
-    let secp256r1Flagged = secp256r1PubKey.toFlaggedBytes()
-    let secp256r1Address = secp256r1PubKey.deriveAddress()
-
-    print("\nSecp256r1\n---")
-    print("Private Key: \(secp256r1Bech32)")
-    print("Public Key: \(base64Encode(input: secp256r1PubKey.toBytes()))")
-    print("Public Key With Flag: \(base64Encode(input: secp256r1Flagged))")
-    print("Address: \(secp256r1Address.toHex())")
-  }
-}
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/address_from_mnemonic.swift
 ```
 
   </TabItem>
 </Tabs>
 
----
 
 ## Expected Output
 
@@ -384,21 +96,21 @@ Running any of the above examples with the provided mnemonic should produce outp
 
 ```
 Ed25519
----
+
 Private Key: iotaprivkey1...
 Public Key: <base64-encoded-public-key>
 Public Key With Flag: <base64-encoded-flagged-public-key>
 Address: 0x<64-character-hex-address>
 
 Secp256k1
----
+
 Private Key: iotaprivkey1...
 Public Key: <base64-encoded-public-key>
 Public Key With Flag: <base64-encoded-flagged-public-key>
 Address: 0x<64-character-hex-address>
 
 Secp256r1
----
+
 Private Key: iotaprivkey1...
 Public Key: <base64-encoded-public-key>
 Public Key With Flag: <base64-encoded-flagged-public-key>
@@ -408,7 +120,5 @@ Address: 0x<64-character-hex-address>
 :::tip
 All three schemes derive **different** addresses from the same mnemonic. This is expected — each scheme uses a different cryptographic curve and derivation path.
 :::
-
----
 
 ## Next Steps
