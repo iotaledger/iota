@@ -7,6 +7,7 @@
     "**/*.{yml,yaml}"
   ],
   "excludes": [
+    ".changeset/**",
     "**/CHANGELOG.md",
     "**/target/",
     "**/build/",
