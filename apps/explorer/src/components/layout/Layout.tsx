@@ -15,14 +15,13 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
 import { NetworkContext } from '~/contexts';
-import { useAmplitudeIdentity, useInitialPageView, useNetwork } from '~/hooks';
+import { useAmplitudeIdentity, useNetwork } from '~/hooks';
 import { createIotaClient, SupportedNetworks } from '~/lib/utils';
 import { TrustFrameworkProvider } from '../trust-framework/trustFrameworkProvider';
 
 export function Layout(): JSX.Element {
     const [network, setNetwork] = useNetwork();
 
-    useInitialPageView(network);
     useAmplitudeIdentity(network);
 
     return (
