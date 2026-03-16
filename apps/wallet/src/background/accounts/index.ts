@@ -357,7 +357,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 msg.id,
             ),
         );
-        accountsEvents.emit('accountsChanged');
         return true;
     }
     if (isMethodPayload(payload, 'switchAccount')) {
