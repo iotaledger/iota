@@ -16,7 +16,13 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, Select, SelectSize } from '@iota/ap
 import { generateTransactionsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
-import { type IotaTransactionKind } from '@iota/iota-sdk/client';
+import { type IotaTransactionBlockResponse, type IotaTransactionKind } from '@iota/iota-sdk/client';
+import { EVM_ANCHOR_ADDRESSES } from '~/lib/constants/evm.constants';
+
+function isEvmTransaction(tx: IotaTransactionBlockResponse): boolean {
+    const sender = tx.transaction?.data.sender;
+    return !!sender && EVM_ANCHOR_ADDRESSES.includes(sender);
+}
 
 interface TransactionsActivityTableProps {
     disablePagination?: boolean;
@@ -50,6 +56,11 @@ export function TransactionsActivityTable({
     goToFirstPageRef.current = pagination.onFirst;
     const tableColumns = generateTransactionsTableColumns();
 
+    const displayData =
+        transactionKindFilter === 'ProgrammableTransaction'
+            ? { ...data, data: data?.data.filter((tx) => !isEvmTransaction(tx)) }
+            : data;
+
     useEffect(() => {
         goToFirstPageRef.current();
     }, [transactionKindFilter]);
@@ -65,7 +76,7 @@ export function TransactionsActivityTable({
                 />
             ) : (
                 <div className="flex flex-col space-y-3 text-left">
-                    {isPending || isFetching || !data?.data ? (
+                    {isPending || isFetching || !displayData?.data ? (
                         <PlaceholderTable
                             rowCount={limit}
                             rowHeight="16px"
@@ -73,7 +84,7 @@ export function TransactionsActivityTable({
                         />
                     ) : (
                         <TableCard
-                            data={data.data}
+                            data={displayData!.data}
                             columns={tableColumns}
                             totalLabel={count ? `${numberSuffix(Number(count))} Total` : '-'}
                             viewAll="/recent"
