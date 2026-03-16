@@ -216,7 +216,10 @@ function MigrationDashboardPage(): JSX.Element {
                         />
                     )}
                     <Panel>
-                        <div className="flex flex-col gap-y-xxxs break-all rounded-md px-md--rs py-sm--rs">
+                        <div
+                            className="flex flex-col gap-y-xxxs break-all rounded-md px-md--rs py-sm--rs"
+                            data-amp-mask
+                        >
                             <span className="text-label-md">Stardust address</span>
                             <Address
                                 text={bech32Address}

@@ -2721,6 +2721,7 @@ dependencies = [
  "iota-sdk-types",
  "rand 0.8.5",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -6038,8 +6039,10 @@ dependencies = [
  "clap",
  "color-eyre",
  "crossterm 0.25.0",
+ "duration-str",
  "eyre",
  "futures",
+ "iota-benchmark",
  "iota-build-cache-server",
  "iota-config",
  "iota-metrics",
@@ -6055,6 +6058,8 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.64",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6067,6 +6072,7 @@ dependencies = [
  "clap",
  "comfy-table",
  "duration-str",
+ "fastcrypto",
  "futures",
  "hdrhistogram",
  "indicatif",
@@ -14323,6 +14329,7 @@ dependencies = [
  "rand 0.8.5",
  "rs_merkle",
  "serde",
+ "tracing",
 ]
 
 [[package]]

@@ -54,14 +54,14 @@ impl Stopwatch {
     pub fn stop(&mut self, now: Clock) {
         debug_assert!(self.is_ticking());
         debug_assert!(self.clock <= now, "{:?} <= {now:?}", self.clock);
-        self.total += now.duration_since(self.clock).unwrap();
+        self.total += now.duration_since(self.clock).unwrap_or_default();
         self.reset();
     }
 
     pub fn try_stop(&mut self, now: Clock) {
         if self.is_ticking() {
             debug_assert!(self.clock <= now, "{:?} <= {now:?}", self.clock);
-            self.total += now.duration_since(self.clock).unwrap();
+            self.total += now.duration_since(self.clock).unwrap_or_default();
             self.reset();
         }
     }
