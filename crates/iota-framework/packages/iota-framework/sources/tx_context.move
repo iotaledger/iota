@@ -68,6 +68,20 @@ public fun fresh_object_address(_ctx: &mut TxContext): address {
 }
 native fun fresh_id(): address;
 
+/// Return the reference gas price in effect for the epoch the transaction
+/// is being executed in.
+public fun reference_gas_price(_self: &TxContext): u64 {
+    native_rgp()
+}
+native fun native_rgp(): u64;
+
+/// Return the gas price submitted for the current transaction.
+/// That is the value the user submitted with the transaction data.
+public fun gas_price(_self: &TxContext): u64 {
+    native_gas_price()
+}
+native fun native_gas_price(): u64;
+
 #[allow(unused_function)]
 /// Return the number of id's created by the current transaction.
 /// Hidden for now, but may expose later
@@ -75,9 +89,6 @@ fun ids_created(_self: &TxContext): u64 {
     native_ids_created()
 }
 native fun native_ids_created(): u64;
-
-#[allow(unused_function)]
-native fun native_gas_price(): u64;
 
 #[allow(unused_function)]
 // native function to retrieve gas budget, currently not exposed
@@ -99,7 +110,8 @@ public fun new(
         epoch,
         epoch_timestamp_ms,
         ids_created,
-        native_gas_price(),
+        600, // rgp
+        700, // gas price
         native_gas_budget(),
         native_sponsor(),
     );
@@ -163,6 +175,7 @@ public fun increment_epoch_number(self: &mut TxContext) {
         epoch,
         native_epoch_timestamp_ms(),
         native_ids_created(),
+        native_rgp(),
         native_gas_price(),
         native_gas_budget(),
         native_sponsor(),
@@ -178,6 +191,7 @@ public fun increment_epoch_timestamp(self: &mut TxContext, delta_ms: u64) {
         native_epoch(),
         epoch_timestamp_ms,
         native_ids_created(),
+        native_rgp(),
         native_gas_price(),
         native_gas_budget(),
         native_sponsor(),
@@ -197,6 +211,7 @@ native fun replace(
     epoch: u64,
     epoch_timestamp_ms: u64,
     ids_created: u64,
+    rgp: u64,
     gas_price: u64,
     gas_budget: u64,
     sponsor: vector<address>,

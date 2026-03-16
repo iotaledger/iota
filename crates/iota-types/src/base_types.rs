@@ -1046,6 +1046,8 @@ pub struct TxContext {
     /// Number of `ObjectID`'s generated during execution of the current
     /// transaction
     ids_created: u64,
+    // Reference gas price
+    rgp: u64,
     /// Gas price passed to transaction as input
     gas_price: u64,
     /// Gas budget passed to transaction as input
@@ -1072,6 +1074,7 @@ impl TxContext {
         sender: &IotaAddress,
         digest: &TransactionDigest,
         epoch_data: &EpochData,
+        rgp: u64,
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<IotaAddress>,
@@ -1082,6 +1085,7 @@ impl TxContext {
             digest,
             &epoch_data.epoch_id(),
             epoch_data.epoch_start_timestamp(),
+            rgp,
             gas_price,
             gas_budget,
             sponsor,
@@ -1094,6 +1098,7 @@ impl TxContext {
         digest: &TransactionDigest,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
+        rgp: u64,
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<IotaAddress>,
@@ -1105,6 +1110,7 @@ impl TxContext {
             epoch: *epoch_id,
             epoch_timestamp_ms,
             ids_created: 0,
+            rgp,
             gas_price,
             gas_budget,
             sponsor: sponsor.map(|s| s.into()),
@@ -1159,6 +1165,10 @@ impl TxContext {
         self.sponsor.map(IotaAddress::from)
     }
 
+    pub fn rgp(&self) -> u64 {
+        self.rgp
+    }
+
     pub fn gas_price(&self) -> u64 {
         self.gas_price
     }
@@ -1194,6 +1204,7 @@ impl TxContext {
                 epoch: 0,
                 epoch_timestamp_ms: 0,
                 ids_created: 0,
+                rgp: 0,
                 gas_price: 0,
                 gas_budget: 0,
                 sponsor: None,
@@ -1234,6 +1245,7 @@ impl TxContext {
         epoch: u64,
         epoch_timestamp_ms: u64,
         ids_created: u64,
+        rgp: u64,
         gas_price: u64,
         gas_budget: u64,
         sponsor: Option<AccountAddress>,
@@ -1243,6 +1255,7 @@ impl TxContext {
         self.epoch = epoch;
         self.epoch_timestamp_ms = epoch_timestamp_ms;
         self.ids_created = ids_created;
+        self.rgp = rgp;
         self.gas_price = gas_price;
         self.gas_budget = gas_budget;
         self.sponsor = sponsor;
@@ -1254,6 +1267,7 @@ impl TxContext {
             &IotaAddress::random_for_testing_only(),
             &TransactionDigest::random(),
             &EpochData::new_test(),
+            0,
             0,
             0,
             None,

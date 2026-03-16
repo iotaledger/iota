@@ -1044,6 +1044,7 @@ fn create_genesis_context(
         epoch_data,
         0,
         0,
+        0,
         None,
         protocol_config,
     );

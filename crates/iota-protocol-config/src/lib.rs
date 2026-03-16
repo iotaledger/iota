@@ -131,7 +131,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 23;
 // Version 23: Enable Move native context (TxContext via native functions) in
 //             all networks. TxContext fields are read via native functions
 //             instead of being deserialized from a BCS-encoded struct.
-//             Enables sponsor, gas_price, and gas_budget to be exposed to Move.
+//             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
+//             Move.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1001,6 +1002,7 @@ pub struct ProtocolConfig {
     tx_context_epoch_cost_base: Option<u64>,
     tx_context_epoch_timestamp_ms_cost_base: Option<u64>,
     tx_context_sponsor_cost_base: Option<u64>,
+    tx_context_rgp_cost_base: Option<u64>,
     tx_context_gas_price_cost_base: Option<u64>,
     tx_context_gas_budget_cost_base: Option<u64>,
     tx_context_ids_created_cost_base: Option<u64>,
@@ -1966,6 +1968,7 @@ impl ProtocolConfig {
             tx_context_epoch_cost_base: None,
             tx_context_epoch_timestamp_ms_cost_base: None,
             tx_context_sponsor_cost_base: None,
+            tx_context_rgp_cost_base: None,
             tx_context_gas_price_cost_base: None,
             tx_context_gas_budget_cost_base: None,
             tx_context_ids_created_cost_base: None,
@@ -2667,6 +2670,7 @@ impl ProtocolConfig {
                     cfg.tx_context_epoch_cost_base = Some(30);
                     cfg.tx_context_epoch_timestamp_ms_cost_base = Some(30);
                     cfg.tx_context_sponsor_cost_base = Some(30);
+                    cfg.tx_context_rgp_cost_base = Some(30);
                     cfg.tx_context_gas_price_cost_base = Some(30);
                     cfg.tx_context_gas_budget_cost_base = Some(30);
                     cfg.tx_context_ids_created_cost_base = Some(30);

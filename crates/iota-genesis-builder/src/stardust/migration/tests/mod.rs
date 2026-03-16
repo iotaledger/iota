@@ -432,6 +432,7 @@ fn unlock_object(
         &EpochData::new(0, epoch_start_timestamp_ms, Default::default()),
         0,
         0,
+        0,
         None,
         &ProtocolConfig::get_for_version(protocol_version, Chain::Unknown),
     );

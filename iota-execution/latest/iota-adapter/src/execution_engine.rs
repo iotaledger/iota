@@ -134,6 +134,7 @@ mod checked {
 
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
+        let rgp = gas_status.reference_gas_price();
         let gas_charger = GasCharger::new(
             transaction_digest,
             gas_data.payment,
@@ -146,6 +147,7 @@ mod checked {
             &transaction_digest,
             epoch_id,
             epoch_timestamp_ms,
+            rgp,
             gas_price,
             gas_data.budget,
             sponsor,
@@ -366,6 +368,7 @@ mod checked {
         // Prepare the gas charger.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
+        let rgp = gas_status.reference_gas_price();
         let mut gas_charger = GasCharger::new(
             transaction_digest,
             gas_data.payment,
@@ -379,6 +382,7 @@ mod checked {
             &transaction_digest,
             epoch_id,
             epoch_timestamp_ms,
+            rgp,
             gas_price,
             gas_data.budget,
             sponsor,
@@ -498,6 +502,7 @@ mod checked {
         // Prepare the gas charger for authentication execution.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
+        let rgp = gas_status.reference_gas_price();
         let mut gas_charger =
             GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
 
@@ -508,6 +513,7 @@ mod checked {
             &transaction_digest,
             epoch_id,
             epoch_timestamp_ms,
+            rgp,
             gas_price,
             gas_data.budget,
             sponsor,

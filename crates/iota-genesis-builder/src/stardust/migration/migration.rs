@@ -456,6 +456,7 @@ pub(super) fn create_migration_context(
         &EpochData::new_genesis(0),
         0,
         0,
+        0,
         None,
         protocol_config,
     );
