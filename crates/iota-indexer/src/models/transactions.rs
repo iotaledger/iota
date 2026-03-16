@@ -100,10 +100,11 @@ pub struct CheckpointTxGlobalOrder {
 
 /// Index status.
 #[derive(Clone, Debug, Copy, AsExpression, PartialEq, Eq)]
+#[repr(i64)]
 #[diesel(sql_type = BigInt)]
 pub enum IndexStatus {
-    Started,
-    Completed,
+    Started = 0,
+    Completed = -1,
 }
 
 impl<DB> ToSql<BigInt, DB> for IndexStatus

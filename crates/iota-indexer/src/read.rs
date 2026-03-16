@@ -72,7 +72,7 @@ use crate::{
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
         transactions::{
-            OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
+            IndexStatus, OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
@@ -858,7 +858,7 @@ impl IndexerReader {
 
     /// This method tries to transform [`StoredTransaction`] values
     /// into transaction blocks, without any other modification.
-    async fn stored_transaction_to_transaction_block(
+    pub(crate) async fn stored_transaction_to_transaction_block(
         &self,
         stored_txes: Vec<StoredTransaction>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -1519,6 +1519,29 @@ impl IndexerReader {
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         self.multi_get_transaction_block_response_in_blocking_task_impl(&digests, options)
             .await
+    }
+
+    /// Returns `true` when `tx_global_order.optimistic_sequence_number !=
+    /// IndexStatus::Started`, which means all basic data for the transaction
+    /// (objects, displays, etc.) has been persisted by either checkpoint or
+    /// optimistic path.
+    pub(crate) async fn is_transaction_fully_indexed(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<bool> {
+        self.spawn_blocking(move |this| {
+            let digest_bytes = digest.inner().to_vec();
+            run_query!(&this.pool, |conn| {
+                tx_global_order::table
+                    .filter(tx_global_order::tx_digest.eq(digest_bytes))
+                    .select(tx_global_order::optimistic_sequence_number)
+                    .first::<i64>(conn)
+                    .optional()
+            })
+            // n = -1 if persisted on checkpoint path, n > 0 if persisted on optimistic path
+            .map(|result| result.is_some_and(|n| n != IndexStatus::Started as i64))
+        })
+        .await
     }
 
     pub async fn multi_get_transaction_block_response_in_blocking_task_with_preserved_order(
