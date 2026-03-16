@@ -61,7 +61,7 @@ export function TransactionDialogView({
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={txDigest ?? ''}
-                            type="transaction-digest"
+                            analyticType="transaction-digest"
                             onCopySuccess={() =>
                                 toast.success('Transaction digest copied to clipboard')
                             }

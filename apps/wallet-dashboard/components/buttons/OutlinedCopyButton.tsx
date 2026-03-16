@@ -3,50 +3,47 @@
 
 import { OutlinedCopyButton as CoreOutlinedCopyButton } from '@iota/core';
 import { ampli } from '@/lib/utils/analytics';
+import React from 'react';
 
-interface OutlinedCopyButtonProps {
+type CoreOutlinedCopyButtonProps = React.ComponentProps<typeof CoreOutlinedCopyButton>;
+
+interface OutlinedCopyButtonProps extends Omit<CoreOutlinedCopyButtonProps, 'onCopySuccess'> {
+    /**
+     * A string that identifies the type of text being copied, used for analytics tracking.
+     */
+    analyticType: string;
     /**
      * Callback function called when copy is successful
      */
-    onCopySuccess?: () => void;
+    onCopySuccess?: CoreOutlinedCopyButtonProps['onCopySuccess'];
     /**
-     * Text to copy to clipboard
+     * Whether to track the copy event in analytics
+     * @default true
      */
-    textToCopy: string;
-    /**
-     * Type of element being copied for analytics tracking
-     */
-    type: string;
+    trackEvent?: boolean;
 }
 
 /**
  * Wrapper around @iota/core's OutlinedCopyButton that adds automatic analytics tracking.
- *
  * This component automatically tracks clipboard copy events using Amplitude's elementCopied event.
- *
- * @example
- * ```tsx
- * <OutlinedCopyButton
- *   textToCopy={address}
- *   type="address"
- *   onCopySuccess={() => toast.success('Address copied')}
- * />
- * ```
  */
 export function OutlinedCopyButton({
     onCopySuccess,
-    textToCopy,
-    type,
+    analyticType,
+    trackEvent = true,
+    ...rest
 }: OutlinedCopyButtonProps): React.JSX.Element {
-    const handleCopySuccess = () => {
+    const handleCopySuccess = React.useCallback(() => {
         // Track analytics event
-        ampli.elementCopied({ type });
+        if (analyticType && trackEvent) {
+            ampli.elementCopied({ type: analyticType });
+        }
 
         // Call the original callback if provided
         if (onCopySuccess) {
             onCopySuccess();
         }
-    };
+    }, [analyticType, onCopySuccess, trackEvent]);
 
-    return <CoreOutlinedCopyButton textToCopy={textToCopy} onCopySuccess={handleCopySuccess} />;
+    return <CoreOutlinedCopyButton {...rest} onCopySuccess={handleCopySuccess} />;
 }

@@ -27,7 +27,7 @@ export function ReceiveFundsDialog({
     const { data: iotaName } = useGetDefaultIotaName(address);
     const onCopySuccess = useCopyToClipboard(address, {
         copySuccessMessage: 'Address copied',
-        textType: 'address',
+        analyticType: 'address',
     });
 
     return (

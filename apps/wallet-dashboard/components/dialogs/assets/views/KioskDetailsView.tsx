@@ -76,7 +76,7 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={objectId ?? ''}
-                            type="kiosk-object-id"
+                            analyticType="kiosk-object-id"
                             onCopySuccess={() =>
                                 toast.success('Kiosk Object ID copied to clipboard')
                             }
