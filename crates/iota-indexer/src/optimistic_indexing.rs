@@ -312,7 +312,7 @@ impl OptimisticTransactionExecutor {
                 .pop()
                 .ok_or_else(|| {
                     IndexerError::PersistentStorageDataCorruption(format!(
-                        "Transaction {tx_digest} not found in the DB after being marked as indexed."
+                        "transaction {tx_digest} not found in the DB after being marked as indexed."
                     ))
                 })
         }
@@ -338,7 +338,7 @@ impl OptimisticTransactionExecutor {
                     .map_err(backoff::Error::transient)?
                 {
                     return Err(backoff::Error::transient(IndexerError::PostgresRead(
-                        "Transaction not yet fully indexed".to_string(),
+                        "transaction not yet fully indexed".to_string(),
                     )));
                 }
                 Ok(())
@@ -346,9 +346,9 @@ impl OptimisticTransactionExecutor {
         )
         .await
         .map_err(|e| {
-            tracing::warn!("Timed out waiting for transaction to be fully indexed: {e}");
+            tracing::warn!("timed out waiting for transaction to be fully indexed: {e}");
             IndexerError::PostgresRead(
-                "Timeout waiting for transaction to be fully indexed".to_string(),
+                "timeout waiting for transaction to be fully indexed".to_string(),
             )
         })
     }
