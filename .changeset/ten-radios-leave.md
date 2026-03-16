@@ -1,5 +1,5 @@
 ---
-"@iota/graphql-transport": patch
+'@iota/graphql-transport': patch
 ---
 
 fix undefined exchangeRatesId and stakingPoolId

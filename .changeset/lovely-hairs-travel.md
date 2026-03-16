@@ -1,5 +1,5 @@
 ---
-"@iota/apps-ui-icons": patch
+'@iota/apps-ui-icons': patch
 ---
 
 Update svgo dependency.
