@@ -118,7 +118,7 @@ impl SharedObjVerManager {
                 .into_iter()
                 .map(|iso| {
                     let (object_id, version) = iso.id_and_version();
-                    VersionAssignment { object_id, version }
+                    VersionAssignment::new(object_id, version)
                 })
                 .collect();
             let tx_key = cert.key();
