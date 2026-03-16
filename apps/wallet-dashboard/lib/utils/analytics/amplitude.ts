@@ -67,7 +67,12 @@ type AmplitudeIdentityOptions = {
  * This allows filtering and segmenting analytics events by this dimension.
  */
 export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
-    if (!ampli.isLoaded) {
+    if (!ampli.isLoaded || !IS_ENABLED) {
+        return;
+    }
+
+    const consentStatus = getAmplitudeConsentStatus();
+    if (consentStatus === 'declined') {
         return;
     }
 
