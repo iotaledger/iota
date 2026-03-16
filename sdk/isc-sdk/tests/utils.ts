@@ -1,5 +1,5 @@
 import type { IotaClient } from '@iota/iota-sdk/client';
-import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
+import { requestIotaFromFaucet } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import type { AssetsResponse } from '../src/index.js';
@@ -17,7 +17,7 @@ export async function requestFunds(
     const keypair = new Ed25519Keypair();
     const address = keypair.toIotaAddress();
 
-    await requestIotaFromFaucetV0({
+    await requestIotaFromFaucet({
         host: faucetUrl,
         recipient: address,
     });

@@ -8,18 +8,13 @@ import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import tmp from 'tmp';
-import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
 import { WebSocket } from 'ws';
 
 import type { IotaObjectChangePublished } from '../../../src/client/index.js';
 import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '../../../src/client/index.js';
 import type { Keypair } from '../../../src/cryptography/index.js';
-import {
-    FaucetRateLimitError,
-    getFaucetHost,
-    requestIotaFromFaucetV1,
-} from '../../../src/faucet/index.js';
+import { getFaucetHost, requestIotaFromFaucet } from '../../../src/faucet/index.js';
 import { Ed25519Keypair } from '../../../src/keypairs/ed25519/index.js';
 import { Transaction, UpgradePolicy } from '../../../src/transactions/index.js';
 import { IOTA_TYPE_ARG } from '../../../src/utils/index.js';
@@ -147,31 +142,7 @@ export async function setupWithFundedAddress(
     configPath: string,
     { rpcURL }: { graphQLURL?: string; rpcURL?: string } = {},
 ) {
-    const client = getClient(rpcURL);
-    await retry(() => requestIotaFromFaucetV1({ host: DEFAULT_FAUCET_URL, recipient: address }), {
-        backoff: 'EXPONENTIAL',
-        // overall timeout in 60 seconds
-        timeout: 1000 * 60,
-        // skip retry if we hit the rate-limit error
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        retryIf: (error: any) => !(error instanceof FaucetRateLimitError),
-        logger: (msg) => console.warn('Retrying requesting from faucet: ' + msg),
-    });
-
-    await retry(
-        async () => {
-            const balance = await client.getBalance({ owner: address });
-
-            if (balance.totalBalance === '0') {
-                throw new Error('Balance is still 0');
-            }
-        },
-        {
-            backoff: () => 3000,
-            timeout: 60 * 1000,
-            retryIf: () => true,
-        },
-    );
+    await requestIotaFromFaucet({ host: DEFAULT_FAUCET_URL, recipient: address });
 
     execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
     return new TestToolbox(keypair, rpcURL, configPath);
