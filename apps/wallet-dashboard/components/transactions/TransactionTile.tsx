@@ -101,14 +101,14 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
             >
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
-                        txnFailed={transaction.state === TransactionState.Failed}
                         variant={getTransactionAction(transaction?.raw, address)}
+                        txnFailed={transaction.state === TransactionState.Failed}
                     />
                 </CardImage>
                 <CardBody
                     title={
                         transaction.state === TransactionState.Failed
-                            ? 'Transaction Failed'
+                            ? `Failed - ${transaction.action ?? 'Unknown'}`
                             : (transaction.action ?? 'Unknown')
                     }
                     subtitle={transactionDate}

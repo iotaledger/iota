@@ -484,10 +484,8 @@ mod test {
         run_sequential_restarts_test(RestartMode::PersistAll, true, false).await;
     }
 
-    // TODO: This test is flaky when running with many other tests in parallel.
-    // It passes consistently when running individually.
-    // /// Persistent DB after each restart, short run before stop, long stop
-    // duration.
+    /// Persistent DB after each restart, short run before stop, long stop
+    /// duration.
     #[sim_test(config = "test_config()")]
     async fn test_sequential_restarts_persistent_db_short_run_long_stop() {
         run_sequential_restarts_test(RestartMode::PersistAll, false, true).await;

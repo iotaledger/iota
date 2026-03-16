@@ -136,24 +136,28 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                                 style={InfoBoxStyle.Elevated}
                             />
                         )}
-                    <TransactionSummary
-                        isDryRun
-                        isLoading={isDryRunLoading}
-                        isError={isDryRunError}
-                        summary={summary}
-                        chain={chain}
-                        renderExplorerLink={ExplorerLinkHelper}
-                        transaction={signer instanceof LedgerSigner ? transaction : undefined}
-                    />
-                    <GasFees
-                        sender={addressForTransaction}
-                        gasSummary={summary?.gas}
-                        isEstimate
-                        isError={isError}
-                        isPending={isDryRunLoading}
-                        activeAddress={activeAddress}
-                        renderExplorerLink={ExplorerLinkHelper}
-                    />
+                    <div data-amp-mask>
+                        <TransactionSummary
+                            isDryRun
+                            isLoading={isDryRunLoading}
+                            isError={isDryRunError}
+                            summary={summary}
+                            chain={chain}
+                            renderExplorerLink={ExplorerLinkHelper}
+                            transaction={signer instanceof LedgerSigner ? transaction : undefined}
+                        />
+                    </div>
+                    <div data-amp-mask>
+                        <GasFees
+                            sender={addressForTransaction}
+                            gasSummary={summary?.gas}
+                            isEstimate
+                            isError={isError}
+                            isPending={isDryRunLoading}
+                            activeAddress={activeAddress}
+                            renderExplorerLink={ExplorerLinkHelper}
+                        />
+                    </div>
                     <TransactionDetails sender={addressForTransaction} transaction={transaction} />
                 </div>
             </UserApproveContainer>

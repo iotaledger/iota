@@ -1056,6 +1056,10 @@ impl AuthorityPerEpochStore {
                 "cannot override chain on production networks!"
             );
         }
+        info!(
+            "initializing epoch store from chain id {chain_from_id:?} to chain id {:?}",
+            chain.1
+        );
 
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, chain.1);
 
@@ -1471,6 +1475,7 @@ impl AuthorityPerEpochStore {
         tx_key: &TransactionKey,
         tx_digest: &TransactionDigest,
     ) -> IotaResult {
+        let _metrics_scope = iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_tx_key");
         let tables = self.tables()?;
 
         self.consensus_output_cache
@@ -1653,6 +1658,23 @@ impl AuthorityPerEpochStore {
             .map_err(Into::into)
     }
 
+    /// Returns future containing the state accumulator for the given epoch
+    /// once available.
+    pub async fn notify_read_checkpoint_state_accumulator(
+        &self,
+        checkpoints: &[CheckpointSequenceNumber],
+    ) -> IotaResult<Vec<Accumulator>> {
+        let tables = self.tables()?;
+        self.checkpoint_state_notify_read
+            .read(checkpoints, |checkpoints| {
+                tables
+                    .state_hash_by_checkpoint
+                    .multi_get(checkpoints)
+                    .map_err(Into::into)
+            })
+            .await
+    }
+
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,
@@ -1733,6 +1755,9 @@ impl AuthorityPerEpochStore {
         digests: &[TransactionDigest],
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
+        let _metrics_scope =
+            iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_finalized_transactions");
+
         let mut batch = self.tables()?.executed_transactions_to_checkpoint.batch();
         batch.insert_batch(
             &self.tables()?.executed_transactions_to_checkpoint,

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl, Overlay } from '_components';
+import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
 import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
@@ -18,7 +18,7 @@ import {
     Logout,
     Expand,
     Discord,
-    Sidepanel,
+    SidePanel as SidePanelIcon,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -55,6 +55,7 @@ export function MenuList() {
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+    const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
     const logoutMutation = useLogoutMutation();
 
     function handleAutoLockSubtitle(): string {
@@ -87,7 +88,7 @@ export function MenuList() {
         if (!isSidePanelVisible) {
             // Track before the mutation: SidePanel.close() destroys this window, so we must flush before it runs
             ampli.sidePanelChanged({ enabled: false });
-            await ampli.client.flush?.();
+            await ampli.flush();
         }
 
         try {
@@ -100,7 +101,7 @@ export function MenuList() {
         if (isSidePanelVisible) {
             // Track after the mutation: the popup is still alive, so it's safe to flush before closing
             ampli.sidePanelChanged({ enabled: true });
-            await ampli.client.flush?.();
+            await ampli.flush();
             window.close();
         }
     }
@@ -154,7 +155,7 @@ export function MenuList() {
                   {
                       title: 'Side Panel',
                       subtitle: sidePanel.data ? `Enabled` : 'Disabled',
-                      icon: <Sidepanel />,
+                      icon: <SidePanelIcon />,
                       tailIcon: <Toggle isToggled={!!sidePanel.data} onChange={onSidePanelClick} />,
                   },
               ]
@@ -167,7 +168,7 @@ export function MenuList() {
         {
             title: 'Reset',
             icon: <Logout />,
-            onClick: () => setIsLogoutDialogOpen(true),
+            onClick: () => setIsPasswordModalVisible(true),
         },
     ];
 
@@ -186,6 +187,14 @@ export function MenuList() {
                             {item.tailIcon ?? <CardAction type={CardActionType.Link} />}
                         </Card>
                     ))}
+                    <VerifyPasswordModal
+                        open={isPasswordModalVisible}
+                        onVerify={() => {
+                            setIsPasswordModalVisible(false);
+                            setIsLogoutDialogOpen(true);
+                        }}
+                        onClose={() => setIsPasswordModalVisible(false)}
+                    />
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
                         confirmText="Reset"

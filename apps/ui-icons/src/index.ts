@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export { default as Passkey } from './Passkey';
@@ -86,6 +86,7 @@ export { default as Search } from './Search';
 export { default as Seed } from './Seed';
 export { default as Send } from './Send';
 export { default as Settings } from './Settings';
+export { default as SidePanel } from './SidePanel';
 export { default as SmX } from './SmX';
 export { default as SortByDefault } from './SortByDefault';
 export { default as SortByDown } from './SortByDown';
@@ -107,4 +108,3 @@ export { default as VisibilityOff } from './VisibilityOff';
 export { default as VisibilityOn } from './VisibilityOn';
 export { default as Wallet } from './Wallet';
 export { default as Warning } from './Warning';
-export { default as Sidepanel } from './Sidepanel';
