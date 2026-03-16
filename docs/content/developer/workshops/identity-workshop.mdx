@@ -74,6 +74,34 @@ The Rust Axum backend handles all IOTA Identity logic, exposed as four HTTP endp
 
 Both the student and the university must establish their identity on the IOTA network before any credential exchange can happen. Each gets a DID anchored on-chain, with their private key stored securely in Stronghold.
 
+Both endpoints rely on a shared helper, `create_or_load_did`, which creates a new DID and publishes it to the network on first run, or loads the existing one from disk on subsequent runs:
+
+```rust
+async fn create_or_load_did(
+    doc_path: &str,
+    fragment_path: &str,
+    stronghold_path: &str,
+) -> anyhow::Result<(IotaDocument, String)> {
+    if Path::new(doc_path).exists() {
+        // Load existing DID from disk
+        let doc_json = fs::read_to_string(doc_path)?;
+        let fragment = fs::read_to_string(fragment_path)?;
+        let doc = IotaDocument::from_json(&doc_json)?;
+        return Ok((doc, fragment));
+    }
+
+    // Create a new DID and publish it to the IOTA network
+    let storage = get_stronghold_storage(Some(PathBuf::from(stronghold_path)))?;
+    let client = get_funded_client().await?;
+    let (document, fragment) = client.create_did(&storage).await?;
+
+    fs::write(doc_path, document.to_json()?)?;
+    fs::write(fragment_path, &fragment)?;
+
+    Ok((document, fragment))
+}
+```
+
 #### Student (`/holder/create-did`)
 
 ```rust
