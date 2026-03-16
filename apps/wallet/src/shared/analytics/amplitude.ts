@@ -6,7 +6,10 @@ import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ampli } from './ampli';
+import { type ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import Browser from 'webextension-polyfill';
 import { dialogContextPlugin } from './plugins/dialogContextPlugin';
+import { Identify } from '@amplitude/analytics-browser';
 
 const IS_ENABLED = process.env.BUILD_ENV === 'production';
 
@@ -85,14 +88,26 @@ export function getNetworkName(network: Network, customRpc?: string | null): str
     return getNetwork(network)?.name || 'unknown';
 }
 
+type AmplitudeIdentityOptions = {
+    network: Network;
+    customRpc: string | null;
+    extensionViewType: ExtensionViewType;
+};
+
 /**
- * Update the user's network group in Amplitude.
- * This allows filtering events by network in Amplitude analytics.
+ * Set the Amplitude user identity with current app context.
+ * Updates user properties: network, walletAppMode, and walletVersion.
+ * This allows filtering and segmenting analytics events by these dimensions.
  */
-export function setNetworkGroup(network: Network, customRpc?: string | null): void {
+export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
     if (!ampli.isLoaded) {
         return;
     }
-    const networkName = getNetworkName(network, customRpc);
-    ampli.client.setGroup('network', networkName);
+
+    const identifyEvent = new Identify();
+    identifyEvent.set('network', getNetworkName(options.network, options.customRpc));
+    identifyEvent.set('walletAppMode', options.extensionViewType);
+    identifyEvent.set('walletVersion', Browser.runtime.getManifest().version);
+
+    ampli.client.identify(identifyEvent);
 }

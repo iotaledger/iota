@@ -219,7 +219,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
 
         let iota_command = self.run_binary_command(
             "iota",
-            &[&format!("mkdir -p {working_dir}")],
+            &[
+                // Set protocol config override to disable validator subsidies for benchmarks
+                "export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1",
+                "export IOTA_PROTOCOL_CONFIG_OVERRIDE_validator_target_reward=0",
+                &format!("mkdir -p {working_dir}")
+            ],
             &[
                 "genesis",
                 &format!("-f --working-dir {working_dir} --benchmark-ips {ips} --admin-interface-address=localhost:1337"),
@@ -281,6 +286,10 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                         }
                     },
                     format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}"),
+                    // Set protocol config override to disable validator subsidies for
+                    // benchmarks
+                    format!("export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1"),
+                    format!("export IOTA_PROTOCOL_CONFIG_OVERRIDE_validator_target_reward=0"),
                 ];
 
                 if self.enable_flamegraph {
@@ -338,7 +347,10 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                             "export TRACE_FLAMEGRAPH=1".to_string()
                         } else {
                             "".to_string()
-                        }
+                        },
+                        // Set protocol config override to disable validator subsidies for benchmarks
+                        "export IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1".to_string(),
+                        "export IOTA_PROTOCOL_CONFIG_OVERRIDE_validator_target_reward=0".to_string(),
                 ];
                 setup.extend(self.otel_env(parameters, &format!("iota-node-{i}")));
 
@@ -482,12 +494,15 @@ impl IotaProtocol {
                 false => x.main_ip.to_string(),
             })
             .collect();
+
+        // `u64::MAX - 1` is the max total supply value acceptable by
+        // `iota::balance::increase_supply`
         let genesis_config = GenesisConfig::new_for_benchmarks(
             &ips,
             parameters.epoch_duration_ms,
             parameters.chain_start_timestamp_ms,
             Some(parameters.additional_gas_accounts),
-            u64::MAX,
+            u64::MAX - 1,
         );
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {

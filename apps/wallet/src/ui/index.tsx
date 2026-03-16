@@ -6,7 +6,7 @@ import '@fontsource-variable/inter';
 import { ErrorBoundary } from '_components';
 import { setAppViewType } from '_redux/slices/app';
 import { getAppViewType, ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
-import { initAmplitude } from '_src/shared/analytics/amplitude';
+import { initAmplitude, setAmplitudeIdentity } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { initSentry } from '_src/ui/app/helpers';
 import store from '_store';
@@ -145,6 +145,13 @@ function AppWrapper() {
 (async () => {
     await init();
     initSentry();
-    initAmplitude();
+    await initAmplitude();
+
+    const { extensionViewType, network, customRpc } = store.getState().app;
+    setAmplitudeIdentity({
+        network,
+        extensionViewType,
+        customRpc,
+    });
     renderApp();
 })();

@@ -9,9 +9,10 @@ use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     effects::TransactionEffectsAPI,
+    execution_status::ExecutionStatus,
     full_checkpoint_content::CheckpointTransaction,
     object::Owner,
-    transaction::TransactionDataAPI,
+    transaction::{Command, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
 
@@ -86,6 +87,130 @@ impl TryFrom<proto_filter::TransactionKind> for TransactionKind {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum CommandFilter {
+    /// Match a MoveCall command.
+    /// Package is required; module and function are optional.
+    MoveCall {
+        package: ObjectID,
+        module: Option<String>,
+        function: Option<String>,
+    },
+    /// Match a TransferObjects command.
+    TransferObjects,
+    /// Match a SplitCoins command.
+    SplitCoins,
+    /// Match a MergeCoins command.
+    MergeCoins,
+    /// Match a Publish command.
+    Publish,
+    /// Match a MakeMoveVec command.
+    MakeMoveVec,
+    /// Match an Upgrade command.
+    /// Optionally filter by the specific package being upgraded.
+    Upgrade { package: Option<ObjectID> },
+}
+
+impl CommandFilter {
+    /// Returns true if any of the given commands match this filter.
+    pub fn matches_commands(&self, commands: &[Command]) -> bool {
+        commands.iter().any(|cmd| match (self, cmd) {
+            (
+                CommandFilter::MoveCall {
+                    package,
+                    module,
+                    function,
+                },
+                Command::MoveCall(call),
+            ) => {
+                call.package == *package
+                    && (module.is_none() || matches!(module, Some(m) if m == &call.module))
+                    && (function.is_none() || matches!(function, Some(f) if f == &call.function))
+            }
+            (CommandFilter::TransferObjects, Command::TransferObjects(..)) => true,
+            (CommandFilter::SplitCoins, Command::SplitCoins(..)) => true,
+            (CommandFilter::MergeCoins, Command::MergeCoins(..)) => true,
+            (CommandFilter::Publish, Command::Publish(..)) => true,
+            (CommandFilter::MakeMoveVec, Command::MakeMoveVec(..)) => true,
+            (CommandFilter::Upgrade { package }, Command::Upgrade(_, _, pkg_id, _)) => {
+                package.is_none() || matches!(package, Some(p) if p == pkg_id)
+            }
+            _ => false,
+        })
+    }
+}
+
+impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
+    type Error = String;
+
+    fn try_from(proto: proto_filter::CommandFilter) -> Result<Self, Self::Error> {
+        use proto_filter::command_filter::Filter as ProtoCommandFilter;
+
+        let filter = proto.filter.ok_or("command filter is missing")?;
+
+        match filter {
+            ProtoCommandFilter::MoveCall(call_filter) => {
+                let package_bytes = call_filter
+                    .package_id
+                    .ok_or("package_id is missing")?
+                    .address;
+                let package = ObjectID::from_bytes(&package_bytes)
+                    .map_err(|e| format!("invalid package_id: {}", e))?;
+                Ok(CommandFilter::MoveCall {
+                    package,
+                    module: call_filter.module,
+                    function: call_filter.function,
+                })
+            }
+            ProtoCommandFilter::TransferObjects(_) => Ok(CommandFilter::TransferObjects),
+            ProtoCommandFilter::SplitCoins(_) => Ok(CommandFilter::SplitCoins),
+            ProtoCommandFilter::MergeCoins(_) => Ok(CommandFilter::MergeCoins),
+            ProtoCommandFilter::Publish(_) => Ok(CommandFilter::Publish),
+            ProtoCommandFilter::MakeMoveVec(_) => Ok(CommandFilter::MakeMoveVec),
+            ProtoCommandFilter::Upgrade(upgrade_filter) => {
+                let package = upgrade_filter
+                    .package_id
+                    .map(|addr| {
+                        ObjectID::from_bytes(&addr.address)
+                            .map_err(|e| format!("invalid package_id: {}", e))
+                    })
+                    .transpose()?;
+                Ok(CommandFilter::Upgrade { package })
+            }
+            _ => Err("Unsupported command filter type".to_string()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ExecutionStatusFilter {
+    /// Match successful transactions.
+    Success,
+    /// Match failed transactions (cancelled, execution error, or any other
+    /// failure).
+    Failure,
+}
+
+impl ExecutionStatusFilter {
+    /// Returns true if the given execution status matches this filter.
+    pub fn matches_status(&self, status: &ExecutionStatus) -> bool {
+        match self {
+            ExecutionStatusFilter::Success => status.is_ok(),
+            ExecutionStatusFilter::Failure => status.is_err(),
+        }
+    }
+}
+
+impl From<proto_filter::ExecutionStatusFilter> for ExecutionStatusFilter {
+    fn from(proto: proto_filter::ExecutionStatusFilter) -> Self {
+        if proto.success {
+            ExecutionStatusFilter::Success
+        } else {
+            ExecutionStatusFilter::Failure
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionFilter {
     // Logical AND of several filters.
     All(Vec<TransactionFilter>),
@@ -106,18 +231,14 @@ pub enum TransactionFilter {
     /// Filter for transactions that touch this object.
     AffectedObject(ObjectID),
 
-    /// Filter by move package, module (optional) and function (optional).
-    MoveCall {
-        /// the Move package ID
-        package: ObjectID,
-        /// the module name
-        module: Option<String>,
-        /// the function name
-        function: Option<String>,
-    },
+    /// Filter by command type with optional criteria.
+    Command(CommandFilter),
 
     /// Filter transactions that contain events matching the given event filter.
     Events(EventFilter),
+
+    /// Filter by transaction execution status.
+    ExecutionStatus(ExecutionStatusFilter),
 }
 
 // Proto-to-internal filter conversion
@@ -191,23 +312,16 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                     .map_err(|e| format!("invalid object_id: {}", e))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }
-            ProtoFilter::MoveCall(call_filter) => {
-                // TODO: is this correct?
-                let package_bytes = call_filter
-                    .package_id
-                    .ok_or("package_id is missing")?
-                    .address;
-                let package = ObjectID::from_bytes(&package_bytes)
-                    .map_err(|e| format!("invalid package_id: {}", e))?;
-                Ok(TransactionFilter::MoveCall {
-                    package,
-                    module: call_filter.module,
-                    function: call_filter.function,
-                })
+            ProtoFilter::Command(command_filter) => {
+                let internal_command_filter = CommandFilter::try_from(command_filter)?;
+                Ok(TransactionFilter::Command(internal_command_filter))
             }
             ProtoFilter::Event(event_filter) => {
                 let internal_event_filter = EventFilter::try_from(event_filter)?;
                 Ok(TransactionFilter::Events(internal_event_filter))
+            }
+            ProtoFilter::ExecutionStatus(status_filter) => {
+                Ok(TransactionFilter::ExecutionStatus(status_filter.into()))
             }
             _ => Err("Unsupported transaction filter type".to_string()),
         }
@@ -271,21 +385,22 @@ impl TransactionFilter {
                 .iter()
                 .any(|obj_ref| &obj_ref.0 == o),
 
-            TransactionFilter::MoveCall {
-                package,
-                module,
-                function,
-            } => tx_data.move_calls().into_iter().any(|(p, m, f)| {
-                p == package
-                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &m.to_string()))
-                    && (function.is_none() || matches!(function, Some(f2) if f2 == &f.to_string()))
-            }),
+            TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
+                iota_types::transaction::TransactionKind::ProgrammableTransaction(pt) => {
+                    cmd_filter.matches_commands(&pt.commands)
+                }
+                _ => false,
+            },
 
             TransactionFilter::Events(event_filter) => item.events.as_ref().is_some_and(|evts| {
                 evts.data
                     .iter()
                     .any(|event| event_filter.matches_event(state_reader.clone(), event))
             }),
+
+            TransactionFilter::ExecutionStatus(status_filter) => {
+                status_filter.matches_status(item.effects.status())
+            }
         }
     }
 
@@ -387,7 +502,10 @@ impl TransactionFilter {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::base_types::ObjectID;
+    use iota_types::{
+        base_types::ObjectID,
+        transaction::{Argument, Command, ProgrammableMoveCall},
+    };
 
     use super::*;
 
@@ -481,5 +599,279 @@ mod tests {
 
         assert!(complex_filter.validate_depth().is_ok());
         assert_eq!(complex_filter.max_depth(), 3);
+    }
+
+    // --- CommandFilter matching tests ---
+
+    fn make_move_call_cmd(package: ObjectID, module: &str, function: &str) -> Command {
+        Command::MoveCall(Box::new(ProgrammableMoveCall {
+            package,
+            module: module.to_string(),
+            function: function.to_string(),
+            type_arguments: vec![],
+            arguments: vec![],
+        }))
+    }
+
+    #[test]
+    fn test_command_filter_move_call_exact() {
+        let pkg = ObjectID::random();
+        let commands = vec![make_move_call_cmd(pkg, "my_module", "my_func")];
+
+        // Exact match
+        let filter = CommandFilter::MoveCall {
+            package: pkg,
+            module: Some("my_module".into()),
+            function: Some("my_func".into()),
+        };
+        assert!(filter.matches_commands(&commands));
+
+        // Wrong function
+        let filter = CommandFilter::MoveCall {
+            package: pkg,
+            module: Some("my_module".into()),
+            function: Some("other_func".into()),
+        };
+        assert!(!filter.matches_commands(&commands));
+
+        // Wrong module
+        let filter = CommandFilter::MoveCall {
+            package: pkg,
+            module: Some("other_module".into()),
+            function: None,
+        };
+        assert!(!filter.matches_commands(&commands));
+
+        // Wrong package
+        let filter = CommandFilter::MoveCall {
+            package: ObjectID::random(),
+            module: None,
+            function: None,
+        };
+        assert!(!filter.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_move_call_optional_fields() {
+        let pkg = ObjectID::random();
+        let commands = vec![make_move_call_cmd(pkg, "my_module", "my_func")];
+
+        // Package only — matches any module/function
+        let filter = CommandFilter::MoveCall {
+            package: pkg,
+            module: None,
+            function: None,
+        };
+        assert!(filter.matches_commands(&commands));
+
+        // Package + module — matches any function
+        let filter = CommandFilter::MoveCall {
+            package: pkg,
+            module: Some("my_module".into()),
+            function: None,
+        };
+        assert!(filter.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_transfer_objects() {
+        let commands = vec![Command::TransferObjects(
+            vec![Argument::Input(0)],
+            Argument::Input(1),
+        )];
+
+        assert!(CommandFilter::TransferObjects.matches_commands(&commands));
+        assert!(!CommandFilter::SplitCoins.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_split_coins() {
+        let commands = vec![Command::SplitCoins(
+            Argument::Input(0),
+            vec![Argument::Input(1)],
+        )];
+
+        assert!(CommandFilter::SplitCoins.matches_commands(&commands));
+        assert!(!CommandFilter::MergeCoins.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_merge_coins() {
+        let commands = vec![Command::MergeCoins(
+            Argument::Input(0),
+            vec![Argument::Input(1)],
+        )];
+
+        assert!(CommandFilter::MergeCoins.matches_commands(&commands));
+        assert!(!CommandFilter::SplitCoins.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_publish() {
+        let commands = vec![Command::Publish(vec![vec![1, 2, 3]], vec![])];
+
+        assert!(CommandFilter::Publish.matches_commands(&commands));
+        assert!(!CommandFilter::TransferObjects.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_make_move_vec() {
+        let commands = vec![Command::MakeMoveVec(None, vec![Argument::Input(0)])];
+
+        assert!(CommandFilter::MakeMoveVec.matches_commands(&commands));
+        assert!(!CommandFilter::Publish.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_upgrade_any() {
+        let pkg = ObjectID::random();
+        let commands = vec![Command::Upgrade(
+            vec![vec![1, 2, 3]],
+            vec![],
+            pkg,
+            Argument::Input(0),
+        )];
+
+        // Match any upgrade
+        let filter = CommandFilter::Upgrade { package: None };
+        assert!(filter.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_upgrade_specific_package() {
+        let pkg = ObjectID::random();
+        let other_pkg = ObjectID::random();
+        let commands = vec![Command::Upgrade(
+            vec![vec![1, 2, 3]],
+            vec![],
+            pkg,
+            Argument::Input(0),
+        )];
+
+        // Match specific package
+        let filter = CommandFilter::Upgrade { package: Some(pkg) };
+        assert!(filter.matches_commands(&commands));
+
+        // Wrong package
+        let filter = CommandFilter::Upgrade {
+            package: Some(other_pkg),
+        };
+        assert!(!filter.matches_commands(&commands));
+    }
+
+    #[test]
+    fn test_command_filter_empty_commands() {
+        let commands: Vec<Command> = vec![];
+
+        assert!(!CommandFilter::Publish.matches_commands(&commands));
+        assert!(!CommandFilter::TransferObjects.matches_commands(&commands));
+        assert!(
+            !CommandFilter::MoveCall {
+                package: ObjectID::random(),
+                module: None,
+                function: None,
+            }
+            .matches_commands(&commands)
+        );
+    }
+
+    #[test]
+    fn test_command_filter_multiple_commands() {
+        let pkg = ObjectID::random();
+        let commands = vec![
+            Command::SplitCoins(Argument::Input(0), vec![Argument::Input(1)]),
+            make_move_call_cmd(pkg, "m", "f"),
+            Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(2)),
+        ];
+
+        // All three types should match
+        assert!(CommandFilter::SplitCoins.matches_commands(&commands));
+        assert!(
+            CommandFilter::MoveCall {
+                package: pkg,
+                module: Some("m".into()),
+                function: Some("f".into()),
+            }
+            .matches_commands(&commands)
+        );
+        assert!(CommandFilter::TransferObjects.matches_commands(&commands));
+
+        // But Publish doesn't
+        assert!(!CommandFilter::Publish.matches_commands(&commands));
+    }
+
+    // --- Depth/complexity for new filter types ---
+
+    #[test]
+    fn test_command_filter_depth_and_complexity() {
+        let filter = TransactionFilter::Command(CommandFilter::Publish);
+        assert!(filter.validate_depth().is_ok());
+        assert_eq!(filter.max_depth(), 0);
+        assert_eq!(filter.count_nodes(), 1);
+    }
+
+    #[test]
+    fn test_execution_status_depth_and_complexity() {
+        let filter = TransactionFilter::ExecutionStatus(ExecutionStatusFilter::Success);
+        assert!(filter.validate_depth().is_ok());
+        assert_eq!(filter.max_depth(), 0);
+        assert_eq!(filter.count_nodes(), 1);
+
+        let filter = TransactionFilter::ExecutionStatus(ExecutionStatusFilter::Failure);
+        assert!(filter.validate_depth().is_ok());
+        assert_eq!(filter.max_depth(), 0);
+        assert_eq!(filter.count_nodes(), 1);
+    }
+
+    #[test]
+    fn test_combined_new_filters_in_any() {
+        let filter = TransactionFilter::Any(vec![
+            TransactionFilter::Command(CommandFilter::Publish),
+            TransactionFilter::Command(CommandFilter::Upgrade { package: None }),
+            TransactionFilter::ExecutionStatus(ExecutionStatusFilter::Failure),
+        ]);
+        assert!(filter.validate_depth().is_ok());
+        assert_eq!(filter.max_depth(), 1);
+        assert_eq!(filter.count_nodes(), 4); // Any + 3 children
+    }
+
+    // --- ExecutionStatusFilter matching tests ---
+
+    #[test]
+    fn test_execution_status_filter_success() {
+        let filter = ExecutionStatusFilter::Success;
+
+        assert!(filter.matches_status(&ExecutionStatus::Success));
+        assert!(!filter.matches_status(&ExecutionStatus::Failure {
+            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            command: None,
+        }));
+    }
+
+    #[test]
+    fn test_execution_status_filter_failure() {
+        let filter = ExecutionStatusFilter::Failure;
+
+        assert!(!filter.matches_status(&ExecutionStatus::Success));
+
+        // Regular failure
+        assert!(filter.matches_status(&ExecutionStatus::Failure {
+            error: iota_types::execution_status::ExecutionFailureStatus::InsufficientGas,
+            command: None,
+        }));
+
+        // Cancelled due to congestion
+        assert!(filter.matches_status(&ExecutionStatus::Failure {
+            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                congested_objects: iota_types::execution_status::CongestedObjects(vec![]),
+            },
+            command: None,
+        }));
+
+        // Cancelled due to randomness
+        assert!(filter.matches_status(&ExecutionStatus::Failure {
+            error: iota_types::execution_status::ExecutionFailureStatus::ExecutionCancelledDueToRandomnessUnavailable,
+            command: None,
+        }));
     }
 }

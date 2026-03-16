@@ -7,7 +7,7 @@ use iota_grpc_types::v0::ledger_service::{GetServiceInfoRequest, GetServiceInfoR
 
 use crate::{
     Client,
-    api::{GET_SERVICE_INFO_READ_MASK, Result, field_mask_with_default},
+    api::{GET_SERVICE_INFO_READ_MASK, MetadataEnvelope, Result, field_mask_with_default},
 };
 
 impl Client {
@@ -52,8 +52,8 @@ impl Client {
     ///
     /// // Get service info with default fields
     /// let info = client.get_service_info(None).await?;
-    /// println!("Chain ID: {:?}", info.chain_id);
-    /// println!("Epoch: {:?}", info.epoch);
+    /// println!("Chain ID: {:?}", info.body().chain_id);
+    /// println!("Epoch: {:?}", info.body().epoch);
     ///
     /// // Get service info with all fields
     /// let info = client
@@ -69,15 +69,15 @@ impl Client {
     pub async fn get_service_info(
         &self,
         read_mask: Option<&str>,
-    ) -> Result<GetServiceInfoResponse> {
+    ) -> Result<MetadataEnvelope<GetServiceInfoResponse>> {
         let request = GetServiceInfoRequest::default().with_read_mask(field_mask_with_default(
             read_mask,
             GET_SERVICE_INFO_READ_MASK,
         ));
 
         let mut client = self.ledger_service_client();
-        let response = client.get_service_info(request).await?.into_inner();
+        let response = client.get_service_info(request).await?;
 
-        Ok(response)
+        Ok(MetadataEnvelope::from(response))
     }
 }

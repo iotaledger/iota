@@ -18,6 +18,7 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use crate::{
     commit::CommitVote,
@@ -353,6 +354,7 @@ impl SignedBlock {
 
     /// This method only verifies this block's signature. Verification of the
     /// full block should be done via BlockVerifier.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
         let block = &self.inner;
         let committee = &context.committee;
@@ -403,6 +405,7 @@ fn to_consensus_block_intent(digest: InnerBlockDigest) -> IntentMessage<InnerBlo
 /// 1. Compute the digest of `Block`.
 /// 2. Wrap the digest in `IntentMessage`.
 /// 3. Sign the serialized `IntentMessage`, or verify signature against it.
+#[instrument(level = "trace", skip_all)]
 fn compute_block_signature(
     block: &Block,
     protocol_keypair: &ProtocolKeyPair,
@@ -412,6 +415,7 @@ fn compute_block_signature(
         .map_err(ConsensusError::SerializationFailure)?;
     Ok(protocol_keypair.sign(&message))
 }
+#[instrument(level = "trace", skip_all)]
 fn verify_block_signature(
     block: &Block,
     signature: &[u8],

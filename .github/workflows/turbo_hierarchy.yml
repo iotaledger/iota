@@ -79,6 +79,16 @@ jobs:
             exit 1
           fi
 
+  sync-cancel:
+    needs: [sync]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   build:
     name: Lint, Build, and Test
     needs: diff
@@ -139,6 +149,16 @@ jobs:
           path: apps/wallet/web-ext-artifacts/*
           if-no-files-found: error
           retention-days: 7
+
+  build-cancel:
+    needs: [build]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   e2e:
     if: (!cancelled() && !failure() && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))

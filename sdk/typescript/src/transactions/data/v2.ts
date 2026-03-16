@@ -128,6 +128,7 @@ const CallArg = enumUnion({
         version: optional(nullable(JsonU64)),
         digest: optional(nullable(string())),
         initialSharedVersion: optional(nullable(JsonU64)),
+        mutable: optional(nullable(boolean())),
     }),
 });
 
