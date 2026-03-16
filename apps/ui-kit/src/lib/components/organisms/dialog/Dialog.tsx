@@ -46,7 +46,10 @@ const DialogOverlay = React.forwardRef<
         )}
         {...props}
     >
-        <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
+        <DialogClose
+            className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}
+            aria-label="Close"
+        >
             <Close className="button-text-color-neutral" />
         </DialogClose>
     </RadixDialog.Overlay>

@@ -107,9 +107,13 @@ export function DisconnectApp({
                                             <CircleEmitter className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                         }
                                         text={
-                                            connectedAccounts[0]
-                                                ? formatAddress(connectedAccounts[0])
-                                                : ''
+                                            connectedAccounts[0] ? (
+                                                <span data-amp-mask>
+                                                    {formatAddress(connectedAccounts[0])}
+                                                </span>
+                                            ) : (
+                                                ''
+                                            )
                                         }
                                     />
                                 )}

@@ -399,6 +399,16 @@ export interface ConnectedHardwareWalletProperties {
     hardwareWalletType?: string;
 }
 
+export interface DappConnectStartedProperties {
+    applicationName?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    applicationUrl?: string;
+}
+
 export interface DisconnectedApplicationProperties {
     applicationName?: string;
     /**
@@ -932,6 +942,14 @@ export class ConnectedHardwareWallet implements BaseEvent {
     event_type = 'connected hardware wallet';
 
     constructor(public event_properties?: ConnectedHardwareWalletProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class DappConnectStarted implements BaseEvent {
+    event_type = 'dapp connect started';
+
+    constructor(public event_properties?: DappConnectStartedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1784,6 +1802,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ConnectedHardwareWallet(properties), options);
+  }
+
+  /**
+   * dapp connect started
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/dapp%20connect%20started)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. applicationName)
+   * @param options Amplitude event options.
+   */
+  dappConnectStarted(
+    properties?: DappConnectStartedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new DappConnectStarted(properties), options);
   }
 
   /**

@@ -136,7 +136,6 @@ members = [
   "crates/iota-replay",
   "crates/iota-rest-api",
   "crates/iota-rest-kv",
-  "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
   "crates/iota-simulator",
@@ -181,7 +180,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.19.0-alpha"
+version = "1.20.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -275,6 +274,7 @@ diesel = "2.3.5"
 diffy = { version = "0.3" }
 dirs = "5.0"
 downcast = "0.11.0"
+duration-str = "0.5.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
 enum_dispatch = "^0.3"
@@ -360,8 +360,8 @@ shellexpand = "3.1.0"
 signature = "1.6.0"
 snap = "1.1.0"
 static_assertions = "1.1.0"
-strum = { version = "0.26.3", features = ["derive"] }
-strum_macros = "0.26.4"
+strum = { version = "0.27.1", features = ["derive"] }
+strum_macros = "0.27.1"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
 sysinfo = "^0.33"
 tabled = { version = "0.12" }
@@ -459,7 +459,6 @@ iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
 iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
-iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d", features = ["hash", "serde", "schemars"] }

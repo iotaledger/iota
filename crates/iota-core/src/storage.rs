@@ -7,7 +7,6 @@ use std::sync::Arc;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     committee::{Committee, EpochId},
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -225,7 +224,7 @@ impl ReadStore for RocksDbStore {
 
     fn try_get_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
@@ -479,7 +478,7 @@ impl ReadStore for RestReadStore {
 
     fn try_get_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.rocks.try_get_events(digest)
     }

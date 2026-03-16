@@ -68,6 +68,6 @@
         "axios": "^1.13.5",
         "size-limit": "^11.1.4",
         "typescript": "^5.5.3",
-        "vitest": "^2.1.9"
+        "vitest": "^3.2.4"
     }
 }

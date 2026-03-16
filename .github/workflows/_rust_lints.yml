@@ -7,6 +7,9 @@ on:
         type: boolean
       isRustExample:
         type: boolean
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: rust-lints-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -44,6 +47,16 @@ jobs:
       - name: Check Rust formatting
         run: cargo +nightly-2026-01-07 ci-fmt
 
+  rustfmt-cancel:
+    needs: [rustfmt]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   cargo-sort:
     if: (!cancelled() && inputs.isRust)
     runs-on: [self-hosted-x64]
@@ -62,9 +75,21 @@ jobs:
             exit 1    # Fail the workflow
           fi
 
+  cargo-sort-cancel:
+    needs: [cargo-sort]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   examples:
     if: (!cancelled() && inputs.isRustExample)
     uses: ./.github/workflows/_rust_examples.yml
+    with:
+      isNightly: ${{ inputs.isNightly }}
 
   clippy:
     if: (!cancelled() && !failure() && inputs.isRust)
@@ -82,3 +107,13 @@ jobs:
         run: |
           git clean -fd
           ./scripts/simtest/clippy.sh
+
+  clippy-cancel:
+    needs: [clippy]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

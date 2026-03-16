@@ -28,6 +28,9 @@ on:
         type: string
         required: false
         default: "mysticeti"
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -122,6 +125,16 @@ jobs:
 
           eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 
+  rust-tests-cancel:
+    needs: [rust-tests]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   rust-simtests:
     name: Run rust simtests
     if: (!cancelled() && inputs.runSimtest && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
@@ -185,6 +198,16 @@ jobs:
 
           eval "./scripts/ci_tests/rust_tests.sh $ARGS"
 
+  rust-simtests-cancel:
+    needs: [rust-simtests]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   check-unused-deps:
     name: Check Unused Dependencies (${{ matrix.flags }})
     if: (!cancelled() && !failure())
@@ -201,6 +224,16 @@ jobs:
 
       - name: Run Cargo Udeps (external crates)
         run: cargo +nightly-2026-01-07 ci-udeps-external ${{ matrix.flags }}
+
+  check-unused-deps-cancel:
+    needs: [check-unused-deps]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   test-extra:
     env:
@@ -240,3 +273,13 @@ jobs:
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
         shell: bash
+
+  test-extra-cancel:
+    needs: [test-extra]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
