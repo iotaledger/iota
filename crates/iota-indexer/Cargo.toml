@@ -47,8 +47,10 @@ url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
+iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-grpc-client.workspace = true
+iota-grpc-server.workspace = true
 iota-grpc-types.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
@@ -85,6 +87,7 @@ iota-move-build.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
+simulacrum-server.workspace = true
 test-cluster.workspace = true
 
 [[bin]]
@@ -92,4 +95,4 @@ name = "iota-indexer"
 path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
-development = ["simulacrum"]
+development = ["simulacrum", "simulacrum-server"]

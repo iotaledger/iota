@@ -995,7 +995,7 @@ async fn start(
             // reset the existing db
             true,
             None,
-            fullnode_url.clone(),
+            fullnode_grpc_url.clone(),
             IndexerTypeConfig::writer_mode(None, None),
             data_ingestion_dir.clone(),
         )
@@ -1019,7 +1019,7 @@ async fn start(
             pg_address.clone(),
             false,
             None,
-            fullnode_url.clone(),
+            fullnode_grpc_url.clone(),
             IndexerTypeConfig::AnalyticalWorker,
             data_ingestion_dir,
         )

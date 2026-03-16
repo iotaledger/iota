@@ -15,7 +15,10 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_grpc_client::{CheckpointResponse, Client as GrpcClient};
-use iota_grpc_types::v0::transaction::{ExecutedTransaction, TransactionEvents};
+use iota_grpc_types::{
+    field::{FieldMask, FieldMaskUtil},
+    v0::transaction::{ExecutedTransaction, TransactionEvents},
+};
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -28,7 +31,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
@@ -42,6 +45,19 @@ use crate::{
 };
 
 const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
+
+// As an optimization, we're trying to request only the fields we actually need.
+const GRPC_CHECKPOINT_STREAM_READ_MASK: &[&str] = &[
+    "checkpoint.summary.bcs",
+    "checkpoint.contents.bcs",
+    "checkpoint.signature",
+    "transactions.transaction.bcs",
+    "transactions.signatures.bcs",
+    "transactions.effects.bcs",
+    "transactions.events.events.bcs",
+    "transactions.input_objects.bcs",
+    "transactions.output_objects.bcs",
+];
 
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
@@ -123,8 +139,8 @@ impl RemoteStore {
                     }
                     // fallback to REST API if gRPC fails
                     Err(e) => {
-                        debug!("unable to establish a gRPC connection to fullnode: {e}");
-                        info!("using REST API as checkpoint stream");
+                        warn!("unable to establish a gRPC connection to fullnode: {e}");
+                        info!("fallback to REST API as checkpoint stream");
                         RemoteStore::RestApiFullnode(iota_rest_api::Client::new(url))
                     }
                 }
@@ -340,11 +356,15 @@ impl CheckpointReaderActor {
     /// Fetches checkpoints from the fullnode trough a gRPC streaming connection
     /// and streams them to a channel.
     async fn relay_from_fullnode(&mut self, client: &mut GrpcClient) -> IngestionResult<()> {
+        let readmask = FieldMask::from_paths(GRPC_CHECKPOINT_STREAM_READ_MASK)
+            .display()
+            .to_string();
+
         let mut checkpoints_stream = client
             .stream_checkpoints(
                 Some(self.current_checkpoint_number),
                 None,
-                Some("checkpoint,transactions"),
+                Some(readmask.as_str()),
                 None,
                 None,
             )
