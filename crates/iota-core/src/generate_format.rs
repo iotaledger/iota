@@ -10,8 +10,8 @@ use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrEleme
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
-        self, Identifier, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
-        StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
+        self, Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, StructTag,
+        TransactionDigest, TransactionEffectsDigest, TypeTag,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -107,17 +107,17 @@ fn get_registry() -> Result<Registry> {
     let type_tag_struct = TypeTag::from(struct_tag.clone());
     tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
 
-    // Also trace sample MoveObjectType_ values to capture all variants properly
+    // Trace sample MoveObjectType values to capture all variants properly
     // These contain the SDK's StructTag and TypeTag types
-    let move_obj_type_other = MoveObjectType_::Other(Box::new(struct_tag.clone()));
+    let move_obj_type_other = MoveObjectType::from(struct_tag.clone());
     tracer
         .trace_value(&mut samples, &move_obj_type_other)
         .unwrap();
-    let move_obj_type_coin = MoveObjectType_::Coin(type_tag_struct.clone());
+    let move_obj_type_coin = MoveObjectType::coin(type_tag_struct.clone());
     tracer
         .trace_value(&mut samples, &move_obj_type_coin)
         .unwrap();
-    let move_obj_type_staked = MoveObjectType_::StakedIota;
+    let move_obj_type_staked = MoveObjectType::staked_iota();
     tracer
         .trace_value(&mut samples, &move_obj_type_staked)
         .unwrap();

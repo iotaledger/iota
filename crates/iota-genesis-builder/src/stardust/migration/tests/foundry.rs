@@ -368,7 +368,7 @@ fn create_gas_coin() -> Result<()> {
         *gas_coin_object.type_().unwrap(),
         MoveObjectType::gas_coin()
     );
-    assert_eq!(gas_coin_object.coin_type_maybe().unwrap(), GAS::type_tag());
+    assert_eq!(gas_coin_object.coin_type_opt().unwrap(), GAS::type_tag());
     assert_eq!(coin.value(), 1_000_000);
     assert_eq!(package_object.version(), gas_coin_object.version());
 
