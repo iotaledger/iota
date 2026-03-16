@@ -2157,7 +2157,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
     let expect = expect![[r#"
         Err(
             ModulePublishFailure {
-                error: "Package dependency \"Unpublished\" does not specify a published address (the Move.toml manifest for \"Unpublished\" does not contain a 'published-at' field, nor is there a 'published-id' in the Move.lock).\nIf this is intentional, you may use the --with-unpublished-dependencies flag to continue publishing these dependencies as part of your package (they won't be linked against existing packages on-chain).",
+                error: "Package dependency \"Unpublished\" does not specify a published address (the Move.toml manifest for \"Unpublished\" does not contain a 'published-at' field, nor is there a 'published-id' in the Move.lock). You can use `iota move manage-package` to record the on-chain address for \"Unpublished\".\nIf this is intentional, you may use the --with-unpublished-dependencies flag to continue publishing these dependencies as part of your package (they won't be linked against existing packages on-chain).",
             },
         )
     "#]];

@@ -417,7 +417,7 @@ export class IotaClient {
                 } as IotaTransactionBlockResponseQuery,
                 input.cursor,
                 input.limit,
-                (input.order || 'descending') === 'descending',
+                (input.order || 'ascending') === 'descending',
             ],
             signal: input.signal,
         });
@@ -678,7 +678,7 @@ export class IotaClient {
                 input.query,
                 input.cursor,
                 input.limit,
-                (input.order || 'descending') === 'descending',
+                (input.order || 'ascending') === 'descending',
             ],
             signal: input.signal,
         });

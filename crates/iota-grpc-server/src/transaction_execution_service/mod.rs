@@ -255,12 +255,7 @@ pub async fn execute_transaction(
     } = executor
         .execute_transaction(exec_request, None)
         .await
-        .map_err(|e| {
-            RpcError::new(
-                tonic::Code::Internal,
-                format!("transaction execution failed: {e}"),
-            )
-        })?;
+        .map_err(RpcError::from)?;
 
     // Build the response.
     // ExecuteTransactionResponse is transparent, so we use read_mask directly.

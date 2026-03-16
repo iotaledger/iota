@@ -98,7 +98,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
                         disableVideoControls
                     />
                 </CardImage>
-                <div className="w-full truncate [&_div]:truncate">
+                <div className="w-full truncate [&_div]:truncate" data-amp-mask>
                     <CardBody title={nftMeta?.name ?? 'Asset'} subtitle={formatAddress(objectId)} />
                 </div>
                 <CardAction

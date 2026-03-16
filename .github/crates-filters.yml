@@ -140,8 +140,6 @@ iota-rest-api:
   - "crates/iota-rest-api/**"
 iota-rest-kv:
   - "crates/iota-rest-kv/**"
-iota-rosetta:
-  - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
 iota-sdk:

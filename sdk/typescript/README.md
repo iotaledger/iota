@@ -12,37 +12,15 @@ This is the IOTA TypeScript SDK built on the IOTA
 It provides utility classes and functions for applications to sign transactions and interact with
 the IOTA network.
 
-WARNING: Note that we are still iterating on the RPC and SDK API before TestNet, therefore please
-expect frequent breaking changes in the short-term. We expect the API to stabilize after the
-upcoming TestNet launch.
+## Installing
 
-## Working with Devnet
-
-The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota-sdk) with the
-same bi-weekly release cycle as the Devnet validators and
-[RPC Server](https://docs.iota.org/iota-api-ref). To
-use the SDK in your project, you can do:
+To use the SDK in your project, you can do:
 
 ```bash
 $ npm install @iota/iota-sdk
 ```
 
-You can also use your preferred npm client, such as yarn or pnpm.
-
-## Working with local network
-
-Note that the `latest` tag for the [published SDK](https://www.npmjs.com/package/@iota/iota-sdk)
-might go out of sync with the RPC server on the `main` branch until the next release. If you're
-developing against a local network, we recommend using the `experimental`-tagged packages, which
-contain the latest changes from `main`.
-
-```bash
-npm install @iota/iota-sdk@experimental
-```
-
-Refer to the
-[JSON RPC](https://docs.iota.org/iota-api-ref) topic
-for instructions about how to start a local network and local RPC server.
+You can also use your preferred package manager, such as `yarn` or `pnpm`.
 
 ## Building Locally
 
@@ -61,14 +39,13 @@ $ pnpm sdk build
 
 > All `pnpm` commands below are intended to be run in the root of the iota repo.
 
-## Type Doc
+## Docs
 
-You can view the generated [Type Doc](https://typedoc.org/) for the
-[current release of the SDK](https://www.npmjs.com/package/@iota/iota-sdk) at
-http://typescript-sdk-docs.s3-website-us-east-1.amazonaws.com/.
+You can find the TypeScript SDK Guides at [IOTA Wiki](https://docs.iota.org/developer/ts-sdk/typescript/) and also the [TypeDoc](https://docs.iota.org/developer/ts-sdk/api/)
 
-For the latest docs for the `main` branch, run `pnpm doc` and open the
-[doc/index.html](doc/index.html) in your browser.
+## Runnable Examples
+
+You may want to run some of the [examples](../examples/) we have.
 
 ## Testing
 
@@ -93,12 +70,7 @@ npx vitest txn-builder.test.ts
 Troubleshooting:
 
 If you see errors like `ECONNRESET or "socket hang up"`, run `node -v` to make sure your node
-version is `v20.x.x`. Refer to this
-[guide](https://blog.logrocket.com/how-switch-node-js-versions-nvm/) to switch node version.
-
-Some more follow up here is if you used homebrew to install node, there could be multiple paths to
-node on your machine.
-https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm-use-on-mac
+version is `v24.x.x`.
 
 To run E2E tests against Devnet
 
@@ -122,7 +94,7 @@ const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 // get coins owned by an address
 await client.getCoins({
-    owner: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
+    owner: '0x34abc6dfbf9ae91106ccc21b1a7839704cc9932a8ab571b7f60a2894cea219e7',
 });
 ```
 
@@ -138,7 +110,7 @@ const client = new IotaClient({ url: getFullnodeUrl('localnet') });
 
 // get coins owned by an address
 await client.getCoins({
-    owner: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
+    owner: '0x34abc6dfbf9ae91106ccc21b1a7839704cc9932a8ab571b7f60a2894cea219e7',
 });
 ```
 
@@ -149,12 +121,12 @@ import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // create a client connected to devnet
 const client = new IotaClient({
-    url: 'https://fullnode.devnet.iota.org',
+    url: 'https://api.devnet.iota.cafe',
 });
 
 // get coins owned by an address
 await client.getCoins({
-    owner: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
+    owner: '0x34abc6dfbf9ae91106ccc21b1a7839704cc9932a8ab571b7f60a2894cea219e7',
 });
 ```
 
@@ -163,11 +135,11 @@ await client.getCoins({
 You can request iota from the faucet when running against devnet, testnet, or localnet
 
 ```typescript
-import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
+import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
 
-await requestIotaFromFaucetV0({
+await requestIotaFromFaucetV1({
     host: getFaucetHost('testnet'),
-    recipient: '0xcc2bd176a478baea9a0de7a24cd927661cc6e860d5bacecb9a138ef20dbab231',
+    recipient: '0x34abc6dfbf9ae91106ccc21b1a7839704cc9932a8ab571b7f60a2894cea219e7',
 });
 ```
 
@@ -364,7 +336,7 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const txn = await client.getTransaction({
-    digest: '9XFneskU8tW7UxQf7tE5qFRfcN4FadtC2Z3HAZkgeETd=',
+    digest: '9XFneskU8tW7UxQf7tE5qFRfcN4FadtC2Z3HAZkgeETd',
     // only fetch the effects field
     options: {
         showEffects: true,
@@ -378,8 +350,8 @@ const txn = await client.getTransaction({
 // You can also fetch multiple transactions in one batch request
 const txns = await client.multiGetTransactions({
     digests: [
-        '9XFneskU8tW7UxQf7tE5qFRfcN4FadtC2Z3HAZkgeETd=',
-        '17mn5W1CczLwitHCO9OIUbqirNrQ0cuKdyxaNe16SAME=',
+        '9XFneskU8tW7UxQf7tE5qFRfcN4FadtC2Z3HAZkgeETd',
+        '17mn5W1CczLwitHCO9OIUbqirNrQ0cuKdyxaNe16SAME',
     ],
     // fetch both the input transaction data as well as effects
     options: { showInput: true, showEffects: true },
@@ -477,7 +449,7 @@ const client = new IotaClient({
     url: getFullnodeUrl('testnet'),
 });
 const events = client.queryEvents({
-    query: { Sender: toolbox.address() },
+    query: { Sender: "0x34abc6dfbf9ae91106ccc21b1a7839704cc9932a8ab571b7f60a2894cea219e7" },
     limit: 2,
 });
 ```

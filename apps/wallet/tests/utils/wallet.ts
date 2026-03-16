@@ -6,15 +6,15 @@ import type { CDPSession, Page } from '@playwright/test';
 import { LONG_TIMEOUT, SHORT_TIMEOUT } from '../constants/timeout.constants';
 import { expect } from './fixtures';
 
-const PASSWORD = 'iotae2etests';
+export const TESTS_PASSWORD = 'iotae2etests';
 
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Get Started/ }).click({ timeout: SHORT_TIMEOUT });
     await page.getByText('Create a new wallet').click();
     await page.getByText('Mnemonic', { exact: true }).click();
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(TESTS_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(TESTS_PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.getByText('I saved my mnemonic').click();
@@ -41,8 +41,8 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     }
 
     await page.getByText('Add profile').click();
-    await page.getByTestId('password.input').fill(PASSWORD);
-    await page.getByTestId('password.confirmation').fill(PASSWORD);
+    await page.getByTestId('password.input').fill(TESTS_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(TESTS_PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
@@ -104,8 +104,8 @@ export async function createPasskeyWallet(
 
     await page.getByRole('button', { name: /Continue/ }).click();
 
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(TESTS_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(TESTS_PASSWORD);
 
     await page.getByText('I read and agree').click();
 
@@ -126,8 +126,8 @@ export async function restorePasskeyAccount(page: Page) {
 
     await page.getByRole('button', { name: /Continue/ }).click();
 
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(TESTS_PASSWORD);
+    await page.getByTestId('password.confirmation').fill(TESTS_PASSWORD);
 
     await page.getByText('I read and agree').click();
 
