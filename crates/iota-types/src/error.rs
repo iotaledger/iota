@@ -40,10 +40,7 @@ macro_rules! fp_ensure {
     };
 }
 
-use crate::{
-    digests::TransactionEventsDigest,
-    execution_status::{CommandIndex, ExecutionFailureStatus},
-};
+use crate::execution_status::{CommandIndex, ExecutionFailureStatus};
 
 #[macro_export]
 macro_rules! exit_main {
@@ -596,7 +593,7 @@ pub enum IotaError {
     #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{:?}].", digests)]
     TransactionsNotFound { digests: Vec<TransactionDigest> },
     #[error("Could not find the referenced transaction events [{digest:?}].")]
-    TransactionEventsNotFound { digest: TransactionEventsDigest },
+    TransactionEventsNotFound { digest: TransactionDigest },
     #[error(
         "Attempt to move to `Executed` state an transaction that has already been executed: {:?}.",
         digest

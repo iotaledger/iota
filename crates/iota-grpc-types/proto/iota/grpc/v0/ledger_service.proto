@@ -20,6 +20,9 @@ import "iota/grpc/v0/transaction.proto";
 import "iota/grpc/v0/types.proto";
 
 service LedgerService {
+  // Check the health of the node.
+  rpc GetHealth(GetHealthRequest) returns (GetHealthResponse);
+
   // Query the service for general information about its current state.
   rpc GetServiceInfo(GetServiceInfoRequest) returns (GetServiceInfoResponse);
 
@@ -32,6 +35,27 @@ service LedgerService {
   rpc StreamCheckpointData (CheckpointDataStreamRequest) returns (stream CheckpointData);
 
   rpc GetEpoch(GetEpochRequest) returns (GetEpochResponse);
+}
+
+message GetHealthRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Optional threshold in milliseconds. The node is considered healthy only if
+  // the latest executed checkpoint timestamp is within this many milliseconds of
+  // the current system time. If not provided, the server applies a default
+  // threshold of 5 seconds.
+  optional uint64 threshold_ms = 1;
+}
+
+message GetHealthResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Checkpoint height of the most recently executed checkpoint.
+  optional uint64 executed_checkpoint_height = 1;
+
+  // Estimated validator latency in milliseconds.
+  // Reserved for future use.
+  optional uint32 estimated_validator_latency_ms = 2;
 }
 
 message GetServiceInfoRequest {
@@ -211,12 +235,28 @@ message CheckpointDataStreamRequest {
   // if no filter is passed, all events are included (if mentioned in the read_mask)
   optional iota.grpc.v0.filter.EventFilter events_filter = 5;
 
+  // When true, checkpoints with no matching transactions or events are skipped entirely.
+  // At least one of transactions_filter or events_filter must be set.
+  // A Progress message is sent periodically to indicate liveness and scan position.
+  optional bool filter_checkpoints = 6;
+
+  // Progress message interval in milliseconds when filter_checkpoints is enabled.
+  // Defaults to 2000ms. Minimum value is 500ms; lower values are clamped.
+  optional uint32 progress_interval_ms = 7;
+
   // Optional maximum message size the client can receive (1MB - 128MB)
   // If not specified, server uses default chunking threshold (4MB)
-  optional uint32 max_message_size_bytes = 6;
+  optional uint32 max_message_size_bytes = 8;
 }
 
 message CheckpointData {
+  message Progress {
+    option (iota.grpc.message_accessors) = "with";
+
+    // The sequence number of the latest scanned checkpoint.
+    uint64 latest_scanned_sequence_number = 1;
+  }
+
   message EndMarker {
     option (iota.grpc.message_accessors) = "with";
 
@@ -230,7 +270,8 @@ message CheckpointData {
     iota.grpc.v0.checkpoint.Checkpoint checkpoint = 1;
     iota.grpc.v0.transaction.ExecutedTransactions executed_transactions = 2;
     iota.grpc.v0.event.Events events = 3;
-    EndMarker end_marker = 4;
+    Progress progress = 4;
+    EndMarker end_marker = 5;
   }
 }
 

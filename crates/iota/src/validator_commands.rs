@@ -60,7 +60,7 @@ use tabled::{
     },
 };
 
-use crate::{PrintableResult, fire_drill::get_gas_obj_ref, signing::sign_transaction};
+use crate::{PrintableResult, signing::sign_transaction};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -1116,4 +1116,21 @@ async fn can_validator_mutate_all_data(context: &mut WalletContext) -> Result<()
     )
     .await?;
     Ok(())
+}
+
+async fn get_gas_obj_ref(
+    iota_address: IotaAddress,
+    iota_client: &IotaClient,
+    minimal_gas_balance: u64,
+) -> anyhow::Result<ObjectRef> {
+    let coins = iota_client
+        .coin_read_api()
+        .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)
+        .await?
+        .data;
+    let gas_obj = coins.iter().find(|c| c.balance >= minimal_gas_balance);
+    if gas_obj.is_none() {
+        bail!("Validator doesn't have enough IOTA coins to cover transaction fees.");
+    }
+    Ok(gas_obj.unwrap().object_ref())
 }
