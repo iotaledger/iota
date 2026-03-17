@@ -296,7 +296,7 @@ public fun next_with_context(
             current_epoch = current_epoch + 1;
             scenario.txn_number = scenario.txn_number + 1;
             let builder = ctx_builder;
-            builder.set_epoch(current_epoch);
+            let builder = builder.set_epoch(current_epoch);
             let hash = tx_context::dummy_tx_hash_with_hint(scenario.txn_number);
             scenario.ctx = builder.make_tx_context(hash);
             let effects = end_transaction();
