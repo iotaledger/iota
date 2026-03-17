@@ -1,13 +1,13 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-let tx = new Transaction();
+const tx = new Transaction();
 
-let itemType = 'ITEM_TYPE';
-let itemId = tx.pure.id('<ITEM_ID>');
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
+const itemType = 'ITEM_TYPE';
+const itemId = tx.pure.id('<ITEM_ID>');
+const kioskArg = tx.object('<ID>');
+const capArg = tx.object('<ID>');
 
-let [item, promise] = tx.moveCall({
+const [item, promise] = tx.moveCall({
     target: '0x2::kiosk::borrow_val',
     arguments: [ kioskArg, capArg, itemId ],
     typeArguments: [ itemType ],

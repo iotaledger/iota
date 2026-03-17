@@ -35,28 +35,7 @@ transactions to finish before sending the next one.
 - `defaultBudget`: The default budget for transactions, which will be used if the transaction does
   not specify a budget (default `50_000_000n`),
 
-```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-import { SerialTransactionExecutor } from '@iota/iota-sdk/transactions';
-
-const client = new IotaClient({ url: getFullnodeUrl('devnet') });
-
-const executor = new SerialTransactionExecutor({
-    client,
-    signer: yourKeyPair,
-});
-
-const tx1 = new Transaction();
-const [coin1] = tx1.splitCoins(tx1.gas, [1]);
-tx1.transferObjects([coin1], address1);
-const tx2 = new Transaction();
-const [coin2] = tx2.splitCoins(tx2.gas, [1]);
-tx2.transferObjects([coin2], address2);
-
-const [{ digest: digest1 }, { digest: digest2 }] = await Promise.all([
-    executor.executeTransaction(tx1),
-    executor.executeTransaction(tx2),
-]);
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/executors/serial-transaction-executor.ts
 ```
 
 ## `ParallelTransactionExecutor`
@@ -108,28 +87,7 @@ way that avoids conflicts between transactions using the same object ids.
   gas pool (in milliseconds). Building transactions will be paused for up to 2x this duration around
   each epoch boundary to ensure the gas price is up-to-date for the next epoch. (default `1000`)
 
-```ts
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-import { ParallelTransactionExecutor } from '@iota/iota-sdk/transactions';
-
-const client = new IotaClient({ url: getFullnodeUrl('devnet') });
-
-const executor = new ParallelTransactionExecutor({
-    client,
-    signer: yourKeyPair,
-});
-
-const tx1 = new Transaction();
-const [coin1] = tx1.splitCoins(tx1.gas, [1]);
-tx1.transferObjects([coin1], address1);
-const tx2 = new Transaction();
-const [coin2] = tx2.splitCoins(tx2.gas, [1]);
-tx2.transferObjects([coin2], address2);
-
-const [{ digest: digest1 }, { digest: digest2 }] = await Promise.all([
-    executor.executeTransaction(tx1),
-    executor.executeTransaction(tx2),
-]);
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/executors/parallel-transaction-executor.ts
 ```
 
 ## Building and Executing Transactions with Executors

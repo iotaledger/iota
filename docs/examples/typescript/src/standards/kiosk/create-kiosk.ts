@@ -1,6 +1,6 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-let tx = new Transaction();
+const tx = new Transaction();
 tx.moveCall({
-    target: '0x2::kiosk::default'
+    target: '0x2::kiosk::default',
 });

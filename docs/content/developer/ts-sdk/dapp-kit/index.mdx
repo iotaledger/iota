@@ -34,29 +34,7 @@ following example. The props available on the providers are covered in more deta
 respective pages.
 
 
-```tsx
-import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import { getFullnodeUrl } from '@iota/iota-sdk/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-// Config options for the networks you want to connect to
-const { networkConfig } = createNetworkConfig({
-    localnet: { url: getFullnodeUrl('localnet') },
-    testnet: { url: getFullnodeUrl('testnet') },
-});
-const queryClient = new QueryClient();
-
-function App() {
-    return (
-        <QueryClientProvider client={queryClient}>
-            <IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
-                <WalletProvider>
-                    <YourApp />
-                </WalletProvider>
-            </IotaClientProvider>
-        </QueryClientProvider>
-    );
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/dapp-kit-setup-providers.tsx
 ```
 
 ## Using UI components to connect to a wallet
@@ -80,18 +58,5 @@ wrappers around `useQuery` from `@tanstack/react-query`. For more comprehensive 
 to use these query hooks, check out the
 [react-query documentation](https://tanstack.com/query/latest/docs/react/overview).
 
-```tsx
-import { useIotaClientQuery } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { data, isPending, error, refetch } = useIotaClientQuery('getOwnedObjects', {
-        owner: '0x123',
-    });
-
-    if (isPending) {
-        return <div>Loading...</div>;
-    }
-
-    return <pre>{JSON.stringify(data, null, 2)}</pre>;
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/dapp-kit-rpc-hook-example.tsx
 ```

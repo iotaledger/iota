@@ -1,13 +1,13 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-let tx = new Transaction();
+const tx = new Transaction();
 
-let itemArg = tx.object('<ID>');
-let kioskArg = tx.object('<ID>');
-let kioskOwnerCapArg = tx.object('<ID>');
+const itemArg = tx.object('<ID>');
+const kioskArg = tx.object('<ID>');
+const kioskOwnerCapArg = tx.object('<ID>');
 
 tx.moveCall({
     target: '0x2::kiosk::place',
     arguments: [ kioskArg, kioskOwnerCapArg, itemArg ],
-    typeArguments: [ '<ITEM_TYPE>' ]
-})
+    typeArguments: [ '<ITEM_TYPE>' ],
+});

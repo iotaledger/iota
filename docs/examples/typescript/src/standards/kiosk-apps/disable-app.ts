@@ -1,11 +1,11 @@
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-let txb = new Transaction();
-let kioskArg = txb.object('<ID>');
-let capArg = txb.object('<ID>');
+const tx = new Transaction();
+const kioskArg = tx.object('<ID>');
+const capArg = tx.object('<ID>');
 
-txb.moveCall({
+tx.moveCall({
     target: '0x2::kiosk_extension::disable',
     arguments: [ kioskArg, capArg ],
-    typeArguments: [ '<letter_box_package>::letterbox_ext::Extension' ]
+    typeArguments: [ '<letter_box_package>::letterbox_ext::Extension' ],
 });
