@@ -13,7 +13,9 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, UnchangedSharedKind},
     executable_transaction::VerifiedExecutableTransaction,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    messages_consensus::ConsensusDeterminedVersionAssignments,
+    messages_consensus::{
+        CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
+    },
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
@@ -650,18 +652,18 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![
-            (
-                *scheduled_transactions[1].digest(),
-                vec![
-                    (
+        let cancelled_transactions = vec![
+            CancelledTransaction {
+                digest: *scheduled_transactions[1].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             REFERENCE_GAS_PRICE_FOR_TESTS,
@@ -669,18 +671,18 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *scheduled_transactions[3].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *scheduled_transactions[3].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_2,
@@ -688,11 +690,13 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                         .unwrap(),
                     ),
                 ],
-            ),
+            },
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
@@ -875,22 +879,24 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![(
-            *scheduled_transactions[2].digest(),
-            vec![
-                (
+        let cancelled_transactions = vec![CancelledTransaction {
+            digest: *scheduled_transactions[2].digest(),
+            version_assignments: vec![
+                VersionAssignment::new(
                     tester.shared_counter_1.object_id,
                     SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
                 ),
-                (
+                VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK,
                 ),
             ],
-        )];
+        }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
@@ -1031,17 +1037,17 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![(
-            *scheduled_transactions[2].digest(),
-            vec![
-                (
+        let cancelled_transactions = vec![CancelledTransaction {
+            digest: *scheduled_transactions[2].digest(),
+            version_assignments: vec![
+                VersionAssignment::new(
                     tester.shared_counter_1.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     )
                     .unwrap(),
                 ),
-                (
+                VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
@@ -1049,10 +1055,12 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
                     .unwrap(),
                 ),
             ],
-        )];
+        }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
@@ -1190,7 +1198,9 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(vec![])
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions: vec![]
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
@@ -1269,17 +1279,17 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![(
-            *scheduled_transactions[2].digest(),
-            vec![
-                (
+        let cancelled_transactions = vec![CancelledTransaction {
+            digest: *scheduled_transactions[2].digest(),
+            version_assignments: vec![
+                VersionAssignment::new(
                     tester.shared_counter_1.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
                     )
                     .unwrap(),
                 ),
-                (
+                VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price,
@@ -1287,10 +1297,12 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
                     .unwrap(),
                 ),
             ],
-        )];
+        }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
@@ -1455,38 +1467,38 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![
-            (
-                *certificates[4].digest(),
-                vec![(
+        let cancelled_transactions = vec![
+            CancelledTransaction {
+                digest: *certificates[4].digest(),
+                version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     )
                     .unwrap(),
                 )],
-            ),
-            (
-                *certificates[5].digest(),
-                vec![(
+            },
+            CancelledTransaction {
+                digest: *certificates[5].digest(),
+                version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2,
                     )
                     .unwrap(),
                 )],
-            ),
-            (
-                *certificates[6].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[6].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
@@ -1494,18 +1506,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[7].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[7].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
@@ -1513,18 +1525,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[10].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[10].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
@@ -1532,18 +1544,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[11].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[11].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
@@ -1551,18 +1563,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[12].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[12].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects,
@@ -1570,11 +1582,13 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
+            },
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");
@@ -1781,38 +1795,38 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
         scheduled_transactions[0].data().transaction_data().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_txs = vec![
-            (
-                *certificates[4].digest(),
-                vec![(
+        let cancelled_transactions = vec![
+            CancelledTransaction {
+                digest: *certificates[4].digest(),
+                version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     )
                     .unwrap(),
                 )],
-            ),
-            (
-                *certificates[5].digest(),
-                vec![(
+            },
+            CancelledTransaction {
+                digest: *certificates[5].digest(),
+                version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
                     SequenceNumber::new_congested_with_suggested_gas_price(
                         certificates[2].gas_price() + 1,
                     )
                     .unwrap(),
                 )],
-            ),
-            (
-                *certificates[6].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[6].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
@@ -1820,18 +1834,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[7].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[7].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
@@ -1839,18 +1853,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[10].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[10].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[2].gas_price() + 1,
@@ -1858,18 +1872,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[11].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[11].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[1].gas_price() + 1,
@@ -1877,18 +1891,18 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
-            (
-                *certificates[12].digest(),
-                vec![
-                    (
+            },
+            CancelledTransaction {
+                digest: *certificates[12].digest(),
+                version_assignments: vec![
+                    VersionAssignment::new(
                         tester.shared_counter_1.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
                         )
                         .unwrap(),
                     ),
-                    (
+                    VersionAssignment::new(
                         tester.shared_counter_2.object_id,
                         SequenceNumber::new_congested_with_suggested_gas_price(
                             certificates[0].gas_price(),
@@ -1896,11 +1910,13 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                         .unwrap(),
                     ),
                 ],
-            ),
+            },
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(cancelled_txs)
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                cancelled_transactions
+            }
         );
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

@@ -6179,6 +6179,22 @@
       "BigInt_for_uint64": {
         "type": "string"
       },
+      "CancelledTransaction": {
+        "type": "array",
+        "items": [
+          {
+            "$ref": "#/components/schemas/Digest"
+          },
+          {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VersionAssignment"
+            }
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
+      },
       "Checkpoint": {
         "type": "object",
         "required": [
@@ -6385,32 +6401,7 @@
               "CancelledTransactions": {
                 "type": "array",
                 "items": {
-                  "type": "array",
-                  "items": [
-                    {
-                      "$ref": "#/components/schemas/Digest"
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "array",
-                        "items": [
-                          {
-                            "$ref": "#/components/schemas/ObjectId"
-                          },
-                          {
-                            "type": "integer",
-                            "format": "uint64",
-                            "minimum": 0.0
-                          }
-                        ],
-                        "maxItems": 2,
-                        "minItems": 2
-                      }
-                    }
-                  ],
-                  "maxItems": 2,
-                  "minItems": 2
+                  "$ref": "#/components/schemas/CancelledTransaction"
                 }
               }
             },
@@ -12785,6 +12776,21 @@
             "$ref": "#/components/schemas/BigInt_for_uint64"
           }
         }
+      },
+      "VersionAssignment": {
+        "type": "array",
+        "items": [
+          {
+            "$ref": "#/components/schemas/ObjectId"
+          },
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
       }
     }
   }

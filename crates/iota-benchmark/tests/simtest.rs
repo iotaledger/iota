@@ -57,6 +57,7 @@ mod test {
         digests::TransactionDigest,
         full_checkpoint_content::CheckpointData,
         messages_checkpoint::VerifiedCheckpoint,
+        messages_consensus::{CancelledTransaction, VersionAssignment},
         supported_protocol_versions::SupportedProtocolVersions,
         traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType},
         transaction::{
@@ -699,14 +700,17 @@ mod test {
         // determinism.
         for _ in 0..num_txns {
             let num_objs = thread_rng().gen_range(1..15);
-            let mut assigned_object_versions = Vec::new();
+            let mut version_assignments = Vec::new();
             for _ in 0..num_objs {
-                assigned_object_versions.push((
+                version_assignments.push(VersionAssignment::new(
                     ObjectID::random(),
                     SequenceNumber::new_congested_with_suggested_gas_price(1_000).unwrap(),
                 ));
             }
-            additional_cancelled_txns.push((TransactionDigest::random(), assigned_object_versions));
+            additional_cancelled_txns.push(CancelledTransaction {
+                digest: TransactionDigest::random(),
+                version_assignments,
+            });
         }
 
         register_fail_point_arg("additional_cancelled_txns_for_tests", move || {

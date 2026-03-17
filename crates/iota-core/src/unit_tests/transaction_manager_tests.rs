@@ -9,6 +9,7 @@ use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
+    messages_consensus::VersionAssignment,
     object::{Object, Owner},
     storage::InputKey,
     transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
@@ -237,14 +238,14 @@ async fn transaction_manager_object_dependency() {
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
             transaction_read_0.digest(),
-            &[(shared_object.id(), shared_version)],
+            &[VersionAssignment::new(shared_object.id(), shared_version)],
         )
         .unwrap();
     state
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
             transaction_read_1.digest(),
-            &[(shared_object.id(), shared_version)],
+            &[VersionAssignment::new(shared_object.id(), shared_version)],
         )
         .unwrap();
 
@@ -262,7 +263,7 @@ async fn transaction_manager_object_dependency() {
         .epoch_store_for_testing()
         .set_shared_object_versions_for_testing(
             transaction_default.digest(),
-            &[(shared_object.id(), shared_version)],
+            &[VersionAssignment::new(shared_object.id(), shared_version)],
         )
         .unwrap();
 
@@ -283,8 +284,8 @@ async fn transaction_manager_object_dependency() {
         .set_shared_object_versions_for_testing(
             transaction_read_2.digest(),
             &[
-                (shared_object.id(), shared_version),
-                (shared_object_2.id(), shared_version_2),
+                VersionAssignment::new(shared_object.id(), shared_version),
+                VersionAssignment::new(shared_object_2.id(), shared_version_2),
             ],
         )
         .unwrap();
@@ -772,8 +773,8 @@ async fn transaction_manager_with_cancelled_transactions() {
         .set_shared_object_versions_for_testing(
             cancelled_transaction.digest(),
             &[
-                (shared_object_1.id(), SequenceNumber::CANCELLED_READ),
-                (
+                VersionAssignment::new(shared_object_1.id(), SequenceNumber::CANCELLED_READ),
+                VersionAssignment::new(
                     shared_object_2.id(),
                     SequenceNumber::new_congested_with_suggested_gas_price(101).unwrap(),
                 ),
