@@ -14,8 +14,6 @@ Before using the Swift bindings, ensure you have:
 * **Swift**: Version 5.7 or higher.
 * **macOS**: 12.0 or higher (for development).
 
----
-
 ## Installation
 
 ### Swift Package Manager (SPM)
@@ -27,7 +25,28 @@ You can add the IOTA SDK to your project via Swift Package Manager. In Xcode:
 3. In the dependency rule, select the `develop` branch or a specific version.
 4. Select the `IotaSDK` library.
 
----
+## Build from Source (Optional)
+
+The Swift bindings include prebuilt binaries for most macOS and iOS platforms. In most cases, using Swift Package Manager (SPM) with the repository URL will automatically fetch a compatible binary.
+
+If a prebuilt binary is not available for your platform or Swift version, you can build the SDK from source. A Rust toolchain and UniFFI tool are required to generate the Swift bindings.
+
+A typical workflow is:
+
+```bash
+# Clone the SDK repository
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+
+# Navigate to the Swift bindings folder
+cd iota-rust-sdk/bindings/swift
+
+# Build the Swift package and generate bindings
+swift build
+```
+
+Once built, you can add the locally generated Swift package to your Xcode project, ensuring the native Rust library is included and accessible in your build settings.
+
+For more details on development setup, platform-specific notes, and linking, refer to the official [Swift bindings documentation](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/swift)
 
 ## Quick Start Example
 
@@ -39,43 +58,20 @@ You can use the following code snippet in your `main.swift` or within an `async`
 ```swift
 import IotaSDK
 
-func connectToIota() async {
-    do {
-        // 1. Create a client connected to devnet
-        let client = try IotaClientBuilder()
-            .withNode("[https://api.devnet.iota.cafe](https://api.devnet.iota.cafe)")
-            .build()
+@main
+struct ChainIdExample {
+    static func main() async throws {
+        let client = GraphQlClient.newDevnet()
 
-        // 2. Query the chain ID
-        let chainId = try await client.getChainId()
-        
-        print("Successfully connected! Chain ID: \(chainId)")
-    } catch {
-        print("Error connecting to IOTA: \(error)")
+        let chainId = try await client.chainId()
+        print("Chain ID:", chainId)
     }
 }
 ```
 
----
-
-## Network Connection Options
-
-The `IotaClientBuilder` provides a flexible way to connect to various IOTA environments:
-
-| Network | Client Initialization |
-| :--- | :--- |
-| **Devnet** | `.withNode("https://api.devnet.iota.cafe")` |
-| **Testnet** | `.withNode("https://api.testnet.iota.cafe")` |
-| **Mainnet** | `.withNode("https://api.mainnet.iota.cafe")` |
-| **Custom** | `.withNode("https://your-custom-node.com")` |
-
----
-
-## Important: App Sandbox & Permissions
-
+:::important App Sandbox & Permissions
 If you are building for macOS or iOS, ensure your app has Outgoing Connections (Client) enabled in the "App Sandbox" or "Hardened Runtime" settings to allow the SDK to communicate with IOTA nodes.
-
----
+:::
 
 ## What's Next?
 

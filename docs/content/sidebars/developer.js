@@ -672,7 +672,6 @@ const developer = [
     },
 ],
     },
-    'developer/references/rust-sdk',
     {
         type: 'category',
         label: 'GraphQL',

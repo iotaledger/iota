@@ -12,19 +12,37 @@ Before using the Go bindings, ensure you have:
 * **Go**: Version 1.21 or higher.
 * **CGO**: Enabled (required for the Rust-to-Go FFI layer).
 
----
-
 ## Installation
 
 Add the IOTA SDK to your Go project using `go get`:
 
 ```bash
-go get [github.com/iotaledger/iota-sdk-go](https://github.com/iotaledger/iota-sdk-go)
+go get github.com/iotaledger/iota-sdk-go
 ```
 
 The package automatically includes pre-built native libraries for most modern operating systems (Windows, macOS, and Linux).
 
----
+## Build from Source (Optional)
+
+The `iota-sdk-go` package includes precompiled native libraries for common platforms such as Windows, macOS, and Linux. In most cases, installing the package with:
+
+```bash
+go get github.com/iotaledger/iota-sdk-go
+```
+
+will download a compatible binary automatically.
+
+However, if a prebuilt binary is not available for your operating system or CPU architecture, you may need to build the SDK from source. In this case, a Rust toolchain is required.
+
+To build the Go bindings locally, clone the SDK repository and build the bindings from the bindings/go directory:
+
+```bash
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+cd iota-rust-sdk/bindings/go
+go build ./...
+```
+
+For additional setup instructions and platform-specific details, refer to the official [Go bindings documentation](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/go) in the repository.
 
 ## Quick Start Example
 
@@ -41,7 +59,7 @@ import (
 	"fmt"
 	"log"
 
-	"[github.com/iotaledger/iota-sdk-go/iota_sdk](https://github.com/iotaledger/iota-sdk-go/iota_sdk)"
+	"github.com/iotaledger/iota-sdk-go/iota_sdk"
 )
 
 func main() {
@@ -67,21 +85,6 @@ In your terminal, run:
 ```bash
 go run main.go
 ```
-
----
-
-## Network Connection Options
-
-You can easily switch between IOTA network environments using the built-in helper functions:
-
-| Network | Client Initialization |
-| :--- | :--- |
-| **Devnet** | `iota_sdk.GraphQlClientNewDevnet()` |
-| **Testnet** | `iota_sdk.GraphQlClientNewTestnet()` |
-| **Mainnet** | `iota_sdk.GraphQlClientNewMainnet()` |
-| **Custom** | `iota_sdk.GraphQlClientNew("https://your-url.com")` |
-
----
 
 What's Next?
 
