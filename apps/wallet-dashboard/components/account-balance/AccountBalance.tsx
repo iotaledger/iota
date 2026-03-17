@@ -36,7 +36,10 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    const onCopySuccess = useCopySuccessCallback('Address copied', 'address');
+    const onCopySuccess = useCopySuccessCallback({
+        successMessage: 'Address copied',
+        analyticType: 'address',
+    });
 
     const sendTokenCoin = coinBalance?.totalBalance === '0' ? coinBalances?.[0] : coinBalance;
 

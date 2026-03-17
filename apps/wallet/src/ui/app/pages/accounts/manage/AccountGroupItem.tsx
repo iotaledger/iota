@@ -7,8 +7,8 @@ import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog } from '_components';
 import { useNavigate } from 'react-router-dom';
-import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
-import { toast, useGetDefaultIotaName } from '@iota/core';
+import { useAccounts, useExplorerLink, useBackgroundClient, useCopySuccessCallback } from '_hooks';
+import { useGetDefaultIotaName } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
@@ -48,12 +48,10 @@ export function AccountGroupItem({
         address: account.address,
     });
 
-    async function handleCopySuccess() {
-        ampli.elementCopied({
-            type: 'address',
-        });
-        toast('Address copied');
-    }
+    const handleCopySuccess = useCopySuccessCallback({
+        successMessage: 'Address copied',
+        analyticType: 'address',
+    });
 
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');

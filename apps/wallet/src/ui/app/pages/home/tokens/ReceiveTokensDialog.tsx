@@ -31,8 +31,8 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
     const { data: iotaName } = useGetDefaultIotaName(address);
 
     const onCopy = useCopyToClipboard(address, {
-        copySuccessMessage: 'Address copied',
-        textType: 'address',
+        successMessage: 'Address copied',
+        analyticType: 'address',
     });
 
     const isLedger = isLedgerAccountSerializedUI(activeAccount as LedgerAccountSerializedUI);

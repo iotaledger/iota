@@ -26,7 +26,7 @@ export function ReceiveFundsDialog({
 }: ReceiveFundsDialogProps): React.JSX.Element {
     const { data: iotaName } = useGetDefaultIotaName(address);
     const onCopySuccess = useCopyToClipboard(address, {
-        copySuccessMessage: 'Address copied',
+        successMessage: 'Address copied',
         analyticType: 'address',
     });
 

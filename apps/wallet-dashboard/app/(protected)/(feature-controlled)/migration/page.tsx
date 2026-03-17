@@ -183,7 +183,10 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
-    const onCopySuccess = useCopySuccessCallback('Address copied', 'stardust-address');
+    const onCopySuccess = useCopySuccessCallback({
+        successMessage: 'Address copied',
+        analyticType: 'stardust-address',
+    });
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">

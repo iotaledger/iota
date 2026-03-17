@@ -8,14 +8,13 @@ import {
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
     useRecognizedPackages,
-    toast,
     OutlinedCopyButton,
 } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
 import { ExplorerLink } from '../explorer-link';
-import { ampli } from '_src/shared/analytics/ampli';
+import { useCopySuccessCallback } from '_hooks';
 
 interface ReceiptCardProps {
     txn: IotaTransactionBlockResponse;
@@ -28,6 +27,11 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         transaction: txn,
         currentAddress: activeAddress,
         recognizedPackagesList,
+    });
+
+    const onCopyDigestSuccess = useCopySuccessCallback({
+        successMessage: 'Transaction digest copied to clipboard',
+        analyticType: 'digest',
     });
 
     if (!summary) return null;
@@ -55,12 +59,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 <div className="self-center">
                     <OutlinedCopyButton
                         textToCopy={digest ?? ''}
-                        onCopySuccess={() => {
-                            ampli.elementCopied({
-                                type: 'digest',
-                            });
-                            toast.success('Transaction digest copied to clipboard');
-                        }}
+                        onCopySuccess={onCopyDigestSuccess}
                     />
                 </div>
             </div>

@@ -9,6 +9,7 @@ import {
     useAppSelector,
     useExplorerLink,
     useShouldOpenInNewTab,
+    useCopySuccessCallback,
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -64,6 +65,10 @@ export function TokenDetails() {
     const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
+    const onCopyAddressSuccess = useCopySuccessCallback({
+        successMessage: 'Address copied',
+        analyticType: 'address',
+    });
     const network = useAppSelector((state) => state.app.network);
     const shouldOpenNewTab = useShouldOpenInNewTab();
     const isMainnet = network === Network.Mainnet;
@@ -237,12 +242,7 @@ export function TokenDetails() {
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopySuccess={() => {
-                                    ampli.elementCopied({
-                                        type: 'address',
-                                    });
-                                    toast('Address copied');
-                                }}
+                                onCopySuccess={onCopyAddressSuccess}
                                 onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />

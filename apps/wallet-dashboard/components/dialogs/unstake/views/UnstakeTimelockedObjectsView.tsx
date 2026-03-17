@@ -89,7 +89,10 @@ export function UnstakeTimelockedObjectsView({
         balance: validatorInfo?.rewardsPool,
     });
 
-    const handleCopySuccess = useCopySuccessCallback('Copied to clipboard', 'stake-id');
+    const handleCopySuccess = useCopySuccessCallback({
+        successMessage: 'Copied to clipboard',
+        analyticType: 'stake-id',
+    });
 
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
