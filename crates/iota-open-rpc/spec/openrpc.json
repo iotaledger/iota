@@ -11908,16 +11908,11 @@
             "additionalProperties": false
           },
           {
-            "type": "object",
-            "required": [
+            "deprecated": true,
+            "type": "string",
+            "enum": [
               "ZkLogin"
-            ],
-            "properties": {
-              "ZkLogin": {
-                "$ref": "#/components/schemas/ZkLoginPublicIdentifier"
-              }
-            },
-            "additionalProperties": false
+            ]
           },
           {
             "type": "object",
@@ -13339,7 +13334,7 @@
         }
       },
       "ZkLoginAuthenticator": {
-        "description": "An zk login authenticator with all the necessary fields.",
+        "description": "Deprecated zkLogin authenticator. Kept only for BCS/serde deserialization compatibility. All operations return an `UnsupportedFeature` error.",
         "type": "object",
         "required": [
           "inputs",
@@ -13418,14 +13413,6 @@
             }
           }
         }
-      },
-      "ZkLoginPublicIdentifier": {
-        "description": "A wrapper struct to retrofit in [enum PublicKey] for zkLogin. Useful to construct [struct MultiSigPublicKey].",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Base64"
-          }
-        ]
       }
     }
   }
