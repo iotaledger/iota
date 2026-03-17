@@ -35,8 +35,10 @@ fun test_tx_context_returned_refs_consistency() {
 
     let ctx2 = tx_context::new(@0x0, digest2, 0, 0, 0);
 
-    // the digest should be changed for the new transaction
+    // the digest should be updated for the new instance
     assert_eq!(*ctx2.digest(), digest2);
+    // and for the previous instance as well, since the digest is stored in a global variable
+    assert_eq!(*ctx1.digest(), digest2);
 
     // the created reference to the first digest should still be valid and unchanged
     assert_eq!(*digest_ref1, digest1);
