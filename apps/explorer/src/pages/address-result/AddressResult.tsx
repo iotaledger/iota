@@ -12,11 +12,11 @@ import {
 } from '~/components';
 import { PageHeader, SplitPanes } from '~/components/ui';
 import { useBreakpoint } from '~/hooks/useBreakpoint';
+import { useCopyToClipboard } from '~/hooks';
 import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
-import { AddressAlias, useCopyToClipboard, useGetDefaultIotaName } from '@iota/core';
+import { AddressAlias, useGetDefaultIotaName } from '@iota/core';
 import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
-import { onCopySuccess } from '~/lib';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
@@ -26,15 +26,17 @@ interface AddressResultPageHeaderProps {
 }
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): React.JSX.Element {
-    const copyToClipboard = useCopyToClipboard(onCopySuccess);
     const { data: name, isLoading: isLoadingName } = useGetDefaultIotaName(address);
+    const copyAddress = useCopyToClipboard(address, {
+        successMessage: 'Copied to clipboard',
+    });
 
     return (
         <PageHeader
             type="Address"
             title={
                 <div className="flex flex-col gap-xs">
-                    <AddressAlias address={address} onCopy={() => copyToClipboard(address)} />
+                    <AddressAlias address={address} onCopy={copyAddress} />
                 </div>
             }
             isLoadingSubtitle={isLoadingName}
