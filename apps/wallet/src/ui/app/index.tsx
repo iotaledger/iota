@@ -56,7 +56,6 @@ import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder
 import { CreateNewPasskey } from './pages/accounts/CreateNewPasskey';
 import { ImportPasskeyPage } from './pages/accounts/ImportPasskeyPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
-import { Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { CreateNewWallet } from './pages/accounts/CreateNewWallet';
 import { ImportExistingWallet } from './pages/accounts/ImportExistingWallet';
 
@@ -150,9 +149,6 @@ export function App() {
             document.removeEventListener('keydown', sendUpdateThrottled);
         };
     }, [backgroundClient, autoLockEnabled]);
-    const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
-
     // Placeholder check for storage migration.
     // currently hook useStorageMigrationStatus always returns 'ready'
     const storageMigration = useStorageMigrationStatus();
@@ -188,12 +184,8 @@ export function App() {
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
-                {isPasskeysEnabled && (
-                    <>
-                        <Route path="passkey-account" element={<CreateNewPasskey />} />
-                        <Route path="import-passkey" element={<ImportPasskeyPage />} />
-                    </>
-                )}
+                <Route path="passkey-account" element={<CreateNewPasskey />} />
+                <Route path="import-passkey" element={<ImportPasskeyPage />} />
                 <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
