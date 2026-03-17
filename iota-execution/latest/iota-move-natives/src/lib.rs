@@ -427,10 +427,11 @@ impl NativesCostTable {
                 },
             },
             tx_context_rgp_cost_params: TxContextRGPCostParams {
-                tx_context_rgp_cost_base: protocol_config
-                    .tx_context_rgp_cost_base_as_option()
-                    .unwrap_or(DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST)
-                    .into(),
+                tx_context_rgp_cost_base: if protocol_config.move_native_tx_context() {
+                    protocol_config.tx_context_rgp_cost_base().into()
+                } else {
+                    DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
+                },
             },
             tx_context_gas_price_cost_params: TxContextGasPriceCostParams {
                 tx_context_gas_price_cost_base: if protocol_config.move_native_tx_context() {
