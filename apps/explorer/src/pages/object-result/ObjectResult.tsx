@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AddressAlias, useGetObjectOrPastObject } from '@iota/core';
+import { AddressAlias, useCopyToClipboard, useGetObjectOrPastObject } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { ErrorBoundary, PageLayout } from '~/components';
 import { PageHeader } from '~/components/ui';
@@ -11,13 +11,14 @@ import { translate, type DataType } from './ObjectResultType';
 import { PkgView, TokenView } from './views';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
-import { useCopyToClipboard } from '~/hooks';
+import { onCopySuccess } from '~/lib';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
 export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID);
+    const copyToClipboard = useCopyToClipboard(onCopySuccess);
 
     if (isPending) {
         return (
@@ -32,12 +33,9 @@ export function ObjectResult(): JSX.Element {
     }
 
     const isPageError = isError || data?.error || (isFetched && !data);
+
     const resp = data && !isPageError ? translate(data) : null;
     const isPackage = resp ? resp.objType === PACKAGE_TYPE_NAME : false;
-
-    const copyObjectId = useCopyToClipboard(resp?.id || '', {
-        successMessage: 'Copied to clipboard',
-    });
 
     return (
         <PageLayout
@@ -51,7 +49,7 @@ export function ObjectResult(): JSX.Element {
                                     <div className="flex flex-col gap-xs">
                                         <AddressAlias
                                             address={resp?.id || ''}
-                                            onCopy={copyObjectId}
+                                            onCopy={() => copyToClipboard(resp?.id || '')}
                                         />
                                     </div>
                                 }
@@ -81,7 +79,10 @@ export function ObjectResult(): JSX.Element {
                                     showCopyButton={false}
                                     title={
                                         <div className="flex flex-col gap-xs">
-                                            <AddressAlias address={resp.id} onCopy={copyObjectId} />
+                                            <AddressAlias
+                                                address={resp.id}
+                                                onCopy={() => copyToClipboard(resp.id)}
+                                            />
                                         </div>
                                     }
                                 />

@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './useBreakpoint';
-export * from './useCopyToClipboard';
 export * from './useDebouncedValue';
 export * from './useEnhancedRpc';
 export * from './useFunctionParamsDetails';
