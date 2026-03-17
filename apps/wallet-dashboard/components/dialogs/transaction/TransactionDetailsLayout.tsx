@@ -10,11 +10,11 @@ import {
     TransactionReceipt,
     useRecognizedPackages,
     ExtendedTransaction,
-    toast,
+    OutlinedCopyButton,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
-import { OutlinedCopyButton } from '@/components/buttons';
+import { useCopySuccessCallback } from '@/hooks';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -28,6 +28,11 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
         transaction: transaction.raw,
         currentAddress: address,
         recognizedPackagesList,
+    });
+
+    const onCopyDigestSuccess = useCopySuccessCallback({
+        successMessage: 'Transaction digest copied to clipboard',
+        analyticType: 'transaction-digest',
     });
 
     if (!summary) return <LoadingIndicator />;
@@ -56,10 +61,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={transaction.raw.digest ?? ''}
-                            analyticType="transaction-digest"
-                            onCopySuccess={() =>
-                                toast.success('Transaction digest copied to clipboard')
-                            }
+                            onCopySuccess={onCopyDigestSuccess}
                         />
                     </div>
                 </div>
