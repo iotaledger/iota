@@ -9,6 +9,7 @@ import { Toaster } from '../../shared/toaster';
 export function AccountsPage() {
     return (
         <>
+            <div id="overlay-portal-container" />
             <Outlet />
             <Toaster />
         </>
