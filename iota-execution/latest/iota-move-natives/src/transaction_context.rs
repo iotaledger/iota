@@ -68,7 +68,7 @@ impl TransactionContext {
         self.tx_context.borrow().digest()
     }
 
-    /// Returns a `Value` containing an auth digest ref.
+    /// Returns a `Value` containing a transaction digest ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
     pub fn digest_ref(&mut self) -> PartialVMResult<Value> {
