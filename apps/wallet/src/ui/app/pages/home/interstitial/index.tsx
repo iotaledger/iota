@@ -13,7 +13,6 @@ import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 export type InterstitialConfig = {
     enabled: boolean;
-    minVersion?: string;
     dismissKey?: string;
     imageUrl?: string;
     bannerUrl?: string;
