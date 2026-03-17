@@ -6,11 +6,13 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useRef,
     type MutableRefObject,
     type ReactNode,
 } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AmpliSourceFlow } from '_src/shared/analytics';
 
 export enum AccountsFormType {
@@ -60,8 +62,8 @@ export type AccountsFormValues =
 type AccountsFormContextType = [
     MutableRefObject<AccountsFormValues>,
     (values: AccountsFormValues) => void,
-    MutableRefObject<string>,
-    (sourceFlow: string) => void,
+    MutableRefObject<AmpliSourceFlow>,
+    (sourceFlow: AmpliSourceFlow) => void,
 ];
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
@@ -70,14 +72,20 @@ interface AccountsFormProviderProps {
     children: ReactNode;
 }
 
+const SOURCE_FLOW_SESSION_KEY = 'ampli_source_flow';
+
 export function AccountsFormProvider({ children }: AccountsFormProviderProps) {
     const valuesRef = useRef<AccountsFormValues>(null);
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;
     }, []);
-    const sourceFlowRef = useRef<string>(AmpliSourceFlow.Unknown);
-    const sourceFlowSetter = useCallback((sourceFlow: string) => {
+    const sourceFlowRef = useRef<AmpliSourceFlow>(
+        (sessionStorage.getItem(SOURCE_FLOW_SESSION_KEY) as AmpliSourceFlow) ??
+            AmpliSourceFlow.Unknown,
+    );
+    const sourceFlowSetter = useCallback((sourceFlow: AmpliSourceFlow) => {
         sourceFlowRef.current = sourceFlow;
+        sessionStorage.setItem(SOURCE_FLOW_SESSION_KEY, sourceFlow);
     }, []);
     const value = useMemo(
         () => [valuesRef, setter, sourceFlowRef, sourceFlowSetter] as AccountsFormContextType,
@@ -107,4 +115,24 @@ export function useSourceFlow() {
     }
     const [, , sourceFlowRef, setSourceFlow] = context;
     return { sourceFlowRef, setSourceFlow };
+}
+
+/**
+ * Bootstraps sourceFlow from the `sourceFlow` URL query param.
+ * Use this in pages that can be opened in a new browser tab (e.g. Ledger, Keystone, Passkey
+ * popup flows) so the analytics value is preserved across the tab boundary.
+ */
+export function useBootstrapSourceFlow() {
+    const [searchParams] = useSearchParams();
+    const { setSourceFlow } = useSourceFlow();
+    const urlSourceFlow = searchParams.get('sourceFlow');
+    useEffect(() => {
+        if (urlSourceFlow) {
+            setSourceFlow(urlSourceFlow as AmpliSourceFlow);
+        }
+    }, [urlSourceFlow, setSourceFlow]);
+}
+
+export function clearSourceFlow() {
+    sessionStorage.removeItem(SOURCE_FLOW_SESSION_KEY);
 }
