@@ -4,6 +4,7 @@
 
 import { LogLevel } from '@amplitude/analytics-types';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
+import { Identify } from '@amplitude/analytics-browser';
 
 import { ampli } from './ampli';
 
@@ -54,4 +55,25 @@ export async function initAmplitude() {
 
     // Add environment plugin to set prefix dev events
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
+}
+
+type AmplitudeIdentityOptions = {
+    network: string;
+};
+
+/**
+ * Set Amplitude user properties with the current app context.
+ * Currently updates the user property: network.
+ * This allows filtering and segmenting analytics events by this dimension.
+ */
+export function setAmplitudeIdentity(options: AmplitudeIdentityOptions): void {
+    const consentStatus = getAmplitudeConsentStatus();
+    if (!ampli.isLoaded || !IS_ENABLED || consentStatus === 'declined') {
+        return;
+    }
+
+    const identifyEvent = new Identify();
+    identifyEvent.set('network', options.network);
+
+    ampli.client.identify(identifyEvent);
 }

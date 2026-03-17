@@ -248,6 +248,71 @@ async fn deprecate_test() {
     }
 }
 
+/// Proves that a deprecated CF can use `(), ()` type parameters even when the
+/// original CF had different key/value types (i32, String). This lets us delete
+/// the old type definitions entirely.
+#[derive(DBMapUtils)]
+struct DeprecatedTablesTypeErased {
+    table1: DBMap<String, String>,
+    #[deprecated_db_map]
+    table2: Option<DBMap<(), ()>>,
+}
+
+#[tokio::test]
+async fn deprecate_type_erased_test() {
+    let dbdir = temp_dir();
+    let key = "key".to_string();
+    let value = "value".to_string();
+
+    // Step 1: Create DB with original types (i32, String) and write data
+    {
+        let original_db =
+            Tables::open_tables_read_write(dbdir.clone(), MetricConf::default(), None, None);
+        original_db.table1.insert(&key, &value).unwrap();
+        original_db.table2.insert(&42, &value).unwrap();
+    }
+
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    // Step 2: Reopen with type-erased `(), ()` — CF should be dropped cleanly
+    {
+        let db = DeprecatedTablesTypeErased::open_tables_read_write(
+            dbdir.clone(),
+            MetricConf::default(),
+            None,
+            None,
+        );
+        assert_eq!(db.table1.get(&key), Ok(Some(value.clone())));
+        assert!(
+            db.table2.is_none(),
+            "deprecated field should be None after cleanup"
+        );
+    }
+
+    // Verify table2 CF was actually removed from disk
+    let tables = typed_store::rocks::list_tables(dbdir.clone()).unwrap();
+    assert!(
+        !tables.contains(&"table2".to_string()),
+        "table2 CF should have been dropped even with type-erased (), ()"
+    );
+
+    // Step 3: Reopen again — must not panic when CF is already gone
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    {
+        let db = DeprecatedTablesTypeErased::open_tables_read_write(
+            dbdir.clone(),
+            MetricConf::default(),
+            None,
+            None,
+        );
+        assert_eq!(db.table1.get(&key), Ok(Some(value.clone())));
+        assert!(
+            db.table2.is_none(),
+            "deprecated field should be None when CF never existed"
+        );
+    }
+}
+
 #[derive(DBMapUtils)]
 struct TablesWithMigration {
     new_table: DBMap<String, String>,

@@ -14,7 +14,7 @@ use iota_types::{
     TypeTag,
     base_types::{ObjectID, VersionNumber},
     committee::Committee,
-    digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
+    digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
@@ -240,7 +240,7 @@ impl GrpcStateReader for SimulacrumGrpcReader {
 
     fn get_transaction_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>> {
         Ok(self
             .simulacrum
@@ -310,9 +310,13 @@ impl GrpcStateReader for SimulacrumGrpcReader {
                         .clone();
 
                     // Get events from effects if they exist
-                    let events = effects.events_digest().and_then(|events_digest| {
-                        store.get_transaction_events(events_digest).cloned()
-                    });
+                    let events = if effects.events_digest().is_some() {
+                        store
+                            .get_transaction_events(effects.transaction_digest())
+                            .cloned()
+                    } else {
+                        None
+                    };
 
                     // Extract input and output objects with proper error propagation
                     let input_objects = get_transaction_input_objects(store, &effects)?;

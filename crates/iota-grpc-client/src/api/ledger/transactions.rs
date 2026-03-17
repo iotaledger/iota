@@ -11,7 +11,10 @@ use iota_sdk_types::Digest;
 
 use crate::{
     Client,
-    api::{Error, GET_TRANSACTIONS_READ_MASK, ProtoResult, Result, field_mask_with_default},
+    api::{
+        Error, GET_TRANSACTIONS_READ_MASK, MetadataEnvelope, ProtoResult, Result,
+        field_mask_with_default,
+    },
 };
 
 impl Client {
@@ -29,6 +32,10 @@ impl Client {
     ///
     /// Results are returned in the same order as the input digests.
     /// If a transaction is not found, an error is returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::EmptyRequest`] if `digests` is empty.
     ///
     /// # Available Read Mask Fields
     ///
@@ -97,7 +104,7 @@ impl Client {
     /// // Get transactions - returns proto types
     /// let txs = client.get_transactions(&[digest], None).await?;
     ///
-    /// for tx in txs {
+    /// for tx in txs.body() {
     ///     // Lazy conversion - only deserialize what you need
     ///     let effects = tx.effects()?.effects()?;
     ///     println!("Status: {:?}", effects.status());
@@ -113,9 +120,9 @@ impl Client {
         &self,
         digests: &[Digest],
         read_mask: Option<&str>,
-    ) -> Result<Vec<ExecutedTransaction>> {
+    ) -> Result<MetadataEnvelope<Vec<ExecutedTransaction>>> {
         if digests.is_empty() {
-            return Ok(vec![]);
+            return Err(Error::EmptyRequest);
         }
 
         let requests = TransactionRequests::default().with_requests(
@@ -138,7 +145,8 @@ impl Client {
 
         let mut client = self.ledger_service_client();
 
-        let mut stream = client.get_transactions(request).await?.into_inner();
+        let response = client.get_transactions(request).await?;
+        let (mut stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         // Server guarantees results are returned in request order
         let mut results = Vec::with_capacity(digests.len());
@@ -155,6 +163,6 @@ impl Client {
             return Err(Error::UnexpectedEndOfStream);
         }
 
-        Ok(results)
+        Ok(MetadataEnvelope::new(results, metadata))
     }
 }

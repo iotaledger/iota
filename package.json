@@ -24,7 +24,7 @@
 		"iota-docs": "turbo --filter iota-docs",
 		"examples": "turbo --filter ./sdk/examples",
 		"changeset-publish": "pnpm changeset publish",
-		"changeset-version": "pnpm changeset version && pnpm --filter @iota/iota-sdk codegen:version",
+		"changeset-version": "pnpm changeset version",
 		"prepare": "husky",
 		"codegen": "turbo run codegen"
 	},

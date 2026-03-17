@@ -29,6 +29,7 @@ import {
 import { TriangleDown } from '@iota/apps-ui-icons';
 import { ObjectChange, RenderExplorerLink } from '../../types';
 import { NamedAddressTooltip } from '../NamedAddressTooltip';
+import toast from 'react-hot-toast';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
@@ -38,8 +39,32 @@ interface ObjectDetailProps {
 export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: ObjectDetailProps) {
     const [open, setOpen] = useState(false);
 
-    if (change.type === 'transferred' || change.type === 'published') {
+    if (change.type === 'transferred') {
         return null;
+    }
+
+    if (change.type === 'published') {
+        return (
+            <div className="flex w-full flex-col gap-2 px-md pb-md">
+                <KeyValueInfo
+                    keyText="Package"
+                    fullwidth
+                    copyText={change.packageId}
+                    value={formatAddress(change.packageId)}
+                    onCopySuccess={() => toast.success('Package ID copied to clipboard')}
+                />
+                {change.modules.map((moduleName, index) => (
+                    <KeyValueInfo
+                        key={index}
+                        keyText="Module"
+                        fullwidth
+                        copyText={moduleName}
+                        value={moduleName}
+                        onCopySuccess={() => toast.success('Module name copied to clipboard')}
+                    />
+                ))}
+            </div>
+        );
     }
 
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
