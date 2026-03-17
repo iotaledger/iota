@@ -406,7 +406,7 @@ impl NativesCostTable {
                 },
             },
             tx_context_digest_cost_params: TxContextDigestCostParams {
-                tx_context_digest_cost_base: if protocol_config.move_native_context() {
+                tx_context_digest_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_digest_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
