@@ -43,6 +43,7 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                        minVersion: '',
                     },
                 },
                 [Feature.WalletPasskeys]: {
@@ -131,6 +132,7 @@ export class FeaturesController {
                         dismissKey: '',
                         imageUrl: '',
                         bannerUrl: '',
+                        minVersion: '',
                     },
                 },
                 [Feature.WalletPasskeys]: {

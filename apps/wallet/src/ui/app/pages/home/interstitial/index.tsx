@@ -9,9 +9,11 @@ import { useNavigate } from 'react-router-dom';
 
 import { Portal } from '../../../shared/Portal';
 import { Close } from '@iota/apps-ui-icons';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 export type InterstitialConfig = {
     enabled: boolean;
+    minVersion?: string;
     dismissKey?: string;
     imageUrl?: string;
     bannerUrl?: string;
@@ -22,6 +24,12 @@ interface InterstitialProps extends InterstitialConfig {
 }
 
 const setInterstitialDismissed = (dismissKey: string) => localStorage.setItem(dismissKey, 'true');
+const getValidDismissKey = (dismissKey?: string) => {
+    const normalizedDismissKey = dismissKey?.trim();
+    return normalizedDismissKey && normalizedDismissKey !== 'undefined'
+        ? normalizedDismissKey
+        : null;
+};
 
 export function Interstitial({
     enabled,
@@ -31,46 +39,73 @@ export function Interstitial({
     onClose,
 }: InterstitialProps) {
     const navigate = useNavigate();
+    const overlayContainer = document.getElementById('overlay-portal-container');
+    const validDismissKey = getValidDismissKey(dismissKey);
 
     useEffect(() => {
-        const t = setTimeout(setInterstitialDismissed, 1000);
+        if (!validDismissKey) {
+            return;
+        }
+
+        const t = setTimeout(() => setInterstitialDismissed(validDismissKey), 1000);
         return () => clearTimeout(t);
-    }, []);
+    }, [validDismissKey]);
 
     const closeInterstitial = (dismissKey?: string) => {
-        if (dismissKey) {
-            setInterstitialDismissed(dismissKey);
+        const validDismissKey = getValidDismissKey(dismissKey);
+        if (validDismissKey) {
+            setInterstitialDismissed(validDismissKey);
         }
         onClose();
         navigate('/apps');
     };
 
-    if (!enabled) {
+    // Prevent crash: if the portal container is not mounted yet, do not render the interstitial
+    if (!enabled || !overlayContainer) {
         return null;
     }
 
     return (
         <Portal containerId="overlay-portal-container">
-            <div className="absolute bottom-0 left-0 right-0 top-0 z-50 flex flex-col flex-nowrap items-center justify-center overflow-hidden rounded-lg backdrop-blur-sm">
-                {bannerUrl && (
-                    <ExternalLink
-                        href={bannerUrl}
-                        onClick={() => {
-                            ampli.appsBannerCtaClicked({ sourceFlow: 'Interstitial', bannerUrl });
-                            closeInterstitial();
-                        }}
-                        className="h-full w-full"
-                        trackEvent={false}
-                    >
-                        <img src={imageUrl} alt="interstitial-banner" />
-                    </ExternalLink>
-                )}
-                <button
-                    className="absolute bottom-0 w-full cursor-pointer appearance-none border-none bg-transparent pb-5"
-                    onClick={() => closeInterstitial(dismissKey)}
-                >
-                    <Close className="h-8 w-8 text-black" />
-                </button>
+            <div className="absolute inset-0 z-50 flex items-center justify-center p-5 backdrop-blur-sm">
+                <div className="relative h-full overflow-hidden rounded-3xl">
+                    {imageUrl &&
+                        (bannerUrl ? (
+                            <ExternalLink
+                                href={bannerUrl}
+                                onClick={() => {
+                                    ampli.appsBannerCtaClicked({
+                                        sourceFlow: 'Interstitial',
+                                        bannerUrl,
+                                    });
+                                    closeInterstitial(dismissKey);
+                                }}
+                                className="block h-full"
+                                trackEvent={false}
+                            >
+                                <img
+                                    src={imageUrl}
+                                    alt="interstitial-banner"
+                                    className="h-full w-auto max-w-full"
+                                />
+                            </ExternalLink>
+                        ) : (
+                            <img
+                                src={imageUrl}
+                                alt="interstitial-banner"
+                                className="h-full w-auto max-w-full"
+                            />
+                        ))}
+
+                    <div className="absolute right-3 top-3">
+                        <Button
+                            type={ButtonType.Secondary}
+                            onClick={() => closeInterstitial(dismissKey)}
+                            icon={<Close className="h-4 w-4" />}
+                            aria-label="Close"
+                        />
+                    </div>
+                </div>
             </div>
         </Portal>
     );
