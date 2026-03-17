@@ -179,6 +179,13 @@ const developer = [
             'developer/tutorials/create-review-rating-dao-with-multisig',
             {
                 type: 'category',
+                label: 'Account Abstraction',
+                items: [
+                    'developer/tutorials/account-abstraction/basic-authentication-flow',
+                ],
+            },
+            {
+                type: 'category',
                 label: 'Workshops',
                 link: {
                     type: 'doc',
