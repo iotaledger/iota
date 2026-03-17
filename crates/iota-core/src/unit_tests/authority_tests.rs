@@ -2952,7 +2952,11 @@ async fn test_invalid_authenticator_state_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::AUTHENTICATOR_STATE_MUTABLE],
+        vec![CallArg::Shared(SharedObjectRef {
+            object_id: ObjectID::AUTHENTICATOR_STATE,
+            initial_shared_version: OBJECT_START_VERSION,
+            mutable: true,
+        })],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
