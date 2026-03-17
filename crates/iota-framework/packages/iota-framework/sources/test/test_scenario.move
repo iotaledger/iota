@@ -266,7 +266,7 @@ public fun next_tx(scenario: &mut Scenario, sender: address): TransactionEffects
 /// All objects transferred will be moved into the inventories of the account or the global
 /// inventory. In other words, in order to access an object with one of the various "take"
 /// functions below, e.g. `take_from_address_by_id`, the transaction must first be ended via
-/// `next_tx` or `next_tx_wißth_context`.
+/// `next_tx` or `next_with_context`.
 /// Returns the results from the previous transaction
 /// Will abort if shared or immutable objects were deleted, transferred, or wrapped.
 /// Will abort if TransactionEffects cannot be generated
