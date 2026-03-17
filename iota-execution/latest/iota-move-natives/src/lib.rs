@@ -388,28 +388,29 @@ impl NativesCostTable {
                     .into(),
             },
             tx_context_fresh_id_cost_params: TxContextFreshIdCostParams {
-                tx_context_fresh_id_cost_base: if protocol_config.move_native_context() {
+                tx_context_fresh_id_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_fresh_id_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_sender_cost_params: TxContextSenderCostParams {
-                tx_context_sender_cost_base: if protocol_config.move_native_context() {
+                tx_context_sender_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_sender_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_epoch_cost_params: TxContextEpochCostParams {
-                tx_context_epoch_cost_base: if protocol_config.move_native_context() {
+                tx_context_epoch_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_epoch_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_epoch_timestamp_ms_cost_params: TxContextEpochTimestampMsCostParams {
-                tx_context_epoch_timestamp_ms_cost_base: if protocol_config.move_native_context() {
+                tx_context_epoch_timestamp_ms_cost_base: if protocol_config.move_native_tx_context()
+                {
                     protocol_config
                         .tx_context_epoch_timestamp_ms_cost_base()
                         .into()
@@ -418,35 +419,35 @@ impl NativesCostTable {
                 },
             },
             tx_context_sponsor_cost_params: TxContextSponsorCostParams {
-                tx_context_sponsor_cost_base: if protocol_config.move_native_context() {
+                tx_context_sponsor_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_sponsor_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_gas_price_cost_params: TxContextGasPriceCostParams {
-                tx_context_gas_price_cost_base: if protocol_config.move_native_context() {
+                tx_context_gas_price_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_gas_price_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_gas_budget_cost_params: TxContextGasBudgetCostParams {
-                tx_context_gas_budget_cost_base: if protocol_config.move_native_context() {
+                tx_context_gas_budget_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_gas_budget_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_ids_created_cost_params: TxContextIdsCreatedCostParams {
-                tx_context_ids_created_cost_base: if protocol_config.move_native_context() {
+                tx_context_ids_created_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_ids_created_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
             tx_context_replace_cost_params: TxContextReplaceCostParams {
-                tx_context_replace_cost_base: if protocol_config.move_native_context() {
+                tx_context_replace_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_replace_cost_base().into()
                 } else {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()

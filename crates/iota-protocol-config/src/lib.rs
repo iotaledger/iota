@@ -460,7 +460,7 @@ struct FeatureFlags {
 
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
-    move_native_context: bool,
+    move_native_tx_context: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1639,8 +1639,8 @@ impl ProtocolConfig {
         res
     }
 
-    pub fn move_native_context(&self) -> bool {
-        self.feature_flags.move_native_context
+    pub fn move_native_tx_context(&self) -> bool {
+        self.feature_flags.move_native_tx_context
     }
 }
 
@@ -2660,7 +2660,7 @@ impl ProtocolConfig {
                     }
 
                     // Enable Move native context (TxContext via native functions) in all networks.
-                    cfg.feature_flags.move_native_context = true;
+                    cfg.feature_flags.move_native_tx_context = true;
                     cfg.tx_context_fresh_id_cost_base = Some(52);
                     cfg.tx_context_sender_cost_base = Some(30);
                     cfg.tx_context_epoch_cost_base = Some(30);

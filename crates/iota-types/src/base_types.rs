@@ -1108,7 +1108,7 @@ impl TxContext {
             gas_price,
             gas_budget,
             sponsor: sponsor.map(|s| s.into()),
-            is_native: protocol_config.move_native_context(),
+            is_native: protocol_config.move_native_tx_context(),
         }
     }
 
