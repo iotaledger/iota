@@ -9,15 +9,10 @@ import { ExternalLink } from './ExternalLink';
 
 type GetExplorerLinkArgs = Parameters<typeof getExplorerLink>[0];
 
-type ExplorerLinkProps = GetExplorerLinkArgs & {
-    isExternal?: boolean;
-};
-
 export function ExplorerLink({
     children,
-    isExternal,
     ...getLinkProps
-}: React.PropsWithChildren<ExplorerLinkProps>): React.JSX.Element {
+}: React.PropsWithChildren<GetExplorerLinkArgs>): React.JSX.Element {
     const getExplorerLink = useExplorerLinkGetter();
     const href = getExplorerLink(getLinkProps) ?? '#';
 
