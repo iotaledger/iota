@@ -123,8 +123,10 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
                                                     type={ExplorerLinkType.Address}
                                                     address={ownerAddress}
                                                 >
-                                                    {formatIotaName(iotaName) ||
-                                                        formatAddress(ownerAddress)}
+                                                    <span data-amp-mask>
+                                                        {formatIotaName(iotaName) ||
+                                                            formatAddress(ownerAddress)}
+                                                    </span>
                                                 </ExplorerLink>
                                             </NamedAddressTooltip>
                                         }
@@ -134,7 +136,7 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
                                 {objectId && (
                                     <KeyValueInfo
                                         keyText="Object ID"
-                                        value={formatAddress(objectId)}
+                                        value={<span data-amp-mask>{formatAddress(objectId)}</span>}
                                         fullwidth
                                     />
                                 )}

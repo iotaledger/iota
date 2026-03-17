@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@iota/bcs';
+import { fromBase64, toBase64 } from '@iota/bcs';
 import { secp256r1 } from '@noble/curves/p256';
 import { sha256 } from '@noble/hashes/sha256';
 
@@ -76,7 +76,7 @@ export class PasskeyPublicKey extends PublicKey {
         super();
 
         if (typeof value === 'string') {
-            this.data = fromB64(value);
+            this.data = fromBase64(value);
         } else if (value instanceof Uint8Array) {
             this.data = value;
         } else {
@@ -123,7 +123,7 @@ export class PasskeyPublicKey extends PublicKey {
         }
 
         // parse challenge from base64 url
-        const parsedChallenge = fromB64(
+        const parsedChallenge = fromBase64(
             clientDataJSON.challenge.replace(/-/g, '+').replace(/_/g, '/'),
         );
         if (!bytesEqual(message, parsedChallenge)) {
@@ -174,7 +174,7 @@ export function parseDerSPKI(derBytes: Uint8Array): Uint8Array {
  * Parse signature from bytes or base64 string into the following fields.
  */
 export function parseSerializedPasskeySignature(signature: Uint8Array | string) {
-    const bytes = typeof signature === 'string' ? fromB64(signature) : signature;
+    const bytes = typeof signature === 'string' ? fromBase64(signature) : signature;
 
     if (bytes[0] !== SIGNATURE_SCHEME_TO_FLAG.Passkey) {
         throw new Error('Invalid signature scheme');
@@ -182,7 +182,7 @@ export function parseSerializedPasskeySignature(signature: Uint8Array | string) 
     const dec = PasskeyAuthenticator.parse(bytes.slice(1));
     return {
         signatureScheme: 'Passkey' as const,
-        serializedSignature: toB64(bytes),
+        serializedSignature: toBase64(bytes),
         signature: bytes,
         authenticatorData: dec.authenticatorData,
         clientDataJson: dec.clientDataJson,

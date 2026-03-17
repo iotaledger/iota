@@ -42,7 +42,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                 activeAddress={activeAddress}
                 renderExplorerLink={ExplorerLinkHelper}
             />
-            <div className="flex flex-row space-x-xs pt-sm">
+            <div className="flex flex-row space-x-xs pt-sm" data-amp-mask>
                 <div className="flex w-full [&_a]:w-full">
                     <ExplorerLink
                         transactionID={digest ?? ''}

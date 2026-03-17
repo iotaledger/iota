@@ -91,15 +91,6 @@ export class TransactionDataBuilder implements TransactionData {
         return toBase58(hash);
     }
 
-    // @deprecated use gasData instead
-    get gasConfig() {
-        return this.gasData;
-    }
-    // @deprecated use gasData instead
-    set gasConfig(value) {
-        this.gasData = value;
-    }
-
     version = 2 as const;
     sender: string | null;
     expiration: TransactionExpiration | null;

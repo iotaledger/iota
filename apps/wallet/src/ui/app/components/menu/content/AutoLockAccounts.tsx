@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl, Loading, Overlay, AutoLockSelector, zodSchema } from '_components';
+import { Loading, Overlay, AutoLockSelector, zodSchema } from '_components';
 import {
     autoLockDataToMinutes,
     parseAutoLock,
@@ -16,7 +16,6 @@ import { Button, ButtonHtmlType, ButtonType } from '@iota/apps-ui-kit';
 import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
 
 export function AutoLockAccounts() {
-    const mainMenuUrl = useNextMenuUrl(true, '/');
     const navigate = useNavigate();
     const autoLock = useAutoLockMinutes();
     const savedAutoLockData = parseAutoLock(autoLock.data || null);
@@ -39,7 +38,7 @@ export function AutoLockAccounts() {
                 onSuccess: () => {
                     trackAutoLockUpdated(data.autoLock);
                     toast.success('Saved');
-                    navigate(mainMenuUrl);
+                    navigate(-1);
                 },
                 onError: (error) => {
                     toast.error((error as Error)?.message || 'Failed, something went wrong');
@@ -51,7 +50,8 @@ export function AutoLockAccounts() {
         <Overlay
             showModal={true}
             title="Auto Lock Profile"
-            closeOverlay={() => navigate(mainMenuUrl)}
+            closeOverlay={() => navigate('/tokens')}
+            showBackButton
         >
             <Loading loading={autoLock.isPending}>
                 <Form className="flex h-full flex-col" form={form} onSubmit={handleSave}>

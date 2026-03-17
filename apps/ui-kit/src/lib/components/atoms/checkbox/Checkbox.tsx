@@ -5,7 +5,7 @@ import { forwardRef, useEffect, useRef } from 'react';
 import cx from 'classnames';
 import { Dash, Checkmark } from '@iota/apps-ui-icons';
 
-interface CheckboxProps {
+interface CheckboxProps extends React.AriaAttributes {
     /**
      * The label of the checkbox.
      */
@@ -46,6 +46,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             isDisabled,
             onCheckedChange,
             name,
+            ...ariaProps
         }: CheckboxProps,
         ref,
     ) => {
@@ -92,6 +93,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
                     onChange={(e) => {
                         onCheckedChange?.(e);
                     }}
+                    {...ariaProps}
                 />
                 <span
                     onClick={() => inputRef.current?.click()}
