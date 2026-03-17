@@ -9,7 +9,7 @@
 //!    take effects
 //!
 //! Example usage:
-//! iota fire-drill metadata-rotation \
+//! iota-tool fire-drill metadata-rotation \
 //! --iota-node-config-path validator.yaml \
 //! --account-key-path account.key \
 //! --fullnode-rpc-url http://fullnode-my-local-net:9000

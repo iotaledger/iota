@@ -12,7 +12,7 @@ import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
-import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
+import { Theme, useTheme } from '@iota/core';
 import clsx from 'clsx';
 import { isFirstAccount } from '../../helpers';
 import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
@@ -27,8 +27,6 @@ export function ImportExistingWallet() {
     );
     const { sourceFlowRef } = useSourceFlow();
     const sourceFlow = sourceFlowRef.current;
-    const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
 
     const profileOptions = [
@@ -44,16 +42,12 @@ export function ImportExistingWallet() {
             subtitle: '64-characters (letters and numbers)',
             actionType: AccountsFormType.ImportPrivateKey,
         },
-        ...(isPasskeysEnabled
-            ? [
-                  {
-                      title: 'Passkey',
-                      icon: Passkey,
-                      subtitle: 'Use a password manager',
-                      actionType: AccountsFormType.ImportPasskey,
-                  },
-              ]
-            : []),
+        {
+            title: 'Passkey',
+            icon: Passkey,
+            subtitle: 'Use a password manager',
+            actionType: AccountsFormType.ImportPasskey,
+        },
     ] as const satisfies ActionCardItem[];
 
     const legacyOptions = [

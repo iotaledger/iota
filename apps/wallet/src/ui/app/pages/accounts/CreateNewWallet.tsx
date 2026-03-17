@@ -12,9 +12,9 @@ import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Passkey } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
-import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
-import { isFirstAccount } from '../../helpers';
+import { Theme, useTheme } from '@iota/core';
 import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export function CreateNewWallet() {
     const { theme } = useTheme();
@@ -22,13 +22,11 @@ export function CreateNewWallet() {
     const [, setAccountsFormValues] = useAccountsFormContext();
     const { sourceFlowRef } = useSourceFlow();
     const sourceFlow = sourceFlowRef.current;
-    const network = useAppSelector(({ app }) => app.network);
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
 
     const profileOptions = [
@@ -38,16 +36,12 @@ export function CreateNewWallet() {
             subtitle: 'Recovery Phrase (12/24 words)',
             actionType: AccountsFormType.NewMnemonic,
         },
-        ...(isPasskeysEnabled
-            ? [
-                  {
-                      title: 'Passkey',
-                      icon: Passkey,
-                      subtitle: 'Use a password manager',
-                      actionType: AccountsFormType.Passkey,
-                  },
-              ]
-            : []),
+        {
+            title: 'Passkey',
+            icon: Passkey,
+            subtitle: 'Use a password manager',
+            actionType: AccountsFormType.Passkey,
+        },
     ] as const satisfies ActionCardItem[];
 
     const handleCardAction = async (actionType: (typeof profileOptions)[number]['actionType']) => {

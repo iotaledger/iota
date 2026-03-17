@@ -17,9 +17,3 @@ export function fromHex(hexStr: string): Uint8Array {
 export function toHex(bytes: Uint8Array): string {
     return bytes.reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
 }
-
-/** @deprecated use toHex instead */
-export const toHEX = toHex;
-
-/** @deprecated use fromHex instead */
-export const fromHEX = fromHex;
