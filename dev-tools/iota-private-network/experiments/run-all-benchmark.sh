@@ -32,6 +32,7 @@ DEFAULT_SPAMMER_ENABLE=false
 DEFAULT_SPAMMER_TPS=10
 DEFAULT_SPAMMER_SIZE="10KiB"
 DEFAULT_SPAMMER_TYPE="stress"
+DEFAULT_SPAMMER_CONFLICTING_TRANSFER=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Set the root directory of the private network (one level up from experiments)
@@ -171,6 +172,7 @@ usage() {
   echo "          [-w restart_timeout_seconds] [-M restart_mode(preserve-consensus|full-reset|simple-restart)]"
   echo "          [-E epoch_duration_ms] [-m flag_to_output_network_statistics]"
   echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB)] [-C spammer_type(iota-spammer|stress)]"
+  echo "          [-F conflicting_transfer_weight(number)]"
 }
 
 # --- Default values ---
@@ -192,9 +194,10 @@ SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
 SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
 SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
 SPAMMER_TYPE=$DEFAULT_SPAMMER_TYPE
+SPAMMER_CONFLICTING_TRANSFER=$DEFAULT_SPAMMER_CONFLICTING_TRANSFER
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:d:r:w:M:E:mS:T:Z:C:h" opt; do
+while getopts ":n:p:b:g:s:x:l:t:d:r:w:M:E:mS:T:Z:C:F:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -214,6 +217,7 @@ while getopts ":n:p:b:g:s:x:l:t:d:r:w:M:E:mS:T:Z:C:h" opt; do
     T) SPAMMER_TPS="$OPTARG" ;;
     Z) SPAMMER_SIZE_PER_TX="$OPTARG" ;;
     C) SPAMMER_TYPE="$OPTARG";;
+    F) SPAMMER_CONFLICTING_TRANSFER="$OPTARG" ;;
     h) usage; exit 0 ;;
     \?) usage; exit 2 ;;
     :)  usage; exit 2 ;;
@@ -247,6 +251,9 @@ if [ "$SPAMMER_ENABLE" = true ]; then
   log "Spammer TPS                : $SPAMMER_TPS"
   if [ "$SPAMMER_TYPE" = "iota-spammer" ]; then
     log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
+  fi
+  if [ "$SPAMMER_TYPE" = "stress" ] && [ "$SPAMMER_CONFLICTING_TRANSFER" -gt 0 ]; then
+    log "Conflicting transfer weight: $SPAMMER_CONFLICTING_TRANSFER"
   fi
 fi
 log "==========================="
@@ -337,6 +344,13 @@ if [ "$SPAMMER_ENABLE" = true ]; then
 
     if [ "$SPAMMER_TYPE" = "stress" ]; then
             log "Starting 'stress' benchmark with TPS=$SPAMMER_TPS, duration=${SPAMMER_DURATION}s..."
+
+            # Build optional conflicting-transfer argument
+            CONFLICTING_TRANSFER_ARG=""
+            if [ "$SPAMMER_CONFLICTING_TRANSFER" -gt 0 ]; then
+              CONFLICTING_TRANSFER_ARG="--conflicting-transfer $SPAMMER_CONFLICTING_TRANSFER"
+            fi
+
             # This command runs the `stress` binary from the iota-tools image inside the docker network
             docker run -d --rm --name stress-benchmark \
               --network iota-private-network_iota-network \
@@ -352,7 +366,8 @@ if [ "$SPAMMER_ENABLE" = true ]; then
                 bench \
                 --target-qps "$SPAMMER_TPS" \
                 --in-flight-ratio 5 \
-                --transfer-object 100
+                --transfer-object 100 \
+                $CONFLICTING_TRANSFER_ARG
 
 
             # Follow the logs of the detached container and redirect to the spammer log file
