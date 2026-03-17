@@ -724,7 +724,7 @@ async fn test_submit_transaction_gas_object_validation() {
         ))
         .await;
 
-    // TOOO: check for an exact error kind once we have better error handling in
+    // TODO: check for an exact error kind once we have better error handling in
     // place for the white-flag flow. For now, just check that it's an error.
     assert!(result.is_err(), "Expected Err for non-existent gas object");
 }

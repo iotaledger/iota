@@ -400,6 +400,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
+            authority,
         )
         .await
         .unwrap();
@@ -426,6 +427,7 @@ pub async fn send_consensus_no_execution(authority: &AuthorityState, cert: &Veri
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
+            authority,
         )
         .await
         .unwrap();
@@ -458,6 +460,7 @@ pub async fn send_batch_consensus_no_execution(
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             skip_consensus_commit_prologue_in_test,
+            authority,
         )
         .await
         .unwrap()
