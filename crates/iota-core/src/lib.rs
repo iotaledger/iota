@@ -23,7 +23,6 @@ pub mod execution_cache;
 mod execution_driver;
 mod fallback_fetch;
 pub mod grpc_indexes;
-pub mod jsonrpc_index;
 pub mod metrics;
 pub mod mock_consensus;
 pub mod module_cache_metrics;
@@ -46,7 +45,6 @@ mod transaction_manager;
 pub mod transaction_orchestrator;
 mod transaction_outputs;
 pub mod validator_tx_finalizer;
-pub mod verify_indexes;
 
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]

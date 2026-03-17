@@ -49,7 +49,6 @@ use crate::{
     },
     execution_cache::build_execution_cache,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     signature_verifier::SignatureVerifierMetrics,
@@ -331,17 +330,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 &epoch_store,
             );
         }
-        let index_store = if self.disable_indexer {
-            None
-        } else {
-            Some(Arc::new(IndexStore::new(
-                path.join("indexes"),
-                &registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
-        };
         let grpc_indexes_store = if self.disable_indexer {
             None
         } else {
@@ -375,11 +363,9 @@ impl<'a> TestAuthorityBuilder<'a> {
             cache_traits,
             epoch_store.clone(),
             committee_store,
-            index_store,
             grpc_indexes_store,
             checkpoint_store,
             &registry,
-            genesis.objects(),
             &DBCheckpointConfig::default(),
             config.clone(),
             ArchiveReaderBalancer::default(),

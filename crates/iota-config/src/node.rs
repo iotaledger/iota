@@ -89,13 +89,6 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
 
-    /// Flag to enable index processing for a full node.
-    ///
-    /// If set to true, node creates `IndexStore` for transaction
-    /// data including ownership and balance information.
-    #[serde(default = "default_enable_index_processing")]
-    pub enable_index_processing: bool,
-
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
     /// Determines the jsonrpc server type as either:
@@ -649,10 +642,6 @@ fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {
     AuthorityStorePruningConfig::default()
 }
 
-pub fn default_enable_index_processing() -> bool {
-    true
-}
-
 fn default_grpc_address() -> Multiaddr {
     "/ip4/0.0.0.0/tcp/8080".parse().unwrap()
 }
@@ -928,9 +917,6 @@ pub struct ExpensiveSafetyCheckConfig {
     /// Disable state consistency check even when we are running in debug mode.
     #[serde(default)]
     force_disable_state_consistency_check: bool,
-
-    #[serde(default)]
-    enable_secondary_index_checks: bool,
     // TODO: Add more expensive checks here
 }
 
@@ -942,7 +928,6 @@ impl ExpensiveSafetyCheckConfig {
             force_disable_epoch_iota_conservation_check: false,
             enable_state_consistency_check: true,
             force_disable_state_consistency_check: false,
-            enable_secondary_index_checks: false, // Disable by default for now
         }
     }
 
@@ -953,7 +938,6 @@ impl ExpensiveSafetyCheckConfig {
             force_disable_epoch_iota_conservation_check: true,
             enable_state_consistency_check: false,
             force_disable_state_consistency_check: true,
-            enable_secondary_index_checks: false,
         }
     }
 
@@ -977,10 +961,6 @@ impl ExpensiveSafetyCheckConfig {
 
     pub fn enable_deep_per_tx_iota_conservation_check(&self) -> bool {
         self.enable_deep_per_tx_iota_conservation_check || cfg!(debug_assertions)
-    }
-
-    pub fn enable_secondary_index_checks(&self) -> bool {
-        self.enable_secondary_index_checks
     }
 }
 
@@ -1050,8 +1030,6 @@ pub struct AuthorityStorePruningConfig {
     /// may result in some old versions that will never be pruned.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub enable_compaction_filter: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
@@ -1091,7 +1069,6 @@ impl Default for AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
-            num_epochs_to_retain_for_indexes: None,
         }
     }
 }

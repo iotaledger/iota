@@ -69,7 +69,6 @@ use iota_core::{
     },
     execution_cache::build_execution_cache,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::overload_monitor,
     safe_client::SafeClientMetricsBase,
@@ -637,19 +636,6 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
-        let index_store = if is_full_node && config.enable_index_processing {
-            info!("creating index store");
-            Some(Arc::new(IndexStore::new(
-                config.db_path().join("indexes"),
-                &prometheus_registry,
-                epoch_store
-                    .protocol_config()
-                    .max_move_identifier_len_as_option(),
-            )))
-        } else {
-            None
-        };
-
         let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
             // Migrate legacy directory names before opening the DB.
             GrpcIndexesStore::migrate_legacy_dirs(&config.db_path());
@@ -743,11 +729,9 @@ impl IotaNode {
             cache_traits.clone(),
             epoch_store.clone(),
             committee_store.clone(),
-            index_store.clone(),
             grpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
-            &genesis_objects,
             &db_checkpoint_config,
             config.clone(),
             archive_readers,
@@ -788,19 +772,6 @@ impl IotaNode {
         // Start the loop that receives new randomness and generates transactions for
         // it.
         RandomnessRoundReceiver::spawn(state.clone(), randomness_rx);
-
-        if config
-            .expensive_safety_check_config
-            .enable_secondary_index_checks()
-        {
-            if let Some(indexes) = state.indexes.clone() {
-                iota_core::verify_indexes::verify_indexes(
-                    state.get_accumulator_store().as_ref(),
-                    indexes,
-                )
-                .expect("secondary indexes are inconsistent");
-            }
-        }
 
         let (end_of_epoch_channel, end_of_epoch_receiver) =
             broadcast::channel(config.end_of_epoch_broadcast_channel_capacity);

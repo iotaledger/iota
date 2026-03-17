@@ -12,7 +12,6 @@ use async_trait::async_trait;
 use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
-    jsonrpc_index::TotalBalance,
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::Coin as IotaCoin;
@@ -20,7 +19,7 @@ use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     dev_inspect::DevInspectResults,
     digests::{ChainIdentifier, TransactionDigest},
@@ -50,6 +49,12 @@ use tokio::task::JoinError;
 use typed_store::TypedStoreError;
 
 use crate::ObjectProvider;
+
+#[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
+pub struct TotalBalance {
+    pub balance: i128,
+    pub num_coins: i64,
+}
 
 pub type StateReadResult<T = ()> = Result<T, StateReadError>;
 
@@ -273,11 +278,11 @@ impl StateRead for AuthorityState {
 
     fn get_dynamic_fields(
         &self,
-        owner: ObjectID,
-        cursor: Option<ObjectID>,
-        limit: usize,
+        _owner: ObjectID,
+        _cursor: Option<ObjectID>,
+        _limit: usize,
     ) -> StateReadResult<Vec<(ObjectID, DynamicFieldInfo)>> {
-        Ok(self.get_dynamic_fields(owner, cursor, limit)?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     fn get_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {
@@ -294,27 +299,22 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
-        filter: Option<ObjectDataFilter>,
+        _owner: IotaAddress,
+        _cursor: Option<ObjectID>,
+        _filter: Option<ObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
-        Ok(self
-            .get_owner_objects_iterator(owner, cursor, filter)?
-            .collect())
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     async fn query_events(
         &self,
-        kv_store: &Arc<TransactionKeyValueStore>,
-        query: EventFilter,
-        // If `Some`, the query will start from the next item after the specified cursor
-        cursor: Option<EventID>,
-        limit: usize,
-        descending: bool,
+        _kv_store: &Arc<TransactionKeyValueStore>,
+        _query: EventFilter,
+        _cursor: Option<EventID>,
+        _limit: usize,
+        _descending: bool,
     ) -> StateReadResult<Vec<EventEnvelope>> {
-        Ok(self
-            .query_events(kv_store, query, cursor, limit, descending)
-            .await?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     fn dry_exec_transaction(
@@ -361,49 +361,43 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
-        limit: usize,
-        filter: Option<ObjectDataFilter>,
+        _owner: IotaAddress,
+        _cursor: Option<ObjectID>,
+        _limit: usize,
+        _filter: Option<ObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
-        Ok(self.get_owner_objects(owner, cursor, limit, filter)?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     async fn get_transactions(
         &self,
-        kv_store: &Arc<TransactionKeyValueStore>,
-        filter: Option<TransactionFilter>,
-        cursor: Option<TransactionDigest>,
-        limit: Option<usize>,
-        reverse: bool,
+        _kv_store: &Arc<TransactionKeyValueStore>,
+        _filter: Option<TransactionFilter>,
+        _cursor: Option<TransactionDigest>,
+        _limit: Option<usize>,
+        _reverse: bool,
     ) -> StateReadResult<Vec<TransactionDigest>> {
-        Ok(self
-            .get_transactions(kv_store, filter, cursor, limit, reverse)
-            .await?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     fn get_dynamic_field_object_id(
         &self,
-        owner: ObjectID,
-        name_type: TypeTag,
-        name_bcs_bytes: &[u8],
+        _owner: ObjectID,
+        _name_type: TypeTag,
+        _name_bcs_bytes: &[u8],
     ) -> StateReadResult<Option<ObjectID>> {
-        Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
-        Ok(self
-            .get_move_objects(owner, MoveObjectType::staked_iota())
-            .await?)
+    async fn get_staked_iota(&self, _owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        _owner: IotaAddress,
     ) -> StateReadResult<Vec<TimelockedStakedIota>> {
-        Ok(self
-            .get_move_objects(owner, MoveObjectType::timelocked_staked_iota())
-            .await?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
@@ -423,22 +417,12 @@ impl StateRead for AuthorityState {
     }
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
-        cursor: (String, ObjectID),
-        limit: usize,
-        one_coin_type_only: bool,
+        _owner: IotaAddress,
+        _cursor: (String, ObjectID),
+        _limit: usize,
+        _one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>> {
-        Ok(self
-            .get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)?
-            .map(|(coin_type, coin_object_id, coin)| IotaCoin {
-                coin_type,
-                coin_object_id,
-                version: coin.version,
-                digest: coin.digest,
-                balance: coin.balance,
-                previous_transaction: coin.previous_transaction,
-            })
-            .collect())
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     async fn get_executed_transaction_and_effects(
@@ -453,33 +437,17 @@ impl StateRead for AuthorityState {
 
     async fn get_balance(
         &self,
-        owner: IotaAddress,
-        coin_type: TypeTag,
+        _owner: IotaAddress,
+        _coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        let indexes = self.indexes.clone();
-        Ok(tokio::task::spawn_blocking(move || {
-            indexes
-                .as_ref()
-                .ok_or(IotaError::IndexStoreNotAvailable)?
-                .get_balance(owner, coin_type)
-        })
-        .await
-        .map_err(|e: JoinError| IotaError::Execution(e.to_string()))??)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        _owner: IotaAddress,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        let indexes = self.indexes.clone();
-        Ok(tokio::task::spawn_blocking(move || {
-            indexes
-                .as_ref()
-                .ok_or(IotaError::IndexStoreNotAvailable)?
-                .get_all_balance(owner)
-        })
-        .await
-        .map_err(|e: JoinError| IotaError::Execution(e.to_string()))??)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     fn get_verified_checkpoint_by_sequence_number(
@@ -529,7 +497,7 @@ impl StateRead for AuthorityState {
     }
 
     fn get_total_transaction_blocks(&self) -> StateReadResult<u64> {
-        Ok(self.get_total_transaction_blocks()?)
+        Err(IotaError::IndexStoreNotAvailable.into())
     }
 
     fn get_checkpoint_by_sequence_number(
