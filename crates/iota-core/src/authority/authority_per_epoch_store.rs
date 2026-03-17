@@ -14,12 +14,12 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
-    zk_login::{JwkId, JWK},
+    zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
 };
 use futures::{
-    future::{join_all, select, Either},
     FutureExt,
+    future::{Either, join_all, select},
 };
 use iota_common::{
     fatal,
@@ -35,7 +35,7 @@ use iota_protocol_config::{
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     accumulator::Accumulator,
-    authenticator_state::{get_authenticator_state, ActiveJwk},
+    authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
@@ -46,8 +46,7 @@ use iota_types::{
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::{
-        CertificateProof, ExecutableTransaction,
-        VerifiedExecutableTransaction,
+        CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
     },
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
@@ -57,9 +56,9 @@ use iota_types::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummary,
     },
     messages_consensus::{
-        check_total_jwk_size, AuthorityCapabilitiesV1, ConsensusTransaction,
-        ConsensusTransactionKey, ConsensusTransactionKind, SignedAuthorityCapabilitiesV1,
-        TimestampMs, VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
+        AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
+        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey, ObjectStore},
@@ -69,7 +68,7 @@ use iota_types::{
         VerifiedSignedTransaction, VerifiedTransaction,
     },
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use move_bytecode_utils::module_cache::SyncModuleCache;
 use nonempty::NonEmpty;
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -79,13 +78,13 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
+    DBMapUtils, Map,
     rocks::{
-        default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf,
-        ReadWriteOptions,
-    }, rocksdb::Options,
+        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        read_size_from_env,
+    },
+    rocksdb::Options,
     traits::{TableSummary, TypedStoreDebug},
-    DBMapUtils,
-    Map,
 };
 
 use super::{
@@ -94,17 +93,17 @@ use super::{
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
-    transaction_deferral::{transaction_deferral_within_limit, DeferralKey, DeferralReason},
+    transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
 };
 use crate::{
     authority::{
-        epoch_start_configuration::EpochStartConfiguration, shared_object_congestion_tracker::CongestionPerObjectDebt,
+        AuthorityMetrics, ResolverWrapper,
+        epoch_start_configuration::EpochStartConfiguration,
+        shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
-        AuthorityMetrics,
-        ResolverWrapper,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -117,12 +116,12 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, VersionedProcessedMessage,
-            VersionedUsedProcessedMessages, SINGLETON_KEY,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
+            VersionedProcessedMessage, VersionedUsedProcessedMessages,
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{cache_types::CacheResult, ObjectCacheRead, TransactionCacheRead},
+    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     post_consensus_tx_reorder::PostConsensusTxReorder,
