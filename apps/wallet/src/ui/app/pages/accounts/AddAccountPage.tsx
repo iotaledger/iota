@@ -20,7 +20,13 @@ import {
     ButtonType,
     ImageShape,
 } from '@iota/apps-ui-kit';
-import { AccountsFormType, ConnectLedgerModal, PageTemplate, useSourceFlow } from '_components';
+import {
+    AccountsFormType,
+    ConnectLedgerModal,
+    PageTemplate,
+    useBootstrapSourceFlow,
+    useSourceFlow,
+} from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCheckCameraPermissionStatus, useAccounts } from '_hooks';
 import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
@@ -78,13 +84,8 @@ export function AddAccountPage() {
     const forceShowLedger =
         searchParams.has('showLedger') && searchParams.get('showLedger') !== 'false';
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
-    const { sourceFlowRef, setSourceFlow } = useSourceFlow();
-
-    // Bootstrap sourceFlow from URL when opened in a new tab (e.g. Ledger popup flow)
-    const urlSourceFlow = searchParams.get('sourceFlow');
-    if (urlSourceFlow) {
-        setSourceFlow(urlSourceFlow);
-    }
+    const { sourceFlowRef } = useSourceFlow();
+    useBootstrapSourceFlow();
 
     const sourceFlow = sourceFlowRef.current;
     const isPopupOrSidePanel = useAppSelector(

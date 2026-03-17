@@ -1,9 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
-import { AccountsFormType, PageTemplate, useAccountsFormContext, useSourceFlow } from '_components';
+import {
+    AccountsFormType,
+    PageTemplate,
+    useAccountsFormContext,
+    useBootstrapSourceFlow,
+} from '_components';
 import {
     Button,
     ButtonHtmlType,
@@ -24,14 +29,7 @@ type ImportPasskeyFormValues = z.infer<typeof formSchema>;
 
 export function CreateNewPasskey() {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const { setSourceFlow } = useSourceFlow();
-
-    // Bootstrap sourceFlow from URL when opened in a new tab (passkey popup flow)
-    const urlSourceFlow = searchParams.get('sourceFlow');
-    if (urlSourceFlow) {
-        setSourceFlow(urlSourceFlow);
-    }
+    useBootstrapSourceFlow();
 
     const [authenticatorAttachment, setAuthenticatorAttachment] =
         useState<AuthenticatorAttachment>('cross-platform');
