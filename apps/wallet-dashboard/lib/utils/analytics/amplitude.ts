@@ -34,7 +34,7 @@ export async function initAmplitude() {
                     formInteractions: false,
                     pageViews: IS_ENABLED,
                     sessions: IS_ENABLED,
-                    elementInteractions: IS_ENABLED,
+                    elementInteractions: false,
                     frustrationInteractions: false,
                     networkTracking: false,
                     webVitals: false,

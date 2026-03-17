@@ -14,8 +14,13 @@ export function SidebarItem({ icon, title, path, id }: ProtectedRoute) {
     const isActive = pathname === path;
     return (
         <Tooltip text={title} position={TooltipPosition.Right}>
-            <Link href={path} className="relative px-sm py-xxs" data-testid={`sidebar-${id}`}>
-                <NavbarItem isSelected={isActive} icon={<RouteIcon />} aria-label={title} />
+            <Link
+                href={path}
+                className="relative px-sm py-xxs"
+                data-testid={`sidebar-${id}`}
+                aria-label={title}
+            >
+                <NavbarItem isSelected={isActive} icon={<RouteIcon />} />
             </Link>
         </Tooltip>
     );

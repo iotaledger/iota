@@ -42,12 +42,7 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                 <div className="flex h-full flex-col content-stretch">
                     <div className="flex h-full w-full flex-col gap-md">
                         {MENU_ITEMS.map((item, index) => (
-                            <Card
-                                key={index}
-                                type={CardType.Default}
-                                onClick={item.onClick}
-                                aria-label={`Open ${item.title} settings`}
-                            >
+                            <Card key={index} type={CardType.Default} onClick={item.onClick}>
                                 <CardImage type={ImageType.BgSolid}>
                                     <div className="flex h-10 w-10 items-center justify-center rounded-full  text-iota-neutral-10 dark:text-iota-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
                                         <span className="text-2xl">{item.icon}</span>
