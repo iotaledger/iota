@@ -52,6 +52,15 @@ pub struct StoredObject {
     // TODO deal with overflow
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
+    /// When true, neither checkpoint nor optimistic indexing will write this
+    /// object at its current version again. Follow-up operations (e.g.
+    /// updates, deletions) can safely proceed without risk of being
+    /// overwritten by concurrent indexing.
+    ///
+    /// Note: this flag is only an indicator, not a protection mechanism. The
+    /// actual write protection is enforced by the tx status in
+    /// `tx_global_order`.
+    pub finalized: bool,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
@@ -358,6 +367,7 @@ impl From<IndexedObject> for StoredObject {
                 DynamicFieldType::DynamicField => 0,
                 DynamicFieldType::DynamicObject => 1,
             }),
+            finalized: false,
         }
     }
 }

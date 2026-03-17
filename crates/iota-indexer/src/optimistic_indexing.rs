@@ -78,6 +78,7 @@ impl OptimisticTransactionExecutor {
     ) -> Result<(), IndexerError> {
         let expected_count = input_obj_keys.len();
         let backoff = backoff::ExponentialBackoff {
+            initial_interval: Duration::from_millis(100),
             max_elapsed_time: Some(WAIT_FOR_DEPS_MAX_ELAPSED_TIME),
             ..Default::default()
         };
@@ -327,6 +328,7 @@ impl OptimisticTransactionExecutor {
     ) -> Result<(), IndexerError> {
         backoff::future::retry(
             backoff::ExponentialBackoff {
+                initial_interval: Duration::from_millis(100),
                 max_elapsed_time: Some(Duration::from_secs(30)),
                 ..Default::default()
             },
@@ -483,8 +485,11 @@ impl OptimisticTransactionExecutor {
     ) -> Result<OptimisticTransaction, IndexerError> {
         let (optimistic_tx, indexed_displays, object_changes) = tx_data_to_commit;
 
-        self.store
-            .persist_objects_in_existing_transaction(conn, vec![object_changes])?;
+        self.store.persist_objects_in_existing_transaction(
+            conn,
+            vec![object_changes.clone()],
+            true,
+        )?;
         self.store.persist_displays_in_existing_transaction(
             conn,
             indexed_displays.values().collect::<Vec<_>>(),

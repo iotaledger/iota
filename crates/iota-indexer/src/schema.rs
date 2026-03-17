@@ -233,6 +233,7 @@ diesel::table! {
         coin_type -> Nullable<Text>,
         coin_balance -> Nullable<Int8>,
         df_kind -> Nullable<Int2>,
+        finalized -> Bool,
     }
 }
 

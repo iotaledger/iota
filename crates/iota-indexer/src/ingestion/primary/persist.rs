@@ -156,6 +156,18 @@ impl PrimaryWriter {
         let checkpoint_num = checkpoint_batch.len();
         let tx_count = tx_batch.len();
 
+        // Collect object IDs from the batch before they are consumed, so we can
+        // finalize them after checkpoint persistence is complete.
+        let object_ids_to_finalize: Vec<Vec<u8>> = object_changes_batch
+            .iter()
+            .flat_map(|changes| {
+                changes
+                    .changed_objects
+                    .iter()
+                    .map(|o| o.object().id().to_vec())
+            })
+            .collect();
+
         {
             let _step_1_guard = self
                 .metrics
@@ -207,6 +219,14 @@ impl PrimaryWriter {
                 error!("failed to update tx global order as indexed with error: {e}");
             })
             .expect("updating tx global order as indexed should not fail.");
+
+        self.state
+            .finalize_objects(object_ids_to_finalize)
+            .await
+            .inspect_err(|e| {
+                error!("failed to finalize objects with error: {e}");
+            })
+            .expect("finalizing objects should not fail.");
 
         let is_epoch_end = epoch.is_some();
 

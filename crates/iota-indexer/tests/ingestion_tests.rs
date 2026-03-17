@@ -455,6 +455,45 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
+    pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
+        let sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().keep();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none());
+
+        sim.create_checkpoint();
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+
+        let non_finalized_count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            objects::table
+                .filter(objects::finalized.eq(false))
+                .count()
+                .get_result::<i64>(conn)
+        })
+        .context("Failed reading objects from PostgresDB")?;
+
+        assert_eq!(
+            non_finalized_count, 0,
+            "All objects should be finalized after checkpoint indexing"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
         let sim = Simulacrum::new();

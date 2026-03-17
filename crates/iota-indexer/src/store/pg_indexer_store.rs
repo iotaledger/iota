@@ -498,6 +498,7 @@ impl PgIndexerStore {
                 objects::coin_type.eq(excluded(objects::coin_type)),
                 objects::coin_balance.eq(excluded(objects::coin_balance)),
                 objects::df_kind.eq(excluded(objects::df_kind)),
+                objects::finalized.eq(excluded(objects::finalized)),
             ),
             excluded(objects::object_version).gt(objects::object_version),
             conn
@@ -880,6 +881,26 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("failed to update `tx_global_order` with error: {e}");
+        })
+    }
+
+    fn finalize_objects_chunk(&self, object_ids: Vec<Vec<u8>>) -> Result<(), IndexerError> {
+        let len = object_ids.len();
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::update(objects::table.filter(objects::object_id.eq_any(&object_ids)))
+                    .set(objects::finalized.eq(true))
+                    .execute(conn)?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!("Finalized {len} chunked objects");
+        })
+        .tap_err(|e| {
+            tracing::error!("failed to finalize objects chunk with error: {e}");
         })
     }
 
@@ -1888,6 +1909,7 @@ impl IndexerStore for PgIndexerStore {
         &self,
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
+        finalized: bool,
     ) -> Result<(), IndexerError> {
         if object_changes.is_empty() {
             return Ok(());
@@ -1896,7 +1918,11 @@ impl IndexerStore for PgIndexerStore {
         let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
         let object_mutations = indexed_mutations
             .into_iter()
-            .map(StoredObject::from)
+            .map(|o| {
+                let mut stored = StoredObject::from(o);
+                stored.finalized = finalized;
+                stored
+            })
             .collect::<Vec<_>>();
         let object_deletions = indexed_deletions
             .into_iter()
@@ -2425,6 +2451,32 @@ impl IndexerStore for PgIndexerStore {
             elapsed,
             "Updated index status for {len} txs insertion orders"
         );
+        Ok(())
+    }
+
+    async fn finalize_objects(&self, object_ids: Vec<Vec<u8>>) -> Result<(), IndexerError> {
+        if object_ids.is_empty() {
+            return Ok(());
+        }
+        let len = object_ids.len();
+
+        let chunks = chunk!(object_ids, self.config.parallel_chunk_size);
+        let futures = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.finalize_objects_chunk(c)));
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join finalize_objects_chunk futures: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!("failed to finalize all object chunks: {e:?}",))
+            })?;
+        info!("Finalized {len} objects");
         Ok(())
     }
 

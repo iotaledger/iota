@@ -117,6 +117,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
+        finalized: bool,
     ) -> Result<(), IndexerError>;
 
     /// Update the upper bound of the watermarks for the given tables.
@@ -147,6 +148,16 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
         tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError>;
+
+    /// Mark objects as finalized, indicating that neither checkpoint nor
+    /// optimistic indexing will write these objects at current versions again.
+    /// Once finalized, follow-up operations (e.g. updates, deletions) can
+    /// safely proceed without risk of being overwritten by concurrent indexing.
+    ///
+    /// Note: this flag is only an indicator, not a protection mechanism. The
+    /// actual write protection is enforced by the tx status in
+    /// `tx_global_order`.
+    async fn finalize_objects(&self, object_ids: Vec<Vec<u8>>) -> Result<(), IndexerError>;
 
     async fn persist_tx_global_order(
         &self,

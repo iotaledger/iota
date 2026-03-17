@@ -1079,7 +1079,8 @@ impl IndexerReader {
 
         let query = format!(
             "SELECT COUNT(*) as count FROM objects \
-             WHERE (object_id, object_version) IN (VALUES {})",
+             WHERE (object_id, object_version) IN (VALUES {}) \
+             AND finalized = true",
             values_clause
         );
 
