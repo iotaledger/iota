@@ -69,9 +69,14 @@ impl InMemoryObjectStore {
                 InputObjectKind::SharedMoveObject { id, .. } => {
                     let shared_version_assignments = shared_version_assignments_cell
                         .get_or_init(|| {
-                            epoch_store
-                                .get_assigned_shared_object_versions(tx_key)
-                                .map(|versions| versions.into_iter().collect())
+                            epoch_store.get_assigned_shared_object_versions(tx_key).map(
+                                |versions| {
+                                    versions
+                                        .into_iter()
+                                        .map(|v| (v.object_id, v.version))
+                                        .collect()
+                                },
+                            )
                         })
                         .as_ref()
                         .ok_or_else(|| IotaError::GenericAuthority {
