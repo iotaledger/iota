@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { Network } from '@iota/iota-sdk/client';
 import { usePersistedNetwork } from '@/hooks';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
-import { ampli } from '@/lib/utils/analytics/ampli';
+import { ampli } from '@/lib/utils/analytics';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();

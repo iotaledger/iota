@@ -8,7 +8,7 @@ import { Network } from '@iota/iota-sdk/client';
 import { toTitleCase, ThemeSwitcher, Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { Settings } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
-import { ampli } from '@/lib/utils/analytics/ampli';
+import { ampli } from '@/lib/utils/analytics';
 
 export function TopNav() {
     const { persistedNetwork } = usePersistedNetwork();
