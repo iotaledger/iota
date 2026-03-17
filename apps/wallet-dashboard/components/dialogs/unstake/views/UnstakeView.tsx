@@ -23,9 +23,8 @@ import {
     NOT_ENOUGH_BALANCE_ID,
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
-    useCoinMetadata,
 } from '@iota/core';
-import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -65,9 +64,6 @@ export function UnstakeView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
-    const decimals = metadata?.decimals ?? 0;
-
     const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
         useGetStakingValidatorDetails({
             accountAddress: activeAddress,
@@ -78,10 +74,12 @@ export function UnstakeView({
 
     const [totalStakeFormatted] = useFormatCoin({
         balance: totalStakeOriginal,
+        format: CoinFormat.Full,
     });
 
     const [rewardsFormatted] = useFormatCoin({
         balance: extendedStake.estimatedReward,
+        format: CoinFormat.Full,
     });
 
     useEffect(() => {
@@ -120,13 +118,11 @@ export function UnstakeView({
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
 
-                    // Convert bigint to number using decimals for analytics
-                    const stakedAmountNumber = totalStakeOriginal
-                        ? Number(totalStakeOriginal) / Math.pow(10, decimals)
+                    // Convert formatted amounts to number for analytics
+                    const stakedAmountNumber = totalStakeFormatted
+                        ? Number(totalStakeFormatted)
                         : 0;
-                    const rewardsNumber = extendedStake.estimatedReward
-                        ? Number(extendedStake.estimatedReward) / Math.pow(10, decimals)
-                        : 0;
+                    const rewardsNumber = rewardsFormatted ? Number(rewardsFormatted) : 0;
 
                     ampli.iotaUnstaked({
                         stakedAmount: stakedAmountNumber,

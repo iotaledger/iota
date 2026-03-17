@@ -48,7 +48,10 @@ export function EnterAmountView({
     const decimals = metadata?.decimals ?? 0;
 
     const amount = parseAmount(values.amount, decimals);
-    const [stakedAmountFormatted] = useFormatCoin({ balance: amount });
+    const [stakedAmountFormatted] = useFormatCoin({
+        balance: amount,
+        format: CoinFormat.Full,
+    });
 
     const { name: validatorName, apy } = useValidatorInfo({
         validatorAddress: selectedValidator,
@@ -101,9 +104,9 @@ export function EnterAmountView({
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
 
-                    // Convert bigint to number using decimals for analytics
-                    const stakedAmountNumber = amount
-                        ? Number(amount) / Math.pow(10, decimals)
+                    // Convert formatted amount to number for analytics
+                    const stakedAmountNumber = stakedAmountFormatted
+                        ? Number(stakedAmountFormatted)
                         : 0;
 
                     ampli.iotaStaked({
