@@ -8,9 +8,12 @@ use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::Direction;
 use serde::de::DeserializeOwned;
+use typed_store_error::TypedStoreError;
 
-use super::{RawIter, TypedStoreError};
-use crate::metrics::{DBMetrics, RocksDBPerfContext};
+use crate::{
+    database::RawIter,
+    metrics::{DBMetrics, RocksDBPerfContext},
+};
 
 /// An iterator over all key-value pairs in a data map.
 pub struct SafeIter<'a, K, V> {
@@ -29,7 +32,7 @@ pub struct SafeIter<'a, K, V> {
 }
 
 impl<'a, K: DeserializeOwned, V: DeserializeOwned> SafeIter<'a, K, V> {
-    pub(super) fn new(
+    pub(crate) fn new(
         cf_name: String,
         db_iter: RawIter<'a>,
         _timer: Option<HistogramTimer>,

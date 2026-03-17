@@ -2,12 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::RangeBounds;
+
 use rstest::rstest;
+use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
 use crate::{
     reopen,
     rocks::safe_iter::{SafeIter, SafeRevIter},
+    traits::Map,
 };
 
 fn temp_dir() -> std::path::PathBuf {
@@ -116,8 +120,8 @@ async fn test_reopen_macro() {
     let keys_vals_cf1 = (1..100).map(|i| (i, i.to_string()));
     let keys_vals_cf2 = (1..100).map(|i| (i, i.to_string()));
 
-    assert_eq!(db_map_1.cf, FIRST_CF);
-    assert_eq!(db_map_2.cf, SECOND_CF);
+    assert_eq!(db_map_1.cf_name(), FIRST_CF);
+    assert_eq!(db_map_2.cf_name(), SECOND_CF);
 
     assert!(db_map_1.multi_insert(keys_vals_cf1).is_ok());
     assert!(db_map_2.multi_insert(keys_vals_cf2).is_ok());
