@@ -47,7 +47,9 @@ use crate::{
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointTimestamp,
-    messages_consensus::{ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments},
+    messages_consensus::{
+        CancelledTransaction, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
+    },
     move_authenticator::MoveAuthenticator,
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -2459,7 +2461,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_txn_version_assignment: Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>,
+        cancelled_transactions: Vec<CancelledTransaction>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2469,9 +2471,9 @@ impl VerifiedTransaction {
             commit_timestamp_ms,
             consensus_commit_digest,
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment,
-                ),
+                ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                    cancelled_transactions,
+                },
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
         .pipe(Self::new_system_transaction)

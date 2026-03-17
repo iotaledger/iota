@@ -15,16 +15,18 @@ use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::IntentScope;
+pub use iota_sdk_types::{
+    CancelledTransaction, CheckpointTimestamp as TimestampMs, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, VersionAssignment,
+};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
-    base_types::{
-        AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-    },
+    base_types::{AuthorityName, ConciseableName, ObjectRef, TransactionDigest},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
-    digests::{ConsensusCommitDigest, Digest, MisbehaviorReportDigest},
+    digests::{Digest, MisbehaviorReportDigest},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
@@ -32,34 +34,6 @@ use crate::{
     },
     transaction::CertifiedTransaction,
 };
-
-/// Non-decreasing timestamp produced by consensus in ms.
-pub type TimestampMs = u64;
-
-/// Uses an enum to allow for future expansion of the
-/// ConsensusDeterminedVersionAssignments.
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub enum ConsensusDeterminedVersionAssignments {
-    // Cancelled transaction version assignment.
-    CancelledTransactions(Vec<(TransactionDigest, Vec<(ObjectID, SequenceNumber)>)>),
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ConsensusCommitPrologueV1 {
-    /// Epoch of the commit prologue transaction
-    pub epoch: u64,
-    /// Consensus round of the commit
-    pub round: u64,
-    /// The sub DAG index of the consensus commit. This field will be populated
-    /// if there are multiple consensus commits per round.
-    pub sub_dag_index: Option<u64>,
-    /// Unix timestamp from consensus
-    pub commit_timestamp_ms: TimestampMs,
-    /// Digest of consensus output
-    pub consensus_commit_digest: ConsensusCommitDigest,
-    /// Stores consensus handler determined shared object version assignments.
-    pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConsensusTransaction {

@@ -26,7 +26,9 @@ use iota_types::{
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
-    messages_consensus::ConsensusDeterminedVersionAssignments,
+    messages_consensus::{
+        CancelledTransaction, ConsensusDeterminedVersionAssignments, VersionAssignment,
+    },
     object::{Owner, bounded_visitor::BoundedVisitor},
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
@@ -1896,15 +1898,25 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
         consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> Self {
         match consensus_determined_version_assignments {
-            ConsensusDeterminedVersionAssignments::CancelledTransactions(
+            ConsensusDeterminedVersionAssignments::CancelledTransactions {
                 cancelled_transactions,
-            ) => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
+            } => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
                 cancelled_transactions
                     .into_iter()
-                    .map(|(digest, version_assignments)| {
-                        (digest, version_assignments.into_iter().collect())
+                    .map(|cancelled| {
+                        (
+                            cancelled.digest,
+                            cancelled
+                                .version_assignments
+                                .into_iter()
+                                .map(|va| (va.object_id, va.version))
+                                .collect(),
+                        )
                     })
                     .collect(),
+            ),
+            _ => unreachable!(
+                "a new ConsensusDeterminedVersionAssignments variant was added and needs to be handled"
             ),
         }
     }
@@ -1916,14 +1928,21 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
     ) -> Self {
         match iota_consensus_determined_version_assignments {
             IotaConsensusDeterminedVersionAssignments::CancelledTransactions(assignments) => {
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    assignments
+                ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                    cancelled_transactions: assignments
                         .into_iter()
-                        .map(|(digest, version_assignments)| {
-                            (digest, version_assignments.into_iter().collect())
+                        .map(|(digest, version_assignments)| CancelledTransaction {
+                            digest,
+                            version_assignments: version_assignments
+                                .into_iter()
+                                .map(|(object_id, version)| VersionAssignment {
+                                    object_id,
+                                    version,
+                                })
+                                .collect(),
                         })
                         .collect(),
-                )
+                }
             }
         }
     }
