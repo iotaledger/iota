@@ -1,3 +1,13 @@
 ```bash
-sudo apt-get install curl git-all cmake gcc libssl-dev pkg-config libclang-dev libpq-dev build-essential
+sudo apt-get install curl git-all cmake gcc libssl-dev pkg-config libclang-dev build-essential
 ```
+
+:::info
+
+If you plan to build `iota-indexer` or run `iota-localnet` with the `indexer` feature, you also need `libpq-dev`:
+
+```bash
+sudo apt-get install libpq-dev
+```
+
+:::
