@@ -1422,8 +1422,10 @@ impl ValidatorService {
                 // Get the full transaction effects from cache
                 if let Some(effects) = cache.get_executed_effects(&tx_digest) {
                     // Get events if they exist (same as certificate flow at line ~691)
-                    let events = if let Some(digest) = effects.events_digest() {
-                        self.state.get_transaction_events(digest).ok()
+                    let events = if effects.events_digest().is_some() {
+                        self.state
+                            .get_transaction_events(effects.transaction_digest())
+                            .ok()
                     } else {
                         None
                     };

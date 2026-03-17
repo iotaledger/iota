@@ -606,8 +606,9 @@ impl KeyToolCommand {
                         // Try decoding as SenderSignedData
                         let tx_bytes = Base64::decode(&sig)
                             .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
-                        let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes)
-                            .map_err(|e| anyhow!("Failed to decode as signature or transaction: {e}"))?;
+                        let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
+                            anyhow!("Failed to decode as signature or transaction: {e}")
+                        })?;
                         tx.into_inner()
                             .tx_signatures
                             .into_iter()
@@ -656,18 +657,25 @@ impl KeyToolCommand {
                         }
                     }
                     GenericSignature::ZkLoginAuthenticator(zk) => DecodedSigOutput::ZkLogin(zk),
-                    GenericSignature::PasskeyAuthenticator(passkey) => DecodedSigOutput::Passkey(passkey),
+                    GenericSignature::PasskeyAuthenticator(passkey) => {
+                        DecodedSigOutput::Passkey(passkey)
+                    }
                     GenericSignature::MoveAuthenticator(move_auth) => {
-                        let call_arguments: Vec<String> = move_auth.call_args().iter().map(|arg| {
-                            match arg {
+                        let call_arguments: Vec<String> = move_auth
+                            .call_args()
+                            .iter()
+                            .map(|arg| match arg {
                                 CallArg::Pure(bytes) => format!("0x{}", Hex::encode(bytes)),
-                                CallArg::Object(obj) => serde_json::to_string(obj).unwrap_or_else(|_| format!("{obj:?}")),
-                            }
-                        }).collect();
+                                CallArg::Object(obj) => serde_json::to_string(obj)
+                                    .unwrap_or_else(|_| format!("{obj:?}")),
+                            })
+                            .collect();
                         let type_arguments = serde_json::to_value(move_auth.type_arguments())
                             .map_err(|e| anyhow!("Failed to serialize type_arguments: {e}"))?;
-                        let object_to_authenticate = serde_json::to_value(move_auth.object_to_authenticate())
-                            .map_err(|e| anyhow!("Failed to serialize object_to_authenticate: {e}"))?;
+                        let object_to_authenticate = serde_json::to_value(
+                            move_auth.object_to_authenticate(),
+                        )
+                        .map_err(|e| anyhow!("Failed to serialize object_to_authenticate: {e}"))?;
                         DecodedSigOutput::MoveAuthenticator {
                             call_arguments,
                             type_arguments,
@@ -950,10 +958,7 @@ impl KeyToolCommand {
                     iota_signature: iota_signature.encode_base64(),
                 })
             }
-            KeyToolCommand::SignRaw {
-                address,
-                data,
-            } => {
+            KeyToolCommand::SignRaw { address, data } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let bytes = Hex::decode(&data).map_err(|e| anyhow!("Invalid hex data: {e:?}"))?;
                 let stored = keystore.get_key(&address)?;
@@ -1040,8 +1045,9 @@ impl KeyToolCommand {
                 let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
                     Ok(tx) => tx,
                     Err(_) => {
-                        let deserialized_tx = bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
-                       deserialized_tx.0.transaction
+                        let deserialized_tx =
+                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
+                        deserialized_tx.0.transaction
                     }
                 };
                 CommandOutput::TxDigest(TxDigestOutput {
