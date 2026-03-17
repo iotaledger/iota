@@ -179,7 +179,6 @@ pub async fn start_test_indexer_impl(
             ingestion_config.sources.remote_store_url =
                 data_ingestion_path.is_none().then_some(fullnode_rpc_url);
             ingestion_config.sources.data_ingestion_path = data_ingestion_path;
-            ingestion_config.sources.rpc_client_url = Some(fullnode_rpc_url);
 
             tokio::spawn(async move {
                 Indexer::start_writer_with_config(
