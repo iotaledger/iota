@@ -20,6 +20,7 @@ use im::hashmap::HashMap as ImHashMap;
 use iota_sdk_types::crypto::IntentMessage;
 use schemars::JsonSchema;
 use serde::Serialize;
+use tracing::instrument;
 
 use crate::{
     base_types::IotaAddress,
@@ -320,6 +321,7 @@ impl AuthenticatorTrait for Signature {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,

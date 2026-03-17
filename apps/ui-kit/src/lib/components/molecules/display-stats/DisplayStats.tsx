@@ -131,7 +131,7 @@ export function DisplayStats({
                 )}
                 {copyText && (
                     <div className="self-center">
-                        <ButtonUnstyled onClick={handleCopyClick}>
+                        <ButtonUnstyled onClick={handleCopyClick} aria-label="Copy to clipboard">
                             <Copy className="display-stats-copy-icon-color" />
                         </ButtonUnstyled>
                     </div>

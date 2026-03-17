@@ -1,0 +1,35 @@
+---
+description: 'How to create an account using the builder pattern in Move'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Create an Account Using the Builder Pattern
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to use the builder pattern to create and share an account, using `IOTAccount` as an example.
+
+## Example Code
+
+1. Create a builder by passing an authenticator function reference to `builder`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L74-L82
+```
+2. Optionally attach dynamic fields to the account during build time using `with_field`.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L85-L92
+```
+3. Using dynamic fields we can attach all kinds of additional properties to the account, such as an admin address.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L95-L97
+```
+4. Finalize the account by calling `build`, which validates the authenticator and shares the account object.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L101-L113
+```
+
+## Full Example Code
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move
+```

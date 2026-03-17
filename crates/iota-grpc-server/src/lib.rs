@@ -10,6 +10,7 @@ mod error;
 pub mod event_filter;
 pub mod ledger_service;
 pub mod merge;
+pub mod metrics;
 pub mod response;
 pub mod server;
 pub mod transaction_execution_service;
@@ -19,6 +20,7 @@ pub mod utils;
 
 // Re-export commonly used types and traits
 pub use ledger_service::LedgerGrpcService;
+pub use metrics::GrpcServerMetrics;
 pub use response::append_info_headers;
 pub use server::{GrpcServerHandle, start_grpc_server};
 pub use transaction_execution_service::TransactionExecutionGrpcService;

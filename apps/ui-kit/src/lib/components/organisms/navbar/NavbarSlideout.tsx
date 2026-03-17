@@ -38,6 +38,7 @@ export function NavbarSlideout({
                             type={ButtonType.Ghost}
                             onClick={onToggleNavbar}
                             icon={<ArrowBack />}
+                            aria-label="Close menu"
                         />
                     </div>
                     {items.map((item) => (

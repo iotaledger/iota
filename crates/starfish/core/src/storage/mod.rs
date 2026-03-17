@@ -186,7 +186,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) voting_block_headers: Vec<VerifiedBlockHeader>,
-    pub(crate) fast_commit_sync_flag: bool,
+    pub(crate) fast_commit_sync_flag: Option<bool>,
 }
 
 impl WriteBatch {
@@ -196,7 +196,7 @@ impl WriteBatch {
         commits: Vec<TrustedCommit>,
         commit_info: Vec<(CommitRef, CommitInfo)>,
         voting_block_headers: Vec<VerifiedBlockHeader>,
-        fast_commit_sync_flag: bool,
+        fast_commit_sync_flag: Option<bool>,
     ) -> Self {
         WriteBatch {
             transactions,

@@ -284,6 +284,16 @@ pub(crate) fn get_checkpoint_data(
     let (transaction_filter, event_filter) =
         convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
 
+    if transaction_filter.is_some() && transactions_mask.is_none() {
+        return Err(Status::invalid_argument(
+            "transactions_filter requires transactions in read_mask",
+        )
+        .into());
+    }
+    if event_filter.is_some() && events_mask.is_none() {
+        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
+    }
+
     Ok(service.reader.get_checkpoint_data(
         sequence_number,
         checkpoint_mask,
@@ -328,10 +338,17 @@ pub(crate) fn stream_checkpoint_data(
     let start_sequence_number = req.start_sequence_number;
     let end_sequence_number = req.end_sequence_number;
     let client_max_message_size_bytes = req.max_message_size_bytes;
+    let filter_checkpoints = req.filter_checkpoints.unwrap_or(false);
+    let progress_interval =
+        std::time::Duration::from_millis(req.progress_interval_ms.unwrap_or(2000).max(500) as u64);
 
     debug!(
-        "stream_checkpoints called with start={:?}, end={:?}, max_size={:?}",
-        start_sequence_number, end_sequence_number, client_max_message_size_bytes
+        "stream_checkpoints called with start={:?}, end={:?}, max_size={:?}, filter_checkpoints={}, progress_interval={:?}",
+        start_sequence_number,
+        end_sequence_number,
+        client_max_message_size_bytes,
+        filter_checkpoints,
+        progress_interval
     );
 
     let max_message_size_bytes = service
@@ -353,6 +370,24 @@ pub(crate) fn stream_checkpoint_data(
     let (transaction_filter, event_filter) =
         convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
 
+    // Validate filter_checkpoints constraints
+    if filter_checkpoints && transaction_filter.is_none() && event_filter.is_none() {
+        return Err(Status::invalid_argument(
+            "filter_checkpoints requires at least one of transactions_filter or events_filter",
+        )
+        .into());
+    }
+
+    if transaction_filter.is_some() && transactions_mask.is_none() {
+        return Err(Status::invalid_argument(
+            "transactions_filter requires transactions in read_mask",
+        )
+        .into());
+    }
+    if event_filter.is_some() && events_mask.is_none() {
+        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
+    }
+
     let rx = service.checkpoint_data_broadcaster.subscribe();
     let stream = Box::pin(service.reader.create_checkpoint_data_stream(
         rx,
@@ -365,6 +400,8 @@ pub(crate) fn stream_checkpoint_data(
         service.cancellation_token.clone(),
         transaction_filter,
         event_filter,
+        filter_checkpoints,
+        progress_interval,
     ));
     Ok(stream)
 }
