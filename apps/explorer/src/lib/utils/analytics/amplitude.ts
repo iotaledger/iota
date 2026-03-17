@@ -30,7 +30,7 @@ const ANTI_BOT_CONFIG = {
 
 let IS_BOT_CLEARED = false;
 
-export async function initAmplitude(network?: string) {
+export async function initAmplitude() {
     const consentStatus = getAmplitudeConsentStatus();
 
     if (ampli.isLoaded || consentStatus === 'declined') {
@@ -65,11 +65,6 @@ export async function initAmplitude(network?: string) {
     }).promise;
 
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
-
-    // Set initial identity with network if provided
-    if (network) {
-        setAmplitudeIdentity(network);
-    }
 
     setupAntiBotProtection();
 }
