@@ -1534,9 +1534,13 @@ impl ValidatorService {
             let build_executed_response =
                 |effects: TransactionEffects| -> Result<_, tonic::Status> {
                     let effects_digest = effects.digest();
-                    let events = effects
-                        .events_digest()
-                        .and_then(|digest| state.get_transaction_events(digest).ok());
+                    let events = if effects.events_digest().is_some() {
+                        state
+                            .get_transaction_events(effects.transaction_digest())
+                            .ok()
+                    } else {
+                        None
+                    };
                     let input_objects = state.get_transaction_input_objects(&effects).ok();
                     let output_objects = state.get_transaction_output_objects(&effects).ok();
                     let details = Some(Box::new(ExecutedData {
