@@ -114,7 +114,11 @@ export function useSourceFlow() {
         throw new Error('useSourceFlow must be used within the AccountsFormProvider');
     }
     const [, , sourceFlowRef, setSourceFlow] = context;
-    return { sourceFlowRef, setSourceFlow };
+    const resetSourceFlow = useCallback(() => {
+        sourceFlowRef.current = AmpliSourceFlow.Unknown;
+        sessionStorage.removeItem(SOURCE_FLOW_SESSION_KEY);
+    }, [sourceFlowRef]);
+    return { sourceFlowRef, setSourceFlow, resetSourceFlow };
 }
 
 /**
@@ -131,8 +135,4 @@ export function useBootstrapSourceFlow() {
             setSourceFlow(urlSourceFlow as AmpliSourceFlow);
         }
     }, [urlSourceFlow, setSourceFlow]);
-}
-
-export function clearSourceFlow() {
-    sessionStorage.removeItem(SOURCE_FLOW_SESSION_KEY);
 }

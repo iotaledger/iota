@@ -8,7 +8,7 @@ import {
     useAccountsFormContext,
     AccountsFormType,
     type AccountsFormValues,
-    clearSourceFlow,
+    useSourceFlow,
 } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
@@ -41,11 +41,12 @@ export function useCreateAccountsMutation() {
     const [accountsFormValuesRef, setAccountFormValues, sourceFlowRef] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
     const { data: accounts } = useAccounts();
+    const { resetSourceFlow } = useSourceFlow();
 
     return useMutation({
         mutationKey: ['create accounts'],
         onSuccess: () => {
-            clearSourceFlow();
+            resetSourceFlow();
         },
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
