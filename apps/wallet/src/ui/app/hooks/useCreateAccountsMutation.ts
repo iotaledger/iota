@@ -4,7 +4,12 @@
 
 import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI, AmpliSourceFlow } from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
-import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
+import {
+    useAccountsFormContext,
+    AccountsFormType,
+    type AccountsFormValues,
+    clearSourceFlow,
+} from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
@@ -39,6 +44,9 @@ export function useCreateAccountsMutation() {
 
     return useMutation({
         mutationKey: ['create accounts'],
+        onSuccess: () => {
+            clearSourceFlow();
+        },
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
