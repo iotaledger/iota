@@ -1,6 +1,6 @@
 ---
 title: "Basic Authentication Flow"
-description: "Build and deploy your first abstract account on a local IOTA network step by step, covering the authenticator function, account creation, and sending AA transactions entirely from the CLI."
+description: "Build and deploy your first abstract account on a local IOTA network or devnet step by step, covering the authenticator function, account creation, and sending AA transactions entirely from the CLI."
 tags:
   - tutorial
   - move-sc
@@ -8,13 +8,16 @@ tags:
   - cli
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 import AccountAbstraction from '../../../_snippets/developer/move/aa.mdx';
 
 <AccountAbstraction />
 
 ## Introduction
 
-In this tutorial you will build a minimal abstract account on a local network entirely from the command line.
+In this tutorial you will build a minimal abstract account on a local network or devnet
+
 By the end you will have:
 
 - Written a Move package containing an **authenticator function** and an **abstract account** type.
@@ -40,10 +43,13 @@ For a full visual overview of how the components interact from package publicati
 ## Prerequisites
 
 - [IOTA CLI installed](../../getting-started/install-iota.mdx)
-- A local IOTA network running see [Start a Local Network](../../getting-started/local-network.mdx)
+- A running network — either a **local network** ([Start a Local Network](../../getting-started/local-network.mdx)) or access to **devnet**
 - Familiarity with Move and account abstraction concepts (see [Account Abstraction introduction](../../move/explanations/account-abstraction/introduction.mdx))
 
-## 1. Set Up Your Local Network Environment
+## 1. Set Up Your Network Environment
+
+<Tabs groupId="network" queryString>
+<TabItem value="localnet" label="Local Network">
 
 Start a local IOTA network with a built-in faucet (run this in a separate terminal and keep it running):
 
@@ -74,6 +80,40 @@ iota client balance
 ```
 
 You should see a non-zero IOTA balance before proceeding.
+
+:::tip Full local network setup guide
+For more details on starting and configuring a local network, see [Start a Local Network](../../getting-started/local-network.mdx).
+:::
+
+</TabItem>
+<TabItem value="devnet" label="Devnet">
+
+Configure the CLI to use devnet and fund your address from the public faucet:
+
+```bash
+# Add devnet to your client config (skip if it already exists)
+iota client new-env --alias devnet --rpc https://api.devnet.iota.cafe
+
+# Switch to devnet
+iota client switch --env devnet
+
+# Confirm your active address
+iota client active-address
+
+# Request test tokens from the devnet faucet
+iota client faucet
+```
+
+Verify the faucet credited your account:
+
+```bash
+iota client balance
+```
+
+You should see a non-zero IOTA balance before proceeding.
+
+</TabItem>
+</Tabs>
 
 :::note Using an existing wallet address (recommended)
 If you already have an address in the IOTA Wallet browser extension, you can export its private key and import it into the CLI so you use the same address throughout this tutorial:
@@ -219,7 +259,7 @@ iota move build
 If the build succeeds, publish to the local network and capture the output as JSON:
 
 ```bash
-iota client publish --gas-budget 100000000 --json
+iota client publish --json
 ```
 
 From the JSON output, locate two values:
@@ -333,17 +373,13 @@ iota client balance $ACCOUNT_ADDRESS
 
 ## 7. Send an AA Transaction
 
-First, register the account address with the CLI and switch to it so the CLI knows to use AA authentication when sending from it:
+An AA transaction is **submitted by your address** but executes *on behalf of* the abstract account. You do not switch to the abstract account address — instead, you stay on your address and declare the abstract account as the sender via `--sender @$ACCOUNT_ADDRESS`. The address key signs the outer transaction envelope; `--auth-call-args` supplies the Move-level authentication that the validator uses to authorize the abstract account.
 
-```bash
-iota client add-account $ACCOUNT_ADDRESS
-iota client switch --address $ACCOUNT_ADDRESS
-```
-
-You are now ready to send a transaction **from** your abstract account. Since `HelloAccount` uses a custom authenticator that accepts a passphrase, you must provide the correct passphrase in the `--auth-call-args` flag. The CLI will build a `MoveAuthenticator` with these arguments and send it to the validator, which will call your `authenticate_hello` function with those arguments.
+Send the transaction:
 
 ```bash
 iota client ptb \
+  --sender @$ACCOUNT_ADDRESS \
   --move-call ${PACKAGE_ID}::hello_auth::say_hello '"Hello from my abstract account!"' \
   --auth-call-args "hello" \
   --gas-budget 10000000
@@ -351,11 +387,11 @@ iota client ptb \
 
 **What happens under the hood:**
 
-1. The CLI detects the active address is an abstract account and builds a `MoveAuthenticator`:
-   - `object_to_authenticate`: the `HelloAccount` shared object.
-   - `call_args`: the raw string `hello` from `--auth-call-args`.
+1. The CLI builds a `MoveAuthenticator` for the abstract account:
+   - `object_to_authenticate`: the `HelloAccount` shared object (`$ACCOUNT_ADDRESS`).
+   - `call_args`: the string `hello` from `--auth-call-args`.
 2. The validator reads the `AuthenticatorFunctionRefV1` dynamic field from the account and calls `authenticate_hello(account, "hello", auth_ctx, tx_ctx)`.
-3. `authenticate_hello` asserts `passphrase == "hello"` the assertion passes and authentication succeeds.
+3. `authenticate_hello` asserts `passphrase == "hello"` — the assertion passes and authentication succeeds.
 4. The PTB command `say_hello("Hello from my abstract account!")` executes and emits a `HelloEvent` on-chain.
 
 You can verify the event was emitted by inspecting the transaction effects:
@@ -369,8 +405,8 @@ iota client tx-block <TRANSACTION_DIGEST>
 If you supply the wrong passphrase, the transaction is **rejected before reaching consensus** and no gas is charged:
 
 ```bash
-# This is rejected wrong passphrase
 iota client ptb \
+  --sender @$ACCOUNT_ADDRESS \
   --move-call ${PACKAGE_ID}::hello_auth::say_hello '"Hello!"' \
   --auth-call-args "wrong_passphrase" \
   --gas-budget 10000000
@@ -382,7 +418,7 @@ The validator calls `authenticate_hello`, the `assert!` aborts, and the transact
 
 After `authenticate_hello` returns (authentication succeeded), the protocol sets `ctx.sender()` to the abstract account's address for every command in the PTB. This is how functions know the caller is the account.
 
-However, `HelloAccount` is a **shared object** any user can pass it as an argument to a Move function from their own EOA. Consider `rotate_authenticator`:
+However, `HelloAccount` is a **shared object** any user can pass it as an argument to a Move function from their own address. Consider `rotate_authenticator`:
 
 ```move
 public fun rotate_authenticator(
@@ -395,12 +431,12 @@ public fun rotate_authenticator(
 }
 ```
 
-Without the `assert!`, a malicious user could send a transaction **from their own EOA**, pass `HelloAccount` as a shared-object argument, and call `rotate_authenticator` with an authenticator they control effectively hijacking the account.
+Without the `assert!`, a malicious user could send a transaction **from their own address**, pass `HelloAccount` as a shared-object argument, and call `rotate_authenticator` with an authenticator they control effectively hijacking the account.
 
 The check `account.id.uid_to_address() == ctx.sender()` closes this gap:
 
 - In an **AA transaction** authenticated as `HelloAccount`: `ctx.sender() == account address` → check passes.
-- In an **EOA transaction** from an attacker: `ctx.sender() == attacker's address ≠ account address` → check aborts.
+- In an **transaction** from an attacker: `ctx.sender() == attacker's address ≠ account address` → check aborts.
 
 :::tip Rule of thumb
 Every function that **modifies** an abstract account adding or removing dynamic fields, rotating the authenticator, managing keys, member lists, or nonces must include the sender check. Functions that only **read** state or emit events on behalf of the account (like `say_hello`) do not need it because the authenticator already ran.
