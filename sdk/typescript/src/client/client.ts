@@ -644,8 +644,7 @@ export class IotaClient {
     }: { signal?: AbortSignal } = {}): Promise<LatestIotaSystemStateSummary> {
         const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
-        const isEffectiveCommissionRateSupported =
-            Number(protocolConfig.maxSupportedProtocolVersion) >= 20;
+        const isEffectiveCommissionRateSupported = Number(protocolConfig.protocolVersion) >= 20;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2({ signal })
