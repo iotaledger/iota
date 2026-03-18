@@ -305,12 +305,6 @@ impl VersionedMisbehaviorReport {
             VersionedMisbehaviorReport::V1(report, _) => report.verify(committee_size),
         }
     }
-    /// Returns an iterator over references to some of the fields in the report.
-    pub fn iterate_over_metrics(&self) -> std::vec::IntoIter<&Vec<u64>> {
-        match self {
-            VersionedMisbehaviorReport::V1(report, _) => report.iter(),
-        }
-    }
     /// Returns the digest of the misbehavior report, caching it if it has not
     /// been computed yet.
     pub fn digest(&self) -> &MisbehaviorReportDigest {
@@ -374,16 +368,6 @@ impl LegacyReportPayload {
             return false;
         }
         true
-    }
-
-    pub fn iter(&self) -> std::vec::IntoIter<&Vec<u64>> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-            &self.equivocations,
-        ]
-        .into_iter()
     }
 }
 
