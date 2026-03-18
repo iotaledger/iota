@@ -107,6 +107,35 @@ impl MisbehaviorCounts {
         };
         VersionedMisbehaviorReport::V1(payload, OnceCell::new())
     }
+
+    /// Returns a new `MisbehaviorCounts` where each cell is the element-wise
+    /// maximum of `self` and `new_report`. This implements a monotone update:
+    /// counts can only increase, so a later report never reduces a previously
+    /// observed count.
+    pub fn get_updated_from_report(&self, new_report: &VersionedMisbehaviorReport) -> Self {
+        match new_report {
+            VersionedMisbehaviorReport::V1(report_v1, _) => {
+                let updated: Vec<Vec<u64>> = self
+                    .0
+                    .iter()
+                    .zip([
+                        &report_v1.faulty_blocks_provable,
+                        &report_v1.faulty_blocks_unprovable,
+                        &report_v1.missing_proposals,
+                        &report_v1.equivocations,
+                    ])
+                    .map(|(current, incoming)| {
+                        current
+                            .iter()
+                            .zip(incoming.iter())
+                            .map(|(c, i)| *c.max(i))
+                            .collect()
+                    })
+                    .collect();
+                Self(updated)
+            }
+        }
+    }
 }
 
 impl From<&VersionedMisbehaviorReport> for MisbehaviorCounts {

@@ -3,7 +3,7 @@
 
 use std::sync::{
     Arc,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicU64, Ordering},
 };
 
 use arc_swap::ArcSwap;
@@ -18,24 +18,33 @@ use crate::authority::authority_per_epoch_store::misbehavior_monitor::{
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
+pub struct ReceivedReportsState(Vec<ReceivedReportsStatePerAuthority>);
+
+impl std::ops::Index<usize> for ReceivedReportsState {
+    type Output = ReceivedReportsStatePerAuthority;
+    fn index(&self, authority: usize) -> &Self::Output {
+        &self.0[authority]
+    }
+}
+
+impl FromIterator<ReceivedReportsStatePerAuthority> for ReceivedReportsState {
+    fn from_iter<T: IntoIterator<Item = ReceivedReportsStatePerAuthority>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+pub struct ReceivedReportsStatePerAuthority {
+    received_metrics: ArcSwap<Option<MisbehaviorCounts>>,
+    invalid_reports_count: AtomicU64,
+}
+
 /// Holds all information related to scoring of authorities in the committee.
 pub struct Scorer {
-    // The metrics counts received from other authorities, i.e., the information contained in the
-    // MisbehaviourReports received by the authority. If an authority has not sent a report, its
-    // entry in this vector will be all zeroed.
-    received_metrics: Vec<ArcSwap<Option<MisbehaviorCounts>>>,
-    // Indicates whether an authority did not send any misbehavior reports in the epoch. We use
-    // this to differentiate an authority that did not send a report from another one who sent
-    // zeroed reports.
-    has_not_sent_report: Vec<AtomicBool>,
+    // Per-authority state tracking received reports and their validity.
+    received_reports_state: ReceivedReportsState,
     // The current scores of the authorities, updated after each received report. This score is
-    // calculated based on the information in the received reports and the validity of the reports
-    // themselves.
-    pub(crate) current_scores: Scores,
-    // The count of invalid reports received from each authority. Validity here must be checked in
-    // a deterministic way, since this information will not be propagated again to the rest of the
-    // committee.
-    invalid_reports_count: Vec<AtomicU64>,
+    // calculated based on the information in received_reports_state.
+    pub(crate) current_scores: Vec<AtomicU64>,
     // The voting power of each authority in the committee.
     voting_power: Vec<u64>,
     // The version of the scorer being used with its parameters.
@@ -51,21 +60,16 @@ impl Scorer {
         let committee_size = voting_power.len();
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => {
-                let (received_metrics, has_not_sent_report, current_scores, invalid_reports_count) =
-                    (0..committee_size)
-                        .map(|_| {
-                            (
-                                // Received metrics initialized to zero.
-                                ArcSwap::new(Arc::new(None)),
-                                // Initially, none of the authorities had sent any valid report.
-                                AtomicBool::new(true),
-                                // Current scores initialized to max score.
-                                AtomicU64::new(MAX_SCORE),
-                                // Invalid reports count initialized to zero.
-                                AtomicU64::new(0),
-                            )
-                        })
-                        .collect();
+                let received_reports_state = (0..committee_size)
+                    .map(|_| ReceivedReportsStatePerAuthority {
+                        received_metrics: ArcSwap::new(Arc::new(None)),
+                        invalid_reports_count: AtomicU64::new(0),
+                    })
+                    .collect::<ReceivedReportsState>();
+                let current_scores: Vec<AtomicU64> = (0..committee_size)
+                    .map(|_| AtomicU64::new(MAX_SCORE))
+                    .collect();
+
                 let parameters = ParametersV1 {
                     allowances: NodeMisbehaviorsV1 {
                         faulty_blocks_provable: 1,
@@ -123,10 +127,8 @@ impl Scorer {
                 );
 
                 Self {
-                    received_metrics,
-                    has_not_sent_report,
+                    received_reports_state,
                     current_scores,
-                    invalid_reports_count,
                     voting_power,
                     version: ScorerVersion::V1(parameters),
                 }
@@ -144,7 +146,9 @@ impl Scorer {
     // Boundary checks for this functions are done at a higher level. `authority``
     // should always be derived from a valid AuthorityIndex
     pub(crate) fn update_invalid_reports_count(&self, authority: u32) {
-        self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
+        self.received_reports_state[authority as usize]
+            .invalid_reports_count
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub(crate) fn update_scores(&self) {
@@ -158,10 +162,13 @@ impl Scorer {
         authority: u32,
         report: &VersionedMisbehaviorReport,
     ) {
-        // Update the received metrics for the authority, and mark that we have received
-        // metrics from them. Then, update the scores accordingly.
-        // self.received_metrics[authority as usize].update_from_report(report);
-        self.has_not_sent_report[authority as usize].store(false, Ordering::Relaxed);
+        let state = &self.received_reports_state[authority as usize];
+        let current = state.received_metrics.load();
+        let updated = match current.as_ref().as_ref() {
+            Some(counts) => counts.get_updated_from_report(report),
+            None => MisbehaviorCounts::from(report),
+        };
+        state.received_metrics.swap(Arc::new(Some(updated)));
     }
 }
 
@@ -171,22 +178,51 @@ impl Scorer {
         // Vector with the highest received reports from each authority and their voting
         // power. Authorities that did not send reports are filtered out.
         let highest_received_reports_from_authority = self
-            .received_metrics
+            .received_reports_state
+            .0
             .iter()
             .zip(self.voting_power.iter())
-            .zip(self.has_not_sent_report.iter())
-            .filter(|((_, _), is_missing)| !is_missing.load(Ordering::Relaxed))
-            .map(|((metrics, voting_power), _)| {
-                (
-                    VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-                        faulty_blocks_provable: vec![],
-                        faulty_blocks_unprovable: vec![],
-                        missing_proposals: vec![],
-                        equivocations: vec![],
-                    }),
-                    *voting_power,
-                )
-            })
+            .filter(
+                |(
+                    ReceivedReportsStatePerAuthority {
+                        received_metrics, ..
+                    },
+                    _,
+                )| received_metrics.load().as_ref().is_some(),
+            )
+            .map(
+                |(
+                    ReceivedReportsStatePerAuthority {
+                        received_metrics, ..
+                    },
+                    voting_power,
+                )| {
+                    (
+                        VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+                            faulty_blocks_provable: received_metrics
+                                .load()
+                                .as_ref()
+                                .clone()
+                                .unwrap()
+                                .0[0]
+                                .clone(),
+                            faulty_blocks_unprovable: received_metrics
+                                .load()
+                                .as_ref()
+                                .clone()
+                                .unwrap()
+                                .0[1]
+                                .clone(),
+                            missing_proposals: received_metrics.load().as_ref().clone().unwrap().0
+                                [2]
+                            .clone(),
+                            equivocations: received_metrics.load().as_ref().clone().unwrap().0[3]
+                                .clone(),
+                        }),
+                        *voting_power,
+                    )
+                },
+            )
             .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
         // Ensure that we have at least one report to calculate the scores, otherwise we
         // do nothing.
