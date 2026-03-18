@@ -107,10 +107,15 @@ impl Default for ReaderOptions {
     }
 }
 
+/// Remote checkpoint store backends.
+///
+/// NOTE: Standalone fullnode (gRPC) mode is only available in the v2 reader
+/// (`CheckpointReader` in `reader/v2.rs`). The v1 reader supports object stores
+/// and a hybrid mode (gRPC fullnode + object store fallback) using
+/// pipe-delimited URLs: `"grpc_url|object_store_url"`.
 enum RemoteStore {
     ObjectStore(Box<dyn ObjectStore>),
-    Fullnode(iota_rest_api::Client),
-    Hybrid(Box<dyn ObjectStore>, iota_rest_api::Client),
+    Hybrid(Box<dyn ObjectStore>, Box<iota_grpc_client::Client>),
 }
 
 impl CheckpointReader {
@@ -122,7 +127,6 @@ impl CheckpointReader {
             RemoteStore::ObjectStore(store) => {
                 fetch_from_object_store(store, checkpoint_number).await
             }
-            RemoteStore::Fullnode(client) => fetch_from_full_node(client, checkpoint_number).await,
             RemoteStore::Hybrid(store, client) => {
                 match fetch_from_full_node(client, checkpoint_number).await {
                     Ok(result) => Ok(result),
@@ -168,27 +172,28 @@ impl CheckpointReader {
             .remote_store_url
             .clone()
             .expect("remote store url must be set");
-        let store = if let Some((fn_url, remote_url)) = url.split_once('|') {
-            let object_store = create_remote_store_client(
-                remote_url.to_string(),
-                self.remote_store_options.clone(),
-                self.options.timeout_secs,
-            )
-            .expect("failed to create remote store client");
-            RemoteStore::Hybrid(object_store, iota_rest_api::Client::new(fn_url))
-        } else if url.ends_with("/api/v1") {
-            RemoteStore::Fullnode(iota_rest_api::Client::new(url))
-        } else {
-            let object_store = create_remote_store_client(
-                url,
-                self.remote_store_options.clone(),
-                self.options.timeout_secs,
-            )
-            .expect("failed to create remote store client");
-            RemoteStore::ObjectStore(object_store)
-        };
+        let remote_store_options = self.remote_store_options.clone();
+        let timeout_secs = self.options.timeout_secs;
 
         spawn_monitored_task!(async move {
+            let store = if let Some((fn_url, remote_url)) = url.split_once('|') {
+                let fn_url = fn_url.to_string();
+                let object_store = create_remote_store_client(
+                    remote_url.to_string(),
+                    remote_store_options,
+                    timeout_secs,
+                )
+                .expect("failed to create remote store client");
+                let client = iota_grpc_client::Client::connect(&fn_url)
+                    .await
+                    .expect("failed to connect to gRPC fullnode");
+                RemoteStore::Hybrid(object_store, Box::new(client))
+            } else {
+                let object_store =
+                    create_remote_store_client(url, remote_store_options, timeout_secs)
+                        .expect("failed to create remote store client");
+                RemoteStore::ObjectStore(object_store)
+            };
             let mut checkpoint_stream = (start_checkpoint..u64::MAX)
                 .map(|checkpoint_number| Self::remote_fetch_checkpoint(&store, checkpoint_number))
                 .pipe(futures::stream::iter)

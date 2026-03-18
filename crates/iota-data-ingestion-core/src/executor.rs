@@ -6,8 +6,10 @@ use std::{path::PathBuf, pin::Pin, sync::Arc};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
-use iota_rest_api::CheckpointData;
-use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
+use iota_types::{
+    committee::EpochId, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},

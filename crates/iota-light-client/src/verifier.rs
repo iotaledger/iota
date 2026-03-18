@@ -122,9 +122,19 @@ pub async fn get_verified_effects_and_events(
             .await
             .context("Cannot get full checkpoint")?
     } else {
-        // try REST API (for custom networks)
-        let client = iota_rest_api::Client::new(&config.rpc_url);
-        client.get_full_checkpoint(seq).await?
+        // use gRPC API (for custom networks)
+        let client = iota_grpc_client::Client::connect(config.rpc_url.as_str())
+            .await
+            .context("Failed to connect to gRPC server")?;
+        client
+            .get_checkpoint_by_sequence_number(seq, Some("checkpoint,transactions"), None, None)
+            .await
+            .context(format!("gRPC call failed for checkpoint {seq}"))?
+            .into_inner()
+            .checkpoint_data()
+            .context(format!("Failed to parse checkpoint data for {seq}"))?
+            .try_into()
+            .context(format!("Failed to convert checkpoint types for {seq}"))?
     };
 
     // Load the list of stored checkpoints

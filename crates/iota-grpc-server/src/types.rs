@@ -556,7 +556,7 @@ impl GrpcReader {
     /// Generic over transaction stream source - works for both historical and
     /// live data.
     fn create_checkpoint_messages_stream<S>(
-        state_reader: Arc<dyn GrpcStateReader>,
+        _state_reader: Arc<dyn GrpcStateReader>,
         checkpoint_summary: CertifiedCheckpointSummary,
         checkpoint_contents: CheckpointContents,
         transaction_stream: S,
@@ -636,7 +636,7 @@ impl GrpcReader {
                                     for raw_event in &tx_events.data {
                                         // Apply event filter if present
                                         if let Some(ref evt_filter) = event_filter {
-                                            if !evt_filter.matches_event(state_reader.clone(), raw_event) {
+                                            if !evt_filter.matches_event(raw_event) {
                                                 continue; // Skip non-matching events
                                             }
                                         }
@@ -671,7 +671,7 @@ impl GrpcReader {
                             if transactions_mask.is_some() {
                                 // Apply transaction filter if present
                                 if let Some(ref tx_filter) = transaction_filter {
-                                    if !tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
+                                    if !tx_filter.matches_transaction(&checkpoint_transaction) {
                                         continue; // Skip non-matching transactions
                                     }
                                 }
@@ -924,7 +924,7 @@ impl GrpcReader {
     /// without performing full SDK conversion or Merge operations.
     /// Returns true on first match (OR semantics when both filters are set).
     async fn has_matching_data<S>(
-        state_reader: Arc<dyn GrpcStateReader>,
+        _state_reader: Arc<dyn GrpcStateReader>,
         transaction_stream: S,
         transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
         event_filter: &Option<crate::event_filter::EventFilter>,
@@ -938,7 +938,7 @@ impl GrpcReader {
                 result.map_err(|e| Status::internal(format!("failed to read transaction: {e}")))?;
 
             if let Some(ref tx_filter) = transaction_filter {
-                if tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
+                if tx_filter.matches_transaction(&checkpoint_transaction) {
                     return Ok(true);
                 }
             }
@@ -946,7 +946,7 @@ impl GrpcReader {
             if let Some(ref evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
                     for event in &tx_events.data {
-                        if evt_filter.matches_event(state_reader.clone(), event) {
+                        if evt_filter.matches_event(event) {
                             return Ok(true);
                         }
                     }

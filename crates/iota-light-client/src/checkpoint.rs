@@ -296,20 +296,30 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
         } else if config.checkpoint_store_config.is_some() {
             download_summaries_from_checkpoint_store(config, missing).await?;
         } else {
-            info!("Downloading missing summaries from full node.");
+            info!("Downloading missing summaries from full node via gRPC.");
 
-            // Download summaries from the full node
-            let client = iota_rest_api::Client::new(&config.rpc_url);
+            let client = iota_grpc_client::Client::connect(config.rpc_url.as_str())
+                .await
+                .context("Failed to connect to gRPC server")?;
 
-            // Download all missing checkpoints
             for seq in missing {
                 info!("Downloading summary: {seq}");
 
-                let summary = client
-                    .get_checkpoint_summary(seq)
+                let response = client
+                    .get_checkpoint_by_sequence_number(
+                        seq,
+                        Some("checkpoint.summary,checkpoint.signature"),
+                        None,
+                        None,
+                    )
                     .await
-                    .context(format!("Failed to download checkpoint summary '{seq}'"))?;
-
+                    .context(format!("Failed to download checkpoint summary '{seq}'"))?
+                    .into_inner();
+                let summary: CertifiedCheckpointSummary = iota_sdk_types::SignedCheckpointSummary {
+                    checkpoint: response.summary()?.summary()?,
+                    signature: response.signature()?.signature()?,
+                }
+                .try_into()?;
                 write_checkpoint_summary(config, &summary)?;
             }
         }
