@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
@@ -553,7 +553,7 @@ impl NodeVersionedScoringMetrics {
                     .iter()
                     .map(|metric| metric.load(Ordering::Relaxed))
                     .collect();
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable,
                     faulty_blocks_unprovable,
                     missing_proposals,
@@ -644,7 +644,7 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+    use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
         MAX_SCORE, NodeMisbehaviorsV1, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report,
@@ -747,7 +747,7 @@ mod tests {
         // Set some reports for testing
         let reports_and_authorities = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![5, 0, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -756,7 +756,7 @@ mod tests {
                 0_u32,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![0, 10, 0],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -765,7 +765,7 @@ mod tests {
                 1_u32,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![0, 0, 15],
                     faulty_blocks_unprovable: vec![0, 0, 0],
                     missing_proposals: vec![0, 0, 0],
@@ -789,7 +789,7 @@ mod tests {
     #[test]
     fn test_calculate_median_report() {
         let reports_and_voting_power = vec![(
-            VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+            VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                 faulty_blocks_provable: vec![7, 8, 9],
                 faulty_blocks_unprovable: vec![10, 11, 12],
                 missing_proposals: vec![4, 5, 6],
@@ -811,7 +811,7 @@ mod tests {
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -820,7 +820,7 @@ mod tests {
                 20_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![70, 80, 90],
                     faulty_blocks_unprovable: vec![100, 110, 120],
                     missing_proposals: vec![40, 50, 60],
@@ -844,7 +844,7 @@ mod tests {
 
         let reports_and_voting_power = vec![
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![1, 8, 9],
                     faulty_blocks_unprovable: vec![10, 15, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -853,7 +853,7 @@ mod tests {
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![7, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 5, 6],
@@ -862,7 +862,7 @@ mod tests {
                 10_u64,
             ),
             (
-                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
                     faulty_blocks_provable: vec![6, 8, 9],
                     faulty_blocks_unprovable: vec![10, 11, 12],
                     missing_proposals: vec![4, 22, 6],

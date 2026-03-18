@@ -284,13 +284,19 @@ impl ConsensusTransactionKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VersionedMisbehaviorReport {
     V1(
-        MisbehaviorsV1<Vec<u64>>,
+        LegacyReportPayload,
         #[serde(skip)] OnceCell<MisbehaviorReportDigest>,
     ),
+    // New variants should be added when the reported misbehaviors change. They should use
+    // ReportPayload type, which is simply a wrapper around a vector. To preserve type safety, we
+    // version the VersionedMisbehaviorReport itself:
+    // V2(ReportPayload,_)
+    // V3(ReportPayload,_)
+    // etc.
 }
 
 impl VersionedMisbehaviorReport {
-    pub fn new_v1(misbehaviors: MisbehaviorsV1<Vec<u64>>) -> Self {
+    pub fn new_v1(misbehaviors: LegacyReportPayload) -> Self {
         VersionedMisbehaviorReport::V1(misbehaviors, OnceCell::new())
     }
 
@@ -344,14 +350,14 @@ impl VersionedMisbehaviorReport {
 // faulty blocks, equivocation and missing proposal counts for each authority.
 // This first version does not include any type of proof.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MisbehaviorsV1<T> {
-    pub faulty_blocks_provable: T,
-    pub faulty_blocks_unprovable: T,
-    pub missing_proposals: T,
-    pub equivocations: T,
+pub struct LegacyReportPayload {
+    pub faulty_blocks_provable: Vec<u64>,
+    pub faulty_blocks_unprovable: Vec<u64>,
+    pub missing_proposals: Vec<u64>,
+    pub equivocations: Vec<u64>,
 }
 
-impl MisbehaviorsV1<Vec<u64>> {
+impl LegacyReportPayload {
     pub fn verify(&self, committee_size: usize) -> bool {
         // This version of reports are valid as long as they contain the counts for all
         // authorities. Future versions may contain proofs that need verification.
@@ -369,9 +375,8 @@ impl MisbehaviorsV1<Vec<u64>> {
         }
         true
     }
-}
-impl<T> MisbehaviorsV1<T> {
-    pub fn iter(&self) -> std::vec::IntoIter<&T> {
+
+    pub fn iter(&self) -> std::vec::IntoIter<&Vec<u64>> {
         vec![
             &self.faulty_blocks_provable,
             &self.faulty_blocks_unprovable,
@@ -380,32 +385,14 @@ impl<T> MisbehaviorsV1<T> {
         ]
         .into_iter()
     }
-    // Returns an iterator over references to major misbehavior fields in the
-    // report. Major misbehaviors carry a higher penalty in the scoring system.
-    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![&self.equivocations].into_iter()
-    }
-    // Returns an iterator over references to minor misbehavior fields in the
-    // report. Minor misbehaviors carry a lower penalty in the scoring system.
-    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-        ]
-        .into_iter()
-    }
 }
 
-impl<T> FromIterator<T> for MisbehaviorsV1<T> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iterator = iter.into_iter();
-        Self {
-            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
-            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
-            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect("Not enough elements in iterator"),
-        }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReportPayload(Vec<Vec<u64>>);
+
+impl ReportPayload {
+    pub fn inner(&self) -> &Vec<Vec<u64>> {
+        &self.0
     }
 }
 
