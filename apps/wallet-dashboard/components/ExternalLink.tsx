@@ -6,7 +6,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ampli } from '@/lib/utils/analytics/ampli';
+import { ampli } from '@/lib/utils/analytics';
 
 export interface ExternalLinkProps {
     href: string;

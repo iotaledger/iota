@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback } from 'react';
-import { ampli } from '@/lib/utils/analytics/ampli';
+import { ampli } from '@/lib/utils/analytics';
 
 export interface UseExternalLinkOptions {
     /** The type of external link for analytics tracking (e.g., 'documentation', 'application', 'marketplace') */
