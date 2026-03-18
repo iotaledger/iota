@@ -9,6 +9,7 @@ use std::sync::{
 use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::VersionedMisbehaviorReport;
+use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior_monitor::{
     MisbehaviorCounts, MisbehaviorMonitor, ReportedMisbehaviors,
@@ -36,6 +37,16 @@ impl FromIterator<ReceivedReportsStatePerAuthority> for ReceivedReportsState {
     }
 }
 
+impl ReceivedReportsState {
+    pub fn serializable_snapshot(&self) -> Vec<DBReceivedReportsStatePerAuthority> {
+        self.0.iter().map(|state| state.to_serializable()).collect()
+    }
+}
+
+// Tracks the live in-memory state of the received reports for a single
+// authority. Not serialized directly — use `to_serializable()` to produce a
+// `DBReceivedReportsStatePerAuthority` snapshot for DB storage.
+#[derive(Debug)]
 pub struct ReceivedReportsStatePerAuthority {
     // The misbehavior counts received from the authority, i.e., the information
     // contained in the MisbehaviorReports received. `None` if the authority has
@@ -44,6 +55,32 @@ pub struct ReceivedReportsStatePerAuthority {
     // The count of invalid reports received from the authority. Validity must be
     // checked deterministically, since invalid reports are not re-propagated.
     invalid_reports_count: AtomicU64,
+}
+
+impl ReceivedReportsStatePerAuthority {
+    pub fn invalid_reports_count_snapshot(&self) -> u64 {
+        self.invalid_reports_count.load(Ordering::Relaxed)
+    }
+
+    pub fn received_metrics_snapshot(&self) -> Option<MisbehaviorCounts> {
+        self.received_metrics.load().as_ref().clone()
+    }
+
+    pub fn to_serializable(&self) -> DBReceivedReportsStatePerAuthority {
+        DBReceivedReportsStatePerAuthority {
+            received_metrics: self.received_metrics_snapshot(),
+            invalid_reports_count: self.invalid_reports_count_snapshot(),
+        }
+    }
+}
+
+/// DB storage record for a single authority's received reports state. Stored as
+/// `DBMap<u32, ReceivedReportsStateRecord>`. Only authorities that have sent at
+/// least one report have an entry (i.e., `received_metrics` is `Some`).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DBReceivedReportsStatePerAuthority {
+    pub received_metrics: Option<MisbehaviorCounts>,
+    pub invalid_reports_count: u64,
 }
 
 /// Holds all information related to scoring of authorities in the committee.
@@ -404,6 +441,19 @@ impl Scorer {
                 self.current_scores[i].store(score, Ordering::Relaxed);
             }
         }
+    }
+
+    pub(crate) fn received_reports_state_snapshot(
+        &self,
+    ) -> Vec<DBReceivedReportsStatePerAuthority> {
+        self.received_reports_state.serializable_snapshot()
+    }
+
+    pub(crate) fn received_reports_state_per_authority_snapshot(
+        &self,
+        authority_index: u32,
+    ) -> DBReceivedReportsStatePerAuthority {
+        self.received_reports_state.0[authority_index as usize].to_serializable()
     }
 }
 
