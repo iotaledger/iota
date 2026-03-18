@@ -108,6 +108,14 @@ impl MisbehaviorCounts {
         VersionedMisbehaviorReport::V1(payload, OnceCell::new())
     }
 
+    pub(crate) fn get_value(&self, metric_index: usize, authority: usize) -> u64 {
+        self.0
+            .get(metric_index)
+            .and_then(|metric_counts| metric_counts.get(authority))
+            .copied()
+            .expect("Invalid metric index {metric_index} or authority index {authority} for misbehavior counts")
+    }
+
     /// Returns a new `MisbehaviorCounts` where each cell is the element-wise
     /// maximum of `self` and `new_report`. This implements a monotone update:
     /// counts can only increase, so a later report never reduces a previously
@@ -135,6 +143,12 @@ impl MisbehaviorCounts {
                 Self(updated)
             }
         }
+    }
+
+    pub fn get_metric(&self, index: usize) -> &[u64] {
+        self.0
+            .get(index)
+            .expect("Invalid metric index {index} for misbehavior counts")
     }
 }
 
