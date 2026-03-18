@@ -43,7 +43,8 @@ use crate::{
         IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
     digests::{
-        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
+        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, SigningDigest,
+        ZKLoginInputsDigest,
     },
     event::Event,
     execution::SharedInput,
@@ -2138,6 +2139,21 @@ impl TransactionData {
 
     pub fn digest(&self) -> TransactionDigest {
         TransactionDigest::new(default_hash(self))
+    }
+
+    /// Returns the signing digest for this transaction.
+    /// 
+    /// signing digest: blake2b256(bcs(IntentMessage<TransactionData>)).
+    /// This is what all signing schemes (Ed25519, Secp256k1, Secp256r1, MultiSig,
+    /// Passkey) sign. It differs from `transaction.digest()` which is
+    /// blake2b256(bcs(TransactionData)) without the intent prefix.
+    pub fn signing_digest(&self) -> SigningDigest {
+        let intent_msg = IntentMessage::new(Intent::iota_transaction(), &self);
+        let mut hasher = DefaultHash::default();
+        hasher.update(
+            bcs::to_bytes(&intent_msg).expect("IntentMessage serialization should not fail"),
+        );
+        SigningDigest::new(hasher.finalize().digest)
     }
 }
 
