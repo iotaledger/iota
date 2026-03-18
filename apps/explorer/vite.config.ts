@@ -8,12 +8,11 @@ import { execSync } from 'child_process';
 import { defineConfig } from 'vite';
 import svgr from 'vite-plugin-svgr';
 import { configDefaults } from 'vitest/config';
-import { copyFileSync, readFileSync } from 'fs';
+import { copyFileSync } from 'fs';
+import pkg from './package.json';
 
 process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
 process.env.VITE_BUILD_ENV = process.env.BUILD_ENV || 'development';
-
-const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 process.env.VITE_APP_VERSION = pkg.version;
 const EXPLORER_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 

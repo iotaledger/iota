@@ -4,10 +4,7 @@
 import { SENTRY_ORG_NAME, SENTRY_PROJECT_NAME } from './sentry.common.config.mjs';
 import { withSentryConfig } from '@sentry/nextjs';
 import { execSync } from 'child_process';
-import { createRequire } from 'module';
-
-const require = createRequire(import.meta.url);
-const pkg = require('./package.json');
+import pkg from './package.json' with { type: 'json' };
 
 const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 const NEXT_PUBLIC_BUILD_ENV = process.env.BUILD_ENV;
