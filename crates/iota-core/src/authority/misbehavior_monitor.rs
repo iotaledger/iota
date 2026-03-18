@@ -5,8 +5,16 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
+use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+/// A single misbehavior category tracked by the monitor.
+///
+/// This enum is **append-only**: once a variant is added it must never be
+/// removed or reordered, because existing encoded data (e.g.,
+/// `LegacyReportPayload`) relies on stable positional indices. New variants
+/// must be introduced via a new `ReportedMisbehaviors` version.
 #[derive(PartialEq)]
 pub enum Misbehaviors {
     FaultyBlocksProvable,
@@ -38,6 +46,31 @@ impl MisbehaviorCounts {
                 .map(|_| vec![0u64; committee_size])
                 .collect(),
         )
+    }
+
+    /// Converts the local counts into the wire/storage representation that is
+    /// broadcast to peers as a `MisbehaviorReport` transaction.
+    pub fn to_report_v1(&self) -> VersionedMisbehaviorReport {
+        let payload = LegacyReportPayload {
+            faulty_blocks_provable: self.0[0].clone(),
+            faulty_blocks_unprovable: self.0[1].clone(),
+            missing_proposals: self.0[2].clone(),
+            equivocations: self.0[3].clone(),
+        };
+        VersionedMisbehaviorReport::V1(payload, OnceCell::new())
+    }
+}
+
+impl From<&VersionedMisbehaviorReport> for MisbehaviorCounts {
+    fn from(report: &VersionedMisbehaviorReport) -> Self {
+        match report {
+            VersionedMisbehaviorReport::V1(payload, _) => Self(vec![
+                payload.faulty_blocks_provable.clone(),
+                payload.faulty_blocks_unprovable.clone(),
+                payload.missing_proposals.clone(),
+                payload.equivocations.clone(),
+            ]),
+        }
     }
 }
 
@@ -75,9 +108,9 @@ pub struct MisbehaviorMonitor {
 
 impl MisbehaviorMonitor {
     pub fn new(protocol_config: &ProtocolConfig, committee_size: usize) -> Self {
+        // Local metrics count are always initialized as zero.
         let version = MisbehaviorMonitorVersion::load_from_configs(protocol_config);
 
-        // Local metrics count are always initialized as zero.
         let current_local_metrics_count = ArcSwap::new(Arc::new(MisbehaviorCounts::new(
             version.reported_misbehaviors(),
             committee_size,
@@ -86,6 +119,14 @@ impl MisbehaviorMonitor {
         Self {
             current_local_metrics_count,
             version,
+        }
+    }
+
+    pub fn generate_report(&self) -> VersionedMisbehaviorReport {
+        match &self.version {
+            MisbehaviorMonitorVersion::V1(_) => {
+                self.current_local_metrics_count.load().to_report_v1()
+            }
         }
     }
 }
