@@ -69,6 +69,17 @@ public fun function_name<Account: key>(self: &AuthenticatorFunctionRefV1<Account
     &self.function_name
 }
 
+/// Create an `AuthenticatorFunctionRefV1` instance for use by system (framework)
+/// package modules that do not have a `PackageMetadataV1` object available.
+/// Only callable within the `iota` package itself.
+public(package) fun create_auth_function_ref_v1_internal<Account: key>(
+    package_address: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionRefV1<Account> {
+    AuthenticatorFunctionRefV1 { package: package_address.to_id(), module_name, function_name }
+}
+
 /// Create an `AuthenticatorFunctionRefV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_function_ref_v1_for_testing<Account: key>(

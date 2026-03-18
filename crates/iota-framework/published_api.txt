@@ -1093,27 +1093,9 @@ activate_validators
 DerivedObjectKey
 	public struct
 	0x2::derived_object
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
 ecvrf_verify
 	public fun
 	0x2::ecvrf
-ed25519_verify
-	public fun
-	0x2::ed25519
 blake2b256
 	public fun
 	0x2::hash
@@ -1438,6 +1420,9 @@ module_name
 function_name
 	public fun
 	0x2::authenticator_function
+create_auth_function_ref_v1_internal
+	public(package) fun
+	0x2::authenticator_function
 ImmutableAccountCreated
 	public struct
 	0x2::account
@@ -1697,9 +1682,6 @@ tx_inputs
 	public fun
 	0x2::auth_context
 tx_commands
-	fun
-	0x2::auth_context
-native_signing_digest
 	public fun
 	0x2::auth_context
 native_digest
@@ -2836,6 +2818,114 @@ burn_balance
 total_supply
 	public fun
 	0x2::iota
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
+IotaDefaultAccount
+	public struct
+	0x2::iota_default_account
+CredentialKey
+	public struct
+	0x2::iota_default_account
+new_ed25519
+	public fun
+	0x2::iota_default_account
+new_secp256k1
+	public fun
+	0x2::iota_default_account
+new_secp256r1
+	public fun
+	0x2::iota_default_account
+new_passkey
+	public fun
+	0x2::iota_default_account
+new_multisig
+	public fun
+	0x2::iota_default_account
+create_ed25519
+	public fun
+	0x2::iota_default_account
+create_secp256k1
+	public fun
+	0x2::iota_default_account
+create_secp256r1
+	public fun
+	0x2::iota_default_account
+create_passkey
+	public fun
+	0x2::iota_default_account
+create_multisig
+	public fun
+	0x2::iota_default_account
+authenticate
+	public fun
+	0x2::iota_default_account
+verify_ed25519
+	fun
+	0x2::iota_default_account
+verify_secp256k1
+	fun
+	0x2::iota_default_account
+verify_secp256r1
+	fun
+	0x2::iota_default_account
+verify_passkey
+	fun
+	0x2::iota_default_account
+verify_multisig
+	fun
+	0x2::iota_default_account
+self_auth_fn_ref
+	fun
+	0x2::iota_default_account
+new_with_credential
+	fun
+	0x2::iota_default_account
+stored_credential
+	fun
+	0x2::iota_default_account
+build_credential
+	fun
+	0x2::iota_default_account
+build_multisig_credential
+	fun
+	0x2::iota_default_account
+slice
+	fun
+	0x2::iota_default_account
+peel_fixed_bytes
+	fun
+	0x2::iota_default_account
+encode_uleb128
+	fun
+	0x2::iota_default_account
+extract_challenge
+	fun
+	0x2::iota_default_account
+bytes_match
+	fun
+	0x2::iota_default_account
+base64url_decode
+	fun
+	0x2::iota_default_account
+base64url_char
+	fun
+	0x2::iota_default_account
 VecSet
 	public struct
 	0x2::vec_set
