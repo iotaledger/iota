@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
+use serde::{Deserialize, Serialize};
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
@@ -64,19 +65,19 @@ impl Scorer {
                         })
                         .collect();
                 let parameters = ParametersV1 {
-                    allowances: MisbehaviorsV1 {
+                    allowances: NodeMisbehaviorsV1 {
                         faulty_blocks_provable: 1,
                         faulty_blocks_unprovable: 2,
                         missing_proposals: 48_000, // roughly 3% of consensus rounds in an epoch
                         equivocations: 0,
                     },
-                    maximums: MisbehaviorsV1 {
+                    maximums: NodeMisbehaviorsV1 {
                         faulty_blocks_provable: 5,
                         faulty_blocks_unprovable: 10,
                         missing_proposals: 160_000, // roughly 10% of consensus rounds in an epoch
                         equivocations: 1,
                     },
-                    weights: MisbehaviorsV1 {
+                    weights: NodeMisbehaviorsV1 {
                         faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
                         faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
                         missing_proposals: SCALE_FACTOR * 35 / 100,
@@ -254,7 +255,7 @@ impl Scorer {
 /// VersionedMisbehaviorReport
 fn calculate_median_report(
     reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
-) -> MisbehaviorsV1<MedianMetricVec> {
+) -> NodeMisbehaviorsV1<MedianMetricVec> {
     // Calls to this method should ensure that we have at least one report to
     // process.
     assert!(!reports_and_voting_power.is_empty());
@@ -279,7 +280,7 @@ fn calculate_median_report(
     let median_report = reports_and_voting_power_per_metric
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()))
-        .collect::<MisbehaviorsV1<MedianMetricVec>>();
+        .collect::<NodeMisbehaviorsV1<MedianMetricVec>>();
     median_report
 }
 
@@ -329,12 +330,12 @@ enum ScorerVersion {
 #[derive(Clone)]
 struct ParametersV1 {
     // Allowed misbehaviors without any punishment
-    allowances: MisbehaviorsV1<u64>,
+    allowances: NodeMisbehaviorsV1<u64>,
     // Number of misbehaviors that lead to zero score
-    maximums: MisbehaviorsV1<u64>,
+    maximums: NodeMisbehaviorsV1<u64>,
     // Weights for each metric. The sum of minor misbehavior weights + baseline_score =
     // scale_factor. Major misbehavior weights are either 0 or 1.
-    weights: MisbehaviorsV1<u64>,
+    weights: NodeMisbehaviorsV1<u64>,
 }
 
 // Aliases for better readability.
@@ -356,7 +357,7 @@ type MetricVec = Vec<u64>;
 // Major misbehaviors (equivocations) are treated differently, as they
 // multiplicatively impact the final score. Their value is either 0 or 1.
 fn calculate_scores_v1(
-    median_reports: MisbehaviorsV1<MedianMetricVec>,
+    median_reports: NodeMisbehaviorsV1<MedianMetricVec>,
     parameters: ParametersV1,
 ) -> Vec<u64> {
     let baseline_score = SCALE_FACTOR - parameters.weights.iter_minor_misbehaviors().sum::<u64>();
@@ -412,7 +413,7 @@ fn calculate_scores_v1(
 fn metrics_scores_to_final_scores(
     minor_metric_scores: Vec<Vec<u64>>,
     major_metric_scores: Vec<Vec<u64>>,
-    weights: MisbehaviorsV1<u64>,
+    weights: NodeMisbehaviorsV1<u64>,
     baseline_score: u64,
     scale_factor: u64,
     max_score: u64,
@@ -586,6 +587,57 @@ impl NodeScoringMetricsV1 {
     }
 }
 
+// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
+// reports, with a value for each metric. The metrics (misbeheaviors) include,
+// faulty blocks, equivocation and missing proposal counts for each authority.
+// This first version does not include any type of proof.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeMisbehaviorsV1<T> {
+    pub faulty_blocks_provable: T,
+    pub faulty_blocks_unprovable: T,
+    pub missing_proposals: T,
+    pub equivocations: T,
+}
+
+impl<T> NodeMisbehaviorsV1<T> {
+    pub fn iter(&self) -> std::vec::IntoIter<&T> {
+        vec![
+            &self.faulty_blocks_provable,
+            &self.faulty_blocks_unprovable,
+            &self.missing_proposals,
+            &self.equivocations,
+        ]
+        .into_iter()
+    }
+    // Returns an iterator over references to major misbehavior fields in the
+    // report. Major misbehaviors carry a higher penalty in the scoring system.
+    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
+        vec![&self.equivocations].into_iter()
+    }
+    // Returns an iterator over references to minor misbehavior fields in the
+    // report. Minor misbehaviors carry a lower penalty in the scoring system.
+    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
+        vec![
+            &self.faulty_blocks_provable,
+            &self.faulty_blocks_unprovable,
+            &self.missing_proposals,
+        ]
+        .into_iter()
+    }
+}
+
+impl<T> FromIterator<T> for NodeMisbehaviorsV1<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut iterator = iter.into_iter();
+        Self {
+            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
+            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
+            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
+            equivocations: iterator.next().expect("Not enough elements in iterator"),
+        }
+    }
+}
+
 // NOTE: the tests below are going to be finalized in a different PR
 #[cfg(test)]
 mod tests {
@@ -595,7 +647,8 @@ mod tests {
     use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
     use crate::authority::authority_per_epoch_store::scorer::{
-        MAX_SCORE, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report, calculate_scores_v1,
+        MAX_SCORE, NodeMisbehaviorsV1, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report,
+        calculate_scores_v1,
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -748,7 +801,7 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
+            NodeMisbehaviorsV1 {
                 faulty_blocks_provable: vec![7, 8, 9],
                 faulty_blocks_unprovable: vec![10, 11, 12],
                 missing_proposals: vec![4, 5, 6],
@@ -781,7 +834,7 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
+            NodeMisbehaviorsV1 {
                 faulty_blocks_provable: vec![7, 8, 9],
                 faulty_blocks_unprovable: vec![10, 11, 12],
                 missing_proposals: vec![4, 5, 6],
@@ -823,7 +876,7 @@ mod tests {
 
         assert_eq!(
             median_report,
-            MisbehaviorsV1 {
+            NodeMisbehaviorsV1 {
                 faulty_blocks_provable: vec![6, 8, 9],
                 faulty_blocks_unprovable: vec![10, 11, 12],
                 missing_proposals: vec![4, 5, 6],
@@ -835,19 +888,19 @@ mod tests {
     #[test]
     fn test_calculate_scores_v1() {
         let parameters = ParametersV1 {
-            allowances: MisbehaviorsV1 {
+            allowances: NodeMisbehaviorsV1 {
                 faulty_blocks_provable: 1,
                 faulty_blocks_unprovable: 2,
                 missing_proposals: 1000,
                 equivocations: 0,
             },
-            maximums: MisbehaviorsV1 {
+            maximums: NodeMisbehaviorsV1 {
                 faulty_blocks_provable: 5,
                 faulty_blocks_unprovable: 10,
                 missing_proposals: 5000,
                 equivocations: 1,
             },
-            weights: MisbehaviorsV1 {
+            weights: NodeMisbehaviorsV1 {
                 faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
                 faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
                 missing_proposals: SCALE_FACTOR * 35 / 100,
@@ -855,7 +908,7 @@ mod tests {
             },
         };
 
-        let median_reports = MisbehaviorsV1 {
+        let median_reports = NodeMisbehaviorsV1 {
             faulty_blocks_provable: vec![6, 7, 8],
             faulty_blocks_unprovable: vec![9, 10, 11],
             missing_proposals: vec![3, 4, 5],
