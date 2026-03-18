@@ -130,7 +130,7 @@ pub struct ObjectIdFilter {
 /// Filter by move package, module (optional) and function (optional).
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct MoveCallFilter {
+pub struct MoveCallCommandFilter {
     #[prost(message, optional, tag = "1")]
     pub package_id: ::core::option::Option<super::types::Address>,
     #[prost(string, optional, tag = "2")]
@@ -138,11 +138,78 @@ pub struct MoveCallFilter {
     #[prost(string, optional, tag = "3")]
     pub function: ::core::option::Option<::prost::alloc::string::String>,
 }
+/// Match a TransferObjects command.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TransferObjectsCommandFilter {}
+/// Match a SplitCoins command.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SplitCoinsCommandFilter {}
+/// Match a MergeCoins command.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct MergeCoinsCommandFilter {}
+/// Match a Publish command.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct PublishCommandFilter {}
+/// Match a MakeMoveVec command.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct MakeMoveVecCommandFilter {}
+/// Match an Upgrade command. Optionally filter by the specific package being upgraded.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct UpgradeCommandFilter {
+    #[prost(message, optional, tag = "1")]
+    pub package_id: ::core::option::Option<super::types::Address>,
+}
+/// Filter by command type.
+#[non_exhaustive]
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CommandFilter {
+    #[prost(oneof = "command_filter::Filter", tags = "1, 2, 3, 4, 5, 6, 7")]
+    pub filter: ::core::option::Option<command_filter::Filter>,
+}
+/// Nested message and enum types in `CommandFilter`.
+pub mod command_filter {
+    #[non_exhaustive]
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Filter {
+        #[prost(message, tag = "1")]
+        MoveCall(super::MoveCallCommandFilter),
+        #[prost(message, tag = "2")]
+        TransferObjects(super::TransferObjectsCommandFilter),
+        #[prost(message, tag = "3")]
+        SplitCoins(super::SplitCoinsCommandFilter),
+        #[prost(message, tag = "4")]
+        MergeCoins(super::MergeCoinsCommandFilter),
+        #[prost(message, tag = "5")]
+        Publish(super::PublishCommandFilter),
+        #[prost(message, tag = "6")]
+        MakeMoveVec(super::MakeMoveVecCommandFilter),
+        #[prost(message, tag = "7")]
+        Upgrade(super::UpgradeCommandFilter),
+    }
+}
+/// Filter by transaction execution status.
+/// Set `success` to `true` to match successful transactions,
+/// or `false` to match failed transactions (cancelled, execution error, etc.).
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ExecutionStatusFilter {
+    #[prost(bool, tag = "1")]
+    pub success: bool,
+}
 /// Filter for transactions.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TransactionFilter {
-    #[prost(oneof = "transaction_filter::Filter", tags = "1, 2, 3, 4, 5, 6, 7, 8, 9")]
+    #[prost(
+        oneof = "transaction_filter::Filter",
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+    )]
     pub filter: ::core::option::Option<transaction_filter::Filter>,
 }
 /// Nested message and enum types in `TransactionFilter`.
@@ -162,21 +229,24 @@ pub mod transaction_filter {
         /// Filter transactions of any given kind in the filter.
         #[prost(message, tag = "4")]
         TransactionKinds(super::TransactionKindsFilter),
-        /// Filter by sender address.
+        /// Filter by transaction execution success/failure.
         #[prost(message, tag = "5")]
+        ExecutionStatus(super::ExecutionStatusFilter),
+        /// Filter by sender address.
+        #[prost(message, tag = "6")]
         Sender(super::AddressFilter),
         /// Filter by recipient address. The recipient is determined by
         /// checking the owners of mutated and unwrapped objects.
-        #[prost(message, tag = "6")]
+        #[prost(message, tag = "7")]
         Receiver(super::AddressFilter),
         /// Filter for transactions that touch this object.
-        #[prost(message, tag = "7")]
-        AffectedObject(super::ObjectIdFilter),
-        /// Filter by move package, module (optional) and function (optional).
         #[prost(message, tag = "8")]
-        MoveCall(super::MoveCallFilter),
-        /// Filter transactions that contain events matching the given event filter.
+        AffectedObject(super::ObjectIdFilter),
+        /// Filter by command type.
         #[prost(message, tag = "9")]
+        Command(super::CommandFilter),
+        /// Filter transactions that contain events matching the given event filter.
+        #[prost(message, tag = "10")]
         Event(super::EventFilter),
     }
 }

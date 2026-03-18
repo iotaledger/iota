@@ -1,0 +1,69 @@
+---
+description: "How to create accounts that require a weighted threshold of member approvals before a transaction can execute"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Create a Dynamic Multisig Account
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to create an account that requires multiple members to approve a transaction before it can execute. Each member has a voting weight, and approval only succeeds when the total accumulated weight meets or exceeds a configurable threshold.
+
+:::tip Why is this possible?
+
+The authenticator receives `ctx.digest()` from [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), which is the unique digest of the AA transaction being submitted. This allows the authenticator to look up pre-collected on-chain approvals for that exact transaction. Members approve in separate transactions beforehand; the authenticator checks the accumulated weight at submission time — without any off-chain coordination.
+
+:::
+
+## Example Code
+
+1. Define the authenticator. It reads the digest of the account abstraction transaction being submitted, looks up the stored approvals for that digest, and verifies that the accumulated member weight meets the configured threshold.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L157-L170
+```
+2. Propose and approve a transaction. A member proposes the AA transaction by storing its digest on-chain. They are automatically the first approver. Other members then call `approve_transaction` to add their weight. Each member can only approve once.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L112-L138
+```
+3. Create the account with an initial member list, weights, threshold, and authenticator. The threshold must be non-zero and reachable by the total member weight.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move#L53-L78
+```
+
+:::note
+
+To update the member list, weights, threshold, or authenticator, call `update_account_data`. Because this function requires the sender to be the account itself, it must first pass the existing authenticator — meaning a threshold of members must have approved the update transaction. Old approvals from removed members are silently ignored at execution time, not invalidated upfront.
+
+:::
+
+## Expected Behavior
+
+- Members propose a transaction by submitting its digest on-chain before sending the actual AA transaction.
+- Each member can approve once; duplicate approvals are rejected.
+- The AA transaction executes only if the total weight of current members who approved it meets the threshold.
+- If the member list is updated after approvals are collected, only the weights of members still in the list are counted.
+
+## Full Example Code
+
+<Tabs groupId="module" queryString>
+<TabItem value="account" label="Dynamic multisig account module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/dynamic_multisig_account.move
+```
+
+</TabItem>
+<TabItem value="members" label="Members module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/members.move
+```
+
+</TabItem>
+<TabItem value="transactions" label="Transactions module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/dynamic_multisig_account/sources/transactions.move
+```
+
+</TabItem>
+</Tabs>

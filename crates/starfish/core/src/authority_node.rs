@@ -53,7 +53,6 @@ pub struct ConsensusAuthority {
     network_manager: TonicManager<AuthorityService<ChannelCoreThreadDispatcher>>,
     #[cfg(msim)]
     store: Arc<RocksDBStore>,
-    #[cfg(test)]
     dag_state: Arc<RwLock<DagState>>,
     #[cfg(test)]
     sync_last_known_own_block: bool,
@@ -300,7 +299,6 @@ impl ConsensusAuthority {
             network_manager,
             #[cfg(msim)]
             store,
-            #[cfg(test)]
             dag_state: dag_state.clone(),
             #[cfg(test)]
             sync_last_known_own_block,
@@ -362,6 +360,9 @@ impl ConsensusAuthority {
         // Shutdown Core to stop block productions and broadcast.
         // When using streaming, all subscribers to broadcast blocks stop after this.
         self.core_thread_handle.stop().await;
+        // Final flush to ensure all buffered data (including pending transactions
+        // referenced by not-yet-solid commits) is persisted before shutdown.
+        self.dag_state.write().flush();
         // Stop outgoing long-lived streams before stopping network server.
         self.subscriber.stop();
         self.network_manager.stop().await;
