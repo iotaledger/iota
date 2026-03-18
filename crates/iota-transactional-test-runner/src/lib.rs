@@ -23,7 +23,7 @@ use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, VersionNumber},
     committee::EpochId,
-    digests::{TransactionDigest, TransactionEventsDigest},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::Event,
@@ -365,11 +365,11 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.validator
             .get_transaction_cache_reader()
-            .try_get_events(event_digest)
+            .try_get_events(digest)
             .map_err(iota_types::storage::error::Error::custom)
     }
 
@@ -454,12 +454,10 @@ impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
         tx_digest: &TransactionDigest,
         _limit: usize,
     ) -> IotaResult<Vec<Event>> {
-        Ok(self.with_store(|store| {
-            store
-                .get_transaction_events_by_tx_digest(tx_digest)
-                .map(|x| x.data)
-                .unwrap_or_default()
-        }))
+        match self.try_get_events(tx_digest)? {
+            Some(events) => Ok(events.data),
+            None => Ok(Vec::new()),
+        }
     }
 
     async fn create_checkpoint(&mut self) -> anyhow::Result<VerifiedCheckpoint> {

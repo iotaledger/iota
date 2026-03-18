@@ -9,34 +9,34 @@ import { bcs } from '../../bcs/index.js';
 import { Commands, Transaction } from '../index.js';
 import { Inputs } from '../Inputs.js';
 
-it('can construct and serialize an empty transaction', () => {
+it('can construct and serialize an empty transaction', async () => {
     const tx = new Transaction();
-    expect(() => tx.serialize()).not.toThrow();
+    await tx.toJSON();
 });
 
-it('can construct a receiving transaction argument', () => {
+it('can construct a receiving transaction argument', async () => {
     const tx = new Transaction();
     tx.object(Inputs.ReceivingRef(ref()));
-    expect(() => tx.serialize()).not.toThrow();
+    await tx.toJSON();
 });
 
-it('receiving transaction argument different from object argument', () => {
+it('receiving transaction argument different from object argument', async () => {
     const oref = ref();
     const rtx = new Transaction();
     rtx.object(Inputs.ReceivingRef(oref));
     const otx = new Transaction();
     otx.object(Inputs.ObjectRef(oref));
-    expect(() => rtx.serialize()).not.toThrow();
-    expect(() => otx.serialize()).not.toThrow();
-    expect(otx.serialize()).not.toEqual(rtx.serialize());
+    const rtxJson = await rtx.toJSON();
+    const otxJson = await otx.toJSON();
+    expect(otxJson).not.toEqual(rtxJson);
 });
 
-it('can be serialized and deserialized to the same values', () => {
+it('can be serialized and deserialized to the same values', async () => {
     const tx = new Transaction();
     tx.add(Commands.SplitCoins(tx.gas, [tx.pure.u64(100)]));
-    const serialized = tx.serialize();
+    const serialized = await tx.toJSON();
     const tx2 = Transaction.from(serialized);
-    expect(serialized).toEqual(tx2.serialize());
+    expect(serialized).toEqual(await tx2.toJSON());
 });
 
 it('allows transfer with the result of split Commands', () => {
@@ -85,13 +85,13 @@ describe('offline build', () => {
         tx.setGasBudget(999);
 
         // Ensure that setting budget after a clone does not affect the original:
-        expect(tx2.blockData).not.toEqual(tx.blockData);
+        expect(tx2.getData()).not.toEqual(tx.getData());
 
-        // Ensure `blockData` always breaks reference equality:
-        expect(tx.blockData).not.toBe(tx.blockData);
-        expect(tx.blockData.gasConfig).not.toBe(tx.blockData.gasConfig);
-        expect(tx.blockData.transactions).not.toBe(tx.blockData.transactions);
-        expect(tx.blockData.inputs).not.toBe(tx.blockData.inputs);
+        // Ensure `getData` always breaks reference equality:
+        expect(tx.getData()).not.toBe(tx.getData());
+        expect(tx.getData().gasData).not.toBe(tx.getData().gasData);
+        expect(tx.getData().commands).not.toBe(tx.getData().commands);
+        expect(tx.getData().inputs).not.toBe(tx.getData().inputs);
     });
 
     it('can determine the type of inputs for built-in Commands', async () => {
