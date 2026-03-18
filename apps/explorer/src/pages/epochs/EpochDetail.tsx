@@ -149,6 +149,7 @@ export function EpochDetail() {
                                             size={ButtonSize.Small}
                                             icon={<ArrowLeft />}
                                             disabled={epochData.epoch === '0'}
+                                            aria-label="Go to previous epoch"
                                         />
                                     </LinkWithQuery>
                                     <Link to={`/epoch/${Number(epochData.epoch) + 1}`}>
@@ -157,6 +158,7 @@ export function EpochDetail() {
                                             size={ButtonSize.Small}
                                             icon={<ArrowRight />}
                                             disabled={!epochData?.endOfEpochInfo}
+                                            aria-label="Go to next epoch"
                                         />
                                     </Link>
                                 </div>
