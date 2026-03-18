@@ -8,7 +8,6 @@ import {
     ExplorerLinkType,
     ViewTxnOnExplorerButton,
     useRecognizedPackages,
-    toast,
     OutlinedCopyButton,
 } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
