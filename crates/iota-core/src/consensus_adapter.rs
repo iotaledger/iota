@@ -351,7 +351,6 @@ impl ConsensusAdapter {
                 epoch_store.pending_consensus_certificates_empty()
             };
 
-
         if epoch_store
             .get_reconfig_state_read_lock_guard()
             .is_reject_user_certs()
