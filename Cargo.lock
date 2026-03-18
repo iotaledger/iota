@@ -7823,6 +7823,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-vm-config",
+ "move-vm-profiler",
  "parking_lot 0.12.3",
  "prometheus",
  "rand 0.8.5",

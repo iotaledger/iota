@@ -31,6 +31,8 @@ mod data_fetcher;
 mod displays;
 pub mod fuzz;
 pub mod fuzz_mutations;
+#[cfg(test)]
+mod profiler_tests;
 mod replay;
 #[cfg(test)]
 mod tests;
