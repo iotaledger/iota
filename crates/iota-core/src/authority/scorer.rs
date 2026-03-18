@@ -3,16 +3,15 @@
 
 use std::sync::{
     Arc,
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
-use serde::{Deserialize, Serialize};
 
 use crate::authority::authority_per_epoch_store::misbehavior_monitor::{
-    MisbehaviorCounts, MisbehaviorMonitor,
+    MisbehaviorCounts, MisbehaviorMonitor, ReportedMisbehaviors,
 };
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
@@ -68,91 +67,139 @@ impl Scorer {
         misbehavior_monitor: &Arc<MisbehaviorMonitor>,
     ) -> Self {
         let committee_size = voting_power.len();
-        match protocol_config.scorer_version_as_option() {
-            None | Some(1) => {
-                let received_reports_state = (0..committee_size)
-                    .map(|_| ReceivedReportsStatePerAuthority {
-                        received_metrics: ArcSwap::new(Arc::new(None)),
-                        invalid_reports_count: AtomicU64::new(0),
-                    })
-                    .collect::<ReceivedReportsState>();
-                let current_scores: Vec<AtomicU64> = (0..committee_size)
-                    .map(|_| AtomicU64::new(MAX_SCORE))
-                    .collect();
+        let reported_misbehaviors = misbehavior_monitor.version.reported_misbehaviors();
+        let version = Self::load_parameters(protocol_config, reported_misbehaviors);
 
-                let parameters = ParametersV1 {
-                    allowances: NodeMisbehaviorsV1 {
-                        faulty_blocks_provable: 1,
-                        faulty_blocks_unprovable: 2,
-                        missing_proposals: 48_000, // roughly 3% of consensus rounds in an epoch
-                        equivocations: 0,
-                    },
-                    maximums: NodeMisbehaviorsV1 {
-                        faulty_blocks_provable: 5,
-                        faulty_blocks_unprovable: 10,
-                        missing_proposals: 160_000, // roughly 10% of consensus rounds in an epoch
-                        equivocations: 1,
-                    },
-                    weights: NodeMisbehaviorsV1 {
-                        faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-                        faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-                        missing_proposals: SCALE_FACTOR * 35 / 100,
-                        equivocations: 1,
-                    },
-                };
+        let received_reports_state = (0..committee_size)
+            .map(|_| ReceivedReportsStatePerAuthority {
+                received_metrics: ArcSwap::new(Arc::new(None)),
+                invalid_reports_count: AtomicU64::new(0),
+            })
+            .collect::<ReceivedReportsState>();
+        let current_scores: Vec<AtomicU64> = (0..committee_size)
+            .map(|_| AtomicU64::new(MAX_SCORE))
+            .collect();
+
+        Self {
+            received_reports_state,
+            current_scores,
+            voting_power,
+            last_report_summary: AtomicU64::new(0),
+            last_report_checkpoint_seq: AtomicU64::new(0),
+            has_sent_end_of_epoch_report: AtomicBool::new(false),
+            version,
+        }
+    }
+
+    fn load_parameters(
+        protocol_config: &ProtocolConfig,
+        reported_misbehaviors: &ReportedMisbehaviors,
+    ) -> ScorerVersion {
+        match (
+            protocol_config.scorer_version_as_option(),
+            reported_misbehaviors,
+        ) {
+            (None, ReportedMisbehaviors::V1(misbehaviors))
+            | (Some(1), ReportedMisbehaviors::V1(misbehaviors)) => {
+                assert!(
+                    misbehaviors.len() == 4,
+                    "Scorer V1 requires exactly 4 misbehavior metrics"
+                );
+
+                let allowances = vec![
+                    1, /* 1 provable faulty block is allowed without punishment, to account for
+                        * potential honest mistakes and edge cases in the protocol. */
+                    2, /* 2 unprovable faulty blocks are allowed without punishment, as they are
+                        * less severe than provable ones and can also result from honest
+                        * mistakes. */
+                    48_000, /* roughly 3% of consensus rounds in an epoch, to allow for some
+                             * minor issues without harsh penalties. */
+                    0, /* no equivocation is allowed without punishment, as it is a severe
+                        * misbehavior that should be penalized immediately. */
+                ];
+
+                let maximums = vec![
+                    5, /* more than 5 provable faulty blocks lead to zero score, as this
+                        * indicates a significant issue with the
+                        * authority's behavior. */
+                    10, /* more than 10 unprovable faulty blocks lead to zero score, as this
+                         * also indicates a significant issue, even if
+                         * less severe than provable faults. */
+                    160_000, /* roughly 10% of consensus rounds in an epoch, to ensure that a
+                              * very high number of minor issues
+                              * also leads to penalties. */
+                    1, // any equivocation leads to zero score, as it is a critical misbehavior.
+                ];
+
+                let weights = [
+                    SCALE_FACTOR * 30 / 100, /* provable faulty blocks contribute to 30% of the
+                                              * score reduction, as they are the most severe
+                                              * type of minor misbehavior. */
+                    SCALE_FACTOR * 10 / 100, /* unprovable faulty blocks contribute to 10% of
+                                              * the
+                                              * score reduction, as they are less severe than
+                                              * provable ones. */
+                    SCALE_FACTOR * 35 / 100, /* missing proposals contribute to 35% of the score
+                                              * reduction, as they can indicate issues with
+                                              * availability or responsiveness. */
+                    1, /* equivocations contribute multiplicatively to the final score, as
+                        * they are a major misbehavior that should lead to a zero score if
+                        * present. */
+                ];
+
+                let is_major = [false, false, false, true];
+
                 // Assert that the allowance for major misbehaviors is 0,
                 // maximum is 1 and weight is 1. This is because major misbehaviors should
-                // reduce the score to 0 is there are any occurrences.
-                // Only equivocation is considered a major misbehavior in this version.
-                assert!(
-                    parameters
-                        .allowances
-                        .iter_major_misbehaviors()
-                        .all(|&a| a == 0)
-                        && parameters
-                        .maximums
-                        .iter_major_misbehaviors()
-                        .all(|&m| m == 1)
-                        && parameters
-                        .weights
-                        .iter_major_misbehaviors()
-                        .all(|&w| w == 1)
-                );
+                // reduce the score to 0 if there are any occurrences.
+                assert!(is_major.iter().enumerate().all(|(i, &major)| {
+                    !major || (allowances[i] == 0 && maximums[i] == 1 && weights[i] == 1)
+                }));
                 // Assert that allowances are compatible with the maximums for all metrics.
-                assert!(
-                    parameters
-                        .allowances
-                        .iter()
-                        .zip(parameters.maximums.iter())
-                        .all(|(&a, &m)| a < m)
-                );
-
+                assert!(allowances.iter().zip(maximums.iter()).all(|(a, m)| a < m));
                 // Assert that maximums are compatible with MAX_SCORE for all metrics, to
                 // prevent overflows.
-                assert!(
-                    parameters
-                        .maximums
-                        .iter()
-                        .all(|&a| a <= u64::MAX / MAX_SCORE)
-                );
+                assert!(maximums.iter().all(|&a| a <= u64::MAX / MAX_SCORE));
 
-                Self {
-                    received_reports_state,
-                    current_scores,
-                    voting_power,
-                    last_report_summary: AtomicU64::new(0),
-                    last_report_checkpoint_seq: AtomicU64::new(0),
-                    has_sent_end_of_epoch_report: AtomicBool::new(false),
-                    version: ScorerVersion::V1(parameters),
-                }
+                // Precompute minor/major indices and weights.
+                let minor_indices: Vec<usize> = is_major
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, &major)| !major)
+                    .map(|(i, _)| i)
+                    .collect();
+                let minor_weights: Vec<u64> = minor_indices.iter().map(|&i| weights[i]).collect();
+                let major_indices: Vec<usize> = is_major
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, &major)| major)
+                    .map(|(i, _)| i)
+                    .collect();
+                // Assert that the sum of minor weights does not exceed SCALE_FACTOR, to
+                // prevent a u64 underflow when computing the baseline score.
+                let minor_weights_sum = minor_weights.iter().sum::<u64>();
+                assert!(
+                    minor_weights_sum <= SCALE_FACTOR,
+                    "minor weights sum ({minor_weights_sum}) exceeds SCALE_FACTOR ({SCALE_FACTOR})"
+                );
+                let baseline_score = SCALE_FACTOR - minor_weights_sum;
+
+                ScorerVersion::V1(Parameters {
+                    allowances,
+                    maximums,
+                    minor_indices,
+                    minor_weights,
+                    major_indices,
+                    baseline_score,
+                })
             }
             _ => panic!("Unsupported scorer version"),
         }
     }
 
-    fn get_parameters_v1(&self) -> ParametersV1 {
+    fn get_parameters(&self) -> &Parameters {
         match &self.version {
-            ScorerVersion::V1(params) => params.clone(),
+            ScorerVersion::V1(params) => params,
         }
     }
 
@@ -272,9 +319,10 @@ impl Scorer {
             .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
         // Ensure that we have at least one report to calculate the scores, otherwise we
         // do nothing.
-        if highest_received_reports_from_authority.is_empty() {} else {
+        if highest_received_reports_from_authority.is_empty() {
+        } else {
             let median_report = calculate_median_report(&highest_received_reports_from_authority);
-            let scores = calculate_scores_v1(median_report, self.get_parameters_v1());
+            let scores = calculate_scores_v1(median_report, self.get_parameters());
             for (i, &score) in scores.iter().enumerate() {
                 self.current_scores[i].store(score, Ordering::Relaxed);
             }
@@ -311,7 +359,7 @@ impl Scorer {
 /// VersionedMisbehaviorReport
 fn calculate_median_report(
     reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
-) -> NodeMisbehaviorsV1<MedianMetricVec> {
+) -> Vec<MedianMetricVec> {
     // Calls to this method should ensure that we have at least one report to
     // process.
     assert!(!reports_and_voting_power.is_empty());
@@ -336,7 +384,7 @@ fn calculate_median_report(
     let median_report = reports_and_voting_power_per_metric
         .iter_mut()
         .map(|vec| calculate_weighted_median(vec.as_mut_slice()))
-        .collect::<NodeMisbehaviorsV1<MedianMetricVec>>();
+        .collect::<Vec<MedianMetricVec>>();
     median_report
 }
 
@@ -379,19 +427,23 @@ fn calculate_weighted_median(reports: &mut [(MetricVec, VotingPower)]) -> Median
 // Scorer version. Currently, only V1 is implemented, relative to both
 // protocol_config.scorer_version = None or Some(1).
 enum ScorerVersion {
-    V1(ParametersV1),
+    V1(Parameters),
 }
 
-// Parameters for ScorerVersion::V1
-#[derive(Clone)]
-struct ParametersV1 {
+/// Scoring parameters for a given version. All `Vec` fields are indexed by the
+/// tracked misbehavior index (same order as `ReportedMisbehaviors`).
+struct Parameters {
     // Allowed misbehaviors without any punishment
-    allowances: NodeMisbehaviorsV1<u64>,
+    allowances: Vec<u64>,
     // Number of misbehaviors that lead to zero score
-    maximums: NodeMisbehaviorsV1<u64>,
-    // Weights for each metric. The sum of minor misbehavior weights + baseline_score =
-    // scale_factor. Major misbehavior weights are either 0 or 1.
-    weights: NodeMisbehaviorsV1<u64>,
+    maximums: Vec<u64>,
+    // Precomputed indices and weights for minor misbehaviors.
+    minor_indices: Vec<usize>,
+    minor_weights: Vec<u64>,
+    // Precomputed indices for major misbehaviors.
+    major_indices: Vec<usize>,
+    // Precomputed baseline score (SCALE_FACTOR - sum of minor weights).
+    baseline_score: u64,
 }
 
 // Aliases for better readability.
@@ -412,94 +464,94 @@ type MetricVec = Vec<u64>;
 // max_score*scale_factor < 2^64 to avoid overflows.
 // Major misbehaviors (equivocations) are treated differently, as they
 // multiplicatively impact the final score. Their value is either 0 or 1.
-fn calculate_scores_v1(
-    median_reports: NodeMisbehaviorsV1<MedianMetricVec>,
-    parameters: ParametersV1,
-) -> Vec<u64> {
-    let baseline_score = SCALE_FACTOR - parameters.weights.iter_minor_misbehaviors().sum::<u64>();
+fn calculate_scores_v1(median_reports: Vec<MedianMetricVec>, parameters: &Parameters) -> Vec<u64> {
+    // let baseline_score = SCALE_FACTOR -
+    // parameters.minor_weights.iter().sum::<u64>();
 
-    let median_minor_reports_and_parameters = median_reports
-        .iter_minor_misbehaviors()
-        .zip(parameters.allowances.iter_minor_misbehaviors())
-        .zip(parameters.maximums.iter_minor_misbehaviors());
+    // let median_minor_reports_and_parameters = median_reports
+    //     .iter_minor_misbehaviors()
+    //     .zip(parameters.allowances.iter_minor_misbehaviors())
+    //     .zip(parameters.maximums.iter_minor_misbehaviors());
 
     // Calculate individual metric scores
-    let minor_metric_scores = median_minor_reports_and_parameters
-        .map(
-            |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
-                median_report_single_metric_to_score(
-                    median_report_for_a_single_metric,
-                    *metric_allowance,
-                    *metric_maximum,
-                    MAX_SCORE,
-                )
-            },
-        )
-        .collect::<Vec<Vec<u64>>>();
+    // let minor_metric_scores = median_minor_reports_and_parameters
+    //     .map(
+    //         |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
+    //             median_report_single_metric_to_score(
+    //                 median_report_for_a_single_metric,
+    //                 *metric_allowance,
+    //                 *metric_maximum,
+    //                 MAX_SCORE,
+    //             )
+    //         },
+    //     )
+    //     .collect::<Vec<Vec<u64>>>();
 
-    let median_major_reports_and_parameters = median_reports
-        .iter_major_misbehaviors()
-        .zip(parameters.allowances.iter_major_misbehaviors())
-        .zip(parameters.maximums.iter_major_misbehaviors());
+    // let median_major_reports_and_parameters = median_reports
+    //     .iter_major_misbehaviors()
+    //     .zip(parameters.allowances.iter_major_misbehaviors())
+    //     .zip(parameters.maximums.iter_major_misbehaviors());
 
-    // Calculate individual metric scores
-    let major_metric_scores = median_major_reports_and_parameters
-        .map(
-            |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
-                median_report_single_metric_to_score(
-                    median_report_for_a_single_metric,
-                    *metric_allowance,
-                    *metric_maximum,
-                    1,
-                )
-            },
-        )
-        .collect::<Vec<Vec<u64>>>();
+    // // Calculate individual metric scores
+    // let major_metric_scores = median_major_reports_and_parameters
+    //     .map(
+    //         |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
+    //             median_report_single_metric_to_score(
+    //                 median_report_for_a_single_metric,
+    //                 *metric_allowance,
+    //                 *metric_maximum,
+    //                 1,
+    //             )
+    //         },
+    //     )
+    //     .collect::<Vec<Vec<u64>>>();
 
-    metrics_scores_to_final_scores(
-        minor_metric_scores,
-        major_metric_scores,
-        parameters.weights,
-        baseline_score,
-        SCALE_FACTOR,
-        MAX_SCORE,
-    )
+    // metrics_scores_to_final_scores(
+    //     minor_metric_scores,
+    //     major_metric_scores,
+    //     parameters.weights,
+    //     baseline_score,
+    //     SCALE_FACTOR,
+    //     MAX_SCORE,
+    // )
+    vec![]
 }
 
 fn metrics_scores_to_final_scores(
     minor_metric_scores: Vec<Vec<u64>>,
     major_metric_scores: Vec<Vec<u64>>,
-    weights: NodeMisbehaviorsV1<u64>,
+    weights: Vec<u64>,
     baseline_score: u64,
     scale_factor: u64,
     max_score: u64,
 ) -> Vec<u64> {
-    // Initialise the final scores with the baseline score whose value is between 0
-    // and max_score * scale_factor.
-    let committee_size = minor_metric_scores.first().unwrap().len();
-    let mut final_scores = vec![baseline_score * max_score; committee_size];
-    // First, calculate the weights sum of minor misbehavior scores vector. The
-    // values in final_scores will still be between 0 and max_score * scale_factor
-    minor_metric_scores
-        .iter()
-        .zip(weights.iter_minor_misbehaviors())
-        .for_each(|(scores, weight)| {
-            for (i, &score) in scores.iter().enumerate() {
-                final_scores[i] += score * weight;
-            }
-        });
-    // Then, multiply by each major misbehavior score which is a value of either 0
-    // or 1.
-    major_metric_scores.iter().for_each(|scores| {
-        for (i, &score) in scores.iter().enumerate() {
-            final_scores[i] *= score;
-        }
-    });
-    // Finally, divide by the scale factor and scale to max_score
-    for score in final_scores.iter_mut() {
-        *score /= scale_factor;
-    }
-    final_scores
+    // // Initialise the final scores with the baseline score whose value is between
+    // 0 // and max_score * scale_factor.
+    // let committee_size = minor_metric_scores.first().unwrap().len();
+    // let mut final_scores = vec![baseline_score * max_score; committee_size];
+    // // First, calculate the weights sum of minor misbehavior scores vector. The
+    // // values in final_scores will still be between 0 and max_score *
+    // scale_factor minor_metric_scores
+    //     .iter()
+    //     .zip(weights.iter_minor_misbehaviors())
+    //     .for_each(|(scores, weight)| {
+    //         for (i, &score) in scores.iter().enumerate() {
+    //             final_scores[i] += score * weight;
+    //         }
+    //     });
+    // // Then, multiply by each major misbehavior score which is a value of either
+    // 0 // or 1.
+    // major_metric_scores.iter().for_each(|scores| {
+    //     for (i, &score) in scores.iter().enumerate() {
+    //         final_scores[i] *= score;
+    //     }
+    // });
+    // // Finally, divide by the scale factor and scale to max_score
+    // for score in final_scores.iter_mut() {
+    //     *score /= scale_factor;
+    // }
+    // final_scores
+    vec![]
 }
 
 // Calculate the metric scores for a single metric's median report vector. It
@@ -525,168 +577,6 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
         // max - allowance > 0 and the multiplication not overflowing are guaranteed by
         // assertions done during scorer initialization
         max.saturating_sub(value).saturating_mul(max_score) / max.saturating_sub(allowance)
-    }
-}
-
-// // Basic getters, setters and increments for the metrics.
-// impl NodeVersionedScoringMetrics {
-//     pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) ->
-// Self {         // Any version of ScoringMetrics created here must be
-// initialized to zero.         match protocol_config.scorer_version_as_option()
-// {             None | Some(1) => {
-//
-// NodeVersionedScoringMetrics::V1(NodeScoringMetricsV1::new(committee_size))
-//             }
-//             _ => panic!("Unsupported scorer version"),
-//         }
-//     }
-// }
-
-// impl NodeVersionedScoringMetrics {
-//     // Given a VersionedMisbehaviorReport received from another authority, we
-// use     // this method to update the received scoring metrics counts. To
-// avoid     // updates to be dependent on the order they are applied, we only
-// effectively     // update counts that are increased by the report. This also
-// means that any type     // of metric contained in this struct must be
-// guaranteed to be monotonically     // increasing. Example: number of faulty
-// blocks detected for a given authority     // is monotonically increasing by
-// design; average faulty blocks per minute is     // not.
-//     pub fn update_from_report(&self, report: &VersionedMisbehaviorReport) {
-//         match (self, report) {
-//             (
-//                 NodeVersionedScoringMetrics::V1(metrics),
-//                 VersionedMisbehaviorReport::V1(report_v1, _),
-//             ) => {
-//                 for (i, value) in
-// report_v1.faulty_blocks_provable.iter().enumerate() {
-// metrics.faulty_blocks_provable[i].fetch_max(*value, Ordering::Relaxed);
-//                 }
-//                 for (i, value) in
-// report_v1.faulty_blocks_unprovable.iter().enumerate() {
-// metrics.faulty_blocks_unprovable[i].fetch_max(*value, Ordering::Relaxed);
-//                 }
-//                 for (i, value) in report_v1.equivocations.iter().enumerate()
-// {                     metrics.equivocations[i].fetch_max(*value,
-// Ordering::Relaxed);                 }
-//                 for (i, value) in
-// report_v1.missing_proposals.iter().enumerate() {
-// metrics.missing_proposals[i].fetch_max(*value, Ordering::Relaxed);
-//                 }
-//             }
-//         }
-//     }
-
-//     // Given a NodeVersionedScoringMetrics struct, create a
-//     // VersionedMisbehaviorReport with the same values. Used when an
-// authority     // needs to share its local metrics with the network.
-//     pub fn to_report(&self) -> VersionedMisbehaviorReport {
-//         match self {
-//             NodeVersionedScoringMetrics::V1(metrics) => {
-//                 let faulty_blocks_provable = metrics
-//                     .faulty_blocks_provable
-//                     .iter()
-//                     .map(|metric| metric.load(Ordering::Relaxed))
-//                     .collect();
-//                 let faulty_blocks_unprovable = metrics
-//                     .faulty_blocks_unprovable
-//                     .iter()
-//                     .map(|metric| metric.load(Ordering::Relaxed))
-//                     .collect();
-//                 let equivocations = metrics
-//                     .equivocations
-//                     .iter()
-//                     .map(|metric| metric.load(Ordering::Relaxed))
-//                     .collect();
-//                 let missing_proposals = metrics
-//                     .missing_proposals
-//                     .iter()
-//                     .map(|metric| metric.load(Ordering::Relaxed))
-//                     .collect();
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable,
-//                     faulty_blocks_unprovable,
-//                     missing_proposals,
-//                     equivocations,
-//                 })
-//             }
-//         }
-//     }
-// }
-
-// pub struct NodeScoringMetricsV1 {
-//     faulty_blocks_provable: Vec<AtomicU64>,
-//     faulty_blocks_unprovable: Vec<AtomicU64>,
-//     missing_proposals: Vec<AtomicU64>,
-//     equivocations: Vec<AtomicU64>,
-// }
-
-// impl NodeScoringMetricsV1 {
-//     pub fn new(committee_size: usize) -> Self {
-//         Self {
-//             // Blocks considered faulty with provable evidence, i.e., they
-// pass the signature check.             faulty_blocks_provable:
-// (0..committee_size).map(|_| AtomicU64::new(0)).collect(),             //
-// Blocks considered faulty before passing the signature check.
-// faulty_blocks_unprovable: (0..committee_size).map(|_|
-// AtomicU64::new(0)).collect(),             // Number or rounds that the
-// authority did not propose any block             missing_proposals:
-// (0..committee_size).map(|_| AtomicU64::new(0)).collect(),             //
-// Number of additional blocks issued by a validator within rounds where another
-// block             // was already produced by them.
-//             equivocations: (0..committee_size).map(|_|
-// AtomicU64::new(0)).collect(),         }
-//     }
-// }
-
-// MisbehaviorsV1 contains lists of all metrics used in v1 of misbehavior
-// reports, with a value for each metric. The metrics (misbeheaviors) include,
-// faulty blocks, equivocation and missing proposal counts for each authority.
-// This first version does not include any type of proof.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NodeMisbehaviorsV1<T> {
-    pub faulty_blocks_provable: T,
-    pub faulty_blocks_unprovable: T,
-    pub missing_proposals: T,
-    pub equivocations: T,
-}
-
-impl<T> NodeMisbehaviorsV1<T> {
-    pub fn iter(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-            &self.equivocations,
-        ]
-            .into_iter()
-    }
-
-    // Returns an iterator over references to major misbehavior fields in the
-    // report. Major misbehaviors carry a higher penalty in the scoring system.
-    pub fn iter_major_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![&self.equivocations].into_iter()
-    }
-    // Returns an iterator over references to minor misbehavior fields in the
-    // report. Minor misbehaviors carry a lower penalty in the scoring system.
-    pub fn iter_minor_misbehaviors(&self) -> std::vec::IntoIter<&T> {
-        vec![
-            &self.faulty_blocks_provable,
-            &self.faulty_blocks_unprovable,
-            &self.missing_proposals,
-        ]
-            .into_iter()
-    }
-}
-
-impl<T> FromIterator<T> for NodeMisbehaviorsV1<T> {
-    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
-        let mut iterator = iter.into_iter();
-        Self {
-            faulty_blocks_provable: iterator.next().expect("Not enough elements in iterator"),
-            faulty_blocks_unprovable: iterator.next().expect("Not enough elements in iterator"),
-            missing_proposals: iterator.next().expect("Not enough elements in iterator"),
-            equivocations: iterator.next().expect("Not enough elements in iterator"),
-        }
     }
 }
 
@@ -747,59 +637,59 @@ impl<T> FromIterator<T> for NodeMisbehaviorsV1<T> {
 //
 //     let protocol_config = mock_protocol_config();
 
-    //         let scorer = Scorer::new(
-    //             voting_power.clone(),
-    //             &protocol_config,
-    //             &Arc::new(MisbehaviorMonitor::new(
-    //                 &protocol_config,
-    //                 voting_power.len(),
-    //             )),
-    //         );
+//         let scorer = Scorer::new(
+//             voting_power.clone(),
+//             &protocol_config,
+//             &Arc::new(MisbehaviorMonitor::new(
+//                 &protocol_config,
+//                 voting_power.len(),
+//             )),
+//         );
 
-    //         let authority_index = 2;
+//         let authority_index = 2;
 
-    //         // Before update
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[authority_index as
-    // usize].load(Ordering::Relaxed),             0
-    //         );
+//         // Before update
+//         assert_eq!(
+//             scorer.invalid_reports_count[authority_index as
+// usize].load(Ordering::Relaxed),             0
+//         );
 
-        // // Call the method
+// // Call the method
 // scorer.increment_invalid_reports_count(authority_index);
 
-    //         // After update
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-    //             0
-    //         );
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-    //             0
-    //         );
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-    //             1
-    //         );
+//         // After update
+//         assert_eq!(
+//             scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
+//             0
+//         );
+//         assert_eq!(
+//             scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
+//             0
+//         );
+//         assert_eq!(
+//             scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
+//             1
+//         );
 
-        // let authority_index = 1;
-        // // Call the method twice
-        // scorer.increment_invalid_reports_count(authority_index);
-        // scorer.increment_invalid_reports_count(authority_index);
+// let authority_index = 1;
+// // Call the method twice
+// scorer.increment_invalid_reports_count(authority_index);
+// scorer.increment_invalid_reports_count(authority_index);
 
-    //         // After update
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-    //             0
-    //         );
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-    //             2
-    //         );
-    //         assert_eq!(
-    //             scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-    //             1
-    //         );
-    //     }
+//         // After update
+//         assert_eq!(
+//             scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
+//             0
+//         );
+//         assert_eq!(
+//             scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
+//             2
+//         );
+//         assert_eq!(
+//             scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
+//             1
+//         );
+//     }
 
 //     #[test]
 //     fn test_update_scores() {
@@ -814,189 +704,189 @@ impl<T> FromIterator<T> for NodeMisbehaviorsV1<T> {
 //             )),
 //         );
 
-        // // Before calling update_scores, all scores should be MAX_SCORE
+// // Before calling update_scores, all scores should be MAX_SCORE
 // scorer
 //     .current_scores
 //     .iter()
 //     .for_each(|score| assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE));
 
-        //         // Set some reports for testing
-        //         let reports_and_authorities = vec![
-        //             (
-        //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-        //                     faulty_blocks_provable: vec![5, 0, 0],
-        //                     faulty_blocks_unprovable: vec![0, 0, 0],
-        //                     missing_proposals: vec![0, 0, 0],
-        //                     equivocations: vec![0, 0, 0],
-        //                 }),
-        //                 0_u32,
-        //             ),
-        //             (
-        //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-        //                     faulty_blocks_provable: vec![0, 10, 0],
-        //                     faulty_blocks_unprovable: vec![0, 0, 0],
-        //                     missing_proposals: vec![0, 0, 0],
-        //                     equivocations: vec![0, 0, 0],
-        //                 }),
-        //                 1_u32,
-        //             ),
-        //             (
-        //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-        //                     faulty_blocks_provable: vec![0, 0, 15],
-        //                     faulty_blocks_unprovable: vec![0, 0, 0],
-        //                     missing_proposals: vec![0, 0, 0],
-        //                     equivocations: vec![5, 0, 0],
-        //                 }),
-        //                 2_u32,
-        //             ),
-        //         ];
+//         // Set some reports for testing
+//         let reports_and_authorities = vec![
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![5, 0, 0],
+//                     faulty_blocks_unprovable: vec![0, 0, 0],
+//                     missing_proposals: vec![0, 0, 0],
+//                     equivocations: vec![0, 0, 0],
+//                 }),
+//                 0_u32,
+//             ),
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![0, 10, 0],
+//                     faulty_blocks_unprovable: vec![0, 0, 0],
+//                     missing_proposals: vec![0, 0, 0],
+//                     equivocations: vec![0, 0, 0],
+//                 }),
+//                 1_u32,
+//             ),
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![0, 0, 15],
+//                     faulty_blocks_unprovable: vec![0, 0, 0],
+//                     missing_proposals: vec![0, 0, 0],
+//                     equivocations: vec![5, 0, 0],
+//                 }),
+//                 2_u32,
+//             ),
+//         ];
 
-        //         scorer.set_reports_for_tests(&reports_and_authorities);
+//         scorer.set_reports_for_tests(&reports_and_authorities);
 
-        //         // Call the method
-        //         scorer.update_scores();
+//         // Call the method
+//         scorer.update_scores();
 
-        // let expected_score = vec![0, 65536, 45876];
+// let expected_score = vec![0, 65536, 45876];
 // // After calling update_scores, scores should be updated
 // let actual_score = scorer.current_scores();
 // assert_eq!(actual_score, expected_score);
-    //     }
+//     }
 
-    //     #[test]
-    //     fn test_calculate_median_report() {
-    //         let reports_and_voting_power = vec![(
-    //             VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-    //                 faulty_blocks_provable: vec![7, 8, 9],
-    //                 faulty_blocks_unprovable: vec![10, 11, 12],
-    //                 missing_proposals: vec![4, 5, 6],
-    //                 equivocations: vec![1, 2, 3],
-    //             }),
-    //             10_u64,
-    //         )];
-    //         let median_report =
-    // calculate_median_report(&reports_and_voting_power);
+//     #[test]
+//     fn test_calculate_median_report() {
+//         let reports_and_voting_power = vec![(
+//             VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                 faulty_blocks_provable: vec![7, 8, 9],
+//                 faulty_blocks_unprovable: vec![10, 11, 12],
+//                 missing_proposals: vec![4, 5, 6],
+//                 equivocations: vec![1, 2, 3],
+//             }),
+//             10_u64,
+//         )];
+//         let median_report =
+// calculate_median_report(&reports_and_voting_power);
 
-    //         assert_eq!(
-    //             median_report,
-    //             NodeMisbehaviorsV1 {
-    //                 faulty_blocks_provable: vec![7, 8, 9],
-    //                 faulty_blocks_unprovable: vec![10, 11, 12],
-    //                 missing_proposals: vec![4, 5, 6],
-    //                 equivocations: vec![1, 2, 3]
-    //             }
-    //         );
+//         assert_eq!(
+//             median_report,
+//             NodeMisbehaviorsV1 {
+//                 faulty_blocks_provable: vec![7, 8, 9],
+//                 faulty_blocks_unprovable: vec![10, 11, 12],
+//                 missing_proposals: vec![4, 5, 6],
+//                 equivocations: vec![1, 2, 3]
+//             }
+//         );
 
-    //         let reports_and_voting_power = vec![
-    //             (
-    //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-    //                     faulty_blocks_provable: vec![7, 8, 9],
-    //                     faulty_blocks_unprovable: vec![10, 11, 12],
-    //                     missing_proposals: vec![4, 5, 6],
-    //                     equivocations: vec![1, 2, 3],
-    //                 }),
-    //                 20_u64,
-    //             ),
-    //             (
-    //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-    //                     faulty_blocks_provable: vec![70, 80, 90],
-    //                     faulty_blocks_unprovable: vec![100, 110, 120],
-    //                     missing_proposals: vec![40, 50, 60],
-    //                     equivocations: vec![10, 20, 30],
-    //                 }),
-    //                 10_u64,
-    //             ),
-    //         ];
+//         let reports_and_voting_power = vec![
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![7, 8, 9],
+//                     faulty_blocks_unprovable: vec![10, 11, 12],
+//                     missing_proposals: vec![4, 5, 6],
+//                     equivocations: vec![1, 2, 3],
+//                 }),
+//                 20_u64,
+//             ),
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![70, 80, 90],
+//                     faulty_blocks_unprovable: vec![100, 110, 120],
+//                     missing_proposals: vec![40, 50, 60],
+//                     equivocations: vec![10, 20, 30],
+//                 }),
+//                 10_u64,
+//             ),
+//         ];
 
-    //         let median_report =
-    // calculate_median_report(&reports_and_voting_power);
+//         let median_report =
+// calculate_median_report(&reports_and_voting_power);
 
-    //         assert_eq!(
-    //             median_report,
-    //             NodeMisbehaviorsV1 {
-    //                 faulty_blocks_provable: vec![7, 8, 9],
-    //                 faulty_blocks_unprovable: vec![10, 11, 12],
-    //                 missing_proposals: vec![4, 5, 6],
-    //                 equivocations: vec![1, 2, 3]
-    //             }
-    //         );
+//         assert_eq!(
+//             median_report,
+//             NodeMisbehaviorsV1 {
+//                 faulty_blocks_provable: vec![7, 8, 9],
+//                 faulty_blocks_unprovable: vec![10, 11, 12],
+//                 missing_proposals: vec![4, 5, 6],
+//                 equivocations: vec![1, 2, 3]
+//             }
+//         );
 
-    //         let reports_and_voting_power = vec![
-    //             (
-    //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-    //                     faulty_blocks_provable: vec![1, 8, 9],
-    //                     faulty_blocks_unprovable: vec![10, 15, 12],
-    //                     missing_proposals: vec![4, 5, 6],
-    //                     equivocations: vec![1, 20, 3],
-    //                 }),
-    //                 10_u64,
-    //             ),
-    //             (
-    //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-    //                     faulty_blocks_provable: vec![7, 8, 9],
-    //                     faulty_blocks_unprovable: vec![10, 11, 12],
-    //                     missing_proposals: vec![4, 5, 6],
-    //                     equivocations: vec![1, 2, 0],
-    //                 }),
-    //                 10_u64,
-    //             ),
-    //             (
-    //                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-    //                     faulty_blocks_provable: vec![6, 8, 9],
-    //                     faulty_blocks_unprovable: vec![10, 11, 12],
-    //                     missing_proposals: vec![4, 22, 6],
-    //                     equivocations: vec![1, 2, 30],
-    //                 }),
-    //                 10_u64,
-    //             ),
-    //         ];
+//         let reports_and_voting_power = vec![
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![1, 8, 9],
+//                     faulty_blocks_unprovable: vec![10, 15, 12],
+//                     missing_proposals: vec![4, 5, 6],
+//                     equivocations: vec![1, 20, 3],
+//                 }),
+//                 10_u64,
+//             ),
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![7, 8, 9],
+//                     faulty_blocks_unprovable: vec![10, 11, 12],
+//                     missing_proposals: vec![4, 5, 6],
+//                     equivocations: vec![1, 2, 0],
+//                 }),
+//                 10_u64,
+//             ),
+//             (
+//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+//                     faulty_blocks_provable: vec![6, 8, 9],
+//                     faulty_blocks_unprovable: vec![10, 11, 12],
+//                     missing_proposals: vec![4, 22, 6],
+//                     equivocations: vec![1, 2, 30],
+//                 }),
+//                 10_u64,
+//             ),
+//         ];
 
-    //         let median_report =
-    // calculate_median_report(&reports_and_voting_power);
+//         let median_report =
+// calculate_median_report(&reports_and_voting_power);
 
-    //         assert_eq!(
-    //             median_report,
-    //             NodeMisbehaviorsV1 {
-    //                 faulty_blocks_provable: vec![6, 8, 9],
-    //                 faulty_blocks_unprovable: vec![10, 11, 12],
-    //                 missing_proposals: vec![4, 5, 6],
-    //                 equivocations: vec![1, 2, 3]
-    //             }
-    //         );
-    //     }
+//         assert_eq!(
+//             median_report,
+//             NodeMisbehaviorsV1 {
+//                 faulty_blocks_provable: vec![6, 8, 9],
+//                 faulty_blocks_unprovable: vec![10, 11, 12],
+//                 missing_proposals: vec![4, 5, 6],
+//                 equivocations: vec![1, 2, 3]
+//             }
+//         );
+//     }
 
-    //     #[test]
-    //     fn test_calculate_scores_v1() {
-    //         let parameters = ParametersV1 {
-    //             allowances: NodeMisbehaviorsV1 {
-    //                 faulty_blocks_provable: 1,
-    //                 faulty_blocks_unprovable: 2,
-    //                 missing_proposals: 1000,
-    //                 equivocations: 0,
-    //             },
-    //             maximums: NodeMisbehaviorsV1 {
-    //                 faulty_blocks_provable: 5,
-    //                 faulty_blocks_unprovable: 10,
-    //                 missing_proposals: 5000,
-    //                 equivocations: 1,
-    //             },
-    //             weights: NodeMisbehaviorsV1 {
-    //                 faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-    //                 faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-    //                 missing_proposals: SCALE_FACTOR * 35 / 100,
-    //                 equivocations: 1,
-    //             },
-    //         };
+//     #[test]
+//     fn test_calculate_scores_v1() {
+//         let parameters = ParametersV1 {
+//             allowances: NodeMisbehaviorsV1 {
+//                 faulty_blocks_provable: 1,
+//                 faulty_blocks_unprovable: 2,
+//                 missing_proposals: 1000,
+//                 equivocations: 0,
+//             },
+//             maximums: NodeMisbehaviorsV1 {
+//                 faulty_blocks_provable: 5,
+//                 faulty_blocks_unprovable: 10,
+//                 missing_proposals: 5000,
+//                 equivocations: 1,
+//             },
+//             weights: NodeMisbehaviorsV1 {
+//                 faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
+//                 faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
+//                 missing_proposals: SCALE_FACTOR * 35 / 100,
+//                 equivocations: 1,
+//             },
+//         };
 
-    //         let median_reports = NodeMisbehaviorsV1 {
-    //             faulty_blocks_provable: vec![6, 7, 8],
-    //             faulty_blocks_unprovable: vec![9, 10, 11],
-    //             missing_proposals: vec![3, 4, 5],
-    //             equivocations: vec![0, 1, 2],
-    //         };
+//         let median_reports = NodeMisbehaviorsV1 {
+//             faulty_blocks_provable: vec![6, 7, 8],
+//             faulty_blocks_unprovable: vec![9, 10, 11],
+//             missing_proposals: vec![3, 4, 5],
+//             equivocations: vec![0, 1, 2],
+//         };
 
-    //         let scores = calculate_scores_v1(median_reports, parameters);
+//         let scores = calculate_scores_v1(median_reports, parameters);
 
-    //         // Check that scores are calculated correctly
-    //         assert_eq!(scores, vec![40142, 0, 0]);
-    //     }
-    // }
+//         // Check that scores are calculated correctly
+//         assert_eq!(scores, vec![40142, 0, 0]);
+//     }
+// }
