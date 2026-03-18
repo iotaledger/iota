@@ -12,43 +12,56 @@ require("dotenv").config();
 
 const jargonConfig = require('./config/jargon.js');
 
+const typedocBaseConfig = {
+  skipErrorChecking: true,
+  plugin: ['typedoc-plugin-markdown'],
+  githubPages: false,
+  readme: 'none',
+  hideGenerator: true,
+  sort: ['source-order'],
+  excludeInternal: true,
+  excludePrivate: true,
+  excludeExternals: true,
+  disableSources: true,
+  hideBreadcrumbs: true,
+  intentionallyNotExported: [],
+  useCodeBlocks: true,
+  parametersFormat: 'table',
+  interfacePropertiesFormat: 'table',
+  classPropertiesFormat: 'table',
+  typeDeclarationFormat: 'table',
+  enumMembersFormat: 'table',
+  indexFormat: 'table',
+  tableColumnSettings: {
+    hideSources: true,
+    leftAlignHeaders: true,
+  },
+};
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "IOTA Documentation",
   tagline:
     "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
   favicon: "/icons/favicon.ico",
-
-  // Set the production url of your site here
   url: "https://docs.iota.org",
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
+  
   customFields: {
     amplitudeKey: process.env.AMPLITUDE_KEY,
   },
 
-  // TODO: Revert the changes when the docs are ready
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "throw",
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
-  /*  i18n: {
-    defaultLocale: "en",
-    locales: [
-      "en",
-      "el",
-      "fr",
-      "ko",
-      "tr",
-      "vi",
-      "zh-CN",
-      "zh-TW",
-    ],
-  },*/
+  future: {
+    v4: {
+      removeLegacyPostBuildHeadAttribute: true,
+    },
+    experimental_faster: true,
+  },
+
   markdown: {
     format: "detect",
     mermaid: true,
@@ -76,7 +89,7 @@ const config = {
         id:'testnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/testnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "developer/references/iota-api/iota-graphql/reference/testnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/Testnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -91,7 +104,7 @@ const config = {
         id:'devnet',
         schema: "https://raw.githubusercontent.com/iotaledger/iota/refs/heads/devnet/crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "developer/references/iota-api/iota-graphql/reference/devnet/",
+        baseURL: "developer/references/iota-api/iota-graphql/reference/Devnet/",
         loaders: {
           UrlLoader: {
             module: "@graphql-tools/url-loader",
@@ -113,34 +126,105 @@ const config = {
     path.resolve(__dirname, `./src/plugins/descriptions`),
     [
       'docusaurus-plugin-typedoc',
-      // Options
       {
+        id: 'ts-sdk',
         tsconfig: '../../sdk/typescript/tsconfig.json',
         entryPoints: [
-          "../../sdk/typescript/src/bcs",
-          "../../sdk/typescript/src/client",
-          "../../sdk/typescript/src/cryptography",
-          "../../sdk/typescript/src/faucet",
-          "../../sdk/typescript/src/graphql",
-          "../../sdk/typescript/src/keypairs/ed25519",
-          "../../sdk/typescript/src/keypairs/secp256k1",
-          "../../sdk/typescript/src/keypairs/secp256r1",
-          "../../sdk/typescript/src/multisig",
-          "../../sdk/typescript/src/transactions",
-          "../../sdk/typescript/src/utils",
-          "../../sdk/typescript/src/verify"
+          '../../sdk/typescript/src/bcs',
+          '../../sdk/typescript/src/client',
+          '../../sdk/typescript/src/cryptography',
+          '../../sdk/typescript/src/faucet',
+          '../../sdk/typescript/src/graphql',
+          '../../sdk/typescript/src/keypairs/ed25519',
+          '../../sdk/typescript/src/keypairs/secp256k1',
+          '../../sdk/typescript/src/keypairs/secp256r1',
+          '../../sdk/typescript/src/multisig',
+          '../../sdk/typescript/src/transactions',
+          '../../sdk/typescript/src/utils',
+          '../../sdk/typescript/src/verify',
         ],
-        plugin: ["typedoc-plugin-markdown"],
-        out: "../generated-docs/ts-sdk",
-        githubPages: false,
-        readme: "none",
-        hideGenerator: true,
-        sort: ["source-order"],
-        excludeInternal: true,
-        excludePrivate: true,
-        disableSources: true,
-        hideBreadcrumbs: true,
-        intentionallyNotExported: [],
+        out: '../content/developer/ts-sdk/typescript/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'dapp-kit',
+        tsconfig: '../../sdk/dapp-kit/tsconfig.json',
+        entryPoints: ['../../sdk/dapp-kit/src'],
+        out: '../content/developer/ts-sdk/dapp-kit/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'kiosk',
+        tsconfig: '../../sdk/kiosk/tsconfig.json',
+        entryPoints: ['../../sdk/kiosk/src'],
+        out: '../content/developer/ts-sdk/kiosk/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'bcs',
+        tsconfig: '../../sdk/bcs/tsconfig.json',
+        entryPoints: ['../../sdk/bcs/src/index.ts'],
+        out: '../content/developer/ts-sdk/bcs/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'signers',
+        tsconfig: '../../sdk/signers/tsconfig.json',
+        entryPoints: ['../../sdk/signers/src/ledger/index.ts', '../../sdk/signers/src/webcrypto/index.ts'],
+        out: '../content/developer/ts-sdk/signers/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'isc-sdk',
+        tsconfig: '../../sdk/isc-sdk/tsconfig.json',
+        entryPoints: ['../../sdk/isc-sdk/src/index.ts'],
+        out: '../content/developer/ts-sdk/isc-sdk/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'graphql-transport',
+        tsconfig: '../../sdk/graphql-transport/tsconfig.json',
+        entryPoints: ['../../sdk/graphql-transport/src'],
+        out: '../content/developer/ts-sdk/graphql-transport/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'wallet-standard',
+        tsconfig: '../../sdk/wallet-standard/tsconfig.json',
+        entryPoints: ['../../sdk/wallet-standard/src'],
+        out: '../content/developer/ts-sdk/wallet-standard/api',
+        ...typedocBaseConfig,
+      },
+    ],
+    [
+      'docusaurus-plugin-typedoc',
+      {
+        id: 'ledgerjs-hw-app-iota',
+        tsconfig: '../../sdk/ledgerjs-hw-app-iota/tsconfig.json',
+        entryPoints: ['../../sdk/ledgerjs-hw-app-iota/src/Iota.ts'],
+        out: '../content/developer/ts-sdk/ledgerjs-hw-app-iota/api',
+        ...typedocBaseConfig,
       },
     ],
     [
@@ -150,7 +234,7 @@ const config = {
           const redirects = [
             {
               from: '/references/ts-sdk',
-              to: '/developer/ts-sdk',
+              to: '/developer/ts-sdk/typescript',
             },
             {
               from: '/references/iota-identity',
@@ -170,7 +254,11 @@ const config = {
             },
             {
               from: '/ts-sdk',
-              to: '/developer/ts-sdk',
+              to: '/developer/ts-sdk/typescript',
+            },
+            {
+              from: '/developer/ts-sdk',
+              to: '/developer/ts-sdk/typescript',
             },
             {
               from: '/about-iota/wallets',

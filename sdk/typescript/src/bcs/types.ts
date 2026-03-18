@@ -37,7 +37,7 @@ export type ObjectCallArg = {
 /**
  * A pure argument.
  */
-export type PureArg = { Pure: Array<number> };
+export type PureArg = { Pure: { bytes: Uint8Array | string } };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isPureArg(arg: any): arg is PureArg {

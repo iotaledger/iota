@@ -27,7 +27,7 @@ export function IotaAppEmpty({ ...styleProps }: IotaAppEmptyProps) {
                 {styleProps.displayType === 'full' ? (
                     <>
                         {new Array(2).fill(0).map((_, index) => (
-                            <Placeholder />
+                            <Placeholder key={index} />
                         ))}
                     </>
                 ) : (

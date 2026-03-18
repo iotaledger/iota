@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { InferInput } from 'valibot';
@@ -13,7 +13,7 @@ import type { Argument } from '../data/internal.js';
 import { Inputs } from '../Inputs.js';
 import type { BuildTransactionOptions } from '../json-rpc-resolver.js';
 import { getClient } from '../json-rpc-resolver.js';
-import type { Transaction } from '../Transaction.js';
+import type { Transaction, TransactionResult } from '../Transaction.js';
 import type { TransactionDataBuilder } from '../TransactionData.js';
 
 const COIN_WITH_BALANCE = 'CoinWithBalance';
@@ -27,12 +27,18 @@ export function coinWithBalance({
     balance: bigint | number;
     type?: string;
     useGasCoin?: boolean;
-}) {
+}): (tx: Transaction) => TransactionResult {
+    let coinResult: TransactionResult | null = null;
+
     return (tx: Transaction) => {
+        if (coinResult) {
+            return coinResult;
+        }
+
         tx.addIntentResolver(COIN_WITH_BALANCE, resolveCoinBalance);
         const coinType = type === 'gas' ? type : normalizeStructTag(type);
 
-        return tx.add(
+        coinResult = tx.add<TransactionResult>(
             Commands.Intent({
                 name: COIN_WITH_BALANCE,
                 inputs: {},
@@ -42,6 +48,8 @@ export function coinWithBalance({
                 } satisfies InferInput<typeof CoinWithBalanceData>,
             }),
         );
+
+        return coinResult;
     };
 }
 
@@ -115,7 +123,7 @@ async function resolveCoinBalance(
             balance: bigint;
         };
 
-        if (balance === 0n) {
+        if (balance === 0n && type !== 'gas') {
             transactionData.replaceCommand(
                 index,
                 Commands.MoveCall({ target: '0x2::coin::zero', typeArguments: [type] }),

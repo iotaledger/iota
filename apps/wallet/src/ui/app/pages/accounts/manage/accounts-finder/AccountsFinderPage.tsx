@@ -11,7 +11,7 @@ export function AccountsFinderPage() {
     useInitializedGuard(true);
 
     return (
-        <Overlay showModal title="Balance Finder" closeOverlay={() => navigate('/accounts/manage')}>
+        <Overlay showModal title="Balance Finder" closeOverlay={() => navigate(-1)}>
             <AccountsFinderView />
         </Overlay>
     );

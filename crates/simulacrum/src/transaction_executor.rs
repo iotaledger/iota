@@ -88,7 +88,7 @@ impl TransactionExecutorTrait for TransactionExecutor {
             events: if request.include_events {
                 self.simulacrum.with_store(|store| {
                     store
-                        .get_transaction_events(effects.events_digest().unwrap())
+                        .get_transaction_events(effects.transaction_digest())
                         .cloned()
                 })
             } else {

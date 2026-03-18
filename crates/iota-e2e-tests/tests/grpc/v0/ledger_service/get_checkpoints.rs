@@ -35,11 +35,16 @@ async fn test_get_checkpoint() {
         .expect("gRPC call");
 
     // Verify the checkpoint data structure
-    assert_eq!(response.sequence_number(), 0);
-    let summary = response.summary().expect("should have summary");
+    assert_eq!(response.body().sequence_number(), 0);
+    let summary = response
+        .body()
+        .summary()
+        .expect("should have summary")
+        .summary()
+        .expect("should deserialize summary");
     assert_eq!(summary.epoch, 0);
-    assert!(!response.transactions.is_empty());
-    assert!(response.contents.is_some());
+    assert!(!response.body().executed_transactions.is_empty());
+    assert!(response.body().contents.is_some());
     let digest_0 = summary.content_digest;
 
     // Test getting another checkpoint
@@ -48,8 +53,13 @@ async fn test_get_checkpoint() {
         .await
         .expect("gRPC call");
 
-    assert_eq!(response_1.sequence_number(), 1);
-    let summary_1 = response_1.summary().expect("should have summary");
+    assert_eq!(response_1.body().sequence_number(), 1);
+    let summary_1 = response_1
+        .body()
+        .summary()
+        .expect("should have summary")
+        .summary()
+        .expect("should deserialize summary");
     assert_eq!(summary_1.epoch, 0);
     let digest_1 = summary_1.content_digest;
 
@@ -83,7 +93,7 @@ async fn test_stream_checkpoints() {
         .unwrap();
 
     tokio::time::timeout(Duration::from_secs(120), async {
-        if let Some(res) = stream.next().await {
+        if let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     assert_eq!(response.sequence_number(), 2);
@@ -148,31 +158,21 @@ async fn test_event_filtering() {
         .expect("Should have created basics package");
 
     // Define event filters for later use
-    let sender_filter = grpc_filter::EventFilter {
-        filter: Some(grpc_filter::event_filter::Filter::Sender(
-            grpc_filter::AddressFilter {
-                address: Some(grpc_types::Address {
-                    address: sender_1.to_vec().into(),
-                }),
-            },
-        )),
-    };
+    let sender_filter = grpc_filter::EventFilter::default().with_sender(
+        grpc_filter::AddressFilter::default()
+            .with_address(grpc_types::Address::default().with_address(sender_1.to_vec())),
+    );
 
-    let nft_filter = grpc_filter::EventFilter {
-        filter: Some(grpc_filter::event_filter::Filter::MoveEventType(
-            grpc_filter::MoveEventTypeFilter {
-                struct_tag: format!("{nft_package_id}::{NFT_MODULE}::{NFT_MINTED_EVENT}"),
-            },
+    let nft_filter = grpc_filter::EventFilter::default().with_move_event_type(
+        grpc_filter::MoveEventTypeFilter::default().with_struct_tag(format!(
+            "{nft_package_id}::{NFT_MODULE}::{NFT_MINTED_EVENT}"
         )),
-    };
+    );
 
-    let any_filter = grpc_filter::EventFilter {
-        filter: Some(grpc_filter::event_filter::Filter::Any(
-            grpc_filter::AnyEventFilter {
-                filters: vec![sender_filter.clone(), nft_filter.clone()],
-            },
-        )),
-    };
+    let any_filter = grpc_filter::EventFilter::default().with_any(
+        grpc_filter::AnyEventFilter::default()
+            .with_filters(vec![sender_filter.clone(), nft_filter.clone()]),
+    );
 
     // Generate all events first before streaming
     // Generate 2 NFT events from sender_1
@@ -217,6 +217,7 @@ async fn test_event_filtering() {
         .get_checkpoint_latest(Some(""), None, None)
         .await
         .expect("Failed to get latest checkpoint")
+        .body()
         .sequence_number();
 
     // Test 1: SenderFilter - should receive only events from sender_1
@@ -233,21 +234,21 @@ async fn test_event_filtering() {
 
     let mut sender_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
-        while let Some(checkpoint_result) = sender_stream.next().await {
+        while let Some(checkpoint_result) = sender_stream.body_mut().next().await {
             match checkpoint_result {
                 Ok(response) => {
-                    let events = response.events().expect("should deserialize events");
+                    let events = response.events();
                     for event in events {
                         // Verify BCS serialization integrity
-                        assert!(!event.contents.is_empty(), "BCS data must be valid");
+                        assert!(event.bcs_contents.is_some(), "BCS data must be valid");
                         // Verify sender filter logic: only events from sender_1
                         assert_eq!(
-                            event.sender,
-                            sender_1.into(),
+                            event.sender.as_ref().unwrap().address.as_ref(),
+                            sender_1.as_ref(),
                             "SenderFilter should only match sender_1 events"
                         );
 
-                        sender_events.push(event);
+                        sender_events.push(event.clone());
                     }
                 }
                 Err(e) => panic!("SenderFilter client error: {e}"),
@@ -277,22 +278,22 @@ async fn test_event_filtering() {
 
     let mut nft_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
-        while let Some(checkpoint_result) = nft_stream.next().await {
+        while let Some(checkpoint_result) = nft_stream.body_mut().next().await {
             match checkpoint_result {
                 Ok(response) => {
-                    let events = response.events().expect("should deserialize events");
+                    let events = response.events();
                     for event in events {
                         // Verify BCS serialization integrity
-                        assert!(!event.contents.is_empty(), "BCS data must be valid");
+                        assert!(event.bcs_contents.is_some(), "BCS data must be valid");
 
                         // Verify NFT filter logic: only NFT events
                         assert_eq!(
-                            event.package_id,
-                            nft_package_id.into(),
+                            event.package_id.as_ref().unwrap().address.as_ref(),
+                            nft_package_id.as_ref(),
                             "MoveEventTypeFilter should only match NFT package events"
                         );
 
-                        nft_events.push(event);
+                        nft_events.push(event.clone());
                     }
                 }
                 Err(e) => panic!("MoveEventTypeFilter client error: {e}"),
@@ -322,23 +323,25 @@ async fn test_event_filtering() {
 
     let mut any_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
-        while let Some(checkpoint_result) = any_stream.next().await {
+        while let Some(checkpoint_result) = any_stream.body_mut().next().await {
             match checkpoint_result {
                 Ok(response) => {
-                    let events = response.events().expect("should deserialize events");
+                    let events = response.events();
                     for event in events {
                         // Verify BCS serialization integrity
-                        assert!(!event.contents.is_empty());
+                        assert!(event.bcs_contents.is_some());
 
                         // Verify AnyEventFilter logic: events from sender_1 and NFT events
                         assert!(
-                            event.sender == sender_1.into()
-                                || event.package_id == nft_package_id.into(),
-                            "AnyEventFilter should receive events from both events: {}",
-                            event.package_id
+                            (event.sender.as_ref().map(|s| &s.address)
+                                == Some(&sender_1.as_ref().to_vec().into()))
+                                || (event.package_id.as_ref().map(|p| &p.address)
+                                    == Some(&nft_package_id.as_ref().to_vec().into())),
+                            "AnyEventFilter should receive events from both events: {:?}",
+                            event.package_id.as_ref().map(|p| &p.address)
                         );
 
-                        any_events.push(event);
+                        any_events.push(event.clone());
                     }
                 }
                 Err(e) => panic!("AnyEventFilter client error: {e}"),

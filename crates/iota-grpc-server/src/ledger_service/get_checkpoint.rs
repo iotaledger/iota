@@ -1,9 +1,90 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Implementation of the `get_checkpoint` and `stream_checkpoint_data` methods
+//! of the LedgerService.
+//!
+//! # Available Read Mask Fields
+//!
+//! All checkpoint query methods support the following `read_mask` fields to
+//! control which data is included in the response:
+//!
+//! ## Checkpoint Fields
+//! - `checkpoint` - includes all checkpoint fields
+//!   - `checkpoint.sequence_number` - the sequence number of the checkpoint
+//!   - `checkpoint.summary` - includes all checkpoint summary fields
+//!     - `checkpoint.summary.digest` - the digest of the checkpoint summary
+//!     - `checkpoint.summary.bcs` - the full BCS-encoded checkpoint summary
+//!   - `checkpoint.contents` - includes all checkpoint contents fields
+//!     - `checkpoint.contents.digest` - the digest of the checkpoint contents
+//!     - `checkpoint.contents.bcs` - the full BCS-encoded checkpoint contents
+//!   - `checkpoint.signature` - the validator aggregated signature for the
+//!     checkpoint
+//!
+//! ## Transaction Fields
+//! - `transactions` - includes all executed transaction fields
+//!   - `transactions.transaction` - includes all transaction fields
+//!     - `transactions.transaction.digest` - the transaction digest
+//!     - `transactions.transaction.bcs` - the full BCS-encoded transaction
+//!   - `transactions.signatures` - includes all signature fields
+//!     - `transactions.signatures.bcs` - the full BCS-encoded signature
+//!   - `transactions.effects` - includes all effects fields
+//!     - `transactions.effects.digest` - the effects digest
+//!     - `transactions.effects.bcs` - the full BCS-encoded effects
+//!   - `transactions.events` - includes all event fields (all events of the
+//!     transaction)
+//!     - `transactions.events.digest` - the events digest
+//!     - `transactions.events.events` - includes all event fields
+//!       - `transactions.events.events.bcs` - the full BCS-encoded event
+//!       - `transactions.events.events.package_id` - the ID of the package that
+//!         emitted the event
+//!       - `transactions.events.events.module` - the module that emitted the
+//!         event
+//!       - `transactions.events.events.sender` - the sender that triggered the
+//!         event
+//!       - `transactions.events.events.event_type` - the type of the event
+//!       - `transactions.events.events.bcs_contents` - the full BCS-encoded
+//!         contents of the event
+//!       - `transactions.events.events.json_contents` - the JSON-encoded
+//!         contents of the event
+//!   - `transactions.checkpoint` - the checkpoint that included the transaction
+//!   - `transactions.timestamp` - the timestamp of the checkpoint that included
+//!     the transaction
+//!   - `transactions.input_objects` - includes all input object fields
+//!     - `transactions.input_objects.reference` - includes all reference fields
+//!       - `transactions.input_objects.reference.object_id` - the ID of the
+//!         input object
+//!       - `transactions.input_objects.reference.version` - the version of the
+//!         input object
+//!       - `transactions.input_objects.reference.digest` - the digest of the
+//!         input object contents
+//!     - `transactions.input_objects.bcs` - the full BCS-encoded object
+//!   - `transactions.output_objects` - includes all output object fields
+//!     - `transactions.output_objects.reference` - includes all reference
+//!       fields
+//!       - `transactions.output_objects.reference.object_id` - the ID of the
+//!         output object
+//!       - `transactions.output_objects.reference.version` - the version of the
+//!         output object
+//!       - `transactions.output_objects.reference.digest` - the digest of the
+//!         output object contents
+//!     - `transactions.output_objects.bcs` - the full BCS-encoded object
+//!
+//! ## Event Fields
+//! - `events` - includes all event fields (all events of all transactions in
+//!   the checkpoint)
+//!   - `events.bcs` - the full BCS-encoded event
+//!   - `events.package_id` - the ID of the package that emitted the event
+//!   - `events.module` - the module that emitted the event
+//!   - `events.sender` - the sender that triggered the event
+//!   - `events.event_type` - the type of the event
+//!   - `events.bcs_contents` - the full BCS-encoded contents of the event
+//!   - `events.json_contents` - the JSON-encoded contents of the event
+
 use futures::Stream;
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageField, MessageFields},
+    read_masks::GET_CHECKPOINT_READ_MASK,
     v0::{
         checkpoint::Checkpoint, event::Event, ledger_service as grpc_ledger_service,
         transaction::ExecutedTransaction,
@@ -17,9 +98,6 @@ use crate::{
     error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
     types::CheckpointStreamResult,
 };
-
-/// Default read_mask value when none is provided.
-pub const CHECKPOINT_READ_MASK_DEFAULT: &str = "checkpoint.summary";
 
 /// Helper function to convert proto filters to internal filters and validate
 /// their complexity
@@ -64,6 +142,7 @@ impl CheckpointDataResponse {
         json_name: "checkpoint",
         number: 1i32,
         is_optional: true,
+        is_map: false,
         message_fields: Some(Checkpoint::FIELDS),
     };
 
@@ -72,6 +151,7 @@ impl CheckpointDataResponse {
         json_name: "transactions",
         number: 2i32,
         is_optional: true,
+        is_map: false,
         message_fields: Some(ExecutedTransaction::FIELDS),
     };
 
@@ -80,6 +160,7 @@ impl CheckpointDataResponse {
         json_name: "events",
         number: 3i32,
         is_optional: true,
+        is_map: false,
         message_fields: Some(Event::FIELDS),
     };
 }
@@ -98,7 +179,7 @@ fn parse_checkpoint_read_mask(
     read_mask: Option<prost_types::FieldMask>,
 ) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), Status> {
     let field_mask =
-        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(CHECKPOINT_READ_MASK_DEFAULT));
+        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
 
     // Validate the read_mask paths
     FieldMaskUtil::validate::<CheckpointDataResponse>(&field_mask)
@@ -119,6 +200,28 @@ fn parse_checkpoint_read_mask(
     Ok((checkpoint_mask, transactions_mask, events_mask))
 }
 
+/// Get checkpoint data based on the provided checkpoint ID (sequence number,
+/// digest, or latest) and read mask.
+///
+/// # Request parameters
+/// * `read_mask` - Optional field mask specifying which fields to include. If
+///   `None`, uses [`GET_CHECKPOINT_READ_MASK`] as default. See [module-level
+///   documentation](crate::ledger_service::get_checkpoint) for all available
+///   fields.
+/// * `transactions_filter` - Optional filter to apply to transactions included
+///   in the checkpoint. Only transactions matching the filter will be included
+///   in the response.
+/// * `events_filter` - Optional filter to apply to events included in the
+///   checkpoint. Only events matching the filter will be included in the
+///   response.
+/// * `max_message_size_bytes` - Optional maximum message size in bytes that the
+///   client can handle. The server will use this to limit the size of the
+///   response and avoid sending messages that are too large.
+/// * `checkpoint_id` - The identifier for the checkpoint to fetch. This can be
+///   one of:
+///   - `sequence_number` - the sequence number of the checkpoint to fetch
+///   - `digest` - the digest of the checkpoint to fetch
+///   - `latest` - if set, fetches the latest checkpoint
 pub(crate) fn get_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::GetCheckpointDataRequest>,
@@ -139,14 +242,19 @@ pub(crate) fn get_checkpoint_data(
             service
                 .reader
                 .get_checkpoint_sequence_number_by_digest(&digest)
+                .map_err(|e| Status::internal(format!("failed to get checkpoint by digest: {e}")))?
                 .ok_or(Status::not_found("checkpoint not found"))?
         }
         Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Latest(_)) => service
             .reader
             .get_latest_checkpoint_sequence_number()
+            .map_err(|e| Status::internal(format!("failed to get latest checkpoint: {e}")))?
             .ok_or(Status::not_found("latest checkpoint not found"))?,
         None => {
             return Err(Status::invalid_argument("checkpoint_id must be provided").into());
+        }
+        Some(_) => {
+            return Err(Status::invalid_argument("unknown checkpoint_id type").into());
         }
     };
 
@@ -176,6 +284,16 @@ pub(crate) fn get_checkpoint_data(
     let (transaction_filter, event_filter) =
         convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
 
+    if transaction_filter.is_some() && transactions_mask.is_none() {
+        return Err(Status::invalid_argument(
+            "transactions_filter requires transactions in read_mask",
+        )
+        .into());
+    }
+    if event_filter.is_some() && events_mask.is_none() {
+        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
+    }
+
     Ok(service.reader.get_checkpoint_data(
         sequence_number,
         checkpoint_mask,
@@ -187,6 +305,31 @@ pub(crate) fn get_checkpoint_data(
     ))
 }
 
+/// Stream checkpoint data based on the provided start and end sequence numbers
+/// and read mask. This will continuously stream new checkpoints as they are
+/// produced until the end sequence number is reached (if provided) or the
+/// client disconnects.
+///
+/// # Request parameters
+/// * `start_sequence_number` - Optional sequence number to start streaming
+///   from. If not provided, starts from the next checkpoint produced after the
+///   request is received.
+/// * `end_sequence_number` - Optional sequence number to end streaming at. If
+///   not provided, continues streaming indefinitely until the client
+///   disconnects.
+/// * `read_mask` - Optional field mask specifying which fields to include. If
+///   `None`, uses [`GET_CHECKPOINT_READ_MASK`] as default. See [module-level
+///   documentation](crate::ledger_service::get_checkpoint) for all available
+///   fields.
+/// * `transactions_filter` - Optional filter to apply to transactions included
+///   in the streamed checkpoints. Only transactions matching the filter will be
+///   included in the response.
+/// * `events_filter` - Optional filter to apply to events included in the
+///   streamed checkpoints. Only events matching the filter will be included in
+///   the response.
+/// * `max_message_size_bytes` - Optional maximum message size in bytes that the
+///   client can handle. The server will use this to limit the size of the
+///   response and avoid sending messages that are too large.
 pub(crate) fn stream_checkpoint_data(
     service: &LedgerGrpcService,
     request: Request<grpc_ledger_service::CheckpointDataStreamRequest>,
@@ -195,10 +338,17 @@ pub(crate) fn stream_checkpoint_data(
     let start_sequence_number = req.start_sequence_number;
     let end_sequence_number = req.end_sequence_number;
     let client_max_message_size_bytes = req.max_message_size_bytes;
+    let filter_checkpoints = req.filter_checkpoints.unwrap_or(false);
+    let progress_interval =
+        std::time::Duration::from_millis(req.progress_interval_ms.unwrap_or(2000).max(500) as u64);
 
     debug!(
-        "stream_checkpoints called with start={:?}, end={:?}, max_size={:?}",
-        start_sequence_number, end_sequence_number, client_max_message_size_bytes
+        "stream_checkpoints called with start={:?}, end={:?}, max_size={:?}, filter_checkpoints={}, progress_interval={:?}",
+        start_sequence_number,
+        end_sequence_number,
+        client_max_message_size_bytes,
+        filter_checkpoints,
+        progress_interval
     );
 
     let max_message_size_bytes = service
@@ -220,6 +370,24 @@ pub(crate) fn stream_checkpoint_data(
     let (transaction_filter, event_filter) =
         convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
 
+    // Validate filter_checkpoints constraints
+    if filter_checkpoints && transaction_filter.is_none() && event_filter.is_none() {
+        return Err(Status::invalid_argument(
+            "filter_checkpoints requires at least one of transactions_filter or events_filter",
+        )
+        .into());
+    }
+
+    if transaction_filter.is_some() && transactions_mask.is_none() {
+        return Err(Status::invalid_argument(
+            "transactions_filter requires transactions in read_mask",
+        )
+        .into());
+    }
+    if event_filter.is_some() && events_mask.is_none() {
+        return Err(Status::invalid_argument("events_filter requires events in read_mask").into());
+    }
+
     let rx = service.checkpoint_data_broadcaster.subscribe();
     let stream = Box::pin(service.reader.create_checkpoint_data_stream(
         rx,
@@ -232,6 +400,8 @@ pub(crate) fn stream_checkpoint_data(
         service.cancellation_token.clone(),
         transaction_filter,
         event_filter,
+        filter_checkpoints,
+        progress_interval,
     ));
     Ok(stream)
 }

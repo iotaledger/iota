@@ -6,7 +6,11 @@ import { DarkMode, LightMode } from '@iota/apps-ui-icons';
 import { Theme, ThemePreference } from '../../enums';
 import { useTheme } from '../../hooks';
 
-export function ThemeSwitcher(): React.JSX.Element {
+interface ThemeSwitcherProps {
+    onThemeChange?: (theme: ThemePreference) => void;
+}
+
+export function ThemeSwitcher({ onThemeChange }: ThemeSwitcherProps = {}): React.JSX.Element {
     const { theme, themePreference, setThemePreference } = useTheme();
 
     const ThemeIcon = theme === Theme.Dark ? DarkMode : LightMode;
@@ -17,6 +21,7 @@ export function ThemeSwitcher(): React.JSX.Element {
                 ? ThemePreference.Dark
                 : ThemePreference.Light;
         setThemePreference(newTheme);
+        onThemeChange?.(newTheme);
     }
 
     return (

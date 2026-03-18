@@ -25,6 +25,8 @@ import { Stake } from '@iota/apps-ui-icons';
 import { useShouldOpenInNewTab } from '_src/ui/app/hooks';
 import { openInNewTab } from '_src/shared/utils';
 
+const SOURCE_FLOW = 'Home page';
+
 export function TokenStakingOverview({
     accountAddress,
     disabled,
@@ -54,9 +56,9 @@ export function TokenStakingOverview({
             navigate('/stake');
         }
 
-        ampli.clickedStakeIota({
+        ampli.stakeClicked({
             isCurrentlyStaking: totalDelegatedStake > 0,
-            sourceFlow: 'Home page',
+            sourceFlow: SOURCE_FLOW,
         });
     }
 

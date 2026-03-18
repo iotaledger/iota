@@ -10,6 +10,7 @@ import {
     type SignatureScheme,
 } from '@iota/iota-sdk/cryptography';
 import { parsePartialSignatures } from '@iota/iota-sdk/multisig';
+import { MoveAuthenticatorPublicKey } from '@iota/iota-sdk/keypairs/move-authenticator';
 import { normalizeIotaAddress, toBase64 } from '@iota/iota-sdk/utils';
 import { publicKeyFromRawBytes } from '@iota/iota-sdk/verify';
 
@@ -100,6 +101,24 @@ export function Signatures({ transaction }: SignaturesProps) {
             const parsed = parseSerializedSignature(signature);
             if (parsed.signatureScheme === 'MultiSig') {
                 return parsePartialSignatures(parsed.multisig);
+            }
+
+            if (parsed.signatureScheme === 'MoveAuthenticator') {
+                const authenticatedObjectId =
+                    parsed.moveAuthenticator.V1.objectToAuthenticate.Object?.$kind ===
+                    'ImmOrOwnedObject'
+                        ? parsed.moveAuthenticator.V1.objectToAuthenticate.Object.ImmOrOwnedObject
+                              .objectId
+                        : parsed.moveAuthenticator.V1.objectToAuthenticate.Object?.$kind ===
+                            'Receiving'
+                          ? parsed.moveAuthenticator.V1.objectToAuthenticate.Object.Receiving
+                                .objectId
+                          : parsed.moveAuthenticator.V1.objectToAuthenticate.Object?.SharedObject
+                                ?.objectId;
+                return {
+                    ...parsed,
+                    publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId!),
+                };
             }
 
             return {

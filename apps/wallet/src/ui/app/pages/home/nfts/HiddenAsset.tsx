@@ -57,20 +57,29 @@ export function HiddenAsset(item: HiddenAssetProps) {
                       objectId,
                   }).toString()}`,
         );
-        ampli.clickedCollectibleCard({
-            objectId,
+        ampli.collectibleCardClicked({
             collectibleType: type!,
         });
     }
 
     function handleShowAsset() {
         showAsset(objectId);
+
+        ampli.collectibleUnHidden({
+            collectibleType: type!,
+        });
+
         toast(
             (t) => (
                 <MovedAssetNotification
                     t={t}
                     destination="Visual Assets"
-                    onUndo={() => hideAsset(objectId)}
+                    onUndo={() => {
+                        hideAsset(objectId);
+                        ampli.collectibleHidden({
+                            collectibleType: type!,
+                        });
+                    }}
                 />
             ),
             {
@@ -89,7 +98,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
                         disableVideoControls
                     />
                 </CardImage>
-                <div className="w-full truncate [&_div]:truncate">
+                <div className="w-full truncate [&_div]:truncate" data-amp-mask>
                     <CardBody title={nftMeta?.name ?? 'Asset'} subtitle={formatAddress(objectId)} />
                 </div>
                 <CardAction

@@ -1,0 +1,161 @@
+---
+title: IOTA Localnet CLI
+description: The IOTA Localnet CLI provides commands for starting and managing local IOTA networks for development and testing.
+tags: [ cli, reference, localnet, iota-localnet]
+teams:
+  - iotaledger/dev-tools
+  - iotaledger/node
+---
+
+The `iota-localnet` binary provides commands for bootstrapping and running local IOTA networks.
+It is used for development and testing purposes.
+
+## Commands
+
+Typing `iota-localnet --help` into your terminal or console displays the following information on available commands.
+
+```shell
+Start and manage IOTA local networks
+
+Usage: iota-localnet <COMMAND>
+
+Commands:
+  start    Start a local network
+  genesis  Bootstrap and initialize a new IOTA network
+  help     Print this message or the help of the given subcommand(s)
+```
+
+## Start a local network {#start}
+
+Use `iota-localnet start` to start a local IOTA network. The command supports two modes:
+
+- **Ephemeral mode** (`--force-regenesis`): Creates a fresh network each time. State is not persisted between runs.
+- **Persisted mode** (`--network.config <DIR>`): Starts the network from a previously generated genesis configuration. State is preserved across restarts.
+
+If neither flag is provided and no existing genesis is found, a new default genesis is generated automatically.
+
+### Usage
+
+```shell
+iota-localnet start [OPTIONS]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--network.config <DIR>` | Config directory with a previously generated genesis (from `iota-localnet genesis`). |
+| `--force-regenesis` | Create a fresh genesis each time. State is not persisted. |
+| `--with-faucet[=HOST:PORT]` | Start a faucet (default: `0.0.0.0:9123`). |
+| `--faucet-amount <NANOS>` | Amount of nanos per faucet coin object (default: `200000000000` / 200 IOTA). |
+| `--faucet-coin-count <N>` | Number of coin objects per faucet request (default: `5`). |
+| `--fullnode-rpc-port <PORT>` | Port for the Full-node RPC server (default: `9000`). |
+| `--epoch-duration-ms <MS>` | Epoch duration in milliseconds (default: `60000`). Only with `--force-regenesis` or auto-generated genesis. |
+| `--committee-size <N>` | Number of validators in the network (default: `1`). |
+| `--no-full-node` | Start the network without a fullnode. |
+| `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
+| `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
+| `--delegator <ADDRESS>` | Specify the delegator address. |
+
+:::info Indexer options
+
+When built with the `indexer` feature, additional options are available:
+
+| Option | Description |
+|--------|-------------|
+| `--with-indexer[=HOST:PORT]` | Start an indexer (default: `0.0.0.0:9124`). Requires Postgres. |
+| `--with-graphql[=HOST:PORT]` | Start a GraphQL server (default: `0.0.0.0:9125`). Automatically enables indexer. |
+| `--pg-port <PORT>` | Postgres port (default: `5432`). |
+| `--pg-host <HOST>` | Postgres hostname (default: `localhost`). |
+| `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
+| `--pg-user <USER>` | Postgres username (default: `postgres`). |
+| `--pg-password <PASS>` | Postgres password (default: `postgrespw`). |
+| `--data-ingestion-dir <DIR>` | Directory for dumping executed checkpoints. Defaults to a temp dir when `--with-indexer` is set. |
+
+:::
+
+### Examples
+
+Start an ephemeral network with a faucet:
+
+```shell
+iota-localnet start --force-regenesis --with-faucet
+```
+
+Start a persisted network from a previously generated config:
+
+```shell
+iota-localnet start --network.config ./my-localnet --with-faucet
+```
+
+Start with custom epoch duration and multiple validators:
+
+```shell
+iota-localnet start --force-regenesis --with-faucet --epoch-duration-ms 30000 --committee-size 4
+```
+
+## Bootstrap a new network {#genesis}
+
+Use `iota-localnet genesis` to generate a genesis configuration for a local network. The resulting config can then
+be used with `iota-localnet start --network.config <DIR>` to start a persisted network.
+
+### Usage
+
+```shell
+iota-localnet genesis [OPTIONS]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--from-config <PATH>` | Start genesis with a given config file. |
+| `--write-config <PATH>` | Build a genesis config, write it to the specified path, and exit. |
+| `--working-dir <DIR>` | Working directory for genesis output. |
+| `-f`, `--force` | Force overwriting existing configuration. |
+| `--epoch-duration-ms <MS>` | Epoch duration in milliseconds. |
+| `--chain-start-timestamp-ms <MS>` | Genesis chain start timestamp in milliseconds. |
+| `--benchmark-ips <ADDR>...` | IP addresses for benchmark-suitable genesis (comma-separated). |
+| `--with-faucet` | Create an extra faucet configuration for persisted runs. |
+| `--committee-size <N>` | Number of validators in the network (default: `1`). |
+| `--num-additional-gas-accounts <N>` | Number of additional gas accounts for benchmarks. |
+| `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
+| `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
+| `--delegator <ADDRESS>` | Specify the delegator address. |
+| `--admin-interface-address[=HOST:PORT]` | Set `admin-interface-address` config (e.g., `0.0.0.0:1337`). |
+
+### Examples
+
+Generate a default genesis configuration:
+
+```shell
+iota-localnet genesis --force
+```
+
+Generate genesis with a faucet and custom committee size:
+
+```shell
+iota-localnet genesis --force --with-faucet --committee-size 4
+```
+
+## Protocol config overrides
+
+You can override individual protocol config parameters by setting environment variables:
+
+1. Enable overrides: `IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1`
+2. Set specific parameters with the `IOTA_PROTOCOL_CONFIG_OVERRIDE_` prefix.
+
+For example, to increase the checkpoint creation interval:
+
+```shell
+IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1 \
+IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000 \
+iota-localnet start --force-regenesis
+```
+
+:::warning
+
+Protocol config parameters must match between all nodes, or the network may break.
+Changing these values outside of local networks is very dangerous.
+
+:::

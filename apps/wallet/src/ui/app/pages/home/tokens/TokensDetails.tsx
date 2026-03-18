@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
+import { ExplorerLinkType, Loading } from '_components';
 import {
     useActiveAccount,
     useActiveAddress,
@@ -53,6 +53,7 @@ import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
 import { openInNewTab } from '_src/shared/utils';
+import { ampli } from '_src/shared/analytics';
 
 export function TokenDetails() {
     const navigate = useNavigate();
@@ -166,7 +167,7 @@ export function TokenDetails() {
     const isFirstTimeLoading = isPending && !isFetched;
 
     const onSendClick = () => {
-        if (activeAccount && !activeAccount?.isLocked) {
+        if (activeAccount) {
             const destination = coinBalance?.coinType
                 ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
                 : '/send';
@@ -185,6 +186,12 @@ export function TokenDetails() {
             localStorage.getItem(walletInterstitialConfig.dismissKey);
         setInterstitialDismissed(dismissed === 'true');
     }, [walletInterstitialConfig?.dismissKey]);
+
+    useEffect(() => {
+        if (isError) {
+            toast.error('Error updating balance');
+        }
+    }, [isError]);
 
     if (
         navigator.userAgent !== 'Playwright' &&
@@ -206,12 +213,6 @@ export function TokenDetails() {
         return null;
     }
 
-    useEffect(() => {
-        if (isError) {
-            toast.error('Error updating balance');
-        }
-    }, [isError]);
-
     return (
         <>
             {isMainnet && data?.degraded && (
@@ -229,14 +230,20 @@ export function TokenDetails() {
                     data-testid="coin-page"
                 >
                     <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
-                        <div className="flex flex-col gap-xs">
+                        <div className="flex flex-col gap-xs" data-amp-mask>
                             <Address
                                 isExternal={!!explorerHref}
                                 externalLink={explorerHref!}
                                 text={formatAddress(activeAccountAddress)}
                                 isCopyable
                                 copyText={activeAccountAddress}
-                                onCopySuccess={() => toast('Address copied')}
+                                onCopySuccess={() => {
+                                    ampli.elementCopied({
+                                        type: 'address',
+                                    });
+                                    toast('Address copied');
+                                }}
+                                onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
@@ -252,65 +259,59 @@ export function TokenDetails() {
                                 onClick={onSendClick}
                                 icon={<Send />}
                                 size={ButtonSize.Small}
-                                disabled={activeAccount?.isLocked || !coinBalances?.length}
+                                disabled={!coinBalances?.length}
                                 testId="send-coin-button"
                             />
                         </div>
                     </div>
-                    {activeAccount.isLocked ? (
-                        <UnlockAccountButton account={activeAccount} />
-                    ) : (
-                        <div className="flex w-full flex-grow flex-col gap-md">
-                            <div
-                                className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
-                            >
-                                <div className="flex w-full flex-col items-center gap-xs">
-                                    {accountHasIota || delegatedStake?.length ? (
-                                        <TokenStakingOverview
-                                            accountAddress={activeAccountAddress}
-                                        />
-                                    ) : null}
-                                    {hasSupplyIncreaseVestingObjects || needsMigration ? (
-                                        <div className="flex w-full flex-row gap-x-xs">
-                                            {needsMigration ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogMigrationOpen(true)}
-                                                    title="Migration"
-                                                    icon={Migration}
-                                                />
-                                            ) : null}
-                                            {hasSupplyIncreaseVestingObjects ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogVestingOpen(true)}
-                                                    title="Vesting"
-                                                    icon={Vesting}
-                                                />
-                                            ) : null}
-                                        </div>
-                                    ) : null}
-                                </div>
-                                {!accountHasIota ? (
-                                    <div className="flex flex-col gap-md">
-                                        <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                                {isMainnet
-                                                    ? 'Start by buying IOTA'
-                                                    : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
-                                            </span>
-                                        </div>
-                                        {!isMainnet && <FaucetRequestButton />}
+                    <div className="flex w-full flex-grow flex-col gap-md">
+                        <div
+                            className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
+                        >
+                            <div className="flex w-full flex-col items-center gap-xs">
+                                {accountHasIota || delegatedStake?.length ? (
+                                    <TokenStakingOverview accountAddress={activeAccountAddress} />
+                                ) : null}
+                                {hasSupplyIncreaseVestingObjects || needsMigration ? (
+                                    <div className="flex w-full flex-row gap-x-xs">
+                                        {needsMigration ? (
+                                            <OverviewHint
+                                                onClick={() => setDialogMigrationOpen(true)}
+                                                title="Migration"
+                                                icon={Migration}
+                                            />
+                                        ) : null}
+                                        {hasSupplyIncreaseVestingObjects ? (
+                                            <OverviewHint
+                                                onClick={() => setDialogVestingOpen(true)}
+                                                title="Vesting"
+                                                icon={Vesting}
+                                            />
+                                        ) : null}
                                     </div>
                                 ) : null}
                             </div>
-                            {coinBalances?.length ? (
-                                <MyTokens
-                                    coinBalances={coinBalances ?? []}
-                                    isLoading={isLoading}
-                                    isFetched={isFetched}
-                                />
+                            {!accountHasIota ? (
+                                <div className="flex flex-col gap-md">
+                                    <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
+                                        <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                            {isMainnet
+                                                ? 'Start by buying IOTA'
+                                                : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}
+                                        </span>
+                                    </div>
+                                    {!isMainnet && <FaucetRequestButton />}
+                                </div>
                             ) : null}
                         </div>
-                    )}
+                        {coinBalances?.length ? (
+                            <MyTokens
+                                coinBalances={coinBalances ?? []}
+                                isLoading={isLoading}
+                                isFetched={isFetched}
+                            />
+                        ) : null}
+                    </div>
                 </div>
                 <ReceiveTokensDialog
                     address={activeAccountAddress}

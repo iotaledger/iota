@@ -2,7 +2,7 @@
 tags: [core-protocol]
 ---
 import Quiz from '@site/src/components/Quiz';
-import {questions} from '../../../site/static/json/about-iota/iota-architecture/protocol-upgrades.json';
+import quizData from '../../../site/static/json/about-iota/iota-architecture/protocol-upgrades.json';
 
 # Protocol Upgrades
 
@@ -48,4 +48,4 @@ The upgrade process for the IOTA Move Framework follows a similar structure to p
 
 4. **Consensus and Activation**: Once enough validators agree, the new framework version is written to object 0x2 at the end of the epoch. The next epoch then executes using the updated framework.
 
-<Quiz questions={questions} />
+<Quiz questions={quizData.questions} />

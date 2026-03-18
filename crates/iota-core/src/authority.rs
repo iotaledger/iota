@@ -70,7 +70,7 @@ use iota_types::{
         default_hash,
     },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
-    digests::{ChainIdentifier, Digest, TransactionEventsDigest},
+    digests::{ChainIdentifier, Digest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
@@ -220,6 +220,7 @@ pub mod authority_test_utils;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
+mod authority_store_migrations;
 pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
@@ -884,7 +885,7 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<VerifiedSignedTransaction> {
         // Ensure that validator cannot reconfigure while we are signing the tx
-        let _execution_lock = self.execution_lock_for_signing();
+        let _execution_lock = self.execution_lock_for_signing()?;
 
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -1003,7 +1004,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(name = "handle_transaction", level = "trace", skip_all)]
+    #[instrument(name = "handle_transaction", level = "trace", skip_all, fields(tx_digest = ?transaction.digest(), sender = transaction.data().transaction_data().gas_owner().to_string()))]
     pub async fn handle_transaction(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1330,7 +1331,7 @@ impl AuthorityState {
         .map_err(|e| IotaError::FileIO(e.to_string()))
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()))]
     pub(crate) fn process_certificate(
         &self,
         tx_guard: CertTxGuard,
@@ -1343,6 +1344,8 @@ impl AuthorityState {
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
         let process_certificate_start_time = tokio::time::Instant::now();
         let digest = *certificate.digest();
+
+        let _scope = monitored_scope("Execution::process_certificate");
 
         fail_point_if!("correlated-crash-process-certificate", || {
             if iota_simulator::random::deterministic_probability_once(digest, 0.01) {
@@ -2172,6 +2175,9 @@ impl AuthorityState {
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
             execution_result,
+            suggested_gas_price: self
+                .congestion_tracker
+                .get_prediction_suggested_gas_price(&transaction),
             mock_gas_id,
         })
     }
@@ -2608,7 +2614,7 @@ impl AuthorityState {
                     );
 
                     let Some(df_info) = self
-                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut(), false)
+                        .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
                         .unwrap_or_else(|e| {
                             error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
                             None
@@ -2637,7 +2643,6 @@ impl AuthorityState {
         o: &Object,
         written: &WrittenObjects,
         resolver: &mut dyn LayoutResolver,
-        get_latest_object_version: bool,
     ) -> IotaResult<Option<DynamicFieldInfo>> {
         // Skip if not a move object
         let Some(move_object) = o.data.try_as_move().cloned() else {
@@ -2708,34 +2713,17 @@ impl AuthorityState {
                     )
                 } else {
                     // If not found, try to find it in the database.
-                    let object = if get_latest_object_version {
-                        // Loading genesis object could meet a condition that the version of the
-                        // genesis object is behind the one in the snapshot.
-                        // In this case, the object can not be found with get_object_by_key, we need
-                        // to use get_object instead. Since get_object is a heavier operation, we
-                        // only allow to use it for genesis.
-                        // reference: https://github.com/iotaledger/iota/issues/7267
-                        self.get_object_store()
-                            .try_get_object(&object_id)?
-                            .ok_or_else(|| UserInputError::ObjectNotFound {
-                                object_id,
-                                version: Some(o.version()),
-                            })?
-                    } else {
-                        // Non-genesis object should be in the database with the given version.
-                        self.get_object_store()
-                            .try_get_object_by_key(&object_id, o.version())?
-                            .ok_or_else(|| UserInputError::ObjectNotFound {
-                                object_id,
-                                version: Some(o.version()),
-                            })?
-                    };
-
-                    (
-                        object.version(),
-                        object.digest(),
-                        object.data.type_().unwrap().clone(),
-                    )
+                    let object = self
+                        .get_object_store()
+                        .try_get_object_by_key(&object_id, o.version())?
+                        .ok_or_else(|| UserInputError::ObjectNotFound {
+                            object_id,
+                            version: Some(o.version()),
+                        })?;
+                    let version = object.version();
+                    let digest = object.digest();
+                    let object_type = object.data.type_().unwrap().clone();
+                    (version, digest, object_type)
                 };
 
                 DynamicFieldInfo {
@@ -2763,12 +2751,17 @@ impl AuthorityState {
             return Ok(());
         }
 
+        let _scope = monitored_scope("Execution::post_process_one_tx");
+
         let tx_digest = certificate.digest();
         let timestamp_ms = Self::unixtime_now_ms();
         let events = &inner_temporary_store.events;
         let written = &inner_temporary_store.written;
-        let tx_coins =
-            self.fullnode_only_get_tx_coins_for_indexing(inner_temporary_store, epoch_store);
+        let tx_coins = self.fullnode_only_get_tx_coins_for_indexing(
+            effects,
+            inner_temporary_store,
+            epoch_store,
+        );
 
         // Index tx
         if let Some(indexes) = &self.indexes {
@@ -3073,6 +3066,7 @@ impl AuthorityState {
             rx_ready_certificates,
             rx_execution_shutdown,
         ));
+        spawn_monitored_task!(authority_store_migrations::migrate_events(store));
 
         // TODO: This doesn't belong to the constructor of AuthorityState.
         state
@@ -3211,14 +3205,30 @@ impl AuthorityState {
                 )),
                 Owner::ObjectOwner(object_id) => {
                     let id = o.id();
-                    let Some(info) = self.try_create_dynamic_field_info(
+                    let info = match self.try_create_dynamic_field_info(
                         o,
                         &BTreeMap::new(),
                         layout_resolver.as_mut(),
-                        true,
-                    )?
-                    else {
-                        continue;
+                    ) {
+                        Ok(Some(info)) => info,
+                        Ok(None) => continue,
+                        Err(IotaError::UserInput {
+                            error:
+                                UserInputError::ObjectNotFound {
+                                    object_id: not_found_id,
+                                    version,
+                                },
+                        }) => {
+                            warn!(
+                                ?not_found_id,
+                                ?version,
+                                object_owner=?object_id,
+                                field=?id,
+                                "Skipping dynamic field: referenced genesis object not found"
+                            );
+                            continue;
+                        }
+                        Err(e) => return Err(e),
                     };
                     new_dynamic_fields.push(((ObjectID::from(object_id), id), info));
                 }
@@ -3541,6 +3551,9 @@ impl AuthorityState {
         if checkpoint_indexes {
             if let Some(indexes) = self.indexes.as_ref() {
                 indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
+            }
+            if let Some(rest_index) = self.rest_index.as_ref() {
+                rest_index.checkpoint_db(&checkpoint_path_tmp.join("grpc_indexes"))?;
             }
         }
 
@@ -3933,7 +3946,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     pub fn get_transaction_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> IotaResult<TransactionEvents> {
         self.get_transaction_cache_reader()
             .try_get_events(digest)?
@@ -4278,11 +4291,13 @@ impl AuthorityState {
                         .and_then(|e| e.data.get(k.2).cloned()),
                 )
             })
-            .map(|((digest, tx_digest, event_seq, timestamp), event)| {
-                event
-                    .map(|e| (e, tx_digest, event_seq, timestamp))
-                    .ok_or(IotaError::TransactionEventsNotFound { digest })
-            })
+            .map(
+                |((_event_digest, tx_digest, event_seq, timestamp), event)| {
+                    event
+                        .map(|e| (e, tx_digest, event_seq, timestamp))
+                        .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?;
 
         let epoch_store = self.load_epoch_store_one_call_per_task();
@@ -4334,8 +4349,8 @@ impl AuthorityState {
                 .try_get_transaction_block(transaction_digest)?
             {
                 let cert_sig = epoch_store.get_transaction_cert_sig(transaction_digest)?;
-                let events = if let Some(digest) = effects.events_digest() {
-                    self.get_transaction_events(digest)?
+                let events = if effects.events_digest().is_some() {
+                    self.get_transaction_events(effects.transaction_digest())?
                 } else {
                     TransactionEvents::default()
                 };
@@ -4447,6 +4462,7 @@ impl AuthorityState {
     #[instrument(level = "trace", skip_all)]
     fn fullnode_only_get_tx_coins_for_indexing(
         &self,
+        effects: &TransactionEffects,
         inner_temporary_store: &InnerTemporaryStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Option<TxCoins> {
@@ -4464,7 +4480,7 @@ impl AuthorityState {
                 }
             })
             .collect();
-        let input_coin_objects = inner_temporary_store
+        let mut input_coin_objects = inner_temporary_store
             .input_objects
             .iter()
             .filter_map(|(k, v)| {
@@ -4475,6 +4491,27 @@ impl AuthorityState {
                 }
             })
             .collect::<ObjectMap>();
+
+        // Check for receiving objects that were actually used and modified during
+        // execution. Their updated version will already showup in
+        // "written_coins" but their input isn't included in the set of input
+        // objects in a inner_temporary_store.
+        for (object_id, version) in effects.modified_at_versions() {
+            if inner_temporary_store
+                .loaded_runtime_objects
+                .contains_key(&object_id)
+            {
+                if let Some(object) = self
+                    .get_object_store()
+                    .get_object_by_key(&object_id, version)
+                {
+                    if object.is_coin() {
+                        input_coin_objects.insert(object_id, object);
+                    }
+                }
+            }
+        }
+
         Some((input_coin_objects, written_coin_objects))
     }
 
@@ -5758,21 +5795,10 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         if digests.is_empty() {
             return Ok(vec![]);
         }
-        let events_digests: Vec<_> = self
+
+        Ok(self
             .get_transaction_cache_reader()
-            .try_multi_get_executed_effects(digests)?
-            .into_iter()
-            .map(|t| t.and_then(|t| t.events_digest().cloned()))
-            .collect();
-        let non_empty_events: Vec<_> = events_digests.iter().filter_map(|e| *e).collect();
-        let mut events = self
-            .get_transaction_cache_reader()
-            .try_multi_get_events(&non_empty_events)?
-            .into_iter();
-        Ok(events_digests
-            .into_iter()
-            .map(|ev| ev.and_then(|_| events.next()?))
-            .collect())
+            .multi_get_events(digests))
     }
 }
 

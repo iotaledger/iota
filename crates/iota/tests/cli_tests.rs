@@ -12,7 +12,6 @@ use std::{
     fmt::Write,
     fs::{self, read_dir},
     io::{self, Read, Seek, SeekFrom, Write as IoWrite},
-    net::SocketAddr,
     path::{Path, PathBuf},
     str, thread,
     time::Duration,
@@ -20,8 +19,6 @@ use std::{
 
 use expect_test::expect;
 use fastcrypto::encoding::{Base64, Encoding};
-#[cfg(feature = "indexer")]
-use iota::iota_commands::IndexerFeatureArgs;
 use iota::{
     PrintableResult,
     client_commands::{
@@ -29,13 +26,10 @@ use iota::{
         SwitchResponse, TxProcessingArgs, estimate_gas_budget,
     },
     client_ptb::ptb::{PTB, PTBCommandResult},
-    iota_commands::{IotaCommand, parse_host_port},
+    iota_commands::{IotaCommand, IotaEnvConfig},
     key_identity::{KeyIdentity, get_identity_address},
 };
-use iota_config::{
-    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG, PersistedConfig,
-};
+use iota_config::IOTA_CLIENT_CONFIG;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
@@ -46,13 +40,8 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::{
-    IotaClient, PagedFn, iota_client_config::IotaClientConfig, wallet_context::WalletContext,
-};
-use iota_swarm_config::{
-    genesis_config::{AccountConfig, DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
-    network_config::NetworkConfigLight,
-};
+use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -338,140 +327,6 @@ fn add_ids_to_manifest(
 
     let toml_str = toml::to_string(&toml)?;
     std::fs::write(package_path.join("Move.toml"), toml_str)?;
-    Ok(())
-}
-
-#[sim_test]
-async fn test_genesis() -> Result<(), anyhow::Error> {
-    let temp_dir = tempfile::tempdir()?;
-    let working_dir = temp_dir.path();
-
-    // Genesis
-    IotaCommand::Genesis {
-        working_dir: Some(working_dir.to_path_buf()),
-        write_config: None,
-        force: false,
-        from_config: None,
-        epoch_duration_ms: None,
-        benchmark_ips: None,
-        with_faucet: false,
-        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
-        num_additional_gas_accounts: None,
-        local_migration_snapshots: vec![],
-        remote_migration_snapshots: vec![],
-        delegator: None,
-        chain_start_timestamp_ms: None,
-        admin_interface_address: None,
-    }
-    .execute()
-    .await?;
-
-    // Get all the new file names
-    let files = read_dir(working_dir)?
-        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
-        .collect::<Vec<_>>();
-
-    assert_eq!(9, files.len());
-    assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
-    assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
-    assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
-    assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
-    assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
-
-    // Check network config
-    let network_conf =
-        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
-    assert_eq!(4, network_conf.validator_configs().len());
-
-    // Check wallet config
-    let wallet_conf =
-        PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
-
-    assert!(!wallet_conf.envs().is_empty());
-
-    assert_eq!(5, wallet_conf.keystore().addresses().len());
-
-    // Genesis 2nd time should fail
-    let result = IotaCommand::Genesis {
-        working_dir: Some(working_dir.to_path_buf()),
-        write_config: None,
-        force: false,
-        from_config: None,
-        epoch_duration_ms: None,
-        benchmark_ips: None,
-        with_faucet: false,
-        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
-        num_additional_gas_accounts: None,
-        local_migration_snapshots: vec![],
-        remote_migration_snapshots: vec![],
-        delegator: None,
-        chain_start_timestamp_ms: None,
-        admin_interface_address: None,
-    }
-    .execute()
-    .await;
-    assert!(matches!(result, Err(..)));
-
-    temp_dir.close()?;
-    Ok(())
-}
-
-#[sim_test]
-async fn test_start() -> Result<(), anyhow::Error> {
-    let temp_dir = tempfile::tempdir()?;
-    let working_dir = temp_dir.path();
-
-    if let Ok(res) = tokio::time::timeout(
-        Duration::from_secs(10),
-        IotaCommand::Start {
-            #[cfg(feature = "indexer")]
-            data_ingestion_dir: None,
-            config_dir: Some(working_dir.to_path_buf()),
-            no_full_node: false,
-            force_regenesis: false,
-            with_faucet: None,
-            faucet_amount: None,
-            faucet_coin_count: None,
-            fullnode_rpc_port: 9000,
-            committee_size: None,
-            epoch_duration_ms: None,
-            #[cfg(feature = "indexer")]
-            indexer_feature_args: IndexerFeatureArgs::for_testing(),
-            local_migration_snapshots: vec![],
-            remote_migration_snapshots: vec![],
-            delegator: None,
-        }
-        .execute(),
-    )
-    .await
-    {
-        res.unwrap();
-    };
-
-    // Get all the new file names
-    let files = read_dir(working_dir)?
-        .flat_map(|r| r.map(|file| file.file_name().to_str().unwrap().to_owned()))
-        .collect::<Vec<_>>();
-    assert!(files.contains(&IOTA_CLIENT_CONFIG.to_string()));
-    assert!(files.contains(&IOTA_NETWORK_CONFIG.to_string()));
-    assert!(files.contains(&IOTA_FULLNODE_CONFIG.to_string()));
-    assert!(files.contains(&IOTA_GENESIS_FILENAME.to_string()));
-    assert!(files.contains(&IOTA_KEYSTORE_FILENAME.to_string()));
-
-    // Check network config
-    let network_conf =
-        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
-    assert_eq!(1, network_conf.validator_configs().len());
-
-    // Check wallet config
-    let wallet_conf =
-        PersistedConfig::<IotaClientConfig>::read(&working_dir.join(IOTA_CLIENT_CONFIG))?;
-
-    assert!(!wallet_conf.envs().is_empty());
-
-    assert_eq!(5, wallet_conf.keystore().addresses().len());
-
-    temp_dir.close()?;
     Ok(())
 }
 
@@ -2157,7 +2012,7 @@ async fn test_package_publish_command_with_unpublished_dependency_fails()
     let expect = expect![[r#"
         Err(
             ModulePublishFailure {
-                error: "Package dependency \"Unpublished\" does not specify a published address (the Move.toml manifest for \"Unpublished\" does not contain a 'published-at' field, nor is there a 'published-id' in the Move.lock).\nIf this is intentional, you may use the --with-unpublished-dependencies flag to continue publishing these dependencies as part of your package (they won't be linked against existing packages on-chain).",
+                error: "Package dependency \"Unpublished\" does not specify a published address (the Move.toml manifest for \"Unpublished\" does not contain a 'published-at' field, nor is there a 'published-id' in the Move.lock). You can use `iota move manage-package` to record the on-chain address for \"Unpublished\".\nIf this is intentional, you may use the --with-unpublished-dependencies flag to continue publishing these dependencies as part of your package (they won't be linked against existing packages on-chain).",
             },
         )
     "#]];
@@ -2896,12 +2751,11 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     let err_string = err_string.replace(&package.object_id().to_string(), "<elided-for-test>");
 
     let expect = expect![[r#"
-        Conflicting published package address: `Move.toml` contains published-at address 0x0000000000000000000000000000000000000000000000000000000000000bad but `Move.lock` file contains published-at address <elided-for-test>. You may want to:
-
-                         - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
-                         - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
-                         - check that your `iota active-env` (currently localnet) corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
-                         - contact the maintainer if this package is a dependency and request resolving the conflict."#]];
+Conflicting published package address: `Move.toml` contains published-at address 0x0000000000000000000000000000000000000000000000000000000000000bad but `Move.lock` file contains published-at address <elided-for-test>. You may want to:
+ - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
+ - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
+ - check that your `iota active-env` (currently localnet) corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
+ - contact the maintainer if this package is a dependency and request resolving the conflict."#]];
     expect.assert_eq(&err_string);
     Ok(())
 }
@@ -5180,39 +5034,6 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::test]
-async fn test_parse_host_port() {
-    let input = "127.0.0.0";
-    let result = parse_host_port(input.to_string(), 9123).unwrap();
-    assert_eq!(result, "127.0.0.0:9123".parse::<SocketAddr>().unwrap());
-
-    let input = "127.0.0.5:9124";
-    let result = parse_host_port(input.to_string(), 9123).unwrap();
-    assert_eq!(result, "127.0.0.5:9124".parse::<SocketAddr>().unwrap());
-
-    let input = "9090";
-    let result = parse_host_port(input.to_string(), 9123).unwrap();
-    assert_eq!(result, "0.0.0.0:9090".parse::<SocketAddr>().unwrap());
-
-    let input = "";
-    let result = parse_host_port(input.to_string(), 9123).unwrap();
-    assert_eq!(result, "0.0.0.0:9123".parse::<SocketAddr>().unwrap());
-
-    let result = parse_host_port("localhost".to_string(), 9899).unwrap();
-    assert_eq!(result, "127.0.0.1:9899".parse::<SocketAddr>().unwrap());
-
-    let input = "asg";
-    assert!(parse_host_port(input.to_string(), 9123).is_err());
-    let input = "127.0.0:900";
-    assert!(parse_host_port(input.to_string(), 9123).is_err());
-    let input = "127.0.0";
-    assert!(parse_host_port(input.to_string(), 9123).is_err());
-    let input = "127.";
-    assert!(parse_host_port(input.to_string(), 9123).is_err());
-    let input = "127.9.0.1:asb";
-    assert!(parse_host_port(input.to_string(), 9123).is_err());
-}
-
 #[sim_test]
 async fn test_balance() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new()
@@ -5271,7 +5092,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     // Wait for the faucet to be up
     sleep(Duration::from_secs(1)).await;
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let mut context = WalletContext::new(&wallet_config, None, None)?;
+    let mut context = WalletContext::new(&wallet_config)?;
 
     let (address, _): (_, AccountKeyPair) = get_key_pair();
 
@@ -5332,7 +5153,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     // Wait for the faucet to be up
     sleep(Duration::from_secs(1)).await;
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let mut context = WalletContext::new(&wallet_config, None, None)?;
+    let mut context = WalletContext::new(&wallet_config)?;
 
     let (address_1, _): (_, AccountKeyPair) = get_key_pair();
     let (address_2, _): (_, AccountKeyPair) = get_key_pair();
@@ -5460,7 +5281,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     sleep(Duration::from_secs(1)).await;
 
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
-    let context = WalletContext::new(&wallet_config, None, None)?; // Use immutable context
+    let context = WalletContext::new(&wallet_config)?; // Use immutable context
 
     // Generate multiple addresses
     let addresses: Vec<_> = (0..6)
@@ -5483,7 +5304,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let first_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
         let wallet_config = wallet_config.clone();
         async move {
-            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context (for faucet requests)
+            let mut context = WalletContext::new(&wallet_config)?; // Use mutable context (for faucet requests)
             IotaClientCommands::Faucet {
                 address: Some(KeyIdentity::Address(*address)),
                 url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
@@ -5518,7 +5339,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let second_batch_results: Vec<_> = futures::future::join_all(addresses.iter().map(|address| {
         let wallet_config = wallet_config.clone();
         async move {
-            let mut context = WalletContext::new(&wallet_config, None, None)?; // Use mutable context
+            let mut context = WalletContext::new(&wallet_config)?; // Use mutable context
             IotaClientCommands::Faucet {
                 address: Some(KeyIdentity::Address(*address)),
                 url: Some("http://127.0.0.1:5003/v1/gas".to_string()),
@@ -5558,7 +5379,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     let package_name = "test_move_new";
     IotaCommand::Move {
         package_path: None,
-        config: None,
+        config: IotaEnvConfig {
+            config: None,
+            env: None,
+        },
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::New(iota_move::new::New {
             new: move_cli::base::new::New {
@@ -5586,7 +5410,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
     // Test if the generated files are valid to build a package
     IotaCommand::Move {
         package_path: Some(package_name.parse()?),
-        config: None,
+        config: IotaEnvConfig {
+            config: None,
+            env: None,
+        },
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::Build(iota_move::build::Build {
             chain_id: None,
@@ -5605,7 +5432,10 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
 
     IotaCommand::Move {
         package_path: Some(package_name.parse()?),
-        config: None,
+        config: IotaEnvConfig {
+            config: None,
+            env: None,
+        },
         build_config: move_package::BuildConfig::default(),
         cmd: iota_move::Command::Test(iota_move::unit_test::Test {
             test: move_cli::base::test::Test {

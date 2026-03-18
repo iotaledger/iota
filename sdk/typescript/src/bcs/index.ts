@@ -36,6 +36,7 @@ import {
     TransactionKind,
     TypeTag,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 } from './bcs.js';
 import { TransactionEffects } from './effects.js';
 
@@ -48,7 +49,7 @@ export {
 } from './pure.js';
 
 export { TypeTagSerializer } from './type-tag-serializer.js';
-export { BcsType, type BcsTypeOptions } from '@iota/bcs';
+export { BcsType, BcsStruct, BcsEnum, BcsTuple, type BcsTypeOptions } from '@iota/bcs';
 
 const iotaBcs = {
     ...bcs,
@@ -93,6 +94,7 @@ const iotaBcs = {
     TypeTag,
     TransactionEffects,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 };
 
 export { iotaBcs as bcs };

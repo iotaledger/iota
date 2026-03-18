@@ -9,6 +9,7 @@ import {
     KNOWN_ADDRESSES_ALIASES,
     RECOGNIZED_PACKAGES,
 } from './features.constants';
+import { RECOGNIZED_DAPPS } from './dapps.constants';
 import { coerce, gte } from 'semver';
 
 interface FeatureEntry {
@@ -60,20 +61,7 @@ export class FeaturesService {
                 defaultValue: 0.0025,
             },
             [Feature.WalletDapps]: {
-                defaultValue: [
-                    {
-                        name: 'Wallet Dashboard',
-                        link: 'https://wallet-dashboard.iota.org/',
-                        icon: 'https://iota.org/logo.png',
-                        tags: ['Wallet', 'Dashboard'],
-                    },
-                    {
-                        name: 'EVM Bridge',
-                        link: 'https://evm-bridge.iota.org/',
-                        icon: 'https://iota.org/logo.png',
-                        tags: ['EVM', 'Bridge'],
-                    },
-                ],
+                defaultValue: RECOGNIZED_DAPPS,
             },
             [Feature.WalletBalanceRefetchInterval]: {
                 defaultValue: 1000,
@@ -142,7 +130,7 @@ export class FeaturesService {
                 defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
             },
             [Feature.ExplorerTFIdentity]: {
-                defaultValue: false,
+                defaultValue: true,
             },
         };
     }
@@ -156,20 +144,7 @@ export class FeaturesService {
                 defaultValue: 0.0025,
             },
             [Feature.WalletDapps]: {
-                defaultValue: [
-                    {
-                        name: 'Wallet Dashboard',
-                        link: 'https://wallet-dashboard.iota.org/',
-                        icon: 'https://iota.org/logo.png',
-                        tags: ['Wallet', 'Dashboard'],
-                    },
-                    {
-                        name: 'EVM Bridge',
-                        link: 'https://evm-bridge.iota.org/',
-                        icon: 'https://iota.org/logo.png',
-                        tags: ['EVM', 'Bridge'],
-                    },
-                ],
+                defaultValue: RECOGNIZED_DAPPS,
             },
             [Feature.WalletBalanceRefetchInterval]: {
                 defaultValue: 1000,

@@ -22,7 +22,7 @@ export class FeaturesController {
     getAppsFeatures() {
         return {
             status: 200,
-            apps: [], // Note: we'll add wallet dapps when evm will be ready
+            apps: [],
             dateUpdated: new Date().toISOString(),
         };
     }

@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
-import { Feature, Theme, toast, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
+import { Theme, toast, useTheme } from '@iota/core';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AddProfileImage from '_assets/images/balance_finder_intro.png';
 import AddProfileImageDark from '_assets/images/balance_finder_intro_darkmode.png';
@@ -22,11 +22,18 @@ import {
 } from '@iota/apps-ui-kit';
 import { AccountsFormType, ConnectLedgerModal, PageTemplate } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
+import {
+    useAppSelector,
+    useCheckCameraPermissionStatus,
+    useCreateAccountsMutation,
+    useAccounts,
+} from '_hooks';
 import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export interface ActionCardItem {
     title: string;
@@ -74,20 +81,19 @@ export function AddAccountPage() {
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
-    const isPopupOrSidePanel = useAppSelector((state) =>
-        [ExtensionViewType.Popup, ExtensionViewType.SidePanel].includes(
-            state.app.extensionViewType,
-        ),
+    const isPopupOrSidePanel = useAppSelector(
+        (state) =>
+            state.app.extensionViewType === ExtensionViewType.Popup ||
+            state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
-    const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
+    const { data: accounts } = useAccounts();
 
     const cardLinks: CardLinkItem[] = [
         {
             title: 'Create a new wallet',
             icon: Create,
-            subtitle: `Mnemonic${isPasskeysEnabled ? ' or Passkey' : ''}`,
+            subtitle: 'Mnemonic or Passkey',
             href: '/accounts/create-new',
         },
         {
@@ -114,9 +120,19 @@ export function AddAccountPage() {
     async function handleCardAction(
         actionType: (typeof hardwareWalletOptions)[number]['actionType'],
     ) {
+        const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[actionType];
+
+        if (ampliData) {
+            ampli.accountCreationStarted({
+                accountType: ampliData.accountType,
+                accountOrigin: ampliData.accountOrigin,
+                isFirstAccount: isFirstAccount(accounts),
+                sourceFlow,
+            });
+        }
+
         switch (actionType) {
             case AccountsFormType.ImportLedger:
-                ampli.openedConnectLedgerFlow({ sourceFlow });
                 if (isPopupOrSidePanel) {
                     await openTabWithSearchParam('showLedger', 'true');
                     window.close();
@@ -125,7 +141,6 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                ampli.clickedImportKeystone({ sourceFlow });
                 if (isPopupOrSidePanel && cameraPermissionStatus === 'prompt') {
                     await openTabOnImportKeystone();
                     window.close();
@@ -221,7 +236,6 @@ export function AddAccountPage() {
                         );
                     }}
                     onConfirm={() => {
-                        ampli.connectedHardwareWallet({ hardwareWalletType: 'Ledger' });
                         navigate('/accounts/import-ledger-accounts');
                     }}
                     requestLedgerPermissionsFirst
