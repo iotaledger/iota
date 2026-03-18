@@ -140,7 +140,7 @@ export async function publishExtensionsPackage(toolbox: TestToolbox): Promise<st
 }
 
 export async function publishHeroPackage(toolbox: TestToolbox): Promise<string> {
-    const packagePath = __dirname + '/./data/hero';
+    const packagePath = __dirname + '/data/hero';
     const { packageId } = await publishPackage(packagePath, toolbox);
 
     return packageId;
