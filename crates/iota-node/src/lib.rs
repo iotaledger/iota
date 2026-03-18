@@ -147,7 +147,6 @@ use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 use typed_store::{
-    DBMetrics,
     rocks::{check_and_mark_db_corruption, default_db_options, unmark_db_corruption},
 };
 
@@ -467,7 +466,7 @@ impl IotaNode {
         }
 
         // Initialize metrics to track db usage before creating any stores
-        DBMetrics::init(&prometheus_registry);
+        typed_store::metrics::init(&prometheus_registry);
 
         // Initialize IOTA metrics.
         iota_metrics::init_metrics(&prometheus_registry);

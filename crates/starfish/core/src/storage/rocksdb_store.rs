@@ -12,7 +12,8 @@ use typed_store::{
     Map as _,
     metrics::SamplingInterval,
     reopen,
-    rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
+    rocks::{ReadWriteOptions, default_db_options, open_cf_opts},
+    store::{DBMap, MetricConf},
 };
 
 use super::{CommitInfo, Store, WriteBatch};

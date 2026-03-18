@@ -1,23 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{marker::PhantomData, sync::Arc};
 
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
-use rocksdb::Direction;
 use serde::de::DeserializeOwned;
+use typed_store_error::TypedStoreError;
 
-use super::{RawIter, TypedStoreError};
-use crate::metrics::{DBMetrics, RocksDBPerfContext};
+use super::{
+    RawIter,
+    metrics::{DBMetrics, RocksDBPerfContext},
+};
 
-/// An iterator over all key-value pairs in a data map.
+enum IterDirection {
+    Forward,
+    Reverse,
+}
+
+/// A typed, forward-or-reverse iterator over key-value pairs in a RocksDB
+/// column family.
 pub struct SafeIter<'a, K, V> {
     cf_name: String,
     db_iter: RawIter<'a>,
     _phantom: PhantomData<(K, V)>,
-    direction: Direction,
+    direction: IterDirection,
     is_initialized: bool,
     _timer: Option<HistogramTimer>,
     _perf_ctx: Option<RocksDBPerfContext>,
@@ -29,7 +37,7 @@ pub struct SafeIter<'a, K, V> {
 }
 
 impl<'a, K: DeserializeOwned, V: DeserializeOwned> SafeIter<'a, K, V> {
-    pub(super) fn new(
+    pub(crate) fn new(
         cf_name: String,
         db_iter: RawIter<'a>,
         _timer: Option<HistogramTimer>,
@@ -42,7 +50,7 @@ impl<'a, K: DeserializeOwned, V: DeserializeOwned> SafeIter<'a, K, V> {
             cf_name,
             db_iter,
             _phantom: PhantomData,
-            direction: Direction::Forward,
+            direction: IterDirection::Forward,
             is_initialized: false,
             _timer,
             _perf_ctx,
@@ -59,8 +67,6 @@ impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Implicitly set iterator to the first entry in the column family if it hasn't
-        // been initialized used for backward compatibility
         if !self.is_initialized {
             self.db_iter.seek_to_first();
             self.is_initialized = true;
@@ -82,8 +88,8 @@ impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeIter<'_, K, V> {
             let key = config.deserialize(raw_key).ok();
             let value = bcs::from_bytes(raw_value).ok();
             match self.direction {
-                Direction::Forward => self.db_iter.next(),
-                Direction::Reverse => self.db_iter.prev(),
+                IterDirection::Forward => self.db_iter.next(),
+                IterDirection::Reverse => self.db_iter.prev(),
             }
             key.and_then(|k| value.map(|v| Ok((k, v))))
         } else {
@@ -104,17 +110,13 @@ impl<K, V> Drop for SafeIter<'_, K, V> {
             keys_scanned.observe(self.keys_returned_counter as f64);
         }
         if let Some(db_metrics) = self.db_metrics.take() {
-            db_metrics
-                .read_perf_ctx_metrics
-                .report_metrics(&self.cf_name);
+            db_metrics.report_read_perf_ctx(&self.cf_name);
         }
     }
 }
 
-/// An iterator with a reverted direction to the original. The `RevIter`
-/// is hosting an iteration which is consuming in the opposing direction.
-/// It's not possible to do further manipulation (ex re-reverse) to the
-/// iterator.
+/// An iterator with reversed direction. Wraps a `SafeIter` configured to
+/// traverse in reverse order.
 pub struct SafeRevIter<'a, K, V> {
     iter: SafeIter<'a, K, V>,
 }
@@ -122,10 +124,10 @@ pub struct SafeRevIter<'a, K, V> {
 impl<'a, K, V> SafeRevIter<'a, K, V> {
     pub(crate) fn new(mut iter: SafeIter<'a, K, V>, upper_bound: Option<Vec<u8>>) -> Self {
         iter.is_initialized = true;
-        iter.direction = Direction::Reverse;
+        iter.direction = IterDirection::Reverse;
         match upper_bound {
             None => iter.db_iter.seek_to_last(),
-            Some(key) => iter.db_iter.seek_for_prev(&key),
+            Some(ref key) => iter.db_iter.seek_for_prev(key),
         }
         Self { iter }
     }
@@ -134,7 +136,6 @@ impl<'a, K, V> SafeRevIter<'a, K, V> {
 impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for SafeRevIter<'_, K, V> {
     type Item = Result<(K, V), TypedStoreError>;
 
-    /// Will give the next item backwards
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next()
     }

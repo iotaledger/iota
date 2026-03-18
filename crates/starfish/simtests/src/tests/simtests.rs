@@ -24,7 +24,6 @@ mod test {
     use starfish_core::transaction::BlockStatus;
     use tempfile::TempDir;
     use tokio::{sync::RwLock, time::sleep};
-    use typed_store::DBMetrics;
 
     use crate::node::{AuthorityNode, Config, RestartMode};
 
@@ -181,7 +180,7 @@ mod test {
         // ═══════════════════════════════════════════════════════════════
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         // Enable fast commit sync (always enabled in this test)
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();

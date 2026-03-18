@@ -449,7 +449,6 @@ pub(crate) mod tests {
     use starfish_config::{Parameters, local_committee_and_keys};
     use tempfile::TempDir;
     use tokio::time::{sleep, timeout};
-    use typed_store::DBMetrics;
 
     use super::*;
     use crate::{
@@ -516,7 +515,7 @@ pub(crate) mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         let (committee, keypairs) =
             local_committee_and_keys(0, vec![1; num_of_authorities].to_vec());
@@ -726,7 +725,7 @@ pub(crate) mod tests {
         #[values(false, true)] consensus_fast_commit_sync: bool,
     ) {
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; num_authorities]);
         let mut protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -834,7 +833,7 @@ pub(crate) mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         const NUM_OF_AUTHORITIES: usize = 4;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
@@ -1111,7 +1110,7 @@ pub(crate) mod tests {
     async fn test_fast_commit_syncer_on_restart() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 50;
@@ -1560,7 +1559,7 @@ pub(crate) mod tests {
     async fn test_fast_commit_syncer_fail_on_unfinished_fast_sync_restart() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 50;

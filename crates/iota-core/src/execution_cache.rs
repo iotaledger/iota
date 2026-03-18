@@ -25,7 +25,7 @@ use iota_types::{
 };
 use prometheus::Registry;
 use tracing::instrument;
-use typed_store::rocks::DBBatch;
+use typed_store::store::DBBatch;
 
 use crate::{
     authority::{

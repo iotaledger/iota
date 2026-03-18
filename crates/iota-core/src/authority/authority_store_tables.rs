@@ -17,10 +17,11 @@ use typed_store::{
     DBMapUtils,
     metrics::SamplingInterval,
     rocks::{
-        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
+        DBMapTableConfigMap, DBOptions, default_db_options,
         read_size_from_env,
     },
     rocksdb::compaction_filter::Decision,
+    store::{DBBatch, DBMap, MetricConf},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
 

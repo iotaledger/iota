@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    store::{DBMap, MetricConf},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
 
@@ -325,7 +325,7 @@ impl IndexStoreTables {
         &self,
         checkpoint: &CheckpointData,
         resolver: &mut dyn LayoutResolver,
-    ) -> Result<typed_store::rocks::DBBatch, StorageError> {
+    ) -> Result<typed_store::store::DBBatch, StorageError> {
         debug!(
             checkpoint = checkpoint.checkpoint_summary.sequence_number,
             "indexing checkpoint"
@@ -356,7 +356,7 @@ impl IndexStoreTables {
     fn index_epoch(
         &self,
         checkpoint: &CheckpointData,
-        batch: &mut typed_store::rocks::DBBatch,
+        batch: &mut typed_store::store::DBBatch,
     ) -> Result<(), StorageError> {
         let Some(epoch_info) = checkpoint.epoch_info()? else {
             return Ok(());
@@ -485,7 +485,7 @@ impl IndexStoreTables {
     fn index_transactions(
         &self,
         checkpoint: &CheckpointData,
-        batch: &mut typed_store::rocks::DBBatch,
+        batch: &mut typed_store::store::DBBatch,
     ) -> Result<(), StorageError> {
         for tx in &checkpoint.transactions {
             let info = TransactionInfo::new(
@@ -505,7 +505,7 @@ impl IndexStoreTables {
         &self,
         checkpoint: &CheckpointData,
         resolver: &mut dyn LayoutResolver,
-        batch: &mut typed_store::rocks::DBBatch,
+        batch: &mut typed_store::store::DBBatch,
     ) -> Result<(), StorageError> {
         let mut coin_index: HashMap<CoinIndexKey, CoinIndexInfo> = HashMap::new();
 
@@ -651,7 +651,7 @@ impl IndexStoreTables {
 
 pub struct RestIndexStore {
     tables: IndexStoreTables,
-    pending_updates: Mutex<BTreeMap<u64, typed_store::rocks::DBBatch>>,
+    pending_updates: Mutex<BTreeMap<u64, typed_store::store::DBBatch>>,
 }
 
 impl RestIndexStore {
@@ -893,7 +893,7 @@ struct RestParLiveObjectSetIndexer<'a> {
 
 struct RestLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
-    batch: typed_store::rocks::DBBatch,
+    batch: typed_store::store::DBBatch,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
     resolver: Box<dyn LayoutResolver + 'a>,
 }

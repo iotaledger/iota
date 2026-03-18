@@ -60,7 +60,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    store::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
 };
 

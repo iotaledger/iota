@@ -447,7 +447,6 @@ mod tests {
     use rstest::rstest;
     use tempfile::TempDir;
     use tokio::time::{sleep, timeout};
-    use typed_store::DBMetrics;
 
     use super::*;
     use crate::{
@@ -516,7 +515,7 @@ mod tests {
         #[values(0, 5, 10)] gc_depth: u32,
     ) {
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         const NUM_OF_AUTHORITIES: usize = 4;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());
@@ -622,7 +621,7 @@ mod tests {
         #[values(1, 2, 3)] num_authorities: usize,
     ) {
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; num_authorities]);
         let protocol_config: ProtocolConfig = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -721,7 +720,7 @@ mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         const NUM_OF_AUTHORITIES: usize = 4;
         let (committee, keypairs) = local_committee_and_keys(0, [1; NUM_OF_AUTHORITIES].to_vec());

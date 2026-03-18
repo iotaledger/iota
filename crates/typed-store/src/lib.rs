@@ -17,12 +17,15 @@ pub use rocksdb;
 pub mod traits;
 pub use traits::Map;
 pub mod metrics;
+pub mod engine;
+pub(crate) mod memstore;
+pub mod store;
 pub mod rocks;
 pub mod test_db;
-pub use metrics::DBMetrics;
 pub use typed_store_error::TypedStoreError;
 
 pub type StoreError = typed_store_error::TypedStoreError;
+pub type DefaultStorageEngine = rocks::RocksDB;
 
 /// A helper macro to simplify common operations for opening and debugging
 /// TypedStore (currently internally structs of DBMaps) It operates on a struct

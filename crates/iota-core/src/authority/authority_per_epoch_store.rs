@@ -78,10 +78,10 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map,
     rocks::{
-        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
-        read_size_from_env,
+        DBOptions, ReadWriteOptions, default_db_options,
+        read_size_from_env, Options,
     },
-    rocksdb::Options,
+    store::{DBBatch, DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
 };
 

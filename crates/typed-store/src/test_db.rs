@@ -21,7 +21,8 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
     Map, TypedStoreError,
-    rocks::{be_fix_int_ser, errors::typed_store_err_from_bcs_err},
+    rocks::errors::typed_store_err_from_bcs_err,
+    store::be_fix_int_ser,
 };
 
 /// An interface to a btree map backed sally database. This is mainly intended

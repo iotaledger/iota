@@ -33,7 +33,7 @@ use tokio::time::Instant;
 use tracing::{debug, info, trace};
 use typed_store::{
     TypedStoreError,
-    rocks::{DBBatch, DBMap},
+    store::{DBBatch, DBMap},
     traits::Map,
 };
 

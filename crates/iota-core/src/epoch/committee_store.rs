@@ -17,8 +17,8 @@ use iota_types::{
 use parking_lot::RwLock;
 use typed_store::{
     DBMapUtils, Map,
-    rocks::{DBMap, DBOptions, MetricConf, default_db_options},
-    rocksdb::Options,
+    rocks::{DBOptions, default_db_options, Options},
+    store::{DBMap, MetricConf},
     traits::{TableSummary, TypedStoreDebug},
 };
 

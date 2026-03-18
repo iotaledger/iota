@@ -800,7 +800,6 @@ mod tests {
     use tempfile::TempDir;
     use tokio::time::sleep;
     use tracing::info;
-    use typed_store::DBMetrics;
 
     use crate::authority_node::tests::make_authority_with_params;
 
@@ -826,7 +825,7 @@ mod tests {
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         // Use 7 validators so that quorum (5) can still be reached with 2 validators
         // stopped.
@@ -1207,7 +1206,7 @@ mod tests {
     async fn test_fast_sync_with_pending_subdags() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
-        DBMetrics::init(&db_registry);
+        typed_store::metrics::init(&db_registry);
 
         const NUM_AUTHORITIES: usize = 4;
         const COMMIT_GAP_THRESHOLD: u32 = 30;

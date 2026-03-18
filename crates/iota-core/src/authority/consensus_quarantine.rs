@@ -20,7 +20,7 @@ use iota_types::{
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
 use tracing::{debug, info};
-use typed_store::{Map, rocks::DBBatch};
+use typed_store::{Map, store::DBBatch};
 
 use super::*;
 use crate::{

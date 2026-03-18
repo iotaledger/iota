@@ -21,7 +21,6 @@ mod test {
     use rand::{SeedableRng as _, rngs::StdRng};
     use tempfile::TempDir;
     use tokio::time::sleep;
-    use typed_store::DBMetrics;
 
     use crate::node::{AuthorityNode, Config};
 
@@ -47,7 +46,7 @@ mod test {
         for median_based_timestamp in vec![true, false] {
             tracing::info!("Running with median_based_timestamp = {median_based_timestamp}");
             let db_registry = Registry::new();
-            DBMetrics::init(&db_registry);
+            typed_store::metrics::init(&db_registry);
 
             const NUM_OF_AUTHORITIES: usize = 10;
             let (committee, keypairs) =
