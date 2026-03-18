@@ -3983,16 +3983,15 @@ dependencies = [
 
 [[package]]
 name = "ed25519-zebra"
-version = "4.0.3"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d9ce6874da5d4415896cd45ffbc4d1cfc0c4f9c079427bd870742c30f2f65a9"
+checksum = "0017d969298eec91e3db7a2985a8cab4df6341d86e6f3a6f5878b13fb7846bc9"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
- "hashbrown 0.14.5",
- "hex",
  "rand_core 0.6.4",
  "sha2 0.10.9",
+ "subtle",
  "zeroize",
 ]
 
@@ -6124,7 +6123,6 @@ dependencies = [
  "fastcrypto",
  "futures",
  "iota-config",
- "iota-core",
  "iota-faucet",
  "iota-genesis-builder",
  "iota-graphql-rpc",
@@ -6211,7 +6209,6 @@ dependencies = [
  "anemo",
  "anyhow",
  "arc-swap",
- "async-stream",
  "async-trait",
  "axum 0.8.4",
  "bcs",
@@ -6286,7 +6283,6 @@ dependencies = [
  "serde",
  "serde-reflection",
  "serde_json",
- "serde_with",
  "serde_yaml",
  "starfish-config",
  "starfish-core",
@@ -6659,7 +6655,6 @@ dependencies = [
  "rand_seeder",
  "regex",
  "reqwest",
- "schemars",
  "serde",
  "serde_json",
  "serde_with",
@@ -6820,7 +6815,6 @@ dependencies = [
  "anyhow",
  "async-stream",
  "bcs",
- "fastcrypto",
  "futures",
  "http 1.3.1",
  "iota-config",
@@ -6972,7 +6966,6 @@ dependencies = [
 name = "iota-indexer-streaming"
 version = "1.20.0-alpha"
 dependencies = [
- "async-trait",
  "backoff",
  "futures",
  "iota-indexer",
@@ -7376,9 +7369,7 @@ dependencies = [
  "bin-version",
  "clap",
  "colored",
- "const-str",
  "futures",
- "git-version",
  "insta",
  "iota-macros",
  "iota-metrics",
@@ -7399,7 +7390,6 @@ dependencies = [
  "once_cell",
  "prometheus",
  "rand 0.8.5",
- "serde_json",
  "serde_yaml",
  "telemetry-subscribers",
  "tempfile",
@@ -8292,7 +8282,6 @@ dependencies = [
  "iota-config",
  "iota-execution",
  "iota-genesis-builder",
- "iota-macros",
  "iota-names",
  "iota-protocol-config",
  "iota-rest-api",
@@ -8313,7 +8302,6 @@ name = "iota-synthetic-ingestion"
 version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap",
  "iota-storage",
  "iota-test-transaction-builder",
@@ -8529,7 +8517,6 @@ dependencies = [
  "move-vm-test-utils",
  "nonempty",
  "num-bigint 0.4.6",
- "num-rational",
  "num-traits",
  "once_cell",
  "p256",
@@ -14016,20 +14003,15 @@ name = "simulacrum-server"
 version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
- "async-trait",
  "axum 0.8.4",
  "clap",
- "futures",
  "http 1.3.1",
  "iota-config",
- "iota-execution",
  "iota-faucet",
  "iota-grpc-server",
- "iota-json-rpc-types",
  "iota-protocol-config",
  "iota-swarm-config",
  "iota-types",
- "move-core-types",
  "rand 0.8.5",
  "serde",
  "simulacrum",
@@ -14309,8 +14291,6 @@ name = "starfish-core"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "anyhow",
- "arc-swap",
  "async-trait",
  "base64 0.21.7",
  "bcs",
@@ -14335,7 +14315,6 @@ dependencies = [
  "parking_lot 0.12.3",
  "prometheus",
  "prost 0.14.1",
- "quinn-proto",
  "rand 0.8.5",
  "reed-solomon-simd",
  "rs_merkle",
@@ -14805,7 +14784,6 @@ dependencies = [
  "iota-core",
  "iota-framework",
  "iota-genesis-builder",
- "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
  "iota-keys",

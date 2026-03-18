@@ -31,7 +31,6 @@ rand_pcg = "0.3"
 rand_seeder = "0.3"
 regex.workspace = true
 reqwest.workspace = true
-schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true

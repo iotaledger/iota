@@ -258,7 +258,7 @@ dependencies = [
  "blake2",
  "derivative",
  "digest 0.10.7",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "bin-version"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "const-str",
  "git-version",
@@ -720,7 +720,7 @@ dependencies = [
  "pbkdf2 0.12.2",
  "rand_core 0.6.4",
  "ripemd",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "subtle",
  "zeroize",
 ]
@@ -850,7 +850,6 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 dependencies = [
- "block-padding 0.2.1",
  "generic-array",
 ]
 
@@ -862,12 +861,6 @@ checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
 ]
-
-[[package]]
-name = "block-padding"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "block-padding"
@@ -924,7 +917,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
 dependencies = [
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "tinyvec",
 ]
 
@@ -1154,6 +1147,7 @@ dependencies = [
  "iota-sdk-types",
  "rand 0.8.5",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -1858,8 +1852,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "sha2 0.10.8",
- "sha3 0.10.8",
+ "sha2 0.10.9",
+ "sha3",
  "signature 2.2.0",
  "static_assertions",
  "thiserror 1.0.69",
@@ -1889,7 +1883,7 @@ dependencies = [
  "itertools 0.10.5",
  "rand 0.8.5",
  "serde",
- "sha3 0.10.8",
+ "sha3",
  "tap",
  "tracing",
  "typenum",
@@ -2824,7 +2818,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0c10553d664a4d0bcff9f4215d0aac67a639cc68ef660840afe309b807bc9f5"
 dependencies = [
- "block-padding 0.3.3",
+ "block-padding",
  "generic-array",
 ]
 
@@ -2878,25 +2872,28 @@ dependencies = [
 
 [[package]]
 name = "iota-common"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
  "futures",
+ "iota-macros",
  "iota-metrics",
  "iota-types",
+ "once_cell",
  "parking_lot 0.12.3",
  "prometheus",
  "rand 0.8.5",
  "reqwest",
  "snap",
+ "tempfile",
  "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "iota-config"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -2925,7 +2922,7 @@ dependencies = [
 
 [[package]]
 name = "iota-enum-compat-util"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "serde_yaml",
 ]
@@ -2949,7 +2946,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "bcs",
  "iota-types",
@@ -2961,7 +2958,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-snapshot"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -2976,7 +2973,7 @@ dependencies = [
 
 [[package]]
 name = "iota-genesis-common"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "iota-execution",
  "iota-protocol-config",
@@ -2986,7 +2983,7 @@ dependencies = [
 
 [[package]]
 name = "iota-http"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "bytes",
  "http",
@@ -3005,7 +3002,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3021,7 +3018,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-api"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -3040,7 +3037,7 @@ dependencies = [
 
 [[package]]
 name = "iota-json-rpc-types"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3067,14 +3064,14 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "strum 0.26.3",
+ "strum 0.27.2",
  "tabled",
  "tracing",
 ]
 
 [[package]]
 name = "iota-keys"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "bip32",
@@ -3094,7 +3091,7 @@ dependencies = [
 
 [[package]]
 name = "iota-macros"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "futures",
  "iota-proc-macros",
@@ -3104,7 +3101,7 @@ dependencies = [
 
 [[package]]
 name = "iota-metrics"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anemo",
  "anemo-tower",
@@ -3129,7 +3126,7 @@ dependencies = [
 
 [[package]]
 name = "iota-move-build"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
@@ -3166,13 +3163,14 @@ dependencies = [
  "move-vm-runtime",
  "move-vm-types",
  "rand 0.8.5",
+ "serde",
  "smallvec",
  "tracing",
 ]
 
 [[package]]
 name = "iota-names"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "bcs",
@@ -3184,7 +3182,7 @@ dependencies = [
 
 [[package]]
 name = "iota-network-stack"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anemo",
  "bcs",
@@ -3213,7 +3211,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "schemars",
  "serde",
@@ -3223,7 +3221,7 @@ dependencies = [
 
 [[package]]
 name = "iota-open-rpc-macros"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "derive-syn-parse",
  "itertools 0.13.0",
@@ -3235,7 +3233,7 @@ dependencies = [
 
 [[package]]
 name = "iota-package-management"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "iota-framework-snapshot",
@@ -3251,7 +3249,7 @@ dependencies = [
 
 [[package]]
 name = "iota-package-resolver"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "async-trait",
  "bcs",
@@ -3266,7 +3264,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proc-macros"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "msim-macros",
  "proc-macro2",
@@ -3276,7 +3274,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "clap",
  "iota-protocol-config-macros",
@@ -3290,7 +3288,7 @@ dependencies = [
 
 [[package]]
 name = "iota-protocol-config-macros"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3299,7 +3297,7 @@ dependencies = [
 
 [[package]]
 name = "iota-rest-api"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "axum",
@@ -3327,7 +3325,7 @@ dependencies = [
 
 [[package]]
 name = "iota-sdk"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3385,7 +3383,7 @@ dependencies = [
 
 [[package]]
 name = "iota-transaction-builder"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3401,7 +3399,7 @@ dependencies = [
 
 [[package]]
 name = "iota-types"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anemo",
  "anyhow",
@@ -3438,7 +3436,6 @@ dependencies = [
  "move-vm-test-utils",
  "nonempty",
  "num-bigint 0.4.6",
- "num-rational",
  "num-traits",
  "once_cell",
  "parking_lot 0.12.3",
@@ -3455,8 +3452,8 @@ dependencies = [
  "signature 1.6.4",
  "starfish-config",
  "static_assertions",
- "strum 0.26.3",
- "strum_macros 0.26.4",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
  "tap",
  "thiserror 1.0.69",
  "tonic",
@@ -3761,7 +3758,7 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -4033,7 +4030,7 @@ dependencies = [
  "once_cell",
  "packed_struct",
  "serde",
- "sha2 0.9.9",
+ "sha2 0.10.9",
  "vfs",
  "walkdir",
 ]
@@ -4246,7 +4243,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_yaml",
- "sha2 0.9.9",
+ "sha2 0.10.9",
  "tempfile",
  "toml",
  "toml_edit 0.22.27",
@@ -4273,8 +4270,8 @@ dependencies = [
  "move-core-types",
  "move-vm-runtime",
  "move-vm-types",
- "sha2 0.9.9",
- "sha3 0.9.1",
+ "sha2 0.10.9",
+ "sha3",
  "smallvec",
 ]
 
@@ -4765,7 +4762,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -4900,7 +4897,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "strum 0.25.0",
  "typeshare",
  "zeroize",
@@ -5249,7 +5246,7 @@ dependencies = [
 
 [[package]]
 name = "prometheus-closure-metric"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "prometheus",
@@ -5303,7 +5300,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.96",
@@ -5811,7 +5808,7 @@ version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb09b49230ba22e8c676e7b75dfe2887dea8121f18b530ae0ba519ce442d2b21"
 dependencies = [
- "sha2 0.10.8",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -5829,7 +5826,7 @@ dependencies = [
  "pkcs1",
  "pkcs8 0.9.0",
  "rand_core 0.6.4",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "signature 2.2.0",
  "subtle",
  "zeroize",
@@ -6374,25 +6371,13 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.8"
+version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest 0.10.7",
-]
-
-[[package]]
-name = "sha3"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f81199417d4e5de3f04b1e871023acea7389672c4135918f05aa9cbf2f2fa809"
-dependencies = [
- "block-buffer 0.9.0",
- "digest 0.9.0",
- "keccak",
- "opaque-debug",
 ]
 
 [[package]]
@@ -6586,6 +6571,7 @@ dependencies = [
  "rand 0.8.5",
  "rs_merkle",
  "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -6617,15 +6603,6 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
-dependencies = [
- "strum_macros 0.26.4",
-]
-
-[[package]]
-name = "strum"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
@@ -6640,19 +6617,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23dc1fa9ac9c169a78ba62f0b841814b7abae11bdd047b9c58f893439e309ea0"
 dependencies = [
  "heck 0.4.1",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 2.0.96",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.26.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
-dependencies = [
- "heck 0.5.0",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -6905,7 +6869,7 @@ dependencies = [
  "pbkdf2 0.11.0",
  "rand 0.8.5",
  "rustc-hash 1.1.0",
- "sha2 0.10.8",
+ "sha2 0.10.9",
  "thiserror 1.0.69",
  "unicode-normalization",
  "wasm-bindgen",
@@ -7258,7 +7222,7 @@ dependencies = [
 
 [[package]]
 name = "typed-store-error"
-version = "1.18.0-alpha"
+version = "1.20.0-alpha"
 dependencies = [
  "serde",
  "thiserror 1.0.69",
