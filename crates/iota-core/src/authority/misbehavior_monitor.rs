@@ -13,8 +13,7 @@ pub struct MisbehaviorMonitor {
 }
 
 impl MisbehaviorMonitor {
-    pub fn new(voting_power: Vec<u64>, protocol_config: &ProtocolConfig) -> Self {
-        let committee_size = voting_power.len();
+    pub fn new(protocol_config: &ProtocolConfig, committee_size: usize) -> Self {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => {
                 // Local metrics count are always initialized as zero.
