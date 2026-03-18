@@ -12,7 +12,7 @@ import {
     ViewTxnOnExplorerButton,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { onCopySuccess } from '@/hooks';
+import { getCopySuccessHandler } from '@/lib/utils';
 
 interface TransactionViewProps {
     onClose: () => void;
@@ -31,8 +31,8 @@ export function TransactionDialogView({
         activeAddress,
     );
 
-    const onCopyDigestSuccess = onCopySuccess({
-        successMessage: 'Transaction digest copied to clipboard',
+    const onCopySuccess = getCopySuccessHandler({
+        message: 'Transaction digest copied to clipboard',
         analyticType: 'transaction-digest',
     });
 
@@ -66,7 +66,7 @@ export function TransactionDialogView({
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={txDigest ?? ''}
-                            onCopySuccess={onCopyDigestSuccess}
+                            onCopySuccess={onCopySuccess}
                         />
                     </div>
                 </div>

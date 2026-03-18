@@ -10,8 +10,8 @@ import {
     Header,
     Panel,
 } from '@iota/apps-ui-kit';
-import { QR, useGetDefaultIotaName } from '@iota/core';
-import { useCopyToClipboard, onCopySuccess } from '@/hooks';
+import { QR, useGetDefaultIotaName, useCopyToClipboard } from '@iota/core';
+import { getCopySuccessHandler } from '@/lib/utils';
 
 interface ReceiveFundsDialogProps {
     address: string;
@@ -26,8 +26,8 @@ export function ReceiveFundsDialog({
 }: ReceiveFundsDialogProps): React.JSX.Element {
     const { data: iotaName } = useGetDefaultIotaName(address);
     const copyToClipboard = useCopyToClipboard(
-        onCopySuccess({
-            successMessage: 'Address copied',
+        getCopySuccessHandler({
+            message: 'Address copied',
             analyticType: 'address',
         }),
     );

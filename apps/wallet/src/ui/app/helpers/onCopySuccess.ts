@@ -7,7 +7,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 
 export interface CopySuccessOptions {
     successMessage: string;
-    analyticType: string;
+    analyticType?: string;
 }
 
 /**
@@ -27,9 +27,15 @@ export interface CopySuccessOptions {
  * <Address onCopySuccess={handleCopySuccess} />
  * ```
  */
-export function onCopySuccess(options: CopySuccessOptions): () => void {
-    return () => {
+export function onCopySuccess(options: CopySuccessOptions): (e: MouseEvent) => void {
+    return (e: MouseEvent) => {
+        e?.preventDefault();
+        e?.stopPropagation();
+
         toast(options.successMessage);
-        ampli.elementCopied({ type: options.analyticType });
+
+        if (options.analyticType) {
+            ampli.elementCopied({ type: options.analyticType });
+        }
     };
 }

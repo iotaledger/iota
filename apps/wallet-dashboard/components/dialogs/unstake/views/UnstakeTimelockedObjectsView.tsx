@@ -4,8 +4,9 @@
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { ExtendedDelegatedTimelockedStake, Validator } from '@iota/core';
-import { useNewUnstakeTimelockedTransaction, onCopySuccess } from '@/hooks';
+import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
+import { getCopySuccessHandler } from '@/lib/utils';
 import { TimelockedStakedObjectsGrouped, isSizeExceededError } from '@/lib/utils';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import {
@@ -89,8 +90,8 @@ export function UnstakeTimelockedObjectsView({
         balance: validatorInfo?.rewardsPool,
     });
 
-    const handleCopySuccess = onCopySuccess({
-        successMessage: 'Copied to clipboard',
+    const onCopySuccess = getCopySuccessHandler({
+        message: 'Copied to clipboard',
         analyticType: 'stake-id',
     });
 
@@ -177,7 +178,7 @@ export function UnstakeTimelockedObjectsView({
                             title={`Stake Nº${index + 1}`}
                             key={stake.timelockedStakedIotaId}
                             stake={stake}
-                            handleCopySuccess={handleCopySuccess}
+                            handleCopySuccess={onCopySuccess}
                         />
                     ))}
                 </div>

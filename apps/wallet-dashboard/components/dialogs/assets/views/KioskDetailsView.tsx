@@ -15,7 +15,7 @@ import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { ExplorerLink } from '@/components/ExplorerLink';
-import { onCopySuccess } from '@/hooks';
+import { getCopySuccessHandler } from '@/lib/utils';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -31,8 +31,8 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
     const kiosk = kioskData?.kiosks.get(objectId);
     const items = kiosk?.items;
 
-    const onCopyKioskIdSuccess = onCopySuccess({
-        successMessage: 'Kiosk Object ID copied to clipboard',
+    const onCopySuccess = getCopySuccessHandler({
+        message: 'Kiosk Object ID copied to clipboard',
         analyticType: 'kiosk-object-id',
     });
 
@@ -81,7 +81,7 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={objectId ?? ''}
-                            onCopySuccess={onCopyKioskIdSuccess}
+                            onCopySuccess={onCopySuccess}
                         />
                     </div>
                 </div>

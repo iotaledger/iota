@@ -6,8 +6,8 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useGetStardustMigratableObjects, useGroupedStardustObjects, onCopySuccess } from '@/hooks';
-import { getStardustObjectsTotals } from '@/lib/utils';
+import { useGetStardustMigratableObjects, useGroupedStardustObjects } from '@/hooks';
+import { getStardustObjectsTotals, getCopySuccessHandler } from '@/lib/utils';
 import {
     Address,
     Button,
@@ -179,8 +179,8 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
-    const handleCopySuccess = onCopySuccess({
-        successMessage: 'Address copied',
+    const onCopySuccess = getCopySuccessHandler({
+        message: 'Address copied',
         analyticType: 'stardust-address',
     });
 
@@ -224,7 +224,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 externalLink={`https://explorer.iota.org/mainnet/addr/${bech32Address}`}
                                 isCopyable
                                 copyText={bech32Address}
-                                onCopySuccess={handleCopySuccess}
+                                onCopySuccess={onCopySuccess}
                             />
                         </div>
                     </Panel>

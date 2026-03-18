@@ -14,7 +14,7 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
-import { onCopySuccess } from '@/hooks';
+import { getCopySuccessHandler } from '@/lib/utils';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -30,8 +30,8 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
         recognizedPackagesList,
     });
 
-    const onCopyDigestSuccess = onCopySuccess({
-        successMessage: 'Transaction digest copied to clipboard',
+    const onCopySuccess = getCopySuccessHandler({
+        message: 'Transaction digest copied to clipboard',
         analyticType: 'transaction-digest',
     });
 
@@ -61,7 +61,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={transaction.raw.digest ?? ''}
-                            onCopySuccess={onCopyDigestSuccess}
+                            onCopySuccess={onCopySuccess}
                         />
                     </div>
                 </div>
