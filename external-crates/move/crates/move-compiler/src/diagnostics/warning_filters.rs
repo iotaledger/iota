@@ -30,6 +30,7 @@ pub const FILTER_UNUSED_TYPE_PARAMETER: &str = "unused_type_parameter";
 pub const FILTER_UNUSED_FUNCTION: &str = "unused_function";
 pub const FILTER_UNUSED_STRUCT_FIELD: &str = "unused_field";
 pub const FILTER_UNUSED_CONST: &str = "unused_const";
+pub const FILTER_UNUSED_DOT_CALL_ALIAS: &str = "unused_dot_call_alias";
 pub const FILTER_DEAD_CODE: &str = "dead_code";
 pub const FILTER_UNUSED_LET_MUT: &str = "unused_let_mut";
 pub const FILTER_UNUSED_MUT_REF: &str = "unused_mut_ref";
@@ -496,6 +497,7 @@ impl WarningFilter {
             known_code_filter!(FILTER_UNUSED_TRAILING_SEMI, UnusedItem::TrailingSemi),
             known_code_filter!(FILTER_UNUSED_ATTRIBUTE, UnusedItem::Attribute),
             known_code_filter!(FILTER_UNUSED_FUNCTION, UnusedItem::Function),
+            known_code_filter!(FILTER_UNUSED_DOT_CALL_ALIAS, UnusedItem::DotCallAlias),
             known_code_filter!(FILTER_UNUSED_STRUCT_FIELD, UnusedItem::StructField),
             (
                 FILTER_UNUSED_TYPE_PARAMETER.into(),

@@ -1921,6 +1921,7 @@ fn explicit_use_fun(
         target_function,
         kind: N::UseFunKind::Explicit,
         used: is_public.is_some(), // suppress unused warning for public use funs
+        used_in_path: true,        // explicit use funs are always intentional
     };
     Some((tn, method, use_fun))
 }

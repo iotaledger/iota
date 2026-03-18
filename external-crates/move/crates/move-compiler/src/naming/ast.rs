@@ -83,6 +83,10 @@ pub struct UseFun {
     // For UseAlias implicit use funs, this might already be set to true if it was used in a
     // non method syntax case
     pub used: bool,
+    // For UseAlias: true if the alias was used in a path expression (e.g., `f(obj)`).
+    // false if it was only used via dot-call (e.g., `obj.f()`).
+    // Used to detect unnecessary imports that only serve dot-call, which works without them.
+    pub used_in_path: bool,
 }
 
 // Mapping from type to their possible "methods"
@@ -1110,6 +1114,7 @@ impl AstDebug for UseFun {
             target_function: (target_m, target_f),
             kind,
             used,
+            used_in_path: _,
         } = self;
         doc.ast_debug(w);
         attributes.ast_debug(w);

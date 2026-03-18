@@ -311,6 +311,7 @@ codes!(
         MutModifier: { msg: "unused 'mut' modifiers", severity: Warning },
         MutReference: { msg: "unused mutable reference '&mut'", severity: Warning },
         MutParam: { msg: "unused mutable reference '&mut' parameter", severity: Warning },
+        DotCallAlias: { msg: "unnecessary import for method syntax", severity: Warning },
     ],
     Attributes: [
         Duplicate: { msg: "invalid duplicate attribute", severity: NonblockingError },

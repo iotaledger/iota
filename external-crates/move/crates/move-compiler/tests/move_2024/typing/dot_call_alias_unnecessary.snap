@@ -1,0 +1,30 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: core
+  edition: 2024.alpha
+  lint: false
+---
+warning[W09015]: unnecessary import for method syntax
+   ┌─ tests/move_2024/typing/dot_call_alias_unnecessary.move:14:21
+   │
+14 │     use a::m::{new, consume, borrow};
+   │                     ^^^^^^^ Unnecessary 'use' of alias 'consume'. It is only used with method syntax (dot notation), which does not require this import
+   │
+   = This warning can be suppressed with '#[allow(unused_dot_call_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09015]: unnecessary import for method syntax
+   ┌─ tests/move_2024/typing/dot_call_alias_unnecessary.move:14:30
+   │
+14 │     use a::m::{new, consume, borrow};
+   │                              ^^^^^^ Unnecessary 'use' of alias 'borrow'. It is only used with method syntax (dot notation), which does not require this import
+   │
+   = This warning can be suppressed with '#[allow(unused_dot_call_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09015]: unnecessary import for method syntax
+   ┌─ tests/move_2024/typing/dot_call_alias_unnecessary.move:35:30
+   │
+35 │     use a::m::{new, consume, borrow};
+   │                              ^^^^^^ Unnecessary 'use' of alias 'borrow'. It is only used with method syntax (dot notation), which does not require this import
+   │
+   = This warning can be suppressed with '#[allow(unused_dot_call_alias)]' applied to the 'module' or module member ('const', 'fun', or 'struct')

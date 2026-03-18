@@ -224,15 +224,16 @@ fn use_funs(context: &mut Context, uf: &mut N::UseFuns) {
             }
             continue;
         };
-        let (kind, used) = match ekind {
+        let (kind, used, used_in_path) = match ekind {
             E::ImplicitUseFunKind::FunctionDeclaration => (
                 N::UseFunKind::FunctionDeclaration,
                 // silences unused warning
                 true,
+                true,
             ),
             E::ImplicitUseFunKind::UseAlias { used } => {
                 assert!(is_public.is_none());
-                (N::UseFunKind::UseAlias, used)
+                (N::UseFunKind::UseAlias, used, used)
             }
         };
         let nuf = N::UseFun {
@@ -244,6 +245,7 @@ fn use_funs(context: &mut Context, uf: &mut N::UseFuns) {
             target_function: (target_m, target_f),
             kind,
             used,
+            used_in_path,
         };
         let nuf_loc = nuf.loc;
         let methods = resolved.entry(tn).or_insert_with(UniqueMap::new);

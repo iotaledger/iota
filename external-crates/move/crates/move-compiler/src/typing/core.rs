@@ -337,10 +337,13 @@ fn pop_use_funs_scope(use_funs: &mut Vec<UseFunsScope>) -> N::UseFuns {
     }
 }
 
-fn report_unused_use_funs(reporter: &mut DiagnosticReporter, use_funs: &N::UseFuns) {
+fn report_unused_use_funs(
+    reporter: &mut DiagnosticReporter,
+    use_funs: &N::UseFuns,
+    global_use_funs: &ResolvedUseFuns,
+) {
     for (tn, methods) in &use_funs.resolved {
-        let unused = methods.iter().filter(|(_, _, uf)| !uf.used);
-        for (_, method, use_fun) in unused {
+        for (_, method, use_fun) in methods {
             let N::UseFun {
                 doc: _,
                 loc,
@@ -349,23 +352,43 @@ fn report_unused_use_funs(reporter: &mut DiagnosticReporter, use_funs: &N::UseFu
                 is_public: _,
                 tname: _,
                 target_function: _,
-                used: _,
+                used,
+                used_in_path,
             } = use_fun;
-            match kind {
-                UseFunKind::Explicit => {
-                    let msg = format!("Unused 'use fun' of '{tn}.{method}'. Consider removing it");
-                    reporter.add_diag(diag!(UnusedItem::Alias, (*loc, msg)))
+            if !used {
+                match kind {
+                    UseFunKind::Explicit => {
+                        let msg =
+                            format!("Unused 'use fun' of '{tn}.{method}'. Consider removing it");
+                        reporter.add_diag(diag!(UnusedItem::Alias, (*loc, msg)))
+                    }
+                    UseFunKind::UseAlias => {
+                        let msg = format!("Unused 'use' of alias '{method}'. Consider removing it");
+                        reporter.add_diag(diag!(UnusedItem::Alias, (*loc, msg)))
+                    }
+                    UseFunKind::FunctionDeclaration => {
+                        let diag = ice!((
+                            *loc,
+                            "ICE fun declaration 'use' funs should never be added to 'use' funs"
+                        ));
+                        reporter.add_diag(diag);
+                    }
                 }
-                UseFunKind::UseAlias => {
-                    let msg = format!("Unused 'use' of alias '{method}'. Consider removing it");
-                    reporter.add_diag(diag!(UnusedItem::Alias, (*loc, msg)))
-                }
-                UseFunKind::FunctionDeclaration => {
-                    let diag = ice!((
-                        *loc,
-                        "ICE fun declaration 'use' funs should never be added to 'use' funs"
-                    ));
-                    reporter.add_diag(diag);
+            } else if *used && !used_in_path && matches!(kind, UseFunKind::UseAlias) {
+                // The alias was used only via dot-call (method syntax).
+                // Check if the same method is available in the global scope (i.e., the
+                // function is defined in the same module as the receiver type).
+                let globally_available = global_use_funs
+                    .get(tn)
+                    .and_then(|global_methods| global_methods.get_(method))
+                    .is_some();
+                if globally_available {
+                    let msg = format!(
+                        "Unnecessary 'use' of alias '{method}'. \
+                        It is only used with method syntax (dot notation), \
+                        which does not require this import"
+                    );
+                    reporter.add_diag(diag!(UnusedItem::DotCallAlias, (*loc, msg)))
                 }
             }
         }
@@ -438,6 +461,13 @@ impl<'env> ModuleContext<'env> {
         })
     }
 
+    fn global_use_funs(&self) -> &ResolvedUseFuns {
+        match &self.use_funs[0].use_funs {
+            UseFunsScope_::Global(r) => r,
+            _ => panic!("ICE first use_funs scope should always be Global"),
+        }
+    }
+
     pub fn add_diag(&self, diag: Diagnostic) {
         self.reporter.add_diag(diag);
     }
@@ -480,7 +510,11 @@ impl<'env> ModuleContext<'env> {
                 .unwrap()
                 .used = true;
         }
-        report_unused_use_funs(&mut self.reporter, &use_funs);
+        let global = match &self.use_funs[0].use_funs {
+            UseFunsScope_::Global(r) => *r,
+            _ => panic!("ICE first use_funs scope should always be Global"),
+        };
+        report_unused_use_funs(&mut self.reporter, &use_funs, global);
         use_funs
     }
 
@@ -834,7 +868,8 @@ impl<'env, 'outer> Context<'env, 'outer> {
 
     pub fn pop_use_funs_scope(&mut self) -> N::UseFuns {
         let popped_scope = pop_use_funs_scope(&mut self.use_funs);
-        report_unused_use_funs(&mut self.reporter, &popped_scope);
+        let global = self.outer.global_use_funs();
+        report_unused_use_funs(&mut self.reporter, &popped_scope, global);
         popped_scope
     }
 
