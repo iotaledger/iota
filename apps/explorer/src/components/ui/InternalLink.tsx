@@ -4,14 +4,18 @@
 
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
-import { NamedAddressTooltip, AddressAlias, useGetDefaultIotaName } from '@iota/core';
+import {
+    NamedAddressTooltip,
+    AddressAlias,
+    useGetDefaultIotaName,
+    useCopyToClipboard,
+} from '@iota/core';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import React, { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/components/ui';
-import { onCopySuccess } from '~/lib';
 
 interface BaseInternalLinkProps extends LinkProps {
     showAddressAlias?: boolean;
@@ -48,16 +52,13 @@ function createInternalLink<T extends string>(
 
         const isResolveIotaName = base === 'address' && isValidIotaAddress(id);
         const { data: iotaName } = useGetDefaultIotaName(isResolveIotaName ? id : null);
+        const copyToClipboard = useCopyToClipboard();
 
         async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
             event.stopPropagation();
-            if (!navigator.clipboard) {
-                return;
-            }
             if (copyText) {
                 try {
-                    await navigator.clipboard.writeText(copyText);
-                    onCopySuccess();
+                    await copyToClipboard(copyText);
                 } catch (error) {
                     console.error('Failed to copy:', error);
                     onCopyError?.(error, copyText);
