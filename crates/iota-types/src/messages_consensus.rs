@@ -292,10 +292,15 @@ impl VersionedMisbehaviorReport {
     /// metrics for all authorities.
     pub fn summary(&self) -> u64 {
         let summary = match self {
-            VersionedMisbehaviorReport::V1(report, _) => report
-                .iter()
-                .flatten()
-                .fold(0u64, |acc, metric| acc.saturating_add(*metric)),
+            VersionedMisbehaviorReport::V1(report, _) => [
+                &report.faulty_blocks_provable,
+                &report.faulty_blocks_unprovable,
+                &report.missing_proposals,
+                &report.equivocations,
+            ]
+            .into_iter()
+            .flatten()
+            .fold(0u64, |acc, metric| acc.saturating_add(*metric)),
         };
         if summary == u64::MAX {
             warn!("MisbehaviorReport summary reached its maximum value.");
