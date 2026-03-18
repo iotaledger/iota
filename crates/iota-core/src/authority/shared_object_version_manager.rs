@@ -20,7 +20,7 @@ use tracing::{debug, trace};
 
 use crate::{
     authority::{
-        AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusCertificateReason,
+        AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusTransactionReason,
         epoch_start_configuration::EpochStartConfigTrait,
     },
     execution_cache::ObjectCacheRead,
@@ -43,7 +43,7 @@ impl SharedObjVerManager {
         cache_reader: &dyn ObjectCacheRead,
         certificates: &[VerifiedExecutableTransaction],
         randomness_round: Option<RandomnessRound>,
-        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<ConsensusSharedObjVerAssignment> {
         let mut shared_input_next_versions = get_or_init_versions(
             certificates.iter().map(|cert| cert.data()),
@@ -132,7 +132,7 @@ impl SharedObjVerManager {
     pub fn assign_versions_for_certificate(
         cert: &VerifiedExecutableTransaction,
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
-        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         enable_gas_price_feedback: bool,
     ) -> Vec<(ObjectID, SequenceNumber)> {
         let tx_digest = cert.digest();
@@ -140,7 +140,7 @@ impl SharedObjVerManager {
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
         let congested_objects_info: Option<HashSet<_>> =
-            if let Some(CancelConsensusCertificateReason::CongestionOnObjects {
+            if let Some(CancelConsensusTransactionReason::CongestionOnObjects {
                 congested_objects,
                 suggested_gas_price: _,
             }) = &cancellation_info
@@ -168,7 +168,7 @@ impl SharedObjVerManager {
             // any shared objects.
             for SharedInputObject { id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusCertificateReason::CongestionOnObjects {
+                    Some(CancelConsensusTransactionReason::CongestionOnObjects {
                         congested_objects: _,
                         suggested_gas_price,
                     }) => {
@@ -195,7 +195,7 @@ impl SharedObjVerManager {
                             SequenceNumber::CANCELLED_READ
                         }
                     }
-                    Some(CancelConsensusCertificateReason::DkgFailed) => {
+                    Some(CancelConsensusTransactionReason::DkgFailed) => {
                         if id == &IOTA_RANDOMNESS_STATE_OBJECT_ID {
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         } else {
@@ -535,24 +535,24 @@ mod tests {
 
         // Cancel transactions 2 and 4 due to congestion.
         let suggested_gas_price = 1_000;
-        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [
             (
                 *certs[1].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects {
+                CancelConsensusTransactionReason::CongestionOnObjects {
                     congested_objects: vec![id1],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
                 *certs[3].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects {
+                CancelConsensusTransactionReason::CongestionOnObjects {
                     congested_objects: vec![id2],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
                 *certs[4].digest(),
-                CancelConsensusCertificateReason::DkgFailed,
+                CancelConsensusTransactionReason::DkgFailed,
             ),
         ]
         .into_iter()
