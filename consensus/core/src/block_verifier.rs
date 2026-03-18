@@ -548,7 +548,6 @@ mod test {
         // Block with too many transaction bytes.
         {
             let block = test_block
-                
                 .set_transactions(
                     (0..100)
                         .map(|_| Transaction::new(vec![4; 8 * 1024]))

@@ -187,12 +187,7 @@ async fn direct_commit_late_call() {
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
     let certifying_round_wave_10 = committer.committers[0].certifying_round(10);
-    build_dag(
-        context,
-        dag_state,
-        None,
-        certifying_round_wave_10,
-    );
+    build_dag(context, dag_state, None, certifying_round_wave_10);
 
     let last_decided = Slot::new(0, 0);
     let sequence = committer.try_decide(last_decided);
@@ -266,12 +261,8 @@ async fn direct_skip_no_leader_votes() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context,
-        leader_schedule,
-        dag_state,
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
     assert_eq!(committer.committers.len(), 3);
@@ -386,12 +377,8 @@ async fn indirect_commit() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context,
-        leader_schedule,
-        dag_state,
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: with pipelining or multi-leader enabled there should be three
     // committer.
     assert_eq!(committer.committers.len(), 3);
@@ -468,12 +455,8 @@ async fn indirect_skip() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context,
-        leader_schedule,
-        dag_state,
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: with pipelining or multi-leader enabled there should be three
     // committers.
     assert_eq!(committer.committers.len(), 3);
@@ -554,12 +537,8 @@ async fn undecided() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer with pipelining and 1 leader per round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context,
-        leader_schedule,
-        dag_state,
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
     assert_eq!(committer.committers.len(), 3);

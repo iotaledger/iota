@@ -182,12 +182,7 @@ async fn direct_commit_late_call() {
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
     let decision_round_wave_10 = committer.committers[0].decision_round(10);
-    build_dag(
-        context,
-        dag_state,
-        None,
-        decision_round_wave_10,
-    );
+    build_dag(context, dag_state, None, decision_round_wave_10);
 
     let last_decided = Slot::new_for_test(0, 0);
     let sequence = committer.try_decide(last_decided);
@@ -371,12 +366,8 @@ async fn indirect_commit() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer without pipelining and only 1 leader per leader round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context,
-        leader_schedule,
-        dag_state,
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
     assert!(committer.committers.len() == 1);
@@ -455,12 +446,7 @@ async fn indirect_skip() {
 
     // Add enough blocks to reach the decision round of the leader of wave 3.
     let decision_round_wave_3 = committer.committers[0].decision_round(3);
-    build_dag(
-        context,
-        dag_state,
-        Some(references),
-        decision_round_wave_3,
-    );
+    build_dag(context, dag_state, Some(references), decision_round_wave_3);
 
     // Ensure we make a commit decision for the leaders of wave 1 ~ 3
     let last_committed = Slot::new_for_test(0, 0);

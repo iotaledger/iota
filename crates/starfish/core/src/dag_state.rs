@@ -3671,8 +3671,7 @@ mod test {
             if block.round() <= 4 {
                 store
                     .write(
-                        WriteBatch::default()
-                            .transactions(vec![block.verified_transactions]),
+                        WriteBatch::default().transactions(vec![block.verified_transactions]),
                         context.clone(),
                     )
                     .unwrap();

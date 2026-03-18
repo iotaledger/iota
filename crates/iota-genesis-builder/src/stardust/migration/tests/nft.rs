@@ -236,10 +236,7 @@ fn nft_migration_with_alias_owner() {
         alias_header.output_id(),
         nft_header.output_id(),
         3_000_000,
-        [
-            (nft_header, nft.into()),
-            (alias_header, alias.into()),
-        ],
+        [(nft_header, nft.into()), (alias_header, alias.into())],
         ALIAS_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_nft"),
@@ -271,10 +268,7 @@ fn nft_migration_with_nft_owner() {
         nft1_header.output_id(),
         nft2_header.output_id(),
         2_000_000,
-        [
-            (nft1_header, nft1.into()),
-            (nft2_header, nft2.into()),
-        ],
+        [(nft1_header, nft1.into()), (nft2_header, nft2.into())],
         NFT_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_nft"),

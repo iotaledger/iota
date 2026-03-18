@@ -3516,9 +3516,7 @@ mod test {
             .map(|(_, c)| c.clone())
             .collect::<Vec<_>>();
 
-        let certified_commits = core
-            .validate_certified_commits(certified_commits)
-            .unwrap();
+        let certified_commits = core.validate_certified_commits(certified_commits).unwrap();
 
         // The certified commit of index 5 should be processed.
         assert_eq!(certified_commits.len(), 1);

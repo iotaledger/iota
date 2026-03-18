@@ -482,8 +482,7 @@ pub(crate) fn median_timestamp_by_stake(
             "Total stake {} < quorum threshold {}",
             total_stake,
             context.committee.quorum_threshold()
-        )
-        );
+        ));
     }
 
     Ok(median_timestamps_by_stake_inner(timestamps, total_stake))

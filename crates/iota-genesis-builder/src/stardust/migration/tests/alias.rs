@@ -257,10 +257,7 @@ fn alias_migration_with_nft_owner() {
         nft_header.output_id(),
         alias_header.output_id(),
         3_000_000,
-        [
-            (nft_header, nft.into()),
-            (alias_header, alias.into()),
-        ],
+        [(nft_header, nft.into()), (alias_header, alias.into())],
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_alias"),

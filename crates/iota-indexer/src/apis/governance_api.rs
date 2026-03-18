@@ -755,8 +755,7 @@ mod tests {
         let rate2 = PoolTokenExchangeRate::new_for_testing(200, 220);
         let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
         let rates = vec![(2, rate2.clone()), (3, rate3.clone()), (1, rate1.clone())];
-        let expected: Vec<(u64, PoolTokenExchangeRate)> =
-            vec![(3, rate3), (2, rate2), (1, rate1)];
+        let expected: Vec<(u64, PoolTokenExchangeRate)> = vec![(3, rate3), (2, rate2), (1, rate1)];
         assert_eq!(backfill_rates(rates), expected);
     }
 

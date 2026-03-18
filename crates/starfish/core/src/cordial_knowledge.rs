@@ -1526,11 +1526,7 @@ mod tests {
         let verified_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(last_round + 1, our_index.value() as u8).build(),
         );
-        let bundle = {
-            connection_knowledge
-                .write()
-                .create_bundle(verified_block)
-        };
+        let bundle = { connection_knowledge.write().create_bundle(verified_block) };
         let BlockBundle {
             verified_headers: headers,
             serialized_shards: shards,

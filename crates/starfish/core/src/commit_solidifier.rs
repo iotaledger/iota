@@ -710,8 +710,7 @@ mod tests {
             .build();
 
         // Submit out of order
-        let (committed, missing) =
-            commit_solidifier.try_get_solid_sub_dags(&[subdag2, subdag1]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag2, subdag1]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
         assert!(commit_solidifier.pending_subdags.is_empty());
@@ -1006,12 +1005,8 @@ mod tests {
             .build();
 
         // Initial commit - should commit first two, buffer the rest
-        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[
-            subdag1,
-            subdag2,
-            subdag3,
-            subdag5,
-        ]);
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3, subdag5]);
         assert_eq!(committed.len(), 2);
         assert_eq!(missing.len(), 2);
         assert_eq!(commit_solidifier.pending_subdags.len(), 2);

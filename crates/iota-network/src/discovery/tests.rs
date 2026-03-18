@@ -1828,7 +1828,7 @@ async fn test_peer_deduplication() -> Result<()> {
     // Test Case 11: Mixed scenario with multiple duplicates and unique peers
     let mixed_peers = vec![
         signed_peer_base.clone(),                // Original
-        signed_peer_base,                // Duplicate of original
+        signed_peer_base,                        // Duplicate of original
         signed_peer_different_timestamp.clone(), // Different (timestamp)
         signed_peer_different_timestamp,         // Duplicate of different
         signed_peer_other,                       // Completely unique

@@ -1010,8 +1010,7 @@ mod tests {
             "GC round should have moved to round 6"
         );
 
-        let mut block_manager =
-            BlockManager::new(context, dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context, dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 10 rounds with some weak links for the blocks of round 9
         let dag_str = "DAG {
@@ -1208,8 +1207,7 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
-        let mut block_manager =
-            BlockManager::new(context, dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context, dag_state, Arc::new(NoopBlockVerifier));
 
         let (_, missing_blocks) = block_manager.try_accept_blocks(vec![blocks_round_2[0].clone()]);
         // Blocks from round 1 are all missing, since the DAG is fully connected
@@ -1461,8 +1459,7 @@ mod tests {
         // Create BlockManager.
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let mut block_manager =
-            BlockManager::new(context, dag_state, Arc::new(test_verifier));
+        let mut block_manager = BlockManager::new(context, dag_state, Arc::new(test_verifier));
 
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
         // be suspended.

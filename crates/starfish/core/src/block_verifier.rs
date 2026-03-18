@@ -417,7 +417,6 @@ pub(crate) mod test {
         // Block with ancestors from the same authority.
         {
             let block = test_block
-                
                 .set_ancestors(vec![
                     BlockRef::new(8, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
                     BlockRef::new(8, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),

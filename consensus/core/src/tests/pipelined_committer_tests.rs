@@ -53,12 +53,7 @@ async fn idempotence() {
     // 4. note: pipelines, waves & rounds are zero-indexed.
     let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
     let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
-    build_dag(
-        context,
-        dag_state,
-        None,
-        decision_round_pipeline_1_wave_0,
-    );
+    build_dag(context, dag_state, None, decision_round_pipeline_1_wave_0);
 
     // Commit one leader.
     let last_decided = Slot::new_for_test(0, 0);
@@ -750,12 +745,7 @@ async fn test_byzantine_validator() {
     // Now build an additional 3 dag layers on top of the existing dag so a commit
     // decision can be made about leader A16 and then an indirect decision can be
     // made about B13
-    build_dag(
-        context,
-        dag_state,
-        Some(references_round_15),
-        18,
-    );
+    build_dag(context, dag_state, Some(references_round_15), 18);
     let sequence = committer.try_decide(last_decided);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 4);

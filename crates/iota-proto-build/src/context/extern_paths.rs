@@ -185,10 +185,7 @@ mod tests {
     fn test_error_invalid_path() {
         let paths = [(".foo.".to_string(), "bar".to_string())];
         let err = ExternPaths::new(&paths, false).unwrap_err();
-        assert_eq!(
-            err,
-            "invalid fully-qualified Protobuf path: .foo."
-        )
+        assert_eq!(err, "invalid fully-qualified Protobuf path: .foo.")
     }
 
     #[test]

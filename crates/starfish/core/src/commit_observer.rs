@@ -845,7 +845,6 @@ mod tests {
             &mut observer
                 .handle_committed_leaders(
                     leaders
-                        
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
@@ -1294,10 +1293,7 @@ mod tests {
 
         // Create new blocks (rounds 7-8) that will acknowledge blocks from before
         // restart
-        builder
-            .layers(7..=8)
-            .build()
-            .persist_layers(dag_state);
+        builder.layers(7..=8).build().persist_layers(dag_state);
 
         let new_leaders = builder
             .leader_blocks(7..=8)

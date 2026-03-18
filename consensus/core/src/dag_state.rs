@@ -568,7 +568,6 @@ impl DagState {
             .map(|r| {
                 self.get_block(r)
                     .unwrap_or_else(|| panic!("Block {r:?} should exist in DAG!"))
-                    
             })
             .collect()
     }

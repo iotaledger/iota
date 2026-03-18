@@ -438,7 +438,6 @@ mod tests {
             &mut observer
                 .handle_commit(
                     leaders
-                        
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),

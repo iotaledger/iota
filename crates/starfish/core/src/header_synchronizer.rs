@@ -1792,11 +1792,7 @@ mod tests {
             all_guards.push(guard);
 
             let authority_5 = AuthorityIndex::new_for_test(5);
-            let guard = map.lock_headers(
-                missing_block_refs,
-                authority_5,
-                SyncMethod::Periodic,
-            );
+            let guard = map.lock_headers(missing_block_refs, authority_5, SyncMethod::Periodic);
             assert!(guard.is_none());
         }
     }
@@ -1985,11 +1981,7 @@ mod tests {
 
             // Authority 4 would exceed the Periodic limit.
             let authority_4 = AuthorityIndex::new_for_test(4);
-            let guard_4 = map.lock_headers(
-                missing_block_refs,
-                authority_4,
-                SyncMethod::Periodic,
-            );
+            let guard_4 = map.lock_headers(missing_block_refs, authority_4, SyncMethod::Periodic);
 
             assert!(
                 guard_4.is_none(),
