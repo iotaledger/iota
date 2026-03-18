@@ -595,6 +595,7 @@ mod tests {
             context.clock.timestamp_utc_ms(),
             CommitRef::new(1, CommitDigest::MIN),
             vec![],
+            vec![],
         )];
         let mut calculator = ReputationScoreCalculator::new(context, &unscored_subdags);
         calculator.calculate();

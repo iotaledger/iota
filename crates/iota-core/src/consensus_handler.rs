@@ -282,6 +282,14 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             ));
         }
 
+        let misbehavior_counts = consensus_output.misbehavior_counts();
+        if !misbehavior_counts.is_empty() {
+            debug!("Received misbehavior counts from consensus");
+            self.epoch_store
+                .misbehavior_monitor
+                .update_from_consensus_output(misbehavior_counts);
+        }
+
         update_low_scoring_authorities(
             self.low_scoring_authorities.clone(),
             self.epoch_store.committee(),
@@ -965,6 +973,7 @@ mod tests {
             blocks.clone(),
             leader_block.timestamp_ms(),
             CommitRef::new(10, CommitDigest::MIN),
+            vec![],
             vec![],
         );
 

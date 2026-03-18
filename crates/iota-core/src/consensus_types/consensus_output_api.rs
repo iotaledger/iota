@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
-use consensus_core::BlockAPI;
+use consensus_core::{BlockAPI, scoring_metrics_store::MysticetiMisbehavior};
 use iota_types::{digests::ConsensusCommitDigest, messages_consensus::ConsensusTransaction};
 
 use crate::consensus_types::AuthorityIndex;
@@ -13,6 +13,28 @@ use crate::consensus_types::AuthorityIndex;
 /// For each transaction, returns deserialized transaction and its serialized
 /// size.
 type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
+
+pub enum ConsensusOutputMisbehaviors {
+    FaultyBlocksProvable,
+    FaultyBlocksUnprovable,
+    MissingProposals,
+    Equivocations,
+}
+
+impl From<&MysticetiMisbehavior> for ConsensusOutputMisbehaviors {
+    fn from(misbehavior_type: &MysticetiMisbehavior) -> Self {
+        match misbehavior_type {
+            MysticetiMisbehavior::FaultyBlocksProvable => {
+                ConsensusOutputMisbehaviors::FaultyBlocksProvable
+            }
+            MysticetiMisbehavior::FaultyBlocksUnprovable => {
+                ConsensusOutputMisbehaviors::FaultyBlocksUnprovable
+            }
+            MysticetiMisbehavior::MissingProposals => ConsensusOutputMisbehaviors::MissingProposals,
+            MysticetiMisbehavior::Equivocations => ConsensusOutputMisbehaviors::Equivocations,
+        }
+    }
+}
 
 pub(crate) trait ConsensusOutputAPI: Display {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>>;
@@ -32,6 +54,8 @@ pub(crate) trait ConsensusOutputAPI: Display {
     fn consensus_digest(&self) -> ConsensusCommitDigest;
 
     fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)>;
+
+    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>;
 }
 macro_rules! impl_consensus_output_api {
     (
@@ -48,7 +72,9 @@ macro_rules! impl_consensus_output_api {
         // How to get the `&[u8]` txs iterator source (something with `.iter()` over tx buffers)
         txs = |$txs_item:ident| $txs_expr:expr,
         // How to get the number of committed headers in the commit
-        committed_header_refs = |$committed_header_refs_item:ident| $committed_header_refs_expr:expr
+        committed_header_refs = |$committed_header_refs_item:ident| $committed_header_refs_expr:expr,
+        // How to get the misbehavior counts
+        misbehavior_counts = |$misbehavior_counts_item:ident| $misbehavior_counts_expr:expr
     ) => {
         impl ConsensusOutputAPI for $ty {
             fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
@@ -129,6 +155,11 @@ macro_rules! impl_consensus_output_api {
                 });
                 num_of_committed_headers.into_iter().collect()
             }
+
+            fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehaviors, Vec<u64>)> {
+                let $misbehavior_counts_item = self;
+                $misbehavior_counts_expr
+            }
         }
     };
 }
@@ -146,7 +177,12 @@ impl_consensus_output_api! {
     round   = |block| block.round(),
     author  = |block| block.author().value(),
     txs     = |block| block.transactions(),
-    committed_header_refs = |self_| self_.blocks.iter().map(|b| b.reference()).collect::<Vec<_>>()
+    committed_header_refs = |self_| self_.blocks.iter().map(|b| b.reference()).collect::<Vec<_>>(),
+    misbehavior_counts = |self_| {
+        self_.misbehavior_counts.iter().map(|(consensus_misbehavior, row)| {
+            (ConsensusOutputMisbehaviors::from(consensus_misbehavior), row.clone())
+        }).collect()
+    }
 }
 
 // starfish_core::CommittedSubDag:
@@ -160,5 +196,6 @@ impl_consensus_output_api! {
     round   = |vt| vt.round(),
     author  = |vt| vt.author().value(),
     txs     = |vt| vt.transactions(),
-    committed_header_refs = |self_| &self_.base.committed_header_refs
+    committed_header_refs = |self_| &self_.base.committed_header_refs,
+    misbehavior_counts = |_self_| vec![]
 }

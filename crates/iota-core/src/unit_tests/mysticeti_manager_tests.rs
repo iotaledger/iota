@@ -194,6 +194,7 @@ async fn test_mysticeti_consensus_handler_handles_older_commits() {
                 timestamp_ms,
                 CommitRef::new(commit_idx as u32, CommitDigest::MIN),
                 vec![],
+                vec![],
             )
         })
         .collect();

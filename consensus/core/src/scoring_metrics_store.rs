@@ -17,6 +17,15 @@ use crate::{
     BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
     storage::StorageScoringMetrics,
 };
+
+#[derive(Clone, PartialEq)]
+pub enum MysticetiMisbehavior {
+    FaultyBlocksProvable,
+    FaultyBlocksUnprovable,
+    MissingProposals,
+    Equivocations,
+}
+
 /// Struct that holds the scoring metrics for all authorities in the committee,
 /// both cached and uncached. It also holds a shared reference to the current
 /// local metrics count used by Scorer.

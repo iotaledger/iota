@@ -16,6 +16,7 @@ use crate::{
     context::Context,
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
+    scoring_metrics_store::MysticetiMisbehavior,
 };
 
 /// The `StorageAPI` trait provides an interface for the block store and has
@@ -134,6 +135,28 @@ impl Linearizer {
             .unwrap_or_else(|e| panic!("Failed to serialize commit: {e}"));
         let commit = TrustedCommit::new_trusted(commit, serialized);
 
+        let current_local_metrics_count = &self
+            .context
+            .scoring_metrics_store
+            .current_local_metrics_count;
+        let misbehavior_counts = vec![
+            (
+                MysticetiMisbehavior::FaultyBlocksProvable,
+                current_local_metrics_count.load_faulty_blocks_provable(),
+            ),
+            (
+                MysticetiMisbehavior::FaultyBlocksUnprovable,
+                current_local_metrics_count.load_faulty_blocks_unprovable(),
+            ),
+            (
+                MysticetiMisbehavior::MissingProposals,
+                current_local_metrics_count.load_missing_proposals(),
+            ),
+            (
+                MysticetiMisbehavior::Equivocations,
+                current_local_metrics_count.load_equivocations(),
+            ),
+        ];
         // Create the corresponding committed sub dag
         let sub_dag = CommittedSubDag::new(
             leader_block.reference(),
@@ -141,6 +164,7 @@ impl Linearizer {
             timestamp_ms,
             commit.reference(),
             reputation_scores_desc,
+            misbehavior_counts,
         );
 
         (sub_dag, commit)

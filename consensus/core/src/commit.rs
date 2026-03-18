@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     block::{BlockAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlock},
     leader_scoring::ReputationScores,
+    scoring_metrics_store::MysticetiMisbehavior,
     storage::Store,
 };
 
@@ -363,6 +364,7 @@ pub struct CommittedSubDag {
     /// IOTA that can then be used by IOTA for future submission to
     /// consensus.
     pub reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+    pub misbehavior_counts: Vec<(MysticetiMisbehavior, Vec<u64>)>,
 }
 
 impl CommittedSubDag {
@@ -373,6 +375,7 @@ impl CommittedSubDag {
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+        misbehavior_counts: Vec<(MysticetiMisbehavior, Vec<u64>)>,
     ) -> Self {
         Self {
             leader,
@@ -380,6 +383,7 @@ impl CommittedSubDag {
             timestamp_ms,
             commit_ref,
             reputation_scores_desc,
+            misbehavior_counts,
         }
     }
 }
@@ -449,12 +453,15 @@ pub fn load_committed_subdag_from_store(
         .collect::<Vec<_>>();
     let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
     let leader_block_ref = blocks[leader_block_idx].reference();
+    // Misbehaviors are already being stored separately with the DagState, so we
+    // don't need to store them in the commit for recovery.
     CommittedSubDag::new(
         leader_block_ref,
         blocks,
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
+        vec![],
     )
 }
 
