@@ -3,22 +3,38 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// <reference types="vitest" />
+import { sentryVitePlugin } from '@sentry/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'child_process';
+import { copyFileSync } from 'fs';
 import { defineConfig } from 'vite';
 import svgr from 'vite-plugin-svgr';
 import { configDefaults } from 'vitest/config';
-import { copyFileSync } from 'fs';
 
 process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
 process.env.VITE_BUILD_ENV = process.env.BUILD_ENV || 'development';
 const EXPLORER_REV = execSync('git rev-parse HEAD').toString().trim().toString();
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+const IS_PROD = process.env.VITE_BUILD_ENV === 'production';
 
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [
         react(),
         svgr(),
+        sentryVitePlugin({
+            org: 'iota-foundation-eu',
+            project: 'iota-explorer',
+            authToken: sentryAuthToken,
+            sourcemaps: {
+                assets: './build/**',
+            },
+            disable: !IS_PROD || !sentryAuthToken,
+            silent: !process.env.CI,
+            release: {
+                name: EXPLORER_REV,
+            },
+        }),
         {
             name: 'copy-wasm-files',
             buildStart() {
