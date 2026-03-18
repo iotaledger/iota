@@ -38,6 +38,10 @@ impl Misbehaviors {
     }
 }
 
+/// The versioned, ordered list of misbehavior categories actively tracked in
+/// the current epoch. The index of each variant determines which row of
+/// `MisbehaviorCounts` and which field of `LegacyReportPayload` it corresponds
+/// to, so order must remain stable within a version.
 pub enum ReportedMisbehaviors {
     V1(Vec<Misbehaviors>),
 }
@@ -50,6 +54,15 @@ impl ReportedMisbehaviors {
     }
 }
 
+/// A two-dimensional matrix of raw misbehavior counts.
+///
+/// `MisbehaviorCounts[i][j]` holds the count of misbehavior category `i`
+/// (indexed by `ReportedMisbehaviors`) observed for authority `j`.  The inner
+/// dimension therefore equals the committee size and the outer dimension equals
+/// the number of tracked misbehavior categories.
+///
+/// This is the domain type used inside `iota-core`. For wire/storage encoding
+/// see `LegacyReportPayload` / `VersionedMisbehaviorReport` in `iota-types`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MisbehaviorCounts(pub(crate) Vec<Vec<u64>>);
 
@@ -109,6 +122,9 @@ impl From<&VersionedMisbehaviorReport> for MisbehaviorCounts {
     }
 }
 
+/// Selects which set of misbehaviors is actively monitored. The version is
+/// derived from `ProtocolConfig::misbehavior_monitor_version` and must stay
+/// in sync with the corresponding version of `VersionedMisbehaviorReport`.
 pub(crate) enum MisbehaviorMonitorVersion {
     V1(ReportedMisbehaviors),
 }
@@ -133,7 +149,11 @@ impl MisbehaviorMonitorVersion {
     }
 }
 
-/// Holds all information related to scoring of authorities in the committee.
+/// Tracks local misbehavior observations for all authorities in the committee.
+///
+/// The monitor accumulates counts from blocks produced by consensus and exposes
+/// them to the `Scorer`, which converts them into authority scores used during
+/// stake distribution at epoch boundaries.
 pub struct MisbehaviorMonitor {
     // The current metrics counts collected by the authority, i.e., the local view of the node
     // about the behaviour of the rest of the committee, according to the blocks received.
