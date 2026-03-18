@@ -1359,7 +1359,6 @@ async fn test_transaction_cache_race() {
     };
 
     let t2 = {
-        let barrier = barrier;
         std::thread::spawn(move || {
             for (tx, _) in txns {
                 barrier.wait();
