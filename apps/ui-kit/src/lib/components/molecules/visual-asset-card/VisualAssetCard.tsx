@@ -7,7 +7,7 @@ import cx from 'classnames';
 import { AssetMediaRenderer } from '../../molecules/asset-media-renderer';
 import type { AssetMediaRendererProps } from '../../molecules/asset-media-renderer';
 
-interface VisualAssetBaseProps {
+interface VisualAssetBaseProps extends React.AriaAttributes {
     /**
      * The onClick event for the icon.
      */
@@ -73,6 +73,7 @@ export function VisualAssetCard({
                 <ButtonUnstyled
                     className="visual-asset-icon-color absolute right-2 top-2 z-10 h-9 w-9 cursor-pointer rounded-full p-xs opacity-0 transition-opacity duration-300 group-hover:bg-shader-neutral-light-72 group-hover:opacity-100 [&_svg]:h-5 [&_svg]:w-5"
                     onClick={handleIconClick}
+                    aria-label="More options"
                 >
                     {icon}
                 </ButtonUnstyled>

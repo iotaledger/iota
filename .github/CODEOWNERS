@@ -69,7 +69,6 @@
 /crates/iota-replay/ @iotaledger/node
 /crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
 /crates/iota-rest-kv/ @iotaledger/infrastructure
-/crates/iota-rosetta/ @iotaledger/infrastructure
 /crates/iota-rpc-loadgen/ @iotaledger/infrastructure
 /crates/iota-sdk/ @iotaledger/dev-tools
 /crates/iota-simulator/ @iotaledger/core-protocol
@@ -139,6 +138,9 @@ vercel.json @iotaledger/tooling
 # Docs and examples are for DevRel to approve upon
 /docs/ @iotaledger/devrel
 /examples/ @iotaledger/devrel
+
+# TS SDK docs are co-owned between tooling and devrel
+/docs/content/developer/ts-sdk/ @iotaledger/tooling @iotaledger/devrel
 
 # Override ownership of Boxfish Studio and the tooling team for the following files
 /docs/**/package.json @iotaledger/devrel

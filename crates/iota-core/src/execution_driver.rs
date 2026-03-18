@@ -4,14 +4,11 @@
 
 use std::sync::{Arc, Weak};
 
-use iota_common::fatal;
+use iota_common::{fatal, random::get_rng};
 use iota_macros::fail_point_async;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_types::error::IotaError;
-use rand::{
-    Rng, SeedableRng,
-    rngs::{OsRng, StdRng},
-};
+use rand::Rng;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
 use tracing::{Instrument, error_span, info, instrument, warn};
 
@@ -35,7 +32,6 @@ pub async fn execution_process(
 
     // Rate limit concurrent executions to # of cpus.
     let limit = Arc::new(Semaphore::new(num_cpus::get()));
-    let mut rng = StdRng::from_rng(&mut OsRng).unwrap();
 
     // Loop whenever there is a signal that a new transactions is ready to process.
     loop {
@@ -94,7 +90,7 @@ pub async fn execution_process(
         // the semaphore in this context.
         let permit = limit.acquire_owned().await.unwrap();
 
-        if rng.gen_range(0.0..1.0) < QUEUEING_DELAY_SAMPLING_RATIO {
+        if get_rng().gen_range(0.0..1.0) < QUEUEING_DELAY_SAMPLING_RATIO {
             authority
                 .metrics
                 .execution_queueing_latency

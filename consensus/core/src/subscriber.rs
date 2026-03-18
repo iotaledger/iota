@@ -12,7 +12,7 @@ use tokio::{
     task::JoinHandle,
     time::{sleep, timeout},
 };
-use tracing::{debug, error, info};
+use tracing::{Instrument, debug, error, info, trace_span};
 
 use crate::{
     Round,
@@ -229,6 +229,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .inc();
                         let result = authority_service
                             .handle_send_block(peer, block.clone())
+                            .instrument(trace_span!("handle_send_block"))
                             .await;
                         if let Err(e) = result {
                             context

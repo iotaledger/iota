@@ -4,7 +4,9 @@
 
 use std::{
     collections::HashSet,
-    fs::{self},
+    fs::{self, OpenOptions},
+    future::Future,
+    io::Write,
     marker::PhantomData,
     path::Path,
     time::Duration,
@@ -13,14 +15,16 @@ use std::{
 use chrono;
 use futures;
 use tokio::time::{self, Instant};
+use tracing::info;
 
 use crate::{
-    benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType},
+    benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType, RunInterval},
     build_cache::BuildCacheService,
     client::Instance,
     display,
     error::{TestbedError, TestbedResult},
     faults::CrashRecoverySchedule,
+    logger::{IS_LOOP, SwappableWriter},
     logs::LogsAnalyzer,
     measurement::MeasurementsCollection,
     monitor::{Monitor, Prometheus},
@@ -66,6 +70,10 @@ pub struct Orchestrator<P, T> {
     /// Whether to forgo a grafana and prometheus instance and leave the testbed
     /// unmonitored.
     skip_monitoring: bool,
+    /// Directory to store benchmark results.
+    benchmark_dir: std::path::PathBuf,
+    /// Writer for benchmark logs.
+    benchmark_writer: crate::logger::SwappableWriter,
 }
 
 impl<P, T> Orchestrator<P, T> {
@@ -100,6 +108,8 @@ impl<P, T> Orchestrator<P, T> {
             log_processing: false,
             dedicated_clients: 0,
             skip_monitoring: false,
+            benchmark_dir: Path::new("benchmark_results").to_path_buf(),
+            benchmark_writer: SwappableWriter::new(),
         }
     }
 
@@ -139,6 +149,16 @@ impl<P, T> Orchestrator<P, T> {
         self
     }
 
+    pub fn with_benchmark_dir_and_writer<F: AsRef<Path>>(
+        mut self,
+        benchmark_dir: F,
+        writer: crate::logger::SwappableWriter,
+    ) -> Self {
+        self.benchmark_dir = benchmark_dir.as_ref().to_path_buf();
+        self.benchmark_writer = writer;
+        self
+    }
+
     /// Set whether to boot grafana on the local machine to monitor the nodes.
     pub fn skip_monitoring(mut self, skip_monitoring: bool) -> Self {
         self.skip_monitoring = skip_monitoring;
@@ -161,6 +181,30 @@ impl<P, T> Orchestrator<P, T> {
             instances.push(metrics_instance.clone());
         }
         instances
+    }
+
+    fn effective_scrape_interval(&self, parameters: &BenchmarkParameters<T>) -> Duration {
+        const MIN: Duration = Duration::from_secs(1);
+        // upper bound: current self.scrape_interval (e.g., 15s)
+        let max = self.scrape_interval;
+
+        match parameters.run_interval {
+            RunInterval::Time(_) => self.scrape_interval,
+
+            RunInterval::Count(tx_count) => {
+                // Evaluate the scrape interval based on the estimated benchmark duration,
+                // aiming for around 30 samples, but never less than 1s and never more than
+                // self.scrape_interval.
+                let qps = parameters.load.max(1) as u64; // protect against division by zero, even if load is set to 0
+                let est_secs = tx_count.div_ceil(qps);
+
+                let target_samples = 30u64;
+                let raw = (est_secs / target_samples).max(1);
+                let candidate = Duration::from_secs(raw);
+
+                candidate.clamp(MIN, max)
+            }
+        }
     }
 }
 
@@ -337,6 +381,10 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         use_internal_ip_address: bool,
         timestamp: &str,
     ) -> TestbedResult<()> {
+        if self.skip_monitoring {
+            display::warn("Monitoring is skipped, not starting Prometheus, Tempo and Grafana");
+            return Ok(());
+        }
         if let Some(instance) = &self.metrics_instance {
             display::action("Configuring monitoring instance");
 
@@ -352,10 +400,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
                 .settings
                 .enable_prometheus_snapshots
                 .then_some(timestamp);
+            monitor.start_tempo().await?;
             monitor
                 .start_prometheus(
                     &self.protocol_commands,
                     use_internal_ip_address,
+                    self.settings.use_fullnode_for_execution,
                     snapshot_dir,
                 )
                 .await?;
@@ -477,6 +527,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .execute(self.instances_without_metrics(), command, context)
             .await?;
 
+        display::action("Configuration of all instances completed");
         display::done();
         Ok(())
     }
@@ -500,6 +551,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let context = CommandContext::default();
         self.ssh_manager.execute(active, command, context).await?;
 
+        display::action("Cleanup of all instances completed");
         display::done();
         Ok(())
     }
@@ -512,12 +564,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         self.boot_nodes(self.node_instances.clone(), parameters)
             .await?;
 
+        display::action("Deployment of validators completed");
         display::done();
         Ok(())
     }
 
     /// Deploy the load generators.
     pub async fn run_clients(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
+        display::action("Starting deployment of load generators");
         if self.settings.use_fullnode_for_execution {
             display::action("Setting up full nodes");
 
@@ -581,6 +635,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .execute_per_instance(metrics_script.clone(), metrics_context)
             .await?;
 
+        display::action("Background metrics collection service started");
+        display::action("Deployment of load generators completed");
         display::done();
         Ok(())
     }
@@ -611,34 +667,61 @@ done"#
 
     /// Collect metrics from the load generators.
     pub async fn run(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
-        display::action(format!(
-            "Running benchmark (at least {}s)",
-            parameters.duration.as_secs()
-        ));
+        let run_label = match parameters.run_interval {
+            RunInterval::Time(d) => format!("at least {}s", d.as_secs()),
+            RunInterval::Count(n) => format!("until {n} tx executed"),
+        };
+        display::action(format!("Running benchmark ({run_label})"));
 
-        let mut metrics_interval = time::interval(Duration::from_secs(5));
-        metrics_interval.tick().await; // The first tick returns immediately.
-
+        let scrape_every = self.effective_scrape_interval(parameters);
+        let mut metrics_interval = time::interval(scrape_every);
+        metrics_interval.tick().await;
         let faults_type = parameters.faults.clone();
         let mut faults_schedule =
             CrashRecoverySchedule::new(faults_type, self.node_instances.clone());
+
         let mut faults_interval = time::interval(self.crash_interval);
-        faults_interval.tick().await; // The first tick returns immediately.
+        faults_interval.tick().await;
+
+        // In Count-mode we should stop when the client tmux session terminates,
+        // not when "elapsed seconds" reaches some value.
+        let is_count_mode = matches!(parameters.run_interval, RunInterval::Count(_));
+        let clients = self.client_instances.clone();
+        let ssh = self.ssh_manager.clone();
+
+        let wait_clients_future: std::pin::Pin<Box<dyn Future<Output = TestbedResult<()>> + Send>> =
+            if is_count_mode && !clients.is_empty() {
+                Box::pin(async move {
+                    ssh.wait_for_command(clients, "client", CommandStatus::Terminated)
+                        .await
+                        .map_err(Into::into)
+                })
+            } else {
+                Box::pin(std::future::pending::<TestbedResult<()>>())
+            };
+        tokio::pin!(wait_clients_future);
 
         let start = Instant::now();
+
         loop {
             tokio::select! {
-                // Update elapsed time display.
                 _ = metrics_interval.tick() => {
                     let elapsed = Instant::now().duration_since(start).as_secs_f64().ceil() as u64;
                     display::status(format!("{elapsed}s"));
 
-                    if elapsed > parameters.duration.as_secs() {
-                        break;
+                    if let Some(limit) = parameters.run_interval.time_limit_secs() {
+                        if elapsed >= limit {
+                            break;
+                        }
                     }
-                },
+                }
 
-                // Kill and recover nodes according to the input schedule.
+                res = &mut wait_clients_future => {
+                    // Work only count-based benchmarks, for time-based the future is pending and will never complete
+                    res?;
+                    break;
+                }
+
                 _ = faults_interval.tick() => {
                     let  action = faults_schedule.update();
                     if !action.kill.is_empty() {
@@ -651,7 +734,7 @@ done"#
                         display::newline();
                         display::config("Testbed update", action);
                     }
-                }
+                 }
             }
         }
 
@@ -683,6 +766,7 @@ done"#
             }
         }
 
+        display::action("Benchmark run completed");
         display::done();
         Ok(())
     }
@@ -733,6 +817,76 @@ done"#
                 panic!("Command execution failed on one or more instances: {e}");
             }
         }
+    }
+
+    pub async fn download_benchmark_stats(
+        &self,
+        benchmark_stats_path: &str,
+        parameters: &BenchmarkParameters<T>,
+    ) -> TestbedResult<()> {
+        let path = parameters.benchmark_dir.join("benchmark-stats");
+        fs::create_dir_all(&path).expect("Failed to create benchmark-stats directory");
+
+        display::action("Downloading benchmark stats");
+
+        let mut downloaded = 0usize;
+
+        for (i, instance) in self.client_instances.iter().enumerate() {
+            display::status(format!("{}/{}", i + 1, self.client_instances.len()));
+
+            // Support per-client template path, e.g.
+            // "/home/ubuntu/benchmark_stats_{i}.json"
+            let remote_path_raw = benchmark_stats_path.replace("{i}", &i.to_string());
+
+            // SFTP/download often does not expand "~", so normalize it.
+            let remote_path = if let Some(rest) = remote_path_raw.strip_prefix("~/") {
+                format!("/home/ubuntu/{rest}")
+            } else {
+                remote_path_raw
+            };
+
+            let local_file_name = Path::new(&remote_path)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .map(|name| format!("client-{i}-{name}"))
+                .unwrap_or_else(|| format!("client-{i}-benchmark-stats.json"));
+
+            let result: TestbedResult<()> = async {
+                let connection = self.ssh_manager.connect(instance.ssh_address()).await?;
+                let content = connection.download(&remote_path).await?;
+
+                let local_file = path.join(local_file_name);
+                fs::write(local_file, content.as_bytes())
+                    .expect("Cannot write benchmark stats file");
+                Ok(())
+            }
+            .await;
+
+            match result {
+                Ok(_) => {
+                    downloaded += 1;
+                }
+                Err(e) => {
+                    display::warn(format!(
+                        "Failed to download benchmark stats from client {i} ({}) at '{}': {e}",
+                        instance.ssh_address(),
+                        remote_path
+                    ));
+                }
+            }
+        }
+
+        if downloaded == 0 {
+            display::warn(format!(
+                "No benchmark stats files downloaded (remote path template: '{}')",
+                benchmark_stats_path
+            ));
+        } else {
+            display::config("Downloaded benchmark stats files", downloaded);
+        }
+
+        display::done();
+        Ok(())
     }
 
     /// Download the metrics logs from clients.
@@ -961,10 +1115,36 @@ done"#
 
         // Cleanup the testbed (in case the previous run was not completed).
         self.cleanup(true).await?;
-
-        let commit = self.settings.repository.commit.replace("/", "_");
         let timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
-        let benchmark_dir = self.settings.results_dir.join(&commit).join(&timestamp);
+
+        display::config("dedicated_clients", self.dedicated_clients);
+        display::config("nodes", self.node_instances.len());
+        display::config("clients", self.client_instances.len());
+        display::config("metrics", self.metrics_instance.is_some());
+
+        display::config(
+            "nodes",
+            self.node_instances
+                .iter()
+                .map(|i| i.ssh_address().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        display::config(
+            "clients",
+            self.client_instances
+                .iter()
+                .map(|i| i.ssh_address().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        display::config(
+            "metrics",
+            self.metrics_instance
+                .as_ref()
+                .map(|i| i.ssh_address().to_string())
+                .unwrap_or("<none>".to_string()),
+        );
 
         // Update the software on all instances.
         if !self.skip_testbed_update {
@@ -976,101 +1156,148 @@ done"#
         self.start_monitoring(generator.use_internal_ip_address, &timestamp)
             .await?;
 
+        display::action("Testbed ready!");
+
         // Run all benchmarks.
         let mut i = 1;
         let mut latest_committee_size = 0;
-        while let Some(mut parameters) = generator.next() {
-            display::header(format!("Starting benchmark {i}"));
-            display::config("Benchmark type", &parameters.benchmark_type);
-            display::config("Parameters", &parameters);
-            display::newline();
+        let result: TestbedResult<()> = IS_LOOP
+            .scope(true, async {
+                while let Some(mut parameters) = generator.next() {
+                    display::header(format!("Starting benchmark {i}"));
+                    display::config("Benchmark type", &parameters.benchmark_type);
+                    display::config("Parameters", &parameters);
+                    display::newline();
 
-            parameters.benchmark_dir = benchmark_dir.join(format!("{parameters:?}"));
+                    parameters.benchmark_dir = self.benchmark_dir.join(format!("{parameters:?}"));
 
-            // Cleanup the testbed (in case the previous run was not completed).
-            self.cleanup(true).await?;
-            // Create benchmark directory.
-            fs::create_dir_all(&parameters.benchmark_dir)
-                .expect("Failed to create benchmark directory");
+                    if !self.skip_monitoring {
+                        if let Some(metrics) = &self.metrics_instance {
+                            let host_ip = if generator.use_internal_ip_address {
+                                metrics.private_ip
+                            } else {
+                                metrics.main_ip
+                            };
 
-            // Initialize logger for this benchmark run
-            let log_file = parameters.benchmark_dir.join("logs.txt");
-            crate::logger::init_logger(&log_file).expect("Failed to initialize logger");
-            crate::logger::log(
-                chrono::Local::now()
-                    .format("Started %y-%m-%d:%H-%M-%S")
-                    .to_string()
-                    .as_str(),
-            );
+                            parameters.otel.get_or_insert(crate::benchmark::OtelConfig {
+                                otlp_endpoint: format!(
+                                    "http://{}:{}",
+                                    host_ip,
+                                    crate::monitor::Tempo::OTLP_GRPC_PORT
+                                ),
+                                protocol: "grpc".to_string(),
+                                sampler: "parentbased_traceidratio".to_string(),
+                                sampler_arg: "0.1".to_string(),
+                            });
+                        }
+                    }
 
-            let benchmark_result = async {
-                // Configure all instances (if not skipped).
-                if !self.skip_testbed_configuration {
-                    self.configure(&parameters).await?;
-                    latest_committee_size = parameters.nodes;
+                    // Cleanup the testbed (in case the previous run was not completed).
+                    self.cleanup(true).await?;
+                    // Create benchmark directory.
+                    fs::create_dir_all(&parameters.benchmark_dir)
+                        .expect("Failed to create benchmark directory");
+
+                    // Swap the loop logger to write to this benchmark's log file
+                    let log_file_path = parameters.benchmark_dir.join("logs.log");
+                    let new_file = OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(log_file_path)
+                        .expect("Failed to open log file");
+                    self.benchmark_writer
+                        .swap(Box::new(new_file))
+                        .expect("Failed to swap log writer");
+
+                    crate::logger::log(
+                        &chrono::Local::now()
+                            .format("Started %y-%m-%d:%H-%M-%S\n")
+                            .to_string(),
+                    );
+
+                    let benchmark_result = async {
+                        // Configure all instances (if not skipped).
+                        if !self.skip_testbed_configuration {
+                            self.configure(&parameters).await?;
+                            latest_committee_size = parameters.nodes;
+                        }
+
+                        // Deploy the validators.
+                        self.run_nodes(&parameters).await?;
+
+                        // Deploy the load generators.
+                        self.run_clients(&parameters).await?;
+
+                        // Wait for the benchmark to terminate. Then save the results and
+                        // print a summary.
+                        self.run(&parameters).await?;
+
+                        // Collect and aggregate metrics
+                        let mut aggregator =
+                            MeasurementsCollection::new(&self.settings, parameters.clone());
+                        self.download_metrics_logs(&parameters.benchmark_dir)
+                            .await?;
+
+                        // Parse and aggregate metrics from downloaded files
+                        aggregator.aggregates_metrics_from_files::<P>(
+                            self.client_instances.len(),
+                            &parameters.benchmark_dir.join("logs"),
+                        );
+
+                        aggregator.display_summary();
+                        aggregator.save(&parameters.benchmark_dir);
+                        generator.register_result(aggregator);
+
+                        // Flush any remaining logs to the benchmark log file
+                        let _ = self.benchmark_writer.flush();
+
+                        TestbedResult::Ok(())
+                    }
+                    .await;
+
+                    // Download benchmark stats if metadata path is provided
+                    if let Some(benchmark_stats_path) = &parameters.benchmark_stats_path {
+                        self.download_benchmark_stats(benchmark_stats_path, &parameters)
+                            .await?;
+                    }
+
+                    // Kill the nodes and clients (without deleting the log files).
+                    self.cleanup(false).await?;
+
+                    // Download the log files.
+                    if self.log_processing {
+                        let error_counter = self.download_logs(&parameters.benchmark_dir).await?;
+                        error_counter.print_summary();
+                    }
+
+                    // Close the per-benchmark log file
+                    crate::logger::log(
+                        &chrono::Local::now()
+                            .format("Finished %y-%m-%d:%H-%M-%S\n")
+                            .to_string(),
+                    );
+
+                    // Propagate any error that occurred
+                    benchmark_result?;
+
+                    i += 1;
                 }
 
-                // Deploy the validators.
-                self.run_nodes(&parameters).await?;
-
-                // Deploy the load generators.
-                self.run_clients(&parameters).await?;
-
-                // Wait for the benchmark to terminate. Then save the results and print a
-                // summary.
-                self.run(&parameters).await?;
-
-                // Collect and aggregate metrics
-                let mut aggregator =
-                    MeasurementsCollection::new(&self.settings, parameters.clone());
-                self.download_metrics_logs(&parameters.benchmark_dir)
-                    .await?;
-
-                // Parse and aggregate metrics from downloaded files
-                aggregator.aggregates_metrics_from_files::<P>(
-                    self.client_instances.len(),
-                    &parameters.benchmark_dir.join("logs"),
-                );
-
-                aggregator.display_summary();
-                aggregator.save(&parameters.benchmark_dir);
-                generator.register_result(aggregator);
-
-                TestbedResult::Ok(())
-            }
+                Ok(())
+            })
             .await;
 
-            // Kill the nodes and clients (without deleting the log files).
-            self.cleanup(false).await?;
-
-            // Download the log files.
-            if self.log_processing {
-                let error_counter = self.download_logs(&parameters.benchmark_dir).await?;
-                error_counter.print_summary();
-            }
-
-            // Close the logger for this benchmark run
-            crate::logger::log(
-                chrono::Local::now()
-                    .format("Finished %y-%m-%d:%H-%M-%S")
-                    .to_string()
-                    .as_str(),
-            );
-            crate::logger::close_logger();
-
-            // Propagate any error that occurred
-            benchmark_result?;
-
-            i += 1;
-        }
+        result?;
 
         if self.settings.enable_prometheus_snapshots {
+            info!("Downloading prometheus snapshot");
             if let Err(e) = self
-                .download_prometheus_snapshot(&benchmark_dir, &timestamp)
+                .download_prometheus_snapshot(&self.benchmark_dir, &timestamp)
                 .await
             {
                 display::error(format!("Failed to download prometheus snapshot: {}", e));
             }
+            info!("Prometheus snapshot download completed");
         }
 
         display::header("Benchmark completed");

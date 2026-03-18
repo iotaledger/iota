@@ -5,8 +5,9 @@
 use std::sync::Arc;
 
 use prometheus::{
-    Histogram, IntCounter, IntGauge, Registry, register_histogram_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 pub struct CheckpointExecutorMetrics {
@@ -21,6 +22,10 @@ pub struct CheckpointExecutorMetrics {
     pub checkpoint_transaction_count: Histogram,
     pub checkpoint_contents_age: Histogram,
     pub last_executed_checkpoint_age: Histogram,
+    pub checkpoint_executor_validator_path: IntGauge,
+
+    pub stage_wait_duration_ns: IntCounterVec,
+    pub stage_active_duration_ns: IntCounterVec,
 }
 
 impl CheckpointExecutorMetrics {
@@ -95,6 +100,26 @@ impl CheckpointExecutorMetrics {
                 "Age of the last executed checkpoint",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry
+            )
+            .unwrap(),
+            checkpoint_executor_validator_path: register_int_gauge_with_registry!(
+                "checkpoint_executor_validator_path",
+                "Number of checkpoints executed using the validator path",
+                registry
+            )
+            .unwrap(),
+            stage_wait_duration_ns: register_int_counter_vec_with_registry!(
+                "checkpoint_executor_pipeline_stage_wait_duration_ns",
+                "Pipeline stage wait duration in nanoseconds",
+                &["stage"],
+                registry,
+            )
+            .unwrap(),
+            stage_active_duration_ns: register_int_counter_vec_with_registry!(
+                "checkpoint_executor_pipeline_stage_active_duration_ns",
+                "Pipeline stage active duration in nanoseconds",
+                &["stage"],
+                registry,
             )
             .unwrap(),
         };

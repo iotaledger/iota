@@ -158,6 +158,38 @@ macro_rules! impl_field_presence_checker {
         }
     };
 
+    // Transparent-repeated type rule:
+    //
+    // Like `transparent`, but for when the inner field is a `Vec<T>` (repeated
+    // proto field) instead of `Option<T>`.  Delegates to the first element when
+    // the vec is non-empty; reports every field as absent when it is empty.
+    //
+    // Syntax:
+    //   impl_field_presence_checker!(OuterType, transparent_repeated(vec_field) {
+    //       inner_field1,
+    //       inner_field2,
+    //       ...
+    //   });
+    ($type:ty, transparent_repeated($inner_field:ident) { $( $field:ident ),* $(,)? }) => {
+        impl $crate::utils::FieldPresenceChecker for $type {
+            fn top_level_fields(&self) -> &[&'static str] {
+                &[ $( stringify!($field) ),* ]
+            }
+
+            fn check_field_presence(&self, field: &str) -> Option<(bool, Option<&dyn $crate::utils::FieldPresenceChecker>)> {
+                if let Some(first) = self.$inner_field.first() {
+                    first.check_field_presence(field)
+                } else {
+                    // Vec is empty — all inner fields are absent.
+                    match field {
+                        $( stringify!($field) => Some((false, None)), )*
+                        _ => None,
+                    }
+                }
+            }
+        }
+    };
+
     // Helper rule for repeated fields (when `: [Type]` is specified)
     (@field_check $self:ident, $field:ident, [ $nested_type:ty ]) => {{
         // Repeated fields are always present, check if non-empty
@@ -200,15 +232,39 @@ pub fn comma_separated_field_mask_to_paths(mask_str: &str) -> Vec<&str> {
 }
 
 /// Assert field presence/absence for any type implementing
-/// FieldPresenceChecker. This function validates that an object contains
-/// exactly the fields specified (or their absence). It also supports nested
-/// field paths using dot notation (e.g., "reference.object_id").
+/// [`FieldPresenceChecker`].
+///
+/// Each path in `expected_field_paths` is either:
+/// - A **bare** name (no dot), e.g. `"bcs"` or `"effects"`:
+///   - If the field has a nested [`FieldPresenceChecker`], **all** of its
+///     sub-fields are asserted present recursively (mirrors server wildcard
+///     semantics where a parent path returns every sub-field).
+///   - If the field has no nested checker (a leaf), only presence is asserted.
+/// - A **dotted** path, e.g. `"reference.object_id"` — the top-level field must
+///   be present, and exactly the listed sub-paths must be present inside it
+///   (all other sub-fields are asserted absent).
+///
+/// Every top-level field that is *not* listed in `expected_field_paths` (either
+/// bare or as the prefix of a dotted path) is asserted **absent**.
+///
+/// Paths listed in `ignored_field_paths` are skipped entirely — no presence or
+/// absence is asserted for them.  Use this for fields that are optionally
+/// populated depending on server state (e.g. `checkpoint` / `timestamp` that
+/// are always `None` for just-executed transactions).  The format mirrors
+/// `expected_field_paths`: a bare name ignores that field at the current level;
+/// a dotted path (`"executed_transaction.checkpoint"`) ignores the named
+/// sub-field when recursing into `executed_transaction`.
+///
+/// This design lets tests pass read-mask paths directly: a wildcard mask entry
+/// like `"effects"` (all sub-fields) maps to bare `"effects"`, while a specific
+/// entry like `"effects.digest"` maps to the dotted path.
 ///
 /// # Example
 /// ```ignore
 /// assert_field_presence(
 ///     &object,
 ///     &["reference.object_id", "reference.version", "bcs"],
+///     &[],
 ///     "test scenario"
 /// );
 /// ```
@@ -216,12 +272,14 @@ pub fn comma_separated_field_mask_to_paths(mask_str: &str) -> Vec<&str> {
 /// - `reference` is present (inferred because reference.* are listed)
 /// - `reference.object_id` is present
 /// - `reference.version` is present
-/// - `bcs` is present
-/// - All other fields at the top level are absent
-/// - All other fields inside `reference` are absent (like `reference.digest`)
+/// - `bcs` is present (leaf — presence only, no nested inspection)
+/// - All other top-level fields are absent
+/// - Inside `reference`: only `object_id` and `version` are present
+///   (`reference.digest` is absent)
 pub(crate) fn assert_field_presence(
     checker: &dyn FieldPresenceChecker,
     expected_field_paths: &[&str],
+    ignored_field_paths: &[&str],
     scenario: &str,
 ) {
     let mut expected_nested_field_paths: HashMap<&str, Vec<&str>> = HashMap::new();
@@ -241,6 +299,22 @@ pub(crate) fn assert_field_presence(
         }
     }
 
+    // Parse ignored paths: bare names are ignored at this level; dotted paths
+    // are threaded down into the corresponding nested recursion.
+    let mut ignored_nested_field_paths: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut ignored_top_level_fields: HashSet<&str> = HashSet::new();
+
+    for ignored_field_path in ignored_field_paths {
+        if let Some((top_level_field, remaining_path)) = ignored_field_path.split_once('.') {
+            ignored_nested_field_paths
+                .entry(top_level_field)
+                .or_default()
+                .push(remaining_path);
+        } else {
+            ignored_top_level_fields.insert(ignored_field_path);
+        }
+    }
+
     let actual_top_level_fields: HashSet<&str> =
         checker.top_level_fields().iter().copied().collect();
 
@@ -253,8 +327,13 @@ pub(crate) fn assert_field_presence(
         );
     }
 
-    // Check each field at this level for correct presence/absence
+    // Check each field at this level for correct presence/absence.
+    // Fields listed in ignored_top_level_fields are skipped entirely.
     for top_level_field in actual_top_level_fields.clone() {
+        if ignored_top_level_fields.contains(top_level_field) {
+            continue;
+        }
+
         let should_be_present = expected_top_level_fields.contains(top_level_field);
 
         let (is_present, _) = checker
@@ -281,20 +360,45 @@ pub(crate) fn assert_field_presence(
         }
     }
 
-    // Recurse into nested fields
-    for top_level_field in &actual_top_level_fields {
-        // Recurse only if there is a nested checker for this field
+    // Recurse for fields with explicit dotted sub-paths, threading down any
+    // ignored sub-paths that were specified for this field.
+    for (top_level_field, sub_paths) in &expected_nested_field_paths {
         if let Some((_, Some(nested_checker))) = checker.check_field_presence(top_level_field) {
-            let expected_field_paths_nested = expected_nested_field_paths
+            let ignored_sub: &[&str] = ignored_nested_field_paths
                 .get(top_level_field)
-                .map(|v| v.as_slice())
+                .map(Vec::as_slice)
                 .unwrap_or(&[]);
-
-            // Recurse into this nested field
             assert_field_presence(
                 nested_checker,
-                expected_field_paths_nested,
+                sub_paths,
+                ignored_sub,
                 &format!("{scenario}.{top_level_field}"),
+            );
+        }
+    }
+
+    // For bare paths that have a nested checker, auto-recurse and assert that
+    // ALL sub-fields are present (minus any ignored ones).  This mirrors the
+    // server's wildcard behaviour: a mask entry like "effects" returns every
+    // sub-field of effects, so the test expectation "effects" should verify all
+    // of them.
+    // Bare paths that are themselves ignored, or that have no nested checker
+    // (leaf fields), are skipped — their presence was already handled above.
+    for bare_field in &expected_non_nested_field_paths {
+        if ignored_top_level_fields.contains(*bare_field) {
+            continue;
+        }
+        if let Some((true, Some(nested_checker))) = checker.check_field_presence(bare_field) {
+            let all_sub_fields: Vec<&str> = nested_checker.top_level_fields().to_vec();
+            let ignored_sub: &[&str] = ignored_nested_field_paths
+                .get(bare_field)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            assert_field_presence(
+                nested_checker,
+                &all_sub_fields,
+                ignored_sub,
+                &format!("{scenario}.{bare_field}"),
             );
         }
     }

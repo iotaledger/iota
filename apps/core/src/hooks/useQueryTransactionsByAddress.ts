@@ -38,12 +38,14 @@ export function useQueryTransactionsByAddress(address: string = '') {
                     options: QUERY_OPTIONS,
                     filter: { ToAddress: address },
                     limit: MAX_OBJECTS_PER_REQ,
+                    order: 'descending',
                     cursor: (pageParam as NextCursor)?.nextCursorToAddress,
                 }),
                 rpc.queryTransactionBlocks({
                     options: QUERY_OPTIONS,
                     filter: { FromAddress: address },
                     limit: MAX_OBJECTS_PER_REQ,
+                    order: 'descending',
                     cursor: (pageParam as NextCursor)?.nextCursorFromAddress,
                 }),
             ]);

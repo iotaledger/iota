@@ -241,6 +241,7 @@ function InputTrailingElement({
                 className="input-icon-color [&_svg]:h-5 [&_svg]:w-5"
                 onClick={onClearInput}
                 tabIndex={-1}
+                aria-label="Clear input"
             >
                 <Close />
             </ButtonUnstyled>
@@ -251,6 +252,7 @@ function InputTrailingElement({
                 onClick={onToggleButtonClick}
                 className="input-icon-color [&_svg]:h-5 [&_svg]:w-5"
                 tabIndex={-1}
+                aria-label="Toggle visibility"
             >
                 {isContentVisible ? <VisibilityOn /> : <VisibilityOff />}
             </ButtonUnstyled>

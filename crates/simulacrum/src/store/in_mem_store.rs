@@ -12,7 +12,7 @@ use iota_types::{
     base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber},
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -42,9 +42,7 @@ pub struct InMemoryStore {
     // Transaction data
     transactions: HashMap<TransactionDigest, VerifiedTransaction>,
     effects: HashMap<TransactionDigest, TransactionEffects>,
-    events: HashMap<TransactionEventsDigest, TransactionEvents>,
-    // Map from transaction digest to events digest for easy lookup
-    events_tx_digest_index: HashMap<TransactionDigest, TransactionEventsDigest>,
+    events: HashMap<TransactionDigest, TransactionEvents>,
 
     // Committee data
     epoch_to_committee: Vec<Committee>,
@@ -116,10 +114,7 @@ impl InMemoryStore {
         self.effects.get(digest)
     }
 
-    pub fn get_transaction_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Option<&TransactionEvents> {
+    pub fn get_transaction_events(&self, digest: &TransactionDigest) -> Option<&TransactionEvents> {
         self.events.get(digest)
     }
 
@@ -259,9 +254,7 @@ impl InMemoryStore {
     }
 
     pub fn insert_events(&mut self, tx_digest: &TransactionDigest, events: TransactionEvents) {
-        self.events_tx_digest_index
-            .insert(*tx_digest, events.digest());
-        self.events.insert(events.digest(), events);
+        self.events.insert(*tx_digest, events);
     }
 
     pub fn update_objects(
@@ -482,9 +475,9 @@ impl ReadStore for InMemoryStore {
 
     fn try_get_events(
         &self,
-        event_digest: &iota_types::digests::TransactionEventsDigest,
+        digest: &iota_types::digests::TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
-        Ok(self.get_transaction_events(event_digest).cloned())
+        Ok(self.get_transaction_events(digest).cloned())
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -582,16 +575,6 @@ impl KeyStore {
 impl SimulatorStore for InMemoryStore {
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
         self.get_highest_checkpoint().cloned()
-    }
-
-    fn get_transaction_events_by_tx_digest(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Option<TransactionEvents> {
-        self.events_tx_digest_index
-            .get(tx_digest)
-            .and_then(|x| self.events.get(x))
-            .cloned()
     }
 
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
