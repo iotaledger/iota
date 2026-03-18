@@ -1,0 +1,167 @@
+---
+title: IOTA Tool CLI
+description: The IOTA Tool CLI provides advanced utilities for transaction replay, genesis ceremonies, fire drills, and other operator tasks.
+tags: [ cli, reference, iota-tool]
+teams:
+  - iotaledger/dev-tools
+  - iotaledger/node
+---
+
+The `iota-tool` binary provides advanced utilities for node operators and developers. It includes tools for
+transaction replay, genesis ceremonies, fire drills, and various debugging utilities.
+
+## Installation
+
+```shell
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> iota-tool
+```
+
+:::info
+
+To enable transaction profiling, add the `--features tracing` flag when installing.
+
+:::
+
+## Commands
+
+Typing `iota-tool --help` shows the available commands. The most commonly used ones are documented below.
+
+### Replay a transaction
+
+Use `iota-tool replay` to re-execute a transaction locally and show the transaction effects.
+The command fetches the transaction dependencies from the fullnode specified in the client env. For transactions that happened far in
+the past, it is advised to set the client fullnode to one that has non-pruned chain data for that transaction.
+The command also verifies that the locally executed transaction effects match the on-chain effects.
+
+```shell
+iota-tool replay --rpc-url <RPC_URL> --tx-digest <TRANSACTION-DIGEST>
+```
+
+You can add `--gas-info` and `--ptb-info` flags for more details.
+
+```
+$ iota-tool replay --tx-digest 51MzJP2Uesvza8vXGpPCGbfLrY6UCfdvdoErN1z4oXPW
+╭───────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Transaction Effects                                                                               │
+├───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Digest: 51MzJP2Uesvza8vXGpPCGbfLrY6UCfdvdoErN1z4oXPW                                              │
+│ Status: Success                                                                                   │
+│ Executed Epoch: 237                                                                               │
+│                                                                                                   │
+│ Mutated Objects:                                                                                  │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000006                         │
+│  │ Owner: Shared                                                                                  │
+│  │ Version: 20303014                                                                              │
+│  │ Digest: 3FyU88FpFFa2mhDFJWcabwQNdfaVaWvvnbjkfErD6AgJ                                           │
+│  └──                                                                                              │
+│                                                                                                   │
+│ Shared Objects:                                                                                   │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000006                         │
+│  │ Version: 20303013                                                                              │
+│  │ Digest: 7uGV3aHa9NDAWLX1UUyV1DG7wAuhfFkzSGo514wtco1C                                           │
+│  └──                                                                                              │
+│                                                                                                   │
+│ Gas Object:                                                                                       │
+│  ┌──                                                                                              │
+│  │ ID: 0x0000000000000000000000000000000000000000000000000000000000000000                         │
+│  │ Owner: Account Address ( 0x0000000000000000000000000000000000000000000000000000000000000000 )  │
+│  │ Version: 0                                                                                     │
+│  │ Digest: 11111111111111111111111111111111                                                       │
+│  └──                                                                                              │
+│                                                                                                   │
+│ Gas Cost Summary:                                                                                 │
+│    Storage Cost: 0                                                                                │
+│    Computation Cost: 0                                                                            │
+│    Storage Rebate: 0                                                                              │
+│    Non-refundable Storage Fee: 0                                                                  │
+│                                                                                                   │
+│ Transaction Dependencies:                                                                         │
+│    EvDLzYeKbrxDNHJomgrr2zwAJ7FJDtb2uNwfbonF2uGK                                                   │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
+Execution finished successfully. Local and on-chain effects match.
+```
+
+### Profile a transaction
+
+Use `iota-tool` to re-execute a transaction locally and produce a gas profile. This command fetches the transaction dependencies from the
+full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
+it records all the Move function invocations and the gas cost breakdown for each invocation.
+
+To enable the profiler, you must either install or build the `iota-tool` binary locally with the `--features tracing` flag.
+
+```shell
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch <BRANCH-NAME> --features tracing iota-tool
+```
+
+The command outputs a profile to the current working directory in the format `gas_profile_{tx_digest}_{unix_timestamp}.json`.
+You can include the optional flag `--profile-output </PATH/OUTPUT.json>` to write the profile to `/PATH/OUTPUT_{tx_digest}_{unix_timestamp}.json` instead.
+Use [speedscope](https://www.speedscope.app/) to inspect the profile.
+
+To install speedscope run
+
+```bash
+npm install -g speedscope
+```
+
+To open a profile in speedscope run
+
+```bash
+speedscope <PATH/PROFILE-OUTPUT-FILE>
+```
+
+When looking at the profile in speedscope, there are three different views available from the top left menu: **Timer Order**,
+**Left Heavy**, and **Sandwich**. In each view, each bar's vertical width corresponds to the percentage of gas consumption incurred by the function,
+and you can hover your mouse over a bar or click a bar to see the computation units accrued by the function invocation. The transaction's total computation units, along with the storage computation units, are multiplied by the gas price to determine the gas cost of the transaction based on a tier system.
+
+**Time Order** shows the callstack of function invocations from left to right in the order
+of invocation, while **Left Heavy** combines repeated sequences of nested invocations into a single combined call stack. **Left Heavy**
+displays these sequences from left to right by total incurred gas consumption per combined call stack. This is useful when there have
+been hundreds of repeated calls to the same function to quickly observe the total gas consumption over all calls to that function.
+In both these views, you can click the top section and drag to zoom in and out over different sections of the profile.
+
+**Sandwich** view shows a list of discrete values that correspond to gas consumption per function, with **Total** showing
+gas cost incurred in all the functions called by the function, and **Self** showing the gas cost done by only the given function.
+
+Observing a transaction's gas consumption provides useful insight of expected gas cost usage of a smart contract.
+When developing a smart contract, you can [run a local network](../../getting-started/local-network.mdx) and publish the package to the local network. Then create a transaction that calls
+your published smart contract, and finally run the profiler on the transaction to see a breakdown of the gas cost.
+
+### Genesis ceremony
+
+Use `iota-tool genesis-ceremony` to orchestrate an IOTA Genesis Ceremony where multiple remote validators
+sign a genesis blob. See the [Genesis Ceremony CLI](./ceremony.mdx) page for full documentation.
+
+### Fire drill
+
+Use `iota-tool fire-drill` to perform validator metadata rotation drills. This tool semi-automates
+the process of rotating validator keys and metadata.
+
+```shell
+iota-tool fire-drill metadata-rotation \
+    --iota-node-config-path validator.yaml \
+    --account-key-path account.key \
+    --fullnode-rpc-url http://fullnode-my-local-net:9000
+```
+
+:::note
+
+After running the fire drill, you still need to manually:
+1. Update iptables for new TCP/UDP ports
+2. Restart the node in a new epoch for the config changes to take effect
+
+:::
+
+### Other commands
+
+Run `iota-tool --help` to see all available commands, including:
+
+- `fetch-object` — Fetch an object from all validators
+- `fetch-transaction` — Fetch transaction effects
+- `db-tool` — Read validator and node databases
+- `verify-archive` — Verify the archive store
+- `download-db-snapshot` — Download a database snapshot
+- `download-formal-snapshot` — Download a formal snapshot
+- `dump-packages` — Download all packages from a GraphQL service
+- `sign-transaction` — Sign a transaction with a given keypair

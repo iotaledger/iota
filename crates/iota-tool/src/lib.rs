@@ -78,6 +78,9 @@ use tracing::info;
 
 pub mod commands;
 pub mod db_tool;
+pub mod fire_drill;
+pub mod genesis_ceremony;
+pub mod genesis_inspector;
 
 #[derive(
     Clone, Serialize, Deserialize, Debug, PartialEq, Copy, PartialOrd, Ord, Eq, ValueEnum, Default,

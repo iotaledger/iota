@@ -186,7 +186,7 @@ describe('TXB v1 JSON serialization', () => {
         tx.setGasOwner(await toolbox.address());
         tx.setExpiration({ None: true });
         tx.setSender(await toolbox.address());
-        const transactionJson = json ?? (await tx.serialize());
+        const transactionJson = json ?? (await tx.toJSON());
         const deserializedTxnBuilder = Transaction.from(transactionJson);
         const reserializedTxnBytes = await deserializedTxnBuilder.build({
             client: toolbox.client,

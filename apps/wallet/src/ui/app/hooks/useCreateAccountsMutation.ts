@@ -178,6 +178,9 @@ export function useCreateAccountsMutation() {
                 isFirstAccount: isFirstAccount(accounts),
             });
             setAccountFormValues(null);
+            if (password) {
+                await backgroundClient.unlockAllAccountsAndSources({ password });
+            }
             const selectedAccount = createdAccounts[0];
             if (selectedAccount?.id) {
                 await backgroundClient.selectAccount(selectedAccount?.id);

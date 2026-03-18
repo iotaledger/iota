@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { useState } from 'react';
-import { Feature, Theme, toast, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
+import { Theme, toast, useTheme } from '@iota/core';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AddProfileImage from '_assets/images/balance_finder_intro.png';
 import AddProfileImageDark from '_assets/images/balance_finder_intro_darkmode.png';
@@ -87,15 +87,13 @@ export function AddAccountPage() {
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
-    const network = useAppSelector(({ app }) => app.network);
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
     const { data: accounts } = useAccounts();
 
     const cardLinks: CardLinkItem[] = [
         {
             title: 'Create a new wallet',
             icon: Create,
-            subtitle: `Mnemonic${isPasskeysEnabled ? ' or Passkey' : ''}`,
+            subtitle: 'Mnemonic or Passkey',
             href: '/accounts/create-new',
         },
         {
