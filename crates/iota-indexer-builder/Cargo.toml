@@ -22,5 +22,6 @@ iota-types.workspace = true
 
 [dev-dependencies]
 telemetry-subscribers.workspace = true
+
 [lints]
 workspace = true

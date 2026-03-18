@@ -18,5 +18,6 @@ memchr = { version = "2" }
 [build-dependencies]
 libc = { version = "0.2", features = ["extra_traits"] }
 memchr = { version = "2" }
+
 [lints]
 workspace = true
