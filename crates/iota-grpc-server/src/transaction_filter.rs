@@ -132,7 +132,7 @@ impl CommandFilter {
             (CommandFilter::Publish, Command::Publish(..)) => true,
             (CommandFilter::MakeMoveVec, Command::MakeMoveVector(..)) => true,
             (CommandFilter::Upgrade { package }, Command::Upgrade(cmd)) => {
-                package.is_none() || matches!(package, Some(p) if p == cmd.package)
+                package.is_none() || matches!(package, Some(p) if p == &cmd.package)
             }
             _ => false,
         })

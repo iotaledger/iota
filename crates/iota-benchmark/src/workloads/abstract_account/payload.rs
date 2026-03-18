@@ -233,9 +233,9 @@ impl AbstractAccountPayload {
             let recipient_arg: Argument =
                 builder.pure(self.recipient).expect("pt builder: recipient");
 
-            let new_coins = builder.command(Command::SplitCoins(pay_arg, vec![amt_arg]));
+            let new_coins = builder.command(Command::split_coins(pay_arg, vec![amt_arg]));
 
-            builder.command(Command::TransferObjects(vec![new_coins], recipient_arg));
+            builder.command(Command::transfer_objects(vec![new_coins], recipient_arg));
 
             builder.finish()
         }
