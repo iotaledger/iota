@@ -82,8 +82,10 @@ jobs:
             os_type: macos-arm64
           - os: windows-latest
             os_type: windows-x86_64
+            continue-on-error: true
       fail-fast: false
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.continue-on-error == true }}
     needs: generate-tag
 
     steps:
@@ -258,7 +260,8 @@ jobs:
     name: Update the homebrew-tap formula
     needs: release-build
     runs-on: ubuntu-latest
-    # Releasing iota cli on Testnet and Mainnet releases which are equally stable
+    # Releasing iota cli on Testnet and Mainnet releases which are equally stable.
+    # Windows uses continue-on-error so its failure won't affect the matrix result.
     if: ${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta')}}
     steps:
       - name: Install Homebrew

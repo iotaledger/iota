@@ -21,7 +21,6 @@ import { getSourceId, getLedgerConnectionErrorMessage, isFirstAccount } from '_s
 import {
     useAccountSources,
     useAccounts,
-    useUnlockMutation,
     useAccountsFinder,
     useGetOwnedObjectsMultipleAddresses,
     useGetSharedObjectsMultipleAddresses,
@@ -117,7 +116,6 @@ export function AccountsFinderView(): JSX.Element {
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
 
     const ledgerIotaClient = useIotaLedgerClient();
-    const unlockAllAccountsMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -334,13 +332,7 @@ export function AccountsFinderView(): JSX.Element {
                         if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived) {
                             // for ledger
                             setPassword(password);
-                        } else if (accountSourceId) {
-                            // unlock software account sources
-                            await unlockAllAccountsMutation.mutateAsync({
-                                password,
-                            });
                         }
-
                         setPasswordModalVisible(false);
                     }}
                     onClose={() => setPasswordModalVisible(false)}
