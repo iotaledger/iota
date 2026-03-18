@@ -90,7 +90,7 @@ impl EffectsCertifier {
             SubmitTransactionResult::Executed {
                 effects_digest,
                 details,
-            } => details.map(|details| (effects_digest, details)),
+            } => Some((effects_digest, details)),
             SubmitTransactionResult::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
