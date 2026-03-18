@@ -320,12 +320,20 @@ export const PasskeyAuthenticator = bcs.struct('PasskeyAuthenticator', {
     userSignature: bcs.vector(bcs.u8()),
 });
 
-/**
- * MoveAuthenticator allows authenticating transactions via a Move function call
- * as part of Account Abstraction.
- */
-export const MoveAuthenticator = bcs.struct('MoveAuthenticator', {
+/** @experimental */
+const MoveAuthenticatorV1 = bcs.struct('MoveAuthenticatorV1', {
     callArgs: bcs.vector(CallArg),
     typeArgs: bcs.vector(TypeTag),
     objectToAuthenticate: CallArg,
+});
+
+/**
+ * @experimental
+ * MoveAuthenticator allows authenticating transactions via a Move function call
+ * as part of Account Abstraction.
+ * The enum wrapper matches the Rust `MoveAuthenticatorInner` enum, which adds a
+ * one-byte variant prefix to the BCS representation.
+ */
+export const MoveAuthenticator = bcs.enum('MoveAuthenticator', {
+    V1: MoveAuthenticatorV1,
 });

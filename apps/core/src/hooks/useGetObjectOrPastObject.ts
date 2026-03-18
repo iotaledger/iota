@@ -50,6 +50,7 @@ export const getObjectOrPastObjectQuery = <TSelectData>(
             ): Promise<IotaObjectResponse> => {
                 const txsWithObjectInput = await client.queryTransactionBlocks({
                     filter: { InputObject: objectId },
+                    order: 'descending',
                     options: {
                         showInput: true,
                     },

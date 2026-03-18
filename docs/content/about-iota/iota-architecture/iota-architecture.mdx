@@ -20,10 +20,16 @@ Go to [Life of a Transaction](transaction-lifecycle.mdx).
 
 ## Consensus
 
-Every transaction on IOTA is sequenced by consensus, where validators agree to the same order of execution of the transactions, even if a minority of them are down or are malicious actors that want to harm the network and users.
+Every transaction on IOTA that touches a shared object must go through a consensus process. This is to ensure that all nodes in the network agree on which transactions should be allowed to modify the ledger state.
 IOTA currently uses the [Mysticeti](https://arxiv.org/pdf/2310.14821) consensus algorithm.
 
 Go to [Consensus](consensus.mdx).
+
+## Sequencing
+
+Once consensus provides the set of transactions to be included in the ledger, they must be sequenced to determine their exact execution order. IOTA uses a unique sequencing algorithm aimed at maximizing throughput by leveraging concurrent processing capabilities.
+
+Go to [Sequencing](sequencing.mdx).
 
 ## Protocol Upgrades
 

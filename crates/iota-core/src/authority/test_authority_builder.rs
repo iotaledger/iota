@@ -340,7 +340,6 @@ impl<'a> TestAuthorityBuilder<'a> {
                 epoch_store
                     .protocol_config()
                     .max_move_identifier_len_as_option(),
-                false,
             )))
         };
         let rest_index = if self.disable_indexer {
@@ -431,9 +430,15 @@ impl<'a> TestAuthorityBuilder<'a> {
                 )
                 .unwrap();
 
-            state
+            let batch = state
                 .get_cache_commit()
-                .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+                .build_db_batch(epoch_store.epoch(), &[*genesis.transaction().digest()]);
+
+            state.get_cache_commit().commit_transaction_outputs(
+                epoch_store.epoch(),
+                batch,
+                &[*genesis.transaction().digest()],
+            );
         }
 
         // We want to insert these objects directly instead of relying on genesis
