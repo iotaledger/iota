@@ -7,3 +7,5 @@ export * from './depositL2Parameters';
 export * from './growthbook';
 export * from './transaction';
 export * from './rainbowkitUtils';
+export * from './sentry';
+export * from './defaultRpcClient';
