@@ -68,6 +68,11 @@ export type LoadOptions =
     | LoadOptionsWithApiKey
     | LoadOptionsWithClientInstance;
 
+export interface ClickedCollectibleCardProperties {
+    collectibleType?: string;
+    objectId?: string;
+}
+
 export interface ClickedStakeIotaProperties {
     isCurrentlyStaking?: boolean;
     sourceFlow?: string;
@@ -81,10 +86,6 @@ export interface ClickedUnstakeIotaProperties {
      */
     stakedAmount?: number;
     validatorAddress?: string;
-}
-
-export interface CollectibleCardClickedProperties {
-    collectibleType?: string;
 }
 
 export interface MigrationProperties {
@@ -172,6 +173,14 @@ export interface UnstakedIotaProperties {
     validatorAddress?: string;
 }
 
+export class ClickedCollectibleCard implements BaseEvent {
+    event_type = 'clicked collectible card';
+
+    constructor(public event_properties?: ClickedCollectibleCardProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class ClickedStakeIota implements BaseEvent {
     event_type = 'clicked stake IOTA';
 
@@ -184,14 +193,6 @@ export class ClickedUnstakeIota implements BaseEvent {
     event_type = 'clicked unstake IOTA';
 
     constructor(public event_properties?: ClickedUnstakeIotaProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CollectibleCardClicked implements BaseEvent {
-    event_type = 'collectible card clicked';
-
-    constructor(public event_properties?: CollectibleCardClickedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -395,6 +396,23 @@ export class Ampli {
   }
 
   /**
+   * clicked collectible card
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/clicked%20collectible%20card)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. collectibleType)
+   * @param options Amplitude event options.
+   */
+  clickedCollectibleCard(
+    properties?: ClickedCollectibleCardProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedCollectibleCard(properties), options);
+  }
+
+  /**
    * clicked stake IOTA
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/clicked%20stake%20IOTA)
@@ -426,23 +444,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedUnstakeIota(properties), options);
-  }
-
-  /**
-   * collectible card clicked
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/collectible%20card%20clicked)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. collectibleType)
-   * @param options Amplitude event options.
-   */
-  collectibleCardClicked(
-    properties?: CollectibleCardClickedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CollectibleCardClicked(properties), options);
   }
 
   /**
