@@ -13,7 +13,7 @@ import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/a
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import { useState } from 'react';
-import { useCopySuccessCallback } from '@/hooks';
+import { onCopySuccess } from '@/hooks';
 
 export function AccountBalance() {
     const account = useCurrentAccount();
@@ -36,7 +36,7 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    const onCopySuccess = useCopySuccessCallback({
+    const handleCopySuccess = onCopySuccess({
         successMessage: 'Address copied',
         analyticType: 'address',
     });
@@ -61,7 +61,7 @@ export function AccountBalance() {
                                         copyText={address}
                                         isExternal
                                         externalLink={explorerLink}
-                                        onCopySuccess={onCopySuccess}
+                                        onCopySuccess={handleCopySuccess}
                                         addMarginRightToCenter
                                     />
                                 </div>

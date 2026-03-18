@@ -11,7 +11,7 @@ import {
     Header,
     Panel,
 } from '@iota/apps-ui-kit';
-import { useCopyToClipboard, useActiveAccount } from '_hooks';
+import { useCopyToClipboard, onCopySuccess, useActiveAccount } from '_hooks';
 import { QR, toast, useGetDefaultIotaName } from '@iota/core';
 import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
@@ -30,10 +30,12 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
     const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
     const { data: iotaName } = useGetDefaultIotaName(address);
 
-    const onCopy = useCopyToClipboard(address, {
-        successMessage: 'Address copied',
-        analyticType: 'address',
-    });
+    const copyToClipboard = useCopyToClipboard(
+        onCopySuccess({
+            successMessage: 'Address copied',
+            analyticType: 'address',
+        }),
+    );
 
     const isLedger = isLedgerAccountSerializedUI(activeAccount as LedgerAccountSerializedUI);
 
@@ -93,7 +95,11 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">
-                    <Button onClick={onCopy} fullWidth text="Copy Address" />
+                    <Button
+                        onClick={() => copyToClipboard(address)}
+                        fullWidth
+                        text="Copy Address"
+                    />
                 </div>
                 {isLedger && (
                     <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs pt-sm--rs">

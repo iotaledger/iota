@@ -11,7 +11,7 @@ import {
     Panel,
 } from '@iota/apps-ui-kit';
 import { QR, useGetDefaultIotaName } from '@iota/core';
-import { useCopyToClipboard } from '@/hooks';
+import { useCopyToClipboard, onCopySuccess } from '@/hooks';
 
 interface ReceiveFundsDialogProps {
     address: string;
@@ -25,10 +25,12 @@ export function ReceiveFundsDialog({
     setOpen,
 }: ReceiveFundsDialogProps): React.JSX.Element {
     const { data: iotaName } = useGetDefaultIotaName(address);
-    const onCopySuccess = useCopyToClipboard(address, {
-        successMessage: 'Address copied',
-        analyticType: 'address',
-    });
+    const copyToClipboard = useCopyToClipboard(
+        onCopySuccess({
+            successMessage: 'Address copied',
+            analyticType: 'address',
+        }),
+    );
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -61,7 +63,11 @@ export function ReceiveFundsDialog({
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs">
-                    <Button onClick={onCopySuccess} fullWidth text="Copy Address" />
+                    <Button
+                        onClick={() => copyToClipboard(address)}
+                        fullWidth
+                        text="Copy Address"
+                    />
                 </div>
             </DialogContent>
         </Dialog>

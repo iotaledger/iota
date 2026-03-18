@@ -14,7 +14,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
 import { ExplorerLink } from '../explorer-link';
-import { useCopySuccessCallback } from '_hooks';
+import { onCopySuccess } from '_hooks';
 
 interface ReceiptCardProps {
     txn: IotaTransactionBlockResponse;
@@ -29,7 +29,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
         recognizedPackagesList,
     });
 
-    const onCopyDigestSuccess = useCopySuccessCallback({
+    const onCopyDigestSuccess = onCopySuccess({
         successMessage: 'Transaction digest copied to clipboard',
         analyticType: 'digest',
     });

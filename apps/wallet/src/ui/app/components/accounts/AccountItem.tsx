@@ -4,7 +4,7 @@
 
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
-import { useExplorerLink, useAccounts, useCopyToClipboard } from '_hooks';
+import { useExplorerLink, useAccounts, useCopyToClipboard, onCopySuccess } from '_hooks';
 import { ExplorerLinkType } from '_components';
 import { Account } from '@iota/apps-ui-kit';
 import { formatAccountName } from '../../helpers';
@@ -23,10 +23,12 @@ export function AccountItem({ icon, accountID, hideExplorerLink, hideCopy }: Acc
     const { data: iotaName } = useGetDefaultIotaName(account?.address);
 
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
-    const copyAddress = useCopyToClipboard(account?.address || '', {
-        successMessage: 'Address copied',
-        analyticType: 'address',
-    });
+    const copyToClipboard = useCopyToClipboard(
+        onCopySuccess({
+            successMessage: 'Address copied',
+            analyticType: 'address',
+        }),
+    );
     const explorerHref = useExplorerLink({
         type: ExplorerLinkType.Address,
         address: account?.address,
@@ -44,7 +46,7 @@ export function AccountItem({ icon, accountID, hideExplorerLink, hideCopy }: Acc
                 subtitle={formatAddress(account.address)}
                 onOpen={handleOpen}
                 avatarContent={() => <AccountAvatar icon={icon} />}
-                onCopy={copyAddress}
+                onCopy={() => copyToClipboard(account.address)}
                 isCopyable={!hideCopy}
                 isExternal={!hideExplorerLink}
             />

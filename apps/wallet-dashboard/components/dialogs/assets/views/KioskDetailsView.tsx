@@ -15,7 +15,7 @@ import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { ExplorerLink } from '@/components/ExplorerLink';
-import { useCopySuccessCallback } from '@/hooks';
+import { onCopySuccess } from '@/hooks';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -31,7 +31,7 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
     const kiosk = kioskData?.kiosks.get(objectId);
     const items = kiosk?.items;
 
-    const onCopyKioskIdSuccess = useCopySuccessCallback({
+    const onCopyKioskIdSuccess = onCopySuccess({
         successMessage: 'Kiosk Object ID copied to clipboard',
         analyticType: 'kiosk-object-id',
     });

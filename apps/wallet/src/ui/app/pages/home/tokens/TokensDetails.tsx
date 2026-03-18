@@ -9,7 +9,7 @@ import {
     useAppSelector,
     useExplorerLink,
     useShouldOpenInNewTab,
-    useCopySuccessCallback,
+    onCopySuccess,
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -65,7 +65,7 @@ export function TokenDetails() {
     const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
-    const onCopyAddressSuccess = useCopySuccessCallback({
+    const onCopyAddressSuccess = onCopySuccess({
         successMessage: 'Address copied',
         analyticType: 'address',
     });

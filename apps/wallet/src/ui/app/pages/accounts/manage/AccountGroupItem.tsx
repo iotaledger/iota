@@ -7,8 +7,8 @@ import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { ExplorerLinkType, NicknameDialog } from '_components';
 import { useNavigate } from 'react-router-dom';
-import { useAccounts, useExplorerLink, useBackgroundClient, useCopySuccessCallback } from '_hooks';
-import { useGetDefaultIotaName } from '@iota/core';
+import { useAccounts, useExplorerLink, useBackgroundClient, onCopySuccess } from '_hooks';
+import { useGetDefaultIotaName, toast } from '@iota/core';
 import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
@@ -48,7 +48,7 @@ export function AccountGroupItem({
         address: account.address,
     });
 
-    const handleCopySuccess = useCopySuccessCallback({
+    const handleCopySuccess = onCopySuccess({
         successMessage: 'Address copied',
         analyticType: 'address',
     });

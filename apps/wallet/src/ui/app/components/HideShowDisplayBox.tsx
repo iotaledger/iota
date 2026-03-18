@@ -4,7 +4,7 @@
 
 import { Button, ButtonType, TextArea } from '@iota/apps-ui-kit';
 import { toast } from '@iota/core';
-import { useCopySuccessCallback } from '_hooks';
+import { onCopySuccess } from '_hooks';
 
 export interface HideShowDisplayBoxProps {
     value: string | string[];
@@ -21,7 +21,7 @@ export function HideShowDisplayBox({
     isContentVisible = false,
     eventType = 'secrets',
 }: HideShowDisplayBoxProps) {
-    const onCopySuccess = useCopySuccessCallback({
+    const handleCopySuccess = onCopySuccess({
         successMessage: copiedMessage || 'Copied',
         analyticType: eventType,
     });
@@ -33,7 +33,7 @@ export function HideShowDisplayBox({
         const textToCopy = Array.isArray(value) ? value.join(' ') : value;
         try {
             await navigator.clipboard.writeText(textToCopy);
-            onCopySuccess();
+            handleCopySuccess();
         } catch {
             toast.error('Failed to copy');
         }

@@ -14,7 +14,7 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
-import { useCopySuccessCallback } from '@/hooks';
+import { onCopySuccess } from '@/hooks';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -30,7 +30,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
         recognizedPackagesList,
     });
 
-    const onCopyDigestSuccess = useCopySuccessCallback({
+    const onCopyDigestSuccess = onCopySuccess({
         successMessage: 'Transaction digest copied to clipboard',
         analyticType: 'transaction-digest',
     });
