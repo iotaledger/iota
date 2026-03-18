@@ -14,7 +14,7 @@ export function useCopyToClipboard(onSuccessCallback?: () => void, successMessag
 
             try {
                 await navigator.clipboard.writeText(text);
-                toast(successMessage || 'Copied');
+                toast(successMessage || 'Copied to clipboard');
                 if (onSuccessCallback) {
                     onSuccessCallback();
                 }

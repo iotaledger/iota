@@ -59,8 +59,8 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                             ampli.elementCopied({
                                 type: 'digest',
                             });
-                            toast.success('Transaction digest copied to clipboard');
                         }}
+                        successMessage="Transaction digest copied to clipboard"
                     />
                 </div>
             </div>
