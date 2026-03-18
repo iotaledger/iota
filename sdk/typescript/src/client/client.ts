@@ -644,6 +644,8 @@ export class IotaClient {
     }: { signal?: AbortSignal } = {}): Promise<LatestIotaSystemStateSummary> {
         const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
+        const isEffectiveCommissionRateSupported =
+            Number(protocolConfig.maxSupportedProtocolVersion) >= 20;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2({ signal })
@@ -651,21 +653,36 @@ export class IotaClient {
                   V1: await this.getLatestIotaSystemStateV1({ signal }),
               };
 
-        return 'V2' in iotaSystemStateSummary
-            ? {
-                  ...iotaSystemStateSummary.V2,
-                  committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
-                      (committeeMemberIndex) =>
-                          iotaSystemStateSummary.V2.activeValidators[Number(committeeMemberIndex)],
-                  ),
-              }
-            : {
-                  ...iotaSystemStateSummary.V1,
-                  committeeMembers: iotaSystemStateSummary.V1.activeValidators,
-                  safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
-                  safeModeComputationChargesBurned:
-                      iotaSystemStateSummary.V1.safeModeComputationRewards,
-              };
+        if ('V2' in iotaSystemStateSummary) {
+            const validators = iotaSystemStateSummary.V2.activeValidators.map((v) => ({
+                ...v,
+                effectiveCommissionRate: isEffectiveCommissionRateSupported
+                    ? v.effectiveCommissionRate
+                    : v.commissionRate,
+            }));
+            return {
+                ...iotaSystemStateSummary.V2,
+                activeValidators: validators,
+                committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
+                    (committeeMemberIndex) => validators[Number(committeeMemberIndex)],
+                ),
+            };
+        } else {
+            const validators = iotaSystemStateSummary.V1.activeValidators.map((v) => ({
+                ...v,
+                effectiveCommissionRate: isEffectiveCommissionRateSupported
+                    ? v.effectiveCommissionRate
+                    : v.commissionRate,
+            }));
+            return {
+                ...iotaSystemStateSummary.V1,
+                activeValidators: validators,
+                committeeMembers: validators,
+                safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
+                safeModeComputationChargesBurned:
+                    iotaSystemStateSummary.V1.safeModeComputationRewards,
+            };
+        }
     }
 
     /**
