@@ -18,9 +18,19 @@ mod _accessor_impls {
             self
         }
     }
+    impl super::ObjectId {
+        /// Sets `object_id` with the provided value.
+        pub fn with_object_id<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.object_id = field.into();
+            self
+        }
+    }
     impl super::ObjectReference {
         /// Sets `object_id` with the provided value.
-        pub fn with_object_id<T: Into<String>>(mut self, field: T) -> Self {
+        pub fn with_object_id<T: Into<super::ObjectId>>(mut self, field: T) -> Self {
             self.object_id = Some(field.into());
             self
         }

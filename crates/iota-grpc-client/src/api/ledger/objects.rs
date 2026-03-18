@@ -82,7 +82,8 @@ impl Client {
         let requests = ObjectRequests::default().with_requests(
             refs.iter()
                 .map(|(id, version)| {
-                    let mut object_ref = ObjectReference::default().with_object_id(id.to_string());
+                    let mut object_ref = ObjectReference::default()
+                        .with_object_id(iota_sdk_types::ObjectId::from(*id));
 
                     if let Some(v) = version {
                         object_ref = object_ref.with_version(*v);

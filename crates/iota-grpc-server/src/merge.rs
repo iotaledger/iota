@@ -12,7 +12,7 @@ use iota_grpc_types::{
         object::{Object, Objects},
         signatures::{UserSignature, UserSignatures},
         transaction::{ExecutedTransaction, Transaction, TransactionEffects, TransactionEvents},
-        types::{Address, ObjectReference},
+        types::{Address, ObjectId, ObjectReference},
         versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
 };
@@ -250,7 +250,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
             self.package_id =
-                Some(Address::default().with_address(source.package_id.as_bytes().to_vec()));
+                Some(ObjectId::default().with_object_id(source.package_id.as_bytes().to_vec()));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
@@ -319,7 +319,8 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 let mut ref_builder = ObjectReference::default();
 
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    ref_builder = ref_builder.with_object_id(source.object_id().to_string());
+                    ref_builder = ref_builder
+                        .with_object_id(iota_sdk_types::ObjectId::from(source.object_id()));
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
@@ -334,7 +335,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
             } else {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
-                    .with_object_id(source.object_id().to_string())
+                    .with_object_id(iota_sdk_types::ObjectId::from(source.object_id()))
                     .with_version(source.version())
                     .with_digest(source.digest())
             };

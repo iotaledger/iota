@@ -36,7 +36,7 @@ pub struct AddressFilter {
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MovePackageAndModuleFilter {
     #[prost(message, optional, tag = "1")]
-    pub package_id: ::core::option::Option<super::types::Address>,
+    pub package_id: ::core::option::Option<super::types::ObjectId>,
     #[prost(string, optional, tag = "2")]
     pub module: ::core::option::Option<::prost::alloc::string::String>,
 }
@@ -132,7 +132,7 @@ pub struct ObjectIdFilter {
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct MoveCallCommandFilter {
     #[prost(message, optional, tag = "1")]
-    pub package_id: ::core::option::Option<super::types::Address>,
+    pub package_id: ::core::option::Option<super::types::ObjectId>,
     #[prost(string, optional, tag = "2")]
     pub module: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "3")]
@@ -163,7 +163,7 @@ pub struct MakeMoveVecCommandFilter {}
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct UpgradeCommandFilter {
     #[prost(message, optional, tag = "1")]
-    pub package_id: ::core::option::Option<super::types::Address>,
+    pub package_id: ::core::option::Option<super::types::ObjectId>,
 }
 /// Filter by command type.
 #[non_exhaustive]

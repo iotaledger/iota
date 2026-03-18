@@ -12,6 +12,10 @@ mod _field_impls {
     #[allow(unused_imports)]
     use crate::v0::types::AddressFieldPathBuilder;
     #[allow(unused_imports)]
+    use crate::v0::types::ObjectId;
+    #[allow(unused_imports)]
+    use crate::v0::types::ObjectIdFieldPathBuilder;
+    #[allow(unused_imports)]
     use crate::v0::types::ObjectReference;
     #[allow(unused_imports)]
     use crate::v0::types::ObjectReferenceFieldPathBuilder;
@@ -174,7 +178,7 @@ mod _field_impls {
             number: 1i32,
             is_optional: false,
             is_map: false,
-            message_fields: Some(Address::FIELDS),
+            message_fields: Some(ObjectId::FIELDS),
         };
         pub const MODULE_FIELD: &'static MessageField = &MessageField {
             name: "module",
@@ -211,9 +215,9 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn package_id(mut self) -> AddressFieldPathBuilder {
+        pub fn package_id(mut self) -> ObjectIdFieldPathBuilder {
             self.path.push(MovePackageAndModuleFilter::PACKAGE_ID_FIELD.name);
-            AddressFieldPathBuilder::new_with_base(self.path)
+            ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
         pub fn module(mut self) -> String {
             self.path.push(MovePackageAndModuleFilter::MODULE_FIELD.name);
@@ -581,7 +585,7 @@ mod _field_impls {
             number: 1i32,
             is_optional: false,
             is_map: false,
-            message_fields: Some(Address::FIELDS),
+            message_fields: Some(ObjectId::FIELDS),
         };
         pub const MODULE_FIELD: &'static MessageField = &MessageField {
             name: "module",
@@ -627,9 +631,9 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn package_id(mut self) -> AddressFieldPathBuilder {
+        pub fn package_id(mut self) -> ObjectIdFieldPathBuilder {
             self.path.push(MoveCallCommandFilter::PACKAGE_ID_FIELD.name);
-            AddressFieldPathBuilder::new_with_base(self.path)
+            ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
         pub fn module(mut self) -> String {
             self.path.push(MoveCallCommandFilter::MODULE_FIELD.name);
@@ -772,7 +776,7 @@ mod _field_impls {
             number: 1i32,
             is_optional: true,
             is_map: false,
-            message_fields: Some(Address::FIELDS),
+            message_fields: Some(ObjectId::FIELDS),
         };
     }
     impl MessageFields for UpgradeCommandFilter {
@@ -798,9 +802,9 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn package_id(mut self) -> AddressFieldPathBuilder {
+        pub fn package_id(mut self) -> ObjectIdFieldPathBuilder {
             self.path.push(UpgradeCommandFilter::PACKAGE_ID_FIELD.name);
-            AddressFieldPathBuilder::new_with_base(self.path)
+            ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
     }
     impl CommandFilter {

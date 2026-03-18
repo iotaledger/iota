@@ -177,7 +177,7 @@ mod _accessor_impls {
     }
     impl super::MoveCallCommandFilter {
         /// Sets `package_id` with the provided value.
-        pub fn with_package_id<T: Into<super::super::types::Address>>(
+        pub fn with_package_id<T: Into<super::super::types::ObjectId>>(
             mut self,
             field: T,
         ) -> Self {
@@ -204,7 +204,7 @@ mod _accessor_impls {
     }
     impl super::MovePackageAndModuleFilter {
         /// Sets `package_id` with the provided value.
-        pub fn with_package_id<T: Into<super::super::types::Address>>(
+        pub fn with_package_id<T: Into<super::super::types::ObjectId>>(
             mut self,
             field: T,
         ) -> Self {
@@ -344,7 +344,7 @@ mod _accessor_impls {
     }
     impl super::UpgradeCommandFilter {
         /// Sets `package_id` with the provided value.
-        pub fn with_package_id<T: Into<super::super::types::Address>>(
+        pub fn with_package_id<T: Into<super::super::types::ObjectId>>(
             mut self,
             field: T,
         ) -> Self {

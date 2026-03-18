@@ -15,6 +15,10 @@ mod _field_impls {
     use crate::v0::types::Address;
     #[allow(unused_imports)]
     use crate::v0::types::AddressFieldPathBuilder;
+    #[allow(unused_imports)]
+    use crate::v0::types::ObjectId;
+    #[allow(unused_imports)]
+    use crate::v0::types::ObjectIdFieldPathBuilder;
     impl Event {
         pub const BCS_FIELD: &'static MessageField = &MessageField {
             name: "bcs",
@@ -30,7 +34,7 @@ mod _field_impls {
             number: 2i32,
             is_optional: true,
             is_map: false,
-            message_fields: Some(Address::FIELDS),
+            message_fields: Some(ObjectId::FIELDS),
         };
         pub const MODULE_FIELD: &'static MessageField = &MessageField {
             name: "module",
@@ -108,9 +112,9 @@ mod _field_impls {
             self.path.push(Event::BCS_FIELD.name);
             BcsDataFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn package_id(mut self) -> AddressFieldPathBuilder {
+        pub fn package_id(mut self) -> ObjectIdFieldPathBuilder {
             self.path.push(Event::PACKAGE_ID_FIELD.name);
-            AddressFieldPathBuilder::new_with_base(self.path)
+            ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
         pub fn module(mut self) -> String {
             self.path.push(Event::MODULE_FIELD.name);

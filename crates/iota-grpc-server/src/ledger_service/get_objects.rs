@@ -11,6 +11,7 @@ use iota_grpc_types::{
         error_reason::ErrorReason,
         ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
         object::Object,
+        types::ObjectId,
     },
 };
 use iota_types::base_types::ObjectID;
@@ -27,7 +28,7 @@ use crate::{
 type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
 
 pub fn validate_get_object_requests(
-    requests: Vec<(Option<String>, Option<u64>)>,
+    requests: Vec<(Option<ObjectId>, Option<u64>)>,
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
     let read_mask = {
@@ -43,14 +44,15 @@ pub fn validate_get_object_requests(
         .into_iter()
         .enumerate()
         .map(|(idx, (object_id, version))| {
-            let object_id = object_id
+            let object_id: ObjectID = object_id
                 .as_ref()
                 .ok_or_else(|| {
                     FieldViolation::new("object_id")
                         .with_reason(ErrorReason::FieldMissing)
                         .nested_at("requests", idx)
                 })?
-                .parse()
+                .object_id()
+                .map(Into::into)
                 .map_err(|e| {
                     FieldViolation::new("object_id")
                         .with_description(format!("invalid object_id: {e}"))

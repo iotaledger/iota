@@ -35,15 +35,15 @@ impl TryFrom<&Object> for iota_sdk_types::ObjectReference {
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Object::REFERENCE_FIELD.name))?;
 
-        let object_id_str = reference.object_id.as_ref().ok_or_else(|| {
-            TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name)
-                .nested(Object::REFERENCE_FIELD.name)
-        })?;
-
-        let object_id = object_id_str.parse().map_err(|e| {
-            TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e)
-                .nested(Object::REFERENCE_FIELD.name)
-        })?;
+        let object_id = reference
+            .object_id
+            .as_ref()
+            .ok_or_else(|| {
+                TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name)
+                    .nested(Object::REFERENCE_FIELD.name)
+            })?
+            .object_id()
+            .map_err(|e| e.nested(Object::REFERENCE_FIELD.name))?;
 
         let version = reference.version.ok_or_else(|| {
             TryFromProtoError::missing(ObjectReference::VERSION_FIELD.name)

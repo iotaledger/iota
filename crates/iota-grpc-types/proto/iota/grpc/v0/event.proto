@@ -21,13 +21,13 @@ message Event {
 
   // Package ID of the top-level function invoked by a `MoveCall` command that triggered this
   // event to be emitted.
-  optional iota.grpc.v0.types.Address package_id = 2;
+  optional iota.grpc.v0.types.ObjectId package_id = 2;
 
   // Module name of the top-level function invoked by a `MoveCall` command that triggered this
   // event to be emitted.
   optional string module = 3;
 
-  // iota.grpc.v0.types.Address of the account that sent the transaction where this event was emitted.
+  // Address of the account that sent the transaction where this event was emitted.
   optional iota.grpc.v0.types.Address sender = 4;
 
   // The type of the event emitted.
