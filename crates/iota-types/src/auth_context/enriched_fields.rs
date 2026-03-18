@@ -2,17 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Enriched versions of the `AuthContext` types that carry additional metadata
-//! (type names, `is_entry` markers, return types) compared to the base types in
-//! [`super::fields_v1`].
-//!
-//! # Design constraints
-//!
-//! * **Additive only** – all types here are *new*; nothing in `fields_v1` is
-//!   changed so that backward-compatible BCS serialization with existing
-//!   framework snapshots is preserved.
-//! * **BCS layout** – enum variant order in Rust must match the corresponding
-//!   Move `enum` variant order exactly, because BCS uses sequential 0-based
-//!   indices.
+//! (type names, `is_entry` markers, return types) compared to the base types.
+use std::collections::HashMap;
 
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use schemars::JsonSchema;
@@ -21,7 +12,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectDigest, ObjectID, SequenceNumber},
-    transaction::Argument,
+    object::Object,
+    transaction::{Argument, Command, ObjectArg},
     type_input::TypeName,
 };
 
@@ -71,15 +63,9 @@ pub struct SharedObjectArg {
 // EnrichedCallArg
 // ---------------------------------------------------------------------------
 
-/// Flat (non-nested) enriched counterpart of
-/// [`crate::auth_context::MoveCallArg`].
-///
-/// **BCS variant indices** (must match Move
-/// `enriched_call_arg::EnrichedCallArg`):
-/// * 0 – `Pure`
-/// * 1 – `ImmOrOwnedObject`
-/// * 2 – `SharedObject`
-/// * 3 – `Receiving`
+/// Enriched counterpart of [`crate::auth_context::CallArg`].
+/// Adds type names for pure values and objects, mutability information for
+/// immutable/owned objects, and the current digest for shared objects.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum EnrichedCallArg {
     /// A pure (non-object) value together with its Move type name.
@@ -165,6 +151,136 @@ impl EnrichedCommand {
             module: ENRICHED_COMMAND_MODULE_NAME.to_owned(),
             name: ENRICHED_COMMAND_STRUCT_NAME.to_owned(),
             type_params: vec![],
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Enrichment helpers
+// ---------------------------------------------------------------------------
+
+/// Enriches an [`ObjectArg`] into an [`EnrichedCallArg`].
+///
+/// The object type name is looked up from `objects` (keyed by object ID).
+/// Mutability for immutable/owned objects is taken from `input_is_mutable`
+/// (set when the object is passed as `&mut T` in any `MoveCall` command).
+pub fn enrich_object_arg(
+    obj_arg: &ObjectArg,
+    objects: &HashMap<ObjectID, &Object>,
+    input_is_mutable: &HashMap<u16, bool>,
+    input_idx: u16,
+) -> EnrichedCallArg {
+    let mutable = *input_is_mutable.get(&input_idx).unwrap_or(&false);
+    match obj_arg {
+        ObjectArg::ImmOrOwnedObject((id, version, digest)) => {
+            let type_name = objects
+                .get(id)
+                .and_then(|o| o.struct_tag())
+                .map(|tag| TypeName {
+                    name: tag.to_canonical_string(false),
+                })
+                .unwrap_or_else(|| TypeName {
+                    name: String::new(),
+                });
+            EnrichedCallArg::ImmOrOwnedObject(ImmOrOwnedObjectArg {
+                id: *id,
+                version: *version,
+                digest: *digest,
+                mutable,
+                type_name,
+            })
+        }
+        ObjectArg::SharedObject {
+            id,
+            initial_shared_version,
+            mutable: shared_mutable,
+        } => {
+            let (type_name, digest) = objects
+                .get(id)
+                .and_then(|o| {
+                    let tag = o.struct_tag()?;
+                    let digest = o.digest();
+                    Some((
+                        TypeName {
+                            name: tag.to_canonical_string(false),
+                        },
+                        digest,
+                    ))
+                })
+                .unwrap_or_else(|| {
+                    (
+                        TypeName {
+                            name: String::new(),
+                        },
+                        ObjectDigest::MIN,
+                    )
+                });
+            EnrichedCallArg::SharedObject(SharedObjectArg {
+                id: *id,
+                initial_shared_version: *initial_shared_version,
+                mutable: *shared_mutable,
+                digest,
+                type_name,
+            })
+        }
+        ObjectArg::Receiving((id, version, digest)) => {
+            let type_name = objects
+                .get(id)
+                .and_then(|o| o.struct_tag())
+                .map(|tag| TypeName {
+                    name: tag.to_canonical_string(false),
+                })
+                .unwrap_or_else(|| TypeName {
+                    name: String::new(),
+                });
+            EnrichedCallArg::Receiving(ImmOrOwnedObjectArg {
+                id: *id,
+                version: *version,
+                digest: *digest,
+                mutable: false,
+                type_name,
+            })
+        }
+    }
+}
+
+/// Converts a [`Command`] into an [`EnrichedCommand`].
+///
+/// `call_enrichment` carries the `(is_entry, returns)` pair resolved by the VM
+/// for `MoveCall` commands.  Pass `None` to fall back to `is_entry = false` and
+/// an empty returns list.
+pub fn enrich_command(
+    cmd: &Command,
+    call_enrichment: Option<&(bool, Vec<TypeName>)>,
+) -> EnrichedCommand {
+    match cmd {
+        Command::MoveCall(call) => {
+            let (is_entry, returns) = call_enrichment
+                .map(|(e, r)| (*e, r.clone()))
+                .unwrap_or((false, vec![]));
+            EnrichedCommand::MoveCall(Box::new(EnrichedProgrammableMoveCall {
+                package: call.package,
+                module: call.module.clone(),
+                function: call.function.clone(),
+                is_entry,
+                type_arguments: call.type_arguments.iter().map(TypeName::from).collect(),
+                arguments: call.arguments.clone(),
+                returns,
+            }))
+        }
+        Command::TransferObjects(objects, recipient) => {
+            EnrichedCommand::TransferObjects(objects.clone(), *recipient)
+        }
+        Command::SplitCoins(coin, amounts) => EnrichedCommand::SplitCoins(*coin, amounts.clone()),
+        Command::MergeCoins(target, sources) => {
+            EnrichedCommand::MergeCoins(*target, sources.clone())
+        }
+        Command::Publish(modules, deps) => EnrichedCommand::Publish(modules.clone(), deps.clone()),
+        Command::MakeMoveVec(type_arg, elements) => {
+            EnrichedCommand::MakeMoveVec(type_arg.as_ref().map(TypeName::from), elements.clone())
+        }
+        Command::Upgrade(modules, deps, package, ticket) => {
+            EnrichedCommand::Upgrade(modules.clone(), deps.clone(), *package, *ticket)
         }
     }
 }

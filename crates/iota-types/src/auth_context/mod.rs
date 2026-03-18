@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-mod enriched_fields;
+pub mod enriched_fields;
 mod fields_v1;
 
 pub use enriched_fields::*;

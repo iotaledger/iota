@@ -17,12 +17,8 @@ mod checked {
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        auth_context::{
-            EnrichedCallArg, EnrichedCommand, EnrichedProgrammableMoveCall, ImmOrOwnedObjectArg,
-            SharedObjectArg,
-        },
         balance::Balance,
-        base_types::{IotaAddress, MoveObjectType, ObjectDigest, ObjectID, TxContext},
+        base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
@@ -32,8 +28,7 @@ mod checked {
         move_package::{MovePackage, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
-        transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableTransaction},
-        type_input::TypeName,
+        transaction::{Argument, CallArg, ObjectArg},
     };
     use move_binary_format::{
         CompiledModule,
@@ -1726,49 +1721,40 @@ mod checked {
     // Auth-context enrichment helpers
     // -------------------------------------------------------------------------
 
-    /// Converts a runtime `Type` to a `TypeName`.
+    /// Converts a runtime [`Type`] to a [`TypeTag`].
     ///
     /// References are stripped before conversion so that `&T` and `&mut T`
-    /// both yield the name of `T`.  Returns `None` for unresolvable types such
+    /// both yield the tag of `T`.  Returns `None` for unresolvable types such
     /// as open type parameters.
-    fn type_to_type_name(vm: &MoveVM, ty: &Type) -> Option<TypeName> {
+    pub fn type_to_type_tag(vm: &MoveVM, ty: &Type) -> Option<TypeTag> {
         let base = match ty {
             Type::Reference(inner) | Type::MutableReference(inner) => inner.as_ref(),
             other => other,
         };
-        vm.get_runtime()
-            .get_type_tag(base)
-            .ok()
-            .map(|tag| TypeName::from(&tag))
-    }
-
-    /// Returns `true` when `ty` is a mutable-reference type (`&mut T`).
-    fn is_mutable_runtime_ref(ty: &Type) -> bool {
-        matches!(ty, Type::MutableReference(_))
+        vm.get_runtime().get_type_tag(base).ok()
     }
 
     /// Loads a function from the VM and returns the loaded function
     /// instantiation, whether it is marked `entry` in the compiled bytecode,
-    /// and the list of return-type names.
-    ///
-    /// `linkage_view` must **not** have a linkage context set when called.
-    /// On success (and on most errors) it is left in the reset state.
-    fn load_function_instantiation_and_is_entry(
+    /// and the list of return-type tags.
+    pub fn load_function_instantiation_and_is_entry(
         vm: &MoveVM,
-        linkage_view: &mut LinkageView,
+        state_view: &dyn ExecutionState,
         package_id: ObjectID,
         module_name: &str,
         function_name: &str,
         type_tags: &[TypeTag],
-    ) -> VMResult<(LoadedFunctionInstantiation, bool, Vec<TypeName>)> {
+    ) -> VMResult<(LoadedFunctionInstantiation, bool, Vec<TypeTag>)> {
+        let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
+
         // Load type arguments first; each struct call internally sets/resets linkage.
         let loaded_type_args: Vec<Type> = type_tags
             .iter()
-            .map(|tag| load_type(vm, linkage_view, &[], tag))
+            .map(|tag| load_type(vm, &mut linkage_view, &[], tag))
             .collect::<VMResult<_>>()?;
 
         // Set linkage context for the package that owns the function.
-        let package = package_for_linkage(linkage_view, package_id)?;
+        let package = package_for_linkage(&linkage_view, package_id)?;
         let original_address = linkage_view
             .set_linkage(package.move_package())
             .map_err(|e| {
@@ -1789,7 +1775,7 @@ mod checked {
         })?;
         let module_id = ModuleId::new(original_address, module_ident);
 
-        let mut data_store = IotaDataStore::new(linkage_view, &[]);
+        let mut data_store = IotaDataStore::new(&linkage_view, &[]);
         let loaded_fn = vm.get_runtime().load_function(
             &module_id,
             &fn_ident,
@@ -1798,7 +1784,7 @@ mod checked {
         )?;
 
         // Load the compiled bytecode to check `is_entry`.
-        let compiled = vm.load_module(&module_id, &*linkage_view)?;
+        let compiled = vm.load_module(&module_id, &linkage_view)?;
         let is_entry = compiled.function_defs().iter().any(|fdef| {
             let fhandle = compiled.function_handle_at(fdef.function);
             compiled.identifier_at(fhandle.name) == fn_ident.as_ident_str() && fdef.is_entry
@@ -1807,251 +1793,10 @@ mod checked {
         let returns = loaded_fn
             .return_
             .iter()
-            .filter_map(|ty| type_to_type_name(vm, ty))
+            .filter_map(|ty| type_to_type_tag(vm, ty))
             .collect();
 
-        linkage_view.reset_linkage();
         Ok((loaded_fn, is_entry, returns))
-    }
-
-    /// Enriches an `ObjectArg` into an `EnrichedCallArg`, filling type name
-    /// from the pre-built `objects` map and mutability from `input_is_mutable`.
-    fn enrich_object_arg(
-        obj_arg: &ObjectArg,
-        objects: &HashMap<ObjectID, &Object>,
-        input_is_mutable: &HashMap<u16, bool>,
-        input_idx: u16,
-    ) -> EnrichedCallArg {
-        let mutable = *input_is_mutable.get(&input_idx).unwrap_or(&false);
-        match obj_arg {
-            ObjectArg::ImmOrOwnedObject((id, version, digest)) => {
-                let type_name = objects
-                    .get(id)
-                    .and_then(|o| o.struct_tag())
-                    .map(|tag| TypeName {
-                        name: tag.to_canonical_string(false),
-                    })
-                    .unwrap_or_else(|| TypeName {
-                        name: String::new(),
-                    });
-                EnrichedCallArg::ImmOrOwnedObject(ImmOrOwnedObjectArg {
-                    id: *id,
-                    version: *version,
-                    digest: *digest,
-                    mutable,
-                    type_name,
-                })
-            }
-            ObjectArg::SharedObject {
-                id,
-                initial_shared_version,
-                mutable: shared_mutable,
-            } => {
-                let (type_name, digest) = objects
-                    .get(id)
-                    .and_then(|o| {
-                        let tag = o.struct_tag()?;
-                        let digest = o.digest();
-                        Some((
-                            TypeName {
-                                name: tag.to_canonical_string(false),
-                            },
-                            digest,
-                        ))
-                    })
-                    .unwrap_or_else(|| {
-                        (
-                            TypeName {
-                                name: String::new(),
-                            },
-                            ObjectDigest::MIN,
-                        )
-                    });
-                EnrichedCallArg::SharedObject(SharedObjectArg {
-                    id: *id,
-                    initial_shared_version: *initial_shared_version,
-                    mutable: *shared_mutable,
-                    digest,
-                    type_name,
-                })
-            }
-            ObjectArg::Receiving((id, version, digest)) => {
-                let type_name = objects
-                    .get(id)
-                    .and_then(|o| o.struct_tag())
-                    .map(|tag| TypeName {
-                        name: tag.to_canonical_string(false),
-                    })
-                    .unwrap_or_else(|| TypeName {
-                        name: String::new(),
-                    });
-                EnrichedCallArg::Receiving(ImmOrOwnedObjectArg {
-                    id: *id,
-                    version: *version,
-                    digest: *digest,
-                    mutable: false,
-                    type_name,
-                })
-            }
-        }
-    }
-
-    /// Converts a `Command` to an `EnrichedCommand`.
-    ///
-    /// `call_enrichment` carries the `(is_entry, returns)` pair resolved by
-    /// the VM for `MoveCall` commands; pass `None` to fall back to defaults.
-    fn enrich_command(
-        cmd: &Command,
-        call_enrichment: Option<&(bool, Vec<TypeName>)>,
-    ) -> EnrichedCommand {
-        match cmd {
-            Command::MoveCall(call) => {
-                let (is_entry, returns) = call_enrichment
-                    .map(|(e, r)| (*e, r.clone()))
-                    .unwrap_or((false, vec![]));
-                EnrichedCommand::MoveCall(Box::new(EnrichedProgrammableMoveCall {
-                    package: call.package,
-                    module: call.module.clone(),
-                    function: call.function.clone(),
-                    is_entry,
-                    type_arguments: call.type_arguments.iter().map(TypeName::from).collect(),
-                    arguments: call.arguments.clone(),
-                    returns,
-                }))
-            }
-            Command::TransferObjects(objects, recipient) => {
-                EnrichedCommand::TransferObjects(objects.clone(), *recipient)
-            }
-            Command::SplitCoins(coin, amounts) => {
-                EnrichedCommand::SplitCoins(*coin, amounts.clone())
-            }
-            Command::MergeCoins(target, sources) => {
-                EnrichedCommand::MergeCoins(*target, sources.clone())
-            }
-            Command::Publish(modules, deps) => {
-                EnrichedCommand::Publish(modules.clone(), deps.clone())
-            }
-            Command::MakeMoveVec(type_arg, elements) => EnrichedCommand::MakeMoveVec(
-                type_arg.as_ref().map(TypeName::from),
-                elements.clone(),
-            ),
-            Command::Upgrade(modules, deps, package, ticket) => {
-                EnrichedCommand::Upgrade(modules.clone(), deps.clone(), *package, *ticket)
-            }
-        }
-    }
-
-    /// Builds enriched inputs and commands for `AuthContext` from a PTB.
-    ///
-    /// Uses the Move VM to resolve function types (`is_entry`, return types,
-    /// and parameter types for pure-arg type names and object mutability).
-    /// Object type names are resolved from `objects`, which should be the
-    /// `authenticator_input_objects` map.
-    ///
-    /// Errors during VM function loading are silently ignored; the affected
-    /// command is enriched with empty/default metadata.
-    pub fn create_enriched_auth_context_components(
-        ptb: &ProgrammableTransaction,
-        vm: &MoveVM,
-        state_view: &dyn ExecutionState,
-        objects: &HashMap<ObjectID, &Object>,
-    ) -> (Vec<EnrichedCallArg>, Vec<EnrichedCommand>) {
-        let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
-
-        // Per-input metadata indexed by `Argument::Input` index.
-        let mut input_type_names: HashMap<u16, TypeName> = HashMap::new();
-        let mut input_is_mutable: HashMap<u16, bool> = HashMap::new();
-        // Per MoveCall command: (is_entry, returns).
-        let mut call_enrichments: HashMap<usize, (bool, Vec<TypeName>)> = HashMap::new();
-
-        // Pass 1: scan MoveCall commands to populate per-input type metadata.
-        for (cmd_idx, cmd) in ptb.commands.iter().enumerate() {
-            let Command::MoveCall(call) = cmd else {
-                continue;
-            };
-
-            // SAFETY: type arguments are validated when the transaction is
-            // constructed; `into_type_tag_unchecked` preserves that invariant.
-            let type_tags: Vec<TypeTag> = call
-                .type_arguments
-                .iter()
-                .map(|ti| unsafe { ti.clone().into_type_tag_unchecked() })
-                .collect();
-
-            let Ok((loaded_fn, is_entry, returns)) = load_function_instantiation_and_is_entry(
-                vm,
-                &mut linkage_view,
-                call.package,
-                &call.module,
-                &call.function,
-                &type_tags,
-            ) else {
-                continue;
-            };
-
-            call_enrichments.insert(cmd_idx, (is_entry, returns));
-
-            // Map argument positions to per-input type info.
-            for (j, arg) in call.arguments.iter().enumerate() {
-                let Argument::Input(i) = arg else { continue };
-                let i = *i;
-
-                let Some(param_ty) = loaded_fn.parameters.get(j) else {
-                    continue;
-                };
-
-                match ptb.inputs.get(i as usize) {
-                    Some(CallArg::Pure(_)) => {
-                        if let std::collections::hash_map::Entry::Vacant(e) =
-                            input_type_names.entry(i)
-                        {
-                            if let Some(type_name) = type_to_type_name(vm, param_ty) {
-                                e.insert(type_name);
-                            }
-                        }
-                    }
-                    Some(CallArg::Object(_)) => {
-                        let is_mut = is_mutable_runtime_ref(param_ty);
-                        let entry = input_is_mutable.entry(i).or_insert(false);
-                        if is_mut {
-                            *entry = true;
-                        }
-                    }
-                    None => {}
-                }
-            }
-        }
-
-        // Pass 2: build enriched inputs.
-        let enriched_inputs = ptb
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(i, arg)| {
-                let idx = i as u16;
-                match arg {
-                    CallArg::Pure(bytes) => EnrichedCallArg::Pure {
-                        value: bytes.clone(),
-                        type_name: input_type_names.remove(&idx).unwrap_or_else(|| TypeName {
-                            name: String::new(),
-                        }),
-                    },
-                    CallArg::Object(obj_arg) => {
-                        enrich_object_arg(obj_arg, objects, &input_is_mutable, idx)
-                    }
-                }
-            })
-            .collect();
-
-        // Pass 3: build enriched commands.
-        let enriched_commands = ptb
-            .commands
-            .iter()
-            .enumerate()
-            .map(|(cmd_idx, cmd)| enrich_command(cmd, call_enrichments.get(&cmd_idx)))
-            .collect();
-
-        (enriched_inputs, enriched_commands)
     }
 
     enum EitherError {

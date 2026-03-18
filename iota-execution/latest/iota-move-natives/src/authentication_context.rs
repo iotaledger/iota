@@ -286,12 +286,9 @@ impl AuthenticationContext {
     }
 
     /// Replaces the `AuthContext` with pre-built enriched values.
-    ///
-    /// Unlike [`replace`] (which takes plain `MoveCallArg`/`MoveCommand` and
-    /// up-converts them), this function accepts already-enriched
-    /// [`EnrichedCallArg`] / [`EnrichedCommand`] values so that test code can
-    /// supply `is_entry`, `mutable`, and `type_name` fields directly.
-    /// Only callable in testing scenarios.
+    /// Only callable in testing scenarios. Expects the input values to be
+    /// values, then it tries to convert them back to their original rust
+    /// types and updates
     pub fn replace_enriched(
         &mut self,
         auth_digest_value: Vec<u8>,

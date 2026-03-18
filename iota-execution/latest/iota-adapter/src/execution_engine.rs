@@ -25,7 +25,10 @@ mod checked {
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
         },
-        auth_context::AuthContext,
+        auth_context::{
+            AuthContext, EnrichedCallArg, EnrichedCommand,
+            enriched_fields::{enrich_command, enrich_object_arg},
+        },
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -64,15 +67,19 @@ mod checked {
             EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
+        type_input::TypeName,
     };
     use move_binary_format::CompiledModule;
+    use move_core_types::language_storage::TypeTag;
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
+    use move_vm_types::loaded_data::runtime_types::Type;
     use tracing::{info, instrument, trace, warn};
 
     use crate::{
         adapter::new_move_vm,
         execution_mode::{self, ExecutionMode},
+        execution_value::ExecutionState,
         gas_charger::GasCharger,
         programmable_transactions,
         temporary_store::TemporaryStore,
@@ -570,13 +577,12 @@ mod checked {
                 .iter_objects()
                 .map(|o| (o.id(), o))
                 .collect();
-            let (enriched_inputs, enriched_commands) =
-                programmable_transactions::context::create_enriched_auth_context_components(
-                    ptb,
-                    move_vm,
-                    temporary_store,
-                    &input_objects_map,
-                );
+            let (enriched_inputs, enriched_commands) = create_enriched_auth_context_components(
+                ptb,
+                move_vm,
+                temporary_store,
+                &input_objects_map,
+            );
             AuthContext::new_from_components(
                 authenticator.digest(),
                 enriched_inputs,
@@ -2057,5 +2063,116 @@ mod checked {
         );
 
         Ok(builder.finish())
+    }
+
+    /// Builds enriched inputs and commands for [`AuthContext`] from a PTB.
+    ///
+    /// Uses the Move VM to resolve function types (`is_entry`, return types,
+    /// and parameter types for pure-arg type names and object mutability).
+    fn create_enriched_auth_context_components(
+        ptb: &ProgrammableTransaction,
+        vm: &MoveVM,
+        state_view: &dyn ExecutionState,
+        objects: &HashMap<ObjectID, &Object>,
+    ) -> (Vec<EnrichedCallArg>, Vec<EnrichedCommand>) {
+        // Per-input metadata indexed by `Argument::Input` index.
+        let mut input_type_names: HashMap<u16, TypeName> = HashMap::new();
+        let mut input_is_mutable: HashMap<u16, bool> = HashMap::new();
+        // Per MoveCall command: (is_entry, returns).
+        let mut call_enrichments: HashMap<usize, (bool, Vec<TypeName>)> = HashMap::new();
+
+        // Pass 1: scan MoveCall commands to populate per-input type metadata.
+        for (cmd_idx, cmd) in ptb.commands.iter().enumerate() {
+            let Command::MoveCall(call) = cmd else {
+                continue;
+            };
+
+            let Ok(type_tags) = call
+                .type_arguments
+                .iter()
+                .map(|ti| ti.as_type_tag())
+                .collect::<Result<Vec<TypeTag>, _>>()
+            else {
+                continue;
+            };
+
+            let Ok((loaded_fn, is_entry, return_tags)) =
+                programmable_transactions::context::load_function_instantiation_and_is_entry(
+                    vm,
+                    state_view,
+                    call.package,
+                    &call.module,
+                    &call.function,
+                    &type_tags,
+                )
+            else {
+                continue;
+            };
+
+            let returns = return_tags.iter().map(TypeName::from).collect();
+            call_enrichments.insert(cmd_idx, (is_entry, returns));
+
+            // Map argument positions to per-input type info.
+            for (j, arg) in call.arguments.iter().enumerate() {
+                let Argument::Input(i) = arg else { continue };
+                let i = *i;
+
+                let Some(param_ty) = loaded_fn.parameters.get(j) else {
+                    continue;
+                };
+
+                match ptb.inputs.get(i as usize) {
+                    Some(CallArg::Pure(_)) => {
+                        if let std::collections::hash_map::Entry::Vacant(e) =
+                            input_type_names.entry(i)
+                        {
+                            if let Some(type_tag) =
+                                programmable_transactions::context::type_to_type_tag(vm, param_ty)
+                            {
+                                e.insert(TypeName::from(&type_tag));
+                            }
+                        }
+                    }
+                    Some(CallArg::Object(_)) => {
+                        let entry = input_is_mutable.entry(i).or_insert(false);
+                        if matches!(param_ty, Type::MutableReference(_)) {
+                            *entry = true;
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+
+        // Pass 2: build enriched inputs.
+        let enriched_inputs = ptb
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                let idx = i as u16;
+                match arg {
+                    CallArg::Pure(bytes) => EnrichedCallArg::Pure {
+                        value: bytes.clone(),
+                        type_name: input_type_names.remove(&idx).unwrap_or_else(|| TypeName {
+                            name: String::new(),
+                        }),
+                    },
+                    CallArg::Object(obj_arg) => {
+                        enrich_object_arg(obj_arg, objects, &input_is_mutable, idx)
+                    }
+                }
+            })
+            .collect();
+
+        // Pass 3: build enriched commands.
+        let enriched_commands = ptb
+            .commands
+            .iter()
+            .enumerate()
+            .map(|(cmd_idx, cmd)| enrich_command(cmd, call_enrichments.get(&cmd_idx)))
+            .collect();
+
+        (enriched_inputs, enriched_commands)
     }
 }
