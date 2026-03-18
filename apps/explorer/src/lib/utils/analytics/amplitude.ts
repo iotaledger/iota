@@ -6,7 +6,7 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
-import { LogLevel } from '@amplitude/analytics-types';
+import { LogLevel, SpecialEventType } from '@amplitude/analytics-types';
 
 const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
@@ -19,16 +19,23 @@ const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
  * After BOT_DETECTION_DELAY, we assume the user is human and start sending events.
  */
 const ANTI_BOT_CONFIG = {
-    // Detection delay: bots typically leave within 2 seconds
-    DETECTION_DELAY_MS: 2000,
+    // Detection delay: bots typically leave within a few seconds
+    DETECTION_DELAY_MS: 5000,
     // Regular flush interval after bot detection passes
     REGULAR_FLUSH_INTERVAL_MS: 1000,
     // Initial flush settings (effectively disabled to queue events locally)
     INITIAL_FLUSH_INTERVAL_MS: 3600000, // 1 hour
-    INITIAL_QUEUE_SIZE: 50,
+    INITIAL_QUEUE_SIZE: 500,
 } as const;
 
-let IS_BOT_CLEARED = false;
+// Every page load produces 1 event visible to the custom counter enrinchment plugin: [Amplitude] Page Viewed.
+// [Amplitude] Start Session is NOT counted — it fires before the plugin is registered.
+// Special events are not counted either.
+// Sessions with only this automatic event (no real user interaction) are treated as bots.
+const BOT_EVENT_COUNT_THRESHOLD = 1;
+
+let isBotCleared = false;
+let trackedEventCount = 0;
 
 export async function initAmplitude() {
     const consentStatus = getAmplitudeConsentStatus();
@@ -66,6 +73,19 @@ export async function initAmplitude() {
 
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 
+    // Enrichment plugin to count events for bot detection
+    ampli.client.add({
+        name: 'event-counter',
+        type: 'enrichment' as const,
+        setup: async () => {},
+        execute: async (event) => {
+            if (!Object.values(SpecialEventType).includes(event.event_type as SpecialEventType)) {
+                trackedEventCount++;
+            }
+            return event;
+        },
+    });
+
     setupAntiBotProtection();
 }
 
@@ -87,7 +107,7 @@ function setupAntiBotProtection() {
                 clearInterval(flushInterval);
             }
 
-            if (IS_BOT_CLEARED) {
+            if (isBotCleared) {
                 ampli.client.setTransport('beacon');
                 ampli.flush();
             }
@@ -95,9 +115,14 @@ function setupAntiBotProtection() {
         { once: true },
     );
 
-    // After delay, assume user is human and enable regular flushing
+    // After delay, check if only the autocaptured Page Viewed event fired (bot pattern)
     setTimeout(() => {
-        IS_BOT_CLEARED = true;
+        if (trackedEventCount <= BOT_EVENT_COUNT_THRESHOLD) {
+            // Bot-like session: discard queued data without flushing
+            return;
+        }
+
+        isBotCleared = true;
         ampli.flush(); // Send all queued events
 
         // Start regular flushing since Amplitude's config can't be changed after init
