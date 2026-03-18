@@ -20,6 +20,8 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
+      # We have already an issue in place to simplify this part, since gRPC will be enabled by default.
+      # https://github.com/iotaledger/iota/issues/10777
       - sh
       - -c
       - |
@@ -39,7 +41,7 @@ services:
       - "127.0.0.1:9123:9123"
       - "127.0.0.1:50051:50051"
     healthcheck:
-      test: "grpcurl -plaintext -import-path /iota/proto -proto iota/grpc/v0/ledger_service.proto local-network:50051 iota.grpc.v0.ledger_service.LedgerService/GetHealth"
+      test: "grpcurl -plaintext -import-path /iota/proto -proto iota/grpc/v0/ledger_service.proto localhost:50051 iota.grpc.v0.ledger_service.LedgerService/GetHealth"
       interval: 1s
       start_period: 5s
       timeout: 2s
