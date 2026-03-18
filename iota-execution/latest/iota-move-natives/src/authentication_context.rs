@@ -302,8 +302,9 @@ impl AuthenticationContext {
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("`replace_enriched` called on a non testing scenario".to_string()),
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "`replace_enriched` called on a non testing scenario".to_string(),
+                ),
             );
         }
 
