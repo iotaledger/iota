@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 22;
+pub const MAX_PROTOCOL_VERSION: u64 = 23;
 
 // Record history of protocol version allocations here:
 //
@@ -128,6 +128,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 22;
 //             using randomness on all networks.
 //             Enable Move-based account authentication in testnet.
 //             Enable fast commit syncer for faster recovery on testnet.
+// Version 23: Expose transaction signing digest in the authentication context
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1272,6 +1273,8 @@ pub struct ProtocolConfig {
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
     auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_signing_digest(): &vector<u8>`
+    auth_context_signing_digest_cost_base: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
     auth_context_tx_commands_cost_per_byte: Option<u64>,
@@ -2188,6 +2191,7 @@ impl ProtocolConfig {
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
+            auth_context_signing_digest_cost_base: None,
             auth_context_tx_commands_cost_base: None,
             auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
@@ -2628,6 +2632,13 @@ impl ProtocolConfig {
                         // Enable fast commit syncer for faster recovery on testnet.
                         cfg.feature_flags.consensus_fast_commit_sync = true;
                     }
+                }
+
+                23 => {
+                    // Cost param for the new `native_signing_digest()` native function in
+                    // `auth_context`, which exposes the intent-message signing hash to Move
+                    // authenticators.
+                    cfg.auth_context_signing_digest_cost_base = Some(30);
                 }
 
                 // Use this template when making changes:

@@ -17,6 +17,7 @@ mod checked {
     use iota_types::{
         auth_context::AuthContext,
         base_types::*,
+        digests::SigningDigest,
         error::{ExecutionError, ExecutionErrorKind, IotaError},
         execution_config_utils::to_binary_config,
         metrics::{BytecodeVerifierMetrics, LimitsMetrics},
@@ -101,7 +102,7 @@ mod checked {
         protocol_config: &'r ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         current_epoch_id: EpochId,
-        auth_context: Option<Rc<RefCell<AuthContext>>>,
+        auth_context: Option<(Rc<RefCell<AuthContext>>, SigningDigest)>,
     ) -> NativeContextExtensions<'r> {
         // When changing the list of configured extensions, make sure you also
         // update the one used while executing `move test` command.
@@ -115,8 +116,8 @@ mod checked {
             current_epoch_id,
         ));
         extensions.add(NativesCostTable::from_protocol_config(protocol_config));
-        if let Some(auth_context) = auth_context {
-            extensions.add(AuthenticationContext::new(auth_context));
+        if let Some((auth_context, signing_digest)) = auth_context {
+            extensions.add(AuthenticationContext::new(auth_context, signing_digest));
         }
         extensions
     }

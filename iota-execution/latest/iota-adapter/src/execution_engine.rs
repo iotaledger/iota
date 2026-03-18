@@ -40,6 +40,7 @@ mod checked {
         },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
+        digests::SigningDigest,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
@@ -311,6 +312,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        signing_digest: SigningDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -396,6 +398,7 @@ mod checked {
                     &authenticator_input_objects.into_inner(),
                     transaction_kind.clone(),
                     transaction_digest,
+                    signing_digest,
                     &mut tx_ctx,
                     trace_builder_opt,
                     move_vm,
@@ -456,6 +459,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        signing_digest: SigningDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -500,6 +504,7 @@ mod checked {
                     &input_objects,
                     transaction_kind.clone(),
                     transaction_digest,
+                    signing_digest,
                     &mut tx_ctx,
                     trace_builder_opt,
                     move_vm,
@@ -532,6 +537,7 @@ mod checked {
         // Transaction
         transaction_kind: TransactionKind,
         transaction_digest: TransactionDigest,
+        signing_digest: SigningDigest,
         tx_ctx: &mut TxContext,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -573,7 +579,7 @@ mod checked {
         // Store the authentication context in the temporary store.
         // It will be added to the authentication's parameter list later, just before
         // execution.
-        temporary_store.store_auth_context(auth_ctx);
+        temporary_store.store_auth_context(auth_ctx, signing_digest);
 
         // Execute the authentication.
         let authentication_execution_result = execute_authenticator_move_call(

@@ -72,7 +72,8 @@ use self::{
 };
 use crate::{
     auth_context::{
-        AuthContextDigestCostParams, AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
+        AuthContextDigestCostParams, AuthContextReplaceCostParams,
+        AuthContextSigningDigestCostParams, AuthContextTxCommandsCostParams,
         AuthContextTxInputsCostParams,
     },
     crypto::{
@@ -138,6 +139,7 @@ pub struct NativesCostTable {
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
+    pub auth_context_signing_digest_cost_params: AuthContextSigningDigestCostParams,
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
@@ -372,6 +374,11 @@ impl NativesCostTable {
             auth_context_digest_cost_params: AuthContextDigestCostParams {
                 auth_context_digest_cost_base: protocol_config
                     .auth_context_digest_cost_base_as_option()
+                    .map(Into::into),
+            },
+            auth_context_signing_digest_cost_params: AuthContextSigningDigestCostParams {
+                auth_context_signing_digest_cost_base: protocol_config
+                    .auth_context_signing_digest_cost_base_as_option()
                     .map(Into::into),
             },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
@@ -839,6 +846,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "auth_context",
             "native_digest",
             make_native!(auth_context::native_digest),
+        ),
+        (
+            "auth_context",
+            "native_signing_digest",
+            make_native!(auth_context::native_signing_digest),
         ),
         (
             "auth_context",

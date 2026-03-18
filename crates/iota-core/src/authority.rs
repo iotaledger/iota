@@ -975,6 +975,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
+                tx_data.signing_digest(),
                 &mut None,
             );
 
@@ -1701,6 +1702,8 @@ impl AuthorityState {
                 .filter_owned_objects();
             self.check_owned_locks(&owned_object_refs)?;
 
+            // Compute the signing digest: blake2b256(bcs(IntentMessage<TransactionData>)).
+            let signing_digest = tx_data.signing_digest();
             epoch_store
                 .executor()
                 .authenticate_then_execute_transaction_to_effects(
@@ -1722,6 +1725,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
+                    signing_digest,
                     &mut None,
                 )
         } else {

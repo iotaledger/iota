@@ -37,6 +37,17 @@ public fun digest(_ctx: &AuthContext): &vector<u8> {
     native_digest()
 }
 
+/// Returns `blake2b256(bcs(IntentMessage<TransactionData>))` — the value that
+/// all signing schemes (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey) sign
+/// today. Use this in authenticator functions to verify signatures without
+/// requiring any client-side changes.
+///
+/// This is different from `ctx.digest()` in `TxContext`, which returns
+/// `blake2b256(bcs(TransactionData))` without the intent prefix bytes.
+public fun signing_digest(_ctx: &AuthContext): &vector<u8> {
+    native_signing_digest()
+}
+
 public fun tx_inputs(_ctx: &AuthContext): &vector<CallArg> {
     native_tx_inputs()
 }
@@ -48,6 +59,8 @@ public fun tx_commands(_ctx: &AuthContext): &vector<Command> {
 // === Native functions ===
 
 native fun native_digest(): &vector<u8>;
+
+native fun native_signing_digest(): &vector<u8>;
 
 native fun native_tx_inputs<I>(): &vector<I>;
 

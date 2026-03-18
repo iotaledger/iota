@@ -31,7 +31,9 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::{
+        ObjectID, ObjectRef, SequenceNumber, SigningDigest, TransactionDigest, VersionNumber,
+    },
     committee::EpochId,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError, IotaResult},
@@ -226,7 +228,7 @@ pub trait Storage {
     /// and the number of non-gas-coin owners.
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult;
 
-    fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>>;
+    fn read_auth_context(&self) -> Option<(Rc<RefCell<AuthContext>>, SigningDigest)>;
 }
 
 pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectID>>;

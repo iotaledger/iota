@@ -21,7 +21,7 @@ use iota_types::{
     },
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
-    digests::TransactionDigest,
+    digests::{SigningDigest, TransactionDigest},
     effects::TransactionEffects,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},
@@ -195,6 +195,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        signing_digest: SigningDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -220,6 +221,7 @@ impl executor::Executor for Executor {
             transaction_kind,
             transaction_signer,
             transaction_digest,
+            signing_digest,
             trace_builder_opt,
             &self.0,
         )
@@ -244,6 +246,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        authenticated_transaction_signing_digest: SigningDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
@@ -260,6 +263,7 @@ impl executor::Executor for Executor {
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
+            authenticated_transaction_signing_digest,
             trace_builder_opt,
             &self.0,
         )

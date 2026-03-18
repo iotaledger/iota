@@ -67,7 +67,7 @@ use crate::{
 };
 pub use crate::{
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, SigningDigest},
+    digests::{ObjectDigest, SigningDigest, TransactionDigest, TransactionEffectsDigest},
 };
 
 #[cfg(test)]

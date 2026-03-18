@@ -11,7 +11,7 @@ use iota_types::{
     },
     base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
-    digests::TransactionDigest,
+    digests::{SigningDigest, TransactionDigest},
     effects::TransactionEffects,
     error::ExecutionError,
     execution::{ExecutionResult, TypeLayoutStore},
@@ -106,6 +106,7 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        signing_digest: SigningDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -134,6 +135,10 @@ pub trait Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        // blake2b256(bcs(IntentMessage<TransactionData>)) — the value all signing schemes sign.
+        // Differs from `authenticated_transaction_digest` which is
+        // blake2b256(bcs(TransactionData)) without the intent prefix.
+        authenticated_transaction_signing_digest: SigningDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError>;

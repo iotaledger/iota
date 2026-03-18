@@ -57,6 +57,53 @@ pub fn native_digest(
 }
 
 #[derive(Clone)]
+pub struct AuthContextSigningDigestCostParams {
+    pub auth_context_signing_digest_cost_base: Option<InternalGas>,
+}
+
+/// ****************************************************************************
+/// native fun native_signing_digest
+/// Implementation of the Move native function `fun native_signing_digest():
+/// &vector<u8>`
+///
+/// Returns blake2b256(bcs(IntentMessage<TransactionData>)) — the value that all
+/// signing schemes (Ed25519, Secp256k1, Secp256r1, MultiSig, Passkey) sign.
+/// This differs from `ctx.digest()` in TxContext which returns
+/// blake2b256(bcs(TransactionData)) without the intent prefix.
+/// ****************************************************************************
+pub fn native_signing_digest(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let auth_context_signing_digest_cost_params = get_extension!(context, NativesCostTable)?
+        .auth_context_signing_digest_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_signing_digest_cost_params
+            .auth_context_signing_digest_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost base for native_signing_digest not available".to_string(),
+                )
+            })?
+    );
+
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
+
+    let signing_digest_ref = auth_context.signing_digest_ref()?;
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![signing_digest_ref],
+    ))
+}
+
+#[derive(Clone)]
 pub struct AuthContextTxCommandsCostParams {
     pub auth_context_tx_commands_cost_base: Option<InternalGas>,
     pub auth_context_tx_commands_cost_per_byte: Option<InternalGas>,

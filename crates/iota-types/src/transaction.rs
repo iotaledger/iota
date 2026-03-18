@@ -2142,11 +2142,11 @@ impl TransactionData {
     }
 
     /// Returns the signing digest for this transaction.
-    /// 
+    ///
     /// signing digest: blake2b256(bcs(IntentMessage<TransactionData>)).
-    /// This is what all signing schemes (Ed25519, Secp256k1, Secp256r1, MultiSig,
-    /// Passkey) sign. It differs from `transaction.digest()` which is
-    /// blake2b256(bcs(TransactionData)) without the intent prefix.
+    /// This is what all signing schemes (Ed25519, Secp256k1, Secp256r1,
+    /// MultiSig, Passkey) sign. It differs from `transaction.digest()`
+    /// which is blake2b256(bcs(TransactionData)) without the intent prefix.
     pub fn signing_digest(&self) -> SigningDigest {
         let intent_msg = IntentMessage::new(Intent::iota_transaction(), &self);
         let mut hasher = DefaultHash::default();

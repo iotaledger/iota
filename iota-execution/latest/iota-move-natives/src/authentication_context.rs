@@ -6,7 +6,7 @@ use std::{cell::RefCell, rc::Rc};
 use better_any::{Tid, TidAble};
 use iota_types::{
     auth_context::{AuthContext, MoveCallArg, MoveCommand},
-    digests::MoveAuthenticatorDigest,
+    digests::{MoveAuthenticatorDigest, SigningDigest},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -28,6 +28,13 @@ pub struct AuthenticationContext {
     /// information.
     pub(crate) auth_context: Rc<RefCell<AuthContext>>,
 
+    /// The signing digest: blake2b256(bcs(IntentMessage<TransactionData>)).
+    /// This is the value that all signing schemes (Ed25519, Secp256k1,
+    /// Secp256r1, MultiSig, Passkey) sign, and is exposed via
+    /// `native_signing_digest()` so Move authenticators can verify signatures
+    /// without requiring client-side changes.
+    signing_digest: SigningDigest,
+
     /// Indicates whether this `AuthenticationContext` is being used in a
     /// testing scenario.
     test_only: bool,
@@ -35,6 +42,7 @@ pub struct AuthenticationContext {
     /// Cached `GlobalValue` containing AuthContext data. Caching is used to
     /// avoid redundant conversions and allocations.
     cached_digest: Option<GlobalValue>,
+    cached_signing_digest: Option<GlobalValue>,
     cached_tx_inputs: Option<(GlobalValue, AbstractMemorySize)>,
     cached_tx_commands: Option<(GlobalValue, AbstractMemorySize)>,
 }
@@ -42,11 +50,13 @@ pub struct AuthenticationContext {
 impl NativeExtensionMarker<'_> for AuthenticationContext {}
 
 impl AuthenticationContext {
-    pub fn new(auth_context: Rc<RefCell<AuthContext>>) -> Self {
+    pub fn new(auth_context: Rc<RefCell<AuthContext>>, signing_digest: SigningDigest) -> Self {
         Self {
             auth_context,
+            signing_digest,
             test_only: false,
             cached_digest: None,
+            cached_signing_digest: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
         }
@@ -55,8 +65,10 @@ impl AuthenticationContext {
     pub fn new_for_testing(auth_context: Rc<RefCell<AuthContext>>) -> Self {
         Self {
             auth_context,
+            signing_digest: SigningDigest::default(),
             test_only: true,
             cached_digest: None,
+            cached_signing_digest: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
         }
@@ -80,6 +92,29 @@ impl AuthenticationContext {
         }
 
         self.cached_digest
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
+    }
+
+    /// Returns a `Value` containing the signing digest ref.
+    /// The signing digest is blake2b256(bcs(IntentMessage<TransactionData>)),
+    /// the value that all signing schemes sign today.
+    /// Caches the result to avoid redundant conversions and allocations on
+    /// subsequent calls.
+    pub fn signing_digest_ref(&mut self) -> PartialVMResult<Value> {
+        if self.cached_signing_digest.is_none() {
+            let rust_value = (&self.signing_digest,);
+            let signing_digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
+
+            self.cached_signing_digest =
+                Some(to_global_value(&rust_value, signing_digest_move_layout)?.0);
+        }
+
+        self.cached_signing_digest
             .as_ref()
             .unwrap()
             .borrow_global()
@@ -195,6 +230,7 @@ impl AuthenticationContext {
         // Drop cached values to ensure they are recreated with the updated AuthContext
         // data
         self.cached_digest = None;
+        self.cached_signing_digest = None;
         self.cached_tx_inputs = None;
         self.cached_tx_commands = None;
 

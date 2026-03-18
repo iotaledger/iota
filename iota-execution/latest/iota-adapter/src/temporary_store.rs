@@ -18,6 +18,7 @@ use iota_types::{
     },
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
+    digests::SigningDigest,
     effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
@@ -86,6 +87,11 @@ pub struct TemporaryStore<'backing> {
 
     /// The auth context used to verify the transaction.
     auth_context: Option<Rc<RefCell<AuthContext>>>,
+
+    /// The signing digest: blake2b256(bcs(IntentMessage<TransactionData>)).
+    /// Stored alongside auth_context so that Move authenticators can verify
+    /// existing signatures without client-side changes.
+    signing_digest: Option<SigningDigest>,
 }
 
 impl<'backing> TemporaryStore<'backing> {
@@ -134,6 +140,7 @@ impl<'backing> TemporaryStore<'backing> {
             cur_epoch,
             loaded_per_epoch_config_objects: RwLock::new(BTreeSet::new()),
             auth_context: None,
+            signing_digest: None,
         }
     }
 
@@ -662,9 +669,14 @@ impl TemporaryStore<'_> {
         Ok(())
     }
 
-    pub fn store_auth_context(&mut self, auth_context: Rc<RefCell<AuthContext>>) {
+    pub fn store_auth_context(
+        &mut self,
+        auth_context: Rc<RefCell<AuthContext>>,
+        signing_digest: SigningDigest,
+    ) {
         debug_assert!(self.auth_context.is_none());
         self.auth_context = Some(auth_context);
+        self.signing_digest = Some(signing_digest);
     }
 }
 
@@ -1101,8 +1113,8 @@ impl Storage for TemporaryStore<'_> {
         result
     }
 
-    fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>> {
-        self.auth_context.clone()
+    fn read_auth_context(&self) -> Option<(Rc<RefCell<AuthContext>>, SigningDigest)> {
+        self.auth_context.clone().zip(self.signing_digest.clone())
     }
 }
 

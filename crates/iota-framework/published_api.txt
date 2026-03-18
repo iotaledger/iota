@@ -1690,13 +1690,22 @@ AuthContext
 digest
 	public fun
 	0x2::auth_context
+signing_digest
+	public fun
+	0x2::auth_context
 tx_inputs
 	public fun
 	0x2::auth_context
 tx_commands
+	fun
+	0x2::auth_context
+native_signing_digest
 	public fun
 	0x2::auth_context
 native_digest
+	fun
+	0x2::auth_context
+native_signing_digest
 	fun
 	0x2::auth_context
 native_tx_inputs
