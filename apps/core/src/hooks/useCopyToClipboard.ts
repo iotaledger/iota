@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback } from 'react';
+import { useCallback, type MouseEvent } from 'react';
 
 /**
  * Base copy-to-clipboard hook with optional success callback.
@@ -65,7 +65,7 @@ export function createCopyToClipboardHooks(dependencies: CopyDependencies) {
     // For direct button clicks - handles clipboard write + success actions
     function useCopyToClipboard(text: string, options?: CopyOptions) {
         return useCallback(
-            async (e?: React.MouseEvent) => {
+            async (e?: MouseEvent) => {
                 e?.stopPropagation?.();
                 e?.preventDefault?.();
 
@@ -81,7 +81,7 @@ export function createCopyToClipboardHooks(dependencies: CopyDependencies) {
                     return false;
                 }
             },
-            [text, options],
+            [text, options, triggerSuccess],
         );
     }
 
@@ -89,7 +89,7 @@ export function createCopyToClipboardHooks(dependencies: CopyDependencies) {
     function useCopySuccessCallback(options?: CopyOptions) {
         return useCallback(() => {
             triggerSuccess(options);
-        }, [options]);
+        }, [options, triggerSuccess]);
     }
 
     return {
