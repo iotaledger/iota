@@ -1070,6 +1070,9 @@ impl AuthorityPerEpochStore {
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
+        let committee_size = committee.num_members();
+        let misbehavior_monitor =
+            Arc::new(MisbehaviorMonitor::new(&protocol_config, committee_size));
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
 
         let s = Arc::new(Self {
@@ -1106,11 +1109,12 @@ impl AuthorityPerEpochStore {
             chain,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            misbehavior_monitor: Arc::new(MisbehaviorMonitor::new(
-                voting_power.clone(),
+            scorer: Arc::new(Scorer::new(
+                voting_power,
                 &protocol_config,
+                &misbehavior_monitor,
             )),
-            scorer: Arc::new(Scorer::new(voting_power, &protocol_config)),
+            misbehavior_monitor,
         });
 
         s.update_buffer_stake_metric();
@@ -4170,6 +4174,8 @@ impl AuthorityPerEpochStore {
                         authority.concise()
                     );
                 } else {
+                    // Here we update all counts related to the information in
+                    // the reports.
                     self.scorer.update_received_reports(authority_index, report);
                 }
 

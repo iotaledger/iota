@@ -1,11 +1,16 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 use serde::{Deserialize, Serialize};
+
+use crate::authority::authority_per_epoch_store::misbehavior_monitor::MisbehaviorMonitor;
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
@@ -45,7 +50,11 @@ pub struct Scorer {
 }
 
 impl Scorer {
-    pub fn new(voting_power: Vec<u64>, protocol_config: &ProtocolConfig) -> Self {
+    pub fn new(
+        voting_power: Vec<u64>,
+        protocol_config: &ProtocolConfig,
+        misbehavior_monitor: &Arc<MisbehaviorMonitor>,
+    ) -> Self {
         let committee_size = voting_power.len();
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => {
@@ -641,14 +650,17 @@ impl<T> FromIterator<T> for NodeMisbehaviorsV1<T> {
 // NOTE: the tests below are going to be finalized in a different PR
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
+    use std::sync::{Arc, atomic::Ordering};
 
     use iota_protocol_config::ProtocolConfig;
     use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 
-    use crate::authority::authority_per_epoch_store::scorer::{
-        MAX_SCORE, NodeMisbehaviorsV1, ParametersV1, SCALE_FACTOR, Scorer, calculate_median_report,
-        calculate_scores_v1,
+    use crate::authority::authority_per_epoch_store::{
+        misbehavior_monitor::MisbehaviorMonitor,
+        scorer::{
+            MAX_SCORE, NodeMisbehaviorsV1, ParametersV1, SCALE_FACTOR, Scorer,
+            calculate_median_report, calculate_scores_v1,
+        },
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -671,7 +683,11 @@ mod tests {
         let committee_size = voting_power.len();
         let protocol_config = mock_protocol_config();
 
-        let scorer = Scorer::new(voting_power, &protocol_config);
+        let scorer = Scorer::new(
+            voting_power,
+            &protocol_config,
+            &Arc::new(MisbehaviorMonitor::new(&protocol_config, committee_size)),
+        );
 
         assert_eq!(scorer.current_scores.len(), committee_size);
         assert_eq!(scorer.invalid_reports_count.len(), committee_size);
@@ -685,7 +701,14 @@ mod tests {
 
         let protocol_config = mock_protocol_config();
 
-        let scorer = Scorer::new(voting_power, &protocol_config);
+        let scorer = Scorer::new(
+            voting_power.clone(),
+            &protocol_config,
+            &Arc::new(MisbehaviorMonitor::new(
+                &protocol_config,
+                voting_power.len(),
+            )),
+        );
 
         let authority_index = 2;
 
@@ -736,7 +759,14 @@ mod tests {
     fn test_update_scores() {
         let voting_power = vec![2, 5, 20];
         let protocol_config = mock_protocol_config();
-        let scorer = Scorer::new(voting_power, &protocol_config);
+        let scorer = Scorer::new(
+            voting_power.clone(),
+            &protocol_config,
+            &Arc::new(MisbehaviorMonitor::new(
+                &protocol_config,
+                voting_power.len(),
+            )),
+        );
 
         // Before calling update_scores, all scores should be MAX_SCORE
         scorer
