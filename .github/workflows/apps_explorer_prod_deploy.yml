@@ -3,6 +3,7 @@ name: Production Deploy for Explorer
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.EXPLORER_VERCEL_PROJECT_ID }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
 
 on: workflow_dispatch
 
