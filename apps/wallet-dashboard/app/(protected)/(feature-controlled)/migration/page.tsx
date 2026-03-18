@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useGetStardustMigratableObjects, useGroupedStardustObjects } from '@/hooks';
-import { getStardustObjectsTotals, getCopySuccessHandler } from '@/lib/utils';
+import { getStardustObjectsTotals, trackElementCopied } from '@/lib/utils';
 import {
     Address,
     Button,
@@ -26,6 +26,7 @@ import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
     addressToStardustBech32,
+    toast,
     useFormatCoin,
     useStardustIndexerClientContext,
 } from '@iota/core';
@@ -179,10 +180,10 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
-    const onCopySuccess = getCopySuccessHandler({
-        message: 'Address copied',
-        analyticType: 'stardust-address',
-    });
+    function onCopySuccess() {
+        toast('Address copied');
+        trackElementCopied('stardust-address');
+    }
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">

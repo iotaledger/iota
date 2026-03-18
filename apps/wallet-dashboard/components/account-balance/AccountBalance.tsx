@@ -8,12 +8,13 @@ import {
     useGetFiatBalance,
     useGetAllBalances,
     NamedAddress,
+    toast,
 } from '@iota/core';
 import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import { useState } from 'react';
-import { getCopySuccessHandler } from '@/lib/utils';
+import { trackElementCopied } from '@/lib/utils';
 
 export function AccountBalance() {
     const account = useCurrentAccount();
@@ -36,10 +37,10 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    const onCopySuccess = getCopySuccessHandler({
-        message: 'Address copied',
-        analyticType: 'address',
-    });
+    function onCopySuccess() {
+        toast('Address copied');
+        trackElementCopied('address');
+    }
 
     const sendTokenCoin = coinBalance?.totalBalance === '0' ? coinBalances?.[0] : coinBalance;
 
