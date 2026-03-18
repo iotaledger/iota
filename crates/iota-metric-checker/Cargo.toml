@@ -25,3 +25,5 @@ tracing.workspace = true
 
 # internal dependencies
 telemetry-subscribers.workspace = true
+[lints]
+workspace = true

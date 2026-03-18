@@ -5260,7 +5260,7 @@ async fn test_choose_next_system_packages() {
         .collect();
 
     // Create expanded active_validators list including zero-weight authorities
-    let mut all_active_validators = active_validators.clone();
+    let mut all_active_validators = active_validators;
     for (i, _auth) in zero_weight_authorities.iter().enumerate() {
         all_active_validators.push(all_keys[4 + i].public().clone()); // Indices 4, 5, 6 for zero-weight authorities
     }

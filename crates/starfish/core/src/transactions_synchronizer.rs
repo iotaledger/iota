@@ -2140,7 +2140,7 @@ mod tests {
             AuthorityIndex::new_for_test(MAX_AUTHORITIES_TO_FETCH_PER_TRANSACTION as u8),
             context.parameters.max_transactions_per_regular_sync_fetch,
             sync_method,
-            active_requests.clone(),
+            active_requests,
         );
         let (tx_guard, active_request_guard) =
             guard.expect("Guard should be successfully acquired");

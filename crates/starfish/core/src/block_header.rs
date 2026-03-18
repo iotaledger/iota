@@ -1428,8 +1428,8 @@ mod tests {
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
             crate::block_header::BlockHeaderV1::compress_references(
-                ancestors.clone(),
-                acknowledgments.clone(),
+                ancestors,
+                acknowledgments,
             );
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
@@ -1445,8 +1445,8 @@ mod tests {
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
             crate::block_header::BlockHeaderV1::compress_references(
-                ancestors.clone(),
-                acknowledgments.clone(),
+                ancestors,
+                acknowledgments,
             );
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
@@ -1463,8 +1463,8 @@ mod tests {
 
         let (references, overlap_start_index, overlap_end_index) =
             crate::block_header::BlockHeaderV1::compress_references(
-                ancestors.clone(),
-                acknowledgments.clone(),
+                ancestors,
+                acknowledgments,
             );
 
         let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];

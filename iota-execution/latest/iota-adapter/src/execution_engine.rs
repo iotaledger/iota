@@ -493,12 +493,12 @@ mod checked {
                 authenticate_transaction_inner(
                     &mut temporary_store,
                     protocol_config,
-                    metrics.clone(),
+                    metrics,
                     &mut gas_charger,
                     authenticator,
                     authenticator_function_ref_v1,
                     &input_objects,
-                    transaction_kind.clone(),
+                    transaction_kind,
                     transaction_digest,
                     &mut tx_ctx,
                     trace_builder_opt,
@@ -584,7 +584,7 @@ mod checked {
             tx_ctx,
             move_vm,
             protocol_config,
-            metrics.clone(),
+            metrics,
             false,
             contains_deleted_input,
             cancelled_objects,
@@ -2029,7 +2029,7 @@ mod checked {
             Identifier::new(authenticator_function_ref.module.clone()).expect(
                 "`AuthenticatorFunctionRefV1::module` is expected to be a valid `Identifier`",
             ),
-            Identifier::new(authenticator_function_ref.function.clone()).expect(
+            Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
             type_arguments,

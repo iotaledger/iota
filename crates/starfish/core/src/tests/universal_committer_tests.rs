@@ -112,8 +112,8 @@ async fn idempotence() {
     // Add more rounds so we have something to commit after the leader of wave 1
     let certifying_round_for_round_5 = 7;
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_certifying_round_for_round_1),
         certifying_round_for_round_5,
     );
@@ -188,8 +188,8 @@ async fn direct_commit_late_call() {
     let num_waves = 11;
     let certifying_round_wave_10 = committer.committers[0].certifying_round(10);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         None,
         certifying_round_wave_10,
     );
@@ -267,9 +267,9 @@ async fn direct_skip_no_leader_votes() {
 
     // Create committer with pipelining and 1 leader per round
     let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
+        dag_builder.context,
         leader_schedule,
-        dag_state.clone(),
+        dag_state,
     )
     .build();
     // note: without pipelining or multi-leader enabled there should only be one
@@ -387,9 +387,9 @@ async fn indirect_commit() {
 
     // Create committer with pipelining and 1 leader per round
     let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
+        dag_builder.context,
         leader_schedule,
-        dag_state.clone(),
+        dag_state,
     )
     .build();
     // note: with pipelining or multi-leader enabled there should be three
@@ -469,9 +469,9 @@ async fn indirect_skip() {
 
     // Create committer with pipelining and 1 leader per round
     let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
+        dag_builder.context,
         leader_schedule,
-        dag_state.clone(),
+        dag_state,
     )
     .build();
     // note: with pipelining or multi-leader enabled there should be three
@@ -555,9 +555,9 @@ async fn undecided() {
 
     // Create committer with pipelining and 1 leader per round
     let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
+        dag_builder.context,
         leader_schedule,
-        dag_state.clone(),
+        dag_state,
     )
     .build();
     // note: without pipelining or multi-leader enabled there should only be one
@@ -590,7 +590,7 @@ async fn test_byzantine_direct_commit() {
     // This includes a "good vote" from validator C which is acting as a byzantine
     // validator
     let good_references_voting_round_for_round_12 = build_dag(
-        context.clone(),
+        context,
         dag_state.clone(),
         Some(references_round_12.clone()),
         voting_round_for_round_12_leader,
@@ -653,7 +653,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_a14.clone(), DataSource::Test);
+        .accept_block_header(certifying_block_a14, DataSource::Test);
 
     let good_references_voting_round_for_round_12_without_c13 =
         good_references_voting_round_for_round_12
@@ -674,7 +674,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_b14.clone(), DataSource::Test);
+        .accept_block_header(certifying_block_b14, DataSource::Test);
 
     let certifying_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -689,7 +689,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_c14.clone(), DataSource::Test);
+        .accept_block_header(certifying_block_c14, DataSource::Test);
 
     let certifying_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -704,7 +704,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(certifying_block_d14.clone(), DataSource::Test);
+        .accept_block_header(certifying_block_d14, DataSource::Test);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round for round-12
@@ -772,7 +772,7 @@ fn basic_dag_builder_test_setup() -> TestSetup {
 
     let dag_state = Arc::new(RwLock::new(DagState::new(
         dag_builder.context.clone(),
-        Arc::new(MemStore::new(context.clone())),
+        Arc::new(MemStore::new(context)),
     )));
     let leader_schedule = Arc::new(LeaderSchedule::new(
         dag_builder.context.clone(),

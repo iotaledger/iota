@@ -39,3 +39,5 @@ tracing = [
   # "iota-adapter-$CUT/tracing",
   # "move-vm-runtime-$CUT/tracing",
 ]
+[lints]
+workspace = true

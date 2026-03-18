@@ -55,7 +55,7 @@ mod checked {
         #[cfg(not(feature = "tracing"))]
         let vm_profiler_config = None;
         #[cfg(feature = "tracing")]
-        let vm_profiler_config = _enable_profiler.clone().map(|path| VMProfilerConfig {
+        let vm_profiler_config = _enable_profiler.map(|path| VMProfilerConfig {
             full_path: path,
             track_bytecode_instructions: false,
             use_long_function_name: false,

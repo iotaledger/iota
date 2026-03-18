@@ -135,7 +135,7 @@ pub(crate) async fn verify_zklogin_signature(
         ZkLoginIntentScope::TransactionData => {
             let tx_data: TransactionData = bcs::from_bytes(&bytes)
                 .map_err(|_| Error::Client("Invalid tx data bytes".to_string()))?;
-            let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
+            let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
             let sig = GenericSignature::ZkLoginAuthenticator(zklogin_sig);
             match sig.verify_authenticator(
                 &intent_msg,

@@ -28,3 +28,5 @@ tokio = { workspace = true, features = ["full"] }
 # internal dependencies
 iota-move-build.workspace = true
 move-package.workspace = true
+[lints]
+workspace = true

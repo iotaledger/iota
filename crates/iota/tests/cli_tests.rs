@@ -184,7 +184,7 @@ impl TreeShakingTest {
             unreachable!("Invalid response");
         };
 
-        let IotaTransactionBlockEffects::V1(effects) = publish_response.clone().effects.unwrap();
+        let IotaTransactionBlockEffects::V1(effects) = publish_response.effects.unwrap();
         assert!(effects.status.is_ok());
 
         let package_a_v1 = effects
@@ -236,7 +236,7 @@ async fn publish_package(
         unreachable!("Invalid response");
     };
 
-    let IotaTransactionBlockEffects::V1(effects) = publish_response.clone().effects.unwrap();
+    let IotaTransactionBlockEffects::V1(effects) = publish_response.effects.unwrap();
 
     assert!(effects.status.is_ok());
     let package_a = effects

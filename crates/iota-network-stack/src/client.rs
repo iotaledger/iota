@@ -267,7 +267,7 @@ impl Service<Name> for CachingResolver {
                                 cache
                                     .lock()
                                     .unwrap()
-                                    .insert(name, (Instant::now(), addrs.clone()));
+                                    .insert(name, (Instant::now(), addrs));
                             }
                         });
                     }

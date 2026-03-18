@@ -25,3 +25,5 @@ name = "tests"
 harness = false
 
 [dependencies]
+[lints]
+workspace = true

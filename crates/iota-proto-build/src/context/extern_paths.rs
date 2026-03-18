@@ -176,7 +176,7 @@ mod tests {
         let paths = [("foo".to_string(), "bar".to_string())];
         let err = ExternPaths::new(&paths, false).unwrap_err();
         assert_eq!(
-            err.to_string(),
+            err,
             "Protobuf paths must be fully qualified (begin with a leading '.'): foo"
         )
     }
@@ -186,7 +186,7 @@ mod tests {
         let paths = [(".foo.".to_string(), "bar".to_string())];
         let err = ExternPaths::new(&paths, false).unwrap_err();
         assert_eq!(
-            err.to_string(),
+            err,
             "invalid fully-qualified Protobuf path: .foo."
         )
     }
@@ -198,6 +198,6 @@ mod tests {
             (".foo".to_string(), "bar".to_string()),
         ];
         let err = ExternPaths::new(&paths, false).unwrap_err();
-        assert_eq!(err.to_string(), "duplicate extern Protobuf path: .foo")
+        assert_eq!(err, "duplicate extern Protobuf path: .foo")
     }
 }

@@ -1654,7 +1654,7 @@ fn destroy_staked_migration_objects(
         genesis_ctx,
         parameters,
         &genesis_stake.take_timelocks_to_split(),
-        metrics.clone(),
+        metrics,
     )
     .expect("Splitting timelocks should not fail here");
 

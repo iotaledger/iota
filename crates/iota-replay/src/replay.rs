@@ -788,7 +788,7 @@ impl LocalExec {
             protocol_config,
             metrics,
             expensive_checks,
-            input_objects.clone(),
+            input_objects,
         ) {
             error!("Failed to pretty print for tracing: {:?}", err);
         }

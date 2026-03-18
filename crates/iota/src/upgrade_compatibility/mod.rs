@@ -764,7 +764,7 @@ fn compare_packages(
     let move_toml_contents = Arc::from(
         fs::read_to_string(&move_toml_path)
             .context("Unable to read Move.toml")?
-            .to_string(),
+            ,
     );
     let move_toml_hash = FileHash::new(&move_toml_contents);
 

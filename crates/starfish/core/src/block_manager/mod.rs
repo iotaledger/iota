@@ -431,7 +431,7 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
@@ -503,12 +503,12 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=4) // 4 rounds
             .authorities(vec![
@@ -548,12 +548,12 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG of 2 rounds
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=2).build();
 
         let all_block_headers = dag_builder
@@ -668,9 +668,9 @@ mod tests {
             .collect::<BTreeSet<_>>();
 
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
-        let mut block_manager = BlockManager::new(context.clone(), dag_state);
+        let mut block_manager = BlockManager::new(context, dag_state);
 
         let (_, missing_blocks) = block_manager
             .try_accept_block_headers(vec![blocks_round_2[0].clone()], DataSource::Test);
@@ -740,8 +740,8 @@ mod tests {
 
         // Create BlockManager.
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let mut block_manager = BlockManager::new(context.clone(), dag_state);
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context, dag_state);
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
         // be suspended.
         let (accepted_block_headers, missing_refs) = block_manager.try_accept_block_headers(
@@ -781,12 +781,12 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
 
         // create a DAG
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=2) // 2 rounds
             .authorities(vec![
@@ -895,7 +895,7 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
 
@@ -921,7 +921,7 @@ mod tests {
 
         // WHEN: First, accept only the headers (without transactions) for round 1 and 2
         let (accepted_round_1_headers, missing) =
-            block_manager.try_accept_block_headers(round_1_headers.clone(), DataSource::Test);
+            block_manager.try_accept_block_headers(round_1_headers, DataSource::Test);
         assert_eq!(accepted_round_1_headers.len(), 4);
         assert!(missing.is_empty());
 

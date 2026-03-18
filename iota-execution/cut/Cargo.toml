@@ -20,3 +20,5 @@ tempfile.workspace = true
 [[bin]]
 name = "cut"
 path = "src/main.rs"
+[lints]
+workspace = true

@@ -123,7 +123,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .with_label_values(&[
                     peer_hostname.as_str(),
                     "handle_send_block",
-                    e.clone().name(),
+                    e.name(),
                 ])
                 .inc();
             info!("Invalid block from {}: {}", peer, e);

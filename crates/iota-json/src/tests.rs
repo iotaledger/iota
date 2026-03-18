@@ -482,7 +482,7 @@ fn test_basic_args_linter_top_level() {
         recipient.clone(),
     ]
     .into_iter()
-    .map(|q| IotaJsonValue::new(q.clone()).unwrap())
+    .map(|q| IotaJsonValue::new(q).unwrap())
     .collect();
 
     let json_args: Vec<_> =
@@ -512,7 +512,7 @@ fn test_basic_args_linter_top_level() {
     // Flag is u8 so too large
     let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]
         .into_iter()
-        .map(|q| IotaJsonValue::new(q.clone()).unwrap())
+        .map(|q| IotaJsonValue::new(q).unwrap())
         .collect();
 
     assert!(resolve_move_function_args(package, module, function, &[], args,).is_err());

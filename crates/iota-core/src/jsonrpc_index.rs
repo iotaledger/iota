@@ -428,7 +428,7 @@ impl IndexStore {
                 "event_by_time".to_string(),
                 compaction_filter_config_by_key(
                     "event_by_time",
-                    compaction_metrics.clone(),
+                    compaction_metrics,
                     db_options.clone(),
                     pruner_watermark.clone(),
                     |(_, event_id): (u64, EventId)| event_id.0,

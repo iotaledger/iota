@@ -54,8 +54,8 @@ async fn idempotence() {
     let leader_round_pipeline_1_wave_0 = committer.committers[1].leader_round(0);
     let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         None,
         decision_round_pipeline_1_wave_0,
     );
@@ -156,7 +156,7 @@ async fn direct_commit_late_call() {
     let wave_number = committer.committers[pipeline].wave_number(n as u32);
     let decision_round = committer.committers[pipeline].decision_round(wave_number);
 
-    build_dag(context.clone(), dag_state.clone(), None, decision_round);
+    build_dag(context, dag_state, None, decision_round);
 
     let last_decided = Slot::new_for_test(0, 0);
     let sequence = committer.try_decide(last_decided);
@@ -225,8 +225,8 @@ async fn direct_skip_no_leader() {
 
     let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references),
         decision_round_pipeline_1_wave_0,
     );
@@ -299,8 +299,8 @@ async fn direct_skip_enough_blame() {
     // pipeline 1.
     let decision_round_pipeline_1_wave_0 = committer.committers[1].decision_round(0);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references),
         decision_round_pipeline_1_wave_0,
     );
@@ -406,8 +406,8 @@ async fn indirect_commit() {
     let wave_leader_5 = committer.committers[pipeline_leader_5].wave_number(leader_round_5 as u32);
     let decision_round_5 = committer.committers[pipeline_leader_5].decision_round(wave_leader_5);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_round_3),
         decision_round_5,
     );
@@ -486,8 +486,8 @@ async fn indirect_skip() {
     let wave_leader_7 = committer.committers[pipeline_leader_7].wave_number(leader_round_7 as u32);
     let decision_round_7 = committer.committers[pipeline_leader_7].decision_round(wave_leader_7);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_round_5),
         decision_round_7,
     );
@@ -566,7 +566,7 @@ async fn undecided() {
     let decision_round_1 = committer.committers[1].decision_round(0);
     build_dag(
         context.clone(),
-        dag_state.clone(),
+        dag_state,
         Some(references_voting_round_1),
         decision_round_1,
     );
@@ -662,7 +662,7 @@ async fn test_byzantine_validator() {
             .build(),
     );
     references_round_14.push(decision_block_a14.reference());
-    dag_state.write().accept_block(decision_block_a14.clone());
+    dag_state.write().accept_block(decision_block_a14);
 
     let good_references_voting_round_wave_4_without_b13 = good_references_voting_round_wave_4
         .into_iter()
@@ -681,7 +681,7 @@ async fn test_byzantine_validator() {
             .build(),
     );
     references_round_14.push(decision_block_b14.reference());
-    dag_state.write().accept_block(decision_block_b14.clone());
+    dag_state.write().accept_block(decision_block_b14);
 
     let decision_block_c14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 2)
@@ -695,7 +695,7 @@ async fn test_byzantine_validator() {
             .build(),
     );
     references_round_14.push(decision_block_c14.reference());
-    dag_state.write().accept_block(decision_block_c14.clone());
+    dag_state.write().accept_block(decision_block_c14);
 
     let decision_block_d14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 3)
@@ -709,7 +709,7 @@ async fn test_byzantine_validator() {
             .build(),
     );
     references_round_14.push(decision_block_d14.reference());
-    dag_state.write().accept_block(decision_block_d14.clone());
+    dag_state.write().accept_block(decision_block_d14);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of leader A12
@@ -751,8 +751,8 @@ async fn test_byzantine_validator() {
     // decision can be made about leader A16 and then an indirect decision can be
     // made about B13
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_round_15),
         18,
     );
