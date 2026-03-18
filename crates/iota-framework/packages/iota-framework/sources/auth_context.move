@@ -102,3 +102,32 @@ native fun native_replace<I, C>(
     tx_inputs: vector<I>,
     tx_commands: vector<C>,
 );
+
+/// Test helper that injects pre-built enriched inputs/commands into the
+/// `AuthContext`.  Unlike [`new_with_tx_inputs`], the enriched fields
+/// (`is_entry`, `mutable`, `type_name`, `returns`) are stored as-is — no
+/// plain→enriched conversion is performed.  Use this variant when a test
+/// needs to verify logic that depends on those enriched values.
+#[test_only]
+public fun new_with_enriched_tx_inputs(
+    auth_digest: vector<u8>,
+    tx_inputs: vector<EnrichedCallArg>,
+    tx_commands: vector<EnrichedCommand>,
+): AuthContext {
+    assert!(auth_digest.length() == AUTH_DIGEST_LENGTH, EBadAuthDigestLength);
+
+    native_replace_enriched(auth_digest, tx_inputs, tx_commands);
+
+    AuthContext {
+        auth_digest: vector::empty(),
+        tx_inputs: vector::empty(),
+        tx_commands: vector::empty(),
+    }
+}
+
+#[test_only]
+native fun native_replace_enriched<I, C>(
+    auth_digest: vector<u8>,
+    tx_inputs: vector<I>,
+    tx_commands: vector<C>,
+);

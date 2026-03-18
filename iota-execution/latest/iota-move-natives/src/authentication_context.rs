@@ -285,6 +285,57 @@ impl AuthenticationContext {
         ))
     }
 
+    /// Replaces the `AuthContext` with pre-built enriched values.
+    ///
+    /// Unlike [`replace`] (which takes plain `MoveCallArg`/`MoveCommand` and
+    /// up-converts them), this function accepts already-enriched
+    /// [`EnrichedCallArg`] / [`EnrichedCommand`] values so that test code can
+    /// supply `is_entry`, `mutable`, and `type_name` fields directly.
+    /// Only callable in testing scenarios.
+    pub fn replace_enriched(
+        &mut self,
+        auth_digest_value: Vec<u8>,
+        tx_inputs_value: Vec<Value>,
+        input_move_layout: MoveTypeLayout,
+        tx_commands_value: Vec<Value>,
+        command_move_layout: MoveTypeLayout,
+    ) -> PartialVMResult<()> {
+        if !self.test_only {
+            return Err(
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                    .with_message("`replace_enriched` called on a non testing scenario".to_string()),
+            );
+        }
+
+        let tx_commands: Vec<EnrichedCommand> = tx_commands_value
+            .into_iter()
+            .map(|value| from_value(value, &command_move_layout))
+            .collect::<PartialVMResult<_>>()?;
+
+        let tx_inputs: Vec<EnrichedCallArg> = tx_inputs_value
+            .into_iter()
+            .map(|value| from_value(value, &input_move_layout))
+            .collect::<PartialVMResult<_>>()?;
+
+        let auth_digest =
+            MoveAuthenticatorDigest::try_from(auth_digest_value.as_slice()).map_err(|err| {
+                PartialVMError::new(StatusCode::UNEXPECTED_DESERIALIZATION_ERROR)
+                    .with_message(err.to_string())
+            })?;
+
+        self.auth_context
+            .borrow_mut()
+            .replace(auth_digest, tx_inputs, tx_commands);
+
+        self.cached_digest = None;
+        self.cached_tx_inputs = None;
+        self.cached_tx_commands = None;
+        self.cached_enriched_tx_inputs = None;
+        self.cached_enriched_tx_commands = None;
+
+        Ok(())
+    }
+
     /// Replaces the contents of the `AuthContext` with the provided values.
     /// Only callable in testing scenarios.
     /// Expects the input values to be values, then it tries to convert them

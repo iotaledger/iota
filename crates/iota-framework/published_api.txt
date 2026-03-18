@@ -1732,6 +1732,15 @@ move_call_arguments
 move_call_returns
 	public fun
 	0x2::enriched_command
+as_move_call
+	public fun
+	0x2::enriched_command
+is_entry
+	public fun
+	0x2::enriched_command
+returns
+	public fun
+	0x2::enriched_command
 ImmOrOwnedObjectArg
 	public struct
 	0x2::enriched_call_arg
@@ -1781,6 +1790,15 @@ shared_digest
 	public fun
 	0x2::enriched_call_arg
 shared_type_name
+	public fun
+	0x2::enriched_call_arg
+as_imm_or_owned_object
+	public fun
+	0x2::enriched_call_arg
+mutable
+	public fun
+	0x2::enriched_call_arg
+pure_type_name
 	public fun
 	0x2::enriched_call_arg
 AuthContext

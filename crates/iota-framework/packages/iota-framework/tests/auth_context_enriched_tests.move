@@ -5,8 +5,6 @@
 module iota::auth_context_enriched_tests;
 
 use iota::auth_context::new_with_tx_inputs;
-use iota::enriched_call_arg::EnrichedCallArg;
-use iota::enriched_command::EnrichedCommand;
 use iota::ptb_call_arg::{
     new_call_arg_pure_for_testing,
     new_call_arg_object_for_testing,

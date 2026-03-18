@@ -1,0 +1,11 @@
+[package]
+name = "entry_only_account"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+iotaccount = { local = "../iotaccount" }
+public_key_authentication = { local = "../public_key_authentication" }
+
+[addresses]
+entry_only_account = "0x0"

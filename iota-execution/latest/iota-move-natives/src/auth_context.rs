@@ -352,6 +352,76 @@ pub fn native_enriched_tx_commands(
     ))
 }
 
+/// ****************************************************************************
+/// native fun native_replace_enriched
+/// Implementation of the Move native function
+/// `fun native_replace_enriched<I, C>(auth_digest, tx_inputs, tx_commands)`
+///
+/// Like `native_replace` but stores the values as enriched types
+/// (`EnrichedCallArg` / `EnrichedCommand`) directly, skipping the
+/// plain→enriched up-conversion.  This lets test code set `is_entry`,
+/// `mutable`, and `type_name` fields explicitly.
+/// ****************************************************************************
+pub fn native_replace_enriched(
+    context: &mut NativeContext,
+    mut ty_args: Vec<Type>,
+    mut args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.len() == 2);
+    debug_assert!(args.len() == 3);
+
+    let auth_context_replace_cost_params = get_extension!(context, NativesCostTable)?
+        .auth_context_replace_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_replace_cost_params
+            .auth_context_replace_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost base for native_replace_enriched not available".to_string(),
+                )
+            })?
+    );
+
+    let args_size = args
+        .iter()
+        .fold(0_u64, |acc, v| acc + u64::from(v.legacy_size()));
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_replace_cost_params
+            .auth_context_replace_cost_per_byte
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost per byte for native_replace_enriched not available".to_string(),
+                )
+            })?
+            * args_size.into()
+    );
+
+    let command_type = ty_args.pop().unwrap();
+    let command_move_layout = resolve_move_layout(context, &command_type)?;
+    let tx_commands_value = pop_arg!(args, Vec<Value>);
+
+    let input_type = ty_args.pop().unwrap();
+    let input_move_layout = resolve_move_layout(context, &input_type)?;
+    let tx_inputs_value = pop_arg!(args, Vec<Value>);
+
+    let auth_digest_value = pop_arg!(args, Vec<u8>);
+
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
+
+    auth_context.replace_enriched(
+        auth_digest_value,
+        tx_inputs_value,
+        input_move_layout,
+        tx_commands_value,
+        command_move_layout,
+    )?;
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
+}
+
 fn resolve_move_layout(context: &NativeContext, ty: &Type) -> PartialVMResult<MoveTypeLayout> {
     context.type_to_type_layout(ty)?.ok_or(
         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)

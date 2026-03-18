@@ -147,6 +147,25 @@ public fun move_call_returns(call: &EnrichedProgrammableMoveCall): &vector<TypeN
     &call.returns
 }
 
+/// Returns the `EnrichedProgrammableMoveCall` payload when `cmd` is a
+/// `MoveCall` variant; `option::none()` otherwise.
+public fun as_move_call(cmd: &EnrichedCommand): Option<EnrichedProgrammableMoveCall> {
+    match (cmd) {
+        EnrichedCommand::MoveCall(call) => option::some(*call),
+        _ => option::none(),
+    }
+}
+
+/// Short accessor for `is_entry` — callable as `call.is_entry()`.
+public fun is_entry(call: &EnrichedProgrammableMoveCall): bool {
+    call.is_entry
+}
+
+/// Short accessor for `returns` — callable as `call.returns()`.
+public fun returns(call: &EnrichedProgrammableMoveCall): &vector<TypeName> {
+    &call.returns
+}
+
 // === Test-only functions ===
 
 #[test_only]
@@ -168,4 +187,15 @@ public fun new_enriched_move_call_for_testing(
         arguments,
         returns,
     })
+}
+
+/// Construct an enriched `TransferObjects` command for testing.
+#[test_only]
+public fun new_enriched_transfer_objects_for_testing(
+    objects: vector<Argument>,
+    recipient: Argument,
+): EnrichedCommand {
+    EnrichedCommand::TransferObjects(
+        iota::ptb_command::new_transfer_objects_for_testing(objects, recipient),
+    )
 }

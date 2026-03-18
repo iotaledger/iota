@@ -128,6 +128,29 @@ public fun shared_type_name(arg: &SharedObjectArg): &TypeName {
     &arg.type_name
 }
 
+/// Returns the `ImmOrOwnedObjectArg` when the input is an
+/// `ImmOrOwnedObject` variant; `option::none()` otherwise.
+public fun as_imm_or_owned_object(arg: &EnrichedCallArg): Option<ImmOrOwnedObjectArg> {
+    match (arg) {
+        EnrichedCallArg::ImmOrOwnedObject(obj) => option::some(*obj),
+        _ => option::none(),
+    }
+}
+
+/// Short accessor for the `mutable` field — callable as `arg.mutable()`.
+public fun mutable(arg: &ImmOrOwnedObjectArg): bool {
+    arg.mutable
+}
+
+/// Returns the `type_name` when the input is a `Pure` variant;
+/// `option::none()` for object inputs.
+public fun pure_type_name(arg: &EnrichedCallArg): Option<TypeName> {
+    match (arg) {
+        EnrichedCallArg::Pure { type_name, .. } => option::some(*type_name),
+        _ => option::none(),
+    }
+}
+
 // === Test-only functions ===
 
 #[test_only]
