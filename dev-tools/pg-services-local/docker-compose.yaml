@@ -20,6 +20,8 @@ services:
       - RUST_BACKTRACE=1
       - RUST_LOG=info
     command:
+      # We have already an issue in place to simplify this part, since gRPC will be enabled by default.
+      # https://github.com/iotaledger/iota/issues/10777
       - sh
       - -c
       - |
