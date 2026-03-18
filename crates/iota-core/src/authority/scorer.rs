@@ -495,313 +495,343 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
     }
 }
 
-// // NOTE: the tests below are going to be finalized in a different PR
-// #[cfg(test)]
-// mod tests {
-//     use std::sync::{Arc, atomic::Ordering};
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, atomic::Ordering};
 
-//     use iota_protocol_config::ProtocolConfig;
-//     use iota_types::messages_consensus::{LegacyReportPayload,
-// VersionedMisbehaviorReport};
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
 
-//     use crate::authority::authority_per_epoch_store::{
-//         misbehavior_monitor::MisbehaviorMonitor,
-//         scorer::{
-//             MAX_SCORE, NodeMisbehaviorsV1, ParametersV1, SCALE_FACTOR,
-// Scorer,             calculate_median_report, calculate_scores_v1,
-//         },
-//     };
+    use super::{MAX_SCORE, Scorer};
+    use crate::authority::authority_per_epoch_store::misbehavior_monitor::{
+        MisbehaviorCounts, MisbehaviorMonitor,
+    };
 
-//     fn mock_protocol_config(consensus_choice: ConsensusChoice) ->
-// ProtocolConfig {         let mut config =
-// ProtocolConfig::get_for_max_version_UNSAFE();         config.
-// set_consensus_choice_for_testing(consensus_choice);         config
-//     }
+    fn mock_protocol_config() -> ProtocolConfig {
+        ProtocolConfig::get_for_max_version_UNSAFE()
+    }
 
-// impl Scorer {
-//     fn set_reports_for_tests(
-//         &self,
-//         reports_and_authorities: &[(VersionedMisbehaviorReport, u32)],
-//     ) {
-//         for (report, authority) in reports_and_authorities.iter() {
-//             self.update_received_reports(*authority, report);
-//         }
-//     }
-// }
-// #[test]
-// fn test_scorer_initialization() {
-//     let voting_power = vec![10, 20, 30];
-//     let committee_size = voting_power.len();
-//     let protocol_config = mock_protocol_config();
+    fn mock_misbehavior_monitor(committee_size: usize) -> Arc<MisbehaviorMonitor> {
+        Arc::new(MisbehaviorMonitor::new(
+            &mock_protocol_config(),
+            committee_size,
+        ))
+    }
 
-//         let scorer = Scorer::new(
-//             voting_power,
-//             &protocol_config,
-//             &Arc::new(MisbehaviorMonitor::new(&protocol_config,
-// committee_size)),         );
+    fn report(
+        provable: Vec<u64>,
+        unprovable: Vec<u64>,
+        missing: Vec<u64>,
+        equivocations: Vec<u64>,
+    ) -> VersionedMisbehaviorReport {
+        VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+            faulty_blocks_provable: provable,
+            faulty_blocks_unprovable: unprovable,
+            missing_proposals: missing,
+            equivocations,
+        })
+    }
 
-//         assert_eq!(scorer.current_scores.len(), committee_size);
-//         assert_eq!(scorer.invalid_reports_count.len(), committee_size);
-//         assert_eq!(scorer.received_metrics.len(), committee_size);
-//         assert_eq!(scorer.has_not_sent_report.len(), committee_size);
-//     }
+    impl Scorer {
+        fn set_reports(&self, reports_and_authorities: &[(VersionedMisbehaviorReport, u32)]) {
+            for (report, authority) in reports_and_authorities {
+                self.update_received_reports(*authority, report);
+            }
+        }
+    }
 
-// #[test]
-// fn test_increment_invalid_reports_count() {
-//     let voting_power = vec![10, 20, 30];
-//
-//     let protocol_config = mock_protocol_config();
+    #[test]
+    fn test_scorer_initialization() {
+        let voting_power = vec![10, 20, 30];
+        let committee_size = voting_power.len();
+        let scorer = Scorer::new(
+            voting_power,
+            &mock_protocol_config(),
+            &mock_misbehavior_monitor(committee_size),
+        );
 
-//         let scorer = Scorer::new(
-//             voting_power.clone(),
-//             &protocol_config,
-//             &Arc::new(MisbehaviorMonitor::new(
-//                 &protocol_config,
-//                 voting_power.len(),
-//             )),
-//         );
+        assert_eq!(scorer.current_scores.len(), committee_size);
+        for score in scorer.current_scores.iter() {
+            assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE);
+        }
+        for i in 0..committee_size {
+            assert_eq!(
+                scorer.received_reports_state[i].invalid_reports_count_snapshot(),
+                0
+            );
+            assert!(
+                scorer.received_reports_state[i]
+                    .received_metrics
+                    .load()
+                    .is_none()
+            );
+        }
+    }
 
-//         let authority_index = 2;
+    #[test]
+    fn test_update_invalid_reports_count() {
+        let voting_power = vec![10, 20, 30];
+        let committee_size = voting_power.len();
+        let scorer = Scorer::new(
+            voting_power,
+            &mock_protocol_config(),
+            &mock_misbehavior_monitor(committee_size),
+        );
 
-//         // Before update
-//         assert_eq!(
-//             scorer.invalid_reports_count[authority_index as
-// usize].load(Ordering::Relaxed),             0
-//         );
+        scorer.update_invalid_reports_count(2);
+        assert_eq!(
+            scorer.received_reports_state[0].invalid_reports_count_snapshot(),
+            0
+        );
+        assert_eq!(
+            scorer.received_reports_state[1].invalid_reports_count_snapshot(),
+            0
+        );
+        assert_eq!(
+            scorer.received_reports_state[2].invalid_reports_count_snapshot(),
+            1
+        );
 
-// // Call the method
-// scorer.increment_invalid_reports_count(authority_index);
+        scorer.increment_invalid_reports_count(1);
+        scorer.increment_invalid_reports_count(1);
+        assert_eq!(
+            scorer.received_reports_state[0].invalid_reports_count_snapshot(),
+            0
+        );
+        assert_eq!(
+            scorer.received_reports_state[1].invalid_reports_count_snapshot(),
+            2
+        );
+        assert_eq!(
+            scorer.received_reports_state[2].invalid_reports_count_snapshot(),
+            1
+        );
+    }
 
-//         // After update
-//         assert_eq!(
-//             scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-//             0
-//         );
-//         assert_eq!(
-//             scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-//             0
-//         );
-//         assert_eq!(
-//             scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-//             1
-//         );
+    #[test]
+    fn test_update_scores() {
+        // Committee of 3, voting powers [2, 5, 20].
+        //
+        // Weighted medians (total_vp = 27, threshold = 14):
+        //   provable[0]:      reporters [(5,2),(0,5),(0,20)] → sorted
+        // [(0,5),(0,20),(5,2)]                     accumulated 5, 25 ≥ 14 →
+        // median = 0   provable[2]:      reporters [(0,2),(0,5),(15,20)] →
+        // accumulated 2,7,27 → median = 15   equivocations[0]: reporters
+        // [(0,2),(0,5),(5,20)] → accumulated 2,7,27 → median = 5
+        //
+        // Scores:
+        //   authority 0: equivocations median = 5 ≥ max(1) → major factor = 0 → score =
+        // 0   authority 1: all medians = 0 → MAX_SCORE
+        //   authority 2: provable median = 15 ≥ max(5) → provable contribution = 0,
+        //                all other metrics 0 → score = baseline + unprovable + missing
+        // = 45876
+        let voting_power = vec![2, 5, 20];
+        let committee_size = voting_power.len();
+        let scorer = Scorer::new(
+            voting_power,
+            &mock_protocol_config(),
+            &mock_misbehavior_monitor(committee_size),
+        );
 
-// let authority_index = 1;
-// // Call the method twice
-// scorer.increment_invalid_reports_count(authority_index);
-// scorer.increment_invalid_reports_count(authority_index);
+        for score in scorer.current_scores.iter() {
+            assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE);
+        }
 
-//         // After update
-//         assert_eq!(
-//             scorer.invalid_reports_count[0_usize].load(Ordering::Relaxed),
-//             0
-//         );
-//         assert_eq!(
-//             scorer.invalid_reports_count[1_usize].load(Ordering::Relaxed),
-//             2
-//         );
-//         assert_eq!(
-//             scorer.invalid_reports_count[2_usize].load(Ordering::Relaxed),
-//             1
-//         );
-//     }
+        scorer.set_reports(&[
+            (
+                report(vec![5, 0, 0], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]),
+                0,
+            ),
+            (
+                report(vec![0, 10, 0], vec![0, 0, 0], vec![0, 0, 0], vec![0, 0, 0]),
+                1,
+            ),
+            (
+                report(vec![0, 0, 15], vec![0, 0, 0], vec![0, 0, 0], vec![5, 0, 0]),
+                2,
+            ),
+        ]);
 
-//     #[test]
-//     fn test_update_scores() {
-//         let voting_power = vec![2, 5, 20];
-//         let protocol_config =
-// mock_protocol_config();         let scorer =
-// Scorer::new(             voting_power.clone(),
-//             &protocol_config,
-//             &Arc::new(MisbehaviorMonitor::new(
-//                 &protocol_config,
-//                 voting_power.len(),
-//             )),
-//         );
+        scorer.update_scores();
 
-// // Before calling update_scores, all scores should be MAX_SCORE
-// scorer
-//     .current_scores
-//     .iter()
-//     .for_each(|score| assert_eq!(score.load(Ordering::Relaxed), MAX_SCORE));
+        let actual: Vec<u64> = scorer
+            .current_scores
+            .iter()
+            .map(|s| s.load(Ordering::Relaxed))
+            .collect();
+        assert_eq!(actual, vec![0, MAX_SCORE, 45876]);
+    }
 
-//         // Set some reports for testing
-//         let reports_and_authorities = vec![
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![5, 0, 0],
-//                     faulty_blocks_unprovable: vec![0, 0, 0],
-//                     missing_proposals: vec![0, 0, 0],
-//                     equivocations: vec![0, 0, 0],
-//                 }),
-//                 0_u32,
-//             ),
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![0, 10, 0],
-//                     faulty_blocks_unprovable: vec![0, 0, 0],
-//                     missing_proposals: vec![0, 0, 0],
-//                     equivocations: vec![0, 0, 0],
-//                 }),
-//                 1_u32,
-//             ),
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![0, 0, 15],
-//                     faulty_blocks_unprovable: vec![0, 0, 0],
-//                     missing_proposals: vec![0, 0, 0],
-//                     equivocations: vec![5, 0, 0],
-//                 }),
-//                 2_u32,
-//             ),
-//         ];
+    #[test]
+    fn test_calculate_median_report() {
+        let protocol_config = mock_protocol_config();
 
-//         scorer.set_reports_for_tests(&reports_and_authorities);
+        // Single reporter: median equals their own report.
+        {
+            let scorer = Scorer::new(
+                vec![10, 10, 10],
+                &protocol_config,
+                &mock_misbehavior_monitor(3),
+            );
+            scorer.update_received_reports(
+                0,
+                &report(
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3],
+                ),
+            );
+            let median = scorer.calculate_median_report().unwrap();
+            assert_eq!(
+                median.0,
+                vec![
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3]
+                ]
+            );
+        }
 
-//         // Call the method
-//         scorer.update_scores();
+        // Two reporters with 2:1 voting power — the majority reporter's values win.
+        // total_vp = 30, threshold = 15. Authority 0 (vp=20) always crosses the
+        // threshold first.
+        {
+            let scorer = Scorer::new(
+                vec![20, 10, 10],
+                &protocol_config,
+                &mock_misbehavior_monitor(3),
+            );
+            scorer.update_received_reports(
+                0,
+                &report(
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3],
+                ),
+            );
+            scorer.update_received_reports(
+                1,
+                &report(
+                    vec![70, 80, 90],
+                    vec![100, 110, 120],
+                    vec![40, 50, 60],
+                    vec![10, 20, 30],
+                ),
+            );
+            let median = scorer.calculate_median_report().unwrap();
+            assert_eq!(
+                median.0,
+                vec![
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3]
+                ]
+            );
+        }
 
-// let expected_score = vec![0, 65536, 45876];
-// // After calling update_scores, scores should be updated
-// let actual_score = scorer.current_scores();
-// assert_eq!(actual_score, expected_score);
-//     }
+        // Three equal reporters — standard weighted median.
+        // total_vp = 30, threshold = 15. The middle value wins for each (metric,
+        // authority) pair.
+        {
+            let scorer = Scorer::new(
+                vec![10, 10, 10],
+                &protocol_config,
+                &mock_misbehavior_monitor(3),
+            );
+            scorer.update_received_reports(
+                0,
+                &report(
+                    vec![1, 8, 9],
+                    vec![10, 15, 12],
+                    vec![4, 5, 6],
+                    vec![1, 20, 3],
+                ),
+            );
+            scorer.update_received_reports(
+                1,
+                &report(
+                    vec![7, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 0],
+                ),
+            );
+            scorer.update_received_reports(
+                2,
+                &report(
+                    vec![6, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 22, 6],
+                    vec![1, 2, 30],
+                ),
+            );
+            let median = scorer.calculate_median_report().unwrap();
+            assert_eq!(
+                median.0,
+                vec![
+                    vec![6, 8, 9],
+                    vec![10, 11, 12],
+                    vec![4, 5, 6],
+                    vec![1, 2, 3]
+                ]
+            );
+        }
+    }
 
-//     #[test]
-//     fn test_calculate_median_report() {
-//         let reports_and_voting_power = vec![(
-//             VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                 faulty_blocks_provable: vec![7, 8, 9],
-//                 faulty_blocks_unprovable: vec![10, 11, 12],
-//                 missing_proposals: vec![4, 5, 6],
-//                 equivocations: vec![1, 2, 3],
-//             }),
-//             10_u64,
-//         )];
-//         let median_report =
-// calculate_median_report(&reports_and_voting_power);
+    #[test]
+    fn test_calculate_scores_v1() {
+        // V1 parameters (see load_parameters):
+        //   allowances:      [1, 2, 48_000, 0]
+        //   maximums:        [5, 10, 160_000, 1]
+        //   minor weights:   [19660, 6553, 22937]  (30%, 10%, 35% of SCALE_FACTOR)
+        //   baseline_score:  16386  (SCALE_FACTOR - sum_of_minor_weights)
+        //
+        // All-zero misbehaviors → every authority gets MAX_SCORE (65536).
+        // Derivation: (16386 + 19660 + 6553 + 22937) * MAX_SCORE / SCALE_FACTOR =
+        // MAX_SCORE.
+        let committee_size = 3;
+        let scorer = Scorer::new(
+            vec![10; committee_size],
+            &mock_protocol_config(),
+            &mock_misbehavior_monitor(committee_size),
+        );
 
-//         assert_eq!(
-//             median_report,
-//             NodeMisbehaviorsV1 {
-//                 faulty_blocks_provable: vec![7, 8, 9],
-//                 faulty_blocks_unprovable: vec![10, 11, 12],
-//                 missing_proposals: vec![4, 5, 6],
-//                 equivocations: vec![1, 2, 3]
-//             }
-//         );
+        assert_eq!(
+            scorer.calculate_scores_v1(MisbehaviorCounts(vec![
+                vec![0, 0, 0], // provable
+                vec![0, 0, 0], // unprovable
+                vec![0, 0, 0], // missing
+                vec![0, 0, 0], // equivocations
+            ])),
+            vec![MAX_SCORE, MAX_SCORE, MAX_SCORE]
+        );
 
-//         let reports_and_voting_power = vec![
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![7, 8, 9],
-//                     faulty_blocks_unprovable: vec![10, 11, 12],
-//                     missing_proposals: vec![4, 5, 6],
-//                     equivocations: vec![1, 2, 3],
-//                 }),
-//                 20_u64,
-//             ),
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![70, 80, 90],
-//                     faulty_blocks_unprovable: vec![100, 110, 120],
-//                     missing_proposals: vec![40, 50, 60],
-//                     equivocations: vec![10, 20, 30],
-//                 }),
-//                 10_u64,
-//             ),
-//         ];
+        // Authority 0 equivocates (≥ max 1) → major factor = 0 → score = 0.
+        assert_eq!(
+            scorer.calculate_scores_v1(MisbehaviorCounts(vec![
+                vec![0, 0, 0],
+                vec![0, 0, 0],
+                vec![0, 0, 0],
+                vec![1, 0, 0],
+            ])),
+            vec![0, MAX_SCORE, MAX_SCORE]
+        );
 
-//         let median_report =
-// calculate_median_report(&reports_and_voting_power);
-
-//         assert_eq!(
-//             median_report,
-//             NodeMisbehaviorsV1 {
-//                 faulty_blocks_provable: vec![7, 8, 9],
-//                 faulty_blocks_unprovable: vec![10, 11, 12],
-//                 missing_proposals: vec![4, 5, 6],
-//                 equivocations: vec![1, 2, 3]
-//             }
-//         );
-
-//         let reports_and_voting_power = vec![
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![1, 8, 9],
-//                     faulty_blocks_unprovable: vec![10, 15, 12],
-//                     missing_proposals: vec![4, 5, 6],
-//                     equivocations: vec![1, 20, 3],
-//                 }),
-//                 10_u64,
-//             ),
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![7, 8, 9],
-//                     faulty_blocks_unprovable: vec![10, 11, 12],
-//                     missing_proposals: vec![4, 5, 6],
-//                     equivocations: vec![1, 2, 0],
-//                 }),
-//                 10_u64,
-//             ),
-//             (
-//                 VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-//                     faulty_blocks_provable: vec![6, 8, 9],
-//                     faulty_blocks_unprovable: vec![10, 11, 12],
-//                     missing_proposals: vec![4, 22, 6],
-//                     equivocations: vec![1, 2, 30],
-//                 }),
-//                 10_u64,
-//             ),
-//         ];
-
-//         let median_report =
-// calculate_median_report(&reports_and_voting_power);
-
-//         assert_eq!(
-//             median_report,
-//             NodeMisbehaviorsV1 {
-//                 faulty_blocks_provable: vec![6, 8, 9],
-//                 faulty_blocks_unprovable: vec![10, 11, 12],
-//                 missing_proposals: vec![4, 5, 6],
-//                 equivocations: vec![1, 2, 3]
-//             }
-//         );
-//     }
-
-//     #[test]
-//     fn test_calculate_scores_v1() {
-//         let parameters = ParametersV1 {
-//             allowances: NodeMisbehaviorsV1 {
-//                 faulty_blocks_provable: 1,
-//                 faulty_blocks_unprovable: 2,
-//                 missing_proposals: 1000,
-//                 equivocations: 0,
-//             },
-//             maximums: NodeMisbehaviorsV1 {
-//                 faulty_blocks_provable: 5,
-//                 faulty_blocks_unprovable: 10,
-//                 missing_proposals: 5000,
-//                 equivocations: 1,
-//             },
-//             weights: NodeMisbehaviorsV1 {
-//                 faulty_blocks_provable: SCALE_FACTOR * 30 / 100,
-//                 faulty_blocks_unprovable: SCALE_FACTOR * 10 / 100,
-//                 missing_proposals: SCALE_FACTOR * 35 / 100,
-//                 equivocations: 1,
-//             },
-//         };
-
-//         let median_reports = NodeMisbehaviorsV1 {
-//             faulty_blocks_provable: vec![6, 7, 8],
-//             faulty_blocks_unprovable: vec![9, 10, 11],
-//             missing_proposals: vec![3, 4, 5],
-//             equivocations: vec![0, 1, 2],
-//         };
-
-//         let scores = calculate_scores_v1(median_reports, parameters);
-
-//         // Check that scores are calculated correctly
-//         assert_eq!(scores, vec![40142, 0, 0]);
-//     }
-// }
+        // Authority 0 reaches provable-fault maximum (≥ 5) → provable contribution = 0.
+        // score = (baseline + unprovable_weight + missing_weight) = 16386 + 6553 +
+        // 22937 = 45876.
+        assert_eq!(
+            scorer.calculate_scores_v1(MisbehaviorCounts(vec![
+                vec![5, 0, 0],
+                vec![0, 0, 0],
+                vec![0, 0, 0],
+                vec![0, 0, 0],
+            ])),
+            vec![45876, MAX_SCORE, MAX_SCORE]
+        );
+    }
+}
