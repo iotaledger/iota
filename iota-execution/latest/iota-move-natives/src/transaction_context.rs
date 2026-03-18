@@ -149,7 +149,7 @@ impl TransactionContext {
             sponsor,
         );
 
-        // Drop cached values to ensure they are recreated with the updated AuthContext
+        // Drop cached values to ensure they are recreated with the updated TxContext
         // data
         self.cached_digest = None;
 
