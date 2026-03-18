@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GrowthBook } from '@growthbook/growthbook';
+import { GrowthBook, setPolyfills } from '@growthbook/growthbook';
 import { getAppsBackend } from '@iota/iota-sdk/client';
 
 const GROWTHBOOK_ENVIRONMENTS = {
@@ -21,18 +21,17 @@ const GROWTHBOOK_ENVIRONMENTS = {
 const environment =
     (process.env.NEXT_PUBLIC_BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
 
-async function versionedFetcher(url: string) {
-    const version = process.env.NEXT_PUBLIC_APP_VERSION;
-    if (version) {
-        const separator = url.includes('?') ? '&' : '?';
-        url = `${url}${separator}version=${version}`;
-    }
-    const response = await fetch(url);
-    return response.json();
+const version = process.env.NEXT_PUBLIC_APP_VERSION;
+if (version) {
+    setPolyfills({
+        fetch: (url: string, init?: RequestInit) => {
+            const separator = url.includes('?') ? '&' : '?';
+            return fetch(`${url}${separator}version=${version}`, init);
+        },
+    });
 }
 
 export const growthbook = new GrowthBook({
     apiHost: getAppsBackend(),
     ...GROWTHBOOK_ENVIRONMENTS[environment],
-    fetcher: versionedFetcher,
 });
