@@ -130,9 +130,9 @@ impl CommandFilter {
             (CommandFilter::SplitCoins, Command::SplitCoins(..)) => true,
             (CommandFilter::MergeCoins, Command::MergeCoins(..)) => true,
             (CommandFilter::Publish, Command::Publish(..)) => true,
-            (CommandFilter::MakeMoveVec, Command::MakeMoveVec(..)) => true,
-            (CommandFilter::Upgrade { package }, Command::Upgrade(_, _, pkg_id, _)) => {
-                package.is_none() || matches!(package, Some(p) if p == pkg_id)
+            (CommandFilter::MakeMoveVec, Command::MakeMoveVector(..)) => true,
+            (CommandFilter::Upgrade { package }, Command::Upgrade(cmd)) => {
+                package.is_none() || matches!(package, Some(p) if p == cmd.package)
             }
             _ => false,
         })
@@ -503,8 +503,8 @@ impl TransactionFilter {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        base_types::ObjectID,
-        transaction::{Argument, Command, ProgrammableMoveCall},
+        base_types::{Identifier, ObjectID},
+        transaction::{Argument, Command},
     };
 
     use super::*;
@@ -604,13 +604,13 @@ mod tests {
     // --- CommandFilter matching tests ---
 
     fn make_move_call_cmd(package: ObjectID, module: &str, function: &str) -> Command {
-        Command::MoveCall(Box::new(ProgrammableMoveCall {
+        Command::move_call(
             package,
-            module: module.to_string(),
-            function: function.to_string(),
-            type_arguments: vec![],
-            arguments: vec![],
-        }))
+            Identifier::new_unchecked(module),
+            Identifier::new_unchecked(function),
+            vec![],
+            vec![],
+        )
     }
 
     #[test]
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_transfer_objects() {
-        let commands = vec![Command::TransferObjects(
+        let commands = vec![Command::transfer_objects(
             vec![Argument::Input(0)],
             Argument::Input(1),
         )];
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_split_coins() {
-        let commands = vec![Command::SplitCoins(
+        let commands = vec![Command::split_coins(
             Argument::Input(0),
             vec![Argument::Input(1)],
         )];
@@ -697,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_merge_coins() {
-        let commands = vec![Command::MergeCoins(
+        let commands = vec![Command::merge_coins(
             Argument::Input(0),
             vec![Argument::Input(1)],
         )];
@@ -708,7 +708,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_publish() {
-        let commands = vec![Command::Publish(vec![vec![1, 2, 3]], vec![])];
+        let commands = vec![Command::publish(vec![vec![1, 2, 3]], vec![])];
 
         assert!(CommandFilter::Publish.matches_commands(&commands));
         assert!(!CommandFilter::TransferObjects.matches_commands(&commands));
@@ -716,7 +716,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_make_move_vec() {
-        let commands = vec![Command::MakeMoveVec(None, vec![Argument::Input(0)])];
+        let commands = vec![Command::make_move_vector(None, vec![Argument::Input(0)])];
 
         assert!(CommandFilter::MakeMoveVec.matches_commands(&commands));
         assert!(!CommandFilter::Publish.matches_commands(&commands));
@@ -725,7 +725,7 @@ mod tests {
     #[test]
     fn test_command_filter_upgrade_any() {
         let pkg = ObjectID::random();
-        let commands = vec![Command::Upgrade(
+        let commands = vec![Command::upgrade(
             vec![vec![1, 2, 3]],
             vec![],
             pkg,
@@ -741,7 +741,7 @@ mod tests {
     fn test_command_filter_upgrade_specific_package() {
         let pkg = ObjectID::random();
         let other_pkg = ObjectID::random();
-        let commands = vec![Command::Upgrade(
+        let commands = vec![Command::upgrade(
             vec![vec![1, 2, 3]],
             vec![],
             pkg,
@@ -779,9 +779,9 @@ mod tests {
     fn test_command_filter_multiple_commands() {
         let pkg = ObjectID::random();
         let commands = vec![
-            Command::SplitCoins(Argument::Input(0), vec![Argument::Input(1)]),
+            Command::split_coins(Argument::Input(0), vec![Argument::Input(1)]),
             make_move_call_cmd(pkg, "m", "f"),
-            Command::TransferObjects(vec![Argument::Result(0)], Argument::Input(2)),
+            Command::transfer_objects(vec![Argument::Result(0)], Argument::Input(2)),
         ];
 
         // All three types should match
