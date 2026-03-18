@@ -19,6 +19,8 @@ import {
     GAS_BUDGET_ERROR_MESSAGES,
     NOT_ENOUGH_BALANCE_ID,
     GAS_BALANCE_TOO_LOW_ID,
+    convertCoinAmountToNumber,
+    useCoinMetadata,
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
@@ -40,7 +42,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '../../helpers';
 import { Info, Loader } from '@iota/apps-ui-icons';
 import { type IotaTransactionBlockResponse, type StakeObject } from '@iota/iota-sdk/client';
-import { CoinFormat } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
 export interface StakeFromProps {
@@ -54,6 +56,8 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const decimals = metadata?.decimals ?? 0;
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
     const validatorName =
         systemState?.activeValidators.find((v) => v.iotaAddress === validatorAddress)?.name ?? '';
@@ -139,9 +143,9 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
             },
             onSuccess: () => {
                 ampli.iotaUnstaked({
-                    stakedAmount: Number(tokenBalanceFormatted),
+                    stakedAmount: convertCoinAmountToNumber(totalTokenBalance, decimals),
                     validatorAddress: validatorAddress!,
-                    rewards: Number(rewards),
+                    rewards: convertCoinAmountToNumber(BigInt(iotaEarned), decimals),
                     validatorName,
                 });
             },

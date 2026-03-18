@@ -20,6 +20,7 @@ import {
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
+    convertCoinAmountToNumber,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -109,6 +110,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: 0,
     };
+    const decimals = metadata?.decimals ?? 0;
 
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
@@ -150,7 +152,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
         ampli.clickedUnstakeIota({
-            stakedAmount: Number(totalStakeFormatted),
+            stakedAmount: convertCoinAmountToNumber(totalStake, decimals),
             validatorAddress,
         });
     }

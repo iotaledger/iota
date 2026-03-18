@@ -13,6 +13,8 @@ import {
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
     useGetInactiveValidator,
+    convertCoinAmountToNumber,
+    useCoinMetadata,
 } from '@iota/core';
 import {
     Header,
@@ -33,7 +35,7 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
 import { ampli } from '@/lib/utils/analytics';
@@ -53,6 +55,8 @@ export function DetailsView({
     stakedDetails,
     showActiveStatus,
 }: StakeDialogProps): JSX.Element {
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const decimals = metadata?.decimals ?? 0;
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
     const {
@@ -99,7 +103,7 @@ export function DetailsView({
         if (handleUnstake) {
             handleUnstake();
             ampli.clickedUnstakeIota({
-                stakedAmount: Number(totalStakeFormatted),
+                stakedAmount: convertCoinAmountToNumber(totalStake, decimals),
                 validatorAddress: stakedDetails?.validatorAddress,
             });
         }

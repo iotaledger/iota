@@ -3,11 +3,16 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { ExtendedDelegatedTimelockedStake, Validator } from '@iota/core';
+import {
+    ExtendedDelegatedTimelockedStake,
+    Validator,
+    convertCoinAmountToNumber,
+    useCoinMetadata,
+} from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
 import { TimelockedStakedObjectsGrouped, isSizeExceededError } from '@/lib/utils';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import {
     Panel,
     LoadingIndicator,
@@ -47,6 +52,8 @@ export function UnstakeTimelockedObjectsView({
     const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const decimals = metadata?.decimals ?? 0;
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
 
     const stakes = (() => {
@@ -106,7 +113,7 @@ export function UnstakeTimelockedObjectsView({
                     onSuccess(tx);
                     ampli.timelockUnstake({
                         validatorAddress: groupedTimelockedObjects.validatorAddress,
-                        stakedAmount: Number(totalStakedAmountFormatted),
+                        stakedAmount: convertCoinAmountToNumber(totalStakedAmount, decimals),
                     });
                 },
             },

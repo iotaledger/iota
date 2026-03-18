@@ -3,6 +3,7 @@
 
 export * from './calculateStakeShare';
 export * from './chunkArray';
+export * from './convertCoinAmountToNumber';
 export * from './formatDate';
 export * from './formatPercentageDisplay';
 export * from './getRefGasPrice';

@@ -23,8 +23,10 @@ import {
     NOT_ENOUGH_BALANCE_ID,
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
+    convertCoinAmountToNumber,
+    useCoinMetadata,
 } from '@iota/core';
-import { CoinFormat } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -50,6 +52,9 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
+    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
+    const decimals = metadata?.decimals ?? 0;
+
     const {
         data: unstakeData,
         isPending: isUnstakeTxPending,
@@ -71,16 +76,6 @@ export function UnstakeView({
             stakeId: extendedStake.stakedIotaId,
             unstake: true,
         });
-
-    const [totalStakeFormatted] = useFormatCoin({
-        balance: totalStakeOriginal,
-        format: CoinFormat.Full,
-    });
-
-    const [rewardsFormatted] = useFormatCoin({
-        balance: extendedStake.estimatedReward,
-        format: CoinFormat.Full,
-    });
 
     useEffect(() => {
         if (isUnstakeError && error) {
@@ -118,16 +113,10 @@ export function UnstakeView({
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
 
-                    // Convert formatted amounts to number for analytics
-                    const stakedAmountNumber = totalStakeFormatted
-                        ? Number(totalStakeFormatted)
-                        : 0;
-                    const rewardsNumber = rewardsFormatted ? Number(rewardsFormatted) : 0;
-
                     ampli.iotaUnstaked({
-                        stakedAmount: stakedAmountNumber,
+                        stakedAmount: convertCoinAmountToNumber(totalStakeOriginal, decimals),
                         validatorAddress: extendedStake.validatorAddress,
-                        rewards: rewardsNumber,
+                        rewards: convertCoinAmountToNumber(extendedStake.estimatedReward, decimals),
                         validatorName,
                     });
                 },

@@ -16,6 +16,7 @@ import {
     NO_BALANCE_GENERIC_MESSAGE,
     getGasBudgetErrorMessage,
     useGetValidatorsApy,
+    convertCoinAmountToNumber,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -107,7 +108,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
-    const [stakedAmountFormatted] = useFormatCoin({ balance: amountWithoutDecimals });
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
@@ -150,7 +150,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             await stakeTokenMutateAsync(undefined, {
                 onSuccess(data) {
                     ampli.iotaStaked({
-                        stakedAmount: Number(stakedAmountFormatted),
+                        stakedAmount: convertCoinAmountToNumber(amountWithoutDecimals, decimals),
                         validatorAddress: validatorAddress || '',
                         validatorAPY: validatorApy,
                         validatorName,
