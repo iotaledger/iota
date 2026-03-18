@@ -9,6 +9,8 @@ use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorRe
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+use crate::consensus_types::consensus_output_api::ConsensusOutputMisbehaviors;
+
 /// A single misbehavior category tracked by the monitor.
 ///
 /// This enum is **append-only**: once a variant is added it must never be
@@ -21,6 +23,19 @@ pub enum Misbehaviors {
     FaultyBlocksUnprovable,
     MissingProposals,
     Equivocations,
+}
+
+impl Misbehaviors {
+    pub(crate) fn from(output_misbehavior: &ConsensusOutputMisbehaviors) -> Option<Self> {
+        match output_misbehavior {
+            ConsensusOutputMisbehaviors::FaultyBlocksProvable => Some(Self::FaultyBlocksProvable),
+            ConsensusOutputMisbehaviors::FaultyBlocksUnprovable => {
+                Some(Self::FaultyBlocksUnprovable)
+            }
+            ConsensusOutputMisbehaviors::MissingProposals => Some(Self::MissingProposals),
+            ConsensusOutputMisbehaviors::Equivocations => Some(Self::Equivocations),
+        }
+    }
 }
 
 pub enum ReportedMisbehaviors {
@@ -44,6 +59,26 @@ impl MisbehaviorCounts {
             reported_misbehaviors
                 .iter()
                 .map(|_| vec![0u64; committee_size])
+                .collect(),
+        )
+    }
+
+    pub(crate) fn from_consensus_output(
+        output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
+        reported_misbehaviors: &ReportedMisbehaviors,
+    ) -> Self {
+        Self(
+            reported_misbehaviors
+                .iter()
+                .map(|misbehavior| {
+                    output_misbehavior_counts
+                        .iter()
+                        .find(|(output_misbehavior, _)| {
+                            Misbehaviors::from(output_misbehavior)
+                                .is_some_and(|x| x == *misbehavior)
+                        })
+                        .map_or(vec![], |(_, counts)| counts.clone())
+                })
                 .collect(),
         )
     }
@@ -128,5 +163,16 @@ impl MisbehaviorMonitor {
                 self.current_local_metrics_count.load().to_report_v1()
             }
         }
+    }
+
+    pub fn update_from_consensus_output(
+        &self,
+        output_misbehavior_counts: Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>,
+    ) {
+        let new_counts = MisbehaviorCounts::from_consensus_output(
+            output_misbehavior_counts,
+            self.version.reported_misbehaviors(),
+        );
+        self.current_local_metrics_count.store(Arc::new(new_counts));
     }
 }

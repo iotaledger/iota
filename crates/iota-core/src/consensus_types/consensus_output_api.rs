@@ -13,6 +13,13 @@ use crate::consensus_types::AuthorityIndex;
 /// size.
 type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
 
+pub enum ConsensusOutputMisbehaviors {
+    FaultyBlocksProvable,
+    FaultyBlocksUnprovable,
+    MissingProposals,
+    Equivocations,
+}
+
 pub(crate) trait ConsensusOutputAPI: Display {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>>;
     fn leader_round(&self) -> u64;
@@ -31,6 +38,8 @@ pub(crate) trait ConsensusOutputAPI: Display {
     fn consensus_digest(&self) -> ConsensusCommitDigest;
 
     fn number_of_headers_in_commit_by_authority(&self) -> Vec<(AuthorityIndex, u64)>;
+
+    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehaviors, Vec<u64>)>;
 }
 impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
@@ -108,5 +117,9 @@ impl ConsensusOutputAPI for starfish_core::CommittedSubDag {
                 *num_of_committed_headers.entry(author_index).or_insert(0) += 1;
             });
         num_of_committed_headers.into_iter().collect()
+    }
+
+    fn misbehavior_counts(&self) -> Vec<(ConsensusOutputMisbehaviors, Vec<u64>)> {
+        vec![]
     }
 }
