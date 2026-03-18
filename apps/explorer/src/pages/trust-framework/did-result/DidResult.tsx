@@ -10,7 +10,7 @@ import { DidContent } from './views/DidContent';
 
 export function DidResult() {
     const { id: encodedDid } = useParams();
-    const { decodedDid, isPending } = useDecodeDidFromUrl(encodedDid);
+    const { data: decodedDid, isPending } = useDecodeDidFromUrl(encodedDid);
 
     if (isPending) {
         return <PageLayout loading loadingText="Decoding DID..." content={[]} />;
@@ -32,5 +32,5 @@ export function DidResult() {
         );
     }
 
-    return <DidContent did={decodedDid} />;
+    return <DidContent did={decodedDid!} />;
 }

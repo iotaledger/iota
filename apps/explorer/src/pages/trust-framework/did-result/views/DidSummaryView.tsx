@@ -24,7 +24,7 @@ export function DidSummaryView({
 
     const didDateFormat = (timestamp: string): string =>
         formatDate(new Date(timestamp), ['year', 'month', 'day', 'hour', 'minute']);
-    const createdAt = didDateFormat(didDocument.metadataUpdated()!.toRFC3339());
+    const createdAt = didDateFormat(didDocument.metadataCreated()!.toRFC3339());
     const updatedAt = didDateFormat(didDocument.metadataUpdated()!.toRFC3339());
 
     return (

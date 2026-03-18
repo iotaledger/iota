@@ -23,7 +23,7 @@ interface DidContentProps {
 }
 
 export function DidContent({ did }: DidContentProps) {
-    const { didDocument, isPending: isDidDocumentPending } = useResolveDid(did);
+    const { data: didDocument, isPending: isDidDocumentPending } = useResolveDid(did);
     const { data: objectResult, isPending: isObjectPending } = useGetObjectOrPastObject(did.tag());
     const didObject = objectResult?.data ?? null;
     const didDocFromObject = (didObject && extractDidDoc(didObject)) ?? null;

@@ -5,11 +5,6 @@ import type { IotaDID } from '@iota/identity-wasm/web';
 import { useQuery } from '@tanstack/react-query';
 import { tryDecodeDidFromUrl } from '~/lib/utils/trust-framework/identity';
 
-interface DecodeDIDResult {
-    decodedDid: IotaDID | null;
-    isPending: boolean;
-}
-
 /**
  * A React hook that decodes a URL-encoded DID.
  *
@@ -17,12 +12,9 @@ interface DecodeDIDResult {
  * It maintains state for the decoded DID and a loading indicator.
  *
  * @param {string} [encodedDid] - The URL-encoded DID string to decode. If not provided, decoding won't be attempted.
- * @returns {DecodeDIDResult} An object containing:
- *   - decodedDid: The decoded IOTA DID, or null if decoding failed or wasn't attempted
- *   - isPending: True while decoding is in progress, false when completed
  *
  * @example
- * const { decodedDid, isPending } = useDecodeDidFromUrl('did-iota-5bdeea9f-0x65b1eb600b5c49828858ae1fe21aebf914f7aa56ab5afb34c78fb8e3264ad648');
+ * const { data: decodedDid, isPending } = useDecodeDidFromUrl('did-iota-5bdeea9f-0x65b1eb600b5c49828858ae1fe21aebf914f7aa56ab5afb34c78fb8e3264ad648');
  *
  * if (isPending) {
  *   return <LoadingIndicator />;
@@ -34,15 +26,10 @@ interface DecodeDIDResult {
  *
  * return <DisplayDid did={decodedDid} />;
  */
-export function useDecodeDidFromUrl(encodedDid?: string): DecodeDIDResult {
-    const { data, isPending } = useQuery<IotaDID | null>({
+export function useDecodeDidFromUrl(encodedDid?: string) {
+    return useQuery<IotaDID | null>({
         queryKey: ['decoded-did', encodedDid],
         queryFn: () => tryDecodeDidFromUrl(encodedDid!),
         enabled: !!encodedDid,
     });
-
-    return {
-        decodedDid: data ?? null,
-        isPending,
-    };
 }
