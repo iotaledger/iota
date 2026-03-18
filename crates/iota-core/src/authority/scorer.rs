@@ -4,10 +4,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_types::{
-    messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport},
-    scoring_metrics::VersionedScoringMetrics,
-};
+use iota_types::messages_consensus::{MisbehaviorsV1, VersionedMisbehaviorReport};
 
 pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
@@ -17,7 +14,7 @@ pub struct Scorer {
     // The metrics counts received from other authorities, i.e., the information contained in the
     // MisbehaviourReports received by the authority. If an authority has not sent a report, its
     // entry in this vector will be all zeroed.
-    received_metrics: Vec<VersionedScoringMetrics>,
+    received_metrics: Vec<NodeVersionedScoringMetrics>,
     // Indicates whether an authority did not send any misbehavior reports in the epoch. We use
     // this to differentiate an authority that did not send a report from another one who sent
     // zeroed reports.
@@ -56,7 +53,7 @@ impl Scorer {
                         .map(|_| {
                             (
                                 // Received metrics initialized to zero.
-                                VersionedScoringMetrics::new(committee_size, protocol_config),
+                                NodeVersionedScoringMetrics::new(committee_size, protocol_config),
                                 // Initially, none of the authorities had sent any valid report.
                                 AtomicBool::new(true),
                                 // Current scores initialized to max score.
@@ -471,6 +468,121 @@ fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 
         // max - allowance > 0 and the multiplication not overflowing are guaranteed by
         // assertions done during scorer initialization
         max.saturating_sub(value).saturating_mul(max_score) / max.saturating_sub(allowance)
+    }
+}
+
+// This struct represents the scoring metrics collected by all authorities. They
+// are stored locally by each authority and then converted to a misbehavior
+// report when they share their metrics with the network. When a report is
+// received, it is also used to update a variable of this type stored in the
+// Scorer. Any metric contained in this struct must be guaranteed to be
+// monotonically increasing, because of the way updates are applied from
+// reports.
+pub enum NodeVersionedScoringMetrics {
+    V1(NodeScoringMetricsV1),
+}
+
+// Basic getters, setters and increments for the metrics.
+impl NodeVersionedScoringMetrics {
+    pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        // Any version of ScoringMetrics created here must be initialized to zero.
+        match protocol_config.scorer_version_as_option() {
+            None | Some(1) => {
+                NodeVersionedScoringMetrics::V1(NodeScoringMetricsV1::new(committee_size))
+            }
+            _ => panic!("Unsupported scorer version"),
+        }
+    }
+}
+
+impl NodeVersionedScoringMetrics {
+    // Given a VersionedMisbehaviorReport received from another authority, we use
+    // this method to update the received scoring metrics counts. To avoid
+    // updates to be dependent on the order they are applied, we only effectively
+    // update counts that are increased by the report. This also means that any type
+    // of metric contained in this struct must be guaranteed to be monotonically
+    // increasing. Example: number of faulty blocks detected for a given authority
+    // is monotonically increasing by design; average faulty blocks per minute is
+    // not.
+    pub fn update_from_report(&self, report: &VersionedMisbehaviorReport) {
+        match (self, report) {
+            (
+                NodeVersionedScoringMetrics::V1(metrics),
+                VersionedMisbehaviorReport::V1(report_v1, _),
+            ) => {
+                for (i, value) in report_v1.faulty_blocks_provable.iter().enumerate() {
+                    metrics.faulty_blocks_provable[i].fetch_max(*value, Ordering::Relaxed);
+                }
+                for (i, value) in report_v1.faulty_blocks_unprovable.iter().enumerate() {
+                    metrics.faulty_blocks_unprovable[i].fetch_max(*value, Ordering::Relaxed);
+                }
+                for (i, value) in report_v1.equivocations.iter().enumerate() {
+                    metrics.equivocations[i].fetch_max(*value, Ordering::Relaxed);
+                }
+                for (i, value) in report_v1.missing_proposals.iter().enumerate() {
+                    metrics.missing_proposals[i].fetch_max(*value, Ordering::Relaxed);
+                }
+            }
+        }
+    }
+
+    // Given a NodeVersionedScoringMetrics struct, create a
+    // VersionedMisbehaviorReport with the same values. Used when an authority
+    // needs to share its local metrics with the network.
+    pub fn to_report(&self) -> VersionedMisbehaviorReport {
+        match self {
+            NodeVersionedScoringMetrics::V1(metrics) => {
+                let faulty_blocks_provable = metrics
+                    .faulty_blocks_provable
+                    .iter()
+                    .map(|metric| metric.load(Ordering::Relaxed))
+                    .collect();
+                let faulty_blocks_unprovable = metrics
+                    .faulty_blocks_unprovable
+                    .iter()
+                    .map(|metric| metric.load(Ordering::Relaxed))
+                    .collect();
+                let equivocations = metrics
+                    .equivocations
+                    .iter()
+                    .map(|metric| metric.load(Ordering::Relaxed))
+                    .collect();
+                let missing_proposals = metrics
+                    .missing_proposals
+                    .iter()
+                    .map(|metric| metric.load(Ordering::Relaxed))
+                    .collect();
+                VersionedMisbehaviorReport::new_v1(MisbehaviorsV1 {
+                    faulty_blocks_provable,
+                    faulty_blocks_unprovable,
+                    missing_proposals,
+                    equivocations,
+                })
+            }
+        }
+    }
+}
+
+pub struct NodeScoringMetricsV1 {
+    faulty_blocks_provable: Vec<AtomicU64>,
+    faulty_blocks_unprovable: Vec<AtomicU64>,
+    missing_proposals: Vec<AtomicU64>,
+    equivocations: Vec<AtomicU64>,
+}
+
+impl NodeScoringMetricsV1 {
+    pub fn new(committee_size: usize) -> Self {
+        Self {
+            // Blocks considered faulty with provable evidence, i.e., they pass the signature check.
+            faulty_blocks_provable: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Blocks considered faulty before passing the signature check.
+            faulty_blocks_unprovable: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Number or rounds that the authority did not propose any block
+            missing_proposals: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Number of additional blocks issued by a validator within rounds where another block
+            // was already produced by them.
+            equivocations: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+        }
     }
 }
 
