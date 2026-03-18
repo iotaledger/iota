@@ -8051,47 +8051,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-rosetta"
-version = "1.19.0-alpha"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum 0.8.8",
- "axum-extra",
- "bcs",
- "clap",
- "eyre",
- "fastcrypto",
- "futures",
- "iota-config",
- "iota-json-rpc-types",
- "iota-keys",
- "iota-metrics",
- "iota-move-build",
- "iota-node",
- "iota-sdk",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=2d7104b22f0fd5a4a940dbfeff8ed37dd282d8fc)",
- "iota-swarm-config",
- "iota-types",
- "move-core-types",
- "once_cell",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "signature 1.6.4",
- "strum 0.26.3",
- "strum_macros 0.26.4",
- "telemetry-subscribers",
- "tempfile",
- "test-cluster",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "typed-store",
-]
-
-[[package]]
 name = "iota-rpc-loadgen"
 version = "1.20.0-alpha"
 dependencies = [

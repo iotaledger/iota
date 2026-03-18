@@ -108,8 +108,16 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
 
     // Trace sample MoveObjectType values to capture all variants properly
-    // These contain the SDK's StructTag and TypeTag types
-    let move_obj_type_other = MoveObjectType::from(struct_tag.clone());
+    // These contain the SDK's StructTag and TypeTag types.
+    // Use a non-coin, non-staked StructTag so From<StructTag> produces the Other
+    // variant.
+    let other_struct_tag = StructTag::new(
+        iota_sdk_types::Address::FRAMEWORK,
+        Identifier::new("bar").unwrap(),
+        Identifier::new("foo").unwrap(),
+        Vec::new(),
+    );
+    let move_obj_type_other = MoveObjectType::from(other_struct_tag);
     tracer
         .trace_value(&mut samples, &move_obj_type_other)
         .unwrap();
