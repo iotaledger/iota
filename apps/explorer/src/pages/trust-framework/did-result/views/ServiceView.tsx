@@ -34,7 +34,8 @@ export function ServiceView({ didDocument }: ServiceViewProps) {
                 {infoDomainLinkage.map((dlItem) => (
                     <ListItem key={dlItem.id}>
                         <div className="flex w-full flex-row">
-                            <Link to={dlItem.endpoint}>{dlItem.endpoint}</Link>
+                            {/* NOTE: For now an endpoint is only a string, but it can change */}
+                            <Link to={dlItem.endpoint as string}>{dlItem.endpoint}</Link>
                         </div>
                     </ListItem>
                 ))}
