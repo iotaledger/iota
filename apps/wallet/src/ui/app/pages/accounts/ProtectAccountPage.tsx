@@ -18,7 +18,6 @@ import {
     autoLockDataToMinutes,
     useAutoLockMinutesMutation,
     useCreateAccountsMutation,
-    useBackgroundClient,
 } from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
@@ -57,7 +56,6 @@ export function ProtectAccountPage() {
     const accountsFormType = (searchParams.get('accountsFormType') as AccountsFormType) || '';
     const successRedirect = searchParams.get('successRedirect') || '/tokens';
     const navigate = useNavigate();
-    const backgroundClient = useBackgroundClient();
     const { data: accounts } = useAccounts();
     const createMutation = useCreateAccountsMutation();
     const hasPasswordAccounts = useMemo(
@@ -87,8 +85,6 @@ export function ProtectAccountPage() {
                 if (autoLockToTrack) {
                     trackAutoLockUpdated(autoLockToTrack);
                 }
-
-                await backgroundClient.unlockAllAccountsAndSources({ password });
 
                 if (
                     accountsFormType === AccountsFormType.NewMnemonic &&
@@ -177,11 +173,7 @@ export function ProtectAccountPage() {
                         open
                         onClose={() => navigate(-1)}
                         onVerify={async (password) => {
-                            const unlockAllPromise = backgroundClient.unlockAllAccountsAndSources({
-                                password,
-                            });
                             await createAccountCallback(password);
-                            await unlockAllPromise;
                         }}
                     />
                 ) : (
