@@ -3,11 +3,13 @@
 
 use std::{
     collections::BTreeSet,
-    sync::{Arc, atomic::Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use consensus_config::AuthorityIndex;
-use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
 use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
@@ -19,23 +21,25 @@ use crate::{
 /// both cached and uncached. It also holds a shared reference to the current
 /// local metrics count used by Scorer.
 pub(crate) struct MysticetiScoringMetricsStore {
-    pub current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    pub cached_metrics: VersionedScoringMetrics,
-    pub uncached_metrics: VersionedScoringMetrics,
+    pub current_local_metrics_count: Arc<MysticetiVersionedScoringMetrics>,
+    pub cached_metrics: MysticetiVersionedScoringMetrics,
+    pub uncached_metrics: MysticetiVersionedScoringMetrics,
 }
 
 impl MysticetiScoringMetricsStore {
     pub(crate) fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self {
-                current_local_metrics_count: Arc::new(VersionedScoringMetrics::V1(
-                    ScoringMetricsV1::new(committee_size),
+                current_local_metrics_count: Arc::new(MysticetiVersionedScoringMetrics::V1(
+                    MysticetiScoringMetricsV1::new(committee_size),
                 )),
-                cached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(committee_size)),
+                cached_metrics: MysticetiVersionedScoringMetrics::V1(
+                    MysticetiScoringMetricsV1::new(committee_size),
+                ),
 
-                uncached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(
-                    committee_size,
-                )),
+                uncached_metrics: MysticetiVersionedScoringMetrics::V1(
+                    MysticetiScoringMetricsV1::new(committee_size),
+                ),
             },
             _ => panic!("Unsupported scorer version"),
         }
@@ -502,6 +506,202 @@ pub(crate) enum ErrorSource {
     Subscriber,
     // Errors returned from process_fetched_blocks.
     Synchronizer,
+}
+
+// This struct represents the scoring metrics collected by all authorities. They
+// are stored locally by each authority and then converted to a misbehavior
+// report when they share their metrics with the network. When a report is
+// received, it is also used to update a variable of this type stored in the
+// Scorer. Any metric contained in this struct must be guaranteed to be
+// monotonically increasing, because of the way updates are applied from
+// reports.
+pub enum MysticetiVersionedScoringMetrics {
+    V1(MysticetiScoringMetricsV1),
+}
+
+// Basic getters, setters and increments for the metrics.
+impl MysticetiVersionedScoringMetrics {
+    pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        // Any version of ScoringMetrics created here must be initialized to zero.
+        match protocol_config.scorer_version_as_option() {
+            None | Some(1) => {
+                MysticetiVersionedScoringMetrics::V1(MysticetiScoringMetricsV1::new(committee_size))
+            }
+            _ => panic!("Unsupported scorer version"),
+        }
+    }
+
+    pub fn increment_faulty_blocks_provable(&self, authority_index: usize, increment: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.faulty_blocks_provable[authority_index]
+                    .fetch_add(increment, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn increment_faulty_blocks_unprovable(&self, authority_index: usize, increment: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.faulty_blocks_unprovable[authority_index]
+                    .fetch_add(increment, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn increment_equivocations(&self, authority_index: usize, increment: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.equivocations[authority_index].fetch_add(increment, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn increment_missing_proposals(&self, authority_index: usize, increment: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.missing_proposals[authority_index].fetch_add(increment, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn store_faulty_blocks_provable(&self, authority_index: usize, value: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.faulty_blocks_provable[authority_index].store(value, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn store_faulty_blocks_unprovable(&self, authority_index: usize, value: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.faulty_blocks_unprovable[authority_index].store(value, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn store_equivocations(&self, authority_index: usize, value: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.equivocations[authority_index].store(value, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn store_missing_proposals(&self, authority_index: usize, value: u64) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                metrics.missing_proposals[authority_index].store(value, Ordering::Relaxed);
+            }
+        }
+    }
+
+    pub fn load_faulty_blocks_provable(&self) -> Vec<u64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => metrics
+                .faulty_blocks_provable
+                .iter()
+                .map(|metric| metric.load(Ordering::Relaxed))
+                .collect(),
+        }
+    }
+
+    pub fn load_faulty_blocks_unprovable(&self) -> Vec<u64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => metrics
+                .faulty_blocks_unprovable
+                .iter()
+                .map(|metric| metric.load(Ordering::Relaxed))
+                .collect(),
+        }
+    }
+
+    pub fn load_equivocations(&self) -> Vec<u64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => metrics
+                .equivocations
+                .iter()
+                .map(|metric| metric.load(Ordering::Relaxed))
+                .collect(),
+        }
+    }
+
+    pub fn load_missing_proposals(&self) -> Vec<u64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => metrics
+                .missing_proposals
+                .iter()
+                .map(|metric| metric.load(Ordering::Relaxed))
+                .collect(),
+        }
+    }
+
+    pub fn faulty_blocks_provable(&self) -> &Vec<AtomicU64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => &metrics.faulty_blocks_provable,
+        }
+    }
+
+    pub fn faulty_blocks_unprovable(&self) -> &Vec<AtomicU64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => &metrics.faulty_blocks_unprovable,
+        }
+    }
+
+    pub fn equivocations(&self) -> &Vec<AtomicU64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => &metrics.equivocations,
+        }
+    }
+
+    pub fn missing_proposals(&self) -> &Vec<AtomicU64> {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => &metrics.missing_proposals,
+        }
+    }
+
+    pub fn reset(&self) {
+        match self {
+            MysticetiVersionedScoringMetrics::V1(metrics) => {
+                for metric in &metrics.faulty_blocks_provable {
+                    metric.store(0, Ordering::Relaxed);
+                }
+                for metric in &metrics.faulty_blocks_unprovable {
+                    metric.store(0, Ordering::Relaxed);
+                }
+                for metric in &metrics.equivocations {
+                    metric.store(0, Ordering::Relaxed);
+                }
+                for metric in &metrics.missing_proposals {
+                    metric.store(0, Ordering::Relaxed);
+                }
+            }
+        }
+    }
+}
+
+pub struct MysticetiScoringMetricsV1 {
+    faulty_blocks_provable: Vec<AtomicU64>,
+    faulty_blocks_unprovable: Vec<AtomicU64>,
+    missing_proposals: Vec<AtomicU64>,
+    equivocations: Vec<AtomicU64>,
+}
+
+impl MysticetiScoringMetricsV1 {
+    pub fn new(committee_size: usize) -> Self {
+        Self {
+            // Blocks considered faulty with provable evidence, i.e., they pass the signature check.
+            faulty_blocks_provable: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Blocks considered faulty before passing the signature check.
+            faulty_blocks_unprovable: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Number or rounds that the authority did not propose any block
+            missing_proposals: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+            // Number of additional blocks issued by a validator within rounds where another block
+            // was already produced by them.
+            equivocations: (0..committee_size).map(|_| AtomicU64::new(0)).collect(),
+        }
+    }
 }
 
 #[cfg(test)]
