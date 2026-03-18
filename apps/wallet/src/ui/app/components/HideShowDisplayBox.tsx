@@ -4,7 +4,7 @@
 
 import { Button, ButtonType, TextArea } from '@iota/apps-ui-kit';
 import { toast } from '@iota/core';
-import { onCopySuccess } from '_hooks';
+import { ampli } from '_src/shared/analytics/ampli';
 
 export interface HideShowDisplayBoxProps {
     value: string | string[];
@@ -21,11 +21,6 @@ export function HideShowDisplayBox({
     isContentVisible = false,
     eventType = 'secrets',
 }: HideShowDisplayBoxProps) {
-    const handleCopySuccess = onCopySuccess({
-        successMessage: copiedMessage || 'Copied',
-        analyticType: eventType,
-    });
-
     async function handleCopy() {
         if (!value) {
             return;
@@ -33,7 +28,10 @@ export function HideShowDisplayBox({
         const textToCopy = Array.isArray(value) ? value.join(' ') : value;
         try {
             await navigator.clipboard.writeText(textToCopy);
-            handleCopySuccess();
+            ampli.elementCopied({
+                type: eventType,
+            });
+            toast(copiedMessage || 'Copied');
         } catch {
             toast.error('Failed to copy');
         }
