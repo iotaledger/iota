@@ -35,15 +35,16 @@ async fn test_get_checkpoint() {
         .expect("gRPC call");
 
     // Verify the checkpoint data structure
-    assert_eq!(response.sequence_number(), 0);
+    assert_eq!(response.body().sequence_number(), 0);
     let summary = response
+        .body()
         .summary()
         .expect("should have summary")
         .summary()
         .expect("should deserialize summary");
     assert_eq!(summary.epoch, 0);
-    assert!(!response.executed_transactions.is_empty());
-    assert!(response.contents.is_some());
+    assert!(!response.body().executed_transactions.is_empty());
+    assert!(response.body().contents.is_some());
     let digest_0 = summary.content_digest;
 
     // Test getting another checkpoint
@@ -52,8 +53,9 @@ async fn test_get_checkpoint() {
         .await
         .expect("gRPC call");
 
-    assert_eq!(response_1.sequence_number(), 1);
+    assert_eq!(response_1.body().sequence_number(), 1);
     let summary_1 = response_1
+        .body()
         .summary()
         .expect("should have summary")
         .summary()
@@ -91,7 +93,7 @@ async fn test_stream_checkpoints() {
         .unwrap();
 
     tokio::time::timeout(Duration::from_secs(120), async {
-        if let Some(res) = stream.next().await {
+        if let Some(res) = stream.body_mut().next().await {
             match res {
                 Ok(response) => {
                     assert_eq!(response.sequence_number(), 2);
@@ -215,6 +217,7 @@ async fn test_event_filtering() {
         .get_checkpoint_latest(Some(""), None, None)
         .await
         .expect("Failed to get latest checkpoint")
+        .body()
         .sequence_number();
 
     // Test 1: SenderFilter - should receive only events from sender_1
@@ -231,7 +234,7 @@ async fn test_event_filtering() {
 
     let mut sender_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
-        while let Some(checkpoint_result) = sender_stream.next().await {
+        while let Some(checkpoint_result) = sender_stream.body_mut().next().await {
             match checkpoint_result {
                 Ok(response) => {
                     let events = response.events();
@@ -275,7 +278,7 @@ async fn test_event_filtering() {
 
     let mut nft_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
-        while let Some(checkpoint_result) = nft_stream.next().await {
+        while let Some(checkpoint_result) = nft_stream.body_mut().next().await {
             match checkpoint_result {
                 Ok(response) => {
                     let events = response.events();
@@ -320,7 +323,7 @@ async fn test_event_filtering() {
 
     let mut any_events = Vec::new();
     let result = timeout(Duration::from_secs(5), async {
-        while let Some(checkpoint_result) = any_stream.next().await {
+        while let Some(checkpoint_result) = any_stream.body_mut().next().await {
             match checkpoint_result {
                 Ok(response) => {
                     let events = response.events();

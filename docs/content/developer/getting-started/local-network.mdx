@@ -11,7 +11,7 @@ import questions from '/json/developer/getting-started/local-network.json';
 # Local Development
 
 You can create a local IOTA network to develop and test your dApps with the latest changes in the IOTA repository. You
-can set it up using the `iota` binary with the `iota start` subcommand, which can start a local IOTA network
+can set it up using the `iota-localnet` binary with the `iota-localnet start` subcommand, which can start a local IOTA network
 consisting of 4 IOTA validators with indexer and a test token faucet.
 
 ## Prerequisites
@@ -29,7 +29,7 @@ If you installed IOTA using [a package manager](install-iota#install-using-a-pac
 running the following command:
 
 ```bash
-RUST_LOG="off,iota_node=info" iota start --force-regenesis --with-faucet
+RUST_LOG="off,iota_node=info" iota-localnet start --force-regenesis --with-faucet
 ```
 
 </TabItem>
@@ -39,7 +39,7 @@ RUST_LOG="off,iota_node=info" iota start --force-regenesis --with-faucet
 If you want to [build IOTA from source](install-iota.mdx#install-iota-binaries-from-source), you can start a local network by running the following command from your `iota` root folder:
 
 ```bash
-RUST_LOG="off,iota_node=info" cargo run --bin iota start --force-regenesis --with-faucet
+RUST_LOG="off,iota_node=info" cargo run --bin iota-localnet start --force-regenesis --with-faucet
 ```
 
 </TabItem>
@@ -57,7 +57,7 @@ used.
 To persist data use the `--network.config` flag instead.
 
 ```bash
-iota start --network.config persisted-localnet --with-faucet --committee-size 2 --epoch-duration-ms 60000
+iota-localnet start --network.config persisted-localnet --with-faucet --committee-size 2 --epoch-duration-ms 60000
 ```
 
 :::
@@ -73,7 +73,7 @@ network:
 
 :::tip Validator Help
 
-Use `iota start --help` to see these options in your console.
+Use `iota-localnet start --help` to see these options in your console.
 
 :::
 

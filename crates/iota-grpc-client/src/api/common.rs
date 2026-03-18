@@ -36,6 +36,10 @@ pub enum Error {
     #[error("signature conversion error: {0}")]
     Signature(String),
 
+    /// The caller passed an empty request (e.g. no object IDs or digests).
+    #[error("empty request: at least one item must be provided")]
+    EmptyRequest,
+
     /// The server stream ended unexpectedly while `has_next` was still true.
     #[error("stream ended unexpectedly: server indicated more results with has_next=true")]
     UnexpectedEndOfStream,
@@ -55,6 +59,9 @@ impl From<Error> for tonic::Status {
             Error::Protocol(msg) => tonic::Status::internal(format!("protocol error: {msg}")),
             Error::Signature(msg) => {
                 tonic::Status::internal(format!("signature conversion error: {msg}"))
+            }
+            Error::EmptyRequest => {
+                tonic::Status::invalid_argument("empty request: at least one item must be provided")
             }
             Error::UnexpectedEndOfStream => {
                 tonic::Status::internal("stream ended unexpectedly: has_next was true")

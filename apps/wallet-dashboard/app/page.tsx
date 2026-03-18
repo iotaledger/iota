@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { Network } from '@iota/iota-sdk/client';
 import { usePersistedNetwork } from '@/hooks';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
+import { ampli } from '@/lib/utils/analytics';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();
@@ -40,7 +41,7 @@ function HomeDashboardPage(): JSX.Element {
             </div>
             <div className="relative flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
                 <div className="absolute right-2 top-2 sm:right-8 sm:top-8">
-                    <ThemeSwitcher />
+                    <ThemeSwitcher onThemeChange={(theme) => ampli.themeChanged({ theme })} />
                 </div>
                 <IotaLogoWeb width={130} height={32} />
                 <div className="flex max-w-sm flex-col items-center gap-8 text-center">

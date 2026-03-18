@@ -44,7 +44,6 @@ use iota_package_management::{
     system_package_versions::{latest_system_packages, system_packages_for_protocol},
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_replay::ReplayToolCommand;
 use iota_sdk::{
     IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
     IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
@@ -117,10 +116,6 @@ use crate::{
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
-
-#[path = "unit_tests/profiler_tests.rs"]
-#[cfg(test)]
-mod profiler_tests;
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
@@ -575,75 +570,10 @@ pub enum IotaClientCommands {
         #[arg(long)]
         address_override: Option<ObjectID>,
     },
-    /// Profile the gas usage of a transaction. Unless an output filepath is not
-    /// specified, outputs a file
-    /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
-    /// flamegraph tool such as speedscope.
-    ProfileTransaction {
-        /// The digest of the transaction to replay
-        #[arg(long, short)]
-        tx_digest: String,
-        /// If specified, overrides the filepath of the output profile, for
-        /// example -- /temp/my_profile_name.json will write output to
-        /// `/temp/my_profile_name_{tx_digest}_{unix_timestamp}.json` If
-        /// an output filepath is not specified, it will output a file
-        /// `gas_profile_{tx_digest}_{unix_timestamp}.json` to the working
-        /// directory
-        #[arg(long, short)]
-        profile_output: Option<PathBuf>,
-    },
     /// Remove an existing address by its alias or hexadecimal string.
     /// Warning: removes the private key from the keystore with no way to
     /// recover it if it was not backed up.
     RemoveAddress { address: KeyIdentity },
-    /// Replay a given transaction to view transaction effects. Set environment
-    /// variable MOVE_VM_STEP=1 to debug.
-    ReplayTransaction {
-        /// The digest of the transaction to replay
-        #[arg(long, short)]
-        tx_digest: String,
-        /// Log extra gas-related information
-        #[arg(long)]
-        gas_info: bool,
-        /// Log information about each programmable transaction command
-        #[arg(long)]
-        ptb_info: bool,
-        /// Optional version of the executor to use, if not specified defaults
-        /// to the one originally used for the transaction.
-        #[arg(long, short, allow_hyphen_values = true)]
-        executor_version: Option<i64>,
-        /// Optional protocol version to use, if not specified defaults to the
-        /// one originally used for the transaction.
-        #[arg(long, short, allow_hyphen_values = true)]
-        protocol_version: Option<i64>,
-    },
-    /// Replay transactions listed in a file.
-    ReplayBatch {
-        /// The path to the file of transaction digests to replay, with one
-        /// digest per line
-        #[arg(long, short)]
-        path: PathBuf,
-        /// If an error is encountered during a transaction, this specifies
-        /// whether to terminate or continue
-        #[arg(long, short)]
-        terminate_early: bool,
-    },
-    /// Replay all transactions in a range of checkpoints.
-    #[command(name = "replay-checkpoint")]
-    ReplayCheckpoints {
-        /// The starting checkpoint sequence number of the range of checkpoints
-        /// to replay
-        #[arg(long, short)]
-        start: u64,
-        /// The ending checkpoint sequence number of the range of checkpoints to
-        /// replay
-        #[arg(long, short)]
-        end: u64,
-        /// If an error is encountered during a transaction, this specifies
-        /// whether to terminate or continue
-        #[arg(long, short)]
-        terminate_early: bool,
-    },
 }
 
 /// Arguments used to provide coins for a gas payment
@@ -833,31 +763,6 @@ impl IotaClientCommands {
 
                 IotaClientCommandResult::AddAccount(AddAccountOutput { address, alias })
             }
-            IotaClientCommands::ProfileTransaction {
-                tx_digest,
-                profile_output,
-            } => {
-                if !move_vm_profiler::is_tracing_feature_enabled() {
-                    bail!(
-                        "tracing feature is not enabled, rebuild or reinstall with \
-                        --features tracing"
-                    );
-                };
-
-                let cmd = ReplayToolCommand::ProfileTransaction {
-                    tx_digest,
-                    executor_version: None,
-                    protocol_version: None,
-                    profile_output,
-                    config_objects: None,
-                };
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
-            }
             IotaClientCommands::RemoveAddress { address } => {
                 let address = get_identity_address(Some(address), context).await?;
 
@@ -876,63 +781,6 @@ impl IotaClientCommands {
                 }
 
                 IotaClientCommandResult::RemoveAddress(address)
-            }
-            IotaClientCommands::ReplayTransaction {
-                tx_digest,
-                gas_info: _,
-                ptb_info: _,
-                executor_version,
-                protocol_version,
-            } => {
-                let cmd = ReplayToolCommand::ReplayTransaction {
-                    tx_digest,
-                    show_effects: true,
-                    executor_version,
-                    protocol_version,
-                    config_objects: None,
-                };
-
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
-            }
-            IotaClientCommands::ReplayBatch {
-                path,
-                terminate_early,
-            } => {
-                let cmd = ReplayToolCommand::ReplayBatch {
-                    path,
-                    terminate_early,
-                    num_tasks: 16,
-                    persist_path: None,
-                };
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
-            }
-            IotaClientCommands::ReplayCheckpoints {
-                start,
-                end,
-                terminate_early,
-            } => {
-                let cmd = ReplayToolCommand::ReplayCheckpoints {
-                    start,
-                    end,
-                    terminate_early,
-                    max_tasks: 16,
-                };
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
             }
             IotaClientCommands::Addresses { sort_by_alias } => {
                 let active_address = context.active_address()?;

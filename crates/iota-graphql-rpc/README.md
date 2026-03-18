@@ -115,12 +115,12 @@ Find more example queries in the [examples](examples) directory.
 ### Launching the server with Indexer
 
 For local development, it might be useful to spin up an actual Indexer as well (not only the postgres instance) which writes data to the database, so you can query it with the GraphQL server.
-You can run it with a local network using the `iota start` subcommand or [pg-services-local](../../dev-tools/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
+You can run it with a local network using the `iota-localnet start` subcommand or [pg-services-local](../../dev-tools/pg-services-local/README.md) or as a [standalone service](../iota-indexer/README.md#standalone-indexer-setup).
 
-To run it with the `iota start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
+To run it with the `iota-localnet start` subcommand, switch to the root directory of the repository and run the following command to start the Indexer with the Sync worker:
 
 ```
-`cargo run --features indexer --bin iota start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:8000`
+`cargo run --features indexer --bin iota-localnet start --with-indexer --pg-port 5432 --pg-db-name iota_indexer --with-graphql=0.0.0.0:8000`
 ```
 
 ## Running tests

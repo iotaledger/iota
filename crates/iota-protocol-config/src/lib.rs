@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 21;
+pub const MAX_PROTOCOL_VERSION: u64 = 22;
 
 // Record history of protocol version allocations here:
 //
@@ -121,6 +121,13 @@ pub const MAX_PROTOCOL_VERSION: u64 = 21;
 //             Enable fast commit syncer for faster recovery in devnet.
 //             Add auth_context_tx native functions costs.
 //             Reduce max_auth_gas in Devnet.
+// Version 22: Enable overshoot of 100 in congestion control on all networks.
+//             Enable congestion limit overshoot in the gas price feedback
+//             mechanism on all networks.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on all networks.
+//             Enable Move-based account authentication in testnet.
+//             Enable fast commit syncer for faster recovery on testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2586,6 +2593,40 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Decrease max_auth_gas to 0.00025 IOTA
                         cfg.max_auth_gas = Some(250_000);
+                    }
+                }
+                22 => {
+                    // Enable overshoot of 100 in congestion control on all networks.
+                    // This allows bursts of shared-object transactions
+                    // up to 10 times the average allowable load set by
+                    // `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                    cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                    // Enable congestion limit overshoot in the gas price feedback
+                    // mechanism on all networks.
+                    cfg.feature_flags
+                        .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                    // Enable a separate gas price feedback mechanism for transactions using
+                    // randomness on all networks.
+                    cfg.feature_flags
+                        .separate_gas_price_feedback_mechanism_for_randomness = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in testnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in testnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max_auth_gas is 0.00025 IOTA
+                        cfg.max_auth_gas = Some(250_000);
+                        // Increase the base cost for transfer receive object in testnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery on testnet.
+                        cfg.feature_flags.consensus_fast_commit_sync = true;
                     }
                 }
 
