@@ -9,7 +9,7 @@ import {
     KNOWN_ADDRESSES_ALIASES,
     RECOGNIZED_PACKAGES,
 } from './features.constants';
-import { isValidSemver, semverGte } from './version.utils';
+import { coerce, gte } from 'semver';
 
 interface FeatureEntry {
     defaultValue: unknown;
@@ -22,55 +22,33 @@ type FeaturesMap = Record<string, FeatureEntry>;
 @Injectable()
 export class FeaturesService {
     getStagingFeatures(version?: string) {
-        const features = this.buildStagingFeatures();
-        const filtered = this.applyVersionFilter(features, version);
-
-        return {
-            status: 200,
-            features: this.stripMinVersion(filtered),
-            dateUpdated: new Date().toISOString(),
-        };
+        return this.buildResponse(this.buildStagingFeatures(), version);
     }
 
     getProductionFeatures(version?: string) {
-        const features = this.buildProductionFeatures();
-        const filtered = this.applyVersionFilter(features, version);
+        return this.buildResponse(this.buildProductionFeatures(), version);
+    }
 
+    applyVersionFilter(features: FeaturesMap, version?: string): FeaturesMap {
+        const clientVersion = version ? coerce(version) : null;
+        if (!clientVersion) return features;
+
+        return Object.fromEntries(
+            Object.entries(features).filter(
+                ([, entry]) => !entry.minVersion || gte(clientVersion, coerce(entry.minVersion)!),
+            ),
+        );
+    }
+
+    private buildResponse(features: FeaturesMap, version?: string) {
+        const filtered = this.applyVersionFilter(features, version);
         return {
             status: 200,
-            features: this.stripMinVersion(filtered),
+            features: Object.fromEntries(
+                Object.entries(filtered).map(([key, { defaultValue }]) => [key, { defaultValue }]),
+            ),
             dateUpdated: new Date().toISOString(),
         };
-    }
-
-    /** Filters out features whose minVersion exceeds the client version. No-op if version is absent. */
-    applyVersionFilter(features: FeaturesMap, version?: string): FeaturesMap {
-        if (!version || !isValidSemver(version)) {
-            return features;
-        }
-
-        const result: FeaturesMap = {};
-
-        for (const [key, entry] of Object.entries(features)) {
-            if (!entry.minVersion) {
-                result[key] = entry;
-                continue;
-            }
-
-            if (semverGte(version, entry.minVersion)) {
-                result[key] = entry;
-            }
-        }
-
-        return result;
-    }
-
-    private stripMinVersion(features: FeaturesMap): Record<string, { defaultValue: unknown }> {
-        const result: Record<string, { defaultValue: unknown }> = {};
-        for (const [key, entry] of Object.entries(features)) {
-            result[key] = { defaultValue: entry.defaultValue };
-        }
-        return result;
     }
 
     private buildStagingFeatures(): FeaturesMap {
@@ -177,7 +155,6 @@ export class FeaturesService {
             [Feature.WalletSentryTracing]: {
                 defaultValue: 0.0025,
             },
-            // Note: we'll add wallet dapps when evm will be ready
             [Feature.WalletDapps]: {
                 defaultValue: [
                     {
