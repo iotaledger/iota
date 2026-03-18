@@ -855,6 +855,16 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "native_replace",
             make_native!(auth_context::native_replace),
         ),
+        (
+            "auth_context",
+            "native_enriched_tx_inputs",
+            make_native!(auth_context::native_enriched_tx_inputs),
+        ),
+        (
+            "auth_context",
+            "native_enriched_tx_commands",
+            make_native!(auth_context::native_enriched_tx_commands),
+        ),
         ("hash", "blake2b256", make_native!(hash::blake2b256)),
         (
             "bls12381",

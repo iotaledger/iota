@@ -3,6 +3,8 @@
 
 module iota::auth_context;
 
+use iota::enriched_call_arg::EnrichedCallArg;
+use iota::enriched_command::EnrichedCommand;
 use iota::ptb_call_arg::CallArg;
 use iota::ptb_command::Command;
 
@@ -45,6 +47,22 @@ public fun tx_commands(_ctx: &AuthContext): &vector<Command> {
     native_tx_commands()
 }
 
+/// Returns the enriched transaction inputs for this authentication context.
+///
+/// Each [`EnrichedCallArg`] carries additional metadata (type name, mutability)
+/// compared to the plain [`CallArg`] returned by [`tx_inputs`].
+public fun enriched_tx_inputs(_ctx: &AuthContext): &vector<EnrichedCallArg> {
+    native_enriched_tx_inputs()
+}
+
+/// Returns the enriched transaction commands for this authentication context.
+///
+/// Each [`EnrichedCommand`] carries additional metadata (e.g. `is_entry`,
+/// return types) compared to the plain [`Command`] returned by [`tx_commands`].
+public fun enriched_tx_commands(_ctx: &AuthContext): &vector<EnrichedCommand> {
+    native_enriched_tx_commands()
+}
+
 // === Native functions ===
 
 native fun native_digest(): &vector<u8>;
@@ -52,6 +70,10 @@ native fun native_digest(): &vector<u8>;
 native fun native_tx_inputs<I>(): &vector<I>;
 
 native fun native_tx_commands<C>(): &vector<C>;
+
+native fun native_enriched_tx_inputs<I>(): &vector<I>;
+
+native fun native_enriched_tx_commands<C>(): &vector<C>;
 
 // === Test-only functions ===
 

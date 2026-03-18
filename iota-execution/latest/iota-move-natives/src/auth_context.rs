@@ -240,6 +240,118 @@ pub fn native_replace(
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
 
+/// ****************************************************************************
+/// native fun native_enriched_tx_inputs
+/// Implementation of the Move native function
+/// `fun native_enriched_tx_inputs<I>(): &vector<I>`
+///
+/// Reuses `auth_context_tx_inputs_cost_params` — the work is structurally
+/// identical to `native_tx_inputs` (BCS-serialize a vector of enriched inputs).
+/// ****************************************************************************
+pub fn native_enriched_tx_inputs(
+    context: &mut NativeContext,
+    mut ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.len() == 1);
+    debug_assert!(args.is_empty());
+
+    let cost_params = get_extension!(context, NativesCostTable)?
+        .auth_context_tx_inputs_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        cost_params
+            .auth_context_tx_inputs_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost base for native_enriched_tx_inputs not available".to_string(),
+                )
+            })?
+    );
+
+    let input_type = ty_args.pop().unwrap();
+    let input_move_layout = resolve_move_layout(context, &input_type)?;
+
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
+
+    let (tx_inputs_ref, tx_inputs_value_size) =
+        auth_context.enriched_tx_inputs_ref(input_move_layout)?;
+
+    native_charge_gas_early_exit!(
+        context,
+        cost_params
+            .auth_context_tx_inputs_cost_per_byte
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost per byte for native_enriched_tx_inputs not available".to_string(),
+                )
+            })?
+            * u64::from(tx_inputs_value_size).into()
+    );
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![tx_inputs_ref],
+    ))
+}
+
+/// ****************************************************************************
+/// native fun native_enriched_tx_commands
+/// Implementation of the Move native function
+/// `fun native_enriched_tx_commands<C>(): &vector<C>`
+///
+/// Reuses `auth_context_tx_commands_cost_params` — the work is structurally
+/// identical to `native_tx_commands` (BCS-serialize a vector of enriched cmds).
+/// ****************************************************************************
+pub fn native_enriched_tx_commands(
+    context: &mut NativeContext,
+    mut ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.len() == 1);
+    debug_assert!(args.is_empty());
+
+    let cost_params = get_extension!(context, NativesCostTable)?
+        .auth_context_tx_commands_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        cost_params
+            .auth_context_tx_commands_cost_base
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost base for native_enriched_tx_commands not available".to_string(),
+                )
+            })?
+    );
+
+    let command_type = ty_args.pop().unwrap();
+    let command_move_layout = resolve_move_layout(context, &command_type)?;
+
+    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
+
+    let (tx_commands_ref, tx_commands_value_size) =
+        auth_context.enriched_tx_commands_ref(command_move_layout)?;
+
+    native_charge_gas_early_exit!(
+        context,
+        cost_params
+            .auth_context_tx_commands_cost_per_byte
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost per byte for native_enriched_tx_commands not available".to_string(),
+                )
+            })?
+            * u64::from(tx_commands_value_size).into()
+    );
+
+    Ok(NativeResult::ok(
+        context.gas_used(),
+        smallvec![tx_commands_ref],
+    ))
+}
+
 fn resolve_move_layout(context: &NativeContext, ty: &Type) -> PartialVMResult<MoveTypeLayout> {
     context.type_to_type_layout(ty)?.ok_or(
         PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)

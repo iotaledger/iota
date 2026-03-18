@@ -9,7 +9,7 @@ mod checked {
 
     use std::{
         cell::RefCell,
-        collections::{BTreeMap, BTreeSet, HashSet},
+        collections::{BTreeMap, BTreeSet, HashMap, HashSet},
         rc::Rc,
         sync::Arc,
     };
@@ -566,7 +566,22 @@ mod checked {
             let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb)
+            let input_objects_map: HashMap<_, _> = authenticator_input_objects
+                .iter_objects()
+                .map(|o| (o.id(), o))
+                .collect();
+            let (enriched_inputs, enriched_commands) =
+                programmable_transactions::context::create_enriched_auth_context_components(
+                    ptb,
+                    move_vm,
+                    temporary_store,
+                    &input_objects_map,
+                );
+            AuthContext::new_from_components(
+                authenticator.digest(),
+                enriched_inputs,
+                enriched_commands,
+            )
         };
         let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 

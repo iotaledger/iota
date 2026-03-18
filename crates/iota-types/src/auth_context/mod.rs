@@ -1,19 +1,19 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod enriched_fields;
 mod fields_v1;
 
+pub use enriched_fields::*;
 pub use fields_v1::*;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::IdentStr, language_storage::StructTag,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    IOTA_FRAMEWORK_ADDRESS, digests::MoveAuthenticatorDigest, transaction::ProgrammableTransaction,
-};
+use crate::{IOTA_FRAMEWORK_ADDRESS, digests::MoveAuthenticatorDigest};
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
 pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
@@ -43,25 +43,36 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 /// ```
 // Conceptually similar to `TxContext`, but designed specifically for use in the authentication
 // flow.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
-    /// The authentication input objects or primitive values
-    tx_inputs: Vec<MoveCallArg>,
-    /// The authentication commands to be executed sequentially.
-    tx_commands: Vec<MoveCommand>,
+    /// The enriched transaction input objects or primitive values.
+    ///
+    /// Stored in enriched form so that native functions can serve pre-built
+    /// enriched data directly, and downgrade to plain `CallArg` on demand.
+    tx_inputs: Vec<EnrichedCallArg>,
+    /// The enriched transaction commands.
+    ///
+    /// Same rationale as `tx_inputs`.
+    tx_commands: Vec<EnrichedCommand>,
 }
 
 impl AuthContext {
+    /// Construct an `AuthContext` from pre-built enriched inputs and commands.
+    ///
+    /// Callers (e.g. the execution engine) are responsible for building the
+    /// enriched data, which may include object-type resolution via the backing
+    /// store and function-metadata resolution via the VM.
     pub fn new_from_components(
         auth_digest: MoveAuthenticatorDigest,
-        ptb: &ProgrammableTransaction,
+        tx_inputs: Vec<EnrichedCallArg>,
+        tx_commands: Vec<EnrichedCommand>,
     ) -> Self {
         Self {
             auth_digest,
-            tx_inputs: ptb.inputs.iter().map(MoveCallArg::from).collect(),
-            tx_commands: ptb.commands.iter().map(MoveCommand::from).collect(),
+            tx_inputs,
+            tx_commands,
         }
     }
 
@@ -77,11 +88,11 @@ impl AuthContext {
         &self.auth_digest
     }
 
-    pub fn tx_inputs(&self) -> &Vec<MoveCallArg> {
+    pub fn tx_inputs(&self) -> &Vec<EnrichedCallArg> {
         &self.tx_inputs
     }
 
-    pub fn tx_commands(&self) -> &Vec<MoveCommand> {
+    pub fn tx_commands(&self) -> &Vec<EnrichedCommand> {
         &self.tx_commands
     }
 
@@ -129,11 +140,14 @@ impl AuthContext {
     /// Replaces the contents of the `AuthContext` with new values. This is
     /// intended for use within a Move test function, as the `AuthContext`
     /// should be immutable during normal use.
+    /// Replaces the contents of the `AuthContext` with new enriched values.
+    /// This is intended for use within a Move test function, as the
+    /// `AuthContext` should be immutable during normal use.
     pub fn replace(
         &mut self,
         auth_digest: MoveAuthenticatorDigest,
-        tx_inputs: Vec<MoveCallArg>,
-        tx_commands: Vec<MoveCommand>,
+        tx_inputs: Vec<EnrichedCallArg>,
+        tx_commands: Vec<EnrichedCommand>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
@@ -175,43 +189,40 @@ pub fn is_auth_context(
 mod tests {
 
     use super::*;
-    use crate::{
-        base_types::ObjectID,
-        transaction::{Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction},
-        type_input::{TypeInput, TypeName},
-    };
+    use crate::type_input::TypeName;
 
     #[test]
     fn auth_context_new_from_components() {
-        let ptb = ProgrammableTransaction {
-            inputs: vec![CallArg::Pure(vec![0xab])],
-            commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-                package: ObjectID::from_hex_literal("0x0000000000000000000000000000000000000001")
-                    .unwrap(),
+        let inputs = vec![EnrichedCallArg::Pure {
+            value: vec![0xab],
+            type_name: TypeName {
+                name: String::new(),
+            },
+        }];
+        let commands = vec![EnrichedCommand::MoveCall(Box::new(
+            EnrichedProgrammableMoveCall {
+                package: crate::base_types::ObjectID::from_hex_literal(
+                    "0x0000000000000000000000000000000000000001",
+                )
+                .unwrap(),
                 module: "mod".to_string(),
                 function: "fun".to_string(),
-                type_arguments: vec![TypeInput::U8],
-                arguments: vec![Argument::GasCoin],
-            }))],
-        };
+                is_entry: false,
+                type_arguments: vec![TypeName {
+                    name: "u8".to_string(),
+                }],
+                arguments: vec![],
+                returns: vec![],
+            },
+        ))];
 
-        let ctx = AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb);
+        let ctx =
+            AuthContext::new_from_components(MoveAuthenticatorDigest::default(), inputs, commands);
 
         assert_eq!(ctx.tx_inputs().len(), 1);
         assert_eq!(ctx.tx_commands().len(), 1);
-
-        assert!(matches!(ctx.tx_inputs()[0], MoveCallArg::Pure(_)));
-
-        // Commands must have TypeName substituted for TypeInput.
-        let MoveCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
-            panic!("expected MoveCall");
-        };
-        assert_eq!(
-            call.type_arguments,
-            vec![TypeName {
-                name: "u8".to_string()
-            }]
-        );
+        assert!(matches!(ctx.tx_inputs()[0], EnrichedCallArg::Pure { .. }));
+        assert!(matches!(ctx.tx_commands()[0], EnrichedCommand::MoveCall(_)));
     }
 
     #[test]
@@ -227,7 +238,12 @@ mod tests {
 
         ctx.replace(
             MoveAuthenticatorDigest::default(),
-            vec![MoveCallArg::Pure(vec![1])],
+            vec![EnrichedCallArg::Pure {
+                value: vec![1],
+                type_name: TypeName {
+                    name: String::new(),
+                },
+            }],
             vec![],
         );
         let non_empty_bytes = ctx.to_bcs_bytes();

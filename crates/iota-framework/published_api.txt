@@ -1684,6 +1684,105 @@ sequence_number
 digest
 	public fun
 	0x2::ptb_call_arg
+EnrichedProgrammableMoveCall
+	public struct
+	0x2::enriched_command
+EnrichedCommand
+	public enum
+	0x2::enriched_command
+is_move_call
+	public fun
+	0x2::enriched_command
+is_transfer_objects
+	public fun
+	0x2::enriched_command
+is_split_coins
+	public fun
+	0x2::enriched_command
+is_merge_coins
+	public fun
+	0x2::enriched_command
+is_publish
+	public fun
+	0x2::enriched_command
+is_make_move_vec
+	public fun
+	0x2::enriched_command
+is_upgrade
+	public fun
+	0x2::enriched_command
+move_call_package
+	public fun
+	0x2::enriched_command
+move_call_module
+	public fun
+	0x2::enriched_command
+move_call_function
+	public fun
+	0x2::enriched_command
+move_call_is_entry
+	public fun
+	0x2::enriched_command
+move_call_type_arguments
+	public fun
+	0x2::enriched_command
+move_call_arguments
+	public fun
+	0x2::enriched_command
+move_call_returns
+	public fun
+	0x2::enriched_command
+ImmOrOwnedObjectArg
+	public struct
+	0x2::enriched_call_arg
+SharedObjectArg
+	public struct
+	0x2::enriched_call_arg
+EnrichedCallArg
+	public enum
+	0x2::enriched_call_arg
+is_pure
+	public fun
+	0x2::enriched_call_arg
+is_imm_or_owned_object
+	public fun
+	0x2::enriched_call_arg
+is_shared_object
+	public fun
+	0x2::enriched_call_arg
+is_receiving
+	public fun
+	0x2::enriched_call_arg
+imm_or_owned_id
+	public fun
+	0x2::enriched_call_arg
+imm_or_owned_version
+	public fun
+	0x2::enriched_call_arg
+imm_or_owned_digest
+	public fun
+	0x2::enriched_call_arg
+imm_or_owned_mutable
+	public fun
+	0x2::enriched_call_arg
+imm_or_owned_type_name
+	public fun
+	0x2::enriched_call_arg
+shared_id
+	public fun
+	0x2::enriched_call_arg
+shared_initial_shared_version
+	public fun
+	0x2::enriched_call_arg
+shared_mutable
+	public fun
+	0x2::enriched_call_arg
+shared_digest
+	public fun
+	0x2::enriched_call_arg
+shared_type_name
+	public fun
+	0x2::enriched_call_arg
 AuthContext
 	public struct
 	0x2::auth_context
@@ -1696,6 +1795,12 @@ tx_inputs
 tx_commands
 	public fun
 	0x2::auth_context
+enriched_tx_inputs
+	public fun
+	0x2::auth_context
+enriched_tx_commands
+	public fun
+	0x2::auth_context
 native_digest
 	fun
 	0x2::auth_context
@@ -1703,6 +1808,12 @@ native_tx_inputs
 	fun
 	0x2::auth_context
 native_tx_commands
+	fun
+	0x2::auth_context
+native_enriched_tx_inputs
+	fun
+	0x2::auth_context
+native_enriched_tx_commands
 	fun
 	0x2::auth_context
 Receiving
