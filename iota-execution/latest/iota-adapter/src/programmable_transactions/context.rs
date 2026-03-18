@@ -1796,7 +1796,6 @@ mod checked {
             &loaded_type_args,
             &mut data_store,
         )?;
-        drop(data_store);
 
         // Load the compiled bytecode to check `is_entry`.
         let compiled = vm.load_module(&module_id, &*linkage_view)?;
@@ -2003,9 +2002,11 @@ mod checked {
 
                 match ptb.inputs.get(i as usize) {
                     Some(CallArg::Pure(_)) => {
-                        if !input_type_names.contains_key(&i) {
+                        if let std::collections::hash_map::Entry::Vacant(e) =
+                            input_type_names.entry(i)
+                        {
                             if let Some(type_name) = type_to_type_name(vm, param_ty) {
-                                input_type_names.insert(i, type_name);
+                                e.insert(type_name);
                             }
                         }
                     }
