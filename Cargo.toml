@@ -240,11 +240,11 @@ async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
-aws-config = "1.8"
-aws-sdk-dynamodb = "1.103"
+aws-config = { version = "1.8", default-features = false, features = ["credentials-process", "rt-tokio", "sso"] }
+aws-sdk-dynamodb = { version = "1.103", default-features = false, features = ["rustls", "rt-tokio"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
-axum-server = { version = "0.8", default-features = false, features = ["tls-rustls"] }
+axum-server = { version = "0.8", default-features = false, features = ["tls-rustls-no-provider"] }
 backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
 base64 = "0.21.2"
 base64-url = "2"
@@ -338,7 +338,7 @@ proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.14"
 prost-types = "0.14"
-quinn-proto = "0.11.7"
+quinn-proto = "0.11.14"
 quote = "1.0.23"
 rand = "0.8.5"
 regex = "1.7.1"

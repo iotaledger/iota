@@ -107,6 +107,7 @@ export function MyCoins(): React.JSX.Element {
                                                 disabled={
                                                     recognizedButEmpty || notRecognizedButEmpty
                                                 }
+                                                aria-label={`Filter by ${label.toLowerCase()} coins`}
                                             />
                                         );
                                     })}
