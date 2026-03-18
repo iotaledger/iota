@@ -61,7 +61,7 @@ export const BASE_CONFIG: Config = {
                 'dialog-content-show': {
                     from: {
                         opacity: '0',
-                        transform: 'translate(-50%, -50%) scale(0.88)',
+                        transform: 'translate(-50%, -50%) scale(0.92)',
                     },
                     to: {
                         opacity: '1',
@@ -81,7 +81,7 @@ export const BASE_CONFIG: Config = {
                 'dropdown-show': {
                     from: {
                         opacity: '0',
-                        transform: 'scale(0.9)',
+                        transform: 'scale(0.94)',
                     },
                     to: {
                         opacity: '1',
@@ -90,10 +90,10 @@ export const BASE_CONFIG: Config = {
                 },
             },
             animation: {
-                'dialog-overlay-show': 'dialog-overlay-show 200ms cubic-bezier(0.32, 0.72, 0, 1)',
-                'dialog-content-show': 'dialog-content-show 200ms cubic-bezier(0.32, 0.72, 0, 1)',
-                'dialog-panel-show': 'dialog-panel-show 250ms cubic-bezier(0.32, 0.72, 0, 1)',
-                'dropdown-show': 'dropdown-show 150ms cubic-bezier(0.32, 0.72, 0, 1)',
+                'dialog-overlay-show': 'dialog-overlay-show 170ms ease-out',
+                'dialog-content-show': 'dialog-content-show 170ms ease-out',
+                'dialog-panel-show': 'dialog-panel-show 210ms ease-out',
+                'dropdown-show': 'dropdown-show 125ms ease-out',
             },
         },
     },
