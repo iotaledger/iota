@@ -8,7 +8,7 @@ use std::sync::{
 
 use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
-use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
+use iota_types::messages_consensus::VersionedMisbehaviorReport;
 
 use crate::authority::authority_per_epoch_store::misbehavior_monitor::{
     MisbehaviorCounts, MisbehaviorMonitor, ReportedMisbehaviors,
@@ -265,64 +265,132 @@ impl Scorer {
     }
 }
 
-// Methods for ScorerVersion::V1
 impl Scorer {
-    fn update_scores_v1(&self) {
-        // Vector with the highest received reports from each authority and their voting
-        // power. Authorities that did not send reports are filtered out.
-        let highest_received_reports_from_authority = self
+    /// Calculates the weighted median across all reporters for each metric and
+    /// authority. Returns `None` if no authority has sent a report yet.
+    fn calculate_median_report(&self) -> Option<MisbehaviorCounts> {
+        let misbehavior_count = self.get_parameters().allowances.len();
+        let reporters: Vec<(MisbehaviorCounts, VotingPower)> = self
             .received_reports_state
             .0
             .iter()
             .zip(self.voting_power.iter())
-            .filter(
-                |(
-                    ReceivedReportsStatePerAuthority {
-                        received_metrics, ..
-                    },
-                    _,
-                )| received_metrics.load().as_ref().is_some(),
-            )
-            .map(
-                |(
-                    ReceivedReportsStatePerAuthority {
-                        received_metrics, ..
-                    },
-                    voting_power,
-                )| {
-                    (
-                        VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
-                            faulty_blocks_provable: received_metrics
-                                .load()
-                                .as_ref()
-                                .clone()
-                                .unwrap()
-                                .0[0]
-                                .clone(),
-                            faulty_blocks_unprovable: received_metrics
-                                .load()
-                                .as_ref()
-                                .clone()
-                                .unwrap()
-                                .0[1]
-                                .clone(),
-                            missing_proposals: received_metrics.load().as_ref().clone().unwrap().0
-                                [2]
-                            .clone(),
-                            equivocations: received_metrics.load().as_ref().clone().unwrap().0[3]
-                                .clone(),
-                        }),
-                        *voting_power,
-                    )
-                },
-            )
-            .collect::<Vec<(VersionedMisbehaviorReport, VotingPower)>>();
-        // Ensure that we have at least one report to calculate the scores, otherwise we
-        // do nothing.
-        if highest_received_reports_from_authority.is_empty() {
-        } else {
-            let median_report = calculate_median_report(&highest_received_reports_from_authority);
-            let scores = calculate_scores_v1(median_report, self.get_parameters());
+            .filter_map(|(state, &vp)| {
+                state
+                    .received_metrics
+                    .load()
+                    .as_ref()
+                    .as_ref()
+                    .map(|counts| (counts.clone(), vp))
+            })
+            .collect();
+
+        if reporters.is_empty() {
+            return None;
+        }
+
+        let committee_size = self.voting_power.len();
+        // Sum only over reporters, not the full committee — the median is weighted
+        // by the voting power of authorities that actually submitted a report.
+        let total_voting_power: VotingPower = reporters.iter().map(|(_, vp)| *vp).sum();
+
+        // Reused across all (metric, authority) pairs — one allocation total.
+        let mut chunk: Vec<(u64, VotingPower)> = Vec::with_capacity(reporters.len());
+        let mut medians = Vec::with_capacity(misbehavior_count);
+
+        for metric_index in 0..misbehavior_count {
+            let mut median_for_metric = Vec::with_capacity(committee_size);
+            for authority in 0..committee_size {
+                chunk.clear();
+                chunk.extend(
+                    reporters
+                        .iter()
+                        .map(|(counts, vp)| (counts.get_value(metric_index, authority), *vp)),
+                );
+                chunk.sort_unstable_by_key(|&(val, _)| val);
+
+                let mut accumulated = 0;
+                for &(val, vp) in &chunk {
+                    accumulated += vp;
+                    if accumulated * 2 >= total_voting_power {
+                        median_for_metric.push(val);
+                        break;
+                    }
+                }
+            }
+            debug_assert_eq!(
+                median_for_metric.len(),
+                committee_size,
+                "weighted median did not produce a value for every authority; \
+                 this is a bug — accumulated voting power must always reach total"
+            );
+            medians.push(median_for_metric);
+        }
+
+        Some(MisbehaviorCounts(medians))
+    }
+
+    /// Given the median reports for all metrics, calculate the final scores. A
+    /// score is an integer between 0 and max_score. For each metric, we have an
+    /// allowance (allowed misbehaviors without any punishment) and a maximum
+    /// (number of misbehaviors that lead to zero score). Each individual score
+    /// for minor misbehaviors (non-equivocation) is also an integer between 0
+    /// and max_score, and the weights are such that
+    /// `sum(weights) + baseline_score = scale_factor`. Thus we need
+    /// `max_score * scale_factor < 2^64` to avoid overflows.
+    /// Major misbehaviors (equivocations) multiplicatively impact the final
+    /// score — their contribution is either 0 or 1.
+    fn calculate_scores_v1(&self, median_counts: MisbehaviorCounts) -> Vec<u64> {
+        let parameters = self.get_parameters();
+        let committee_size = self.voting_power.len();
+
+        // Initialise with the baseline; values are in [0, MAX_SCORE * SCALE_FACTOR].
+        let mut final_scores = vec![parameters.baseline_score * MAX_SCORE; committee_size];
+
+        // Accumulate weighted minor misbehavior scores directly into final_scores.
+        for (&i, &weight) in parameters
+            .minor_indices
+            .iter()
+            .zip(parameters.minor_weights.iter())
+        {
+            for (authority, &count) in median_counts.get_metric(i).iter().enumerate() {
+                final_scores[authority] += metric_to_score(
+                    count,
+                    parameters.allowances[i],
+                    parameters.maximums[i],
+                    MAX_SCORE,
+                ) * weight;
+            }
+        }
+
+        // Scale down to [0, MAX_SCORE].
+        for score in final_scores.iter_mut() {
+            *score /= SCALE_FACTOR;
+        }
+
+        // Multiply by each major misbehavior score (0 or 1).
+        for &i in &parameters.major_indices {
+            for (authority, score) in final_scores.iter_mut().enumerate() {
+                *score *= metric_to_score(
+                    median_counts.get_metric(i)[authority],
+                    parameters.allowances[i],
+                    parameters.maximums[i],
+                    1,
+                );
+            }
+        }
+
+        final_scores
+    }
+
+    fn update_scores_v1(&self) {
+        if let Some(median_counts) = self.calculate_median_report() {
+            let scores = self.calculate_scores_v1(median_counts);
+            // Relaxed: current_scores is read from the checkpoint service thread, but
+            // each score is an independent value with no causality chain between entries.
+            // Reading a mix of old and new scores is no worse than reading at two
+            // different instants. At epoch end (the only point scores affect staking),
+            // consensus processing has stopped so there is no active writer.
             for (i, &score) in scores.iter().enumerate() {
                 self.current_scores[i].store(score, Ordering::Relaxed);
             }
@@ -330,102 +398,7 @@ impl Scorer {
     }
 }
 
-/// Given a vector of pairs (VersionedMisbehaviorReport, VotingPower), calculate
-/// the medians for all metrics in VersionedMisbehaviorReport and authorities:
-///
-/// - Assume we have N authorities in the committee, but n<=N reports R_1, R_2,
-///   ..., R_n from authorities with voting powers VP_1, VP_2, ..., VP_n.
-/// - For each metric M in VersionedMisbehaviorReport, we'll have n vectors of
-///   metric values: M_1, M_2, ..., M_n, where M_i is the vector of metric
-///   values for report R_i.
-/// - Each M_i is a vector of length N, where the j-th value corresponds to the
-///   metric value for authority j.
-///
-/// Example: If we have 4 authorities in the committee, and we receive 3
-/// reports:
-/// - Report R_1 from authority A_1 with voting power VP_1 = 1:
-///     - Metric M1: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [0, 0, 0, 0] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_2 from authority A_2 with voting power VP_2 = 1:
-///     - Metric M1: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-/// - Report R_3 from authority A_3 with voting power VP_3 = 1:
-///     - Metric M1: [2, 2, 2, 2] (values for authorities A_1, A_2, A_3, A_4)
-///     - Metric M2: [1, 1, 1, 1] (values for authorities A_1, A_2, A_3, A_4)
-///
-/// For Metric M1, we have that the median metric vector is [1, 1, 1, 1].
-///
-/// This method returns a vector of MedianMetricVec, one per metric in
-/// VersionedMisbehaviorReport
-fn calculate_median_report(
-    reports_and_voting_power: &[(VersionedMisbehaviorReport, VotingPower)],
-) -> Vec<MedianMetricVec> {
-    // Calls to this method should ensure that we have at least one report to
-    // process.
-    assert!(!reports_and_voting_power.is_empty());
-
-    let number_of_metrics = reports_and_voting_power[0].0.iterate_over_metrics().len();
-
-    // In the case of the example in the method documentation,
-    // reports_and_voting_power_per_metric should be
-    // vec![
-    //      vec![([0, 0, 0, 0],VP_1),([1, 1, 1, 1],VP_2),([2, 2, 2, 2],VP_3)],
-    //      vec![([0, 0, 0, 0],VP_1),([2, 2, 2, 2],VP_2),([1, 1, 1, 1],VP_3)]
-    //      ]
-    let mut reports_and_voting_power_per_metric: Vec<Vec<(MetricVec, VotingPower)>> =
-        vec![vec![]; number_of_metrics];
-    for (versioned_report, voting_power) in reports_and_voting_power.iter() {
-        for (i, metric) in versioned_report.iterate_over_metrics().enumerate() {
-            reports_and_voting_power_per_metric[i].push((metric.clone(), *voting_power));
-        }
-    }
-
-    // Calculate and return the weighted median for each metric
-    let median_report = reports_and_voting_power_per_metric
-        .iter_mut()
-        .map(|vec| calculate_weighted_median(vec.as_mut_slice()))
-        .collect::<Vec<MedianMetricVec>>();
-    median_report
-}
-
-// Given a vector of pairs (MetricVec, VotingPower), calculate the weighted
-// median of each entry of MetricVec and returns a MedianMetricVec. Each entry
-// of reports corresponds to a single authority i who sent the report. MetricVec
-// always corresponds to a single metric, and each of its entries corresponds to
-// the number of misbehaviors that i claims to have detected from each authority
-// in the committee.
-fn calculate_weighted_median(reports: &mut [(MetricVec, VotingPower)]) -> MedianMetricVec {
-    // Calls to this method should ensure that we have at least one pair (MetricVec,
-    // VotingPower) to process.
-    assert!(!reports.is_empty());
-
-    // We calculate the weighted median relative to the voting power of the
-    // authorities who actually sent a report.
-    let voting_power_used = reports.iter().map(|(_, vp)| *vp).sum::<VotingPower>();
-    // The caller should also guarantee that the MetricVec in all reports have the
-    // same length (committee_size). This is naturally guaranteed when these data
-    // come from MisbehaviorReports, since they would been considered invalid
-    // otherwise.
-    let committee_size = reports[0].0.len();
-    let mut median_per_validator_being_scored = Vec::new();
-
-    for validator_being_scored in 0..committee_size {
-        let mut accumulated_voting_power = 0;
-        reports.sort_by_key(|(reported_counts, _)| reported_counts[validator_being_scored]);
-        for (reported_counts, voting_power) in reports.iter() {
-            accumulated_voting_power += *voting_power;
-            if accumulated_voting_power * 2 >= voting_power_used {
-                median_per_validator_being_scored.push(reported_counts[validator_being_scored]);
-                break;
-            }
-        }
-    }
-
-    median_per_validator_being_scored
-}
-
-// Scorer version. Currently, only V1 is implemented, relative to both
-// protocol_config.scorer_version = None or Some(1).
+// Scorer version. V1 is active when scorer_version is None or Some(1).
 enum ScorerVersion {
     V1(Parameters),
 }
@@ -446,128 +419,11 @@ struct Parameters {
     baseline_score: u64,
 }
 
-// Aliases for better readability.
-pub(crate) type Scores = Vec<Score>;
-pub(crate) type Score = AtomicU64;
 type VotingPower = u64;
-type MedianMetricVec = Vec<u64>;
-type MetricVec = Vec<u64>;
 
-// Given the median reports for all metrics, calculate the final scores. A score
-// is an integer between 0 and max_score. For each metrics, we have an allowance
-// (allowed misbehaviors without any punishment) and a maximum (number of
-// misbehaviors that lead to zero score). Based on those values, we calculate a
-// score per metric, and then combine them into a final score. Each individual
-// score for minor misbeahviors (non-equivocation) is also  an integer between 0
-// and max_score, and the weights used for the combination are such that
-// sum(weights) + baseline_score = scale_factor. Thus, we need
-// max_score*scale_factor < 2^64 to avoid overflows.
-// Major misbehaviors (equivocations) are treated differently, as they
-// multiplicatively impact the final score. Their value is either 0 or 1.
-fn calculate_scores_v1(median_reports: Vec<MedianMetricVec>, parameters: &Parameters) -> Vec<u64> {
-    // let baseline_score = SCALE_FACTOR -
-    // parameters.minor_weights.iter().sum::<u64>();
-
-    // let median_minor_reports_and_parameters = median_reports
-    //     .iter_minor_misbehaviors()
-    //     .zip(parameters.allowances.iter_minor_misbehaviors())
-    //     .zip(parameters.maximums.iter_minor_misbehaviors());
-
-    // Calculate individual metric scores
-    // let minor_metric_scores = median_minor_reports_and_parameters
-    //     .map(
-    //         |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
-    //             median_report_single_metric_to_score(
-    //                 median_report_for_a_single_metric,
-    //                 *metric_allowance,
-    //                 *metric_maximum,
-    //                 MAX_SCORE,
-    //             )
-    //         },
-    //     )
-    //     .collect::<Vec<Vec<u64>>>();
-
-    // let median_major_reports_and_parameters = median_reports
-    //     .iter_major_misbehaviors()
-    //     .zip(parameters.allowances.iter_major_misbehaviors())
-    //     .zip(parameters.maximums.iter_major_misbehaviors());
-
-    // // Calculate individual metric scores
-    // let major_metric_scores = median_major_reports_and_parameters
-    //     .map(
-    //         |((median_report_for_a_single_metric, metric_allowance), metric_maximum)| {
-    //             median_report_single_metric_to_score(
-    //                 median_report_for_a_single_metric,
-    //                 *metric_allowance,
-    //                 *metric_maximum,
-    //                 1,
-    //             )
-    //         },
-    //     )
-    //     .collect::<Vec<Vec<u64>>>();
-
-    // metrics_scores_to_final_scores(
-    //     minor_metric_scores,
-    //     major_metric_scores,
-    //     parameters.weights,
-    //     baseline_score,
-    //     SCALE_FACTOR,
-    //     MAX_SCORE,
-    // )
-    vec![]
-}
-
-fn metrics_scores_to_final_scores(
-    minor_metric_scores: Vec<Vec<u64>>,
-    major_metric_scores: Vec<Vec<u64>>,
-    weights: Vec<u64>,
-    baseline_score: u64,
-    scale_factor: u64,
-    max_score: u64,
-) -> Vec<u64> {
-    // // Initialise the final scores with the baseline score whose value is between
-    // 0 // and max_score * scale_factor.
-    // let committee_size = minor_metric_scores.first().unwrap().len();
-    // let mut final_scores = vec![baseline_score * max_score; committee_size];
-    // // First, calculate the weights sum of minor misbehavior scores vector. The
-    // // values in final_scores will still be between 0 and max_score *
-    // scale_factor minor_metric_scores
-    //     .iter()
-    //     .zip(weights.iter_minor_misbehaviors())
-    //     .for_each(|(scores, weight)| {
-    //         for (i, &score) in scores.iter().enumerate() {
-    //             final_scores[i] += score * weight;
-    //         }
-    //     });
-    // // Then, multiply by each major misbehavior score which is a value of either
-    // 0 // or 1.
-    // major_metric_scores.iter().for_each(|scores| {
-    //     for (i, &score) in scores.iter().enumerate() {
-    //         final_scores[i] *= score;
-    //     }
-    // });
-    // // Finally, divide by the scale factor and scale to max_score
-    // for score in final_scores.iter_mut() {
-    //     *score /= scale_factor;
-    // }
-    // final_scores
-    vec![]
-}
-
-// Calculate the metric scores for a single metric's median report vector. It
-// returns a vector of values between 0 and the max score for that metric.
-fn median_report_single_metric_to_score(
-    median_report_for_metric: &MedianMetricVec,
-    metric_allowance: u64,
-    metric_max: u64,
-    max_metric_score: u64,
-) -> Vec<u64> {
-    median_report_for_metric
-        .iter()
-        .map(|&report| metric_to_score(report, metric_allowance, metric_max, max_metric_score))
-        .collect()
-}
-
+/// Maps a single misbehavior count to a score in [0, max_score].
+/// Returns max_score if value <= allowance (no penalty), 0 if value >= max
+/// (zero score), and linearly interpolates in between.
 fn metric_to_score(value: u64, allowance: u64, max: u64, max_score: u64) -> u64 {
     if value <= allowance {
         max_score
