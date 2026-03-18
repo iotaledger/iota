@@ -9,4 +9,4 @@ export * from './migration';
 export * from './transaction';
 export * from './growthbook';
 export * from './isSizeExceededError';
-export * from './onCopySuccess';
+export * from './trackElementCopied';
