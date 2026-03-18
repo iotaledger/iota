@@ -14,7 +14,11 @@ use crate::authority::authority_per_epoch_store::misbehavior_monitor::{
     MisbehaviorCounts, MisbehaviorMonitor, ReportedMisbehaviors,
 };
 
-pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1; // Note: must be consistent with MAX_SCORE in validator_set.move in iota-framework.
+/// Must match MAX_SCORE in validator_set.move in iota-framework.
+pub(crate) const MAX_SCORE: u64 = u16::MAX as u64 + 1;
+/// Fixed-point scale used when combining weighted minor scores before dividing
+/// back down to [0, MAX_SCORE]. Chosen as 2^16 so that MAX_SCORE * SCALE_FACTOR
+/// fits in a u64 without overflow.
 const SCALE_FACTOR: u64 = 2_u64.pow(16);
 
 pub struct ReceivedReportsState(Vec<ReceivedReportsStatePerAuthority>);
@@ -33,7 +37,12 @@ impl FromIterator<ReceivedReportsStatePerAuthority> for ReceivedReportsState {
 }
 
 pub struct ReceivedReportsStatePerAuthority {
+    // The misbehavior counts received from the authority, i.e., the information
+    // contained in the MisbehaviorReports received. `None` if the authority has
+    // not yet sent a report in this epoch.
     received_metrics: ArcSwap<Option<MisbehaviorCounts>>,
+    // The count of invalid reports received from the authority. Validity must be
+    // checked deterministically, since invalid reports are not re-propagated.
     invalid_reports_count: AtomicU64,
 }
 
@@ -203,8 +212,8 @@ impl Scorer {
         }
     }
 
-    // Boundary checks for this functions are done at a higher level. `authority``
-    // should always be derived from a valid AuthorityIndex
+    // Boundary checks are done at a higher level. `authority` must be derived
+    // from a valid AuthorityIndex.
     pub(crate) fn increment_invalid_reports_count(&self, authority: u32) {
         self.received_reports_state[authority as usize]
             .invalid_reports_count
