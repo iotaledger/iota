@@ -3,7 +3,13 @@
 
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
+import {
+    type ApyByValidator,
+    formatPercentageDisplay,
+    getValidatorCommission,
+    ImageIcon,
+    ImageIconSize,
+} from '@iota/core';
 import {
     ampli,
     getValidatorMoveEvent,
@@ -205,27 +211,9 @@ export function generateValidatorsTableColumns({
                 return rowAEffectiveRate - rowBEffectiveRate > 0 ? 1 : -1;
             },
             cell({ row }) {
-                const { original: validator } = row;
-                const commissionRate = Number(validator.commissionRate);
-                const votingPower = Number(validator.votingPower);
-                const effectiveCommissionRate = Math.max(commissionRate, votingPower);
-
                 return (
                     <TableCellBase>
-                        <TableCellText>{`${effectiveCommissionRate / 100}%`}</TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Commission',
-            accessorKey: 'commissionRate',
-            enableSorting: true,
-            sortingFn: sortByNumber,
-            cell({ getValue }) {
-                return (
-                    <TableCellBase>
-                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                        <TableCellText>{getValidatorCommission(row.original)}</TableCellText>
                     </TableCellBase>
                 );
             },
