@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 22;
+pub const MAX_PROTOCOL_VERSION: u64 = 23;
 
 // Record history of protocol version allocations here:
 //
@@ -128,7 +128,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 22;
 //             using randomness on all networks.
 //             Enable Move-based account authentication in testnet.
 //             Enable fast commit syncer for faster recovery on testnet.
-//             Enable Move native context (TxContext via native functions) in
+// Version 23: Enable Move native context (TxContext via native functions) in
 //             all networks. TxContext fields are read via native functions
 //             instead of being deserialized from a BCS-encoded struct.
 //             Enables sponsor, gas_price, and gas_budget to be exposed to Move.
@@ -2658,7 +2658,8 @@ impl ProtocolConfig {
                         // Enable fast commit syncer for faster recovery on testnet.
                         cfg.feature_flags.consensus_fast_commit_sync = true;
                     }
-
+                }
+                23 => {
                     // Enable Move native context (TxContext via native functions) in all networks.
                     cfg.feature_flags.move_native_tx_context = true;
                     cfg.tx_context_fresh_id_cost_base = Some(52);
