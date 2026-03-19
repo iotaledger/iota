@@ -34,6 +34,13 @@ use crate::{
     consensus_handler::{SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction},
 };
 
+/// Dropped transactions paired with their conflict errors, and the acquired
+/// locks for surviving transactions.
+type ConflictResolutionResult = (
+    Vec<(TransactionDigest, IotaError)>,
+    HashMap<ObjectRef, LockDetails>,
+);
+
 /// Resolves owned object conflicts for white-flag transactions using persistent
 /// object locks. Runs BEFORE PostConsensusTxReorder.
 ///
@@ -70,10 +77,7 @@ use crate::{
 pub fn resolve_owned_object_conflicts(
     epoch_store: &AuthorityPerEpochStore,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
-) -> IotaResult<(
-    Vec<(TransactionDigest, IotaError)>,
-    HashMap<ObjectRef, LockDetails>,
-)> {
+) -> IotaResult<ConflictResolutionResult> {
     let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
 
