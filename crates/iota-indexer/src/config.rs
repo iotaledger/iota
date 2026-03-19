@@ -791,6 +791,30 @@ mod test {
         ])
         .unwrap();
 
+        // we cannot provide both, they are mutually exclusive
+        parse_args::<IngestionSources>([
+            "--remote-store-url=http://example.com",
+            "--historical-url=http://example.com",
+        ])
+        .unwrap_err();
+
+        // we cannot provide both, they are mutually exclusive
+        parse_args::<IngestionSources>([
+            "--remote-store-url=http://example.com",
+            "--live-url=http://example.com",
+        ])
+        .unwrap_err();
+
+        // live-url can be provided if historical-url is also provided
+        parse_args::<IngestionSources>([
+            "--historical-url=http://example.com",
+            "--live-url=http://example.com",
+        ])
+        .unwrap();
+
+        // live-url can't be provided if historical-url is not provided
+        parse_args::<IngestionSources>(["--live-url=http://example.com"]).unwrap_err();
+
         // At least one must be present
         parse_args::<IngestionSources>([]).unwrap_err();
     }

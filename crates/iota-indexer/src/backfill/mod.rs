@@ -66,7 +66,7 @@ pub enum BackfillKind {
     Ingestion {
         kind: IngestionBackfillKind,
         #[command(flatten)]
-        config: IngestionConfig,
+        config: Box<IngestionConfig>,
     },
 }
 
@@ -89,7 +89,7 @@ pub(crate) async fn get_backfill(
         BackfillKind::Ingestion { kind, config } => match kind {
             IngestionBackfillKind::TxWrappedOrDeletedObjects => Ok(Arc::new(
                 IngestionBackfillTask::<TxWrappedOrDeletedObjectsBackfill>::new(
-                    config,
+                    *config,
                     range_start as CheckpointSequenceNumber,
                 )
                 .await?,
