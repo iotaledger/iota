@@ -10,7 +10,7 @@ use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_types::{
     authenticator_state::ActiveJwk,
-    base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
+    base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::RandomnessRound,
     error::IotaResult,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
@@ -25,6 +25,7 @@ use typed_store::{Map, rocks::DBBatch};
 use super::*;
 use crate::{
     authority::{
+        authority_per_epoch_store::{LockDetails, LockDetailsWrapper},
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::AssignedTxAndVersions,
     },
@@ -76,6 +77,9 @@ pub(crate) struct ConsensusCommitOutput {
     // jwk state
     pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
     active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
+
+    // White flag owned object locks acquired in this commit
+    owned_object_locks: HashMap<ObjectRef, LockDetails>,
 }
 
 impl ConsensusCommitOutput {
@@ -211,6 +215,10 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
+    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectRef, LockDetails>) {
+        self.owned_object_locks = locks;
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -334,6 +342,15 @@ impl ConsensusCommitOutput {
                     )
                 }),
         )?;
+
+        if !self.owned_object_locks.is_empty() {
+            batch.insert_batch(
+                &tables.owned_object_locked_transactions,
+                self.owned_object_locks
+                    .into_iter()
+                    .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
+            )?;
+        }
 
         Ok(())
     }
@@ -532,6 +549,9 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
+    // White flag owned object locks (aggregate across all quarantined commits)
+    owned_object_locks: HashMap<ObjectRef, LockDetails>,
+
     metrics: Arc<EpochMetrics>,
 }
 
@@ -550,6 +570,7 @@ impl ConsensusOutputQuarantine {
             congestion_control_object_debts: RefCountedHashMap::new(),
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
+            owned_object_locks: HashMap::new(),
             metrics: authority_metrics,
         }
     }
@@ -567,6 +588,7 @@ impl ConsensusOutputQuarantine {
         self.insert_shared_object_next_versions(&output);
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
+        self.insert_owned_object_locks(&output);
         self.output_queue.push_back(output);
 
         self.metrics
@@ -706,6 +728,7 @@ impl ConsensusOutputQuarantine {
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
+                self.remove_owned_object_locks(&output);
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -791,6 +814,22 @@ impl ConsensusOutputQuarantine {
                 }
             }
         }
+    }
+
+    fn insert_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
+        for (obj_ref, lock_details) in &output.owned_object_locks {
+            self.owned_object_locks.insert(*obj_ref, *lock_details);
+        }
+    }
+
+    fn remove_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
+        for obj_ref in output.owned_object_locks.keys() {
+            self.owned_object_locks.remove(obj_ref);
+        }
+    }
+
+    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+        self.owned_object_locks.get(obj_ref).copied()
     }
 
     // Read methods - all methods in this block return data from the quarantine

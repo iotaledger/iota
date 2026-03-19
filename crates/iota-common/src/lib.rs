@@ -6,6 +6,7 @@ pub mod backoff;
 pub mod logging;
 #[cfg(feature = "metrics")]
 pub mod metrics;
+pub mod moving_window;
 pub mod random;
 pub mod random_util;
 pub mod stream_ext;
