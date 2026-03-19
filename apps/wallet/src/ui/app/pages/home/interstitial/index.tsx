@@ -16,6 +16,7 @@ export type InterstitialConfig = {
     dismissKey?: string;
     imageUrl?: string;
     bannerUrl?: string;
+    minVersion?: string;
 };
 
 interface InterstitialProps extends InterstitialConfig {
