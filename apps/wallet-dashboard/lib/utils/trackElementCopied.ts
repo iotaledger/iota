@@ -3,6 +3,14 @@
 
 import { ampli } from './analytics/ampli';
 
-export function trackElementCopied(elementType: string): void {
+export type CopiedElementType =
+    | 'address'
+    | 'stardust-address'
+    | 'transaction-digest'
+    | 'kiosk-object-id'
+    | 'stake-id'
+    | 'digest';
+
+export function trackElementCopied(elementType: CopiedElementType): void {
     ampli.elementCopied({ type: elementType });
 }
