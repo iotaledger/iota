@@ -175,9 +175,11 @@ export function DetailsView({
                                 fullwidth
                             />
                             <KeyValueInfo
-                                keyText="Commission"
-                                value={`${commission ? commission.toString() : '--'}%`}
+                                keyText="Effective Commission"
+                                value={commission}
                                 fullwidth
+                                tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                                tooltipPosition={TooltipPosition.Right}
                             />
                         </div>
                     </Panel>
