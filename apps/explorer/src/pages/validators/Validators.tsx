@@ -260,7 +260,7 @@ function ValidatorPageResult(): JSX.Element {
                                                 'Name',
                                                 'Stake',
                                                 'APY',
-                                                'Commission',
+                                                'Effective Commission',
                                                 'Last Epoch Rewards',
                                                 'Next Epoch Stake',
                                                 'Voting Power',
