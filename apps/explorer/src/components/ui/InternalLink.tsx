@@ -57,11 +57,9 @@ function createInternalLink<T extends string>(
         async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
             event.stopPropagation();
             if (copyText) {
-                try {
-                    await copyToClipboard(copyText);
-                } catch (error) {
-                    console.error('Failed to copy:', error);
-                    onCopyError?.(error, copyText);
+                const success = await copyToClipboard(copyText);
+                if (!success && onCopyError) {
+                    onCopyError(new Error('Clipboard write failed'), copyText);
                 }
             }
         }

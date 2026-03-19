@@ -180,10 +180,10 @@ function MigrationDashboardPage(): JSX.Element {
         router.replace('/home');
     }
 
-    function onCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         toast('Address copied');
         trackElementCopied('stardust-address');
-    }
+    }, []);
 
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">

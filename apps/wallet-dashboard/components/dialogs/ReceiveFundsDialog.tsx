@@ -12,6 +12,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { QR, useGetDefaultIotaName, useCopyToClipboard } from '@iota/core';
 import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface ReceiveFundsDialogProps {
     address: string;
@@ -29,6 +30,10 @@ export function ReceiveFundsDialog({
         () => trackElementCopied('address'),
         'Address copied',
     );
+
+    const handleCopyAddress = useCallback(() => {
+        copyToClipboard(address);
+    }, [copyToClipboard, address]);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -61,11 +66,7 @@ export function ReceiveFundsDialog({
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs">
-                    <Button
-                        onClick={() => copyToClipboard(address)}
-                        fullWidth
-                        text="Copy Address"
-                    />
+                    <Button onClick={handleCopyAddress} fullWidth text="Copy Address" />
                 </div>
             </DialogContent>
         </Dialog>
