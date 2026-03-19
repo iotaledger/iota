@@ -3,7 +3,7 @@
 
 import { useGetValidatorsApy } from '..';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { getValidatorCommission } from '../../utils';
+import { getValidatorEffectiveCommission } from '../../utils';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
     const {
@@ -30,7 +30,7 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         apy: null,
     };
 
-    const commission = getValidatorCommission(validatorSummary);
+    const effectiveCommission = getValidatorEffectiveCommission(validatorSummary);
 
     return {
         system,
@@ -40,7 +40,7 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         validatorSummary,
         name: validatorSummary?.name || '',
         stakingPoolActivationEpoch,
-        commission,
+        effectiveCommission,
         newValidator,
         isAtRisk,
         apy,

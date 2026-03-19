@@ -11,7 +11,7 @@ import {
     calculateStakeShare,
     getStakeIotaByIotaId,
     getTokenStakeIotaForValidator,
-    getValidatorCommission,
+    getValidatorEffectiveCommission,
 } from '../utils';
 import { useFormatCoin } from './useFormatCoin';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -85,6 +85,6 @@ export function useGetStakingValidatorDetails({
         validatorApy,
         systemDataResult,
         delegatedStakeDataResult,
-        commission: getValidatorCommission(validatorData),
+        effectiveCommission: getValidatorEffectiveCommission(validatorData),
     };
 }
