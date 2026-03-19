@@ -17,7 +17,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
         validatorAddress: validatorAddress,
     });
 
-    const { totalValidatorsStake, totalStakePercentage, totalStake, commission } =
+    const { totalValidatorsStake, totalStakePercentage, totalStake, effectiveCommission } =
         useGetStakingValidatorDetails({
             accountAddress: accountAddress,
             stakeId: null,
@@ -40,7 +40,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                 />
                 <KeyValueInfo
                     keyText="Effective Commission"
-                    value={commission}
+                    value={effectiveCommission}
                     fullwidth
                     tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
                     tooltipPosition={TooltipPosition.Right}
