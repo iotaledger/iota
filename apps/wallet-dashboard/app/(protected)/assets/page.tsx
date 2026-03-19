@@ -108,6 +108,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                                                 ? !ownedAssets?.visual.length
                                                 : !ownedAssets?.other.length
                                         }
+                                        aria-label={`Filter by ${label.toLowerCase()} assets`}
                                     />
                                 ))}
                             </div>

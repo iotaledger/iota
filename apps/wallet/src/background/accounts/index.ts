@@ -113,7 +113,6 @@ export async function changeActiveAccount(accountID: string) {
         }
         await db.accounts.where('id').notEqual(accountID).modify({ selected: false });
         await db.accounts.update(accountID, { selected: true });
-        accountsEvents.emit('accountsChanged');
     });
 }
 
@@ -151,7 +150,6 @@ export async function addNewAccounts<T extends SerializedAccount>(accounts: Omit
         return accountInstances;
     });
     await backupDB();
-    accountsEvents.emit('accountsChanged');
     return accountsCreated;
 }
 
@@ -173,8 +171,6 @@ export async function lockAllAccountsAndSources() {
     for (const account of accounts) {
         await account.lock();
     }
-    accountSourcesEvents.emit('accountSourcesChanged');
-    accountsEvents.emit('accountsChanged');
 }
 
 export async function unlockAllAccountsAndSources(password: string) {
@@ -198,8 +194,6 @@ export async function unlockAllAccountsAndSources(password: string) {
             await account.passwordUnlock(password);
         }
     }
-    accountSourcesEvents.emit('accountSourcesChanged');
-    accountsEvents.emit('accountsChanged');
 }
 
 interface LockedState {
@@ -248,12 +242,16 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     if (isMethodPayload(payload, 'lockAllAccountsAndSources')) {
         await lockAllAccountsAndSources();
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        accountSourcesEvents.emit('accountSourcesChanged');
+        accountsEvents.emit('accountsChanged');
         return true;
     }
     if (isMethodPayload(payload, 'unlockAllAccountsAndSources')) {
         const { password } = payload.args;
         await unlockAllAccountsAndSources(password);
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        accountSourcesEvents.emit('accountSourcesChanged');
+        accountsEvents.emit('accountsChanged');
         return true;
     }
     if (isMethodPayload(payload, 'setAccountNickname')) {
@@ -261,8 +259,8 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         const account = await getAccountByID(id);
         if (account) {
             await account.setNickname(nickname);
-            accountsEvents.emit('accountsChanged');
             await uiConnection.send(createMessage({ type: 'done' }, msg.id));
+            accountsEvents.emit('accountsChanged');
             return true;
         }
     }
@@ -364,6 +362,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
     if (isMethodPayload(payload, 'switchAccount')) {
         await changeActiveAccount(payload.args.accountID);
         await uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        accountsEvents.emit('accountsChanged');
         return true;
     }
     if (isMethodPayload(payload, 'getLockedState')) {
@@ -503,9 +502,9 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             }
         });
         await backupDB();
-        accountsEvents.emit('accountsChanged');
-        accountSourcesEvents.emit('accountSourcesChanged');
         await uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        accountSourcesEvents.emit('accountSourcesChanged');
+        accountsEvents.emit('accountsChanged');
         return true;
     }
     return false;

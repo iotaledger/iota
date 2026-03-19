@@ -4,14 +4,13 @@
 
 import { HideShowDisplayBox, VerifyPasswordModal, Loading, Overlay } from '_components';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useAccountSources, useBackgroundClient, useExportPassphraseMutation } from '_hooks';
+import { useAccountSources, useExportPassphraseMutation } from '_hooks';
 import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 
 export function ExportPassphrasePage() {
     const { accountSourceID } = useParams();
-    const backgroundClient = useBackgroundClient();
     const { data: allAccountSources, isPending } = useAccountSources();
     const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
     const navigate = useNavigate();
@@ -41,7 +40,6 @@ export function ExportPassphrasePage() {
                     <VerifyPasswordModal
                         open
                         onVerify={async (password) => {
-                            await backgroundClient.unlockAllAccountsAndSources({ password });
                             await exportMutation.mutateAsync({
                                 password,
                                 accountSourceID: accountSource!.id,
