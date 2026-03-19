@@ -13,7 +13,6 @@ import {
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
     useGetInactiveValidator,
-    convertCoinAmountToNumber,
     useCoinMetadata,
 } from '@iota/core';
 import {
@@ -35,7 +34,7 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG, formatBalanceToNumber } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
 import { ampli } from '@/lib/utils/analytics';
@@ -103,7 +102,7 @@ export function DetailsView({
         if (handleUnstake) {
             handleUnstake();
             ampli.clickedUnstakeIota({
-                stakedAmount: convertCoinAmountToNumber(totalStake, decimals),
+                stakedAmount: formatBalanceToNumber(totalStake, decimals),
                 validatorAddress: stakedDetails?.validatorAddress,
             });
         }

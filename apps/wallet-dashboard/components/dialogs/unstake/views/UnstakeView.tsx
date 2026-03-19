@@ -23,10 +23,9 @@ import {
     NOT_ENOUGH_BALANCE_ID,
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
-    convertCoinAmountToNumber,
     useCoinMetadata,
 } from '@iota/core';
-import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, formatBalanceToNumber } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -114,9 +113,9 @@ export function UnstakeView({
                     onSuccess(tx);
 
                     ampli.iotaUnstaked({
-                        stakedAmount: convertCoinAmountToNumber(totalStakeOriginal, decimals),
+                        stakedAmount: formatBalanceToNumber(totalStakeOriginal, decimals),
                         validatorAddress: extendedStake.validatorAddress,
-                        rewards: convertCoinAmountToNumber(extendedStake.estimatedReward, decimals),
+                        rewards: formatBalanceToNumber(extendedStake.estimatedReward, decimals),
                         validatorName,
                     });
                 },

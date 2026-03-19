@@ -9,9 +9,13 @@ import {
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
     useValidatorInfo,
-    convertCoinAmountToNumber,
 } from '@iota/core';
-import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
+import {
+    CoinFormat,
+    IOTA_TYPE_ARG,
+    parseAmount,
+    formatBalanceToNumber,
+} from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
@@ -102,7 +106,7 @@ export function EnterAmountView({
                     toast.success('Stake transaction has been sent');
 
                     ampli.iotaStaked({
-                        stakedAmount: convertCoinAmountToNumber(amount, decimals),
+                        stakedAmount: formatBalanceToNumber(amount, decimals),
                         validatorAddress: selectedValidator,
                         validatorAPY: validatorApy,
                         validatorName: validatorName ?? '',

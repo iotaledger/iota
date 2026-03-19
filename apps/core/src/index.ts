@@ -14,3 +14,6 @@ export * from './forms';
 export * from './types';
 export * from './interfaces';
 export * from './amplitude';
+
+// Re-export formatBalanceToNumber from SDK for convenience
+export { formatBalanceToNumber } from '@iota/iota-sdk/utils';

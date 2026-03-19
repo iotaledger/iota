@@ -20,10 +20,10 @@ import {
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
-    convertCoinAmountToNumber,
+    formatBalanceToNumber,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, formatBalanceToNumber } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
@@ -152,7 +152,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
         ampli.clickedUnstakeIota({
-            stakedAmount: convertCoinAmountToNumber(totalStake, decimals),
+            stakedAmount: formatBalanceToNumber(totalStake, decimals),
             validatorAddress,
         });
     }
