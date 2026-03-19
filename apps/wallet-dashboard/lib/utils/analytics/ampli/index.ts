@@ -122,6 +122,10 @@ export interface IotaUnstakedProperties {
     validatorName?: string;
 }
 
+export interface ExternalLinkOpenedProperties {
+    type: string;
+}
+
 export interface MigrationProperties {
     /**
      * | Rule | Value |
@@ -247,6 +251,14 @@ export class IotaUnstaked implements BaseEvent {
     event_type = 'iota unstaked';
 
     constructor(public event_properties?: IotaUnstakedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ExternalLinkOpened implements BaseEvent {
+    event_type = 'external link opened';
+
+    constructor(public event_properties: ExternalLinkOpenedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -509,6 +521,7 @@ export class Ampli {
   }
 
   /**
+<<<<<<< HEAD
    * iota staked
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/iota%20staked)
@@ -540,6 +553,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new IotaUnstaked(properties), options);
+  }
+
+   /**
+   * external link opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/external%20link%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  externalLinkOpened(
+    properties: ExternalLinkOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ExternalLinkOpened(properties), options);
   }
 
   /**
