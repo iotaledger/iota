@@ -15,8 +15,9 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_grpc::{
         HandleCertificateRequestV1, HandleCertificateResponseV1, ObjectInfoRequest,
-        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionStatus,
-        VerifiedObjectInfoResponse,
+        ObjectInfoResponse, SubmitTxRequest, SubmitTxResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionStatus, ValidatorHealthRequest, ValidatorHealthResponse,
+        VerifiedObjectInfoResponse, WaitForEffectsRequest, WaitForEffectsResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -504,5 +505,38 @@ where
         self.authority_client
             .handle_system_state_object(SystemStateRequest { _unused: false })
             .await
+    }
+
+    /// Submit a transaction via the TransactionDriver protocol.
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn submit_transaction(
+        &self,
+        request: SubmitTxRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTxResponse, IotaError> {
+        self.authority_client
+            .submit_transaction(request, client_addr)
+            .await
+    }
+
+    /// Wait for transaction effects from the validator.
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn wait_for_effects(
+        &self,
+        request: WaitForEffectsRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError> {
+        self.authority_client
+            .wait_for_effects(request, client_addr)
+            .await
+    }
+
+    /// Forward validator health request to the underlying authority client.
+    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
+    pub async fn validator_health(
+        &self,
+        request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        self.authority_client.validator_health(request).await
     }
 }

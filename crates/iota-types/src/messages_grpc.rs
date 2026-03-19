@@ -8,12 +8,31 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{SequenceNumber, TransactionDigest},
+    committee::EpochId,
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
-    effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
+    digests::TransactionEffectsDigest,
+    effects::{
+        SignedTransactionEffects, TransactionEffects, TransactionEvents,
+        VerifiedSignedTransactionEffects,
+    },
+    error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
-    transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
+    transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction, Transaction},
 };
+
+/// Request for validator health information.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ValidatorHealthRequest {}
+
+/// Response with validator health metrics.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ValidatorHealthResponse {
+    /// Number of in-flight execution transactions from execution scheduler.
+    pub num_inflight_execution_transactions: u64,
+    /// Number of in-flight consensus transactions.
+    pub num_inflight_consensus_transactions: u64,
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum ObjectInfoRequestKind {
@@ -284,4 +303,100 @@ pub struct HandleCapabilityNotificationRequestV1 {
 pub struct HandleCapabilityNotificationResponseV1 {
     // This is needed to make gRPC happy.
     pub _unused: bool,
+}
+
+// =========== TransactionDriver types ===========
+
+/// Full executed transaction data returned from validators.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ExecutedData {
+    pub effects: TransactionEffects,
+    pub events: Option<TransactionEvents>,
+    pub input_objects: Vec<Object>,
+    pub output_objects: Vec<Object>,
+}
+
+/// Contains either a transaction or the type of Ping request.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SubmitTxRequest {
+    pub transaction: Option<Transaction>,
+}
+
+impl From<Transaction> for SubmitTxRequest {
+    fn from(transaction: Transaction) -> Self {
+        Self::new_transaction(transaction)
+    }
+}
+
+impl SubmitTxRequest {
+    pub fn new_transaction(transaction: Transaction) -> Self {
+        Self {
+            transaction: Some(transaction),
+        }
+    }
+
+    pub fn new_ping() -> Self {
+        Self { transaction: None }
+    }
+
+    /// Returns the digest of the transaction if it is a transaction request.
+    /// Returns None if it is a ping request.
+    pub fn tx_digest(&self) -> Option<TransactionDigest> {
+        self.transaction.as_ref().map(|t| *t.digest())
+    }
+}
+
+/// The result of submitting a transaction to a validator.
+#[derive(Clone, Serialize, Deserialize)]
+pub enum SubmitTxResult {
+    /// The transaction was submitted to consensus.
+    Submitted,
+    /// The transaction has already been executed (finalized).
+    Executed {
+        effects_digest: TransactionEffectsDigest,
+        /// Response should always include details for executed transactions.
+        details: Option<Box<ExecutedData>>,
+    },
+    /// The transaction was rejected.
+    Rejected { error: IotaError },
+}
+
+impl std::fmt::Debug for SubmitTxResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Submitted => f.debug_struct("Submitted").finish(),
+            Self::Executed { effects_digest, .. } => f
+                .debug_struct("Executed")
+                .field("effects_digest", &format_args!("{effects_digest}"))
+                .finish(),
+            Self::Rejected { error } => f.debug_struct("Rejected").field("error", &error).finish(),
+        }
+    }
+}
+
+/// Response from the TransactionDriver submit_transaction endpoint.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SubmitTxResponse {
+    pub results: Vec<SubmitTxResult>,
+}
+
+/// Request to wait for transaction effects from a validator.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WaitForEffectsRequest {
+    pub transaction_digest: Option<TransactionDigest>,
+    pub include_details: bool,
+    pub ping_type: bool,
+}
+
+/// Response from a validator to a wait for effects request.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum WaitForEffectsResponse {
+    Executed {
+        effects_digest: TransactionEffectsDigest,
+        details: Option<Box<ExecutedData>>,
+    },
+    /// The transaction was rejected by consensus.
+    Rejected { error: Option<IotaError> },
+    /// Transaction status has expired from the cache.
+    Expired { epoch: EpochId, round: Option<u32> },
 }

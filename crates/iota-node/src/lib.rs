@@ -679,6 +679,7 @@ impl IotaNode {
                 end_of_epoch_receiver,
                 &config.db_path(),
                 &prometheus_registry,
+                Some(&config),
             )))
         } else {
             None
@@ -1469,8 +1470,15 @@ impl IotaNode {
 
         for tx in epoch_store.get_all_pending_consensus_transactions() {
             match tx.kind {
-                // Shared object txns cannot be re-executed at this point, because we must wait for
-                // consensus replay to assign shared object versions.
+                // TODO: what to do with UserTransactionV1 here? It seems like this only applies to
+                //  optimistically executed owned-object transactions that possibly didn't go
+                //  through  consensus before the node restarted. UserTransactionsV1
+                //  always needs to go  through consensus, so it will be replayed
+                //  there, just like shared object  transactions.
+                //
+                // Shared object txns
+                // cannot be re-executed at this  point, because we must wait for
+                // consensus replay to assign shared  object versions.
                 ConsensusTransactionKind::CertifiedTransaction(tx)
                     if !tx.contains_shared_object() =>
                 {

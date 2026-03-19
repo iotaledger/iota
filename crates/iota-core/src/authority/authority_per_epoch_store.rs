@@ -42,7 +42,9 @@ use iota_types::{
     digests::{ChainIdentifier, TransactionEffectsDigest},
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
-    executable_transaction::VerifiedExecutableTransaction,
+    executable_transaction::{
+        CertificateProof, ExecutableTransaction, VerifiedExecutableTransaction,
+    },
     global_state_hash::GlobalStateHash,
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
@@ -127,6 +129,7 @@ use crate::{
     post_consensus_tx_reorder::PostConsensusTxReorder,
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
+    white_flag,
 };
 
 /// The key where the latest consensus index is stored in the database.
@@ -1006,7 +1009,8 @@ impl AuthorityEpochTables {
 pub(crate) const MUTEX_TABLE_SIZE: usize = 1024;
 
 impl AuthorityPerEpochStore {
-    #[instrument(name = "AuthorityPerEpochStore::new", level = "error", skip_all, fields(epoch = committee.epoch))]
+    #[instrument(name = "AuthorityPerEpochStore::new", level = "error", skip_all, fields(epoch = committee.epoch
+    ))]
     pub fn new(
         name: AuthorityName,
         committee: Arc<Committee>,
@@ -2147,7 +2151,8 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
+    #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty
+    ))]
     fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
@@ -2699,6 +2704,12 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
+    pub fn get_quarantined_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+        self.consensus_quarantine
+            .read()
+            .get_owned_object_lock(obj_ref)
+    }
+
     pub(crate) fn get_randomness_last_round_timestamp(
         &self,
     ) -> IotaResult<Option<CheckpointTimestamp>> {
@@ -2888,6 +2899,13 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::CertifiedTransaction(_certificate),
                 ..
             }) => {}
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(_transaction),
+                ..
+            }) => {
+                // TODO: make sure that UserTransactionV1 blocks don't pass
+                //  validation if the protocol feature flag is not set
+            }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CheckpointSignature(data),
                 ..
@@ -3085,7 +3103,10 @@ impl AuthorityPerEpochStore {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
                         ) => (digest, (*deferral_key, tx.suggested_gas_price)),
-                        _ => panic!("deferred transaction was not a user certificate: {tx:?}"),
+                        SequencedConsensusTransactionKey::External(
+                            ConsensusTransactionKey::UserTransaction(digest),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price)),
+                        _ => panic!("deferred transaction was not a user transaction or a certificate: {tx:?}"),
                     })
             })
             .collect();
@@ -3166,6 +3187,32 @@ impl AuthorityPerEpochStore {
         }
         sequenced_transactions.extend(current_commit_sequenced_consensus_transactions);
         sequenced_randomness_transactions.extend(current_commit_sequenced_randomness_transactions);
+
+        // WHITE FLAG: resolve owned object conflicts before reordering.
+        // Deferred txs from previous commits already have persistent locks,
+        // giving them natural precedence over new transactions.
+
+        // TODO: how should deferred transactions be handled in whiteflag? are they
+        //  already locked? if a transaction is cancelled, is it unlocked or is gas
+        //  object consumed anyway?
+
+        if self.protocol_config.enable_white_flag_flow() {
+            let (dropped, owned_object_locks) =
+                white_flag::resolve_owned_object_conflicts(self, &mut sequenced_transactions)?;
+            output.set_owned_object_locks(owned_object_locks);
+            // TODO: add white_flag_dropped_transactions metric to AuthorityMetrics
+            //  authority_metrics.white_flag_dropped_transactions.inc_by(dropped.len() as
+            //  u64);
+            // TODO: possibly record dropped digests in ConsensusCommitPrologue for
+            //  consistent view
+            if !dropped.is_empty() {
+                debug!("White flag flow dropped {} transactions", dropped.len());
+            }
+        }
+
+        // TODO: At this point sequenced_transactions doesn't contain any conflicting
+        //  UserTransactions. Dropped transactions are in dropped and need to be handled
+        //  somehow
 
         // Save roots for checkpoint generation. One set for most tx, one for randomness
         // tx.
@@ -4430,6 +4477,74 @@ impl AuthorityPerEpochStore {
                     );
                 }
                 Ok(ConsensusCertificateResult::RandomnessConsensusMessage)
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
+                ..
+            }) => {
+                if transaction.is_system_tx() {
+                    warn!("UserTransactionV1 contains system transaction, ignoring");
+                    return Ok(ConsensusCertificateResult::Ignored);
+                }
+                // TODO: re-think the epoch-switching flow
+                if !self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    debug!(
+                        "Ignoring white flag transaction {:?} because of end of epoch",
+                        transaction.digest()
+                    );
+                    return Ok(ConsensusCertificateResult::Ignored);
+                }
+                // TODO: verify that all the same validation actions are performed as for a
+                // Certificate. Possibly extract common code to a separate
+                // function to avoid code duplication.
+
+                // Create VerifiedExecutableTransaction with ConsensusOrdered proof
+                // Similar to how new_from_quorum_execution works, but using ConsensusOrdered
+                let executable_tx = VerifiedExecutableTransaction::new_unchecked(
+                    ExecutableTransaction::new_from_data_and_sig(
+                        transaction.data().clone(),
+                        CertificateProof::ConsensusOrdered(self.epoch()),
+                    ),
+                );
+
+                let scheduling_result = self.try_schedule(
+                    &executable_tx,
+                    commit_round,
+                    dkg_failed,
+                    generating_randomness,
+                    previously_deferred_tx_digests,
+                    shared_object_congestion_tracker,
+                );
+
+                // Handle scheduling result
+                match scheduling_result {
+                    SchedulingResult::Defer(deferral_key, _deferral_reason) => {
+                        // TODO: Simplified: defer without gas price feedback for PoC
+                        Ok(ConsensusCertificateResult::Deferred {
+                            deferral_key,
+                            suggested_gas_price: None,
+                        })
+                    }
+                    SchedulingResult::Schedule(start_time) => {
+                        if executable_tx.contains_shared_object()
+                            && shared_object_congestion_tracker
+                                .congestion_control_parameters()
+                                .is_congestion_control_enabled()
+                        {
+                            let bump_result = shared_object_congestion_tracker
+                                .bump_object_execution_slots(&executable_tx, start_time);
+                            suggested_gas_price_calculator.update_congestion_info(bump_result);
+                        }
+                        Ok(ConsensusCertificateResult::Scheduled {
+                            transaction: executable_tx,
+                            start_time,
+                        })
+                    }
+                }
             }
             SequencedConsensusTransactionKind::System(system_transaction) => {
                 Ok(self.process_consensus_system_transaction(system_transaction))

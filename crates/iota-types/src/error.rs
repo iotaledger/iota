@@ -902,6 +902,71 @@ impl IotaError {
     }
 }
 
+/// Categorizes IotaError into ErrorCategory.
+pub fn categorize(error: &IotaError) -> ErrorCategory {
+    match error {
+        IotaError::UserInput { error } => match error {
+            UserInputError::ObjectNotFound { .. } => ErrorCategory::Aborted,
+            UserInputError::DependentPackageNotFound { .. } => ErrorCategory::Aborted,
+            _ => ErrorCategory::InvalidTransaction,
+        },
+        IotaError::InvalidSignature { .. }
+        | IotaError::SignerSignatureAbsent { .. }
+        | IotaError::SignerSignatureNumberMismatch { .. }
+        | IotaError::IncorrectSigner { .. }
+        | IotaError::UnknownSigner { .. }
+        | IotaError::TransactionExpired => ErrorCategory::InvalidTransaction,
+
+        IotaError::ObjectLockConflict { .. } => ErrorCategory::LockConflict,
+
+        IotaError::TooManyTransactionsPendingExecution { .. }
+        | IotaError::TooManyTransactionsPendingOnObject { .. }
+        | IotaError::TooOldTransactionPendingOnObject { .. }
+        | IotaError::TooManyTransactionsPendingConsensus
+        | IotaError::ValidatorOverloadedRetryAfter { .. } => ErrorCategory::ValidatorOverloaded,
+
+        _ => ErrorCategory::Aborted,
+    }
+}
+
+/// Types of IotaError categories for retry decisions.
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, IntoStaticStr)]
+pub enum ErrorCategory {
+    /// A generic error that is retriable with new transaction resubmissions.
+    Aborted,
+    /// Any validator or full node can check if a transaction is valid.
+    InvalidTransaction,
+    /// Lock conflict on the transaction input.
+    LockConflict,
+    /// Unexpected client error, for example generating invalid request or
+    /// entering into invalid state. And unexpected error from the remote
+    /// peer.
+    Internal,
+    /// Validator is overloaded.
+    ValidatorOverloaded,
+    /// Target validator is down or there are network issues.
+    Unavailable,
+}
+
+impl ErrorCategory {
+    /// Whether the failure is retriable with new transaction submission.
+    pub fn is_submission_retriable(&self) -> bool {
+        matches!(
+            self,
+            ErrorCategory::Aborted
+                | ErrorCategory::ValidatorOverloaded
+                | ErrorCategory::Unavailable
+        )
+    }
+}
+
+impl IotaError {
+    /// Categorizes this error into an ErrorCategory.
+    pub fn categorize(&self) -> ErrorCategory {
+        categorize(self)
+    }
+}
+
 impl Ord for IotaError {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         Ord::cmp(self.as_ref(), other.as_ref())

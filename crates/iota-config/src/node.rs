@@ -257,6 +257,12 @@ pub struct NodeConfig {
     /// in an error.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_override_for_testing: Option<Chain>,
+
+    /// Configuration for the validator client monitor that tracks
+    /// client-observed performance metrics for validators.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validator_client_monitor_config:
+        Option<crate::validator_client_monitor_config::ValidatorClientMonitorConfig>,
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]

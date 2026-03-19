@@ -309,8 +309,10 @@ mod tests {
             HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
             HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-            TransactionInfoRequest, TransactionInfoResponse,
+            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SubmitTxRequest,
+            SubmitTxResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+            ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
+            WaitForEffectsResponse,
         },
         object::Object,
         transaction::{
@@ -425,6 +427,29 @@ mod tests {
             _request: HandleCapabilityNotificationRequestV1,
         ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
+        }
+
+        async fn submit_transaction(
+            &self,
+            _request: SubmitTxRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<SubmitTxResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn wait_for_effects(
+            &self,
+            _request: WaitForEffectsRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<WaitForEffectsResponse, IotaError> {
+            unimplemented!()
+        }
+
+        async fn validator_health(
+            &self,
+            _request: ValidatorHealthRequest,
+        ) -> Result<ValidatorHealthResponse, IotaError> {
+            Ok(ValidatorHealthResponse::default())
         }
     }
 
