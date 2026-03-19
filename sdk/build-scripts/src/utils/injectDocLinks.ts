@@ -23,10 +23,9 @@ const DECL_RE =
 
 /** Returns the TypeDoc URL for an exported top-level declaration line, or null. */
 function urlForLine(line: string, base: string): string | null {
-    if (line.startsWith(' ') || line.startsWith('\t')) return null;
     if (!line.startsWith('export ') && !line.startsWith('declare ')) return null;
 
-    const m = line.trimStart().match(DECL_RE);
+    const m = line.match(DECL_RE);
     if (!m) return null;
 
     const keyword = m[1]?.trim() === 'abstract' ? 'abstract' : m[2];
@@ -36,11 +35,12 @@ function urlForLine(line: string, base: string): string | null {
     const folder = KIND_FOLDERS[keyword];
     if (!folder) return null;
 
-    return `${base.replace(/\/$/, '')}/${folder}/${name}.html`;
+    return `${base}/${folder}/${name}.html`;
 }
 
 /** Injects `@see` tags into all top-level exported declarations in a .d.ts file. */
-function processFileContent(content: string, docsBaseUrl: string): string {
+function processFileContent(content: string, rawBaseUrl: string): string {
+    const docsBaseUrl = rawBaseUrl.replace(/\/$/, '');
     const lines = content.split('\n');
     const result: string[] = [];
     let i = 0;
@@ -52,7 +52,8 @@ function processFileContent(content: string, docsBaseUrl: string): string {
         if (trimmed.startsWith('/**')) {
             const indent = line.match(/^(\s*)/)?.[1] ?? '';
 
-            // Normalise single-line /** ... */ to multi-line so we handle both uniformly
+            // Normalise single-line /** content */ to multi-line so both forms
+            // are handled uniformly when inserting the @see tag.
             let jsdocLines: string[];
             if (trimmed.includes('*/') && trimmed.indexOf('*/') > trimmed.indexOf('/**') + 2) {
                 const inner = trimmed.replace(/^\/\*\*\s*/, '').replace(/\s*\*\/$/, '');
@@ -92,7 +93,9 @@ function processFileContent(content: string, docsBaseUrl: string): string {
             continue;
         }
 
-        // Declaration with no preceding JSDoc — create a minimal one
+        // Declaration with no preceding JSDoc — create a minimal one.
+        // The backwards scan avoids inserting a duplicate when a JSDoc block for
+        // a *different* declaration sits directly above without a blank line.
         const url = urlForLine(line, docsBaseUrl);
         if (url) {
             let prevIdx = result.length - 1;
@@ -110,21 +113,6 @@ function processFileContent(content: string, docsBaseUrl: string): string {
     return result.join('\n');
 }
 
-async function walkDts(dir: string, files: string[] = []): Promise<string[]> {
-    let entries: import('fs').Dirent[];
-    try {
-        entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch {
-        return files;
-    }
-    for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) await walkDts(full, files);
-        else if (entry.name.endsWith('.d.ts')) files.push(full);
-    }
-    return files;
-}
-
 /**
  * Walks all `.d.ts` files under `dist/` and injects `@see` tags pointing to
  * the hosted TypeDoc API reference, making them clickable in VS Code hover tooltips.
@@ -134,7 +122,10 @@ async function walkDts(dir: string, files: string[] = []): Promise<string[]> {
  */
 export async function injectDocLinks(docsBaseUrl: string): Promise<void> {
     const distDir = path.join(process.cwd(), 'dist');
-    const dtsFiles = await walkDts(distDir);
+    const entries = await fs.readdir(distDir, { recursive: true });
+    const dtsFiles = entries
+        .filter((f: string) => f.endsWith('.d.ts'))
+        .map((f: string) => path.join(distDir, f));
 
     if (dtsFiles.length === 0) {
         console.warn(`[inject-doc-links] No .d.ts files found under ${distDir}`);
