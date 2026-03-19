@@ -88,6 +88,10 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
+export interface ExternalLinkOpenedProperties {
+    type: string;
+}
+
 export interface MigrationProperties {
     /**
      * | Rule | Value |
@@ -141,6 +145,10 @@ export interface StakedIotaProperties {
 
 export interface SwitchedNetworkProperties {
     toNetwork?: string;
+}
+
+export interface ThemeChangedProperties {
+    theme: string;
 }
 
 export interface TimelockStakeProperties {
@@ -197,6 +205,14 @@ export class ClickedUnstakeIota implements BaseEvent {
     }
 }
 
+export class ExternalLinkOpened implements BaseEvent {
+    event_type = 'external link opened';
+
+    constructor(public event_properties: ExternalLinkOpenedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class Migration implements BaseEvent {
     event_type = 'migration';
 
@@ -249,6 +265,14 @@ export class SwitchedNetwork implements BaseEvent {
     event_type = 'switched network';
 
     constructor(public event_properties?: SwitchedNetworkProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ThemeChanged implements BaseEvent {
+    event_type = 'theme changed';
+
+    constructor(public event_properties: ThemeChangedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -447,6 +471,23 @@ export class Ampli {
   }
 
   /**
+   * external link opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/external%20link%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  externalLinkOpened(
+    properties: ExternalLinkOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ExternalLinkOpened(properties), options);
+  }
+
+  /**
    * migration
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/migration)
@@ -563,6 +604,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new SwitchedNetwork(properties), options);
+  }
+
+  /**
+   * theme changed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/theme%20changed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. theme)
+   * @param options Amplitude event options.
+   */
+  themeChanged(
+    properties: ThemeChangedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ThemeChanged(properties), options);
   }
 
   /**

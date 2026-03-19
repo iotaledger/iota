@@ -150,6 +150,11 @@ impl ErrorDetails {
         self
     }
 
+    pub fn with_retry_info(mut self, retry_info: RetryInfo) -> Self {
+        self.retry_info = Some(retry_info);
+        self
+    }
+
     #[allow(clippy::boxed_local)]
     fn into_status_details(self: Box<Self>) -> Vec<prost_types::Any> {
         let mut details = Vec::new();
@@ -240,5 +245,97 @@ impl From<TransactionNotFoundError> for RpcError {
 impl From<tonic::Status> for RpcError {
     fn from(status: tonic::Status) -> Self {
         Self::new(status.code(), status.message().to_string())
+    }
+}
+
+impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
+    fn from(error: iota_types::quorum_driver_types::QuorumDriverError) -> Self {
+        use iota_types::{error::IotaError, quorum_driver_types::QuorumDriverError::*};
+        use itertools::Itertools;
+
+        match error {
+            InvalidUserSignature(err) => {
+                let message = {
+                    let err = match err {
+                        IotaError::UserInput { error } => error.to_string(),
+                        _ => err.to_string(),
+                    };
+                    format!("Invalid user signature: {err}")
+                };
+                RpcError::new(Code::InvalidArgument, message)
+            }
+            QuorumDriverInternal(err) => RpcError::new(Code::Internal, err.to_string()),
+            ObjectsDoubleUsed { conflicting_txes } => {
+                let new_map = conflicting_txes
+                    .into_iter()
+                    .map(|(digest, (pairs, _))| {
+                        (
+                            digest,
+                            pairs.into_iter().map(|(_, obj_ref)| obj_ref).collect(),
+                        )
+                    })
+                    .collect::<std::collections::BTreeMap<_, Vec<_>>>();
+
+                let message = format!(
+                    "Failed to sign transaction by a quorum of validators because of \
+                     locked objects. Conflicting Transactions:\n{new_map:#?}",
+                );
+                RpcError::new(Code::Aborted, message)
+            }
+            TimeoutBeforeFinality | FailedWithTransientErrorAfterMaximumAttempts { .. } => {
+                RpcError::new(
+                    Code::Unavailable,
+                    "timed-out before finality could be reached",
+                )
+            }
+            NonRecoverableTransactionError { errors } => {
+                let new_errors: Vec<String> = errors
+                    .into_iter()
+                    .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
+                    .filter_map(|(err, _, _)| match &err {
+                        IotaError::UserInput { error } => Some(error.to_string()),
+                        _ => {
+                            if err.is_retryable().0 {
+                                None
+                            } else {
+                                Some(err.to_string())
+                            }
+                        }
+                    })
+                    .collect();
+
+                assert!(
+                    !new_errors.is_empty(),
+                    "NonRecoverableTransactionError should have at least one non-retryable error"
+                );
+
+                let error_list = new_errors.join(", ");
+                let error_msg = format!(
+                    "Transaction execution failed due to issues with transaction inputs, \
+                     please review the errors and try again: {error_list}."
+                );
+                RpcError::new(Code::InvalidArgument, error_msg)
+            }
+            TxAlreadyFinalizedWithDifferentUserSignatures => RpcError::new(
+                Code::Aborted,
+                "The transaction is already finalized but with different user signatures",
+            ),
+            SystemOverload { .. } => RpcError::new(Code::Unavailable, "system is overloaded"),
+            SystemOverloadRetryAfter {
+                retry_after_secs, ..
+            } => {
+                let details = ErrorDetails::new().with_retry_info(RetryInfo {
+                    retry_delay: Some(prost_types::Duration {
+                        seconds: retry_after_secs as i64,
+                        nanos: 0,
+                    }),
+                });
+                RpcError {
+                    code: Code::Unavailable,
+                    message: Some("system is overloaded".to_string()),
+                    details: Some(Box::new(details)),
+                }
+            }
+        }
     }
 }

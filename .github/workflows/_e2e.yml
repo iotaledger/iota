@@ -94,7 +94,7 @@ jobs:
           echo "runTsSdk=${{ inputs.isNightly || inputs.isTypescriptSDK || inputs.isRpc }}" >> $GITHUB_OUTPUT
 
       - name: Build Iota binary
-        run: cargo build --bin iota --features indexer --profile dev
+        run: cargo build --bin iota --bin iota-localnet --features indexer --profile dev
 
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -109,7 +109,7 @@ jobs:
       - name: Set environment variables
         run: |
           echo "VITE_IOTA_BIN=$PWD/target/debug/iota" >> $GITHUB_ENV
-          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
+          echo "E2E_RUN_LOCAL_NET_CMD=(RUST_BACKTRACE=1 $(echo $PWD/target/debug/iota-localnet) start --with-faucet --force-regenesis --with-indexer --with-graphql)" >> $GITHUB_ENV
 
       # ─── Test groups ─────────────────────────────────────────────────────────
       # All steps below use: if: (!cancelled() && !failure()) && <group-condition>
@@ -249,7 +249,7 @@ jobs:
 
       - name: Run Local net
         if: (!cancelled() && !failure()) && (steps.conditions.outputs.runWallet == 'true' || steps.conditions.outputs.runEvmBridge == 'true')
-        run: cargo run --bin iota start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
+        run: cargo run --bin iota-localnet start --force-regenesis --with-faucet --epoch-duration-ms 10000 &
 
       - name: Install Playwright Browsers for Wallet
         id: install-playwright-wallet

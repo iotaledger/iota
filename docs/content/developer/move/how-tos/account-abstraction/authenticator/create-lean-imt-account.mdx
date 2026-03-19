@@ -1,0 +1,73 @@
+---
+description: "How to create accounts that allow any member of a group to authenticate using zero-knowledge Merkle tree membership proofs"
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Authenticate Group Members with Zero-Knowledge Proofs
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to create an account controlled by a group of members, where any member can authenticate by proving they belong to the group using a Groth16 zero-knowledge proof — without revealing other members or the full member list.
+
+:::tip Recommended reading
+
+This guide builds on the [Authenticate an Account with a Public Key](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand the public key verification used here.
+
+:::
+
+:::tip Why is this possible?
+
+Account Abstraction allows the authenticator function to receive arbitrary byte arguments and call any available Move primitive. This means any cryptographic proof system expressible in Move can serve as the authentication mechanism — including Groth16 zk-SNARKs on BN254, which IOTA provides natively via [`iota::groth16`](../../../../references/framework/iota/groth16.mdx#iota_groth16).
+
+:::
+
+## Example Code
+
+1. Define the two authenticators. The account offers two modes: **secret mode**, where the user provides a separate signing key and an opaque leaf (preserving anonymity); and **public key mode**, where the signing key is the same key that was inserted into the tree (simpler, but discloses identity). Both receive a Groth16 proof and a verifying key as arguments.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L63-L105
+```
+2. The authentication helpers called by each authenticator. Both verify the Ed25519 signature over the transaction digest first, then call `verify_proof`. In public key mode, the leaf is derived from the public key via a double Poseidon hash before proof verification.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L112-L142
+```
+3. The Groth16 membership proof verifier. It combines the stored tree root and the submitted leaf as the public inputs, then verifies the proof against the prepared verifying key on BN254. If the proof is invalid — meaning the leaf is not in the tree with that root — the call aborts.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move#L12-L26
+```
+4. Create the account with the Merkle tree root representing the initial set of authorized members.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move#L34-L45
+```
+
+:::note
+
+To add or remove members, call `rotate_root` with a new Merkle tree root. This function requires the transaction sender to be the account itself. In a production deployment, consider protecting this with an admin capability to prevent unauthorized membership changes.
+
+:::
+
+## Expected Behavior
+
+- Any member whose leaf is included in the tree can authenticate by providing a valid Groth16 proof and a signature over the transaction digest.
+- In secret mode, the submitted leaf is opaque — membership is proven without revealing the user's public key.
+- In public key mode, the leaf is derived on-chain from the disclosed public key.
+- A proof that does not correspond to the current tree root is rejected.
+- Rotating the root immediately changes which members can authenticate.
+
+## Full Example Code
+
+<Tabs groupId="module" queryString>
+<TabItem value="account" label="Lean IMT account module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt_account.move
+```
+
+</TabItem>
+<TabItem value="lean-imt" label="Lean IMT module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/lean_imt_account/sources/lean_imt.move
+```
+
+</TabItem>
+</Tabs>

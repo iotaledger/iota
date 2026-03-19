@@ -64,7 +64,12 @@ export function MigrationObjectsPanel({
                 <Title
                     title="Details"
                     trailingElement={
-                        <Button icon={<Close />} type={ButtonType.Ghost} onClick={onClose} />
+                        <Button
+                            icon={<Close />}
+                            type={ButtonType.Ghost}
+                            onClick={onClose}
+                            aria-label="Close details panel"
+                        />
                     }
                 />
                 <div className="flex min-h-0 flex-1 flex-col px-md--rs">
@@ -75,6 +80,7 @@ export function MigrationObjectsPanel({
                                 label={filter}
                                 onClick={() => setStardustOutputDetailsFilter(filter)}
                                 selected={stardustOutputDetailsFilter === filter}
+                                aria-label={`Filter by ${filter.toLowerCase()}`}
                             />
                         ))}
                     </div>

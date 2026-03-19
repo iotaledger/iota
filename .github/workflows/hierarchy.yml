@@ -25,7 +25,6 @@ jobs:
       isRpc: ${{ steps.diff.outputs.isRpc }}
       isPgIntegration: ${{ steps.diff.outputs.isPgIntegration }}
       isMoveExampleUsedByOthers: ${{ steps.diff.outputs.isMoveExampleUsedByOthers }}
-      isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
       isExternalCrates: ${{ steps.diff.outputs.isExternalCrates }}
@@ -102,15 +101,6 @@ jobs:
       isRustExample: ${{ needs.diff.outputs.isRustExample == 'true' }}
       isPgIntegration: ${{ needs.diff.outputs.isPgIntegration == 'true' }}
       isMoveExampleUsedByOthers: ${{ needs.diff.outputs.isMoveExampleUsedByOthers == 'true' }}
-
-  rosetta:
-    needs:
-      - diff
-      - dprint-format
-      - license-check
-      - typos
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRosetta == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
-    uses: ./.github/workflows/_rosetta.yml
 
   move-ide:
     needs:

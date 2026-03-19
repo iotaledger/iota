@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl, Overlay } from '_components';
+import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
 import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
@@ -55,6 +55,7 @@ export function MenuList() {
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+    const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
     const logoutMutation = useLogoutMutation();
 
     function handleAutoLockSubtitle(): string {
@@ -167,7 +168,7 @@ export function MenuList() {
         {
             title: 'Reset',
             icon: <Logout />,
-            onClick: () => setIsLogoutDialogOpen(true),
+            onClick: () => setIsPasswordModalVisible(true),
         },
     ];
 
@@ -186,6 +187,14 @@ export function MenuList() {
                             {item.tailIcon ?? <CardAction type={CardActionType.Link} />}
                         </Card>
                     ))}
+                    <VerifyPasswordModal
+                        open={isPasswordModalVisible}
+                        onVerify={() => {
+                            setIsPasswordModalVisible(false);
+                            setIsLogoutDialogOpen(true);
+                        }}
+                        onClose={() => setIsPasswordModalVisible(false)}
+                    />
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
                         confirmText="Reset"

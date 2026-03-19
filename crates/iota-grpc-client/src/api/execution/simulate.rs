@@ -12,7 +12,8 @@ use iota_sdk_types::Transaction;
 use crate::{
     Client,
     api::{
-        Result, SIMULATE_TRANSACTION_READ_MASK, build_proto_transaction, field_mask_with_default,
+        MetadataEnvelope, Result, SIMULATE_TRANSACTION_READ_MASK, build_proto_transaction,
+        field_mask_with_default,
     },
 };
 
@@ -160,7 +161,7 @@ impl Client {
     /// let result = client.simulate_transaction(tx, false, false, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
-    /// let executed_tx = result.executed_transaction()?;
+    /// let executed_tx = result.body().executed_transaction()?;
     /// let effects = executed_tx.effects()?.effects()?;
     /// println!("Simulation status: {:?}", effects.status());
     ///
@@ -175,7 +176,7 @@ impl Client {
         dev_inspect: bool,
         estimate_gas_budget: bool,
         read_mask: Option<&str>,
-    ) -> Result<SimulateTransactionResponse> {
+    ) -> Result<MetadataEnvelope<SimulateTransactionResponse>> {
         // Build proto transaction directly from SDK types
         let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
 
@@ -194,10 +195,11 @@ impl Client {
                 SIMULATE_TRANSACTION_READ_MASK,
             ));
 
-        Ok(self
+        let response = self
             .execution_service_client()
             .simulate_transaction(request)
-            .await?
-            .into_inner())
+            .await?;
+
+        Ok(MetadataEnvelope::from(response))
     }
 }

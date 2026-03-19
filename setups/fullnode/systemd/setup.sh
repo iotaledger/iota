@@ -62,7 +62,6 @@ sudo apt-get update && sudo apt-get install -y --no-install-recommends \
 	build-essential \
 	libssl-dev \
 	libclang-dev \
-	libpq-dev \
 	pkg-config \
 	openssl \
 	protobuf-compiler \
