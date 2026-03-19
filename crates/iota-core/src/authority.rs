@@ -881,9 +881,6 @@ impl AuthorityState {
         self.checkpoint_store.get_epoch_state_commitments(epoch)
     }
 
-    /// This is a private method and should be kept that way. It doesn't check
-    /// whether the provided transaction is a system transaction, and hence
-    /// can only be called internally.
     /// Runs deny list, input object validation, gas checks, coin deny list, and
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
@@ -994,13 +991,16 @@ impl AuthorityState {
         Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
+    /// This is a private method and should be kept that way. It doesn't check
+    /// whether the provided transaction is a system transaction, and hence
+    /// can only be called internally.
     async fn handle_transaction_impl(
         &self,
         transaction: VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<VerifiedSignedTransaction> {
         // Ensure that validator cannot reconfigure while we are signing the tx
-        let _execution_lock = self.execution_lock_for_signing();
+        let _execution_lock = self.execution_lock_for_signing()?;
 
         let owned_objects = self
             .handle_transaction_deny_checks(&transaction, epoch_store)
