@@ -644,6 +644,7 @@ export class IotaClient {
     }: { signal?: AbortSignal } = {}): Promise<LatestIotaSystemStateSummary> {
         const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
+        const isEffectiveCommissionRateSupported = Number(protocolConfig.protocolVersion) >= 20;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2({ signal })
@@ -651,17 +652,27 @@ export class IotaClient {
                   V1: await this.getLatestIotaSystemStateV1({ signal }),
               };
 
+        const activeValidators = (
+            'V2' in iotaSystemStateSummary ? iotaSystemStateSummary.V2 : iotaSystemStateSummary.V1
+        ).activeValidators.map((v) => ({
+            ...v,
+            effectiveCommissionRate: isEffectiveCommissionRateSupported
+                ? v.effectiveCommissionRate
+                : v.commissionRate,
+        }));
+
         return 'V2' in iotaSystemStateSummary
             ? {
                   ...iotaSystemStateSummary.V2,
+                  activeValidators,
                   committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
-                      (committeeMemberIndex) =>
-                          iotaSystemStateSummary.V2.activeValidators[Number(committeeMemberIndex)],
+                      (committeeMemberIndex) => activeValidators[Number(committeeMemberIndex)],
                   ),
               }
             : {
                   ...iotaSystemStateSummary.V1,
-                  committeeMembers: iotaSystemStateSummary.V1.activeValidators,
+                  activeValidators,
+                  committeeMembers: activeValidators,
                   safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
                   safeModeComputationChargesBurned:
                       iotaSystemStateSummary.V1.safeModeComputationRewards,

@@ -65,6 +65,7 @@ query paginateEpochValidators($id: UInt53!, $after: String) {
 fragment RPC_VALIDATOR_FIELDS on Validator {
     atRisk
     commissionRate
+    effectiveCommissionRate
     exchangeRatesSize
     exchangeRatesTable {
         address
