@@ -46,10 +46,9 @@ export function PageHeader({
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         event.stopPropagation();
         if (title && typeof title === 'string') {
-            try {
-                await copyToClipboard(title);
-            } catch (error) {
-                console.error('Failed to copy:', error);
+            const success = await copyToClipboard(title);
+            if (!success) {
+                console.error('Failed to copy to clipboard.');
             }
         }
     }
