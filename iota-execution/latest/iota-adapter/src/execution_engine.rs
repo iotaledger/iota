@@ -615,7 +615,7 @@ mod checked {
             authenticator,
             authenticator_function_ref,
             gas_charger,
-            tx_ctx.clone(),
+            tx_ctx,
             move_vm,
             protocol_config,
             metrics,
