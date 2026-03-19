@@ -79,7 +79,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         fullwidth
                     />
                     <KeyValueInfo
-                        keyText="Commission"
+                        keyText="Effective Commission"
                         value={commission}
                         fullwidth
                         tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
