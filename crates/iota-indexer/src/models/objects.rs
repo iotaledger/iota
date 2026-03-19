@@ -585,7 +585,7 @@ mod tests {
         base_types::{Identifier, IotaAddress, StructTag, TypeTag},
         digests::TransactionDigest,
         gas_coin::GasCoin,
-        object::{Data, MoveObject, ObjectInner, Owner},
+        object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     };
 
     use super::*;

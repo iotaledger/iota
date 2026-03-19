@@ -35,7 +35,7 @@ use iota_types::{
         AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
         VersionAssignment,
     },
-    object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
+    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,

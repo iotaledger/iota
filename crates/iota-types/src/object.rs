@@ -4,27 +4,25 @@
 
 use std::{
     collections::BTreeMap,
-    convert::TryFrom,
     fmt::{Debug, Display, Formatter},
     mem::size_of,
     sync::Arc,
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::Owner;
 use iota_sdk_types::{MoveObjectType, StructTag, TypeTag};
+pub use iota_sdk_types::{MoveStruct as MoveObject, Owner};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
-use serde_with::{Bytes, serde_as};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
-        TransactionDigest,
+        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef,
+        SequenceNumber, TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::{default_hash, deterministic_random_account_key},
@@ -47,27 +45,51 @@ pub mod option_visitor;
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
 pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
-#[serde_as]
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub struct MoveObject {
-    /// The type of this object. Immutable
-    pub(crate) type_: MoveObjectType,
-    /// Number that increases each time a tx takes this object as a mutable
-    /// input This is a lamport timestamp, not a sequentially increasing
-    /// version
-    pub(crate) version: SequenceNumber,
-    /// BCS bytes of a Move struct value
-    #[serde_as(as = "Bytes")]
-    pub(crate) contents: Vec<u8>,
-}
-
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
-impl MoveObject {
+pub trait MoveObjectExt: Sized {
+    fn new_from_execution(
+        type_: MoveObjectType,
+        version: SequenceNumber,
+        contents: Vec<u8>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<Self, ExecutionError>;
+    fn new_from_execution_with_limit(
+        type_: MoveObjectType,
+        version: SequenceNumber,
+        contents: Vec<u8>,
+        max_move_object_size: u64,
+    ) -> Result<Self, ExecutionError>;
+    fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self;
+    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self;
+    fn update_contents_with_limit(
+        &mut self,
+        new_contents: Vec<u8>,
+        max_move_object_size: u64,
+    ) -> Result<(), ExecutionError>;
+    fn update_contents(
+        &mut self,
+        new_contents: Vec<u8>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<(), ExecutionError>;
+    fn get_struct_layout_from_struct_tag(
+        struct_tag: StructTag,
+        resolver: &impl GetModule,
+    ) -> Result<MoveStructLayout, IotaError>;
+    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError>;
+    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
+    fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError>;
+    fn get_coin_balances(
+        &self,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> Result<BTreeMap<TypeTag, u64>, IotaError>;
+}
+
+impl MoveObjectExt for MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
     /// `contents`.
-    pub fn new_from_execution(
+    fn new_from_execution(
         type_: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
@@ -83,7 +105,7 @@ impl MoveObject {
 
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
     /// `contents`. It allows to set a `max_move_object_size` for that.
-    pub fn new_from_execution_with_limit(
+    fn new_from_execution_with_limit(
         type_: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
@@ -104,126 +126,28 @@ impl MoveObject {
         })
     }
 
-    pub fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
+    fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        {
-            Self::new_from_execution_with_limit(
-                StructTag::new_gas_coin(),
-                version,
-                GasCoin::new(id, value).to_bcs_bytes(),
-                256,
-            )
-            .unwrap()
-        }
+
+        Self::new_from_execution_with_limit(
+            StructTag::new_gas_coin().into(),
+            version,
+            GasCoin::new(id, value).to_bcs_bytes(),
+            256,
+        )
+        .unwrap()
     }
 
-    pub fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
-        // unwrap safe because coins are always smaller than the max object size
-        {
-            Self::new_from_execution_with_limit(
-                StructTag::new_coin(coin_type),
-                version,
-                Coin::new(id, value).to_bcs_bytes(),
-                256,
-            )
-            .unwrap()
-        }
-    }
+    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
+        // unwrap safe because coins are always smaller tha the max object size
 
-    pub fn type_(&self) -> &MoveObjectType {
-        &self.type_
-    }
-
-    pub fn type_tag(&self) -> TypeTag {
-        TypeTag::Struct(Box::new(self.type_().clone().into()))
-    }
-
-    pub fn is_type(&self, s: &StructTag) -> bool {
-        &self.type_ == s
-    }
-
-    pub fn id(&self) -> ObjectID {
-        Self::id_opt(&self.contents).unwrap()
-    }
-
-    pub fn id_opt(contents: &[u8]) -> Result<ObjectID, ObjectIDParseError> {
-        if ID_END_INDEX > contents.len() {
-            return Err(ObjectIDParseError::TryFromSlice);
-        }
-        ObjectID::from_bytes(&contents[0..ID_END_INDEX])
-            .map_err(|_| ObjectIDParseError::TryFromSlice)
-    }
-
-    /// Return the `value: u64` field of a `Coin<T>` type.
-    /// Useful for reading the coin without deserializing the object into a Move
-    /// value It is the caller's responsibility to check that `self` is a
-    /// coin--this function may panic or do something unexpected otherwise.
-    pub fn get_coin_value_unsafe(&self) -> u64 {
-        debug_assert!(self.type_.is_coin());
-        // 32 bytes for object ID, 8 for balance
-        debug_assert!(self.contents.len() == 40);
-
-        // unwrap safe because we checked that it is a coin
-        u64::from_le_bytes(<[u8; 8]>::try_from(&self.contents[ID_END_INDEX..]).unwrap())
-    }
-
-    /// Update the `value: u64` field of a `Coin<T>` type.
-    /// Useful for updating the coin without deserializing the object into a
-    /// Move value It is the caller's responsibility to check that `self` is
-    /// a coin--this function may panic or do something unexpected
-    /// otherwise.
-    pub fn set_coin_value_unsafe(&mut self, value: u64) {
-        debug_assert!(self.type_.is_coin());
-        // 32 bytes for object ID, 8 for balance
-        debug_assert!(self.contents.len() == 40);
-
-        self.contents.splice(ID_END_INDEX.., value.to_le_bytes());
-    }
-
-    /// Update the `timestamp_ms: u64` field of the `Clock` type.
-    ///
-    /// Panics if the object isn't a `Clock`.
-    pub fn set_clock_timestamp_ms_unsafe(&mut self, timestamp_ms: u64) {
-        assert!(self.is_clock());
-        // 32 bytes for object ID, 8 for timestamp
-        assert!(self.contents.len() == 40);
-
-        self.contents
-            .splice(ID_END_INDEX.., timestamp_ms.to_le_bytes());
-    }
-
-    pub fn is_coin(&self) -> bool {
-        self.type_.is_coin()
-    }
-
-    pub fn is_staked_iota(&self) -> bool {
-        self.type_.is_staked_iota()
-    }
-
-    pub fn is_clock(&self) -> bool {
-        self.type_ == StructTag::new_clock()
-    }
-
-    pub fn version(&self) -> SequenceNumber {
-        self.version
-    }
-
-    /// Contents of the object that are specific to its type--i.e., not its ID
-    /// and version, which all objects have For example if the object was
-    /// declared as `struct S has key { id: ID, f1: u64, f2: bool },
-    /// this returns the slice containing `f1` and `f2`.
-    #[cfg(test)]
-    pub fn type_specific_contents(&self) -> &[u8] {
-        &self.contents[ID_END_INDEX..]
-    }
-
-    /// Update the contents of this object but does not increment its version
-    pub fn update_contents(
-        &mut self,
-        new_contents: Vec<u8>,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<(), ExecutionError> {
-        self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
+        Self::new_from_execution_with_limit(
+            MoveObjectType::coin(coin_type),
+            version,
+            Coin::new(id, value).to_bcs_bytes(),
+            256,
+        )
+        .unwrap()
     }
 
     fn update_contents_with_limit(
@@ -251,51 +175,25 @@ impl MoveObject {
         Ok(())
     }
 
-    /// Sets the version of this object to a new value which is assumed to be
-    /// higher (and checked to be higher in debug).
-    pub fn increment_version_to(&mut self, next: SequenceNumber) {
-        debug_assert!(
-            self.version < next,
-            "Not an increment: {} to {next}",
-            self.version
-        );
-        self.version = next;
+    /// Update the contents of this object but does not increment its version
+    fn update_contents(
+        &mut self,
+        new_contents: Vec<u8>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<(), ExecutionError> {
+        self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
     }
 
-    pub fn decrement_version_to(&mut self, prev: SequenceNumber) {
-        debug_assert!(
-            prev < self.version,
-            "Not a decrement: {} to {prev}",
-            self.version
-        );
-        self.version = prev;
-    }
+    // /// Contents of the object that are specific to its type--i.e., not its ID
+    // /// and version, which all objects have For example if the object was
+    // /// declared as `struct S has key { id: ID, f1: u64, f2: bool },
+    // /// this returns the slice containing `f1` and `f2`.
+    // #[cfg(test)]
+    // pub fn type_specific_contents(&self) -> &[u8] {
+    //     &self.contents[ID_END_INDEX..]
+    // }
 
-    pub fn contents(&self) -> &[u8] {
-        &self.contents
-    }
-
-    pub fn into_contents(self) -> Vec<u8> {
-        self.contents
-    }
-
-    pub fn into_type(self) -> StructTag {
-        self.type_.into()
-    }
-
-    pub fn into_inner(self) -> (StructTag, Vec<u8>) {
-        (self.type_.into(), self.contents)
-    }
-
-    /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_`
-    /// and the (transitive) dependencies of `self.type_` in order for this
-    /// to succeed. Failure will result in an `ObjectSerializationError`
-    pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
-    }
-
-    pub fn get_struct_layout_from_struct_tag(
+    fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError> {
@@ -313,7 +211,7 @@ impl MoveObject {
     }
 
     /// Convert `self` to the JSON representation dictated by `layout`.
-    pub fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
+    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
         BoundedVisitor::deserialize_struct(&self.contents, layout).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
@@ -321,44 +219,31 @@ impl MoveObject {
         })
     }
 
-    /// Convert `self` to the JSON representation dictated by `layout`.
-    pub fn to_move_struct_with_resolver(
-        &self,
-        resolver: &impl GetModule,
-    ) -> Result<MoveStruct, IotaError> {
-        self.to_move_struct(&self.get_layout(resolver)?)
+    /// Get a `MoveStructLayout` for `self`.
+    /// The `resolver` value must contain the module that declares `self.type_`
+    /// and the (transitive) dependencies of `self.type_` in order for this
+    /// to succeed. Failure will result in an `ObjectSerializationError`
+    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
+        Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
     }
 
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        bcs::from_bytes(self.contents()).ok()
-    }
-
-    /// Approximate size of the object in bytes. This is used for gas metering.
-    /// For the type tag field, we serialize it on the spot to get the accurate
-    /// size. This should not be very expensive since the type tag is
-    /// usually simple, and we only do this once per object being mutated.
-    pub fn object_size_for_gas_metering(&self) -> usize {
-        let serialized_type_tag_size =
-            bcs::serialized_size(&self.type_).expect("Serializing type tag should not fail");
-        // + 8 for `version`
-        self.contents.len() + serialized_type_tag_size + 8
-    }
+    // /// Convert `self` to the JSON representation dictated by `layout`.
+    // pub fn to_move_struct_with_resolver(
+    //     &self,
+    //     resolver: &impl GetModule,
+    // ) -> Result<MoveStruct, IotaError> {
+    //     self.to_move_struct(&self.get_layout(resolver)?)
+    // }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
     /// purposes
-    pub fn get_total_iota(
-        &self,
-        layout_resolver: &mut dyn LayoutResolver,
-    ) -> Result<u64, IotaError> {
+    fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
         Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
     }
-}
 
-// Helpers for extracting Coin<T> balances for all T
-impl MoveObject {
     /// Get the total balances for all `Coin<T>` embedded in `self`.
-    pub fn get_coin_balances(
+    fn get_coin_balances(
         &self,
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {

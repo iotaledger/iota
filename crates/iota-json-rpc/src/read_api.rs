@@ -40,7 +40,7 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, CheckpointTimestamp,
     },
-    object::{Object, ObjectRead, PastObjectRead},
+    object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
     transaction::{Transaction, TransactionDataAPI},
 };
 use itertools::Itertools;

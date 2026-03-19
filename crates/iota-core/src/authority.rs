@@ -112,7 +112,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     object::{
-        MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{

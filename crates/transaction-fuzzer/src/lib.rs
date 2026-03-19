@@ -18,7 +18,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};

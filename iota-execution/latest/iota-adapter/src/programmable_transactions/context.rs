@@ -30,7 +30,7 @@ mod checked {
             MovePackage, derive_package_metadata_id, new_initial_move_package,
             new_upgraded_move_package,
         },
-        object::{Data, MoveObject, Object, ObjectInner, Owner},
+        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, SharedObjectRef},
     };

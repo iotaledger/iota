@@ -23,7 +23,7 @@ use crate::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, Object, Owner},
+    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         EndOfEpochTransactionKind, SenderSignedData, Transaction, TransactionData, TransactionKind,

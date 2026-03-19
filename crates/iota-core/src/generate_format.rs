@@ -37,7 +37,7 @@ use iota_types::{
     messages_grpc::ObjectInfoRequestKind,
     move_package::{MovePackage, TypeOrigin},
     multisig::{MultiSig, MultiSigPublicKey},
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{

@@ -15,7 +15,7 @@ use crate::{
     base_types::{ObjectID, SequenceNumber},
     coin::{Coin, TreasuryCap},
     error::{ExecutionError, ExecutionErrorKind},
-    object::{Data, MoveObject, Object},
+    object::{Data, MoveObject, MoveObjectExt, Object},
 };
 
 /// The number of Nanos per IOTA token

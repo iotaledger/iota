@@ -26,7 +26,7 @@ use iota_types::{
     iota_serde::{BigInt, IotaStructTag, SequenceNumber as AsSequenceNumber},
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead, Owner},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};

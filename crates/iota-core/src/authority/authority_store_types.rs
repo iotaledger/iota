@@ -7,7 +7,7 @@ use iota_types::{
     coin::Coin,
     error::IotaError,
     move_package::MovePackage,
-    object::{Data, MoveObject, Object, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, Owner},
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
