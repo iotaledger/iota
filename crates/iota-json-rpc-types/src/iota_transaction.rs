@@ -492,9 +492,8 @@ impl Display for IotaTransactionBlockKind {
 }
 
 impl IotaTransactionBlockKind {
-    fn try_from(
+    fn try_from_inner(
         tx: TransactionKind,
-        module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
@@ -518,9 +517,10 @@ impl IotaTransactionBlockKind {
                         .consensus_determined_version_assignments,
                 })
             }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
-                IotaProgrammableTransactionBlock::try_from(p, module_cache)?,
-            ),
+            TransactionKind::ProgrammableTransaction(_) => {
+                // This case is handled separately by the callers
+                unreachable!()
+            }
             TransactionKind::AuthenticatorStateUpdateV1(update) => {
                 Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
                     epoch: update.epoch,
@@ -573,89 +573,34 @@ impl IotaTransactionBlockKind {
         })
     }
 
+    fn try_from_with_module_cache(
+        tx: TransactionKind,
+        module_cache: &impl GetModule,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
+        match tx {
+            TransactionKind::ProgrammableTransaction(p) => Ok(Self::ProgrammableTransaction(
+                IotaProgrammableTransactionBlock::try_from_with_module_cache(p, module_cache)?,
+            )),
+            tx => Self::try_from_inner(tx, tx_digest),
+        }
+    }
+
     async fn try_from_with_package_resolver(
         tx: TransactionKind,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        Ok(match tx {
-            TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
-                objects: g.objects.iter().map(GenesisObject::id).collect(),
-                events: g
-                    .events
-                    .into_iter()
-                    .enumerate()
-                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
-                    .collect(),
-            }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
-                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    sub_dag_index: p.sub_dag_index,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                    consensus_determined_version_assignments: p
-                        .consensus_determined_version_assignments,
-                })
-            }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
+        match tx {
+            TransactionKind::ProgrammableTransaction(p) => Ok(Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_package_resolver(
                     p,
                     package_resolver,
                 )
                 .await?,
-            ),
-            TransactionKind::AuthenticatorStateUpdateV1(update) => {
-                Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
-                    epoch: update.epoch,
-                    round: update.round,
-                    new_active_jwks: update
-                        .new_active_jwks
-                        .into_iter()
-                        .map(IotaActiveJwk::from)
-                        .collect(),
-                })
-            }
-            TransactionKind::RandomnessStateUpdate(update) => {
-                Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
-                    epoch: update.epoch,
-                    randomness_round: update.randomness_round.0,
-                    random_bytes: update.random_bytes,
-                })
-            }
-            TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
-                Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
-                    transactions: end_of_epoch_tx
-                        .into_iter()
-                        .map(|tx| match tx {
-                            EndOfEpochTransactionKind::ChangeEpoch(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV2(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV3(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                                IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
-                            }
-                            EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
-                                IotaEndOfEpochTransactionKind::AuthenticatorStateExpire(
-                                    IotaAuthenticatorStateExpire {
-                                        min_epoch: expire.min_epoch,
-                                    },
-                                )
-                            }
-                        })
-                        .collect(),
-                })
-            }
-        })
+            )),
+            tx => Self::try_from_inner(tx, tx_digest),
+        }
     }
 
     pub fn transaction_count(&self) -> usize {
@@ -1700,25 +1645,10 @@ impl IotaTransactionBlockData {
             },
         }
     }
-}
 
-impl Display for IotaTransactionBlockData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::V1(data) => {
-                writeln!(f, "Sender: {}", data.sender)?;
-                writeln!(f, "{}", self.gas_data())?;
-                writeln!(f, "{}", data.transaction)
-            }
-        }
-    }
-}
-
-impl IotaTransactionBlockData {
-    pub fn try_from(
+    fn try_from_inner(
         data: TransactionData,
-        module_cache: &impl GetModule,
-        tx_digest: TransactionDigest,
+        transaction: IotaTransactionBlockKind,
     ) -> Result<Self, anyhow::Error> {
         let message_version = data.message_version();
         let sender = data.sender();
@@ -1732,8 +1662,7 @@ impl IotaTransactionBlockData {
             price: data.gas_price(),
             budget: data.gas_budget(),
         };
-        let transaction =
-            IotaTransactionBlockKind::try_from(data.into_kind(), module_cache, tx_digest)?;
+
         match message_version {
             1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
                 transaction,
@@ -1747,38 +1676,42 @@ impl IotaTransactionBlockData {
         }
     }
 
+    pub fn try_from_with_module_cache(
+        data: TransactionData,
+        module_cache: &impl GetModule,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
+        let transaction = IotaTransactionBlockKind::try_from_with_module_cache(
+            data.kind().clone(),
+            module_cache,
+            tx_digest,
+        )?;
+        Self::try_from_inner(data, transaction)
+    }
+
     pub async fn try_from_with_package_resolver(
         data: TransactionData,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        let message_version = data.message_version();
-        let sender = data.sender();
-        let gas_data = IotaGasData {
-            payment: data
-                .gas()
-                .iter()
-                .map(|obj_ref| IotaObjectRef::from(*obj_ref))
-                .collect(),
-            owner: data.gas_owner(),
-            price: data.gas_price(),
-            budget: data.gas_budget(),
-        };
         let transaction = IotaTransactionBlockKind::try_from_with_package_resolver(
-            data.into_kind(),
+            data.kind().clone(),
             package_resolver,
             tx_digest,
         )
         .await?;
-        match message_version {
-            1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
-                transaction,
-                sender,
-                gas_data,
-            })),
-            _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {message_version} not implemented"
-            )),
+        Self::try_from_inner(data, transaction)
+    }
+}
+
+impl Display for IotaTransactionBlockData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::V1(data) => {
+                writeln!(f, "Sender: {}", data.sender)?;
+                writeln!(f, "{}", self.gas_data())?;
+                writeln!(f, "{}", data.transaction)
+            }
         }
     }
 }
@@ -1797,7 +1730,7 @@ impl IotaTransactionBlock {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            data: IotaTransactionBlockData::try_from(
+            data: IotaTransactionBlockData::try_from_with_module_cache(
                 data.intent_message().value.clone(),
                 module_cache,
                 tx_digest,
@@ -2019,7 +1952,7 @@ impl Display for IotaProgrammableTransactionBlock {
 }
 
 impl IotaProgrammableTransactionBlock {
-    fn try_from(
+    fn try_from_with_module_cache(
         value: ProgrammableTransaction,
         module_cache: &impl GetModule,
     ) -> Result<Self, anyhow::Error> {
