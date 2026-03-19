@@ -6,7 +6,7 @@ import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
     type ApyByValidator,
     formatPercentageDisplay,
-    getValidatorCommission,
+    getValidatorEffectiveCommission,
     ImageIcon,
     ImageIconSize,
 } from '@iota/core';
@@ -213,7 +213,9 @@ export function generateValidatorsTableColumns({
             cell({ row }) {
                 return (
                     <TableCellBase>
-                        <TableCellText>{getValidatorCommission(row.original)}</TableCellText>
+                        <TableCellText>
+                            {getValidatorEffectiveCommission(row.original)}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

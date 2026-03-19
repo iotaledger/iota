@@ -4,7 +4,11 @@
 
 import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import { formatPercentageDisplay, getValidatorCommission, useFormatCoin } from '@iota/core';
+import {
+    formatPercentageDisplay,
+    getValidatorEffectiveCommission,
+    useFormatCoin,
+} from '@iota/core';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
@@ -26,7 +30,7 @@ export function ValidatorStats({
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
 
-    const effectiveCommissionRate = getValidatorCommission(validatorData);
+    const effectiveCommissionRate = getValidatorEffectiveCommission(validatorData);
     const commission = formatPercentageDisplay(Number(validatorData.commissionRate) / 100, '--');
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
