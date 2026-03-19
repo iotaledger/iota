@@ -174,7 +174,7 @@ mod tests {
             min_available_cp: 500,
         };
 
-        cache.update(vec![watermark.clone()]);
+        cache.update(vec![watermark]);
 
         let retrieved = cache.get(CommitterTables::Transactions).unwrap();
         assert_eq!(retrieved.min_available_cp, 500);
