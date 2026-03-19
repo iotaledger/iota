@@ -13,6 +13,13 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
+export enum AmpliSourceFlow {
+    Onboarding = 'Onboarding',
+    ManageAccounts = 'Manage Accounts',
+    BalanceFinder = 'Balance Finder',
+    Unknown = 'Unknown',
+}
+
 export enum AmpliAccountOrigin {
     New = 'new',
     Import = 'import',
