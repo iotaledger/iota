@@ -6,6 +6,7 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
+use iota_data_ingestion_core::reader::v2::RemoteUrl;
 use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use serde::{Deserialize, Serialize};
@@ -172,11 +173,48 @@ impl Default for HistoricFallbackOptions {
 #[derive(Args, Debug, Default, Clone)]
 #[group(required = true, multiple = true)]
 pub struct IngestionSources {
+    /// Ingest checkpoints from the given path.
     #[arg(long)]
     pub data_ingestion_path: Option<PathBuf>,
 
-    #[arg(long)]
+    /// Ingest checkpoints from the given remote store URL.
+    /// The fullnode may not retain historical data if pruning is enabled,
+    /// so this source is only reliable for recent checkpoints. For complete
+    /// data coverage from genesis, use --historical-url instead.
+    #[arg(long, conflicts_with_all = ["historical_url", "live_url"])]
     pub remote_store_url: Option<Url>,
+
+    /// Ingest checkpoints from the historical object store for bulk checkpoint
+    /// ingestion. Contains batched checkpoint files covering complete data
+    /// from genesis to near the network tip. This is the primary source for
+    /// syncing checkpoint data.
+    #[arg(long, conflicts_with = "remote_store_url")]
+    pub historical_url: Option<Url>,
+
+    /// Ingest checkpoints from the live object store for real-time checkpoint
+    /// streaming. Serves individual checkpoint files for the current epoch
+    /// only. When configured alongside the historical URL, the system
+    /// falls back to the live store for checkpoints not yet available
+    /// in the historical batches.
+    #[arg(long, requires = "historical_url", conflicts_with = "remote_store_url")]
+    pub live_url: Option<Url>,
+}
+
+impl IngestionSources {
+    /// Returns the [`RemoteUrl`] to use for checkpoint ingestion, based on the
+    /// provided arguments by the user.
+    pub fn remote_url(&self) -> Option<RemoteUrl> {
+        if let Some(ref url) = self.remote_store_url {
+            return Some(RemoteUrl::Fullnode(url.to_string()));
+        }
+
+        self.historical_url
+            .as_ref()
+            .map(|historical| RemoteUrl::HybridHistoricalStore {
+                historical_url: historical.to_string(),
+                live_url: self.live_url.as_ref().map(ToString::to_string),
+            })
+    }
 }
 
 #[derive(Args, Debug, Clone)]
@@ -654,6 +692,8 @@ pub mod deprecated {
                             remote_store_url: old_conf.remote_store_url.map(|url| {
                                 url.parse().expect("remote store url should be correct")
                             }),
+                            historical_url: None,
+                            live_url: None,
                         },
                         checkpoint_download_queue_size: download_queue_size,
                         checkpoint_download_timeout: ingestion_reader_timeout_secs,

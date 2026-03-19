@@ -144,7 +144,7 @@ impl SnapshotPipeline {
 
     pub async fn run(
         self,
-        remote_store_url: Option<String>,
+        remote_store_url: Option<RemoteUrl>,
         reader_options: ReaderOptions,
     ) -> JoinHandle<IndexerResult<()>> {
         let handle = tokio::spawn(async move {
@@ -157,9 +157,9 @@ impl SnapshotPipeline {
             let mut executor_handle = if let Some(executor) = self.executor {
                 info!("Starting snapshot executor");
                 tokio::spawn(executor.run_with_config(CheckpointReaderConfig {
-                    reader_options,
                     ingestion_path: None, // internally it creates a tempdir.
-                    remote_store_url: remote_store_url.map(RemoteUrl::Fullnode),
+                    remote_store_url,
+                    reader_options,
                 }))
             } else {
                 info!("Using shared executor - skipping creation of snapshot executor");

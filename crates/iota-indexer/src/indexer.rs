@@ -58,11 +58,7 @@ impl Indexer {
             .data_ingestion_path
             .clone()
             .unwrap_or(tempfile::tempdir().unwrap().keep());
-        let remote_store_url = config
-            .sources
-            .remote_store_url
-            .as_ref()
-            .map(|url| url.as_str().to_owned());
+        let remote_store_url = config.sources.remote_url();
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
