@@ -1041,7 +1041,9 @@ impl TransactionKind {
                 }
                 after_dedup
             }
-            Self::ProgrammableTransaction(p) => return p.input_objects(),
+            Self::ProgrammableTransaction(p) => {
+                return p.input_objects();
+            }
         };
         // Ensure that there are no duplicate inputs. This cannot be removed because:
         // In [`AuthorityState::check_locks`], we check that there are no duplicate
@@ -2551,6 +2553,10 @@ impl Transaction {
     ) -> IotaResult<VerifiedTransaction> {
         self.verify_signature_for_testing(verify_params)?;
         Ok(VerifiedTransaction::new_from_verified(self))
+    }
+
+    pub fn gas_price(&self) -> u64 {
+        self.data().transaction_data().gas_price()
     }
 }
 

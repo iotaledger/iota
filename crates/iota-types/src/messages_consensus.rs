@@ -32,7 +32,7 @@ use crate::{
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::CertifiedTransaction,
+    transaction::{CertifiedTransaction, Transaction},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -59,6 +59,8 @@ pub enum ConsensusTransactionKey {
         MisbehaviorReportDigest,
         CheckpointSequenceNumber,
     ),
+    /// White flag user transaction key (by transaction digest).
+    UserTransaction(TransactionDigest),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -99,6 +101,7 @@ impl Debug for ConsensusTransactionKey {
                     checkpoint_seq
                 )
             }
+            Self::UserTransaction(digest) => write!(f, "UserTransaction({digest:?})"),
         }
     }
 }
@@ -241,6 +244,10 @@ pub enum ConsensusTransactionKind {
         VersionedMisbehaviorReport,
         CheckpointSequenceNumber,
     ),
+    /// White flag user transaction. Raw, uncertified transaction submitted
+    /// directly to consensus without pre-consensus object locking.
+    /// Conflicts are resolved post-consensus.
+    UserTransactionV1(Box<Transaction>),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -252,6 +259,10 @@ impl ConsensusTransactionKind {
             ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
         )
+    }
+
+    pub fn is_user_transaction(&self) -> bool {
+        matches!(self, ConsensusTransactionKind::UserTransactionV1(_))
     }
 }
 
@@ -566,6 +577,17 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_user_transaction(transaction: Transaction) -> Self {
+        let mut hasher = DefaultHasher::new();
+        let tx_digest = transaction.digest();
+        tx_digest.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -612,6 +634,9 @@ impl ConsensusTransaction {
                     *report.digest(),
                     *checkpoint_seq,
                 )
+            }
+            ConsensusTransactionKind::UserTransactionV1(tx) => {
+                ConsensusTransactionKey::UserTransaction(*tx.digest())
             }
         }
     }
