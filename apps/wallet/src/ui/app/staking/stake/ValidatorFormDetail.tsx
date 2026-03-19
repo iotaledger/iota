@@ -33,7 +33,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
         totalStake: [totalStakeFormatted, totalStakeSymbol],
         delegatedStakeDataResult,
         systemDataResult,
-        commission,
+        effectiveCommission,
     } = useGetStakingValidatorDetails({
         accountAddress,
         validatorAddress,
@@ -80,7 +80,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                     />
                     <KeyValueInfo
                         keyText="Effective Commission"
-                        value={commission}
+                        value={effectiveCommission}
                         fullwidth
                         tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
                         tooltipPosition={TooltipPosition.Bottom}
