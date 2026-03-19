@@ -4,7 +4,7 @@
 
 /// This test verifies that the `tracing` feature on `move-vm-profiler` is
 /// enabled (via dev-dependencies). If it fails, check that
-/// `move-vm-profiler = { workspace = true, features = ["tracing"] }` is present
+/// `iota-replay = { path = ".", features = ["tracing"] }` is present
 /// in the dev-dependencies of this crate.
 #[test]
 fn test_macro_shows_feature_enabled() {
@@ -17,9 +17,8 @@ fn test_macro_shows_feature_enabled() {
 async fn test_profiler() {
     use std::fs;
 
+    use iota_replay::ReplayToolCommand;
     use tempfile::tempdir;
-
-    use crate::ReplayToolCommand;
 
     let output_dir = tempdir().unwrap();
     let profile_output = output_dir.path().join("profile.json");
@@ -40,7 +39,7 @@ async fn test_profiler() {
     };
 
     let command_result =
-        crate::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
+        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
 
     command_result.expect("Failed to execute replay command. HINT: if the test is flaky, update the tx_digest to a more recent one by running \"update_profiler_tx.sh\".");
 
