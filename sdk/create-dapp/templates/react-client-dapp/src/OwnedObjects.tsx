@@ -1,42 +1,41 @@
-import { useCurrentAccount, useIotaClientQuery } from "@iota/dapp-kit";
-import { Flex, Heading, Text } from "@radix-ui/themes";
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 
 export function OwnedObjects() {
-  const account = useCurrentAccount();
-  const { data, isPending, error } = useIotaClientQuery(
-    "getOwnedObjects",
-    {
-      owner: account?.address as string,
-    },
-    {
-      enabled: !!account,
-    },
-  );
+    const account = useCurrentAccount();
+    const { data, isPending, error } = useIotaClientQuery(
+        'getOwnedObjects',
+        {
+            owner: account?.address as string,
+        },
+        {
+            enabled: !!account,
+        },
+    );
 
-  if (!account) {
-    return;
-  }
+    if (!account) {
+        return;
+    }
 
-  if (error) {
-    return <Flex>Error: {error.message}</Flex>;
-  }
+    if (error) {
+        return <div className="flex">Error: {error.message}</div>;
+    }
 
-  if (isPending || !data) {
-    return <Flex>Loading...</Flex>;
-  }
+    if (isPending || !data) {
+        return <div className="flex">Loading...</div>;
+    }
 
-  return (
-    <Flex direction="column" my="2">
-      {data.data.length === 0 ? (
-        <Text>No objects owned by the connected wallet</Text>
-      ) : (
-        <Heading size="4">Objects owned by the connected wallet</Heading>
-      )}
-      {data.data.map((object) => (
-        <Flex key={object.data?.objectId}>
-          <Text>Object ID: {object.data?.objectId}</Text>
-        </Flex>
-      ))}
-    </Flex>
-  );
+    return (
+        <div className="flex flex-col my-2">
+            {data.data.length === 0 ? (
+                <p className="text-gray-300">No objects owned by the connected wallet</p>
+            ) : (
+                <h3 className="text-lg font-semibold">Objects owned by the connected wallet</h3>
+            )}
+            {data.data.map((object) => (
+                <div className="flex" key={object.data?.objectId}>
+                    <p className="text-gray-300">Object ID: {object.data?.objectId}</p>
+                </div>
+            ))}
+        </div>
+    );
 }

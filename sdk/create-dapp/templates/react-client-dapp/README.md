@@ -6,8 +6,8 @@ Client dApp using the following tools:
 - [React](https://react.dev/) as the UI framework
 - [TypeScript](https://www.typescriptlang.org/) for type checking
 - [Vite](https://vitejs.dev/) for build tooling
-- [Radix UI](https://www.radix-ui.com/) for pre-built UI components
-- [ESLint](https://eslint.org/)
+- [Tailwind CSS](https://tailwindcss.com/) for styling
+- [oxlint](https://oxc.rs/docs/guide/usage/linter) for linting
 - [`@iota/dapp-kit`](https://docs.iota.org/developer/ts-sdk/dapp-kit) for
   connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management

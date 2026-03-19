@@ -6,8 +6,8 @@ Client dApp using the following tools:
 - [React](https://react.dev/) as the UI framework
 - [TypeScript](https://www.typescriptlang.org/) for type checking
 - [Vite](https://vitejs.dev/) for build tooling
-- [Radix UI](https://www.radix-ui.com/) for pre-built UI components
-- [ESLint](https://eslint.org/) for linting
+- [Tailwind CSS](https://tailwindcss.com/) for styling
+- [oxlint](https://oxc.rs/docs/guide/usage/linter) for linting
 - [`@iota/dapp-kit`](https://docs.iota.org/developer/ts-sdk/dapp-kit) for
   connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
@@ -25,7 +25,7 @@ This template uses `testnet` by default, so we'll need to set up a testnet
 environment in the CLI:
 
 ```bash
-iota client new-env --alias testnet --rpc https://fullnode.testnet.iota.org:443
+iota client new-env --alias testnet --rpc https://api.testnet.iota.cafe
 iota client switch --env testnet
 ```
 
@@ -48,7 +48,7 @@ We can ensure we have some IOTA in our new wallet by requesting IOTA from the
 faucet (make sure to replace the address with your address):
 
 ```bash
-curl --location --request POST 'https://faucet.testnet.iota.org/gas' \
+curl --location --request POST 'https://faucet.testnet.iota.cafe/gas' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "FixedAmountRequest": {

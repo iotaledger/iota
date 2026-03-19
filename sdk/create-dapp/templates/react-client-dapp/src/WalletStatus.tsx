@@ -1,23 +1,22 @@
-import { useCurrentAccount } from "@iota/dapp-kit";
-import { Container, Flex, Heading, Text } from "@radix-ui/themes";
-import { OwnedObjects } from "./OwnedObjects";
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { OwnedObjects } from './OwnedObjects';
 
 export function WalletStatus() {
-  const account = useCurrentAccount();
+    const account = useCurrentAccount();
 
-  return (
-    <Container my="2">
-      <Heading mb="2">Wallet Status</Heading>
+    return (
+        <div className="my-2">
+            <h2 className="text-xl font-semibold mb-2">Wallet Status</h2>
 
-      {account ? (
-        <Flex direction="column">
-          <Text>Wallet connected</Text>
-          <Text>Address: {account.address}</Text>
-        </Flex>
-      ) : (
-        <Text>Wallet not connected</Text>
-      )}
-      <OwnedObjects />
-    </Container>
-  );
+            {account ? (
+                <div className="flex flex-col">
+                    <p className="text-gray-300">Wallet connected</p>
+                    <p className="text-gray-300">Address: {account.address}</p>
+                </div>
+            ) : (
+                <p className="text-gray-300">Wallet not connected</p>
+            )}
+            <OwnedObjects />
+        </div>
+    );
 }
