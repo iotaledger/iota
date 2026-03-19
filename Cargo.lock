@@ -6274,6 +6274,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util 0.7.18",
+ "tonic 0.14.2",
  "tracing",
 ]
 
@@ -6679,6 +6680,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.18",
  "toml 0.7.8",
+ "tonic 0.14.2",
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
