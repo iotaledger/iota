@@ -159,7 +159,11 @@ export function EnterAmountView({
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}
-            renderInputAction={<ButtonPill onClick={setMaxAmount}>Max</ButtonPill>}
+            renderInputAction={
+                <ButtonPill onClick={setMaxAmount} disabled={!availableBalance}>
+                    Max
+                </ButtonPill>
+            }
             errorMessage={errorMessage}
         />
     );

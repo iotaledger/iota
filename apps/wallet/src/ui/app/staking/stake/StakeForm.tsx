@@ -246,7 +246,9 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
                                 trailingElement={
-                                    <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>
+                                    <ButtonPill onClick={setMaxAmount} disabled={!availableBalance}>
+                                        Max
+                                    </ButtonPill>
                                 }
                             />
                         );
