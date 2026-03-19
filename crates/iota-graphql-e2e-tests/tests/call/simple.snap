@@ -39,7 +39,7 @@ Contents: iota_system::validator_cap::UnverifiedValidatorOperationCap {
 
 task 5, line 34:
 //# view-object 0,1
-Owner: Account Address ( _ )
+Owner: Address(_)
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
