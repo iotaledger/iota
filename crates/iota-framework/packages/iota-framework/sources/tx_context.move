@@ -85,7 +85,6 @@ native fun native_gas_price(): u64;
 // ==== test-only functions ====
 #[test_only]
 /// Return the number of id's created by the current transaction.
-/// Hidden for now, but may expose later
 public fun ids_created(_self: &TxContext): u64 {
     native_ids_created()
 }
