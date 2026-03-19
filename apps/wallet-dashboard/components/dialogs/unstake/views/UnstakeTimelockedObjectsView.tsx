@@ -3,11 +3,11 @@
 
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
-import { ExtendedDelegatedTimelockedStake, Validator, useCoinMetadata } from '@iota/core';
+import { ExtendedDelegatedTimelockedStake, Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
 import { TimelockedStakedObjectsGrouped, isSizeExceededError } from '@/lib/utils';
-import { formatAddress, IOTA_TYPE_ARG, formatBalanceToNumber } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import {
     Panel,
     LoadingIndicator,
@@ -47,8 +47,6 @@ export function UnstakeTimelockedObjectsView({
     const reductionSize = useRef(0);
     const [isMaxTransactionSizeError, setIsMaxTransactionSizeError] = useState(false);
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
-    const decimals = metadata?.decimals ?? 0;
     const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
 
     const stakes = (() => {
@@ -87,6 +85,12 @@ export function UnstakeTimelockedObjectsView({
         balance: totalStakedAmount,
     });
 
+    const [totalStakedAmountFormattedPlain] = useFormatCoin({
+        balance: totalStakedAmount,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+
     const [rewardsPoolFormatted, rewardsToken] = useFormatCoin({
         balance: validatorInfo?.rewardsPool,
     });
@@ -108,7 +112,7 @@ export function UnstakeTimelockedObjectsView({
                     onSuccess(tx);
                     ampli.timelockUnstake({
                         validatorAddress: groupedTimelockedObjects.validatorAddress,
-                        stakedAmount: formatBalanceToNumber(totalStakedAmount, decimals),
+                        stakedAmount: Number(totalStakedAmountFormattedPlain),
                     });
                 },
             },

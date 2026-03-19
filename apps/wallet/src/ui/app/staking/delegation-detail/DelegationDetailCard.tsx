@@ -20,10 +20,9 @@ import {
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
-    formatBalanceToNumber,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG, formatBalanceToNumber } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, CoinFormat } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
@@ -110,10 +109,14 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: 0,
     };
-    const decimals = metadata?.decimals ?? 0;
 
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [totalStakeFormattedPlain] = useFormatCoin({
+        balance: totalStake,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const delegationId = delegationData?.stakedIotaId;
 
@@ -152,7 +155,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
         ampli.clickedUnstakeIota({
-            stakedAmount: formatBalanceToNumber(totalStake, decimals),
+            stakedAmount: Number(totalStakeFormattedPlain),
             validatorAddress,
         });
     }

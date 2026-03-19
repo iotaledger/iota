@@ -14,7 +14,7 @@ export { parseAmount, safeParseAmount } from './parse.js';
 
 export {
     formatBalance,
-    formatBalanceToNumber,
+    type FormatBalanceOptions,
     formatWithSubscript,
     CoinFormat,
     formatAmount,

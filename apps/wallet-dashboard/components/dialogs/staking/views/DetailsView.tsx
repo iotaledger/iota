@@ -13,7 +13,6 @@ import {
     useIsActiveValidator,
     useGetNextEpochCommitteeMember,
     useGetInactiveValidator,
-    useCoinMetadata,
 } from '@iota/core';
 import {
     Header,
@@ -34,7 +33,7 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG, formatBalanceToNumber } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
 import { ampli } from '@/lib/utils/analytics';
@@ -54,8 +53,6 @@ export function DetailsView({
     stakedDetails,
     showActiveStatus,
 }: StakeDialogProps): JSX.Element {
-    const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
-    const decimals = metadata?.decimals ?? 0;
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
     const {
@@ -81,6 +78,11 @@ export function DetailsView({
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [totalStakeFormattedPlain] = useFormatCoin({
+        balance: totalStake,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
     const validatorName =
@@ -102,7 +104,7 @@ export function DetailsView({
         if (handleUnstake) {
             handleUnstake();
             ampli.clickedUnstakeIota({
-                stakedAmount: formatBalanceToNumber(totalStake, decimals),
+                stakedAmount: Number(totalStakeFormattedPlain),
                 validatorAddress: stakedDetails?.validatorAddress,
             });
         }

@@ -12,12 +12,7 @@ import {
     getGasBudgetErrorMessage,
     useCoinMetadata,
 } from '@iota/core';
-import {
-    CoinFormat,
-    IOTA_TYPE_ARG,
-    parseAmount,
-    formatBalanceToNumber,
-} from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';
@@ -84,6 +79,12 @@ export function EnterTimelockedAmountView({
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
 
+    const [stakedAmountFormattedPlain] = useFormatCoin({
+        balance: stakedAmount,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxStakableTimelockedAmount,
         format: CoinFormat.Full,
@@ -144,7 +145,7 @@ export function EnterTimelockedAmountView({
                     onSuccess?.(tx.digest);
                     toast.success('Stake transaction has been sent');
                     ampli.timelockStake({
-                        stakedAmount: formatBalanceToNumber(stakedAmount, decimals),
+                        stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: senderAddress,
                     });
                     resetForm();

@@ -96,6 +96,10 @@ export enum CoinFormat {
     Full = 'Full',
 }
 
+export interface FormatBalanceOptions {
+    bnFormat?: BigNumber.Format;
+}
+
 /**
  * Formats a coin balance based on our standard coin display logic.
  * If the balance is less than 1, it will be displayed in its full decimal form.
@@ -106,12 +110,17 @@ export function formatBalance(
     decimals: number,
     format: CoinFormat = CoinFormat.Rounded,
     showSign = false,
+    options?: FormatBalanceOptions,
 ) {
     const bn = new BigNumber(balance.toString()).shiftedBy(-1 * decimals);
     let formattedBalance = formatAmount(bn);
 
     if (format === CoinFormat.Full) {
-        formattedBalance = bn.toFormat();
+        if (options?.bnFormat) {
+            formattedBalance = bn.toFormat(options.bnFormat);
+        } else {
+            formattedBalance = bn.toFormat();
+        }
     }
 
     if (showSign && !formattedBalance.startsWith('-')) {
@@ -119,36 +128,4 @@ export function formatBalance(
     }
 
     return formattedBalance;
-}
-
-/**
- * Converts a coin amount from base units to a number.
- * This is the inverse of parseAmount and is primarily used for analytics/data processing.
- * Avoids parsing formatted strings (e.g., "1,234.56" or "1.2 K").
- *
- * @param amount - The coin amount in base units
- * @param decimals - Coin decimals (e.g., 9 for IOTA)
- * @returns Numeric value, or 0 if invalid
- *
- * @example
- * ```typescript
- * formatBalanceToNumber(123450000000n, 9) // 123.45
- * formatBalanceToNumber("123450000000", 9) // 123.45
- * formatBalanceToNumber(undefined, 9) // 0
- * ```
- */
-export function formatBalanceToNumber(
-    amount: bigint | number | string | undefined | null,
-    decimals: number,
-): number {
-    if (amount === undefined || amount === null || amount === '') {
-        return 0;
-    }
-
-    try {
-        const result = new BigNumber(amount.toString()).shiftedBy(-decimals).toNumber();
-        return isNaN(result) ? 0 : result;
-    } catch {
-        return 0;
-    }
 }

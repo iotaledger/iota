@@ -10,12 +10,7 @@ import {
     NO_BALANCE_GENERIC_MESSAGE,
     useValidatorInfo,
 } from '@iota/core';
-import {
-    CoinFormat,
-    IOTA_TYPE_ARG,
-    parseAmount,
-    formatBalanceToNumber,
-} from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
@@ -58,6 +53,12 @@ export function EnterAmountView({
         validatorAddress: selectedValidator,
     });
     const validatorApy = apy ?? 0;
+
+    const [stakedAmountFormattedPlain] = useFormatCoin({
+        balance: amount,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const {
         data: newStakeData,
@@ -106,7 +107,7 @@ export function EnterAmountView({
                     toast.success('Stake transaction has been sent');
 
                     ampli.iotaStaked({
-                        stakedAmount: formatBalanceToNumber(amount, decimals),
+                        stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: selectedValidator,
                         validatorAPY: validatorApy,
                         validatorName: validatorName ?? '',

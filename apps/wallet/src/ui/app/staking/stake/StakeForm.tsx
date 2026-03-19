@@ -16,7 +16,6 @@ import {
     NO_BALANCE_GENERIC_MESSAGE,
     getGasBudgetErrorMessage,
     useGetValidatorsApy,
-    formatBalanceToNumber,
 } from '@iota/core';
 import * as Sentry from '@sentry/react';
 import { ampli } from '_src/shared/analytics/ampli';
@@ -46,12 +45,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import {
-    CoinFormat,
-    IOTA_TYPE_ARG,
-    parseAmount,
-    formatBalanceToNumber,
-} from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -113,6 +107,11 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
+    const [stakedAmountFormattedPlain] = useFormatCoin({
+        balance: amountWithoutDecimals,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
@@ -155,7 +154,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             await stakeTokenMutateAsync(undefined, {
                 onSuccess(data) {
                     ampli.iotaStaked({
-                        stakedAmount: formatBalanceToNumber(amountWithoutDecimals, decimals),
+                        stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: validatorAddress || '',
                         validatorAPY: validatorApy,
                         validatorName,
