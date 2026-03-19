@@ -168,5 +168,12 @@ pub async fn append_info_headers(
         );
     }
 
+    if let Some(server_version) = state
+        .server_version()
+        .and_then(|version| version.to_string().try_into().ok())
+    {
+        headers.insert(axum::http::header::SERVER, server_version);
+    }
+
     (headers, response)
 }

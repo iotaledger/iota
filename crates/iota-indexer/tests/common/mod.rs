@@ -432,7 +432,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
 ) {
     let server_url = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
     let server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(sim)
+        iota_rest_api::RestService::new(sim)
             .start_service(server_url)
             .await;
     });

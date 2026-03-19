@@ -72,7 +72,11 @@ async fn get_node_info(State(state): State<RestService>) -> Result<Json<NodeInfo
         epoch: latest_checkpoint.epoch(),
         chain_id: Digest::new(state.chain_id().as_bytes().to_owned()),
         chain: state.chain_id().chain().as_str().into(),
-        software_version: state.software_version().into(),
+        software_version: state
+            .server_version()
+            .map(ToString::to_string)
+            .unwrap_or_default()
+            .into(),
     }
     .pipe(Json)
     .pipe(Ok)
