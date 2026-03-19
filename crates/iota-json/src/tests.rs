@@ -842,3 +842,68 @@ fn test_resolve_call_args_reference() {
     assert!(matches!(resolved_args[0], ResolvedCallArg::Pure(_)));
     assert!(matches!(resolved_args[1], ResolvedCallArg::Pure(_)));
 }
+
+#[test]
+fn test_from_str_nested_vector() {
+    // Test nested vector: [[0xAB,0xCD],[0xEF]]
+    let val = IotaJsonValue::from_str("[[0xAB,0xCD],[0xEF]]").unwrap();
+    let arr = val.to_json_value();
+    assert!(arr.is_array());
+    let outer = arr.as_array().unwrap();
+    assert_eq!(outer.len(), 2);
+    // First inner array should have 2 elements
+    assert!(outer[0].is_array());
+    assert_eq!(outer[0].as_array().unwrap().len(), 2);
+    assert_eq!(outer[0].as_array().unwrap()[0].as_str().unwrap(), "0xAB");
+    assert_eq!(outer[0].as_array().unwrap()[1].as_str().unwrap(), "0xCD");
+    // Second inner array should have 1 element
+    assert!(outer[1].is_array());
+    assert_eq!(outer[1].as_array().unwrap().len(), 1);
+    assert_eq!(outer[1].as_array().unwrap()[0].as_str().unwrap(), "0xEF");
+}
+
+#[test]
+fn test_from_str_nested_vector_preserves_flat_arrays() {
+    // Flat arrays should still work exactly as before
+    let val = IotaJsonValue::from_str("[0xAA,0xBB,0xCC]").unwrap();
+    let arr = val.to_json_value();
+    assert!(arr.is_array());
+    let items = arr.as_array().unwrap();
+    assert_eq!(items.len(), 3);
+    assert_eq!(items[0].as_str().unwrap(), "0xAA");
+    assert_eq!(items[1].as_str().unwrap(), "0xBB");
+    assert_eq!(items[2].as_str().unwrap(), "0xCC");
+}
+
+#[test]
+fn test_from_str_triple_nested_vector() {
+    // Triple nesting: [[[0xAB,0xCD]]]
+    let val = IotaJsonValue::from_str("[[[0xAB,0xCD]]]").unwrap();
+    let arr = val.to_json_value();
+    assert!(arr.is_array());
+    let l1 = arr.as_array().unwrap();
+    assert_eq!(l1.len(), 1);
+    assert!(l1[0].is_array());
+    let l2 = l1[0].as_array().unwrap();
+    assert_eq!(l2.len(), 1);
+    assert!(l2[0].is_array());
+    let l3 = l2[0].as_array().unwrap();
+    assert_eq!(l3.len(), 2);
+    assert_eq!(l3[0].as_str().unwrap(), "0xAB");
+    assert_eq!(l3[1].as_str().unwrap(), "0xCD");
+}
+
+#[test]
+fn test_nested_vector_to_bcs_vector_vector_u8() {
+    // Parse a nested vector and convert to BCS for vector<vector<u8>>
+    let val = IotaJsonValue::from_str("[0xAABBCC,0xDDEE]").unwrap();
+    let layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
+        MoveTypeLayout::U8,
+    ))));
+    let bcs_bytes = val.to_bcs_bytes(&layout).unwrap();
+
+    // Expected: BCS of vec![vec![0xAA, 0xBB, 0xCC], vec![0xDD, 0xEE]]
+    let expected: Vec<Vec<u8>> = vec![vec![0xAA, 0xBB, 0xCC], vec![0xDD, 0xEE]];
+    let expected_bcs = bcs::to_bytes(&expected).unwrap();
+    assert_eq!(bcs_bytes, expected_bcs);
+}
