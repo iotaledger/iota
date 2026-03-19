@@ -652,36 +652,31 @@ export class IotaClient {
                   V1: await this.getLatestIotaSystemStateV1({ signal }),
               };
 
-        if ('V2' in iotaSystemStateSummary) {
-            const validators = iotaSystemStateSummary.V2.activeValidators.map((v) => ({
-                ...v,
-                effectiveCommissionRate: isEffectiveCommissionRateSupported
-                    ? v.effectiveCommissionRate
-                    : v.commissionRate,
-            }));
-            return {
-                ...iotaSystemStateSummary.V2,
-                activeValidators: validators,
-                committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
-                    (committeeMemberIndex) => validators[Number(committeeMemberIndex)],
-                ),
-            };
-        } else {
-            const validators = iotaSystemStateSummary.V1.activeValidators.map((v) => ({
-                ...v,
-                effectiveCommissionRate: isEffectiveCommissionRateSupported
-                    ? v.effectiveCommissionRate
-                    : v.commissionRate,
-            }));
-            return {
-                ...iotaSystemStateSummary.V1,
-                activeValidators: validators,
-                committeeMembers: validators,
-                safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
-                safeModeComputationChargesBurned:
-                    iotaSystemStateSummary.V1.safeModeComputationRewards,
-            };
-        }
+        const activeValidators = (
+            'V2' in iotaSystemStateSummary ? iotaSystemStateSummary.V2 : iotaSystemStateSummary.V1
+        ).activeValidators.map((v) => ({
+            ...v,
+            effectiveCommissionRate: isEffectiveCommissionRateSupported
+                ? v.effectiveCommissionRate
+                : v.commissionRate,
+        }));
+
+        return 'V2' in iotaSystemStateSummary
+            ? {
+                  ...iotaSystemStateSummary.V2,
+                  activeValidators,
+                  committeeMembers: iotaSystemStateSummary.V2.committeeMembers.map(
+                      (committeeMemberIndex) => activeValidators[Number(committeeMemberIndex)],
+                  ),
+              }
+            : {
+                  ...iotaSystemStateSummary.V1,
+                  activeValidators,
+                  committeeMembers: activeValidators,
+                  safeModeComputationCharges: iotaSystemStateSummary.V1.safeModeComputationRewards,
+                  safeModeComputationChargesBurned:
+                      iotaSystemStateSummary.V1.safeModeComputationRewards,
+              };
     }
 
     /**
