@@ -120,15 +120,12 @@ pub async fn validate_and_resolve_conflicts(
         let digest = *transaction.digest();
 
         // Check #1: Already executed — silent dedup.
-        match authority_state
+        if authority_state
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&digest)?
         {
-            true => {
-                keep[i] = false;
-                continue;
-            }
-            false => {}
+            keep[i] = false;
+            continue;
         }
 
         // Check #2: Structural validity.
