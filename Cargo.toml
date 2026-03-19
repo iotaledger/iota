@@ -171,7 +171,6 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
-  "crates/typed-store-workspace-hack",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
