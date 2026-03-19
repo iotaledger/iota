@@ -28,6 +28,7 @@ const iotaSDK = [
                 label: 'Accounts and Addresses',
                 items: [
                     'developer/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
+                    'developer/rust-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
                     'developer/rust-sdk/how-tos/accounts-and-addresses/coin-balance',
                 ],
             },
