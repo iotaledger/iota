@@ -20,7 +20,7 @@ export function Search(): JSX.Element {
             if (result) {
                 ampli.clickedSearchResult({
                     searchQuery: result.id,
-                    searchCategory: result.label,
+                    searchCategory: result.type,
                 });
                 navigate(`/${result?.type}/${encodeURIComponent(result?.id)}`, {});
                 setQuery('');

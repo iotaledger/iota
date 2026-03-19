@@ -103,7 +103,7 @@ function createInternalLink<T extends string>(
                     {label || truncatedAddress}
                 </Link>
                 {copyText && (
-                    <ButtonUnstyled onClick={handleCopyClick}>
+                    <ButtonUnstyled onClick={handleCopyClick} aria-label="Copy to clipboard">
                         <Copy className="text-iota-neutral-60 dark:text-iota-neutral-40" />
                     </ButtonUnstyled>
                 )}

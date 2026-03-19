@@ -38,7 +38,7 @@ const STR_IOTA_DISTRIBUTION: &str = "IOTA Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
-pub(crate) fn examine_genesis_checkpoint(
+pub fn examine_genesis_checkpoint(
     genesis: UnsignedGenesis,
     migration_objects: impl Iterator<Item = Object>,
 ) {

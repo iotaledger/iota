@@ -3,7 +3,12 @@
 
 import { useNavigate } from 'react-router-dom';
 
-import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
+import {
+    AccountsFormType,
+    PageTemplate,
+    useAccountsFormContext,
+    useBootstrapSourceFlow,
+} from '_components';
 import {
     Button,
     ButtonHtmlType,
@@ -24,6 +29,8 @@ type ImportPasskeyFormValues = z.infer<typeof formSchema>;
 
 export function CreateNewPasskey() {
     const navigate = useNavigate();
+    useBootstrapSourceFlow();
+
     const [authenticatorAttachment, setAuthenticatorAttachment] =
         useState<AuthenticatorAttachment>('cross-platform');
     const [, setAccountsFormValues] = useAccountsFormContext();

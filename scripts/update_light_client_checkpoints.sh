@@ -26,21 +26,21 @@ function cleanup {
 
 trap cleanup EXIT
 
-print_step "Build the iota binary in release mode..."
-cargo build --release --bin iota
-check_error "Failed to build the iota binary in release mode"
+print_step "Build the iota-localnet binary in release mode..."
+cargo build --release --bin iota-localnet
+check_error "Failed to build the iota-localnet binary in release mode"
 
 print_step "Build the iota-light-client 'generate_chk_snapshots' crate in debug mode..."
 cargo build --bin generate_chk_snapshots
 check_error "Failed to build the iota-light-client 'generate_chk_snapshots' crate in debug mode"
 
-print_step "Start the iota node in the background..."
-cargo run --release --bin iota -- start --force-regenesis --epoch-duration-ms 5000 --with-faucet > /dev/null 2>&1 &
+print_step "Start the iota localnet in the background..."
+cargo run --release --bin iota-localnet -- start --force-regenesis --epoch-duration-ms 5000 --with-faucet > /dev/null 2>&1 &
 
 # Capture the PID of the iota node to stop it later
 IOTA_PID=$!
 
-print_step "Wait 40s for the node to start and advance some epochs..."
+print_step "Wait 40s for the localnet to start and advance some epochs..."
 sleep 40
 
 # Change to the directory of the iota-light-client crate
