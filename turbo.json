@@ -110,7 +110,7 @@
 		"RC_VERSION",
 		"APPS_BACKEND",
 		"SENTRY_AUTH_TOKEN",
-		"VITE_SENTRY_ENABLED",
+		"SENTRY_ENABLED",
 		"BUILD_ENV"
 	],
 	"globalDependencies": [
