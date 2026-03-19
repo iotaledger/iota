@@ -7710,6 +7710,7 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-protocol-config",
+ "iota-replay",
  "iota-sdk",
  "iota-simulator",
  "iota-transaction-checks",

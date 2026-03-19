@@ -50,7 +50,7 @@ iota-keys.workspace = true
 iota-network.workspace = true
 iota-package-dump.workspace = true
 iota-protocol-config.workspace = true
-iota-replay.workspace = true
+iota-replay = { workspace = true, features = ["tracing"] }
 iota-sdk.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
