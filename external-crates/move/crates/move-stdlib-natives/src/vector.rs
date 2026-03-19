@@ -19,7 +19,6 @@ use move_vm_types::{
     natives::function::NativeResult,
     pop_arg,
     values::{Value, Vector, VectorRef},
-    views::ValueView,
 };
 
 use crate::helpers::make_module_natives;
