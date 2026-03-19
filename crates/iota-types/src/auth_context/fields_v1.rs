@@ -78,7 +78,7 @@ impl From<&Command> for MoveCommand {
                 arguments: cmd.arguments.clone(),
             })),
             Command::TransferObjects(cmd) => {
-                MoveCommand::TransferObjects(cmd.objects.clone(), *&cmd.address)
+                MoveCommand::TransferObjects(cmd.objects.clone(), cmd.address)
             }
             Command::SplitCoins(cmd) => MoveCommand::SplitCoins(cmd.coin, cmd.amounts.clone()),
             Command::MergeCoins(cmd) => {
