@@ -262,6 +262,7 @@ impl ValidatorConfigBuilder {
             enable_grpc_api: false,
             grpc_api_config: None,
             chain_override_for_testing: self.chain_override,
+            validator_client_monitor_config: None,
         }
     }
 
@@ -621,6 +622,7 @@ impl FullnodeConfigBuilder {
             enable_grpc_api: self.enable_grpc_api,
             grpc_api_config,
             chain_override_for_testing: self.chain_override,
+            validator_client_monitor_config: None,
         }
     }
 

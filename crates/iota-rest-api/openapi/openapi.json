@@ -2251,6 +2251,10 @@
                 "format": "u64"
               }
             }
+          },
+          {
+            "description": "A quorum of validators acknowledged effects (TransactionDriver flow).",
+            "type": "null"
           }
         ]
       },
