@@ -4,6 +4,14 @@
 
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities};
+// Additional imports for white flag tests
+use iota_types::{
+    base_types::ObjectID,
+    crypto::{AccountKeyPair, get_key_pair},
+    object::Object,
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    utils::to_sender_signed_transaction,
+};
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id},
     crypto::{
@@ -236,3 +244,234 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
         "Expected UnsupportedFeature error, but got {err_kind:?}",
     );
 }
+
+// White Flag Flow Tests
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_submit_transaction_v1_feature_flag_disabled() {
+    telemetry_subscribers::init_for_testing();
+
+    // Create authority with default config (white flag disabled)
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    // Create validator service with mock consensus
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    // Create a valid transaction
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let recipient = dbg_addr(2);
+
+    let tx_data = TransactionData::new_transfer(
+        recipient,
+        object.compute_object_reference(),
+        sender,
+        gas.compute_object_reference(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    // Call submit_transaction
+    let result = validator_service
+        .submit_transaction(make_tonic_request_for_testing(
+            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        ))
+        .await;
+
+    // Should return Err as the feature is not supported
+    assert!(result.is_err(), "Expected an error but got Ok");
+    let err = result.unwrap_err();
+    assert_eq!(err.code(), tonic::Code::Internal);
+    assert!(
+        err.message()
+            .contains("White flag flow is not enabled in this protocol version")
+    );
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_submit_transaction_invalid_signature() {
+    telemetry_subscribers::init_for_testing();
+
+    // Enable white flag flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    // Create authority
+    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (_wrong_sender, wrong_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    // Create validator service with mock consensus
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    // Create transaction with wrong signature
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let recipient = dbg_addr(2);
+
+    let tx_data = TransactionData::new_transfer(
+        recipient,
+        object.compute_object_reference(),
+        sender,
+        gas.compute_object_reference(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    // Sign with wrong key
+    let tx = to_sender_signed_transaction(tx_data, &wrong_key);
+
+    // Call submit_transaction
+    let result = validator_service
+        .submit_transaction(make_tonic_request_for_testing(
+            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        ))
+        .await;
+
+    // Should return Ok with Rejected result
+    assert!(result.is_ok(), "Should return Ok with Rejected result");
+    let response = result.unwrap().into_inner();
+    assert_eq!(response.results.len(), 1, "Should have one result");
+    match &response.results[0] {
+        iota_types::messages_grpc::SubmitTxResult::Rejected { .. } => {
+            // Success - signature error was caught and returned as Rejected
+        }
+        other => panic!("Expected Rejected result for invalid signature, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_submit_transaction_success() {
+    telemetry_subscribers::init_for_testing();
+
+    // Enable white flag flow
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_white_flag_flow_for_testing(true);
+        config
+    });
+
+    // Create authority
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectID::random();
+    let gas_id = ObjectID::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    // Create validator service with mock consensus
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    // Create transaction
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas = authority_state.get_object(&gas_id).await.unwrap();
+    let recipient = dbg_addr(2);
+
+    let tx_data = TransactionData::new_transfer(
+        recipient,
+        object.compute_object_reference(),
+        sender,
+        gas.compute_object_reference(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx_data, &sender_key);
+
+    // Call submit_transaction
+    let result = validator_service
+        .submit_transaction(make_tonic_request_for_testing(
+            iota_types::messages_grpc::SubmitTxRequest::new_transaction(tx),
+        ))
+        .await;
+
+    // Should succeed with Submitted result
+    assert!(result.is_ok(), "Transaction submission should succeed");
+    let response = result.unwrap().into_inner();
+    assert_eq!(response.results.len(), 1, "Should have one result");
+    match &response.results[0] {
+        iota_types::messages_grpc::SubmitTxResult::Submitted => {
+            // Success - transaction was submitted to consensus
+        }
+        other => panic!("Expected Submitted result, got {other:?}"),
+    }
+}
+
+// NOTE: Fullnode test removed as TestAuthorityBuilder doesn't expose
+// a simple way to build a fullnode. The fullnode rejection logic is tested
+// in integration tests.

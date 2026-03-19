@@ -37,17 +37,21 @@ pub mod safe_client;
 mod scoring_decision;
 mod stake_aggregator;
 pub mod starfish_adapter;
+pub mod status_aggregator;
 pub mod storage;
 pub mod streamer;
 pub mod subscription_handler;
 pub mod test_utils;
 pub mod traffic_controller;
+pub mod transaction_driver;
 mod transaction_input_loader;
 mod transaction_manager;
 pub mod transaction_orchestrator;
 mod transaction_outputs;
+pub mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
+pub(crate) mod white_flag;
 
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]
@@ -83,6 +87,8 @@ mod type_param_tests;
 #[cfg(test)]
 #[path = "unit_tests/unit_test_utils.rs"]
 mod unit_test_utils;
+#[cfg(test)]
+mod white_flag_tests;
 
 pub mod signature_verifier;
 

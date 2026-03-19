@@ -1042,17 +1042,17 @@ impl CheckpointBuilder {
             // - minimum interval has elapsed ...
             let current_timestamp = pending.details().timestamp_ms;
             let can_build = match last_timestamp {
-                    Some(last_timestamp) => {
-                        current_timestamp >= last_timestamp + min_checkpoint_interval_ms
-                    }
-                    None => true,
+                Some(last_timestamp) => {
+                    current_timestamp >= last_timestamp + min_checkpoint_interval_ms
+                }
+                None => true,
                 // - or, next PendingCheckpoint is last-of-epoch (since the last-of-epoch checkpoint
                 //   should be written separately) ...
-                } || checkpoints_iter
-                    .peek()
-                    .is_some_and(|(_, next_pending)| next_pending.details().last_of_epoch)
+            } || checkpoints_iter
+                .peek()
+                .is_some_and(|(_, next_pending)| next_pending.details().last_of_epoch)
                 // - or, we have reached end of epoch.
-                    || pending.details().last_of_epoch;
+                || pending.details().last_of_epoch;
             grouped_pending_checkpoints.push(pending);
             if !can_build {
                 debug!(
@@ -1104,7 +1104,8 @@ impl CheckpointBuilder {
         );
     }
 
-    #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height))]
+    #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height
+    ))]
     async fn make_checkpoint(
         &self,
         pendings: Vec<PendingCheckpoint>,
@@ -1500,9 +1501,15 @@ impl CheckpointBuilder {
                         // already.
                         let digest = *effects.transaction_digest();
                         if !all_roots.contains(&digest) {
-                            transaction_keys.push(SequencedConsensusTransactionKey::External(
-                                ConsensusTransactionKey::Certificate(digest),
-                            ));
+                            // In whiteflag flow, user transactions are submitted as
+                            // UserTransaction, not as Certificate.
+                            let key = if self.epoch_store.protocol_config().enable_white_flag_flow()
+                            {
+                                ConsensusTransactionKey::UserTransaction(digest)
+                            } else {
+                                ConsensusTransactionKey::Certificate(digest)
+                            };
+                            transaction_keys.push(SequencedConsensusTransactionKey::External(key));
                         }
                     }
                 }

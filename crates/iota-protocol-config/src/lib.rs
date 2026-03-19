@@ -232,7 +232,15 @@ pub struct Error(pub String);
 // TODO: There are quite a few non boolean values in the feature flags. We
 // should move them out.
 /// Records on/off feature flags that may vary at each protocol version.
-#[derive(Default, Clone, Serialize, Deserialize, Debug, ProtocolConfigFeatureFlagsGetters)]
+#[derive(
+    Default,
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    ProtocolConfigFeatureFlagsGetters,
+    ProtocolConfigOverride,
+)]
 struct FeatureFlags {
     // Add feature flags here, e.g.:
     // new_protocol_feature: bool,
@@ -490,6 +498,12 @@ struct FeatureFlags {
     // If true, only sponsor Move authentication is performed pre-consensus.
     #[serde(skip_serializing_if = "is_false")]
     pre_consensus_sponsor_only_move_authentication: bool,
+
+    // If true, enables white flag flow for post-consensus owned object conflict resolution.
+    // Transactions bypass pre-consensus certification and owned object locking.
+    // Conflicts are resolved deterministically post-consensus using persistent locks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_white_flag_flow: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1730,6 +1744,10 @@ impl ProtocolConfig {
         }
         pre_consensus_sponsor_only_move_authentication
     }
+
+    pub fn enable_white_flag_flow(&self) -> bool {
+        self.feature_flags.enable_white_flag_flow
+    }
 }
 
 #[cfg(not(msim))]
@@ -1778,10 +1796,19 @@ impl ProtocolConfig {
             warn!(
                 "overriding ProtocolConfig settings with custom settings; this may break non-local networks"
             );
+
+            // First, deserialize the top-level ProtocolConfig fields
             let overrides: ProtocolConfigOptional =
                 serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
                     .expect("failed to parse ProtocolConfig override env variables");
             overrides.apply_to(&mut ret);
+
+            // Then, separately deserialize FeatureFlags fields
+            let feature_flag_overrides: FeatureFlagsOptional =
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE")
+                    .expect("failed to parse ProtocolConfig feature flags override env variables");
+
+            feature_flag_overrides.apply_to(&mut ret.feature_flags);
         }
 
         ret
@@ -3067,6 +3094,10 @@ impl ProtocolConfig {
     pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pre_consensus_sponsor_only_move_authentication = val;
+    }
+
+    pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_white_flag_flow = val;
     }
 }
 

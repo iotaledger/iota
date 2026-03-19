@@ -376,6 +376,11 @@ impl ConsensusAdapter {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     Some(certificate.digest())
                 }
+                ConsensusTransactionKind::UserTransactionV1(_) => {
+                    // White flag: no submit delay needed (number of submitting validators
+                    // controlled through another mechanism)
+                    None
+                }
                 _ => None,
             })
             .min();
@@ -577,6 +582,11 @@ impl ConsensusAdapter {
             }
         }
 
+        // TODO: Pending transaction tracking for UserTransactionV1 at epoch boundaries
+        // requires different semantics than certificates (no 2f+1 guarantee).
+        // For now, UserTransactionV1 is fire-and-forget - if consensus doesn't accept
+        // it immediately, it's dropped. No WAL, no retry, no epoch boundary handling.
+        // This will be designed and implemented separately.
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
