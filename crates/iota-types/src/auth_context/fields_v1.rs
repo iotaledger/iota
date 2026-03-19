@@ -421,8 +421,8 @@ mod tests {
             let type_tag = type_input.into_type_tag().unwrap();
             let cmd = Command::move_call(
                 obj_id(),
-                Identifier::new_unchecked("m".to_string()),
-                Identifier::new_unchecked("f".to_string()),
+                Identifier::new_unchecked("m"),
+                Identifier::new_unchecked("f"),
                 vec![type_tag],
                 vec![],
             );
@@ -453,8 +453,8 @@ mod tests {
 
         let cmd = Command::move_call(
             obj_id(),
-            Identifier::new_unchecked("m".to_string()),
-            Identifier::new_unchecked("f".to_string()),
+            Identifier::new_unchecked("m"),
+            Identifier::new_unchecked("f"),
             vec![type_tag],
             vec![],
         );
@@ -490,8 +490,8 @@ mod tests {
     fn command_from_command() {
         let cmd = Command::move_call(
             obj_id(),
-            Identifier::new_unchecked("m".to_string()),
-            Identifier::new_unchecked("f".to_string()),
+            Identifier::new_unchecked("m"),
+            Identifier::new_unchecked("f"),
             vec![TypeInput::U8.into_type_tag().unwrap()],
             vec![],
         );
