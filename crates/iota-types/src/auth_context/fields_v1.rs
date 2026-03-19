@@ -8,6 +8,7 @@ use serde_with::serde_as;
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    iota_serde::TypeName,
     transaction::{Argument, CallArg, Command},
 };
 
@@ -37,6 +38,7 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 
 /// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
 /// [`MoveCommand`].
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveProgrammableMoveCall {
     pub package: ObjectID,
