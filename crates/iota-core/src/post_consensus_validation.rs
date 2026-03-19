@@ -59,7 +59,8 @@ use crate::{
 ///
 /// For each `UserTransactionV1` in consensus order:
 /// - Runs deduplication, already-executed check, structural validity, lock
-///   conflict check, and semantic deny checks.
+///   conflict check, and deny checks (deny list, gas, ownership, coin deny
+///   list, Move authenticator).
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
 ///
@@ -97,7 +98,7 @@ pub async fn validate_and_resolve_conflicts(
     let mut keep = vec![true; transactions.len()];
 
     for (i, tx) in transactions.iter().enumerate() {
-        // Check #0: Dedup by ConsensusTransactionKey (defense-in-depth).
+        // Check #0: Dedup by ConsensusTransactionKey.
         // The same UserTransactionV1 may appear in DAG blocks from multiple
         // validators within the same consensus commit. Only the first occurrence
         // is kept. Silent drop — not added to `dropped`.
@@ -119,8 +120,6 @@ pub async fn validate_and_resolve_conflicts(
         let digest = *transaction.digest();
 
         // Check #1: Already executed — silent dedup.
-        // Uses try_is_tx_already_executed (fetches effects digest only) rather than
-        // try_get_executed_effects (fetches full effects) since we only need a boolean.
         match authority_state
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&digest)
@@ -142,7 +141,7 @@ pub async fn validate_and_resolve_conflicts(
             }
         }
 
-        // Check #2: Structural validity (defense-in-depth).
+        // Check #2: Structural validity.
         if let Err(e) =
             transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
         {
