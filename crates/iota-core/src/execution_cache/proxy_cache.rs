@@ -9,7 +9,7 @@ use iota_config::node::ExecutionCacheTypeAtomicU8;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -22,7 +22,7 @@ use iota_types::{
 use tracing::instrument;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
+    Batch, CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheType, ExecutionCacheWrite, ObjectCacheRead,
     PassthroughCache, StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
 };
@@ -251,7 +251,7 @@ impl TransactionCacheRead for ProxyCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        event_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         delegate_method!(self.try_multi_get_events(event_digests))
     }
@@ -318,12 +318,17 @@ impl AccumulatorStore for ProxyCache {
 }
 
 impl ExecutionCacheCommit for ProxyCache {
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> super::Batch {
+        delegate_method!(self.build_db_batch(epoch, digests))
+    }
+
     fn try_commit_transaction_outputs(
         &self,
         epoch: EpochId,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
-        delegate_method!(self.try_commit_transaction_outputs(epoch, digests))
+        delegate_method!(self.try_commit_transaction_outputs(epoch, batch, digests))
     }
 
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {

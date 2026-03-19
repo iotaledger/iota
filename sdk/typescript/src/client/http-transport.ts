@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PACKAGE_VERSION, TARGETED_RPC_VERSION } from '../version.js';
 import { JsonRpcError, IotaHTTPStatusError } from './errors.js';
 import type { WebsocketClientOptions } from './rpc-websocket-client.js';
 import { WebsocketClient } from './rpc-websocket-client.js';
@@ -109,9 +108,6 @@ export class IotaHTTPTransport implements IotaTransport {
                 signal: input.signal,
                 headers: {
                     'Content-Type': 'application/json',
-                    'Client-Sdk-Type': 'typescript',
-                    'Client-Sdk-Version': PACKAGE_VERSION,
-                    'Client-Target-Api-Version': TARGETED_RPC_VERSION,
                     ...this.#options.rpc?.headers,
                 },
                 body: JSON.stringify({

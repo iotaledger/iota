@@ -132,13 +132,73 @@ message ObjectIdFilter {
   iota.grpc.v0.types.ObjectReference object_ref = 1;
 }
 
+// --- Command filter messages ---
+
 // Filter by move package, module (optional) and function (optional).
-message MoveCallFilter {
+message MoveCallCommandFilter {
   option (iota.grpc.message_accessors) = "with";
 
   iota.grpc.v0.types.Address package_id = 1;
   optional string module = 2;
   optional string function = 3;
+}
+
+// Match a TransferObjects command.
+message TransferObjectsCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a SplitCoins command.
+message SplitCoinsCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a MergeCoins command.
+message MergeCoinsCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a Publish command.
+message PublishCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a MakeMoveVec command.
+message MakeMoveVecCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match an Upgrade command. Optionally filter by the specific package being upgraded.
+message UpgradeCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional iota.grpc.v0.types.Address package_id = 1;
+}
+
+// Filter by command type.
+message CommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  oneof filter {
+    MoveCallCommandFilter move_call = 1;
+    TransferObjectsCommandFilter transfer_objects = 2;
+    SplitCoinsCommandFilter split_coins = 3;
+    MergeCoinsCommandFilter merge_coins = 4;
+    PublishCommandFilter publish = 5;
+    MakeMoveVecCommandFilter make_move_vec = 6;
+    UpgradeCommandFilter upgrade = 7;
+  }
+}
+
+// --- Execution status filter ---
+
+// Filter by transaction execution status.
+// Set `success` to `true` to match successful transactions,
+// or `false` to match failed transactions (cancelled, execution error, etc.).
+message ExecutionStatusFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  bool success = 1;
 }
 
 // Filter for transactions.
@@ -156,19 +216,22 @@ message TransactionFilter {
     // Filter transactions of any given kind in the filter.
     TransactionKindsFilter transaction_kinds = 4;
 
+    // Filter by transaction execution success/failure.
+    ExecutionStatusFilter execution_status = 5;
+
     // Filter by sender address.
-    AddressFilter sender = 5;
+    AddressFilter sender = 6;
     // Filter by recipient address. The recipient is determined by
     // checking the owners of mutated and unwrapped objects.
-    AddressFilter receiver = 6;
+    AddressFilter receiver = 7;
 
     // Filter for transactions that touch this object.
-    ObjectIdFilter affected_object = 7;
+    ObjectIdFilter affected_object = 8;
 
-    // Filter by move package, module (optional) and function (optional).
-    MoveCallFilter move_call = 8;
+    // Filter by command type.
+    CommandFilter command = 9;
 
     // Filter transactions that contain events matching the given event filter.
-    EventFilter event = 9;
+    EventFilter event = 10;
   }
 }

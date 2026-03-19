@@ -3,6 +3,7 @@
 
 mod get_checkpoint;
 mod get_epoch;
+mod get_health;
 mod get_objects;
 mod get_service_info;
 mod get_transactions;
@@ -52,6 +53,17 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     type GetTransactionsStream = crate::types::GetTransactionsStream;
     type GetCheckpointDataStream = crate::types::GetCheckpointDataStream;
     type StreamCheckpointDataStream = crate::types::StreamCheckpointDataStream;
+
+    async fn get_health(
+        &self,
+        request: tonic::Request<grpc_ledger_service::GetHealthRequest>,
+    ) -> std::result::Result<tonic::Response<grpc_ledger_service::GetHealthResponse>, tonic::Status>
+    {
+        let response = get_health::get_health(self, request.into_inner())
+            .map(Response::new)
+            .map_err(tonic::Status::from)?;
+        Ok(append_info_headers!(response, self.reader.clone()))
+    }
 
     /// Query the service for general information about its current state.
     async fn get_service_info(

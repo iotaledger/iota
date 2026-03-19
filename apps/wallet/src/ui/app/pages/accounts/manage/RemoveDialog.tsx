@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAccounts, useBackgroundClient, useUnlockMutation } from '_hooks';
+import { useAccounts, useBackgroundClient } from '_hooks';
 import { useMutation } from '@tanstack/react-query';
 import {
     Button,
@@ -51,7 +51,6 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(true);
 
     const totalAccounts = allAccounts?.data?.length || 0;
-    const unlockAllAccountsMutation = useUnlockMutation();
 
     function handleCancel() {
         setPasswordModalVisible(true);
@@ -69,16 +68,10 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
         return (
             <VerifyPasswordModal
                 open={isOpen}
-                onVerify={async (password) => {
-                    await unlockAllAccountsMutation.mutateAsync({
-                        password,
-                    });
+                onVerify={() => {
                     setPasswordModalVisible(false);
                 }}
-                onClose={() => {
-                    setPasswordModalVisible(true);
-                    setOpen(false);
-                }}
+                onClose={handleCancel}
             />
         );
     }
@@ -86,7 +79,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Remove account" onClose={() => setOpen(false)} />
+                <Header title="Remove account" onClose={handleCancel} />
                 <DialogBody>
                     <div className="flex flex-col gap-y-md">
                         <div className="text-body-md">

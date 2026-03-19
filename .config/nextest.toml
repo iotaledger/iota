@@ -43,7 +43,6 @@ or (package(iota-benchmark) and (test(test_simulated_load_restarts) or test(test
 or (package(iota-e2e-tests) and (test(test_reconfig_with_committee_change_stress_determinism) or test(test_full_node_load_migration_data) or test(test_full_node_sync_flood_determinism) or test(test_passive_reconfig_determinism) or test(test_hash_collections) or test(test_net_determinism) or test(test_apy) or test(test_fullnode_traffic_control_spam_delegated)))
 or (package(iota-graphql-rpc) and test(test_epoch_data))
 or (package(iota-network-stack) and test(ip6))
-or (package(iota-rosetta) and (test(test_withdraw_stake) or test(test_pay_iota_multiple_times) or test(test_stake) or test(test_stake_all)))
 '''
 
 # Custom profiles are layered on top of the default profile.

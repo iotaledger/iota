@@ -1,0 +1,107 @@
+---
+description: "The five components of Account Abstraction in IOTA and how they relate to each other"
+tags:
+  - move-sc
+  - move-vm
+---
+
+# Account Abstraction Components
+
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+Account Abstraction involves five interconnected components:
+
+| Component                        | Role                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Abstract Account**             | A Move object whose ObjectID is its address                                                      |
+| **Authenticator Function**       | A Move function that decides if the sender of a transaction is an authenticated abstract account |
+| **[`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1)** | An on-chain, validated reference to an authenticator function                                    |
+| **`MoveAuthenticator`**          | A new transaction signature type used to invoke the authenticator function                       |
+| **[`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext)**                | A runtime context passed to the authenticator function describing the transaction                |
+
+---
+
+## Abstract Account
+
+An abstract account is a Move object, that is, any Move struct with the `key` ability. What makes it an abstract account is not its structure, but what is attached to it: an [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) dynamic field, which tells the protocol which Move function to call when an AA transaction is sent from this account.
+
+The account's **ObjectID** becomes its on-chain address. Objects that are owned by an abstract account use the "ordinary" ownership model, with the ObjectID serving as the address owning those objects. From the protocol's perspective, abstract accounts are indistinguishable from traditional EOAs at the address level.
+
+Abstract accounts exist in two forms:
+
+- **Mutable shared** (created in Move with [`iota::account::create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1)): the main account object use case, that can be modified by anyone on the basis of an access control implemented in Move code. This is the form used when the account holds mutable state. For example: member lists, approval records, or key stores.
+
+- **Immutable** (created in Move with [`iota::account::create_immutable_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_immutable_account_v1)): the account object that can never change state, but that can own other objects. This is appropriate when authentication logic is fully self-contained (or "static") and the account holds no mutable state.
+
+What's worth repeating here, is that **any Move object type can become an account**, even object types already existing today in the ledger (through a Move package upgrade).
+
+The IOTA Move bytecode verifier enforces a critical invariant: the account Move object type passed to [`create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1) or [`create_immutable_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_immutable_account_v1) must be defined in the **same module** as the call site. This prevents one module from registering an unauthorized abstract accounts using another module's object type.
+
+---
+
+## Authenticator Function
+
+The authenticator function is the core of Account Abstraction: it is the logic that decides whether an AA transaction is allowed to use an abstract account as sender.
+
+An authenticator function is a regular Move function with an `#[authenticator]` attribute. It must conform to a strict signature:
+
+1. **Public, non-entry**: the function must be `public` and must **not** be `entry`.
+2. **First parameter**: an immutable reference to the account object type (`&Account`).
+3. **Middle parameters**: any number of additional inputs, each of which must be read-only: either pure values or references to shared or immutable objects. No owned objects, no mutable references.
+4. **Second-to-last parameter**: [`&AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext), a set of data extracted from the transaction that is being authorized, not present in the [`TxContext`](../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext) and useful for authenticating.
+5. **Last parameter**: [`&TxContext`](../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), the context of the transaction that is being authorized.
+6. **No return type**: authentication is expressed by control flow, not by a return value; a successful return means "authenticated"; an abort means "rejected".
+
+The `#[authenticator]` attribute is what makes the function eligible for use as an authenticator. Any public, non-entry function annotated with this attribute and satisfying the signature rules can be referenced.
+
+**The authenticator function must not have mutable effects.** All its inputs are read-only: it can inspect the account, read shared state, and examine the AA transaction, but it cannot write anything.
+
+The authenticator function's signature constraints are enforced at publication time by the bytecode verifier and validated on-chain via [`PackageMetadataV1`](../../../references/framework/iota/package_metadata.mdx#iota_package_metadata_PackageMetadataV1) ([IIP-0010](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0010/iip-0010.md)), an immutable object created exclusively by the protocol during publish and upgrade operations, making it a trusted source of package metadata.
+
+---
+
+## [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1)
+
+[`AuthenticatorFunctionRefV1<T>`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) is the on-chain proof that a specific Move function is a valid authenticator for a specific account type. It is created using a [`PackageMetadataV1`](../../../references/framework/iota/package_metadata.mdx#iota_package_metadata_PackageMetadataV1). In fact, a [`PackageMetadataV1`](../../../references/framework/iota/package_metadata.mdx#iota_package_metadata_PackageMetadataV1) includes information related to a specific package, for all its modules and all functions. So, using this on-chain source of information, a [`AuthenticatorFunctionRefV1<T>`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) is created by encapsulating three values:
+
+- `package`: the ID of the package containing the authenticator function
+- `module_name`: the module within that package containing the authenticator function
+- `function_name`: the authenticator function name
+
+The type parameter `T` binds the reference to a specific account type. This ensures you cannot attach a multisig authenticator designed for `T: MultisigAccount` to a `T: FunctionKeysAccount`.
+
+To create an [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1), you must call [`iota::authenticator_function::create_auth_function_ref_v1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_create_auth_function_ref_v1) with a valid [`PackageMetadataV1`](../../../references/framework/iota/package_metadata.mdx#iota_package_metadata_PackageMetadataV1) object. The function validates that the referenced function exists in the metadata and that its account type matches the type parameter. You cannot create an [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) by hand, but it must always be produced through this validated path.
+
+Once created, _an [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) is stored as a dynamic field on the account object_. The protocol uses this known dynamic field to locate the authenticator function when an AA transaction arrives.
+
+**Authenticator rotation** is supported via [`iota::account::rotate_auth_function_ref_v1`](../../../references/framework/iota/account.mdx#iota_account_rotate_auth_function_ref_v1). This replaces the current authenticator with a new one without changing the abstract account's address. The old [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) is returned, and the new one is installed.
+
+---
+
+## `MoveAuthenticator`
+
+`MoveAuthenticator` is a new variant of IOTA's `GenericSignature` type within the SDK. It is what a transaction sender provides instead of a traditional cryptographic signature when sending a transaction from an abstract account.
+
+A `MoveAuthenticator` (in its V1) contains:
+
+- **`object_to_authenticate`**: A reference to the account object that is the AA transaction sender. This object's ID determines the sender address. It must be a reference to an immutable or non-mutable shared object. _Owned objects and mutable shared objects are not allowed_.
+- **`call_args`**: A vector of additional arguments (`CallArg`) that will be forwarded to the authenticator function. These correspond to the "middle parameters" described above.
+- **`type_arguments`**: Type arguments for the authenticator function, if it is generic.
+
+The sender address is derived directly from the account object's ID. The protocol validates that the `object_to_authenticate` field matches the declared sender of the AA transaction.
+
+When the protocol processes the AA transaction, it reads the [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) dynamic field from the referenced account object, constructs a Move call to the corresponding authenticator function with the provided `call_args` arguments, and executes it. _The `MoveAuthenticator` carries no cryptographic material itself, all authentication logic lives in Move_.
+
+---
+
+## [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext)
+
+The [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) is a struct passed by the protocol to the authenticator function as its second-to-last parameter. It describes the transaction being authorized:
+
+- **`auth_digest`**: The digest of the `MoveAuthenticator` itself. This uniquely identifies the authenticator invocation.
+- **[`tx_inputs`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_inputs)**: The full list of inputs to the Programmable Transaction Block (PTB); this allows to read the object references and pure values passed as input to the AA transaction.
+- **[`tx_commands`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands)**: The ordered list of commands in the PTB; this allows to parse all the commands that are going to be executed for the AA transaction if the authentication is successful.
+
+The [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) allows the authenticator function to inspect what the AA transaction will do before allowing it. This enables **intent-aware authentication**: for example, a function-keys authenticator can verify that the AA transaction calls only an approved Move function; a spending-limit authenticator can check that coin transfers do not exceed a threshold (in a specific scenario).

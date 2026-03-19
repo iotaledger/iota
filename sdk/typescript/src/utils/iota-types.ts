@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB58, splitGenericParameters } from '@iota/bcs';
+import { fromBase58, splitGenericParameters } from '@iota/bcs';
 
 const TX_DIGEST_LENGTH = 32;
 
 /** Returns whether the tx digest is valid based on the serialization format */
 export function isValidTransactionDigest(value: string): value is string {
     try {
-        const buffer = fromB58(value);
+        const buffer = fromBase58(value);
         return buffer.length === TX_DIGEST_LENGTH;
     } catch (e) {
         return false;

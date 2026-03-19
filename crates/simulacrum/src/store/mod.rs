@@ -52,11 +52,6 @@ pub trait SimulatorStore:
 
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint>;
 
-    fn get_transaction_events_by_tx_digest(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Option<TransactionEvents>;
-
     fn get_object(&self, id: &ObjectID) -> Option<Object>;
 
     fn get_object_at_version(&self, id: &ObjectID, version: SequenceNumber) -> Option<Object>;

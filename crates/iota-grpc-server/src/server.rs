@@ -16,7 +16,8 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use crate::{
-    GrpcCheckpointDataBroadcaster, GrpcReader, LedgerGrpcService, TransactionExecutionGrpcService,
+    GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
+    TransactionExecutionGrpcService, metrics::GrpcMetricsLayer,
 };
 
 /// Handle to control a running gRPC server
@@ -52,6 +53,56 @@ impl GrpcServerHandle {
     }
 }
 
+/// Adds gRPC services to a server builder and spawns the server.
+///
+/// This macro avoids duplicating the service registration and spawning logic
+/// across the with-metrics and without-metrics code paths, since
+/// `Server::layer()` changes the builder's type parameter.
+macro_rules! build_and_spawn {
+    ($server_builder:expr, $ledger_service:expr, $tx_service:expr, $config:expr,
+     $listener:expr, $actual_addr:expr, $shutdown_token:expr) => {{
+        let mut router = $server_builder.add_service(
+            grpc_ledger_service::ledger_service_server::LedgerServiceServer::new($ledger_service)
+                .max_encoding_message_size($config.max_message_size_bytes() as usize),
+        );
+
+        if let Some(tx_service) = $tx_service {
+            router = router.add_service(
+                grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service)
+                .max_encoding_message_size($config.max_message_size_bytes() as usize),
+            );
+        }
+
+        let shutdown_token_for_server = $shutdown_token.clone();
+        if $config.tls_config().is_some() {
+            // TLS case: tonic needs to control the entire transport stack for TLS,
+            // so we let it handle binding. We drop our pre-bound listener since
+            // tonic will create its own with proper TLS configuration.
+            drop($listener);
+
+            tokio::spawn(async move {
+                let result = router
+                    .serve_with_shutdown($actual_addr, shutdown_token_for_server.cancelled())
+                    .await;
+                tracing::info!("gRPC server shutdown completed");
+                result
+            })
+        } else {
+            // Non-TLS case: use the existing listener
+            tokio::spawn(async move {
+                let result = router
+                    .serve_with_incoming_shutdown(
+                        TcpListenerStream::new($listener),
+                        shutdown_token_for_server.cancelled(),
+                    )
+                    .await;
+                tracing::info!("gRPC server shutdown completed");
+                result
+            })
+        }
+    }};
+}
+
 /// Start a gRPC server with checkpoint and event services
 ///
 /// This function creates and starts a gRPC server that hosts checkpoint-related
@@ -64,6 +115,7 @@ pub async fn start_grpc_server(
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
     chain_id: iota_types::digests::ChainIdentifier,
+    metrics: Option<GrpcServerMetrics>,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
     let (checkpoint_data_tx, _) = broadcast::channel(config.broadcast_buffer_size as usize);
@@ -97,8 +149,10 @@ pub async fn start_grpc_server(
         actual_addr
     );
 
-    // Build the router with services (common for both TLS and non-TLS)
-    let mut router_builder = Server::builder();
+    // Build the server builder with TLS and optional metrics layer.
+    // Server::layer() changes the builder's generic type parameter, so we use
+    // a macro to avoid duplicating the service registration and spawn logic.
+    let mut server_builder = Server::builder();
 
     // Configure TLS if enabled
     if let Some(tls_config) = config.tls_config() {
@@ -118,52 +172,33 @@ pub async fn start_grpc_server(
 
         tracing::info!("gRPC server TLS enabled");
 
-        router_builder = router_builder
+        server_builder = server_builder
             .tls_config(tls)
             .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
     }
 
-    // Add services to the router and configure services with
-    // message size limits
-    let mut router = router_builder.add_service(
-        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service)
-            .max_encoding_message_size(config.max_message_size_bytes() as usize),
-    );
-
-    if let Some(tx_service) = tx_service {
-        router = router.add_service(
-            grpc_tx_service::transaction_execution_service_server::TransactionExecutionServiceServer::new(tx_service)
-            .max_encoding_message_size(config.max_message_size_bytes() as usize),
-        );
-    }
-
-    // Spawn the server task with graceful shutdown
-    let shutdown_token_for_server = shutdown_token.clone();
-    let server_handle = if config.tls_config().is_some() {
-        // TLS case: tonic needs to control the entire transport stack for TLS,
-        // so we let it handle binding. We drop our pre-bound listener since
-        // tonic will create its own with proper TLS configuration.
-        drop(listener);
-
-        tokio::spawn(async move {
-            let result = router
-                .serve_with_shutdown(actual_addr, shutdown_token_for_server.cancelled())
-                .await;
-            tracing::info!("gRPC server shutdown completed");
-            result
-        })
+    // Add services and spawn the server, optionally wrapping with metrics layer
+    let server_handle = if let Some(metrics) = metrics {
+        let mut layered_builder = server_builder.layer(GrpcMetricsLayer::new(Arc::new(metrics)));
+        build_and_spawn!(
+            layered_builder,
+            ledger_service,
+            tx_service,
+            config,
+            listener,
+            actual_addr,
+            shutdown_token
+        )
     } else {
-        // Non-TLS case: use the existing listener
-        tokio::spawn(async move {
-            let result = router
-                .serve_with_incoming_shutdown(
-                    TcpListenerStream::new(listener),
-                    shutdown_token_for_server.cancelled(),
-                )
-                .await;
-            tracing::info!("gRPC server shutdown completed");
-            result
-        })
+        build_and_spawn!(
+            server_builder,
+            ledger_service,
+            tx_service,
+            config,
+            listener,
+            actual_addr,
+            shutdown_token
+        )
     };
 
     Ok(GrpcServerHandle {
