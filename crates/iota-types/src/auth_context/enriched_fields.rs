@@ -63,7 +63,7 @@ pub struct SharedObjectArg {
 // EnrichedCallArg
 // ---------------------------------------------------------------------------
 
-/// Enriched counterpart of [`crate::auth_context::CallArg`].
+/// Enriched counterpart of CallArg.
 /// Adds type names for pure values and objects, mutability information for
 /// immutable/owned objects, and the current digest for shared objects.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
