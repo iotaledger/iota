@@ -16,6 +16,8 @@ pub use rocksdb;
 
 pub mod traits;
 pub use traits::Map;
+pub mod database;
+pub mod memstore;
 pub mod metrics;
 pub mod rocks;
 pub mod test_db;

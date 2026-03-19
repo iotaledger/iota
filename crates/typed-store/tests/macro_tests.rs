@@ -322,7 +322,7 @@ struct TablesWithMigration {
 }
 
 fn migrate_old_to_new(
-    db: &std::sync::Arc<typed_store::rocks::RocksDB>,
+    db: &std::sync::Arc<typed_store::database::Database>,
 ) -> Result<(), typed_store::TypedStoreError> {
     use typed_store::traits::Map;
     let old = typed_store::rocks::DBMap::<String, String>::reopen(
