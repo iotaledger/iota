@@ -625,6 +625,14 @@ impl<A: Clone> AuthorityAggregator<A> {
         self.authority_clients.get(name)
     }
 
+    /// Gets a human-readable display name for a validator.
+    pub fn get_display_name(&self, name: &AuthorityName) -> String {
+        self.validator_display_names
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| name.concise().to_string())
+    }
+
     /// Gets the cloned authority client for the given name.
     pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
     where
@@ -2057,6 +2065,14 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         }
     }
 
+    /// Creates a new `AuthorityAggregatorBuilder` from a committee of the given
+    /// size (for tests).
+    #[cfg(test)]
+    pub fn from_committee_size(committee_size: usize) -> Self {
+        let (committee, _keypairs) = Committee::new_simple_test_committee_of_size(committee_size);
+        Self::from_committee(committee)
+    }
+
     /// Sets the `CommitteeStore`.
     pub fn with_committee_store(mut self, committee_store: Arc<CommitteeStore>) -> Self {
         self.committee_store = Some(committee_store);
@@ -2106,6 +2122,27 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
         );
         let auth_agg = self.build_custom_clients(auth_clients.clone());
         (auth_agg, auth_clients)
+    }
+
+    #[cfg(test)]
+    pub fn build_mock_authority_aggregator(
+        self,
+    ) -> AuthorityAggregator<crate::test_authority_clients::MockAuthorityApi> {
+        use crate::test_authority_clients::MockAuthorityApi;
+        let committee = self.get_committee();
+        let clients = committee
+            .names()
+            .map(|name| {
+                (
+                    *name,
+                    MockAuthorityApi::new(
+                        Duration::from_millis(100),
+                        Arc::new(std::sync::Mutex::new(30)),
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        self.build_custom_clients(clients)
     }
 
     pub fn build_custom_clients<C: Clone>(

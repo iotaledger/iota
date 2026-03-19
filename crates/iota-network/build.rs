@@ -111,6 +111,33 @@ fn main() -> Result<()> {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            Method::builder()
+                .name("submit_transaction")
+                .route_name("SubmitTransaction")
+                .input_type("iota_types::messages_grpc::SubmitTxRequest")
+                .output_type("iota_types::messages_grpc::SubmitTxResponse")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            Method::builder()
+                .name("wait_for_effects")
+                .route_name("WaitForEffects")
+                .input_type("iota_types::messages_grpc::WaitForEffectsRequest")
+                .output_type("iota_types::messages_grpc::WaitForEffectsResponse")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            Method::builder()
+                .name("validator_health")
+                .route_name("ValidatorHealth")
+                .input_type("iota_types::messages_grpc::ValidatorHealthRequest")
+                .output_type("iota_types::messages_grpc::ValidatorHealthResponse")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
 
     // Generate the method path constants before compiling the service.
