@@ -1574,6 +1574,9 @@ impl ValidatorService {
                     effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
                         Either::Left(effects_digests)
                     }
+                    // notify_read_dropped_digests returns IotaResult<IotaError>:
+                    // - Ok(error) = transaction was dropped, here's why
+                    // - Err(e) = storage failure reading the dropped_transactions table
                     dropped_result = epoch_store.notify_read_dropped_digests(tx_digest) => {
                         Either::Right(dropped_result)
                     }
@@ -1582,7 +1585,11 @@ impl ValidatorService {
         )
         .await;
 
+        // The select! produces Either<Vec<EffectsDigest>, IotaResult<IotaError>>.
+        // Unpack the four outcomes: storage error, executed, dropped, or timeout.
         match result {
+            // Storage error from the dropped-transactions DB lookup — propagate as
+            // tonic::Status so the fullnode retries on a different validator.
             Ok(Either::Right(Err(e))) => Err(e.into()),
             Ok(Either::Left(effects_digests)) => {
                 if let Some(effects_digest) = effects_digests.into_iter().next() {
