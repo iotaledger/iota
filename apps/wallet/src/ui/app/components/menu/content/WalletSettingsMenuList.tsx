@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
-import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
+import {
+    useAppSelector,
+    formatAutoLock,
+    useAutoLockMinutes,
+    useLogoutMutation,
+    useBuilderMode,
+} from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
@@ -19,6 +25,7 @@ import {
     Expand,
     Discord,
     SidePanel as SidePanelIcon,
+    DataStack,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -52,6 +59,16 @@ export function MenuList() {
     const sidePanel = useSidePanel();
     const sidePanelMutation = useSidePanelMutation();
     const extensionType = useAppSelector((state) => state.app.extensionViewType);
+
+    const [isBuilderMode, setBuilderMode] = useBuilderMode();
+    // Local state to force re-render when the toggle changes (localStorage isn't reactive)
+    const [builderModeEnabled, setBuilderModeEnabled] = useState(isBuilderMode);
+
+    function onBuilderModeClick(_isToggled: boolean, event: React.ChangeEvent<HTMLInputElement>) {
+        const enabled = event.target.checked;
+        setBuilderMode(enabled);
+        setBuilderModeEnabled(enabled);
+    }
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -138,6 +155,12 @@ export function MenuList() {
             icon: <DarkMode />,
             subtitle: themeSubtitle,
             onClick: onThemeClick,
+        },
+        {
+            title: 'Builder Mode',
+            subtitle: builderModeEnabled ? 'Builder Mode' : 'User Mode',
+            icon: <DataStack />,
+            tailIcon: <Toggle isToggled={builderModeEnabled} onChange={onBuilderModeClick} />,
         },
         {
             title: 'Get Support',
