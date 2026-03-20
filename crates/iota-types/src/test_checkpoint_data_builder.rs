@@ -427,7 +427,7 @@ impl TestCheckpointDataBuilder {
         let input_objects: Vec<_> = mutated_objects
             .keys()
             .map(|id| self.live_objects.get(id).unwrap().clone())
-            .chain(deleted_objects.clone())
+            .chain(deleted_objects)
             .chain(wrapped_objects.clone())
             .chain(std::iter::once(
                 self.live_objects.get(&gas.0).unwrap().clone(),
@@ -437,7 +437,7 @@ impl TestCheckpointDataBuilder {
             .values()
             .cloned()
             .chain(mutated_objects.values().cloned())
-            .chain(unwrapped_objects.clone())
+            .chain(unwrapped_objects)
             .chain(std::iter::once(
                 self.live_objects.get(&gas.0).cloned().unwrap(),
             ))
@@ -536,7 +536,7 @@ impl TestCheckpointDataBuilder {
         // checkpoint with additional end of epoch data.
         let mut checkpoint = self.build_checkpoint();
         let end_of_epoch_data = EndOfEpochData {
-            next_epoch_committee: committee.voting_rights.clone(),
+            next_epoch_committee: committee.voting_rights,
             next_epoch_protocol_version: protocol_config.version,
             epoch_commitments: vec![],
             // Do not simulate supply changes in tests.

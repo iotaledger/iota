@@ -86,7 +86,7 @@ mod tests {
         let layout = bal_t("0x42::foo::Bar");
         let value = bal_v("0x42::foo::Bar", 42);
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -100,7 +100,7 @@ mod tests {
         let layout = coin_t("0x42::foo::Bar");
         let value = coin_v("0x42::foo::Bar", "0x101", 42);
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -137,7 +137,7 @@ mod tests {
             ],
         );
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -158,7 +158,7 @@ mod tests {
 
         let layout = T::U64;
         let value = A::MoveValue::U64(42);
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -202,7 +202,7 @@ mod tests {
             ],
         );
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let mut visitor = BalanceTraversal::default();
         A::MoveValue::visit_deserialize(&bytes, &layout, &mut visitor).unwrap();
@@ -295,6 +295,6 @@ mod tests {
 
     /// BCS encode Move value.
     fn serialize(value: A::MoveValue) -> Vec<u8> {
-        value.clone().undecorate().simple_serialize().unwrap()
+        value.undecorate().simple_serialize().unwrap()
     }
 }

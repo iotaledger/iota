@@ -22,3 +22,6 @@ tracing.workspace = true
 # internal dependencies
 iota-indexer.workspace = true
 iota-types.workspace = true
+
+[lints]
+workspace = true

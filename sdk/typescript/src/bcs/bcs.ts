@@ -45,7 +45,7 @@ export const Address = bcs.bytes(IOTA_ADDRESS_LENGTH).transform({
     output: (val) => normalizeIotaAddress(toHex(val)),
 });
 
-export const ObjectDigest = bcs.vector(bcs.u8()).transform({
+export const ObjectDigest = bcs.byteVector().transform({
     name: 'ObjectDigest',
     input: (value: string) => fromBase58(value),
     output: (value) => toBase58(new Uint8Array(value)),
@@ -85,7 +85,7 @@ export const Owner = bcs.enum('Owner', {
 
 export const CallArg = bcs.enum('CallArg', {
     Pure: bcs.struct('Pure', {
-        bytes: bcs.vector(bcs.u8()).transform({
+        bytes: bcs.byteVector().transform({
             input: (val: string | Uint8Array) => (typeof val === 'string' ? fromBase64(val) : val),
             output: (val) => toBase64(new Uint8Array(val)),
         }),
@@ -161,7 +161,7 @@ export const Command = bcs.enum('Command', {
     //  */
     Publish: bcs.struct('Publish', {
         modules: bcs.vector(
-            bcs.vector(bcs.u8()).transform({
+            bcs.byteVector().transform({
                 input: (val: string | Uint8Array) =>
                     typeof val === 'string' ? fromBase64(val) : val,
                 output: (val) => toBase64(new Uint8Array(val)),
@@ -190,7 +190,7 @@ export const Command = bcs.enum('Command', {
     }),
     Upgrade: bcs.struct('Upgrade', {
         modules: bcs.vector(
-            bcs.vector(bcs.u8()).transform({
+            bcs.byteVector().transform({
                 input: (val: string | Uint8Array) =>
                     typeof val === 'string' ? fromBase64(val) : val,
                 output: (val) => toBase64(new Uint8Array(val)),
@@ -273,15 +273,15 @@ export function IntentMessage<T extends BcsType<any>>(T: T) {
 }
 
 export const CompressedSignature = bcs.enum('CompressedSignature', {
-    ED25519: bcs.fixedArray(64, bcs.u8()),
-    Secp256k1: bcs.fixedArray(64, bcs.u8()),
-    Secp256r1: bcs.fixedArray(64, bcs.u8()),
+    ED25519: bcs.bytes(64),
+    Secp256k1: bcs.bytes(64),
+    Secp256r1: bcs.bytes(64),
 });
 
 export const PublicKey = bcs.enum('PublicKey', {
-    ED25519: bcs.fixedArray(32, bcs.u8()),
-    Secp256k1: bcs.fixedArray(33, bcs.u8()),
-    Secp256r1: bcs.fixedArray(33, bcs.u8()),
+    ED25519: bcs.bytes(32),
+    Secp256k1: bcs.bytes(33),
+    Secp256r1: bcs.bytes(33),
 });
 
 export const MultiSigPkMap = bcs.struct('MultiSigPkMap', {
@@ -300,7 +300,7 @@ export const MultiSig = bcs.struct('MultiSig', {
     multisig_pk: MultiSigPublicKey,
 });
 
-export const base64String = bcs.vector(bcs.u8()).transform({
+export const base64String = bcs.byteVector().transform({
     input: (val: string | Uint8Array) => (typeof val === 'string' ? fromBase64(val) : val),
     output: (val) => toBase64(new Uint8Array(val)),
 });
@@ -315,9 +315,9 @@ export const SenderSignedData = bcs.vector(SenderSignedTransaction, {
 });
 
 export const PasskeyAuthenticator = bcs.struct('PasskeyAuthenticator', {
-    authenticatorData: bcs.vector(bcs.u8()),
+    authenticatorData: bcs.byteVector(),
     clientDataJson: bcs.string(),
-    userSignature: bcs.vector(bcs.u8()),
+    userSignature: bcs.byteVector(),
 });
 
 /** @experimental */

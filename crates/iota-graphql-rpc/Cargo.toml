@@ -100,3 +100,6 @@ development = ["serial_test", "simulacrum"]
 ignored = [
   "downcast", # imported through a declarative macro
 ]
+
+[lints]
+workspace = true

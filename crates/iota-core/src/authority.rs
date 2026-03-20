@@ -956,7 +956,7 @@ impl AuthorityState {
             let authenticator_function_ref = authenticator_function_ref
                 .expect("AuthenticatorFunctionRefV1 object must be provided");
 
-            let (kind, signer, _) = tx_data.execution_parts();
+            let (kind, signer, gas_data) = tx_data.execution_parts();
 
             // Execute the Move authenticator.
             let validation_result = epoch_store.executor().authenticate_transaction(
@@ -968,6 +968,7 @@ impl AuthorityState {
                     .epoch_start_config()
                     .epoch_data()
                     .epoch_start_timestamp(),
+                gas_data,
                 gas_status,
                 move_authenticator.to_owned(),
                 authenticator_function_ref,
@@ -1642,7 +1643,7 @@ impl AuthorityState {
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
 
-        let (kind, signer, gas) = tx_data.execution_parts();
+        let (kind, signer, gas_data) = tx_data.execution_parts();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let (inner_temp_store, _, mut effects, execution_error_opt) = if let Some(
@@ -1713,8 +1714,8 @@ impl AuthorityState {
                     self.config.certificate_deny_config.certificate_deny_set(),
                     &epoch_id,
                     epoch_start_timestamp,
+                    gas_data,
                     gas_status,
-                    gas,
                     move_authenticator.to_owned(),
                     authenticator_function_ref_for_execution,
                     authenticator_checked_input_objects,
@@ -1752,7 +1753,7 @@ impl AuthorityState {
                 &epoch_id,
                 epoch_start_timestamp,
                 tx_checked_input_objects,
-                gas,
+                gas_data,
                 tx_gas_status,
                 kind,
                 signer,
@@ -1882,7 +1883,6 @@ impl AuthorityState {
 
         // make a gas object if one was not provided
         let mut transaction = transaction;
-        let mut gas_object_refs = transaction.gas().to_vec();
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
@@ -1897,9 +1897,8 @@ impl AuthorityState {
                 TransactionDigest::genesis_marker(),
             );
             let gas_object_ref = gas_object.compute_object_reference();
-            gas_object_refs = vec![gas_object_ref];
             // Add gas object to transaction gas payment
-            transaction.gas_data_mut().payment = gas_object_refs.clone();
+            transaction.gas_data_mut().payment = vec![gas_object_ref];
             (
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -1934,7 +1933,7 @@ impl AuthorityState {
         };
 
         let protocol_config = epoch_store.protocol_config();
-        let (kind, signer, _) = transaction.execution_parts();
+        let (kind, signer, gas_data) = transaction.execution_parts();
 
         let silent = true;
         let executor = iota_execution::executor(protocol_config, silent, None)
@@ -1954,7 +1953,7 @@ impl AuthorityState {
                     .epoch_data()
                     .epoch_start_timestamp(),
                 checked_input_objects,
-                gas_object_refs,
+                gas_data,
                 gas_status,
                 kind,
                 signer,
@@ -2146,7 +2145,7 @@ impl AuthorityState {
         .expect("Creating an executor should not fail here");
 
         // Execute the simulation
-        let (kind, signer, gas_coins) = transaction.execution_parts();
+        let (kind, signer, gas_data) = transaction.execution_parts();
         let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
             self.get_backing_store().as_ref(),
             protocol_config,
@@ -2159,7 +2158,7 @@ impl AuthorityState {
                 .epoch_data()
                 .epoch_start_timestamp(),
             checked_input_objects,
-            gas_coins,
+            gas_data,
             gas_status,
             kind,
             signer,
@@ -2224,7 +2223,7 @@ impl AuthorityState {
         // Payment might be empty here, but it's fine we'll have to deal with it later
         // after reading all the input objects.
         let payment = gas_objects.unwrap_or_default();
-        let transaction = TransactionData::V1(TransactionDataV1 {
+        let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
             gas_data: GasData {
@@ -2266,27 +2265,21 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        // Create and use a dummy gas object if there is no gas object provided.
-        let dummy_gas_object = Object::new_gas_with_balance_and_owner_for_testing(
-            SIMULATION_GAS_COIN_VALUE,
-            transaction.gas_owner(),
-        );
-
-        let gas_objects = if transaction.gas().is_empty() {
-            let gas_object_ref = dummy_gas_object.compute_object_reference();
-            vec![gas_object_ref]
-        } else {
-            transaction.gas().to_vec()
-        };
-
         let (gas_status, checked_input_objects) = if skip_checks {
             // If we are skipping checks, then we call the check_dev_inspect_input function
             // which will perform only lightweight checks on the transaction
             // input. And if the gas field is empty, that means we will
             // use the dummy gas object so we need to add it to the input objects vector.
             if transaction.gas().is_empty() {
+                // Create and use a dummy gas object if there is no gas object provided.
+                let dummy_gas_object = Object::new_gas_with_balance_and_owner_for_testing(
+                    SIMULATION_GAS_COIN_VALUE,
+                    transaction.gas_owner(),
+                );
+                let gas_object_ref = dummy_gas_object.compute_object_reference();
+                transaction.gas_data_mut().payment = vec![gas_object_ref];
                 input_objects.push(ObjectReadResult::new(
-                    InputObjectKind::ImmOrOwnedMoveObject(gas_objects[0]),
+                    InputObjectKind::ImmOrOwnedMoveObject(gas_object_ref),
                     dummy_gas_object.into(),
                 ));
             }
@@ -2309,6 +2302,13 @@ impl AuthorityState {
             // function and its dummy gas variant which will perform full
             // fledged checks just like a real transaction execution.
             if transaction.gas().is_empty() {
+                // Create and use a dummy gas object if there is no gas object provided.
+                let dummy_gas_object = Object::new_gas_with_balance_and_owner_for_testing(
+                    SIMULATION_GAS_COIN_VALUE,
+                    transaction.gas_owner(),
+                );
+                let gas_object_ref = dummy_gas_object.compute_object_reference();
+                transaction.gas_data_mut().payment = vec![gas_object_ref];
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
                     reference_gas_price,
@@ -2339,6 +2339,7 @@ impl AuthorityState {
 
         let executor = iota_execution::executor(protocol_config, /* silent */ true, None)
             .expect("Creating an executor should not fail here");
+        let gas_data = transaction.gas_data().clone();
         let intent_msg = IntentMessage::new(
             Intent {
                 version: IntentVersion::V0,
@@ -2361,7 +2362,7 @@ impl AuthorityState {
                 .epoch_data()
                 .epoch_start_timestamp(),
             checked_input_objects,
-            gas_objects,
+            gas_data,
             gas_status,
             transaction_kind,
             sender,

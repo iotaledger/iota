@@ -833,7 +833,7 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
@@ -905,13 +905,13 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=4) // 4 rounds
             .authorities(vec![
@@ -946,13 +946,13 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 2 rounds
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=2).build();
 
         let all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
@@ -992,7 +992,7 @@ mod tests {
             .set_consensus_gc_depth_for_testing(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // We "fake" the commit for round 10, so we can test the GC round 6
         // (commit_round - gc_depth = 10 - 4 = 6)
@@ -1010,8 +1010,7 @@ mod tests {
             "GC round should have moved to round 6"
         );
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context, dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 10 rounds with some weak links for the blocks of round 9
         let dag_str = "DAG {
@@ -1085,7 +1084,7 @@ mod tests {
             .set_consensus_gc_depth_for_testing(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // We "fake" the commit for round 10, so we can test the GC round 6
         // (commit_round - gc_depth = 10 - 4 = 6)
@@ -1107,13 +1106,13 @@ mod tests {
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 6 rounds
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=6).build();
 
         let all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
 
         // WHEN
-        let (accepted_blocks, missing) = block_manager.try_accept_blocks(all_blocks.clone());
+        let (accepted_blocks, missing) = block_manager.try_accept_blocks(all_blocks);
 
         // THEN
         assert!(accepted_blocks.is_empty());
@@ -1206,10 +1205,9 @@ mod tests {
             .collect::<BTreeSet<_>>();
 
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+        let mut block_manager = BlockManager::new(context, dag_state, Arc::new(NoopBlockVerifier));
 
         let (_, missing_blocks) = block_manager.try_accept_blocks(vec![blocks_round_2[0].clone()]);
         // Blocks from round 1 are all missing, since the DAG is fully connected
@@ -1352,7 +1350,7 @@ mod tests {
             .set_consensus_gc_depth_for_testing(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // We "fake" the commit for round 6, so GC round moves to (commit_round -
         // gc_depth = 6 - 4 = 2)
@@ -1374,13 +1372,13 @@ mod tests {
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 12 rounds
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=12).build();
 
         // Now try to accept via the normal acceptance block path the blocks of rounds 7
         // ~ 12. None of them should be accepted
         let blocks = dag_builder.blocks(7..=12);
-        let (accepted_blocks, missing) = block_manager.try_accept_blocks(blocks.clone());
+        let (accepted_blocks, missing) = block_manager.try_accept_blocks(blocks);
         assert!(accepted_blocks.is_empty());
         assert_eq!(missing.len(), 4);
 
@@ -1460,9 +1458,8 @@ mod tests {
 
         // Create BlockManager.
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let mut block_manager =
-            BlockManager::new(context.clone(), dag_state, Arc::new(test_verifier));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context, dag_state, Arc::new(test_verifier));
 
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
         // be suspended.
@@ -1508,13 +1505,13 @@ mod tests {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=2) // 2 rounds
             .authorities(vec![
@@ -1605,11 +1602,11 @@ mod tests {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         let mut block_manager = BlockManager::new(
             context.clone(),
-            dag_state.clone(),
+            dag_state,
             Arc::new(SignedBlockVerifier::new(
                 context.clone(),
                 Arc::new(NoopTransactionVerifier {}),

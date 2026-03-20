@@ -171,7 +171,6 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
-  "crates/typed-store-workspace-hack",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
@@ -226,6 +225,9 @@ inherits = "simulator"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
+
+[workspace.lints.clippy]
+redundant_clone = "warn"
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]

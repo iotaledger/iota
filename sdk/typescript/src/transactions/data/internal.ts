@@ -27,19 +27,26 @@ import {
 
 import { isValidIotaAddress, normalizeIotaAddress } from '../../utils/iota-types.js';
 
-type Merge<T> = T extends object ? { [K in keyof T]: T[K] } : never;
+type Simplify<T> = {
+    [K in keyof T]: T[K];
+    // eslint-disable-next-line @typescript-eslint/ban-types
+} & {};
+
+type EnumSchemaInput<T extends Record<string, GenericSchema<any>>> = EnumInputShape<
+    Simplify<{
+        [K in keyof T]: InferInput<T[K]>;
+    }>
+>;
+
+type EnumSchemaOutput<T extends Record<string, GenericSchema<any>>> = EnumOutputShape<
+    Simplify<{
+        [K in keyof T]: InferOutput<T[K]>;
+    }>
+>;
 
 type EnumSchema<T extends Record<string, GenericSchema<any>>> = GenericSchema<
-    EnumInputShape<
-        Merge<{
-            [K in keyof T]: InferInput<T[K]>;
-        }>
-    >,
-    EnumOutputShape<
-        Merge<{
-            [K in keyof T]: InferOutput<T[K]>;
-        }>
-    >
+    EnumSchemaInput<T>,
+    EnumSchemaOutput<T>
 >;
 
 export function safeEnum<T extends Record<string, GenericSchema<any>>>(options: T): EnumSchema<T> {
@@ -47,11 +54,14 @@ export function safeEnum<T extends Record<string, GenericSchema<any>>>(options: 
 
     return pipe(
         union(unionOptions),
-        transform((value) => ({
-            ...value,
-            $kind: Object.keys(value)[0] as keyof typeof value,
-        })),
-    ) as unknown as EnumSchema<T>;
+        transform(
+            (value) =>
+                ({
+                    ...value,
+                    $kind: Object.keys(value)[0] as keyof typeof value,
+                }) as EnumSchemaOutput<T>,
+        ),
+    ) as EnumSchema<T>;
 }
 
 export const IotaAddress = pipe(

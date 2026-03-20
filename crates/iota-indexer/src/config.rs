@@ -797,7 +797,7 @@ mod test {
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
             epochs_to_keep: None,
-            pruning_config_path: Some(temp_path.clone()),
+            pruning_config_path: Some(temp_path),
             optimistic_pruner_batch_size: None,
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
@@ -848,7 +848,7 @@ mod test {
         let temp_path: PathBuf = temp_file.path().to_path_buf();
         let pruning_options = PruningOptions {
             epochs_to_keep: None,
-            pruning_config_path: Some(temp_path.clone()),
+            pruning_config_path: Some(temp_path),
             optimistic_pruner_batch_size: None,
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
