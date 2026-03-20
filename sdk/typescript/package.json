@@ -135,7 +135,6 @@
         "graphql-config": "^5.0.3",
         "msw": "^2.3.1",
         "tmp": "^0.2.3",
-        "ts-retry-promise": "^0.8.1",
         "typescript": "^5.5.3",
         "vite": "^5.4.12",
         "vitest": "^3.2.4",
