@@ -11,12 +11,7 @@ authorization is performed by an on-chain Move function rather than a cryptograp
 "public key" of the account is a Move object; the sender address equals the object ID directly.
 
 ```typescript
-import {
-    MoveAuthenticatorBuilder,
-    MoveSigner,
-    InvalidMoveAuthArgError,
-    InvalidMoveAuthAccountError,
-} from '@iota/iota-sdk/keypairs/move-authenticator';
+import { MoveAuthenticatorBuilder, MoveSigner } from '@iota/iota-sdk/keypairs/move-authenticator';
 ```
 
 ## Overview
@@ -42,23 +37,14 @@ import { MoveAuthenticatorBuilder } from '@iota/iota-sdk/keypairs/move-authentic
 const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 
 const data = await new MoveAuthenticatorBuilder(
-    '0xobject_id_of_the_authenticator_object', // objectToAuthenticate
+    '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a', // objectToAuthenticate
 )
-    .addTypeArg('0xpackage::module::AuthWitness') // optional type arguments
-    .addSharedObject('0xshared_object_id', /* mutable */ false) // shared call arg
-    .addImmutableObject('0ximmutable_object_id') // immutable call arg
+    .addTypeArg('0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890::module::AuthWitness') // optional type arguments
+    .addSharedObject('0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b', /* mutable */ false) // shared call arg
+    .addImmutableObject('0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c') // immutable call arg
     .addPure(new Uint8Array([1, 2, 3])) // arbitrary pure bytes call arg
     .finish(client); // resolves and validates all objects
 ```
-
-The builder methods are:
-
-| Method | Description |
-| --- | --- |
-| `addTypeArg(typeArg)` | Append a Move type argument string |
-| `addPure(value)` | Append a pure bytes call argument |
-| `addSharedObject(objectId, mutable?)` | Append a shared-object call argument |
-| `addImmutableObject(objectId)` | Append an immutable-object call argument |
 
 `finish(client)` fetches object metadata from the network and throws if any object is invalid (see
 [Error handling](#error-handling)).
@@ -106,8 +92,8 @@ import {
 } from '@iota/iota-sdk/keypairs/move-authenticator';
 
 try {
-    const data = await new MoveAuthenticatorBuilder('0xobject_id')
-        .addSharedObject('0xanother_object_id')
+    const data = await new MoveAuthenticatorBuilder('0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a')
+        .addSharedObject('0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b')
         .finish(client);
 } catch (e) {
     if (e instanceof InvalidMoveAuthAccountError) {
