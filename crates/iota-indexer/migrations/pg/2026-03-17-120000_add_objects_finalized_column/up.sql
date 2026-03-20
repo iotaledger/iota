@@ -1,10 +1,7 @@
--- Indicates that neither checkpoint nor optimistic indexing will write this
--- object at its current version again, so follow-up operations (e.g. updates,
--- deletions) can safely proceed without risk of being overwritten by concurrent
--- indexing.
+-- Stores the checkpoint sequence number at which this object was, or will be, indexed.
+-- Readers can consider the object finalized when this checkpoint has been
+-- marked as fully indexed.
 --
--- This flag is only an indicator, not a protection mechanism. The actual write
--- protection is enforced by the tx status in `tx_global_order`.
---
--- Default is true because all existing objects are already finalized.
-ALTER TABLE objects ADD COLUMN finalized bool NOT NULL DEFAULT true;
+-- NULL means the object is already finalized (default for existing objects
+-- and objects written by the optimistic path).
+ALTER TABLE objects ADD COLUMN finalized_in_cp bigint DEFAULT NULL;

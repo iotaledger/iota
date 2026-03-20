@@ -487,8 +487,8 @@ impl OptimisticTransactionExecutor {
 
         self.store.persist_objects_in_existing_transaction(
             conn,
-            vec![object_changes.clone()],
-            true,
+            vec![object_changes],
+            None,
         )?;
         self.store.persist_displays_in_existing_transaction(
             conn,

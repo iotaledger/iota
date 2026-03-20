@@ -155,18 +155,7 @@ impl PrimaryWriter {
         let packages_batch = packages_batch.into_iter().flatten().collect::<Vec<_>>();
         let checkpoint_num = checkpoint_batch.len();
         let tx_count = tx_batch.len();
-
-        // Collect object IDs from the batch before they are consumed, so we can
-        // finalize them after checkpoint persistence is complete.
-        let object_ids_to_finalize: Vec<Vec<u8>> = object_changes_batch
-            .iter()
-            .flat_map(|changes| {
-                changes
-                    .changed_objects
-                    .iter()
-                    .map(|o| o.object().id().to_vec())
-            })
-            .collect();
+        let max_checkpoint_seq = committer_watermark.max_committed_cp;
 
         {
             let _step_1_guard = self
@@ -192,7 +181,7 @@ impl PrimaryWriter {
                         .persist_tx_global_order(tx_global_order_batch.clone())
                         .await?;
                     self.state
-                        .persist_checkpoint_objects(object_changes_batch)
+                        .persist_checkpoint_objects(object_changes_batch, max_checkpoint_seq)
                         .await
                 }),
             ];
@@ -211,22 +200,6 @@ impl PrimaryWriter {
                 .collect::<IndexerResult<Vec<_>>>()
                 .expect("persisting data into DB should not fail.");
         }
-
-        self.state
-            .update_status_for_checkpoint_transactions(tx_global_order_batch)
-            .await
-            .inspect_err(|e| {
-                error!("failed to update tx global order as indexed with error: {e}");
-            })
-            .expect("updating tx global order as indexed should not fail.");
-
-        self.state
-            .finalize_objects(object_ids_to_finalize)
-            .await
-            .inspect_err(|e| {
-                error!("failed to finalize objects with error: {e}");
-            })
-            .expect("finalizing objects should not fail.");
 
         let is_epoch_end = epoch.is_some();
 

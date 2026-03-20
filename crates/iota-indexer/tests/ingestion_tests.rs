@@ -10,7 +10,8 @@ mod ingestion_tests {
     use std::{sync::Arc, time::Duration};
 
     use diesel::{
-        ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, connection::BoxableConnection,
+        BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper,
+        connection::BoxableConnection,
     };
     use iota_indexer::{
         db::get_pool_connection,
@@ -73,7 +74,7 @@ mod ingestion_tests {
             .map(|_| CheckpointObjectChanges::random())
             .collect();
         pg_store
-            .persist_checkpoint_objects(checkpoint_objects)
+            .persist_checkpoint_objects(checkpoint_objects, 0)
             .await?;
         Ok(())
     }
@@ -478,9 +479,16 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 1).await;
 
+        let max_cp = IndexerStore::get_latest_checkpoint_sequence_number(&pg_store)
+            .await?
+            .unwrap() as i64;
         let non_finalized_count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             objects::table
-                .filter(objects::finalized.eq(false))
+                .filter(
+                    objects::finalized_in_cp
+                        .is_not_null()
+                        .and(objects::finalized_in_cp.gt(max_cp)),
+                )
                 .count()
                 .get_result::<i64>(conn)
         })

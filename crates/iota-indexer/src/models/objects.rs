@@ -52,15 +52,13 @@ pub struct StoredObject {
     // TODO deal with overflow
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
-    /// When true, neither checkpoint nor optimistic indexing will write this
-    /// object at its current version again. Follow-up operations (e.g.
-    /// updates, deletions) can safely proceed without risk of being
-    /// overwritten by concurrent indexing.
+    /// The checkpoint sequence number at which this object was, or will be,
+    /// indexed. Readers can consider the object finalized when this
+    /// checkpoint has been marked as fully indexed.
     ///
-    /// Note: this flag is only an indicator, not a protection mechanism. The
-    /// actual write protection is enforced by the tx status in
-    /// `tx_global_order`.
-    pub finalized: bool,
+    /// `None` means the object is already finalized (default for existing
+    /// objects and objects written by the optimistic path).
+    pub finalized_in_cp: Option<i64>,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
@@ -367,7 +365,7 @@ impl From<IndexedObject> for StoredObject {
                 DynamicFieldType::DynamicField => 0,
                 DynamicFieldType::DynamicObject => 1,
             }),
-            finalized: false,
+            finalized_in_cp: None,
         }
     }
 }

@@ -6,7 +6,9 @@ use std::{
     str::FromStr,
 };
 
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper,
+};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
@@ -15,6 +17,7 @@ use iota_indexer::{
     models::transactions::TxGlobalOrder,
     read_only_blocking,
     schema::{objects, tx_global_order},
+    store::indexer_store::IndexerStore,
     types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
@@ -399,11 +402,22 @@ fn optimistic_objects_are_finalized() {
         assert_transaction_success(&res);
 
         // All objects should be finalized in the DB, whether they were indexed
-        // via the optimistic or checkpoint path.
+        // via the optimistic or checkpoint path. Objects are finalized when
+        // `finalized_in_cp IS NULL` (optimistic/already finalized) or when
+        // the checkpoint they belong to has been indexed.
+        let max_cp: i64 = store
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap()
+            .unwrap() as i64;
         let non_finalized_count: i64 = (|| -> Result<_, IndexerError> {
             read_only_blocking!(&store.blocking_cp(), |conn| {
                 objects::table
-                    .filter(objects::finalized.eq(false))
+                    .filter(
+                        objects::finalized_in_cp
+                            .is_not_null()
+                            .and(objects::finalized_in_cp.gt(max_cp)),
+                    )
                     .count()
                     .get_result::<i64>(conn)
             })
