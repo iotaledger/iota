@@ -718,9 +718,9 @@ mod test {
             authority_pubkey: authority_key2.public().clone(),
             network_pubkey: protocol_network_key2.public().clone(),
             protocol_pubkey: protocol_network_key2.public().clone(),
-            iota_net_address: net_address2.clone(),
-            p2p_address: p2p_address2.clone(),
-            primary_address: primary_address2.clone(),
+            iota_net_address: net_address2,
+            p2p_address: p2p_address2,
+            primary_address: primary_address2,
             voting_power: 500,
             hostname: "non-committee-1.example.com".to_string(),
         };

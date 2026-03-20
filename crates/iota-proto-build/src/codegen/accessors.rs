@@ -396,7 +396,7 @@ fn generate_selective_accessors_for_field(
         let storage_type = if is_enum {
             TokenStream::from_str("i32").unwrap()
         } else {
-            field_type_path.clone()
+            field_type_path
         };
 
         if accessor_types.contains(AccessorTypes::GETTER) {

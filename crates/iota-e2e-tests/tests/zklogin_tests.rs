@@ -59,9 +59,9 @@ async fn build_zklogin_tx(test_cluster: &TestCluster, max_epoch: EpochId) -> Tra
     let generic_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
         inputs.clone(),
         max_epoch,
-        eph_sig.clone(),
+        eph_sig,
     ));
-    Transaction::from_generic_sig_data(tx_data.clone(), vec![generic_sig])
+    Transaction::from_generic_sig_data(tx_data, vec![generic_sig])
 }
 #[sim_test]
 #[ignore = "https://github.com/iotaledger/iota/issues/1777"]

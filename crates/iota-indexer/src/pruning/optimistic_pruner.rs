@@ -44,7 +44,7 @@ impl OptimisticPruner {
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
         let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone())?;
-        let partition_manager = PgPartitionManager::new(blocking_cp.clone())?;
+        let partition_manager = PgPartitionManager::new(blocking_cp)?;
         Ok(Self {
             store,
             partition_manager,

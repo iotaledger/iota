@@ -297,7 +297,7 @@ mod test {
         let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
-        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
         let test_block = TestBlock::new(10, 2)
             .set_ancestors(vec![
@@ -548,7 +548,6 @@ mod test {
         // Block with too many transaction bytes.
         {
             let block = test_block
-                .clone()
                 .set_transactions(
                     (0..100)
                         .map(|_| Transaction::new(vec![4; 8 * 1024]))
@@ -572,7 +571,7 @@ mod test {
         let num_authorities = 4;
         let (context, _keypairs) = Context::new_for_test(num_authorities);
         let context = Arc::new(context);
-        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
         let gc_round = 0;
 
         let mut ancestor_blocks = vec![];
@@ -605,7 +604,7 @@ mod test {
         // Block not respecting timestamp invariant.
         {
             let block = TestBlock::new(11, 0)
-                .set_ancestors(ancestor_refs.clone())
+                .set_ancestors(ancestor_refs)
                 .set_timestamp_ms(1000)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
@@ -624,7 +623,7 @@ mod test {
         let num_authorities = 4;
         let (context, _keypairs) = Context::new_for_test(num_authorities);
         let context = Arc::new(context);
-        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
         let gc_enabled = true;
         let gc_round = 3;
 
@@ -684,7 +683,7 @@ mod test {
         // collected
         {
             let block = TestBlock::new(11, 0)
-                .set_ancestors(ancestor_refs.clone())
+                .set_ancestors(ancestor_refs)
                 .set_timestamp_ms(1100)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);

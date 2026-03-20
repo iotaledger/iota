@@ -2,32 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import ImportAWallet from '_assets/images/onboarding/import-a-wallet.png';
 import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
-import { AccountsFormType, PageTemplate } from '_components';
-import { useAppSelector, useCreateAccountsMutation, useAccounts } from '_hooks';
+import { AccountsFormType, PageTemplate, useSourceFlow } from '_components';
+import { useAppSelector, useAccounts } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Theme, useTheme } from '@iota/core';
 import clsx from 'clsx';
-import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 import { isFirstAccount } from '../../helpers';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
-    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const createAccountsMutation = useCreateAccountsMutation();
-    const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
+    const { sourceFlowRef } = useSourceFlow();
+    const sourceFlow = sourceFlowRef.current;
     const { data: accounts } = useAccounts();
 
     const profileOptions = [
@@ -83,7 +82,7 @@ export function ImportExistingWallet() {
             case AccountsFormType.ImportPasskey:
                 const url = '/accounts/import-passkey';
                 if (isPopupOrSidePanel) {
-                    openInNewTab(url);
+                    openInNewTab(`${url}?sourceFlow=${sourceFlow}`);
                     window.close();
                 } else {
                     navigate(url);
@@ -137,7 +136,6 @@ export function ImportExistingWallet() {
                         <Card
                             key={card.title}
                             type={CardType.Filled}
-                            isDisabled={createAccountsMutation.isPending}
                             isHoverable
                             onClick={() => handleCardAction(card.actionType)}
                             testId={card.actionType}
@@ -156,7 +154,6 @@ export function ImportExistingWallet() {
                         <Card
                             key={card.title}
                             type={CardType.Filled}
-                            isDisabled={createAccountsMutation.isPending}
                             isHoverable
                             onClick={() => handleCardAction(card.actionType)}
                         >
