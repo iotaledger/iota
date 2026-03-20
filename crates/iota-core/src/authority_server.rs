@@ -22,7 +22,6 @@ use iota_network::{
 };
 use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
-    base_types::TransactionEffectsDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::*,
     fp_ensure,
@@ -1299,26 +1298,20 @@ impl ValidatorService {
 
         let request = request.into_inner();
 
-        // Handle ping.
+        // Handle ping (empty request → empty response).
         if request.is_ping() {
-            // TODO: handle ping response better. Do we even need ping requests?
             return Ok((
-                tonic::Response::new(SubmitTransactionsResponse {
-                    results: vec![SubmitTransactionResult::Submitted],
-                }),
+                tonic::Response::new(SubmitTransactionsResponse { results: vec![] }),
                 Weight::zero(),
             ));
         }
 
         let transactions = request.transactions;
 
-        // Per-tx validity checks. For soft bundles this also accumulates total
-        // serialized size for the bundle size limit.
-        // TODO: check if size check needed?
-        let mut _total_size_bytes: u64 = 0;
+        // Per-tx validity and overload checks. These are validator-wide
+        // conditions so we short-circuit before spawning parallel futures.
         for tx in &transactions {
-            _total_size_bytes +=
-                tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
+            tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
             // System overload check per transaction: check_execution_overload examines
             // per-transaction input objects (shared objects, object queue depth).
@@ -1339,9 +1332,7 @@ impl ValidatorService {
         // where the timer also starts after the overload check.
         let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
 
-        // ── Single-transaction path ─────────────────────────────────────────
-        // TODO fix above
-        // NOTO: executed in parallel
+        // Process each transaction independently in parallel.
         let futures = transactions
             .into_iter()
             .map(|tx| self.handle_submit_transaction_impl(tx, &epoch_store));
@@ -1367,12 +1358,9 @@ impl ValidatorService {
         transaction: Transaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Result<SubmitTransactionResult, tonic::Status> {
-        let Self {
-            state,
-            consensus_adapter,
-            metrics,
-            ..
-        } = self.clone();
+        let state = &self.state;
+        let consensus_adapter = &self.consensus_adapter;
+        let metrics = &self.metrics;
 
         let tx_digest = *transaction.digest();
 
@@ -1474,19 +1462,14 @@ impl ValidatorService {
         &self,
         request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
     ) -> WrappedServiceResponse<iota_types::messages_grpc::WaitForEffectsResponse> {
-        use iota_types::messages_grpc::{WaitForEffectResponse, WaitForEffectsResponse};
+        use iota_types::messages_grpc::WaitForEffectsResponse;
 
         let batch_request = request.into_inner();
 
-        // Handle ping requests (empty requests vec).
+        // Handle ping (empty request → empty response).
         if batch_request.is_ping() {
             return Ok((
-                tonic::Response::new(WaitForEffectsResponse {
-                    results: vec![WaitForEffectResponse::Executed {
-                        effects_digest: TransactionEffectsDigest::ZERO,
-                        details: None,
-                    }],
-                }),
+                tonic::Response::new(WaitForEffectsResponse { results: vec![] }),
                 Weight::one(),
             ));
         }

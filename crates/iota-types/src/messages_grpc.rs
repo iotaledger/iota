@@ -397,8 +397,7 @@ impl std::fmt::Debug for SubmitTransactionResult {
 }
 
 /// Response from the TransactionDriver submit_transaction endpoint.
-/// TODO: Remove note bellow once soft bundle support is removed.
-/// NOTE: Vector of results does not work with soft bundles.
+/// Contains one result per submitted transaction.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionsResponse {
     pub results: Vec<SubmitTransactionResult>,
