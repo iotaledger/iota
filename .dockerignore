@@ -9,4 +9,25 @@ build/
 storage/
 docker/
 dev-tools/
+!dev-tools/dag-visualizer/server/
 setups/
+
+# Node.js
+node_modules/
+.turbo
+.pnpm-store
+
+# iota-private-network
+dev-tools/iota-private-network/data
+dev-tools/iota-private-network/configs/validators/validator*
+dev-tools/iota-private-network/configs/genesis/genesis.blob
+dev-tools/iota-private-network/configs/temp/
+dev-tools/iota-private-network/experiments/logs/
+dev-tools/iota-private-network/.env.tmp
+dev-tools/iota-private-network/configs/faucet/*.migrated
+
+# iota-aws-orchestrator
+crates/iota-aws-orchestrator/venv/
+crates/iota-aws-orchestrator/assets/plots/
+crates/iota-aws-orchestrator/assets/results/
+crates/iota-aws-orchestrator/assets/logs/

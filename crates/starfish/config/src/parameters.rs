@@ -145,6 +145,13 @@ pub struct Parameters {
     /// operators can disable it locally without a protocol change.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
+
+    /// Port for the DAG visualizer gRPC server (localhost only).
+    /// When set, starts a debugging server for real-time DAG visualization.
+    /// Disabled by default (None).
+    #[cfg(feature = "dag-visualizer")]
+    #[serde(default)]
+    pub dag_visualizer_port: Option<u16>,
 }
 
 impl Parameters {
@@ -342,6 +349,8 @@ impl Default for Parameters {
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
             enable_starfish_speed_adaptive_acknowledgments:
                 Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_port: None,
         }
     }
 }

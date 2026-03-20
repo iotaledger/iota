@@ -2997,6 +2997,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dag-visualizer-proto"
+version = "1.20.0-alpha"
+dependencies = [
+ "prost 0.14.1",
+ "prost-build 0.14.1",
+ "tonic 0.14.2",
+ "tonic-build 0.14.2",
+ "tonic-prost",
+ "tonic-prost-build",
+]
+
+[[package]]
 name = "darling"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13187,6 +13199,7 @@ dependencies = [
  "bcs",
  "bytes",
  "cfg-if",
+ "dag-visualizer-proto",
  "dashmap",
  "enum_dispatch",
  "eyre",

@@ -43,6 +43,9 @@ pub mod transaction;
 pub(crate) mod transaction_ref;
 mod transactions_synchronizer;
 
+#[cfg(feature = "dag-visualizer")]
+pub mod dag_visualizer;
+
 mod universal_committer;
 
 #[cfg(test)]

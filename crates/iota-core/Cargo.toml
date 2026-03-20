@@ -92,6 +92,9 @@ starfish-core.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
+[features]
+dag-visualizer = ["starfish-core/dag-visualizer"]
+
 [dev-dependencies]
 # external dependencies
 clap.workspace = true

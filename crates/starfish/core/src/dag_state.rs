@@ -281,6 +281,12 @@ pub(crate) struct DagState {
     /// History of strong-vote complaint masks against this node's own
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
+
+    /// Broadcast sender for DAG visualizer events.
+    #[cfg(feature = "dag-visualizer")]
+    dag_visualizer_sender: Option<
+        tokio::sync::broadcast::Sender<crate::dag_visualizer::grpc_streamer::DagVisualizerEvent>,
+    >,
 }
 
 impl DagState {
@@ -399,6 +405,8 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
+            #[cfg(feature = "dag-visualizer")]
+            dag_visualizer_sender: None,
         };
 
         // Load cached data for each authority from storage
@@ -430,6 +438,82 @@ impl DagState {
         eviction_sender: watch::Sender<Vec<Round>>,
     ) {
         self.cordial_knowledge_senders = Some((sender, eviction_sender));
+    }
+
+    /// Sets the broadcast sender for DAG visualizer events.
+    #[cfg(feature = "dag-visualizer")]
+    pub fn set_dag_visualizer_sender(
+        &mut self,
+        sender: tokio::sync::broadcast::Sender<
+            crate::dag_visualizer::grpc_streamer::DagVisualizerEvent,
+        >,
+    ) {
+        if self.context.committee.size() > u8::MAX as usize + 1 {
+            warn!(
+                "DAG visualizer disabled: authority indices are encoded as u8 but committee \
+                 size {} exceeds 256",
+                self.context.committee.size()
+            );
+            return;
+        }
+        self.dag_visualizer_sender = Some(sender);
+    }
+
+    /// Emits a DAG visualizer event if the sender is configured and has
+    /// subscribers.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_dag_visualizer_event(
+        &self,
+        event: crate::dag_visualizer::grpc_streamer::DagVisualizerEvent,
+    ) {
+        if let Some(sender) = &self.dag_visualizer_sender {
+            if sender.receiver_count() > 0 {
+                let _ = sender.send(event);
+            }
+        }
+    }
+
+    /// Returns true if there are active DAG visualizer subscribers.
+    /// Use this to skip expensive event construction when nobody is listening.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn has_dag_visualizer_subscribers(&self) -> bool {
+        self.dag_visualizer_sender
+            .as_ref()
+            .is_some_and(|s| s.receiver_count() > 0)
+    }
+
+    /// Emits a [`DagVisualizerEvent::LeaderDecided`] event with
+    /// [`LeaderStatus::Skipped`] status for the given slot.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_leader_skipped_event(&self, slot: crate::block_header::Slot) {
+        use crate::dag_visualizer::grpc_streamer::{
+            DagVisualizerEvent, LeaderStatus, wave_for_round,
+        };
+
+        self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderDecided {
+            wave: wave_for_round(slot.round),
+            leader_round: slot.round,
+            leader_authority: slot.authority.value() as u8,
+            status: LeaderStatus::Skipped,
+            block_digest: [0u8; 32],
+        });
+    }
+
+    /// Emits a [`DagVisualizerEvent::LeaderDecided`] event with
+    /// [`LeaderStatus::Committed`] status for the given leader block reference.
+    #[cfg(feature = "dag-visualizer")]
+    pub(crate) fn emit_leader_committed_event(&self, leader: &crate::block_header::BlockRef) {
+        use crate::dag_visualizer::grpc_streamer::{
+            DagVisualizerEvent, LeaderStatus, wave_for_round,
+        };
+
+        self.emit_dag_visualizer_event(DagVisualizerEvent::LeaderDecided {
+            wave: wave_for_round(leader.round),
+            leader_round: leader.round,
+            leader_authority: leader.author.value() as u8,
+            status: LeaderStatus::Committed,
+            block_digest: leader.digest.as_ref().try_into().unwrap_or([0u8; 32]),
+        });
     }
 
     /// Loads cached data (block headers and transactions) for a single
@@ -620,6 +704,50 @@ impl DagState {
             "block header {} pushed to write to store batch by {}",
             block_header, self.context.own_index
         );
+
+        // Extract fields for the DAG visualizer before moving block_header.
+        // Only build the event when someone is actually listening.
+        #[cfg(feature = "dag-visualizer")]
+        let viz_event = if self.has_dag_visualizer_subscribers() {
+            use std::sync::Arc;
+
+            use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
+            Some(DagVisualizerEvent::BlockAccepted {
+                round: block_ref.round,
+                author: block_ref.author.value() as u8,
+                digest: block_ref.digest.as_ref().try_into().unwrap_or([0u8; 32]),
+                timestamp_ms: block_header.timestamp_ms(),
+                ancestors: Arc::from(
+                    block_header
+                        .ancestors()
+                        .iter()
+                        .map(|r| {
+                            (
+                                r.round,
+                                r.author.value() as u8,
+                                r.digest.as_ref().try_into().unwrap_or([0u8; 32]),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+                acknowledgments: Arc::from(
+                    block_header
+                        .acknowledgments()
+                        .iter()
+                        .map(|r| {
+                            (
+                                r.round,
+                                r.author.value() as u8,
+                                r.digest.as_ref().try_into().unwrap_or([0u8; 32]),
+                            )
+                        })
+                        .collect::<Vec<_>>(),
+                ),
+            })
+        } else {
+            None
+        };
+
         self.block_headers_to_write.push(block_header);
         let author_label = if self.context.own_index == block_ref.author {
             "own"
@@ -633,6 +761,11 @@ impl DagState {
             .accepted_block_headers
             .with_label_values(&[author_label])
             .inc();
+
+        #[cfg(feature = "dag-visualizer")]
+        if let Some(event) = viz_event {
+            self.emit_dag_visualizer_event(event);
+        }
     }
 
     pub(crate) fn add_transactions(
@@ -754,7 +887,20 @@ impl DagState {
             (block_ref.round, block_header.transactions_commitment()),
             block_ref.digest,
         );
+        #[cfg(feature = "dag-visualizer")]
+        let clock_before = self.threshold_clock.get_round();
         self.threshold_clock.add_block_header(block_ref);
+        #[cfg(feature = "dag-visualizer")]
+        {
+            let clock_after = self.threshold_clock.get_round();
+            if clock_after > clock_before {
+                self.emit_dag_visualizer_event(
+                    crate::dag_visualizer::grpc_streamer::DagVisualizerEvent::RoundAdvanced {
+                        round: clock_after,
+                    },
+                );
+            }
+        }
         self.highest_accepted_round = max(self.highest_accepted_round, block_header.round());
         self.context
             .metrics

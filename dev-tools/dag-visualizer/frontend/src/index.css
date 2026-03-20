@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --dag-bg: #0f172a;
+  --dag-panel-bg: rgba(15, 23, 42, 0.9);
+  --dag-panel-border: #334155;
+  --dag-input-bg: #1e293b;
+  --dag-input-border: #475569;
+  --dag-text: #e2e8f0;
+  --dag-text-muted: #94a3b8;
+  --dag-text-dim: #64748b;
+  --dag-btn-bg: #334155;
+  --dag-btn-hover: #475569;
+  --dag-accent: #60a5fa;
+  --dag-status-good: #4ade80;
+  --dag-status-bad: #f87171;
+  --dag-status-warn: #facc15;
+  --dag-alert-bad-bg: rgba(127, 29, 29, 0.6);
+  --dag-alert-bad-border: #b91c1c;
+  --dag-alert-bad-text: #fca5a5;
+  --dag-alert-warn-bg: rgba(113, 63, 18, 0.6);
+  --dag-alert-warn-border: #a16207;
+  --dag-alert-warn-text: #fde68a;
+  --dag-panel-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] {
+  --dag-bg: #f5f7fb;
+  --dag-panel-bg: rgba(255, 255, 255, 0.94);
+  --dag-panel-border: #c0cce0;
+  --dag-input-bg: #edf1f7;
+  --dag-input-border: #a8b8ce;
+  --dag-text: #1a2940;
+  --dag-text-muted: #4a6080;
+  --dag-text-dim: #7a8ea6;
+  --dag-btn-bg: #dfe6f0;
+  --dag-btn-hover: #c8d3e4;
+  --dag-accent: #2563eb;
+  --dag-status-good: #0d9668;
+  --dag-status-bad: #d94040;
+  --dag-status-warn: #e28c0a;
+  --dag-alert-bad-bg: rgba(254, 226, 226, 0.85);
+  --dag-alert-bad-border: #f87171;
+  --dag-alert-bad-text: #991b1b;
+  --dag-alert-warn-bg: rgba(254, 249, 195, 0.85);
+  --dag-alert-warn-border: #facc15;
+  --dag-alert-warn-text: #854d0e;
+  --dag-panel-shadow: 0 4px 20px rgba(30, 50, 80, 0.10), 0 1px 4px rgba(30, 50, 80, 0.08);
+}
+
+body {
+  margin: 0;
+  background: var(--dag-bg);
+  color: var(--dag-text);
+  font-family: system-ui;
+}
+
+/* Overlay panels */
+.dag-panel {
+  background: var(--dag-panel-bg) !important;
+  border-color: var(--dag-panel-border) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: var(--dag-panel-shadow);
+}
+
+.dag-panel input[type="text"],
+.dag-panel input[type="number"],
+.dag-panel select {
+  background: var(--dag-input-bg);
+  border-color: var(--dag-input-border);
+  color: var(--dag-text);
+}
+
+.dag-panel input::placeholder {
+  color: var(--dag-text-dim);
+}
+
+/* Theme-aware utility classes — use these instead of hardcoded Tailwind
+   color classes so both dark and light themes work without selector overrides. */
+.dag-btn {
+  background-color: var(--dag-btn-bg);
+  color: var(--dag-text);
+}
+.dag-btn:hover {
+  background-color: var(--dag-btn-hover);
+}
+.dag-label {
+  color: var(--dag-text-muted);
+}
+.dag-separator {
+  background-color: var(--dag-input-border);
+}
+.dag-value {
+  color: var(--dag-text);
+}
+.dag-status-good {
+  color: var(--dag-status-good);
+}
+.dag-status-bad {
+  color: var(--dag-status-bad);
+}
+.dag-status-warn {
+  color: var(--dag-status-warn);
+}
+.dag-accent {
+  color: var(--dag-accent);
+}
+.dag-accent-hover:hover {
+  color: var(--dag-accent);
+}
+.dag-alert-bad {
+  background-color: var(--dag-alert-bad-bg);
+  border-color: var(--dag-alert-bad-border);
+  color: var(--dag-alert-bad-text);
+}
+.dag-alert-bad:hover {
+  opacity: 0.85;
+}
+.dag-alert-warn {
+  background-color: var(--dag-alert-warn-bg);
+  border-color: var(--dag-alert-warn-border);
+  color: var(--dag-alert-warn-text);
+}
