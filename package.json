@@ -87,7 +87,7 @@
 		"lint-staged": "^15.2.5",
 		"prettier": "^3.3.1",
 		"prettier-plugin-tailwindcss": "^0.4.1",
-		"tsx": "^3.12.7",
+		"tsx": "^4.8.1",
 		"turbo": "^2.8.0",
 		"typescript": "^5.5.3",
 		"typescript-eslint": "^7.12.0"

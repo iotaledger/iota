@@ -56,13 +56,13 @@
         "@types/node": "^24.0.0",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
-        "@vitejs/plugin-react-swc": "^3.3.2",
+        "@vitejs/plugin-react-swc": "^4.3.0",
         "dotenv": "^16.4.5",
         "ethers": "^6.13.5",
         "tailwindcss": "^3.3.3",
         "typescript": "^5.5.3",
-        "vite": "^5.4.12",
-        "vite-node": "^3.0.8"
+        "vite": "^8.0.1",
+        "vite-node": "^6.0.0"
     },
     "lint-staged": {
         "src/**/*.{ts,js,mjs,tsx}": "eslint --fix",

@@ -61,7 +61,7 @@
         "@size-limit/preset-small-lib": "^11.1.4",
         "size-limit": "^11.1.4",
         "typescript": "^5.5.3",
-        "vitest": "^3.2.4"
+        "vitest": "^4.1.0"
     },
     "dependencies": {
         "@scure/base": "^1.2.4"

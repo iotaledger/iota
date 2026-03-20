@@ -57,11 +57,11 @@
         "@tailwindcss/aspect-ratio": "^0.4.2",
         "@tailwindcss/forms": "^0.5.7",
         "@types/react": "^18.3.3",
-        "@vanilla-extract/vite-plugin": "^4.0.13",
+        "@vanilla-extract/vite-plugin": "^5.2.1",
         "postcss": "^8.4.31",
         "tailwindcss": "^3.3.3",
         "typescript": "^5.5.3",
-        "vite": "^5.4.12",
-        "vitest": "^3.2.4"
+        "vite": "^8.0.1",
+        "vitest": "^4.1.0"
     }
 }

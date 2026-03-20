@@ -10,8 +10,9 @@ const packageConfig = {
         entry: resolve(__dirname, './src/lib/index.ts'),
         name: '@iota/apps-ui-kit',
         fileName: (format) => `index.${format}.js`,
+        cssFileName: 'style',
     },
-    rollupOptions: {
+    rolldownOptions: {
         external: ['react', 'react-dom', 'tailwindcss', 'react/jsx-runtime'],
         output: {
             globals: {
