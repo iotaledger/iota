@@ -15,7 +15,7 @@ import { TransactionResult } from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components';
-import { DidResult } from './trust-framework/didResult';
+import { DidResult } from './trust-framework/did-result/DidResult';
 
 interface RedirectWithIdProps {
     base: string;

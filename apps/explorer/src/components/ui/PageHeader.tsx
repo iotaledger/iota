@@ -15,12 +15,14 @@ import {
 import { Copy, Warning } from '@iota/apps-ui-icons';
 import { onCopySuccess } from '~/lib/utils';
 import clsx from 'clsx';
+import { type MetaItem, PageHeaderMeta } from './PageHeaderMeta';
 
-type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
+type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package' | 'DID';
 
 export interface PageHeaderProps {
     title: string | React.JSX.Element;
     subtitle?: string | null;
+    metaItems?: MetaItem[];
     type: PageHeaderType;
     status?: 'success' | 'failure';
     after?: React.ReactNode;
@@ -33,6 +35,7 @@ export interface PageHeaderProps {
 export function PageHeader({
     title,
     subtitle,
+    metaItems,
     type,
     error,
     loading,
@@ -121,6 +124,7 @@ export function PageHeader({
                                     </span>
                                 ) : null}
 
+                                {metaItems && <PageHeaderMeta items={metaItems} />}
                                 {error && (
                                     <div className="mt-xs--rs flex">
                                         <InfoBox
