@@ -1475,23 +1475,44 @@ impl ValidatorService {
         &self,
         request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
     ) -> WrappedServiceResponse<iota_types::messages_grpc::WaitForEffectsResponse> {
-        use iota_types::messages_grpc::WaitForEffectsResponse;
+        use iota_types::messages_grpc::{WaitForEffectResponse, WaitForEffectsResponse};
 
-        let wait_request = request.into_inner();
+        let batch_request = request.into_inner();
 
-        // Handle ping requests
-        if wait_request.transaction_digest.is_none() || wait_request.ping_type {
-            // For ping, return a dummy response with zeroed digest
+        // Handle ping requests (empty requests vec).
+        if batch_request.is_ping() {
             return Ok((
-                tonic::Response::new(WaitForEffectsResponse::Executed {
-                    effects_digest: TransactionEffectsDigest::ZERO,
-                    details: None,
+                tonic::Response::new(WaitForEffectsResponse {
+                    results: vec![WaitForEffectResponse::Executed {
+                        effects_digest: TransactionEffectsDigest::ZERO,
+                        details: None,
+                    }],
                 }),
                 Weight::one(),
             ));
         }
 
-        let tx_digest = wait_request.transaction_digest.unwrap();
+        let futures = batch_request
+            .requests
+            .into_iter()
+            .map(|req| self.handle_wait_for_effect_impl(req));
+        let results = join_all(futures).await;
+
+        Ok((
+            tonic::Response::new(WaitForEffectsResponse { results }),
+            Weight::one(),
+        ))
+    }
+
+    /// Handles a single wait-for-effects request. Waits for the transaction to
+    /// be executed or dropped, and returns the per-item response.
+    async fn handle_wait_for_effect_impl(
+        &self,
+        request: iota_types::messages_grpc::WaitForEffectRequest,
+    ) -> iota_types::messages_grpc::WaitForEffectResponse {
+        use iota_types::messages_grpc::WaitForEffectResponse;
+
+        let tx_digest = request.transaction_digest;
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
         // Wait for the transaction to be executed and get the effects digest.
@@ -1521,8 +1542,8 @@ impl ValidatorService {
         match result {
             Ok(Either::Left(effects_digests)) => {
                 if let Some(effects_digest) = effects_digests.into_iter().next() {
-                    // Fetch detailed execution data if requested
-                    let details = if wait_request.include_details {
+                    // Fetch detailed execution data if requested.
+                    let details = if request.include_details {
                         if let Some(effects) = cache.get_executed_effects(&tx_digest) {
                             let events = if effects.events_digest().is_some() {
                                 self.state
@@ -1548,40 +1569,28 @@ impl ValidatorService {
                         None
                     };
 
-                    Ok((
-                        tonic::Response::new(WaitForEffectsResponse::Executed {
-                            effects_digest,
-                            details,
-                        }),
-                        Weight::one(),
-                    ))
+                    WaitForEffectResponse::Executed {
+                        effects_digest,
+                        details,
+                    }
                 } else {
-                    // Empty effects list — should not happen, but treat as expired
-                    Ok((
-                        tonic::Response::new(WaitForEffectsResponse::Expired {
-                            epoch: epoch_store.epoch(),
-                        }),
-                        Weight::one(),
-                    ))
+                    // Empty effects list — should not happen, but treat as expired.
+                    WaitForEffectResponse::Expired {
+                        epoch: epoch_store.epoch(),
+                    }
                 }
             }
             Ok(Either::Right(dropped_error)) => {
-                // Transaction was dropped by white-flag conflict resolution
-                Ok((
-                    tonic::Response::new(WaitForEffectsResponse::Rejected {
-                        error: Some(dropped_error),
-                    }),
-                    Weight::one(),
-                ))
+                // Transaction was dropped by white-flag conflict resolution.
+                WaitForEffectResponse::Rejected {
+                    error: Some(dropped_error),
+                }
             }
             Err(_timeout) => {
-                // Timed out waiting for effects
-                Ok((
-                    tonic::Response::new(WaitForEffectsResponse::Expired {
-                        epoch: epoch_store.epoch(),
-                    }),
-                    Weight::one(),
-                ))
+                // Timed out waiting for effects.
+                WaitForEffectResponse::Expired {
+                    epoch: epoch_store.epoch(),
+                }
             }
         }
     }

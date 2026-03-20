@@ -402,17 +402,29 @@ pub struct SubmitTransactionsResponse {
     pub results: Vec<SubmitTransactionResult>,
 }
 
-/// Request to wait for transaction effects from a validator.
+/// A single wait-for-effects item within a batch request.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct WaitForEffectsRequest {
-    pub transaction_digest: Option<TransactionDigest>,
+pub struct WaitForEffectRequest {
+    pub transaction_digest: TransactionDigest,
     pub include_details: bool,
-    pub ping_type: bool,
 }
 
-/// Response from a validator to a wait for effects request.
+/// Batch request to wait for transaction effects from a validator.
+/// An empty `requests` vec is treated as a ping.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum WaitForEffectsResponse {
+pub struct WaitForEffectsRequest {
+    pub requests: Vec<WaitForEffectRequest>,
+}
+
+impl WaitForEffectsRequest {
+    pub fn is_ping(&self) -> bool {
+        self.requests.is_empty()
+    }
+}
+
+/// Per-item response for a single wait-for-effects request.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum WaitForEffectResponse {
     Executed {
         effects_digest: TransactionEffectsDigest,
         details: Option<Box<ExecutedData>>,
@@ -421,4 +433,10 @@ pub enum WaitForEffectsResponse {
     Rejected { error: Option<IotaError> },
     /// Transaction status has expired from the cache.
     Expired { epoch: EpochId },
+}
+
+/// Batch response from a validator to a wait for effects request.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WaitForEffectsResponse {
+    pub results: Vec<WaitForEffectResponse>,
 }
