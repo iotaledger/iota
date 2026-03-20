@@ -10,11 +10,12 @@ import {
     JwtDomainLinkageValidator,
 } from '@iota/identity-wasm/web';
 import { type FetchResult, type DomainLinkageResource } from './types';
+import { z } from 'zod';
 
 // An extensible list of supported context versions for the DID Configuration Resource.
 const SUPPORTED_DID_CONFIGURATION_CONTEXTS = [
     'https://identity.foundation/.well-known/did-configuration/v1',
-];
+] as const;
 
 // Define tolerance limits for the fetch request.
 const FETCH_TOLERANCES = {
@@ -98,28 +99,18 @@ export async function fetchDidConfigurationJson(
 
     const data = await response.json();
 
-    // 3. Validate the properties of the received JSON.
-    const dataKeys = Object.keys(data);
-    if (
-        !data ||
-        dataKeys.length !== 2 ||
-        !dataKeys.includes('@context') ||
-        !dataKeys.includes('linked_dids')
-    ) {
-        console.warn('DID configuration JSON has unexpected properties', data);
-        return {
-            isSuccess: false,
-            isError: true,
-            errorMsg: 'Invalid DID configuration JSON properties.',
-        };
-    }
+    // 3. Validate the structure and values of the received JSON.
+    const DomainLinkageResourceSchema = z
+        .object({
+            '@context': z.enum(SUPPORTED_DID_CONFIGURATION_CONTEXTS),
+            linked_dids: z.array(z.string()),
+        })
+        .strict();
 
-    // 4. Validate the structure and values of the received JSON.
-    if (
-        !SUPPORTED_DID_CONFIGURATION_CONTEXTS.includes(data['@context']) ||
-        !Array.isArray(data.linked_dids)
-    ) {
-        console.warn('Invalid or unsupported DID configuration JSON structure', data);
+    const parsed = DomainLinkageResourceSchema.safeParse(data);
+
+    if (!parsed.success) {
+        console.warn('Invalid or unsupported DID configuration JSON structure', parsed.error);
         return {
             isSuccess: false,
             isError: true,
@@ -130,7 +121,7 @@ export async function fetchDidConfigurationJson(
     return {
         isSuccess: true,
         isError: false,
-        data: data as DomainLinkageResource,
+        data: parsed.data,
     };
 }
 
@@ -145,12 +136,9 @@ export async function validateDomainLinkageByEndpoint(
     issuerDocument: IotaDocument,
     endpointUrl: string,
 ) {
-    const valid = true;
-    const invalid = false;
-
     const { data: didConfigurationJson, isError } = await fetchDidConfigurationJson(endpointUrl);
     if (isError) {
-        return invalid;
+        return false;
     }
 
     try {
@@ -166,9 +154,9 @@ export async function validateDomainLinkageByEndpoint(
             new JwtCredentialValidationOptions(),
         );
 
-        return valid;
+        return true;
     } catch {
         console.error('Invalid Domain Linkage');
-        return invalid;
+        return false;
     }
 }
