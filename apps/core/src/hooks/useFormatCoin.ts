@@ -4,13 +4,7 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { CoinMetadata } from '@iota/iota-sdk/client';
-import {
-    IOTA_DECIMALS,
-    IOTA_TYPE_ARG,
-    formatBalance,
-    CoinFormat,
-    FormatBalanceOptions,
-} from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, IOTA_TYPE_ARG, formatBalance, CoinFormat } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
@@ -147,17 +141,8 @@ export function useFormatCoin({
 
         if (!isFetched) return '...';
 
-        let options: FormatBalanceOptions = {};
-        if (!useGroupSeparator) {
-            options = {
-                bnFormat: {
-                    groupSeparator: '',
-                    decimalSeparator: '.',
-                },
-            };
-        }
-        return formatBalance(balance, data?.decimals ?? 0, format, showSign, options);
-    }, [data?.decimals, isFetched, balance, format]);
+        return formatBalance(balance, data?.decimals ?? 0, format, showSign, { useGroupSeparator });
+    }, [data?.decimals, isFetched, balance, format, useGroupSeparator]);
 
     return [formatted, isFetched ? data?.symbol || fallbackSymbol : '', queryResult];
 }

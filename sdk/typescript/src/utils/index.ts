@@ -12,13 +12,7 @@ export {
 
 export { parseAmount, safeParseAmount } from './parse.js';
 
-export {
-    formatBalance,
-    type FormatBalanceOptions,
-    formatWithSubscript,
-    CoinFormat,
-    formatAmount,
-} from './formatBalance.js';
+export { formatBalance, formatWithSubscript, CoinFormat, formatAmount } from './formatBalance.js';
 
 export {
     isValidIotaAddress,

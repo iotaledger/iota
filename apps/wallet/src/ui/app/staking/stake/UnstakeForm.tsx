@@ -87,7 +87,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
         useGroupSeparator: false,
     });
     const [rewardsFormattedPlain] = useFormatCoin({
-        balance: BigInt(iotaEarned || 0),
+        balance: iotaEarned,
         format: CoinFormat.Full,
         useGroupSeparator: false,
     });
