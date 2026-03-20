@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ArrowTopRight } from '@iota/apps-ui-icons';
-import { Button, Dialog, DialogContent, DialogBody, Header, Panel } from '@iota/apps-ui-kit';
+import { Button, Dialog, DialogContent, DialogBody, Header } from '@iota/apps-ui-kit';
 import { Banner, BannerSize, Theme, useTheme } from '@iota/core';
 import { WALLET_DASHBOARD_URL } from '_src/shared/constants';
-import { Link } from 'react-router-dom';
 import { ampli } from '_src/shared/analytics/ampli';
 
 interface SupplyIncreaseVestingStakingDialogProps {
