@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use once_cell::sync::Lazy;
+
+use crate::in_test_configuration;
+
 #[macro_export]
 macro_rules! fatal {
     ($($arg:tt)*) => {{
@@ -10,10 +14,19 @@ macro_rules! fatal {
     }};
 }
 
+#[inline(always)]
+pub fn crash_on_debug() -> bool {
+    static CRASH_ON_DEBUG: Lazy<bool> = Lazy::new(|| {
+        in_test_configuration() || std::env::var("IOTA_ENABLE_DEBUG_ASSERTIONS").is_ok()
+    });
+
+    *CRASH_ON_DEBUG
+}
+
 #[macro_export]
 macro_rules! debug_fatal {
     ($($arg:tt)*) => {{
-        if cfg!(debug_assertions) {
+        if $crate::logging::crash_on_debug() {
             $crate::fatal!($($arg)*);
         } else {
             let stacktrace = std::backtrace::Backtrace::capture();

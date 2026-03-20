@@ -6,7 +6,11 @@ import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout
 import { ExtendedDelegatedTimelockedStake, Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
-import { TimelockedStakedObjectsGrouped, isSizeExceededError } from '@/lib/utils';
+import {
+    trackElementCopied,
+    TimelockedStakedObjectsGrouped,
+    isSizeExceededError,
+} from '@/lib/utils';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import {
     Panel,
@@ -27,7 +31,7 @@ import {
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -89,9 +93,10 @@ export function UnstakeTimelockedObjectsView({
         balance: validatorInfo?.rewardsPool,
     });
 
-    function handleCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         toast('Copied to clipboard');
-    }
+        trackElementCopied('stake-id');
+    }, []);
 
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
@@ -176,7 +181,7 @@ export function UnstakeTimelockedObjectsView({
                             title={`Stake Nº${index + 1}`}
                             key={stake.timelockedStakedIotaId}
                             stake={stake}
-                            handleCopySuccess={handleCopySuccess}
+                            handleCopySuccess={onCopySuccess}
                         />
                     ))}
                 </div>
@@ -229,7 +234,9 @@ function TimelockedStakeCollapsible({
                 <div className="flex flex-col gap-y-sm p-md--rs py-sm">
                     <KeyValueInfo
                         keyText="Stake ID"
-                        value={formatAddress(stake.timelockedStakedIotaId)}
+                        value={
+                            <span data-amp-mask>{formatAddress(stake.timelockedStakedIotaId)}</span>
+                        }
                         valueHoverTitle={stake.timelockedStakedIotaId}
                         onCopySuccess={handleCopySuccess}
                         copyText={stake.timelockedStakedIotaId}
@@ -243,7 +250,7 @@ function TimelockedStakeCollapsible({
                     {stake.label && (
                         <KeyValueInfo
                             keyText="Label"
-                            value={formatAddress(stake.label)}
+                            value={<span data-amp-mask>{formatAddress(stake.label)}</span>}
                             copyText={stake.label}
                             valueHoverTitle={stake.label}
                             onCopySuccess={handleCopySuccess}

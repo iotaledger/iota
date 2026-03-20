@@ -43,6 +43,7 @@ message Event {
 // A list of events.
 message Events {
   option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
 
   repeated Event events = 1;
 }

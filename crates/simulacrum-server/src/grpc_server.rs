@@ -33,7 +33,15 @@ pub async fn start_simulacrum_grpc_server(
     let simulacrum_reader = Arc::new(SimulacrumGrpcReader::new(simulacrum.clone(), chain_id));
     let grpc_reader = Arc::new(GrpcReader::new(simulacrum_reader, None));
 
-    start_grpc_server(grpc_reader, executor, config, shutdown_token, chain_id).await
+    start_grpc_server(
+        grpc_reader,
+        executor,
+        config,
+        shutdown_token,
+        chain_id,
+        None,
+    )
+    .await
 }
 
 #[cfg(test)]

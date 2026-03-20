@@ -14,7 +14,6 @@ export enum TransactionAction {
     Send = 'Send',
     Receive = 'Receive',
     Transaction = 'Transaction',
-    Failed = 'Failed',
     Staked = 'Stake',
     Unstaked = 'Unstake',
     TimelockedStaked = 'Stake Vesting',

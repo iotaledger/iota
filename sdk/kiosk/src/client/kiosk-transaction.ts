@@ -27,8 +27,6 @@ export type KioskTransactionParams = {
     /** The Transaction for this run */
     transaction: Transaction;
 
-    /** @deprecated use transaction instead */
-    transactionBlock?: Transaction;
     /**
      * You can create a new KioskClient by calling `new KioskClient()`
      */
@@ -60,12 +58,7 @@ export class KioskTransaction {
     // A flag that checks whether kiosk TX is finalized.
     #finalized: boolean = false;
 
-    constructor({
-        transactionBlock,
-        transaction = transactionBlock!,
-        kioskClient,
-        cap,
-    }: KioskTransactionParams) {
+    constructor({ transaction, kioskClient, cap }: KioskTransactionParams) {
         this.transaction = transaction;
         this.kioskClient = kioskClient;
 
@@ -128,6 +121,7 @@ export class KioskTransaction {
         this.#validateFinalizedStatus();
         const cap = kioskTx.createKioskAndShare(this.transaction);
         this.transaction.transferObjects([cap], this.transaction.pure.address(address));
+        return this;
     }
 
     /**
@@ -137,6 +131,7 @@ export class KioskTransaction {
         this.#validateKioskIsSet();
         this.#setPendingStatuses({ share: false });
         kioskTx.shareKiosk(this.transaction, this.kiosk!);
+        return this;
     }
 
     /**
@@ -149,6 +144,7 @@ export class KioskTransaction {
         this.#setPendingStatuses({ transfer: false });
         this.share();
         this.transaction.transferObjects([this.kioskCap!], this.transaction.pure.address(address));
+        return this;
     }
 
     /**
@@ -166,7 +162,7 @@ export class KioskTransaction {
 
         callback(itemObj);
 
-        this.return({ itemType, item: itemObj, promise });
+        return this.return({ itemType, item: itemObj, promise });
     }
 
     /**
@@ -386,7 +382,6 @@ export class KioskTransaction {
 
             await ruleDefinition.resolveRuleFunction({
                 packageId: ruleDefinition.packageId,
-                transactionBlock: this.transaction,
                 transaction: this.transaction,
                 itemType,
                 itemId,

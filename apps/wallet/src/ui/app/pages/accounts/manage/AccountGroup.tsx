@@ -3,21 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '_hooks';
+import { AccountsFormType, useAccountsFormContext, useSourceFlow } from '_components';
+import { useAccountSources, useActiveAccount, useCreateAccountsMutation } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import {
-    Button,
-    ButtonSize,
-    ButtonType,
-    Chip,
-    ChipSize,
-    Divider,
-    Dropdown,
-    ListItem,
-} from '@iota/apps-ui-kit';
+import { AmpliSourceFlow } from '_src/shared/analytics';
+import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
@@ -66,11 +58,11 @@ export function AccountGroup({
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
-    const createAccountMutation = useCreateAccountsMutation();
+    const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
-    const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
-    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [, setAccountsFormValues] = useAccountsFormContext();
+    const { setSourceFlow } = useSourceFlow();
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
 
@@ -88,13 +80,10 @@ export function AccountGroup({
             type: accountsFormType,
             sourceID: accountSource.id,
         });
-        if (accountSource.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
-            createAccountMutation.mutate({
-                type: accountsFormType,
-            });
-        }
+        setSourceFlow(AmpliSourceFlow.ManageAccounts);
+        createAccountsMutation.mutate({
+            type: accountsFormType,
+        });
     }
 
     function getUrlForLedgerDerivedAccounts(url: string) {
@@ -133,6 +122,7 @@ export function AccountGroup({
     const dropdownVisibility = {
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
+        showBalanceFinder,
     };
     const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
 
@@ -184,13 +174,6 @@ export function AccountGroup({
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
-                            {showBalanceFinder && (
-                                <Chip
-                                    label="Balance Finder"
-                                    onClick={handleBalanceFinder}
-                                    size={ChipSize.Small}
-                                />
-                            )}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
                                 <Button
                                     size={ButtonSize.Small}
@@ -283,6 +266,11 @@ export function AccountGroup({
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
+                        {dropdownVisibility.showBalanceFinder && (
+                            <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                Balance Finder
+                            </ListItem>
+                        )}
                         {dropdownVisibility.showExportMnemonic && (
                             <ListItem hideBottomBorder onClick={handleExportMnemonic}>
                                 Export Mnemonic
@@ -296,21 +284,6 @@ export function AccountGroup({
                     </Dropdown>
                 </OutsideClickHandler>
             </div>
-            {isPasswordModalVisible ? (
-                <VerifyPasswordModal
-                    open
-                    onVerify={async (password) => {
-                        if (accountsFormValues.current) {
-                            await createAccountMutation.mutateAsync({
-                                type: accountsFormValues.current.type,
-                                password,
-                            });
-                        }
-                        setPasswordModalVisible(false);
-                    }}
-                    onClose={() => setPasswordModalVisible(false)}
-                />
-            ) : null}
         </div>
     );
 }

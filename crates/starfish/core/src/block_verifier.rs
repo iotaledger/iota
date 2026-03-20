@@ -4,6 +4,8 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use tracing::instrument;
+
 use crate::{
     Transaction,
     block_header::{
@@ -87,6 +89,7 @@ impl SignedBlockVerifier {
 
 // All block verification logic are implemented below.
 impl BlockVerifier for SignedBlockVerifier {
+    #[instrument(level = "trace", skip_all)]
     fn verify(&self, block: &SignedBlockHeader) -> ConsensusResult<()> {
         let committee = &self.context.committee;
         // The block must belong to the current epoch and have valid authority index,
@@ -220,7 +223,7 @@ pub(crate) mod test {
         let (context, keypairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_2_protocol_keypair = &keypairs[2].1;
-        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
         let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
             BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
@@ -414,7 +417,6 @@ pub(crate) mod test {
         // Block with ancestors from the same authority.
         {
             let block = test_block
-                .clone()
                 .set_ancestors(vec![
                     BlockRef::new(8, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
                     BlockRef::new(8, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),

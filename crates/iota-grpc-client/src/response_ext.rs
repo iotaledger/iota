@@ -192,4 +192,5 @@ mod sealed {
     impl<T> Sealed for tonic::Response<T> {}
     impl Sealed for http::header::HeaderMap {}
     impl Sealed for tonic::metadata::MetadataMap {}
+    impl<T> Sealed for crate::api::MetadataEnvelope<T> {}
 }

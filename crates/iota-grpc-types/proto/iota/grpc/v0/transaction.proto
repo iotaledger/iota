@@ -86,5 +86,5 @@ message ExecutedTransaction {
 message ExecutedTransactions {
   option (iota.grpc.message_accessors) = "with";
 
-  repeated ExecutedTransaction transactions = 1;
+  repeated ExecutedTransaction executed_transactions = 1;
 }

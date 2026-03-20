@@ -21,7 +21,7 @@ describe('tx.pure serialization', () => {
         tx.pure.string('foo');
         tx.pure.address('0x2');
         tx.pure.id('0x2');
-        tx.pure(bcs.vector(bcs.u8()).serialize([1, 2, 3]));
+        tx.pure(bcs.byteVector().serialize([1, 2, 3]));
         tx.pure(bcs.option(bcs.u8()).serialize(1));
         tx.pure(bcs.option(bcs.u8()).serialize(null));
         tx.pure(

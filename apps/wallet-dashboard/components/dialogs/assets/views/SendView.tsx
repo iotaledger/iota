@@ -58,10 +58,12 @@ export function SendView({ objectId, senderAddress, objectType, onClose, onBack 
                         <div className="flex flex-col items-center gap-xxxs break-words [&_div]:max-w-full [&_h4]:max-w-full [&_h4]:break-words">
                             <Title title={nftName} />
                         </div>
-                        <AddressInput
-                            {...RECEIVING_ADDRESS_FIELD_IDS}
-                            placeholder="Enter Address"
-                        />
+                        <div data-amp-mask>
+                            <AddressInput
+                                {...RECEIVING_ADDRESS_FIELD_IDS}
+                                placeholder="Enter Address"
+                            />
+                        </div>
                         <Divider />
                         <KeyValueInfo
                             keyText={'Est. Gas Fees'}

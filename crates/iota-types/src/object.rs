@@ -352,7 +352,7 @@ impl MoveObject {
         if let Some(type_tag) = self.type_.coin_type_maybe() {
             let balance = self.get_coin_value_unsafe();
             Ok(if balance > 0 {
-                BTreeMap::from([(type_tag.clone(), balance)])
+                BTreeMap::from([(type_tag, balance)])
             } else {
                 BTreeMap::default()
             })

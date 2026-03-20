@@ -2116,12 +2116,8 @@ impl TransactionData {
         }
     }
 
-    pub fn execution_parts(&self) -> (TransactionKind, IotaAddress, Vec<ObjectRef>) {
-        (
-            self.kind().clone(),
-            self.sender(),
-            self.gas_data().payment.clone(),
-        )
+    pub fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData) {
+        (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
 
     /// Checks if the transaction data contains the `Random` object as an
@@ -3076,6 +3072,7 @@ impl VerifiedTransaction {
 
 impl VerifiedSignedTransaction {
     /// Use signing key to create a signed object.
+    #[instrument(level = "trace", skip_all)]
     pub fn new(
         epoch: EpochId,
         transaction: VerifiedTransaction,
@@ -3170,6 +3167,7 @@ impl CertifiedTransaction {
 
     // TODO: Eventually we should remove all calls to verify_signature
     // and make sure they all call verify to avoid repeated verifications.
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_signatures_authenticated(
         &self,
         committee: &Committee,

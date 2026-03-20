@@ -190,7 +190,7 @@ describe('passkey signer E2E testing', () => {
         expect(parsed.publicKey).toEqual(pk);
         expect(new Uint8Array(parsed.authenticatorData!)).toEqual(authenticatorData);
 
-        const messageBytes = bcs.vector(bcs.u8()).serialize(testMessage).toBytes();
+        const messageBytes = bcs.byteVector().serialize(testMessage).toBytes();
         const intentMessage = messageWithIntent('PersonalMessage', messageBytes);
         const digest = blake2b(intentMessage, { dkLen: 32 });
         const clientDataJSON = {

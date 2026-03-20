@@ -21,7 +21,7 @@ export function BackupMnemonicPage() {
     const [mnemonicBackedUp, setMnemonicBackedUp] = useState(false);
 
     const { accountSourceID } = useParams();
-    const { data: accountSources, isPending } = useAccountSources();
+    const { data: accountSources, isFetching } = useAccountSources();
     const selectedSource = useMemo(
         () => accountSources?.find(({ id }) => accountSourceID === id),
         [accountSources, accountSourceID],
@@ -29,9 +29,6 @@ export function BackupMnemonicPage() {
     const passphraseMutation = useExportPassphraseMutation();
 
     const navigate = useNavigate();
-    if (!isPending && selectedSource?.type !== AccountSourceType.Mnemonic) {
-        return <Navigate to="/" replace />;
-    }
 
     useEffect(() => {
         (async () => {
@@ -42,9 +39,13 @@ export function BackupMnemonicPage() {
         })();
     }, [accountSourceID, passphraseMutation]);
 
+    if (!isFetching && selectedSource?.type !== AccountSourceType.Mnemonic) {
+        return <Navigate to="/" replace />;
+    }
+
     return (
         <PageTemplate title="Export Mnemonic" isTitleCentered>
-            <Loading loading={isPending}>
+            <Loading loading={isFetching}>
                 <div className="flex h-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-md">
                         <h3 className="text-center text-headline-lg text-iota-neutral-10 dark:text-iota-neutral-92">
@@ -65,6 +66,7 @@ export function BackupMnemonicPage() {
                                     <HideShowDisplayBox
                                         value={passphraseMutation.data.join(' ')}
                                         copiedMessage="Mnemonic copied"
+                                        eventType="mnemonic"
                                     />
                                 ) : (
                                     <InfoBox
