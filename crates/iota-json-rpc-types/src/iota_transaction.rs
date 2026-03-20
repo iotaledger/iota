@@ -2352,8 +2352,8 @@ impl From<ProgrammableMoveCall> for IotaProgrammableMoveCall {
         } = value;
         Self {
             package,
-            module: module.to_string(),
-            function: function.to_string(),
+            module,
+            function,
             type_arguments: type_arguments.into_iter().map(|t| t.to_string()).collect(),
             arguments: arguments.into_iter().map(IotaArgument::from).collect(),
         }

@@ -192,8 +192,8 @@ async fn direct_skip() {
     // Add enough blocks to reach the certifying round of wave 1.
     let certifying_round_wave_1 = committer.certifying_round(1);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_without_leader_wave_1),
         certifying_round_wave_1,
     );
@@ -299,8 +299,8 @@ async fn indirect_commit() {
     // manually constructed of the certifying round of wave 1.
     let certifying_round_wave_2 = committer.certifying_round(2);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_certifying_round_wave_1),
         certifying_round_wave_2,
     );
@@ -415,8 +415,8 @@ async fn indirect_skip() {
     // Add enough blocks to reach the certifying round of wave 3.
     let certifying_round_wave_3 = committer.certifying_round(3);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_voting_round_wave_2),
         certifying_round_wave_3,
     );
@@ -540,7 +540,7 @@ async fn undecided() {
     let certifying_round_wave_1 = committer.certifying_round(1);
     build_dag(
         context.clone(),
-        dag_state.clone(),
+        dag_state,
         Some(references_voting_round_wave_1),
         certifying_round_wave_1,
     );
@@ -599,7 +599,7 @@ async fn test_byzantine_direct_commit() {
     // This includes a "good vote" from validator C which is acting as a byzantine
     // validator
     let good_references_voting_round_wave_4 = build_dag(
-        context.clone(),
+        context,
         dag_state.clone(),
         Some(references_leader_round_wave_4.clone()),
         voting_round_wave_4,
@@ -664,7 +664,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_a14.clone(), DataSource::Test);
+        .accept_block_header(decision_block_a14, DataSource::Test);
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
@@ -684,7 +684,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_b14.clone(), DataSource::Test);
+        .accept_block_header(decision_block_b14, DataSource::Test);
 
     let decision_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
@@ -699,7 +699,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_c14.clone(), DataSource::Test);
+        .accept_block_header(decision_block_c14, DataSource::Test);
 
     let decision_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
@@ -714,7 +714,7 @@ async fn test_byzantine_direct_commit() {
     );
     dag_state
         .write()
-        .accept_block_header(decision_block_d14.clone(), DataSource::Test);
+        .accept_block_header(decision_block_d14, DataSource::Test);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4

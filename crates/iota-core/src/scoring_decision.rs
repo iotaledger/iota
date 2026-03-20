@@ -158,7 +158,7 @@ mod tests {
             low_scoring.clone(),
             &iota_committee,
             &consensus_committee,
-            Some(authorities_by_score_desc.clone()),
+            Some(authorities_by_score_desc),
             &metrics,
             consensus_bad_nodes_stake_threshold,
         );

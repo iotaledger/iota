@@ -267,7 +267,7 @@ pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
         test_db.recreate();
     }
 
-    PgIndexerStore::new(test_db.to_connection_pool(), indexer_metrics.clone())
+    PgIndexerStore::new(test_db.to_connection_pool(), indexer_metrics)
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
