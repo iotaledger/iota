@@ -112,6 +112,7 @@ function ResizeHandle({
                             onClick={togglePanelCollapse}
                             type={ButtonType.Secondary}
                             icon={<ChevronButton className={clsx(!isCollapsed && 'rotate-180')} />}
+                            aria-label={isCollapsed ? 'Expand panel' : 'Collapse panel'}
                         />
                     </div>
                 )}

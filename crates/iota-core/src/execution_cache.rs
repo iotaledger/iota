@@ -101,7 +101,7 @@ impl ExecutionCacheTraitPointers {
             checkpoint_cache: cache.clone(),
             state_sync_store: cache.clone(),
             cache_commit: cache.clone(),
-            testing_api: cache.clone(),
+            testing_api: cache,
         }
     }
 }

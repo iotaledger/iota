@@ -363,7 +363,7 @@ pub(crate) mod tests {
             ],
         );
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let before_value = std::env::var(MAX_BOUND_VAR_NAME).ok();
 
@@ -560,6 +560,6 @@ pub(crate) mod tests {
 
     /// BCS encode Move value.
     pub(crate) fn serialize(value: A::MoveValue) -> Vec<u8> {
-        value.clone().undecorate().simple_serialize().unwrap()
+        value.undecorate().simple_serialize().unwrap()
     }
 }

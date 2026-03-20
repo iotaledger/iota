@@ -114,7 +114,7 @@ pub async fn update_lock_file_with_package_id(
          Try ensure `iota client active-env` is valid.",
     )?;
 
-    let mut lock = LockFile::from(install_dir.clone(), &lock_file)?;
+    let mut lock = LockFile::from(install_dir, &lock_file)?;
     match command {
         LockCommand::Publish => lock_file::schema::update_managed_address(
             &mut lock,
@@ -161,7 +161,7 @@ pub fn set_package_id(
         return Ok(None);
     };
     let install_dir = install_dir.unwrap_or(PathBuf::from("."));
-    let lock_for_update = LockFile::from(install_dir.clone(), &lock_file_path);
+    let lock_for_update = LockFile::from(install_dir, &lock_file_path);
     let Ok(mut lock_for_update) = lock_for_update else {
         return Ok(None);
     };
@@ -193,7 +193,7 @@ pub fn resolve_published_id(
     }
 
     let lock = package.package_path.join(SourcePackageLayout::Lock.path());
-    let Ok(mut lock_file) = File::open(lock.clone()) else {
+    let Ok(mut lock_file) = File::open(lock) else {
         return published_id_in_manifest;
     };
 

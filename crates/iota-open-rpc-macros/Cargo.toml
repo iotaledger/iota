@@ -16,3 +16,6 @@ proc-macro2.workspace = true
 quote.workspace = true
 syn.workspace = true
 unescape = "0.1.0"
+
+[lints]
+workspace = true

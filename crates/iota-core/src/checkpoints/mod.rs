@@ -2475,7 +2475,7 @@ impl CheckpointService {
         );
 
         let builder = CheckpointBuilder::new(
-            state.clone(),
+            state,
             checkpoint_store.clone(),
             epoch_store.clone(),
             notify_builder.clone(),
@@ -3043,7 +3043,7 @@ mod tests {
     ) {
         let epoch_store = state.epoch_store_for_testing();
         let effects = e(digest, dependencies, gas_used);
-        store.insert(digest, effects.clone());
+        store.insert(digest, effects);
         epoch_store
             .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)
             .expect("Inserting cert fx and sigs should not fail");

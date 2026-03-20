@@ -123,7 +123,7 @@ impl ObjectStore for InMemoryObjectStore {
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         Ok(self.try_get_object(object_id).unwrap().and_then(|o| {
             if o.version() == version {
-                Some(o.clone())
+                Some(o)
             } else {
                 None
             }
@@ -148,7 +148,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
             if o.version() <= child_version_upper_bound
                 && o.owner == Owner::ObjectOwner((*parent).into())
             {
-                Some(o.clone())
+                Some(o)
             } else {
                 None
             }
