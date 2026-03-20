@@ -417,8 +417,6 @@ fn test_address_backwards_compatibility() {
 // tests StructTag constructor and checker consistency
 #[test]
 fn move_object_type_consistency() {
-    use crate::base_types::StructTagExt;
-
     // Tests consistency properties for StructTag constructors and type checkers
     fn assert_consistent(tag: &StructTag) -> StructTag {
         let ty = tag.clone();

@@ -129,11 +129,11 @@ impl MoveObject {
     }
 
     pub fn type_(&self) -> &StructTag {
-        &*self.type_
+        &self.type_
     }
 
     pub fn is_type(&self, s: &StructTag) -> bool {
-        &*self.type_ == s
+        &self.type_ == s
     }
 
     pub fn id(&self) -> ObjectID {
