@@ -15,6 +15,7 @@ import {
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -30,9 +31,9 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
         recognizedPackagesList,
     });
 
-    function onCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         trackElementCopied('transaction-digest');
-    }
+    }, []);
 
     if (!summary) return <LoadingIndicator />;
 

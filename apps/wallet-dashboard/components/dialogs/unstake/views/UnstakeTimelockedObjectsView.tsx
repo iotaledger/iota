@@ -31,7 +31,7 @@ import {
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -93,10 +93,10 @@ export function UnstakeTimelockedObjectsView({
         balance: validatorInfo?.rewardsPool,
     });
 
-    function onCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         toast('Copied to clipboard');
         trackElementCopied('stake-id');
-    }
+    }, []);
 
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;

@@ -16,6 +16,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -31,9 +32,9 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
     const kiosk = kioskData?.kiosks.get(objectId);
     const items = kiosk?.items;
 
-    function onCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         trackElementCopied('kiosk-object-id');
-    }
+    }, []);
 
     if (isPending) {
         return (

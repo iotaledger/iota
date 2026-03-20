@@ -13,6 +13,7 @@ import {
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface TransactionViewProps {
     onClose: () => void;
@@ -31,9 +32,9 @@ export function TransactionDialogView({
         activeAddress,
     );
 
-    function onCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         trackElementCopied('transaction-digest');
-    }
+    }, []);
 
     return (
         <DialogLayout>

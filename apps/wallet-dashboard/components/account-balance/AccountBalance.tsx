@@ -13,7 +13,7 @@ import {
 import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { trackElementCopied } from '@/lib/utils';
 
 export function AccountBalance() {
@@ -37,10 +37,10 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    function onCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         toast('Address copied');
         trackElementCopied('address');
-    }
+    }, []);
 
     const sendTokenCoin = coinBalance?.totalBalance === '0' ? coinBalances?.[0] : coinBalance;
 
