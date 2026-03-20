@@ -1755,12 +1755,35 @@ impl ValidatorService {
     ) -> WrappedServiceResponse<iota_types::messages_grpc::ValidatorHealthResponse> {
         use iota_types::messages_grpc::ValidatorHealthResponse;
 
-        // Return basic health response
-        // TODO: Add actual inflight transaction metrics when API is available
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        let last_committed_leader_round = epoch_store
+            .tables()
+            .ok()
+            .and_then(|tables| tables.get_last_consensus_index().ok().flatten())
+            .map(|idx| idx.last_committed_round)
+            .unwrap_or(0);
+
+        let last_locally_built_checkpoint = self
+            .state
+            .checkpoint_store
+            .get_latest_locally_computed_checkpoint()
+            .ok()
+            .flatten()
+            .map(|summary| summary.sequence_number)
+            .unwrap_or(0);
+
         Ok((
             tonic::Response::new(ValidatorHealthResponse {
-                num_inflight_execution_transactions: 0,
-                num_inflight_consensus_transactions: 0,
+                num_inflight_execution_transactions: self
+                    .state
+                    .transaction_manager()
+                    .inflight_queue_len() as u64,
+                num_inflight_consensus_transactions: self
+                    .consensus_adapter
+                    .num_inflight_transactions(),
+                last_committed_leader_round,
+                last_locally_built_checkpoint,
             }),
             Weight::zero(),
         ))
