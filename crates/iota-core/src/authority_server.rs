@@ -13,7 +13,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair;
-use futures::future::Either;
+use futures::future::{Either, join_all};
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use iota_metrics::spawn_monitored_task;
 use iota_network::{
@@ -1270,111 +1270,6 @@ impl ValidatorService {
         ))
     }
 
-    /// Validates a batch of transactions that arrive together as a soft bundle
-    /// (white-flag flow). Enforces the same invariants as
-    /// [`Self::soft_bundle_validity_check`] but operates on raw
-    /// [`Transaction`]s instead of [`CertifiedTransaction`]s.
-    ///
-    /// Checks (all-or-nothing — any failure rejects the entire bundle):
-    /// * Count ≤ `max_soft_bundle_size`
-    /// * Total serialized size ≤ half of
-    ///   `consensus_max_transactions_in_block_bytes`
-    /// * Every transaction accesses at least one shared object
-    /// * No transaction has already been executed
-    /// * All transactions share the same gas price
-    /// * No transaction has already been processed by consensus
-    async fn submit_transactions_bundle_validity_check(
-        &self,
-        transactions: &[Transaction],
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        total_size_bytes: u64,
-    ) -> Result<(), tonic::Status> {
-        let protocol_config = epoch_store.protocol_config();
-
-        // Enforce these checks:
-        // - All certs must access at least one shared object.
-        // - All certs must not be already executed.
-        // - All certs must have the same gas price.
-        // - Number of certs must not exceed the max allowed.
-        // - Total size of all certs must not exceed the max allowed.
-        fp_ensure!(
-            transactions.len() as u64 <= protocol_config.max_soft_bundle_size(),
-            IotaError::UserInput {
-                error: UserInputError::TooManyTransactionsInSoftBundle {
-                    limit: protocol_config.max_soft_bundle_size(),
-                },
-            }
-            .into()
-        );
-
-        // We set the soft bundle max size to be half of the consensus max transactions
-        // in block size. We do this to account for serialization overheads and
-        // to ensure that the soft bundle is not too large when is attempted to be
-        // posted via consensus. Although half the block size is on the extreme
-        // side, it's should be good enough for now.
-        let soft_bundle_max_size_bytes =
-            protocol_config.consensus_max_transactions_in_block_bytes() / 2;
-        fp_ensure!(
-            total_size_bytes <= soft_bundle_max_size_bytes,
-            IotaError::UserInput {
-                error: UserInputError::SoftBundleTooLarge {
-                    size: total_size_bytes,
-                    limit: soft_bundle_max_size_bytes,
-                },
-            }
-            .into()
-        );
-
-        let mut gas_price: Option<u64> = None;
-        for transaction in transactions {
-            let tx_digest = *transaction.digest();
-
-            fp_ensure!(
-                transaction.contains_shared_object(),
-                IotaError::UserInput {
-                    error: UserInputError::NoSharedObject { digest: tx_digest },
-                }
-                .into()
-            );
-            fp_ensure!(
-                !self.state.try_is_tx_already_executed(&tx_digest)?,
-                IotaError::UserInput {
-                    error: UserInputError::AlreadyExecuted { digest: tx_digest },
-                }
-                .into()
-            );
-
-            if let Some(gas) = gas_price {
-                fp_ensure!(
-                    gas == transaction.gas_price(),
-                    IotaError::UserInput {
-                        error: UserInputError::GasPriceMismatch {
-                            digest: tx_digest,
-                            expected: gas,
-                            actual: transaction.gas_price(),
-                        },
-                    }
-                    .into()
-                );
-            } else {
-                gas_price = Some(transaction.gas_price());
-            }
-        }
-
-        // Reject the entire bundle if any transaction has already been sequenced by
-        // consensus. This is a best-effort check — a race is possible but
-        // harmless (consensus deduplicates).
-        fp_ensure!(
-            !epoch_store.is_any_user_tx_consensus_message_processed(transactions.iter())?,
-            IotaError::UserInput {
-                error: UserInputError::CertificateAlreadyProcessed,
-            }
-            .into()
-        );
-
-        Ok(())
-    }
-
     async fn handle_submit_transactions_impl(
         &self,
         request: tonic::Request<SubmitTransactionsRequest>,
@@ -1409,22 +1304,20 @@ impl ValidatorService {
             // TODO: handle ping response better. Do we even need ping requests?
             return Ok((
                 tonic::Response::new(SubmitTransactionsResponse {
-                    result: SubmitTransactionResult::Submitted,
+                    results: vec![SubmitTransactionResult::Submitted],
                 }),
                 Weight::zero(),
             ));
         }
 
         let transactions = request.transactions;
-        // is_ping() = len() == 0 (handled above); is_soft_bundle() = len() > 1; else =
-        // len() == 1.
-        let is_soft_bundle = transactions.len() > 1;
 
         // Per-tx validity checks. For soft bundles this also accumulates total
         // serialized size for the bundle size limit.
-        let mut total_size_bytes: u64 = 0;
+        // TODO: check if size check needed?
+        let mut _total_size_bytes: u64 = 0;
         for tx in &transactions {
-            total_size_bytes +=
+            _total_size_bytes +=
                 tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
 
             // System overload check per transaction: check_execution_overload examines
@@ -1446,192 +1339,136 @@ impl ValidatorService {
         // where the timer also starts after the overload check.
         let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
 
-        if is_soft_bundle {
-            // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
+        // ── Single-transaction path ─────────────────────────────────────────
+        // TODO fix above
+        // NOTO: executed in parallel
+        let futures = transactions
+            .into_iter()
+            .map(|tx| self.handle_submit_transaction_impl(tx, &epoch_store));
+        // Waits for all to finish, does not stop if any error out.
+        let futures_result = join_all(futures).await;
 
-            // Bundle-level validity checks (shared-object, size, gas price, already
-            // processed).
-            self.submit_transactions_bundle_validity_check(
-                &transactions,
-                &epoch_store,
-                total_size_bytes,
-            )
-            .await?;
+        let results = futures_result
+            .into_iter()
+            .map(|x| x.unwrap_or_else(|e| SubmitTransactionResult::Rejected { error: e.into() }))
+            .collect::<Vec<_>>();
 
-            // Verify each transaction's user signature individually.
-            // TODO: switch to batch verification once a parallel helper exists.
-            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-            let mut verified_transactions = Vec::with_capacity(transactions.len());
-            for tx in &transactions {
-                match epoch_store.verify_transaction(tx.clone()) {
-                    Ok(verified) => verified_transactions.push(verified),
-                    Err(e) => {
-                        metrics.signature_errors.inc();
-                        return Err(e.into());
-                    }
-                }
-            }
-            drop(tx_verif_guard);
+        Ok((
+            tonic::Response::new(SubmitTransactionsResponse { results }),
+            Weight::one(),
+        ))
+    }
 
-            // Early bail-out during epoch boundary, before running expensive deny checks.
-            if !epoch_store
-                .get_reconfig_state_read_lock_guard()
-                .should_accept_user_certs()
-            {
-                metrics
-                    .num_rejected_tx_in_epoch_boundary
-                    .inc_by(transactions.len() as u64);
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
+    /// Handles submission of a single transaction. Validates, checks for prior
+    /// execution, verifies signature, runs deny checks, and submits to
+    /// consensus. Returns the per-transaction result.
+    async fn handle_submit_transaction_impl(
+        &self,
+        transaction: Transaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Result<SubmitTransactionResult, tonic::Status> {
+        let Self {
+            state,
+            consensus_adapter,
+            metrics,
+            ..
+        } = self.clone();
 
-            // Content validation: deny checks + owned object version validation.
-            for verified_tx in &verified_transactions {
-                let owned_objects = state
-                    .handle_transaction_deny_checks(verified_tx, &epoch_store)
-                    .await
-                    .map_err(tonic::Status::from)?;
-                state
-                    .get_cache_writer()
-                    .validate_owned_object_versions(&owned_objects)
-                    .map_err(tonic::Status::from)?;
-            }
+        let tx_digest = *transaction.digest();
 
-            // Acquire the reconfiguration lock once for the whole bundle so that
-            // all transactions are either accepted or rejected together.
-            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-            if !reconfiguration_lock.should_accept_user_certs() {
-                metrics
-                    .num_rejected_tx_in_epoch_boundary
-                    .inc_by(transactions.len() as u64);
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
-
-            // Build consensus messages and submit as an atomic batch.
-            let consensus_txs: Vec<_> = transactions
-                .into_iter()
-                .map(ConsensusTransaction::new_user_transaction)
-                .collect();
-
-            self.consensus_adapter
-                .submit_batch(&consensus_txs, Some(&reconfiguration_lock), &epoch_store)
-                .map_err(tonic::Status::from)?;
-
-            Ok((
-                tonic::Response::new(SubmitTransactionsResponse {
-                    result: SubmitTransactionResult::Submitted,
-                }),
-                Weight::one(),
-            ))
-        } else {
-            // ── Single-transaction path ─────────────────────────────────────────
-            let transaction = transactions
-                .into_iter()
-                .next()
-                .expect("single transaction expected: ping and soft-bundle cases already handled");
-            let tx_digest = *transaction.digest();
-
-            // Helper to build an Executed response from transaction effects.
-            let build_executed_response =
-                |effects: TransactionEffects| -> Result<_, tonic::Status> {
-                    let effects_digest = effects.digest();
-                    let events = if effects.events_digest().is_some() {
-                        state
-                            .get_transaction_events(effects.transaction_digest())
-                            .ok()
-                    } else {
-                        None
-                    };
-                    let input_objects = state.get_transaction_input_objects(&effects).ok();
-                    let output_objects = state.get_transaction_output_objects(&effects).ok();
-                    let details = Box::new(ExecutedData {
-                        effects,
-                        events,
-                        input_objects: input_objects.unwrap_or_default(),
-                        output_objects: output_objects.unwrap_or_default(),
-                    });
-                    Ok((
-                        tonic::Response::new(SubmitTransactionsResponse {
-                            result: SubmitTransactionResult::Executed {
-                                effects_digest,
-                                details,
-                            },
-                        }),
-                        Weight::one(),
-                    ))
+        // Helper to build an Executed result from transaction effects.
+        let build_executed_result =
+            |effects: TransactionEffects| -> Result<SubmitTransactionResult, tonic::Status> {
+                let effects_digest = effects.digest();
+                let events = if effects.events_digest().is_some() {
+                    state
+                        .get_transaction_events(effects.transaction_digest())
+                        .ok()
+                } else {
+                    None
                 };
+                let input_objects = state.get_transaction_input_objects(&effects).ok();
+                let output_objects = state.get_transaction_output_objects(&effects).ok();
+                let details = Box::new(ExecutedData {
+                    effects,
+                    events,
+                    input_objects: input_objects.unwrap_or_default(),
+                    output_objects: output_objects.unwrap_or_default(),
+                });
+                Ok(SubmitTransactionResult::Executed {
+                    effects_digest,
+                    details,
+                })
+            };
 
-            // Check if already executed.
+        // Check if already executed.
+        if let Some(effects) = state
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&tx_digest)
+            .map_err(tonic::Status::from)?
+        {
+            return build_executed_result(effects);
+        }
+
+        // Verify user signature.
+        let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+        let verified_tx = match epoch_store.verify_transaction(transaction.clone()) {
+            Ok(verified) => verified,
+            Err(e) => {
+                metrics.signature_errors.inc();
+                return Err(e.into());
+            }
+        };
+        drop(tx_verif_guard);
+
+        // Early bail-out during epoch boundary, before running expensive deny checks.
+        if !epoch_store
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_user_certs()
+        {
+            metrics.num_rejected_tx_in_epoch_boundary.inc();
+            return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+        }
+
+        // Content validation: deny checks + owned object version validation.
+        let owned_objects = state
+            .handle_transaction_deny_checks(&verified_tx, epoch_store)
+            .await
+            .map_err(tonic::Status::from)?;
+        if let Err(e) = state
+            .get_cache_writer()
+            .validate_owned_object_versions(&owned_objects)
+        {
+            // Check if the transaction was executed while being validated, and that's why
+            // the owned object version validation failed. This is an edge
+            // case so checking executed effects twice is acceptable.
             if let Some(effects) = state
                 .get_transaction_cache_reader()
-                .try_get_executed_effects(&tx_digest)?
+                .try_get_executed_effects(&tx_digest)
+                .map_err(tonic::Status::from)?
             {
-                return build_executed_response(effects);
+                return build_executed_result(effects);
             }
-
-            // Verify user signature.
-            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-            let verified_tx = match epoch_store.verify_transaction(transaction.clone()) {
-                Ok(verified) => verified,
-                Err(e) => {
-                    metrics.signature_errors.inc();
-                    return Err(e.into());
-                }
-            };
-            drop(tx_verif_guard);
-
-            // Early bail-out during epoch boundary, before running expensive deny checks.
-            if !epoch_store
-                .get_reconfig_state_read_lock_guard()
-                .should_accept_user_certs()
-            {
-                metrics.num_rejected_tx_in_epoch_boundary.inc();
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
-
-            // Content validation: deny checks + owned object version validation.
-            let owned_objects = state
-                .handle_transaction_deny_checks(&verified_tx, &epoch_store)
-                .await
-                .map_err(tonic::Status::from)?;
-            if let Err(e) = state
-                .get_cache_writer()
-                .validate_owned_object_versions(&owned_objects)
-            {
-                // Check if the transaction was executed while being validated, and that's why
-                // the owned object version validation failed. This is an edge
-                // case so checking executed effects twice is acceptable.
-                if let Some(effects) = state
-                    .get_transaction_cache_reader()
-                    .try_get_executed_effects(&tx_digest)?
-                {
-                    return build_executed_response(effects);
-                }
-                return Err(tonic::Status::from(e));
-            }
-
-            // Reconfig check.
-            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-            if !reconfiguration_lock.should_accept_user_certs() {
-                metrics.num_rejected_tx_in_epoch_boundary.inc();
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
-
-            // Submit to consensus.
-            consensus_adapter
-                .submit(
-                    ConsensusTransaction::new_user_transaction(transaction),
-                    Some(&reconfiguration_lock),
-                    &epoch_store,
-                )
-                .map_err(tonic::Status::from)?;
-
-            Ok((
-                tonic::Response::new(SubmitTransactionsResponse {
-                    result: SubmitTransactionResult::Submitted,
-                }),
-                Weight::one(),
-            ))
+            return Err(tonic::Status::from(e));
         }
+
+        // Reconfig check.
+        let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+        if !reconfiguration_lock.should_accept_user_certs() {
+            metrics.num_rejected_tx_in_epoch_boundary.inc();
+            return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+        }
+
+        // Submit to consensus.
+        consensus_adapter
+            .submit(
+                ConsensusTransaction::new_user_transaction(transaction),
+                Some(&reconfiguration_lock),
+                epoch_store,
+            )
+            .map_err(tonic::Status::from)?;
+
+        Ok(SubmitTransactionResult::Submitted)
     }
 
     async fn handle_wait_for_effects_impl(

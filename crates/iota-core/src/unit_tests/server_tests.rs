@@ -470,7 +470,7 @@ async fn test_submit_transaction_success() {
     // Should succeed with Submitted result
     assert!(result.is_ok(), "Transaction submission should succeed");
     let response = result.unwrap().0.into_inner();
-    match &response.result {
+    match &response.results[0] {
         SubmitTransactionResult::Submitted => {
             // Success - transaction was submitted to consensus
         }
@@ -653,7 +653,13 @@ async fn test_submit_transaction_already_executed() {
 
     assert!(result.is_ok(), "Expected Ok for already-executed tx");
     let response = result.unwrap().0.into_inner();
-    match response.result {
+    match response
+        .results
+        .into_iter()
+        .next()
+        .unwrap_or(SubmitTransactionResult::Rejected {
+            error: iota_types::error::IotaError::Unknown("No result returned".to_string()),
+        }) {
         SubmitTransactionResult::Executed { effects_digest, .. } => {
             assert_eq!(effects_digest, *effects.digest());
         }
@@ -779,7 +785,13 @@ async fn test_submit_soft_bundle_transactions() {
 
     assert!(result.is_ok(), "Soft bundle submission should succeed");
     let response = result.unwrap().0.into_inner();
-    match response.result {
+    match response
+        .results
+        .into_iter()
+        .next()
+        .unwrap_or(SubmitTransactionResult::Rejected {
+            error: iota_types::error::IotaError::Unknown("No result returned".to_string()),
+        }) {
         SubmitTransactionResult::Submitted => {}
         other => panic!("Expected Submitted, got {:?}", other),
     }

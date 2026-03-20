@@ -365,10 +365,6 @@ impl SubmitTransactionsRequest {
     pub fn is_ping(&self) -> bool {
         self.transactions.is_empty()
     }
-
-    pub fn is_soft_bundle(&self) -> bool {
-        self.transactions.len() > 1
-    }
 }
 
 /// The result of submitting a transaction to a validator.
@@ -399,9 +395,11 @@ impl std::fmt::Debug for SubmitTransactionResult {
 }
 
 /// Response from the TransactionDriver submit_transaction endpoint.
+/// TODO: Remove note bellow once soft bundle support is removed.
+/// NOTE: Vector of results does not work with soft bundles.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionsResponse {
-    pub result: SubmitTransactionResult,
+    pub results: Vec<SubmitTransactionResult>,
 }
 
 /// Request to wait for transaction effects from a validator.
