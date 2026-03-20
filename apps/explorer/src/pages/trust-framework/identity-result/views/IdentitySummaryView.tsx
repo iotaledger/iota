@@ -11,7 +11,7 @@ import { onCopySuccess } from '~/lib/utils';
 import { type IotaDocument } from '@iota/identity-wasm/web';
 import { ErrorBoundary } from '~/components';
 
-interface DidSummaryViewProps {
+interface IdentitySummaryViewProps {
     didDocument: IotaDocument;
     objectData: IotaObjectData;
 }
@@ -19,7 +19,7 @@ interface DidSummaryViewProps {
 export function IdentitySummaryView({
     didDocument,
     objectData: { objectId, storageRebate, previousTransaction },
-}: DidSummaryViewProps): JSX.Element {
+}: IdentitySummaryViewProps): JSX.Element {
     const isActive = didDocument.metadataDeactivated() !== true;
 
     const didDateFormat = (timestamp: string): string =>
