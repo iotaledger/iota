@@ -2622,6 +2622,7 @@ impl ProtocolConfig {
                     cfg.auth_context_tx_inputs_cost_per_byte = Some(2);
                     cfg.auth_context_replace_cost_base = Some(30);
                     cfg.auth_context_replace_cost_per_byte = Some(2);
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Decrease max_auth_gas to 0.00025 IOTA
                         cfg.max_auth_gas = Some(250_000);

@@ -144,8 +144,7 @@ impl AuthContext {
     }
 
     /// Returns the plain (non-enriched) transaction inputs, downgraded from
-    /// the stored enriched representation. Use [`enriched_tx_inputs`] when
-    /// the enriched metadata (type name, mutability) is needed.
+    /// the stored enriched representation.
     pub fn tx_inputs(&self) -> Vec<MoveCallArg> {
         self.tx_inputs.iter().map(downgrade_call_arg).collect()
     }
@@ -157,8 +156,7 @@ impl AuthContext {
     }
 
     /// Returns the plain (non-enriched) transaction commands, downgraded from
-    /// the stored enriched representation. Use [`enriched_tx_commands`] when
-    /// the enriched metadata (`is_entry`, `returns`) is needed.
+    /// the stored enriched representation.
     pub fn tx_commands(&self) -> Vec<MoveCommand> {
         self.tx_commands.iter().map(downgrade_command).collect()
     }
