@@ -9,6 +9,7 @@
 		"explorer-dev": "turbo --filter iota-explorer --filter apps-backend dev",
 		"wallet-dev": "turbo --filter ./apps/wallet --filter apps-backend dev",
 		"wallet-dashboard-dev": "turbo --filter ./apps/wallet-dashboard --filter apps-backend dev",
+		"multisig": "turbo --filter ./dapps/multisig-toolkit",
 		"evm-bridge": "turbo --filter ./apps/evm-bridge",
 		"evm-bridge-dev": "turbo --filter ./apps/evm-bridge --filter apps-backend dev",
 		"ui-kit": "turbo --filter ./apps/ui-kit",
