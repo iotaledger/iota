@@ -51,3 +51,19 @@ module b::aliased {
         x.eat();
     }
 }
+
+// Case 5: aliased using use fun (or method alias) - should NOT warn (the alias name wouldn't be available via global scope)
+module b::aliased_use_fun {
+    use a::m::{X, new};
+
+    /// Use fun statement that creates a method alias.
+    /// This notation is called a "use fun" declaration or "method alias" in Move.
+    /// It allows calling the function `a::m::consume` as a method `eat` on type `X`.
+    /// For example: `x_value.eat()` instead of `a::m::consume(x_value)`.
+    use fun a::m::consume as X.eat;
+
+    fun t() {
+        let x = new();
+        x.eat();
+    }
+}
