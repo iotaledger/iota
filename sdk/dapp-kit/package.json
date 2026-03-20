@@ -64,15 +64,15 @@
         "@testing-library/user-event": "^14.5.2",
         "@types/react": "^18.3.3",
         "@vanilla-extract/esbuild-plugin": "^2.3.8",
-        "@vanilla-extract/vite-plugin": "^4.0.13",
+        "@vanilla-extract/vite-plugin": "^5.2.0",
         "dotenv": "^16.4.5",
         "jsdom": "^24.1.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
         "size-limit": "^11.1.4",
         "typescript": "^5.5.3",
-        "vite": "^5.4.12",
-        "vitest": "^3.2.4"
+        "vite": "^8.0.1",
+        "vitest": "^4.1.0"
     },
     "dependencies": {
         "@iota/iota-names-sdk": "^0.6.1",

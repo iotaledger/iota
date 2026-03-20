@@ -132,7 +132,7 @@ describe('IotaHTTPTransport', () => {
         let sentMessages: unknown[] = [];
         let subscriptionId = 100;
         const results = new Map<string, object>();
-        const MockWebSocketConstructor = vi.fn(() => {
+        const MockWebSocketConstructor = vi.fn(function () {
             const socket = new EventEmitter() as unknown as WebSocket & EventEmitter;
             socket.addEventListener = vi.fn(socket.addListener.bind(socket));
             socket.close = vi.fn();
