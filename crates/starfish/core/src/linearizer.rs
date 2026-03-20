@@ -482,8 +482,7 @@ pub(crate) fn median_timestamp_by_stake(
             "Total stake {} < quorum threshold {}",
             total_stake,
             context.committee.quorum_threshold()
-        )
-        .to_string());
+        ));
     }
 
     Ok(median_timestamps_by_stake_inner(timestamps, total_stake))
@@ -618,7 +617,7 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 20, authorities 0 ~ 3.
         let num_rounds: u32 = 20;
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=num_rounds)
             .build()
@@ -632,7 +631,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.get_pending_sub_dags(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(leaders);
         {
             // Write them in DagState
             let mut write = dag_state.write();
@@ -654,7 +653,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.get_pending_sub_dags(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(leaders);
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(1), 29),
@@ -969,18 +968,18 @@ mod tests {
         // + num_rounds_to_evict, authorities 0 ~
         // 3.
         let num_rounds: u32 = context.protocol_config.gc_depth() * 2 + num_rounds_to_evict;
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=num_rounds)
             .build()
-            .persist_layers(dag_state.clone());
+            .persist_layers(dag_state);
 
         let leaders = dag_builder
             .leader_blocks(1..=num_rounds)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        linearizer.get_pending_sub_dags(leaders.clone());
+        linearizer.get_pending_sub_dags(leaders);
         // Check that before eviction acknowledgements for all rounds up to num_rounds-2
         // are stored
         for round in 1..=num_rounds - 2 {

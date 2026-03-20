@@ -73,8 +73,8 @@ impl ProxyCache {
 
         let writeback_cache = WritebackCache::new(
             &cache_config.writeback_cache,
-            store.clone(),
-            metrics.clone(),
+            store,
+            metrics,
             backpressure_manager,
         );
 

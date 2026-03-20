@@ -154,7 +154,7 @@ fn start_network_without_external_address(
     network: Network,
     keypair: NetworkKeyPair,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (event_loop, handle) = discovery.build(network.clone(), keypair);
+    let (event_loop, handle) = discovery.build(network, keypair);
     let state = event_loop.state.clone();
     (event_loop, handle, state)
 }
@@ -1670,7 +1670,7 @@ async fn test_peer_deduplication() -> Result<()> {
 
     let peer_info_reordered_addresses = NodeInfo {
         peer_id: peer_id1,
-        addresses: vec![address2.clone(), address1.clone()],
+        addresses: vec![address2, address1.clone()],
         timestamp_ms: timestamp1,
         access_type: AccessType::Public,
     };
@@ -1694,7 +1694,7 @@ async fn test_peer_deduplication() -> Result<()> {
 
     let peer_info_different_access_type = NodeInfo {
         peer_id: peer_id1,
-        addresses: vec![address1.clone()],
+        addresses: vec![address1],
         timestamp_ms: timestamp1,
         access_type: AccessType::Private, // Different access type
     };
@@ -1828,7 +1828,7 @@ async fn test_peer_deduplication() -> Result<()> {
     // Test Case 11: Mixed scenario with multiple duplicates and unique peers
     let mixed_peers = vec![
         signed_peer_base.clone(),                // Original
-        signed_peer_base.clone(),                // Duplicate of original
+        signed_peer_base,                        // Duplicate of original
         signed_peer_different_timestamp.clone(), // Different (timestamp)
         signed_peer_different_timestamp,         // Duplicate of different
         signed_peer_other,                       // Completely unique

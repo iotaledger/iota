@@ -58,3 +58,6 @@ ignored = [
   "eyre", # imported through a procedural macro
   "tempfile", # imported through a procedural macro
 ]
+
+[lints]
+workspace = true

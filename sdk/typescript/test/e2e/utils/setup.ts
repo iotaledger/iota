@@ -55,17 +55,38 @@ class TestPackageRegistry {
     }
 
     #packages: Map<string, string>;
+    #pendingPublishes: Map<string, Promise<string>>;
 
     constructor() {
         this.#packages = new Map();
+        this.#pendingPublishes = new Map();
     }
 
-    async getPackage(path: string, toolbox?: TestToolbox) {
-        if (!this.#packages.has(path)) {
-            this.#packages.set(path, (await publishPackage(path, toolbox)).packageId);
+    async getPackage(name: string, toolbox?: TestToolbox) {
+        // Return cached package if available
+        if (this.#packages.has(name)) {
+            return this.#packages.get(name)!;
         }
 
-        return this.#packages.get(path)!;
+        // If a publish is already in progress, wait for it
+        if (this.#pendingPublishes.has(name)) {
+            return await this.#pendingPublishes.get(name)!;
+        }
+
+        // Start a new publish and track it
+        const publishPromise = (async () => {
+            try {
+                const { packageId } = await publishPackage(name, toolbox);
+                this.#packages.set(name, packageId);
+                return packageId;
+            } finally {
+                // Clean up the pending promise once done
+                this.#pendingPublishes.delete(name);
+            }
+        })();
+
+        this.#pendingPublishes.set(name, publishPromise);
+        return await publishPromise;
     }
 }
 

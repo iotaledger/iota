@@ -844,10 +844,10 @@ pub mod tests {
             epoch: 0,
         };
         let state = AppState::new(
-            connection_config.clone(),
+            connection_config,
             service_config.clone(),
             metrics.clone(),
-            cancellation_token.clone(),
+            cancellation_token,
             version,
         );
         ServerBuilder::new(state)
@@ -1146,7 +1146,7 @@ pub mod tests {
         let resp = schema
             .execute("{ checkpoints(first: 2) { nodes { sequenceNumber } } }")
             .await;
-        let data = resp.data.clone().into_json().unwrap();
+        let data = resp.data.into_json().unwrap();
         let checkpoints = data
             .get("checkpoints")
             .unwrap()
