@@ -366,7 +366,7 @@ impl StateAccumulator {
             epoch_store.epoch(),
             last_checkpoint_of_epoch
         );
-        Ok(running_root.clone())
+        Ok(running_root)
     }
 
     pub fn accumulate_effects(&self, effects: &[TransactionEffects]) -> Accumulator {

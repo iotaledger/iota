@@ -34,3 +34,6 @@ move-binary-format.workspace = true
 
 [dev-dependencies]
 diffy.workspace = true
+
+[lints]
+workspace = true

@@ -51,3 +51,6 @@ telemetry-subscribers.workspace = true
 [dev-dependencies]
 roaring.workspace = true
 tempfile.workspace = true
+
+[lints]
+workspace = true

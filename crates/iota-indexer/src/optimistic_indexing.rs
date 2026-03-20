@@ -402,14 +402,14 @@ impl OptimisticTransactionExecutor {
         let (optimistic_tx, indexed_displays, object_changes) = tx_data_to_commit;
 
         self.store
-            .persist_objects_in_existing_transaction(conn, vec![object_changes.clone()])?;
+            .persist_objects_in_existing_transaction(conn, vec![object_changes])?;
         self.store.persist_displays_in_existing_transaction(
             conn,
             indexed_displays.values().collect::<Vec<_>>(),
         )?;
 
         self.store
-            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx.clone())
+            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx)
     }
 }
 
