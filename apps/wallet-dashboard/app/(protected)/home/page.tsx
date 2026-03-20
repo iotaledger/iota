@@ -13,10 +13,13 @@ import {
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
+import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { useRouter } from 'next/navigation';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
+    const router = useRouter();
 
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
@@ -36,7 +39,17 @@ function HomeDashboardPage(): JSX.Element {
                         <div style={{ gridArea: 'coins' }} className="flex grow overflow-hidden">
                             <MyCoins />
                         </div>
-                        {supplyIncreaseVestingEnabled && <SupplyIncreaseVestingOverview />}
+                        {supplyIncreaseVestingEnabled && (
+                            <SupplyIncreaseVestingOverview
+                                customButton={
+                                    <Button
+                                        type={ButtonType.Primary}
+                                        text="Go to Vesting Page"
+                                        onClick={() => router.push('/vesting')}
+                                    />
+                                }
+                            />
+                        )}
                         <div style={{ gridArea: 'activity' }} className="flex grow overflow-hidden">
                             <TransactionsOverview />
                         </div>
