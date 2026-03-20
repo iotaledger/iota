@@ -13,7 +13,7 @@ import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMe
 import { ControllerView } from './ControllerView';
 import { ServiceView } from './ServiceView';
 import { IdentitySummaryView } from './IdentitySummaryView';
-import { DidDocumentJsonView } from './DidDocumentJsonView';
+import { IdentityDocumentJsonView } from './IdentityDocumentJsonView';
 import { SideBySidePanelsView } from './SideBySidePanelsView';
 import { TransactionsView } from './TransactionsView';
 import { extractDidDoc } from '../helper';
@@ -124,7 +124,7 @@ export function IdentityContent({ did }: IdentityContentProps) {
                         firstPanelView={<ControllerView objectData={didObject} />}
                         secondPanelView={<ServiceView didDocument={didDocument} />}
                     />
-                    <DidDocumentJsonView didDocument={didDocument} />
+                    <IdentityDocumentJsonView didDocument={didDocument} />
                     <TransactionsView objectId={did.tag()} />
                 </div>
             }

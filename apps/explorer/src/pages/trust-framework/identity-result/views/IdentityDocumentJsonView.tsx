@@ -6,11 +6,11 @@ import { type IotaDocument } from '@iota/identity-wasm/web';
 import { Panel, PanelGroup } from 'react-resizable-panels';
 import { ErrorBoundary, SyntaxHighlighter } from '~/components';
 
-interface DidDocumentJsonViewProps {
+interface IdentityDocumentJsonViewProps {
     didDocument: IotaDocument;
 }
 
-export function DidDocumentJsonView({ didDocument }: DidDocumentJsonViewProps) {
+export function IdentityDocumentJsonView({ didDocument }: IdentityDocumentJsonViewProps) {
     return (
         <ErrorBoundary>
             <div className="panel-bg flex w-full flex-col rounded-xl border border-transparent p-md--rs">
