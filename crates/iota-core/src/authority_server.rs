@@ -1757,20 +1757,11 @@ impl ValidatorService {
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
-        let last_committed_leader_round = epoch_store
-            .tables()
-            .ok()
-            .and_then(|tables| tables.get_last_consensus_index().ok().flatten())
-            .map(|idx| idx.last_committed_round)
-            .unwrap_or(0);
-
-        let last_locally_built_checkpoint = self
-            .state
-            .checkpoint_store
-            .get_latest_locally_computed_checkpoint()
+        let last_locally_built_checkpoint = epoch_store
+            .last_built_checkpoint_summary()
             .ok()
             .flatten()
-            .map(|summary| summary.sequence_number)
+            .map(|(seq, _)| seq)
             .unwrap_or(0);
 
         Ok((
@@ -1782,7 +1773,6 @@ impl ValidatorService {
                 num_inflight_consensus_transactions: self
                     .consensus_adapter
                     .num_inflight_transactions(),
-                last_committed_leader_round,
                 last_locally_built_checkpoint,
             }),
             Weight::zero(),
