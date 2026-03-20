@@ -112,7 +112,9 @@
 		"RC_VERSION",
 		"APPS_BACKEND",
 		"SENTRY_AUTH_TOKEN",
-		"BUILD_ENV"
+		"BUILD_ENV",
+		"VITE_EVM_BRIDGE_CONFIG",
+		"VITE_EVM_BRIDGE_DEFAULT_NETWORK"
 	],
 	"globalDependencies": [
 		".eslintrc.js",
