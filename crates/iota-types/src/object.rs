@@ -12,19 +12,18 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Owner;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{MoveObjectType, StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
-use serde_with::{Bytes, serde_as};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
     base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef,
-        SequenceNumber, TransactionDigest,
+        IotaAddress, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
+        StructTagExt, TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::{default_hash, deterministic_random_account_key},
@@ -47,7 +46,6 @@ pub mod option_visitor;
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
 pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
-#[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MoveObject {
     /// The type of this object. Immutable
@@ -57,7 +55,7 @@ pub struct MoveObject {
     /// version
     pub(crate) version: SequenceNumber,
     /// BCS bytes of a Move struct value
-    #[serde_as(as = "Bytes")]
+    #[serde(with = "serde_with::As::<serde_with::Bytes>")]
     pub(crate) contents: Vec<u8>,
 }
 
@@ -68,7 +66,7 @@ impl MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
     /// `contents`.
     pub fn new_from_execution(
-        type_: MoveObjectType,
+        type_: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
@@ -84,7 +82,7 @@ impl MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
     /// `contents`. It allows to set a `max_move_object_size` for that.
     pub fn new_from_execution_with_limit(
-        type_: MoveObjectType,
+        type_: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         max_move_object_size: u64,
@@ -98,7 +96,7 @@ impl MoveObject {
             ));
         }
         Ok(Self {
-            type_,
+            type_: type_.into(),
             version,
             contents,
         })
@@ -108,7 +106,7 @@ impl MoveObject {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                StructTag::new_gas_coin().into(),
+                StructTag::new_gas_coin(),
                 version,
                 GasCoin::new(id, value).to_bcs_bytes(),
                 256,
@@ -121,7 +119,7 @@ impl MoveObject {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                MoveObjectType::coin(coin_type),
+                StructTag::new_coin(coin_type),
                 version,
                 Coin::new(id, value).to_bcs_bytes(),
                 256,
@@ -130,12 +128,12 @@ impl MoveObject {
         }
     }
 
-    pub fn type_(&self) -> &MoveObjectType {
-        &self.type_
+    pub fn type_(&self) -> &StructTag {
+        &*self.type_
     }
 
     pub fn is_type(&self, s: &StructTag) -> bool {
-        self.type_.is(s)
+        &*self.type_ == s
     }
 
     pub fn id(&self) -> ObjectID {
@@ -197,7 +195,7 @@ impl MoveObject {
     }
 
     pub fn is_clock(&self) -> bool {
-        self.type_.is(&StructTag::new_clock())
+        self.type_ == StructTag::new_clock()
     }
 
     pub fn version(&self) -> SequenceNumber {
@@ -275,12 +273,12 @@ impl MoveObject {
         self.contents
     }
 
-    pub fn into_type(self) -> MoveObjectType {
-        self.type_
+    pub fn into_type(self) -> StructTag {
+        self.type_.into()
     }
 
-    pub fn into_inner(self) -> (MoveObjectType, Vec<u8>) {
-        (self.type_, self.contents)
+    pub fn into_inner(self) -> (StructTag, Vec<u8>) {
+        (self.type_.into(), self.contents)
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -288,7 +286,7 @@ impl MoveObject {
     /// and the (transitive) dependencies of `self.type_` in order for this
     /// to succeed. Failure will result in an `ObjectSerializationError`
     pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
+        Self::get_struct_layout_from_struct_tag(self.type_().clone(), resolver)
     }
 
     pub fn get_struct_layout_from_struct_tag(
@@ -367,7 +365,7 @@ impl MoveObject {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(&self.type_().clone().into())?;
+            let layout = layout_resolver.get_annotated_layout(&self.type_().clone())?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
@@ -430,7 +428,7 @@ impl Data {
         }
     }
 
-    pub fn type_(&self) -> Option<&MoveObjectType> {
+    pub fn type_(&self) -> Option<&StructTag> {
         use Data::*;
         match self {
             Move(m) => Some(m.type_()),
@@ -441,7 +439,7 @@ impl Data {
     pub fn struct_tag(&self) -> Option<StructTag> {
         use Data::*;
         match self {
-            Move(m) => Some(m.type_().clone().into()),
+            Move(m) => Some(m.type_().clone()),
             Package(_) => None,
         }
     }
@@ -678,7 +676,7 @@ impl ObjectInner {
         }
     }
 
-    pub fn type_(&self) -> Option<&MoveObjectType> {
+    pub fn type_(&self) -> Option<&StructTag> {
         self.data.type_()
     }
 

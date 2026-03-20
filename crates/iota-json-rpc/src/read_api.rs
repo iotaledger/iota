@@ -1203,7 +1203,7 @@ pub fn get_object_type_and_struct(
 ) -> Result<Option<(StructTag, MoveStruct)>, ObjectDisplayError> {
     if let Some(object_type) = o.type_() {
         let move_struct = get_move_struct(o, layout)?;
-        Ok(Some((object_type.clone().into(), move_struct)))
+        Ok(Some((object_type.clone(), move_struct)))
     } else {
         Ok(None)
     }

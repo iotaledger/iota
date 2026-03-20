@@ -574,7 +574,7 @@ impl RestIndexes for RestIndexStore {
                         owner,
                         object_id,
                         version,
-                        type_,
+                        type_: type_.into(),
                     }
                 },
             )

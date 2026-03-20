@@ -9,7 +9,7 @@ use std::{
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{ObjectID, SequenceNumber, StructTag},
     committee::EpochId,
     error::VMMemoryLimitExceededSubStatusCode,
     execution::DynamicallyLoadedObjectMetadata,
@@ -31,7 +31,7 @@ use crate::object_runtime::{fingerprint::ObjectFingerprint, get_all_uids};
 pub(super) struct ChildObject {
     pub(super) owner: ObjectID,
     pub(super) ty: Type,
-    pub(super) move_type: MoveObjectType,
+    pub(super) move_type: StructTag,
     pub(super) value: GlobalValue,
     pub(super) fingerprint: ObjectFingerprint,
 }
@@ -40,14 +40,14 @@ pub(crate) struct ActiveChildObject<'a> {
     pub(crate) id: &'a ObjectID,
     pub(crate) owner: &'a ObjectID,
     pub(crate) ty: &'a Type,
-    pub(crate) move_type: &'a MoveObjectType,
+    pub(crate) move_type: &'a StructTag,
     pub(crate) copied_value: Option<Value>,
 }
 
 #[derive(Debug)]
 struct ConfigSetting {
     config: ObjectID,
-    ty: MoveObjectType,
+    ty: StructTag,
     value: Value,
 }
 
@@ -309,7 +309,7 @@ impl Inner<'_> {
         child_ty: &Type,
         child_ty_layout: &R::MoveTypeLayout,
         child_ty_fully_annotated_layout: &A::MoveTypeLayout,
-        child_move_type: &MoveObjectType,
+        child_move_type: &StructTag,
     ) -> PartialVMResult<ObjectResult<(Type, GlobalValue, ObjectFingerprint)>> {
         // we copy the reference to the protocol config ahead of time for lifetime
         // reasons
@@ -387,8 +387,8 @@ fn deserialize_move_object(
     obj: &MoveObject,
     child_ty: &Type,
     child_ty_layout: &R::MoveTypeLayout,
-    child_move_type: MoveObjectType,
-) -> PartialVMResult<ObjectResult<(Type, MoveObjectType, Value)>> {
+    child_move_type: StructTag,
+) -> PartialVMResult<ObjectResult<(Type, StructTag, Value)>> {
     let child_id = obj.id();
     // object exists, but the type does not match
     if obj.type_() != &child_move_type {
@@ -446,7 +446,7 @@ impl<'a> ChildObjectStore<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &A::MoveTypeLayout,
-        child_move_type: MoveObjectType,
+        child_move_type: StructTag,
     ) -> PartialVMResult<LoadedWithMetadataResult<ObjectResult<Value>>> {
         let Some((obj, obj_meta)) =
             self.inner
@@ -501,7 +501,7 @@ impl<'a> ChildObjectStore<'a> {
         &mut self,
         parent: ObjectID,
         child: ObjectID,
-        child_move_type: &MoveObjectType,
+        child_move_type: &StructTag,
     ) -> PartialVMResult<bool> {
         if let Some(child_object) = self.store.get(&child) {
             // exists and has same type
@@ -521,7 +521,7 @@ impl<'a> ChildObjectStore<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &A::MoveTypeLayout,
-        child_move_type: MoveObjectType,
+        child_move_type: StructTag,
     ) -> PartialVMResult<ObjectResult<&mut ChildObject>> {
         let store_entries_count = self.store.len() as u64;
         let child_object = match self.store.entry(child) {
@@ -583,7 +583,7 @@ impl<'a> ChildObjectStore<'a> {
         parent: ObjectID,
         child: ObjectID,
         child_ty: &Type,
-        child_move_type: MoveObjectType,
+        child_move_type: StructTag,
         child_value: Value,
     ) -> PartialVMResult<()> {
         if let LimitThresholdCrossed::Hard(_, lim) = check_limit_by_meter!(
@@ -651,7 +651,7 @@ impl<'a> ChildObjectStore<'a> {
         name_df_id: ObjectID,
         _field_setting_ty: &Type,
         field_setting_layout: &R::MoveTypeLayout,
-        field_setting_object_type: &MoveObjectType,
+        field_setting_object_type: &StructTag,
     ) -> PartialVMResult<ObjectResult<Option<Value>>> {
         let parent = config_id;
         let child = name_df_id;
@@ -722,7 +722,7 @@ impl<'a> ChildObjectStore<'a> {
         &mut self,
         config_id: ObjectID,
         name_df_id: ObjectID,
-        setting_value_object_type: MoveObjectType,
+        setting_value_object_type: StructTag,
         value: Option<Value>,
     ) {
         let child_move_type = setting_value_object_type;

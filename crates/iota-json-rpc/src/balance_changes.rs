@@ -10,7 +10,7 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTagExt, TypeTag},
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
@@ -146,8 +146,7 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                         "Object digest mismatch--got bad data from object_provider?"
                     )
                 }
-                let [coin_type]: [TypeTag; 1] =
-                    type_.clone().into_type_params().try_into().unwrap();
+                let [coin_type]: [TypeTag; 1] = type_.type_params().to_vec().try_into().unwrap();
                 all_mutated_coins.push((
                     o.owner,
                     coin_type,

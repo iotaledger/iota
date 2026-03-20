@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag, dbg_addr},
+    base_types::{
+        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, StructTagExt, TypeTag, dbg_addr,
+    },
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,

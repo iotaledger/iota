@@ -79,7 +79,11 @@ impl OwnerIndexInfo {
     pub fn new(object: &Object) -> Self {
         Self {
             version: object.version(),
-            type_: object.type_().expect("packages cannot be owned").to_owned(),
+            type_: object
+                .type_()
+                .expect("packages cannot be owned")
+                .clone()
+                .into(),
         }
     }
 }
@@ -830,7 +834,7 @@ fn try_create_dynamic_field_info(
     }
 
     let layout = resolver
-        .get_annotated_layout(&move_object.type_().clone().into())
+        .get_annotated_layout(&move_object.type_().clone())
         .map_err(StorageError::custom)?
         .into_layout();
 
@@ -854,33 +858,29 @@ fn try_create_dynamic_field_info(
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
     use iota_types::coin::{CoinMetadata, TreasuryCap};
 
-    object
-        .type_()
-        .and_then(MoveObjectType::other)
-        .and_then(|object_type| {
-            CoinMetadata::is_coin_metadata_with_coin_type(object_type)
+    let object_type = object.type_()?;
+    CoinMetadata::is_coin_metadata_with_coin_type(object_type)
+        .cloned()
+        .map(|coin_type| {
+            (
+                CoinIndexKey { coin_type },
+                CoinIndexInfo {
+                    coin_metadata_object_id: Some(object.id()),
+                    treasury_object_id: None,
+                },
+            )
+        })
+        .or_else(|| {
+            TreasuryCap::is_treasury_with_coin_type(object_type)
                 .cloned()
                 .map(|coin_type| {
                     (
                         CoinIndexKey { coin_type },
                         CoinIndexInfo {
-                            coin_metadata_object_id: Some(object.id()),
-                            treasury_object_id: None,
+                            coin_metadata_object_id: None,
+                            treasury_object_id: Some(object.id()),
                         },
                     )
-                })
-                .or_else(|| {
-                    TreasuryCap::is_treasury_with_coin_type(object_type)
-                        .cloned()
-                        .map(|coin_type| {
-                            (
-                                CoinIndexKey { coin_type },
-                                CoinIndexInfo {
-                                    coin_metadata_object_id: None,
-                                    treasury_object_id: Some(object.id()),
-                                },
-                            )
-                        })
                 })
         })
 }

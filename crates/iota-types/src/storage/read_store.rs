@@ -11,7 +11,7 @@ use typed_store_error::TypedStoreError;
 use super::{ObjectStore, error::Result};
 use crate::{
     StructTag, TypeTag,
-    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
+    base_types::{EpochId, IotaAddress, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     dynamic_field::DynamicFieldType,
@@ -880,7 +880,7 @@ pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
     pub version: SequenceNumber,
-    pub type_: MoveObjectType,
+    pub type_: StructTag,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]

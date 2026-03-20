@@ -12,7 +12,7 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-pub use iota_sdk_types::{Identifier, StructTag, TypeTag};
+pub use iota_sdk_types::{Identifier, MoveObjectType, StructTag, TypeTag};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -36,7 +36,6 @@ use crate::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
-    gas_coin::GAS,
     id::RESOLVED_IOTA_ID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     iota_serde::to_iota_struct_tag_string,
@@ -45,7 +44,7 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    stardust::output::{AliasOutput, BasicOutput, Nft, NftOutput},
+    stardust::output::{AliasOutput, BasicOutput, NftOutput},
     timelock::timelock::{self},
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
@@ -90,373 +89,66 @@ pub fn random_object_ref() -> ObjectRef {
     )
 }
 
-/// Wrapper around StructTag with a space-efficient representation for common
-/// types like coins The StructTag for a gas coin is 84 bytes, so using 1 byte
-/// instead is a win. The inner representation is private to prevent incorrectly
-/// constructing an `Other` instead of one of the specialized variants, e.g.
-/// `Other(StructTag::new_gas_coin())` instead of `GasCoin`
-#[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
-pub struct MoveObjectType(MoveObjectType_);
+/// Extension trait for `StructTag` providing node-internal methods that depend
+/// on iota-types (stardust, dynamic fields, auth, move-core-types).
+///
+/// Generic type-checking methods like `is_coin_t()`,
+/// `is_regulated_coin_metadata()`, `is_timelocked_balance()`, etc. are inherent
+/// methods on `StructTag` in `iota-sdk-types`.
+pub trait StructTagExt {
+    /// Return the coin type if this is a `Coin<T>`, cloning the inner type tag.
+    fn coin_type_maybe(&self) -> Option<TypeTag>;
 
-/// Even though it is declared public, it is the "private", internal
-/// representation for `MoveObjectType`
-#[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
-pub enum MoveObjectType_ {
-    /// A type that is not `0x2::coin::Coin<T>`
-    Other(Box<StructTag>),
-    /// An IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
-    GasCoin,
-    /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
-    StakedIota,
-    /// A non-IOTA coin type (i.e., `0x2::coin::Coin<T> where T !=
-    /// 0x2::iota::IOTA`)
-    Coin(TypeTag),
-    // NOTE: if adding a new type here, and there are existing on-chain objects of that
-    // type with Other(_), that is ok, but you must hand-roll PartialEq/Eq/Ord/maybe Hash
-    // to make sure the new type and Other(_) are interpreted consistently.
+    /// Return the `ModuleId` for this type (requires `move-core-types`).
+    fn module_id(&self) -> ModuleId;
+
+    fn is_alias_output(&self) -> bool;
+
+    fn is_basic_output(&self) -> bool;
+
+    fn is_nft_output(&self) -> bool;
+
+    fn is_authenticator_function_ref_v1(&self) -> bool;
+
+    fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag>;
+
+    fn try_extract_field_value(&self) -> IotaResult<TypeTag>;
 }
 
-impl MoveObjectType {
-    pub fn gas_coin() -> Self {
-        Self(MoveObjectType_::GasCoin)
+impl StructTagExt for StructTag {
+    fn coin_type_maybe(&self) -> Option<TypeTag> {
+        self.coin_type_opt().cloned()
     }
 
-    pub fn coin(coin_type: TypeTag) -> Self {
-        Self(if GAS::is_gas_type(&coin_type) {
-            MoveObjectType_::GasCoin
-        } else {
-            MoveObjectType_::Coin(coin_type)
-        })
-    }
-
-    pub fn staked_iota() -> Self {
-        Self(MoveObjectType_::StakedIota)
-    }
-
-    pub fn timelocked_iota_balance() -> Self {
-        Self(MoveObjectType_::Other(Box::new(StructTag::new_time_lock(
-            StructTag::new_balance(StructTag::new_gas()),
-        ))))
-    }
-
-    pub fn timelocked_staked_iota() -> Self {
-        Self(MoveObjectType_::Other(Box::new(
-            StructTag::new_timelocked_staked_iota(),
-        )))
-    }
-
-    pub fn stardust_nft() -> Self {
-        Self(MoveObjectType_::Other(Box::new(Nft::tag())))
-    }
-
-    pub fn address(&self) -> IotaAddress {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => IotaAddress::FRAMEWORK,
-            MoveObjectType_::StakedIota => IotaAddress::SYSTEM,
-            MoveObjectType_::Other(s) => s.address(),
-        }
-    }
-
-    pub fn module(&self) -> Identifier {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Identifier::COIN_MODULE,
-            MoveObjectType_::StakedIota => Identifier::STAKING_POOL_MODULE,
-            MoveObjectType_::Other(s) => s.module().clone(),
-        }
-    }
-
-    pub fn name(&self) -> Identifier {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => Identifier::COIN,
-            MoveObjectType_::StakedIota => Identifier::STAKED_IOTA,
-            MoveObjectType_::Other(s) => s.name().clone(),
-        }
-    }
-
-    pub fn type_params(&self) -> Vec<TypeTag> {
-        match &self.0 {
-            MoveObjectType_::GasCoin => vec![GAS::type_tag()],
-            MoveObjectType_::StakedIota => vec![],
-            MoveObjectType_::Coin(inner) => vec![inner.clone()],
-            MoveObjectType_::Other(s) => s.type_params().to_vec(),
-        }
-    }
-
-    pub fn into_type_params(self) -> Vec<TypeTag> {
-        match self.0 {
-            MoveObjectType_::GasCoin => vec![GAS::type_tag()],
-            MoveObjectType_::StakedIota => vec![],
-            MoveObjectType_::Coin(inner) => vec![inner],
-            MoveObjectType_::Other(s) => s.type_params().to_vec(),
-        }
-    }
-
-    pub fn coin_type_maybe(&self) -> Option<TypeTag> {
-        match &self.0 {
-            MoveObjectType_::GasCoin => Some(GAS::type_tag()),
-            MoveObjectType_::Coin(inner) => Some(inner.clone()),
-            MoveObjectType_::StakedIota => None,
-            MoveObjectType_::Other(_) => None,
-        }
-    }
-
-    pub fn module_id(&self) -> ModuleId {
+    fn module_id(&self) -> ModuleId {
         ModuleId::new(
             AccountAddress::new(self.address().into_bytes()),
             move_core_types::identifier::Identifier::new(self.module().as_str()).unwrap(),
         )
     }
 
-    pub fn size_for_gas_metering(&self) -> usize {
-        // unwraps safe because a `StructTag` cannot fail to serialize
-        match &self.0 {
-            MoveObjectType_::GasCoin => 1,
-            MoveObjectType_::StakedIota => 1,
-            MoveObjectType_::Coin(inner) => bcs::serialized_size(inner).unwrap() + 1,
-            MoveObjectType_::Other(s) => bcs::serialized_size(s).unwrap() + 1,
-        }
+    fn is_alias_output(&self) -> bool {
+        AliasOutput::is_alias_output(self)
     }
 
-    /// Return true if `self` is `0x2::coin::Coin<T>` for some T (note: T can be
-    /// IOTA)
-    pub fn is_coin(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => true,
-            MoveObjectType_::StakedIota | MoveObjectType_::Other(_) => false,
-        }
+    fn is_basic_output(&self) -> bool {
+        BasicOutput::is_basic_output(self)
     }
 
-    /// Return true if `self` is 0x2::coin::Coin<0x2::iota::IOTA>
-    pub fn is_gas_coin(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin => true,
-            MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) | MoveObjectType_::Other(_) => {
-                false
-            }
-        }
+    fn is_nft_output(&self) -> bool {
+        NftOutput::is_nft_output(self)
     }
 
-    /// Return true if `self` is `0x2::coin::Coin<t>`
-    pub fn is_coin_t(&self, t: &TypeTag) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin => GAS::is_gas_type(t),
-            MoveObjectType_::Coin(c) => t == c,
-            MoveObjectType_::StakedIota | MoveObjectType_::Other(_) => false,
-        }
+    fn is_authenticator_function_ref_v1(&self) -> bool {
+        AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(self)
     }
 
-    pub fn is_staked_iota(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::StakedIota => true,
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) | MoveObjectType_::Other(_) => {
-                false
-            }
-        }
+    fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
+        DynamicFieldInfo::try_extract_field_name(self, type_)
     }
 
-    pub fn is_coin_metadata(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => s.is_coin_metadata(),
-        }
-    }
-
-    pub fn is_coin_manager(&self) -> bool {
-        matches!(&self.0, MoveObjectType_::Other(struct_tag) if struct_tag.is_coin_manager())
-    }
-
-    pub fn is_treasury_cap(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => s.is_treasury_cap(),
-        }
-    }
-
-    pub fn is_regulated_coin_metadata(&self) -> bool {
-        self.address() == IotaAddress::FRAMEWORK
-            && self.module() == Identifier::COIN_MODULE
-            && self.name() == Identifier::from_static("RegulatedCoinMetadata")
-    }
-
-    pub fn is_coin_deny_cap_v1(&self) -> bool {
-        self.address() == IotaAddress::FRAMEWORK
-            && self.module() == Identifier::COIN_MODULE
-            && self.name() == Identifier::from_static("DenyCapV1")
-    }
-
-    pub fn is_dynamic_field(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => DynamicFieldInfo::is_dynamic_field(s),
-        }
-    }
-
-    pub fn is_timelock(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => s.is_time_lock(),
-        }
-    }
-
-    pub fn is_timelocked_balance(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => timelock::is_timelocked_balance(s),
-        }
-    }
-
-    pub fn is_timelocked_staked_iota(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => s.is_timelocked_staked_iota(),
-        }
-    }
-
-    pub fn is_alias_output(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => AliasOutput::is_alias_output(s),
-        }
-    }
-
-    pub fn is_basic_output(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => BasicOutput::is_basic_output(s),
-        }
-    }
-
-    pub fn is_nft_output(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => NftOutput::is_nft_output(s),
-        }
-    }
-
-    pub fn is_authenticator_function_ref_v1(&self) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                false
-            }
-            MoveObjectType_::Other(s) => {
-                AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(s)
-            }
-        }
-    }
-
-    pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                Err(IotaError::ObjectDeserialization {
-                    error: "Error extracting dynamic object name from Coin object".to_string(),
-                })
-            }
-            MoveObjectType_::Other(s) => DynamicFieldInfo::try_extract_field_name(s, type_),
-        }
-    }
-
-    pub fn try_extract_field_value(&self) -> IotaResult<TypeTag> {
-        match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
-                Err(IotaError::ObjectDeserialization {
-                    error: "Error extracting dynamic object value from Coin object".to_string(),
-                })
-            }
-            MoveObjectType_::Other(s) => DynamicFieldInfo::try_extract_field_value(s),
-        }
-    }
-
-    pub fn is(&self, s: &StructTag) -> bool {
-        match &self.0 {
-            MoveObjectType_::GasCoin => s.is_gas_coin(),
-            MoveObjectType_::StakedIota => s.is_staked_iota(),
-            MoveObjectType_::Coin(inner) => s.is_coin() && inner == &s.type_params()[0],
-            MoveObjectType_::Other(o) => s == o.as_ref(),
-        }
-    }
-
-    pub fn other(&self) -> Option<&StructTag> {
-        if let MoveObjectType_::Other(s) = &self.0 {
-            Some(s)
-        } else {
-            None
-        }
-    }
-
-    /// Returns the string representation of this object's type using the
-    /// canonical display.
-    pub fn to_canonical_string(&self, with_prefix: bool) -> String {
-        StructTag::from(self.clone()).to_canonical_string(with_prefix)
-    }
-}
-
-impl From<&StructTag> for MoveObjectType {
-    fn from(s: &StructTag) -> Self {
-        Self(if s.is_gas_coin() {
-            MoveObjectType_::GasCoin
-        } else if s.is_coin() {
-            let [type_param] = s.type_params() else {
-                unreachable!("a coin has exactly one type parameter");
-            };
-            MoveObjectType_::Coin(type_param.clone())
-        } else if s.is_staked_iota() {
-            MoveObjectType_::StakedIota
-        } else {
-            MoveObjectType_::Other(Box::new(s.clone()))
-        })
-    }
-}
-
-impl From<StructTag> for MoveObjectType {
-    fn from(s: StructTag) -> Self {
-        Self(if s.is_gas_coin() {
-            MoveObjectType_::GasCoin
-        } else if s.is_coin() {
-            let Some(type_param) = s.into_parts().3.into_iter().next() else {
-                unreachable!("a coin has exactly one type parameter");
-            };
-            MoveObjectType_::Coin(type_param)
-        } else if s.is_staked_iota() {
-            MoveObjectType_::StakedIota
-        } else {
-            MoveObjectType_::Other(Box::new(s))
-        })
-    }
-}
-
-impl From<MoveObjectType> for StructTag {
-    fn from(t: MoveObjectType) -> Self {
-        match t.0 {
-            MoveObjectType_::GasCoin => StructTag::new_gas_coin(),
-            MoveObjectType_::StakedIota => StructTag::new_staked_iota(),
-            MoveObjectType_::Coin(inner) => StructTag::new_coin(inner),
-            MoveObjectType_::Other(s) => *s,
-        }
-    }
-}
-
-impl From<MoveObjectType> for TypeTag {
-    fn from(o: MoveObjectType) -> TypeTag {
-        let s: StructTag = o.into();
-        TypeTag::Struct(Box::new(s))
+    fn try_extract_field_value(&self) -> IotaResult<TypeTag> {
+        DynamicFieldInfo::try_extract_field_value(self)
     }
 }
 
@@ -500,7 +192,7 @@ pub enum ObjectType {
     /// Move package containing one or more bytecode modules
     Package,
     /// A Move struct of the given type
-    Struct(MoveObjectType),
+    Struct(StructTag),
 }
 
 impl From<&Object> for ObjectType {
@@ -518,7 +210,7 @@ impl TryFrom<ObjectType> for StructTag {
     fn try_from(o: ObjectType) -> Result<Self, anyhow::Error> {
         match o {
             ObjectType::Package => Err(anyhow!("Cannot create StructTag from Package")),
-            ObjectType::Struct(move_object_type) => Ok(move_object_type.into()),
+            ObjectType::Struct(s) => Ok(s),
         }
     }
 }
@@ -531,7 +223,7 @@ impl FromStr for ObjectType {
             Ok(ObjectType::Package)
         } else {
             let tag = parse_iota_struct_tag(s)?;
-            Ok(ObjectType::Struct(MoveObjectType::from(tag)))
+            Ok(ObjectType::Struct(tag))
         }
     }
 }
@@ -577,11 +269,6 @@ impl ObjectType {
 
     pub fn is_coin(&self) -> bool {
         matches!(self, ObjectType::Struct(s) if s.is_coin())
-    }
-
-    /// Return true if `self` is `0x2::coin::Coin<t>`
-    pub fn is_coin_t(&self, t: &TypeTag) -> bool {
-        matches!(self, ObjectType::Struct(s) if s.is_coin_t(t))
     }
 
     pub fn is_package(&self) -> bool {
@@ -981,22 +668,15 @@ pub enum ObjectIDParseError {
     TryFromSlice,
 }
 
-impl fmt::Display for MoveObjectType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        let s: StructTag = self.clone().into();
-        write!(
-            f,
-            "{}",
-            to_iota_struct_tag_string(&s).map_err(fmt::Error::custom)?
-        )
-    }
-}
-
 impl fmt::Display for ObjectType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ObjectType::Package => write!(f, "{PACKAGE}"),
-            ObjectType::Struct(t) => write!(f, "{t}"),
+            ObjectType::Struct(t) => write!(
+                f,
+                "{}",
+                to_iota_struct_tag_string(t).map_err(fmt::Error::custom)?
+            ),
         }
     }
 }

@@ -591,7 +591,7 @@ impl TryInto<Object> for IotaObjectData {
         let data = match self.bcs {
             Some(IotaRawData::MoveObject(o)) => Data::Move({
                 MoveObject::new_from_execution(
-                    o.type_().clone().into(),
+                    o.type_().clone(),
                     o.version,
                     o.bcs_bytes,
                     &protocol_config,
@@ -888,7 +888,7 @@ impl IotaMoveObject for IotaParsedMoveObject {
                 }
             } else {
                 IotaParsedMoveObject {
-                    type_: object.type_().clone().into(),
+                    type_: object.type_().clone(),
                     fields: move_struct,
                 }
             },
@@ -960,7 +960,7 @@ pub struct IotaRawMoveObject {
 impl From<MoveObject> for IotaRawMoveObject {
     fn from(o: MoveObject) -> Self {
         Self {
-            type_: o.type_().clone().into(),
+            type_: o.type_().clone(),
             version: o.version(),
             bcs_bytes: o.into_contents(),
         }
@@ -973,7 +973,7 @@ impl IotaMoveObject for IotaRawMoveObject {
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            type_: object.type_().clone().into(),
+            type_: object.type_().clone(),
             version: object.version(),
             bcs_bytes: object.into_contents(),
         })
@@ -1202,7 +1202,7 @@ impl IotaObjectDataFilter {
             IotaObjectDataFilter::StructType(s) => {
                 let obj_tag: StructTag = match &object.type_ {
                     ObjectType::Package => return false,
-                    ObjectType::Struct(s) => s.clone().into(),
+                    ObjectType::Struct(s) => s.clone(),
                 };
                 // If people do not provide type_params, we will match all type_params
                 // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::iota::IOTA>`
@@ -1216,7 +1216,7 @@ impl IotaObjectDataFilter {
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
-                        && &s.module() == module)
+                        && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)

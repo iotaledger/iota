@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TransactionDigest, TypeTag,
+        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, StructTagExt, TransactionDigest,
+        TypeTag,
     },
     error::IotaError,
     execution::DynamicallyLoadedObjectMetadata,

@@ -5,7 +5,7 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, StructTag},
+    base_types::{ObjectID, StructTag},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -126,7 +126,7 @@ fn consistent_value_before_current_epoch(
     name_df_addr: AccountAddress,
     current_epoch: u64,
 ) -> PartialVMResult<Value> {
-    let field_setting_obj_ty = MoveObjectType::from(field_setting_tag);
+    let field_setting_obj_ty = field_setting_tag;
     let Some(field) = object_runtime.config_setting_unsequenced_read(
         ObjectID::new(config_addr.into_bytes()),
         ObjectID::new(name_df_addr.into_bytes()),

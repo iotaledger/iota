@@ -14,7 +14,7 @@ use super::unlock_conditions::{
 };
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
+    base_types::{IotaAddress, StructTagExt},
     collection_types::Bag,
     error::IotaError,
     id::UID,

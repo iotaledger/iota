@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::{Balance, Supply},
-    base_types::ObjectID,
+    base_types::{ObjectID, StructTagExt},
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,

@@ -31,7 +31,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
         let digest = changed_object.digest;
         let o = object_provider.get_object(&object_id, &version).await?;
         if let Some(type_) = o.type_() {
-            let object_type = type_.clone().into();
+            let object_type = type_.clone();
 
             match kind {
                 WriteKind::Mutate => object_changes.push(ObjectChange::Mutated {
@@ -81,7 +81,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
             .await?;
         if let Some(o) = o {
             if let Some(type_) = o.type_() {
-                let object_type = type_.clone().into();
+                let object_type = type_.clone();
                 match kind {
                     ObjectRemoveKind::Delete => object_changes.push(ObjectChange::Deleted {
                         sender,
