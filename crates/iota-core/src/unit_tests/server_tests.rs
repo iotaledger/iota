@@ -390,16 +390,20 @@ async fn test_submit_transaction_invalid_signature() {
         ))
         .await;
 
-    // Signature errors now return a hard Err, consistent
-    // with the certificate flow where validity failures are fatal to the caller.
-    assert!(result.is_err(), "Should return Err for invalid signature");
-    let err = result.unwrap_err();
-    assert_eq!(err.code(), tonic::Code::Internal);
-    assert!(
-        err.message().to_lowercase().contains("signature"),
-        "Error message should mention signature, got: {}",
-        err.message()
-    );
+    // Signature errors are reported per-transaction as Rejected results.
+    assert!(result.is_ok(), "Batch response should be Ok");
+    let response = result.unwrap().0.into_inner();
+    assert_eq!(response.results.len(), 1);
+    match &response.results[0] {
+        SubmitTransactionResult::Rejected { error } => {
+            let msg = format!("{:?}", error).to_lowercase();
+            assert!(
+                msg.contains("signature"),
+                "Error should mention signature, got: {msg}",
+            );
+        }
+        other => panic!("Expected Rejected result, got {:?}", other),
+    }
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -653,15 +657,10 @@ async fn test_submit_transaction_already_executed() {
 
     assert!(result.is_ok(), "Expected Ok for already-executed tx");
     let response = result.unwrap().0.into_inner();
-    match response
-        .results
-        .into_iter()
-        .next()
-        .unwrap_or(SubmitTransactionResult::Rejected {
-            error: iota_types::error::IotaError::Unknown("No result returned".to_string()),
-        }) {
+    assert_eq!(response.results.len(), 1, "Expected exactly one result");
+    match &response.results[0] {
         SubmitTransactionResult::Executed { effects_digest, .. } => {
-            assert_eq!(effects_digest, *effects.digest());
+            assert_eq!(effects_digest, effects.digest());
         }
         other => panic!("Expected Executed result, got {:?}", other),
     }
@@ -726,9 +725,16 @@ async fn test_submit_transaction_gas_object_validation() {
         ))
         .await;
 
-    // TODO: check for an exact error kind once we have better error handling in
-    // place for the white-flag flow. For now, just check that it's an error.
-    assert!(result.is_err(), "Expected Err for non-existent gas object");
+    // Non-existent gas object errors are reported per-transaction as Rejected
+    // results. TODO: check for a specific error kind once we have better error
+    // handling in place for the white-flag flow.
+    assert!(result.is_ok(), "Batch response should be Ok");
+    let response = result.unwrap().0.into_inner();
+    assert_eq!(response.results.len(), 1);
+    match &response.results[0] {
+        SubmitTransactionResult::Rejected { .. } => {}
+        other => panic!("Expected Rejected result, got {:?}", other),
+    }
 }
 
 /// Soft-bundle happy path: two `use_clock` (shared-object) transactions
@@ -783,17 +789,18 @@ async fn test_submit_soft_bundle_transactions() {
         .handle_submit_transactions_impl(make_tonic_request_for_testing(request))
         .await;
 
-    assert!(result.is_ok(), "Soft bundle submission should succeed");
+    assert!(result.is_ok(), "Batch submission should succeed");
     let response = result.unwrap().0.into_inner();
-    match response
-        .results
-        .into_iter()
-        .next()
-        .unwrap_or(SubmitTransactionResult::Rejected {
-            error: iota_types::error::IotaError::Unknown("No result returned".to_string()),
-        }) {
-        SubmitTransactionResult::Submitted => {}
-        other => panic!("Expected Submitted, got {:?}", other),
+    assert_eq!(
+        response.results.len(),
+        2,
+        "Expected one result per transaction"
+    );
+    for (i, result) in response.results.iter().enumerate() {
+        match result {
+            SubmitTransactionResult::Submitted => {}
+            other => panic!("Expected Submitted for tx {i}, got {:?}", other),
+        }
     }
 }
 
@@ -875,12 +882,21 @@ async fn test_submit_soft_bundle_transactions_gas_price_mismatch() {
         .handle_submit_transactions_impl(make_tonic_request_for_testing(request))
         .await;
 
-    // TODO: check for specific error once we have better error handling in place
-    // for the white-flag flow. For now, just check that it's an error.
-    assert!(
-        result.is_err(),
-        "Bundle with mismatched gas prices should be rejected"
+    // With soft-bundle checks removed, each transaction is processed independently.
+    // Different gas prices no longer cause a batch-level rejection.
+    assert!(result.is_ok(), "Batch response should be Ok");
+    let response = result.unwrap().0.into_inner();
+    assert_eq!(
+        response.results.len(),
+        2,
+        "Expected one result per transaction"
     );
+    for (i, result) in response.results.iter().enumerate() {
+        match result {
+            SubmitTransactionResult::Submitted => {}
+            other => panic!("Expected Submitted for tx {i}, got {:?}", other),
+        }
+    }
 }
 
 /// A transaction whose serialized size exceeds `max_tx_size_bytes` (128 KiB)
