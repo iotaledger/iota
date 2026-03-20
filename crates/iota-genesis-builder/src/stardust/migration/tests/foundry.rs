@@ -8,7 +8,7 @@ use iota_stardust_types::block::output::{
 };
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectID, StructTag, StructTagExt, TypeTag},
+    base_types::{IotaAddress, ObjectID, StructTag, TypeTag},
     coin::CoinMetadata,
     coin_manager::CoinManager,
     gas_coin::GAS,

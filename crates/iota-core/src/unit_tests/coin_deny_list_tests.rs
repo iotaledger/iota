@@ -6,9 +6,7 @@ use std::sync::Arc;
 
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{
-        Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, StructTagExt, TypeTag, dbg_addr,
-    },
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, StructTag, TypeTag, dbg_addr},
     crypto::{AccountKeyPair, get_account_key_pair},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
@@ -44,7 +42,7 @@ async fn test_regulated_coin_v1_types() {
             continue;
         }
         let t = object.type_().unwrap();
-        if t.is_coin_deny_cap_v1() {
+        if t.is_deny_cap_v1() {
             assert!(deny_cap_object.is_none());
             deny_cap_object = Some(object);
         } else if t.is_regulated_coin_metadata() {

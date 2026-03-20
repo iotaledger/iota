@@ -7,10 +7,7 @@ use std::{future::Future, path::PathBuf, sync::Arc, time::Duration};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_types::{
-    base_types::{
-        EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, StructTagExt,
-        TypeTag,
-    },
+    base_types::{EpochId, Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, SharedObjectRef, TransactionData},
 };
@@ -275,7 +272,7 @@ async fn create_test_env() -> TestEnv {
             coin_id = Some(object_id);
             coin_type = object.coin_type_maybe();
             coin_owner = Some(*created.owner.as_address());
-        } else if object.type_().unwrap().is_coin_deny_cap_v1() {
+        } else if object.type_().unwrap().is_deny_cap_v1() {
             deny_cap = Some(object_id);
         }
     }

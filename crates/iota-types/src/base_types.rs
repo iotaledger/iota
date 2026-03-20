@@ -45,7 +45,6 @@ use crate::{
     parse_iota_struct_tag,
     signature::GenericSignature,
     stardust::output::{AliasOutput, BasicOutput, NftOutput},
-    timelock::timelock,
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
 };

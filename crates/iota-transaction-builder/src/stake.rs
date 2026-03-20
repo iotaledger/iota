@@ -4,7 +4,7 @@
 
 use anyhow::{Ok, anyhow, bail, ensure};
 use iota_types::{
-    base_types::{Identifier, IotaAddress, ObjectID, ObjectType, StructTagExt},
+    base_types::{Identifier, IotaAddress, ObjectID, ObjectType},
     governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     timelock::timelocked_staking::{

@@ -10,7 +10,7 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, StructTagExt, TypeTag},
+    base_types::{ObjectID, ObjectRef, SequenceNumber, TypeTag},
     coin::Coin,
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
