@@ -6,71 +6,19 @@ use std::{cell::RefCell, rc::Rc};
 use better_any::{Tid, TidAble};
 use iota_types::{
     auth_context::{
-        AuthContext, EnrichedCallArg, EnrichedCommand, EnrichedProgrammableMoveCall,
-        ImmOrOwnedObjectArg, MoveCallArg, MoveCommand, MoveObjectArg, MoveProgrammableMoveCall,
-        SharedObjectArg,
+        AuthContext, MoveCallArg, MoveCommand, MoveEnrichedCallArg, MoveEnrichedCommand,
+        MoveEnrichedProgrammableMoveCall, MoveImmOrOwnedObjectArg, MoveObjectArg,
+        MoveSharedObjectArg,
     },
     base_types::ObjectDigest,
     digests::MoveAuthenticatorDigest,
     type_input::TypeName,
 };
-
 // ---------------------------------------------------------------------------
 // Downgrade helpers: Enriched → plain (used by tx_inputs_ref / tx_commands_ref)
 // ---------------------------------------------------------------------------
-
-/// Converts a stored [`EnrichedCallArg`] back to a [`MoveCallArg`] suitable
-/// for BCS-serialization into the plain Move `CallArg` layout.
-fn move_call_arg_from_enriched(arg: &EnrichedCallArg) -> MoveCallArg {
-    match arg {
-        EnrichedCallArg::Pure { value, .. } => MoveCallArg::Pure(value.clone()),
-        EnrichedCallArg::ImmOrOwnedObject(obj) => MoveCallArg::Object(
-            MoveObjectArg::ImmOrOwnedObject((obj.id, obj.version, obj.digest)),
-        ),
-        EnrichedCallArg::SharedObject(obj) => MoveCallArg::Object(MoveObjectArg::SharedObject {
-            id: obj.id,
-            initial_shared_version: obj.initial_shared_version,
-            mutable: obj.mutable,
-        }),
-        EnrichedCallArg::Receiving(obj) => {
-            MoveCallArg::Object(MoveObjectArg::Receiving((obj.id, obj.version, obj.digest)))
-        }
-    }
-}
-
-/// Converts a stored [`EnrichedCommand`] back to a [`MoveCommand`] suitable
-/// for BCS-serialization into the plain Move `Command` layout.
-fn move_command_from_enriched(cmd: &EnrichedCommand) -> MoveCommand {
-    match cmd {
-        EnrichedCommand::MoveCall(call) => {
-            MoveCommand::MoveCall(Box::new(MoveProgrammableMoveCall {
-                package: call.package,
-                module: call.module.clone(),
-                function: call.function.clone(),
-                type_arguments: call.type_arguments.clone(),
-                arguments: call.arguments.clone(),
-            }))
-        }
-        EnrichedCommand::TransferObjects(objects, recipient) => {
-            MoveCommand::TransferObjects(objects.clone(), *recipient)
-        }
-        EnrichedCommand::SplitCoins(coin, amounts) => {
-            MoveCommand::SplitCoins(*coin, amounts.clone())
-        }
-        EnrichedCommand::MergeCoins(target, sources) => {
-            MoveCommand::MergeCoins(*target, sources.clone())
-        }
-        EnrichedCommand::Publish(modules, deps) => {
-            MoveCommand::Publish(modules.clone(), deps.clone())
-        }
-        EnrichedCommand::MakeMoveVec(type_arg, elements) => {
-            MoveCommand::MakeMoveVec(type_arg.clone(), elements.clone())
-        }
-        EnrichedCommand::Upgrade(modules, deps, package, ticket) => {
-            MoveCommand::Upgrade(modules.clone(), deps.clone(), *package, *ticket)
-        }
-    }
-}
+// The downgrade logic lives in `AuthContext::tx_inputs()` / `tx_commands()`.
+// Nothing extra is needed here.
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     gas_algebra::AbstractMemorySize,
@@ -169,13 +117,8 @@ impl AuthenticationContext {
     ) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_tx_inputs.is_none() {
             let auth_context = self.auth_context.borrow();
-            // Downgrade: EnrichedCallArg → MoveCallArg
-            let plain_inputs: Vec<MoveCallArg> = auth_context
-                .tx_inputs()
-                .iter()
-                .map(move_call_arg_from_enriched)
-                .collect();
-            let rust_value = (plain_inputs,);
+            // Downgrade: MoveEnrichedCallArg → MoveCallArg via AuthContext::tx_inputs()
+            let rust_value = (auth_context.tx_inputs(),);
             let inputs_move_layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
             self.cached_tx_inputs = Some(to_global_value(&rust_value, inputs_move_layout)?);
         }
@@ -203,13 +146,8 @@ impl AuthenticationContext {
     ) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_tx_commands.is_none() {
             let auth_context = self.auth_context.borrow();
-            // Downgrade: EnrichedCommand → MoveCommand
-            let plain_commands: Vec<MoveCommand> = auth_context
-                .tx_commands()
-                .iter()
-                .map(move_command_from_enriched)
-                .collect();
-            let rust_value = (plain_commands,);
+            // Downgrade: MoveEnrichedCommand → MoveCommand via AuthContext::tx_commands()
+            let rust_value = (auth_context.tx_commands(),);
             let commands_move_layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
             self.cached_tx_commands = Some(to_global_value(&rust_value, commands_move_layout)?);
         }
@@ -239,8 +177,7 @@ impl AuthenticationContext {
     ) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_enriched_tx_inputs.is_none() {
             let auth_context = self.auth_context.borrow();
-            // Direct: tx_inputs are already EnrichedCallArg
-            let rust_value = (auth_context.tx_inputs(),);
+            let rust_value = (auth_context.enriched_tx_inputs(),);
             let layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
             self.cached_enriched_tx_inputs = Some(to_global_value(&rust_value, layout)?);
         }
@@ -268,8 +205,7 @@ impl AuthenticationContext {
     ) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_enriched_tx_commands.is_none() {
             let auth_context = self.auth_context.borrow();
-            // Direct: tx_commands are already EnrichedCommand
-            let rust_value = (auth_context.tx_commands(),);
+            let rust_value = (auth_context.enriched_tx_commands(),);
             let layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
             self.cached_enriched_tx_commands = Some(to_global_value(&rust_value, layout)?);
         }
@@ -305,12 +241,12 @@ impl AuthenticationContext {
             );
         }
 
-        let tx_commands: Vec<EnrichedCommand> = tx_commands_value
+        let tx_commands: Vec<MoveEnrichedCommand> = tx_commands_value
             .into_iter()
             .map(|value| from_value(value, &command_move_layout))
             .collect::<PartialVMResult<_>>()?;
 
-        let tx_inputs: Vec<EnrichedCallArg> = tx_inputs_value
+        let tx_inputs: Vec<MoveEnrichedCallArg> = tx_inputs_value
             .into_iter()
             .map(|value| from_value(value, &input_move_layout))
             .collect::<PartialVMResult<_>>()?;
@@ -368,11 +304,11 @@ impl AuthenticationContext {
 
         // Convert to enriched (type names stay empty in test scenario — no object
         // store is available here).
-        let tx_inputs: Vec<EnrichedCallArg> = plain_inputs
+        let tx_inputs: Vec<MoveEnrichedCallArg> = plain_inputs
             .iter()
             .map(enriched_call_arg_from_move_call_arg)
             .collect();
-        let tx_commands: Vec<EnrichedCommand> = plain_commands
+        let tx_commands: Vec<MoveEnrichedCommand> = plain_commands
             .iter()
             .map(enriched_command_from_move_command)
             .collect();
@@ -399,21 +335,21 @@ impl AuthenticationContext {
     }
 }
 
-/// Converts a [`MoveCallArg`] to a flat [`EnrichedCallArg`].
+/// Converts a [`MoveCallArg`] to a flat [`MoveEnrichedCallArg`].
 ///
 /// Type names for object arguments are left as empty strings because object
 /// type resolution requires external storage that is unavailable in the
 /// native-function context.
-fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> EnrichedCallArg {
+fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> MoveEnrichedCallArg {
     match arg {
-        MoveCallArg::Pure(bytes) => EnrichedCallArg::Pure {
+        MoveCallArg::Pure(bytes) => MoveEnrichedCallArg::Pure {
             value: bytes.clone(),
             type_name: TypeName {
                 name: String::new(),
             },
         },
         MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject((id, version, digest))) => {
-            EnrichedCallArg::ImmOrOwnedObject(ImmOrOwnedObjectArg {
+            MoveEnrichedCallArg::ImmOrOwnedObject(MoveImmOrOwnedObjectArg {
                 id: *id,
                 version: *version,
                 digest: *digest,
@@ -427,7 +363,7 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> EnrichedCallArg {
             id,
             initial_shared_version,
             mutable,
-        }) => EnrichedCallArg::SharedObject(SharedObjectArg {
+        }) => MoveEnrichedCallArg::SharedObject(MoveSharedObjectArg {
             id: *id,
             initial_shared_version: *initial_shared_version,
             mutable: *mutable,
@@ -437,7 +373,7 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> EnrichedCallArg {
             },
         }),
         MoveCallArg::Object(MoveObjectArg::Receiving((id, version, digest))) => {
-            EnrichedCallArg::Receiving(ImmOrOwnedObjectArg {
+            MoveEnrichedCallArg::Receiving(MoveImmOrOwnedObjectArg {
                 id: *id,
                 version: *version,
                 digest: *digest,
@@ -450,14 +386,14 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> EnrichedCallArg {
     }
 }
 
-/// Converts a [`MoveCommand`] to an [`EnrichedCommand`].
+/// Converts a [`MoveCommand`] to an [`MoveEnrichedCommand`].
 ///
 /// For `MoveCall` variants, `is_entry` and `returns` are set to `false`/empty
 /// because they require VM function resolution that is unavailable here.
-fn enriched_command_from_move_command(cmd: &MoveCommand) -> EnrichedCommand {
+fn enriched_command_from_move_command(cmd: &MoveCommand) -> MoveEnrichedCommand {
     match cmd {
         MoveCommand::MoveCall(call) => {
-            EnrichedCommand::MoveCall(Box::new(EnrichedProgrammableMoveCall {
+            MoveEnrichedCommand::MoveCall(Box::new(MoveEnrichedProgrammableMoveCall {
                 package: call.package,
                 module: call.module.clone(),
                 function: call.function.clone(),
@@ -468,22 +404,22 @@ fn enriched_command_from_move_command(cmd: &MoveCommand) -> EnrichedCommand {
             }))
         }
         MoveCommand::TransferObjects(objects, recipient) => {
-            EnrichedCommand::TransferObjects(objects.clone(), *recipient)
+            MoveEnrichedCommand::TransferObjects(objects.clone(), *recipient)
         }
         MoveCommand::SplitCoins(coin, amounts) => {
-            EnrichedCommand::SplitCoins(*coin, amounts.clone())
+            MoveEnrichedCommand::SplitCoins(*coin, amounts.clone())
         }
         MoveCommand::MergeCoins(target, sources) => {
-            EnrichedCommand::MergeCoins(*target, sources.clone())
+            MoveEnrichedCommand::MergeCoins(*target, sources.clone())
         }
         MoveCommand::Publish(modules, deps) => {
-            EnrichedCommand::Publish(modules.clone(), deps.clone())
+            MoveEnrichedCommand::Publish(modules.clone(), deps.clone())
         }
         MoveCommand::MakeMoveVec(type_arg, elements) => {
-            EnrichedCommand::MakeMoveVec(type_arg.clone(), elements.clone())
+            MoveEnrichedCommand::MakeMoveVec(type_arg.clone(), elements.clone())
         }
         MoveCommand::Upgrade(modules, deps, package, ticket) => {
-            EnrichedCommand::Upgrade(modules.clone(), deps.clone(), *package, *ticket)
+            MoveEnrichedCommand::Upgrade(modules.clone(), deps.clone(), *package, *ticket)
         }
     }
 }

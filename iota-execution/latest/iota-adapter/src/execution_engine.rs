@@ -26,8 +26,10 @@ mod checked {
             AuthenticatorFunctionRefV1,
         },
         auth_context::{
-            AuthContext, EnrichedCallArg, EnrichedCommand,
-            enriched_fields::{enrich_command, enrich_object_arg},
+            AuthContext, MoveEnrichedCallArg, MoveEnrichedCommand,
+            enriched_fields::{
+                enrich_move_call_command, enrich_non_move_call_command, enrich_object_arg,
+            },
         },
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
@@ -573,17 +575,13 @@ mod checked {
             let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            let input_objects_map: HashMap<_, _> = authenticator_input_objects
-                .iter_objects()
-                .map(|o| (o.id(), o))
-                .collect();
             let (enriched_inputs, enriched_commands) = create_enriched_auth_context_components(
                 ptb,
                 move_vm,
                 temporary_store,
-                &input_objects_map,
-            );
-            AuthContext::new_from_components(
+                authenticator_input_objects,
+            )?;
+            AuthContext::new_with_enriched(
                 authenticator.digest(),
                 enriched_inputs,
                 enriched_commands,
@@ -2069,34 +2067,53 @@ mod checked {
     ///
     /// Uses the Move VM to resolve function types (`is_entry`, return types,
     /// and parameter types for pure-arg type names and object mutability).
+    ///
+    /// Returns an error if a required object is missing from
+    /// `authenticator_input_objects` (invariant violation) or if the type of
+    /// a pure input cannot be determined.
     fn create_enriched_auth_context_components(
         ptb: &ProgrammableTransaction,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
-        objects: &HashMap<ObjectID, &Object>,
-    ) -> (Vec<EnrichedCallArg>, Vec<EnrichedCommand>) {
+        authenticator_input_objects: &InputObjects,
+    ) -> Result<(Vec<MoveEnrichedCallArg>, Vec<MoveEnrichedCommand>), ExecutionError> {
+        // Build an ID-keyed map for O(1) object lookup inside this function.
+        let objects: HashMap<ObjectID, &Object> = authenticator_input_objects
+            .iter_objects()
+            .map(|o| (o.id(), o))
+            .collect();
+
         // Per-input metadata indexed by `Argument::Input` index.
         let mut input_type_names: HashMap<u16, TypeName> = HashMap::new();
         let mut input_is_mutable: HashMap<u16, bool> = HashMap::new();
-        // Per MoveCall command: (is_entry, returns).
-        let mut call_enrichments: HashMap<usize, (bool, Vec<TypeName>)> = HashMap::new();
 
-        // Pass 1: scan MoveCall commands to populate per-input type metadata.
-        for (cmd_idx, cmd) in ptb.commands.iter().enumerate() {
+        // Single pass over commands: build enriched commands AND collect
+        // per-input type metadata.  Merging what was previously "pass 1"
+        // (MoveCall metadata) and "pass 3" (command enrichment) into one
+        // iteration avoids a second scan of the command list.
+        let mut enriched_commands = Vec::with_capacity(ptb.commands.len());
+        for cmd in ptb.commands.iter() {
             let Command::MoveCall(call) = cmd else {
+                enriched_commands.push(enrich_non_move_call_command(cmd));
                 continue;
             };
 
-            let Ok(type_tags) = call
+            let type_tags = call
                 .type_arguments
                 .iter()
                 .map(|ti| ti.as_type_tag())
                 .collect::<Result<Vec<TypeTag>, _>>()
-            else {
-                continue;
-            };
+                .map_err(|e| {
+                    ExecutionError::new_with_source(
+                        ExecutionErrorKind::VMInvariantViolation,
+                        format!(
+                            "Failed to convert type arguments for {}::{}: {e}",
+                            call.module, call.function
+                        ),
+                    )
+                })?;
 
-            let Ok((loaded_fn, is_entry, return_tags)) =
+            let (loaded_fn, is_entry, return_tags) =
                 programmable_transactions::context::load_function_instantiation_and_is_entry(
                     vm,
                     state_view,
@@ -2105,12 +2122,15 @@ mod checked {
                     &call.function,
                     &type_tags,
                 )
-            else {
-                continue;
-            };
-
-            let returns = return_tags.iter().map(TypeName::from).collect();
-            call_enrichments.insert(cmd_idx, (is_entry, returns));
+                .map_err(|e| {
+                    ExecutionError::new_with_source(
+                        ExecutionErrorKind::VMInvariantViolation,
+                        format!(
+                            "Failed to load function {}::{}::{}: {e}",
+                            call.package, call.module, call.function
+                        ),
+                    )
+                })?;
 
             // Map argument positions to per-input type info.
             for (j, arg) in call.arguments.iter().enumerate() {
@@ -2142,6 +2162,17 @@ mod checked {
                     None => {}
                 }
             }
+
+            let returns = return_tags
+                .iter()
+                .filter_map(|tag| {
+                    // TODO: when `tag` is `None` the return type is a type parameter
+                    // (e.g. `fun foo<T>(): T`). We need to substitute the concrete
+                    // type by looking up the corresponding entry in `type_tags`.
+                    tag.as_ref().map(TypeName::from)
+                })
+                .collect();
+            enriched_commands.push(enrich_move_call_command(call, is_entry, returns));
         }
 
         // Pass 2: build enriched inputs.
@@ -2149,30 +2180,38 @@ mod checked {
             .inputs
             .iter()
             .enumerate()
-            .map(|(i, arg)| {
+            .map(|(i, arg)| -> Result<MoveEnrichedCallArg, ExecutionError> {
                 let idx = i as u16;
                 match arg {
-                    CallArg::Pure(bytes) => EnrichedCallArg::Pure {
-                        value: bytes.clone(),
-                        type_name: input_type_names.remove(&idx).unwrap_or_else(|| TypeName {
-                            name: String::new(),
-                        }),
-                    },
+                    CallArg::Pure(bytes) => {
+                        let type_name = input_type_names.remove(&idx).ok_or_else(|| {
+                            ExecutionError::new_with_source(
+                                ExecutionErrorKind::VMInvariantViolation,
+                                format!("No type information for pure input at index {idx}"),
+                            )
+                        })?;
+                        Ok(MoveEnrichedCallArg::Pure {
+                            value: bytes.clone(),
+                            type_name,
+                        })
+                    }
                     CallArg::Object(obj_arg) => {
-                        enrich_object_arg(obj_arg, objects, &input_is_mutable, idx)
+                        let object = objects.get(&obj_arg.id()).copied().ok_or_else(|| {
+                            ExecutionError::new_with_source(
+                                ExecutionErrorKind::VMInvariantViolation,
+                                format!(
+                                    "Object {} not found in authenticator input objects",
+                                    obj_arg.id()
+                                ),
+                            )
+                        })?;
+                        let mutable = *input_is_mutable.get(&idx).unwrap_or(&false);
+                        enrich_object_arg(obj_arg, object, mutable)
                     }
                 }
             })
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
-        // Pass 3: build enriched commands.
-        let enriched_commands = ptb
-            .commands
-            .iter()
-            .enumerate()
-            .map(|(cmd_idx, cmd)| enrich_command(cmd, call_enrichments.get(&cmd_idx)))
-            .collect();
-
-        (enriched_inputs, enriched_commands)
+        Ok((enriched_inputs, enriched_commands))
     }
 }

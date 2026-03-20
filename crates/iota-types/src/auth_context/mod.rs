@@ -13,6 +13,61 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
+/// Downgrades an [`MoveEnrichedCallArg`] to a plain [`MoveCallArg`], dropping
+/// the enriched metadata (type name, mutability).
+fn downgrade_call_arg(arg: &MoveEnrichedCallArg) -> MoveCallArg {
+    match arg {
+        MoveEnrichedCallArg::Pure { value, .. } => MoveCallArg::Pure(value.clone()),
+        MoveEnrichedCallArg::ImmOrOwnedObject(obj) => MoveCallArg::Object(
+            MoveObjectArg::ImmOrOwnedObject((obj.id, obj.version, obj.digest)),
+        ),
+        MoveEnrichedCallArg::SharedObject(obj) => {
+            MoveCallArg::Object(MoveObjectArg::SharedObject {
+                id: obj.id,
+                initial_shared_version: obj.initial_shared_version,
+                mutable: obj.mutable,
+            })
+        }
+        MoveEnrichedCallArg::Receiving(obj) => {
+            MoveCallArg::Object(MoveObjectArg::Receiving((obj.id, obj.version, obj.digest)))
+        }
+    }
+}
+
+/// Downgrades an [`MoveEnrichedCommand`] to a plain [`MoveCommand`], dropping
+/// the enriched metadata (`is_entry`, `returns`).
+fn downgrade_command(cmd: &MoveEnrichedCommand) -> MoveCommand {
+    match cmd {
+        MoveEnrichedCommand::MoveCall(call) => {
+            MoveCommand::MoveCall(Box::new(MoveProgrammableMoveCall {
+                package: call.package,
+                module: call.module.clone(),
+                function: call.function.clone(),
+                type_arguments: call.type_arguments.clone(),
+                arguments: call.arguments.clone(),
+            }))
+        }
+        MoveEnrichedCommand::TransferObjects(objects, recipient) => {
+            MoveCommand::TransferObjects(objects.clone(), *recipient)
+        }
+        MoveEnrichedCommand::SplitCoins(coin, amounts) => {
+            MoveCommand::SplitCoins(*coin, amounts.clone())
+        }
+        MoveEnrichedCommand::MergeCoins(target, sources) => {
+            MoveCommand::MergeCoins(*target, sources.clone())
+        }
+        MoveEnrichedCommand::Publish(modules, deps) => {
+            MoveCommand::Publish(modules.clone(), deps.clone())
+        }
+        MoveEnrichedCommand::MakeMoveVec(type_arg, elements) => {
+            MoveCommand::MakeMoveVec(type_arg.clone(), elements.clone())
+        }
+        MoveEnrichedCommand::Upgrade(modules, deps, package, ticket) => {
+            MoveCommand::Upgrade(modules.clone(), deps.clone(), *package, *ticket)
+        }
+    }
+}
+
 use crate::{IOTA_FRAMEWORK_ADDRESS, digests::MoveAuthenticatorDigest};
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
@@ -51,11 +106,11 @@ pub struct AuthContext {
     ///
     /// Stored in enriched form so that native functions can serve pre-built
     /// enriched data directly, and downgrade to plain `CallArg` on demand.
-    tx_inputs: Vec<EnrichedCallArg>,
+    tx_inputs: Vec<MoveEnrichedCallArg>,
     /// The enriched transaction commands.
     ///
     /// Same rationale as `tx_inputs`.
-    tx_commands: Vec<EnrichedCommand>,
+    tx_commands: Vec<MoveEnrichedCommand>,
 }
 
 impl AuthContext {
@@ -64,10 +119,10 @@ impl AuthContext {
     /// Callers (e.g. the execution engine) are responsible for building the
     /// enriched data, which may include object-type resolution via the backing
     /// store and function-metadata resolution via the VM.
-    pub fn new_from_components(
+    pub fn new_with_enriched(
         auth_digest: MoveAuthenticatorDigest,
-        tx_inputs: Vec<EnrichedCallArg>,
-        tx_commands: Vec<EnrichedCommand>,
+        tx_inputs: Vec<MoveEnrichedCallArg>,
+        tx_commands: Vec<MoveEnrichedCommand>,
     ) -> Self {
         Self {
             auth_digest,
@@ -88,11 +143,28 @@ impl AuthContext {
         &self.auth_digest
     }
 
-    pub fn tx_inputs(&self) -> &Vec<EnrichedCallArg> {
+    /// Returns the plain (non-enriched) transaction inputs, downgraded from
+    /// the stored enriched representation. Use [`enriched_tx_inputs`] when
+    /// the enriched metadata (type name, mutability) is needed.
+    pub fn tx_inputs(&self) -> Vec<MoveCallArg> {
+        self.tx_inputs.iter().map(downgrade_call_arg).collect()
+    }
+
+    /// Returns the enriched transaction inputs with full type and mutability
+    /// metadata.
+    pub fn enriched_tx_inputs(&self) -> &Vec<MoveEnrichedCallArg> {
         &self.tx_inputs
     }
 
-    pub fn tx_commands(&self) -> &Vec<EnrichedCommand> {
+    /// Returns the plain (non-enriched) transaction commands, downgraded from
+    /// the stored enriched representation. Use [`enriched_tx_commands`] when
+    /// the enriched metadata (`is_entry`, `returns`) is needed.
+    pub fn tx_commands(&self) -> Vec<MoveCommand> {
+        self.tx_commands.iter().map(downgrade_command).collect()
+    }
+
+    /// Returns the enriched transaction commands with full function metadata.
+    pub fn enriched_tx_commands(&self) -> &Vec<MoveEnrichedCommand> {
         &self.tx_commands
     }
 
@@ -146,8 +218,8 @@ impl AuthContext {
     pub fn replace(
         &mut self,
         auth_digest: MoveAuthenticatorDigest,
-        tx_inputs: Vec<EnrichedCallArg>,
-        tx_commands: Vec<EnrichedCommand>,
+        tx_inputs: Vec<MoveEnrichedCallArg>,
+        tx_commands: Vec<MoveEnrichedCommand>,
     ) {
         self.auth_digest = auth_digest;
         self.tx_inputs = tx_inputs;
@@ -193,14 +265,14 @@ mod tests {
 
     #[test]
     fn auth_context_new_from_components() {
-        let inputs = vec![EnrichedCallArg::Pure {
+        let inputs = vec![MoveEnrichedCallArg::Pure {
             value: vec![0xab],
             type_name: TypeName {
                 name: String::new(),
             },
         }];
-        let commands = vec![EnrichedCommand::MoveCall(Box::new(
-            EnrichedProgrammableMoveCall {
+        let commands = vec![MoveEnrichedCommand::MoveCall(Box::new(
+            MoveEnrichedProgrammableMoveCall {
                 package: crate::base_types::ObjectID::from_hex_literal(
                     "0x0000000000000000000000000000000000000001",
                 )
@@ -217,12 +289,18 @@ mod tests {
         ))];
 
         let ctx =
-            AuthContext::new_from_components(MoveAuthenticatorDigest::default(), inputs, commands);
+            AuthContext::new_with_enriched(MoveAuthenticatorDigest::default(), inputs, commands);
 
-        assert_eq!(ctx.tx_inputs().len(), 1);
-        assert_eq!(ctx.tx_commands().len(), 1);
-        assert!(matches!(ctx.tx_inputs()[0], EnrichedCallArg::Pure { .. }));
-        assert!(matches!(ctx.tx_commands()[0], EnrichedCommand::MoveCall(_)));
+        assert_eq!(ctx.enriched_tx_inputs().len(), 1);
+        assert_eq!(ctx.enriched_tx_commands().len(), 1);
+        assert!(matches!(
+            ctx.enriched_tx_inputs()[0],
+            MoveEnrichedCallArg::Pure { .. }
+        ));
+        assert!(matches!(
+            ctx.enriched_tx_commands()[0],
+            MoveEnrichedCommand::MoveCall(_)
+        ));
     }
 
     #[test]
@@ -238,7 +316,7 @@ mod tests {
 
         ctx.replace(
             MoveAuthenticatorDigest::default(),
-            vec![EnrichedCallArg::Pure {
+            vec![MoveEnrichedCallArg::Pure {
                 value: vec![1],
                 type_name: TypeName {
                     name: String::new(),

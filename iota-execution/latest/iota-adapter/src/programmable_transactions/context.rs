@@ -1727,11 +1727,13 @@ mod checked {
     /// both yield the tag of `T`.  Returns `None` for unresolvable types such
     /// as open type parameters.
     pub fn type_to_type_tag(vm: &MoveVM, ty: &Type) -> Option<TypeTag> {
-        let base = match ty {
-            Type::Reference(inner) | Type::MutableReference(inner) => inner.as_ref(),
-            other => other,
-        };
-        vm.get_runtime().get_type_tag(base).ok()
+        match ty {
+            Type::Reference(inner) | Type::MutableReference(inner) => {
+                type_to_type_tag(vm, inner.as_ref())
+            }
+            Type::TyParam(_) => None,
+            other => vm.get_runtime().get_type_tag(other).ok(),
+        }
     }
 
     /// Loads a function from the VM and returns the loaded function
@@ -1744,7 +1746,7 @@ mod checked {
         module_name: &str,
         function_name: &str,
         type_tags: &[TypeTag],
-    ) -> VMResult<(LoadedFunctionInstantiation, bool, Vec<TypeTag>)> {
+    ) -> VMResult<(LoadedFunctionInstantiation, bool, Vec<Option<TypeTag>>)> {
         let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
 
         // Load type arguments first; each struct call internally sets/resets linkage.
@@ -1793,7 +1795,7 @@ mod checked {
         let returns = loaded_fn
             .return_
             .iter()
-            .filter_map(|ty| type_to_type_tag(vm, ty))
+            .map(|ty| type_to_type_tag(vm, ty))
             .collect();
 
         Ok((loaded_fn, is_entry, returns))

@@ -857,16 +857,6 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "auth_context",
-            "native_enriched_tx_inputs",
-            make_native!(auth_context::native_enriched_tx_inputs),
-        ),
-        (
-            "auth_context",
-            "native_enriched_tx_commands",
-            make_native!(auth_context::native_enriched_tx_commands),
-        ),
-        (
-            "auth_context",
             "native_replace_enriched",
             make_native!(auth_context::native_replace_enriched),
         ),

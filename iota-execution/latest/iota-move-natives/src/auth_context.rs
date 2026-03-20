@@ -3,9 +3,11 @@
 
 use std::collections::VecDeque;
 
+use iota_types::auth_context::{MoveEnrichedCallArg, MoveEnrichedCommand};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
-    gas_algebra::InternalGas, runtime_value::MoveTypeLayout, vm_status::StatusCode,
+    gas_algebra::InternalGas, language_storage::TypeTag, runtime_value::MoveTypeLayout,
+    vm_status::StatusCode,
 };
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
@@ -64,8 +66,13 @@ pub struct AuthContextTxCommandsCostParams {
 
 /// ****************************************************************************
 /// native fun native_tx_commands
-/// Implementation of the Move native function `fun native_tx_commands():
-/// &vector<Command>`
+/// Implementation of the Move native function `fun native_tx_commands<C>():
+/// &vector<C>`
+///
+/// Dispatches to the plain (`Command`) or enriched (`MoveEnrichedCommand`) path
+/// depending on the concrete type argument `C` supplied by the caller:
+/// - `C = iota::ptb_command::Command`         → plain downgraded commands
+/// - `C = iota::enriched_command::MoveEnrichedCommand` → enriched commands
 /// ****************************************************************************
 pub fn native_tx_commands(
     context: &mut NativeContext,
@@ -89,12 +96,17 @@ pub fn native_tx_commands(
     );
 
     let command_type = ty_args.pop().unwrap();
+    let type_tag = context.type_to_type_tag(&command_type)?;
     let command_move_layout = resolve_move_layout(context, &command_type)?;
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let (tx_commands_ref, tx_commands_value_size) =
-        auth_context.tx_commands_ref(command_move_layout)?;
+    let is_enriched = type_tag == TypeTag::Struct(Box::new(MoveEnrichedCommand::type_()));
+    let (tx_commands_ref, tx_commands_value_size) = if is_enriched {
+        auth_context.enriched_tx_commands_ref(command_move_layout)?
+    } else {
+        auth_context.tx_commands_ref(command_move_layout)?
+    };
 
     native_charge_gas_early_exit!(
         context,
@@ -123,7 +135,12 @@ pub struct AuthContextTxInputsCostParams {
 /// ****************************************************************************
 /// native fun native_tx_inputs
 /// Implementation of the Move native function `fun native_tx_inputs<I>():
-/// vector<I>`
+/// &vector<I>`
+///
+/// Dispatches to the plain (`CallArg`) or enriched (`MoveEnrichedCallArg`) path
+/// depending on the concrete type argument `I` supplied by the caller:
+/// - `I = iota::ptb_call_arg::CallArg`  → plain downgraded inputs
+/// - `I = iota::enriched_call_arg::MoveEnrichedCallArg` → enriched inputs
 /// ****************************************************************************
 pub fn native_tx_inputs(
     context: &mut NativeContext,
@@ -147,11 +164,17 @@ pub fn native_tx_inputs(
     );
 
     let input_type = ty_args.pop().unwrap();
+    let type_tag = context.type_to_type_tag(&input_type)?;
     let input_move_layout = resolve_move_layout(context, &input_type)?;
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let (tx_inputs_ref, tx_inputs_value_size) = auth_context.tx_inputs_ref(input_move_layout)?;
+    let is_enriched = type_tag == TypeTag::Struct(Box::new(MoveEnrichedCallArg::type_()));
+    let (tx_inputs_ref, tx_inputs_value_size) = if is_enriched {
+        auth_context.enriched_tx_inputs_ref(input_move_layout)?
+    } else {
+        auth_context.tx_inputs_ref(input_move_layout)?
+    };
 
     native_charge_gas_early_exit!(
         context,
@@ -241,124 +264,12 @@ pub fn native_replace(
 }
 
 /// ****************************************************************************
-/// native fun native_enriched_tx_inputs
-/// Implementation of the Move native function
-/// `fun native_enriched_tx_inputs<I>(): &vector<I>`
-///
-/// Reuses `auth_context_tx_inputs_cost_params` — the work is structurally
-/// identical to `native_tx_inputs` (BCS-serialize a vector of enriched inputs).
-/// ****************************************************************************
-pub fn native_enriched_tx_inputs(
-    context: &mut NativeContext,
-    mut ty_args: Vec<Type>,
-    args: VecDeque<Value>,
-) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 1);
-    debug_assert!(args.is_empty());
-
-    let cost_params = get_extension!(context, NativesCostTable)?
-        .auth_context_tx_inputs_cost_params
-        .clone();
-    native_charge_gas_early_exit!(
-        context,
-        cost_params
-            .auth_context_tx_inputs_cost_base
-            .ok_or_else(|| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost base for native_enriched_tx_inputs not available".to_string(),
-                )
-            })?
-    );
-
-    let input_type = ty_args.pop().unwrap();
-    let input_move_layout = resolve_move_layout(context, &input_type)?;
-
-    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
-
-    let (tx_inputs_ref, tx_inputs_value_size) =
-        auth_context.enriched_tx_inputs_ref(input_move_layout)?;
-
-    native_charge_gas_early_exit!(
-        context,
-        cost_params
-            .auth_context_tx_inputs_cost_per_byte
-            .ok_or_else(|| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost per byte for native_enriched_tx_inputs not available".to_string(),
-                )
-            })?
-            * u64::from(tx_inputs_value_size).into()
-    );
-
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![tx_inputs_ref],
-    ))
-}
-
-/// ****************************************************************************
-/// native fun native_enriched_tx_commands
-/// Implementation of the Move native function
-/// `fun native_enriched_tx_commands<C>(): &vector<C>`
-///
-/// Reuses `auth_context_tx_commands_cost_params` — the work is structurally
-/// identical to `native_tx_commands` (BCS-serialize a vector of enriched cmds).
-/// ****************************************************************************
-pub fn native_enriched_tx_commands(
-    context: &mut NativeContext,
-    mut ty_args: Vec<Type>,
-    args: VecDeque<Value>,
-) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 1);
-    debug_assert!(args.is_empty());
-
-    let cost_params = get_extension!(context, NativesCostTable)?
-        .auth_context_tx_commands_cost_params
-        .clone();
-    native_charge_gas_early_exit!(
-        context,
-        cost_params
-            .auth_context_tx_commands_cost_base
-            .ok_or_else(|| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost base for native_enriched_tx_commands not available".to_string(),
-                )
-            })?
-    );
-
-    let command_type = ty_args.pop().unwrap();
-    let command_move_layout = resolve_move_layout(context, &command_type)?;
-
-    let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
-
-    let (tx_commands_ref, tx_commands_value_size) =
-        auth_context.enriched_tx_commands_ref(command_move_layout)?;
-
-    native_charge_gas_early_exit!(
-        context,
-        cost_params
-            .auth_context_tx_commands_cost_per_byte
-            .ok_or_else(|| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                    "Gas cost per byte for native_enriched_tx_commands not available".to_string(),
-                )
-            })?
-            * u64::from(tx_commands_value_size).into()
-    );
-
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![tx_commands_ref],
-    ))
-}
-
-/// ****************************************************************************
 /// native fun native_replace_enriched
 /// Implementation of the Move native function
 /// `fun native_replace_enriched<I, C>(auth_digest, tx_inputs, tx_commands)`
 ///
 /// Like `native_replace` but stores the values as enriched types
-/// (`EnrichedCallArg` / `EnrichedCommand`) directly, skipping the
+/// (`MoveEnrichedCallArg` / `MoveEnrichedCommand`) directly, skipping the
 /// plain→enriched up-conversion.  This lets test code set `is_entry`,
 /// `mutable`, and `type_name` fields explicitly.
 /// ****************************************************************************
