@@ -834,6 +834,11 @@ pub struct AuthorityEpochTables {
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, CheckpointSequenceNumber>,
 
+    /// Transactions dropped by white-flag conflict resolution.
+    /// Stored so that late `wait_for_effects` callers can get immediate
+    /// rejection instead of hanging until timeout.
+    dropped_transactions: DBMap<TransactionDigest, IotaError>,
+
     /// JWKs that have been voted for by one or more authorities but are not yet
     /// active.
     pending_jwks: DBMap<(AuthorityName, JwkId, JWK), ()>,
@@ -1736,9 +1741,15 @@ impl AuthorityPerEpochStore {
     /// Returns the `IotaError` describing why it was dropped.
     /// Callers should race this against `notify_read_executed_effects_digests`
     /// to determine whether the transaction was executed or dropped.
-    pub async fn notify_read_dropped_digests(&self, digest: TransactionDigest) -> IotaError {
+    pub async fn notify_read_dropped_digests(
+        &self,
+        digest: TransactionDigest,
+    ) -> IotaResult<IotaError> {
         let registration = self.dropped_tx_notify_read.register_one(&digest);
-        registration.await
+        if let Some(error) = self.tables()?.dropped_transactions.get(&digest)? {
+            return Ok(error);
+        }
+        Ok(registration.await)
     }
 
     pub async fn notify_read_running_root(
@@ -3241,6 +3252,16 @@ impl AuthorityPerEpochStore {
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
+                let tables = self.tables()?;
+                let mut batch = tables.dropped_transactions.batch();
+                batch.insert_batch(
+                    &tables.dropped_transactions,
+                    dropped
+                        .iter()
+                        .map(|(digest, error)| (*digest, error.clone())),
+                )?;
+                batch.write()?;
+
                 for (digest, error) in &dropped {
                     self.dropped_tx_notify_read.notify(digest, error);
                 }

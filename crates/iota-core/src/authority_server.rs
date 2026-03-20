@@ -1574,8 +1574,8 @@ impl ValidatorService {
                     effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
                         Either::Left(effects_digests)
                     }
-                    dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {
-                        Either::Right(dropped_error)
+                    dropped_result = epoch_store.notify_read_dropped_digests(tx_digest) => {
+                        Either::Right(dropped_result)
                     }
                 }
             },
@@ -1583,6 +1583,7 @@ impl ValidatorService {
         .await;
 
         match result {
+            Ok(Either::Right(Err(e))) => Err(e.into()),
             Ok(Either::Left(effects_digests)) => {
                 if let Some(effects_digest) = effects_digests.into_iter().next() {
                     // Fetch detailed execution data if requested.
@@ -1623,7 +1624,7 @@ impl ValidatorService {
                     }
                 }
             }
-            Ok(Either::Right(dropped_error)) => {
+            Ok(Either::Right(Ok(dropped_error))) => {
                 // Transaction was dropped by white-flag conflict resolution.
                 WaitForEffectResponse::Rejected {
                     error: Some(dropped_error),
