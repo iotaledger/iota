@@ -11,7 +11,10 @@ use iota_types::{
     },
     error::IotaError,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
-    messages_grpc::{LayoutGenerationOption, SubmitTransactionsRequest},
+    messages_grpc::{
+        LayoutGenerationOption, RawSubmitTransactionsRequest, RawSubmitTransactionsResponse,
+        SubmitTransactionsRequest, SubmitTransactionsResponse,
+    },
     supported_protocol_versions::SupportedProtocolVersions,
 };
 // Additional imports for white flag tests
@@ -38,6 +41,27 @@ use crate::{
     authority_client::{AuthorityAPI, NetworkAuthorityClient},
     consensus_adapter::MockConsensusClient,
 };
+
+/// Helper to make a tonic request with a native SubmitTransactionsRequest
+/// converted to Raw* for the protobuf wire format.
+fn make_raw_submit_request(
+    request: SubmitTransactionsRequest,
+) -> tonic::Request<RawSubmitTransactionsRequest> {
+    let raw: RawSubmitTransactionsRequest = request.try_into().expect("BCS serialization failed");
+    make_tonic_request_for_testing(raw)
+}
+
+/// Helper to convert a Raw submit response back to native types for assertion.
+fn into_native_submit_response(
+    result: Result<(tonic::Response<RawSubmitTransactionsResponse>, Weight), tonic::Status>,
+) -> Result<(tonic::Response<SubmitTransactionsResponse>, Weight), tonic::Status> {
+    let (response, weight) = result?;
+    let native: SubmitTransactionsResponse = response
+        .into_inner()
+        .try_into()
+        .map_err(|e: IotaError| tonic::Status::internal(e.to_string()))?;
+    Ok((tonic::Response::new(native), weight))
+}
 
 // This is the most basic example of how to test the server logic
 #[tokio::test]
@@ -308,7 +332,7 @@ async fn test_submit_transaction_v1_feature_flag_disabled() {
 
     // Call submit_transaction
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
@@ -385,12 +409,13 @@ async fn test_submit_transaction_invalid_signature() {
 
     // Call submit_transaction
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
 
     // Signature errors are reported per-transaction as Rejected results.
+    let result = into_native_submit_response(result);
     assert!(result.is_ok(), "Batch response should be Ok");
     let response = result.unwrap().0.into_inner();
     assert_eq!(response.results.len(), 1);
@@ -466,12 +491,13 @@ async fn test_submit_transaction_success() {
 
     // Call submit_transaction
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
 
     // Should succeed with Submitted result
+    let result = into_native_submit_response(result);
     assert!(result.is_ok(), "Transaction submission should succeed");
     let response = result.unwrap().0.into_inner();
     match &response.results[0] {
@@ -575,13 +601,14 @@ async fn test_submit_transaction_invalid_transaction() {
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
-    let (response, _weight) = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+    let result = validator_service
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
-        .await
-        .expect("batch call should succeed even when individual txs fail");
+        .await;
 
+    let (response, _weight) = into_native_submit_response(result)
+        .expect("batch call should succeed even when individual txs fail");
     let results = response.into_inner().results;
     assert_eq!(results.len(), 1);
     assert!(
@@ -655,11 +682,12 @@ async fn test_submit_transaction_already_executed() {
 
     // Re-submit the same transaction via the white-flag endpoint.
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
 
+    let result = into_native_submit_response(result);
     assert!(result.is_ok(), "Expected Ok for already-executed tx");
     let response = result.unwrap().0.into_inner();
     assert_eq!(response.results.len(), 1, "Expected exactly one result");
@@ -725,7 +753,7 @@ async fn test_submit_transaction_gas_object_validation() {
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
         .await;
@@ -733,6 +761,7 @@ async fn test_submit_transaction_gas_object_validation() {
     // Non-existent gas object errors are reported per-transaction as Rejected
     // results. TODO: check for a specific error kind once we have better error
     // handling in place for the white-flag flow.
+    let result = into_native_submit_response(result);
     assert!(result.is_ok(), "Batch response should be Ok");
     let response = result.unwrap().0.into_inner();
     assert_eq!(response.results.len(), 1);
@@ -791,9 +820,10 @@ async fn test_submit_soft_bundle_transactions() {
     };
 
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(request))
+        .handle_submit_transactions_impl(make_raw_submit_request(request))
         .await;
 
+    let result = into_native_submit_response(result);
     assert!(result.is_ok(), "Batch submission should succeed");
     let response = result.unwrap().0.into_inner();
     assert_eq!(
@@ -884,11 +914,12 @@ async fn test_submit_transactions_different_gas_prices_accepted() {
     };
 
     let result = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(request))
+        .handle_submit_transactions_impl(make_raw_submit_request(request))
         .await;
 
     // With soft-bundle checks removed, each transaction is processed independently.
     // Different gas prices no longer cause a batch-level rejection.
+    let result = into_native_submit_response(result);
     assert!(result.is_ok(), "Batch response should be Ok");
     let response = result.unwrap().0.into_inner();
     assert_eq!(
@@ -963,13 +994,14 @@ async fn test_submit_oversized_transaction() {
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
-    let (response, _weight) = validator_service
-        .handle_submit_transactions_impl(make_tonic_request_for_testing(
+    let result = validator_service
+        .handle_submit_transactions_impl(make_raw_submit_request(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
-        .await
-        .expect("batch call should succeed even when individual txs fail");
+        .await;
 
+    let (response, _weight) = into_native_submit_response(result)
+        .expect("batch call should succeed even when individual txs fail");
     let results = response.into_inner().results;
     assert_eq!(results.len(), 1);
     assert!(
