@@ -1626,15 +1626,15 @@ impl IotaNode {
 
         for tx in epoch_store.get_all_pending_consensus_transactions() {
             match tx.kind {
-                // TODO: what to do with UserTransactionV1 here? It seems like this only applies to
-                //  optimistically executed owned-object transactions that possibly didn't go
-                //  through  consensus before the node restarted. UserTransactionsV1
-                //  always needs to go  through consensus, so it will be replayed
-                //  there, just like shared object  transactions.
+                // This only applies to owned-object CertifiedTransactions that were
+                // optimistically executed before going through consensus. In pcool,
+                // UserTransactionV1 always goes through consensus first and will be
+                // replayed there, so it is never persisted to pending_consensus_transactions
+                // and does not appear here.
+                // Certificate-flow only; will be removed once pcool completely takes over.
                 //
-                // Shared object txns
-                // cannot be re-executed at this  point, because we must wait for
-                // consensus replay to assign shared  object versions.
+                // Shared object txns cannot be re-executed at this point, because we
+                // must wait for consensus replay to assign shared object versions.
                 ConsensusTransactionKind::CertifiedTransaction(tx)
                     if !tx.contains_shared_object() =>
                 {

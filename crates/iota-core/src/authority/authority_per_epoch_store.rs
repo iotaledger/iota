@@ -679,13 +679,16 @@ pub struct AuthorityPerEpochStore {
     /// epoch(and will open instance of per-epoch store for a new epoch).
     epoch_alive: tokio::sync::RwLock<bool>,
     end_of_publish: Mutex<StakeAggregator<(), true>>,
-    /// Pending certificates that are waiting to be sequenced by the consensus.
-    /// This is an in-memory 'index' of a
-    /// AuthorityPerEpochTables::pending_consensus_transactions. We need to
-    /// keep track of those in order to know when to send EndOfPublish message.
+    /// Pending certificates waiting to be sequenced by consensus.
+    /// This is an in-memory index of CertifiedTransaction entries in
+    /// AuthorityPerEpochTables::pending_consensus_transactions.
+    /// Used to determine when to send EndOfPublish at epoch boundary.
+    /// Only tracks CertifiedTransactions (not UserTransactionV1).
+    /// Certificate-flow only; will be removed once pcool completely takes over.
+    ///
     /// Lock ordering: this is a 'leaf' lock, no other locks should be acquired
-    /// in the scope of this lock In particular, this lock is always
-    /// acquired after taking read or write lock on reconfig state
+    /// in the scope of this lock. In particular, this lock is always
+    /// acquired after taking read or write lock on reconfig state.
     pending_consensus_certificates: RwLock<HashSet<TransactionDigest>>,
 
     /// MutexTable for transaction locks (prevent concurrent execution of same
@@ -950,6 +953,19 @@ impl AuthorityEpochTables {
             .safe_iter()
             .map(|item| item.map(|(_k, v)| v))
             .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Test-only: insert a transaction directly into pending_consensus_transactions,
+    /// bypassing the UserTransactionV1 filter in insert_pending_consensus_transactions.
+    /// Used to simulate pre-upgrade DB state.
+    #[cfg(test)]
+    pub fn insert_pending_consensus_transaction_for_test(
+        &self,
+        transaction: &ConsensusTransaction,
+    ) -> IotaResult {
+        self.pending_consensus_transactions
+            .insert(&transaction.key(), transaction)?;
+        Ok(())
     }
 
     pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
@@ -2289,7 +2305,16 @@ impl AuthorityPerEpochStore {
         transactions: &[ConsensusTransaction],
         lock: Option<&RwLockReadGuard<ReconfigState>>,
     ) -> IotaResult {
-        let key_value_pairs = transactions.iter().map(|tx| (tx.key(), tx));
+        let key_value_pairs = transactions.iter().filter_map(|tx| {
+            if tx.kind.is_user_transaction() {
+                // UserTransactionV1 (pcool flow) is fire-and-forget and does not
+                // need crash recovery. Will be removed once pcool completely takes
+                // over.
+                None
+            } else {
+                Some((tx.key(), tx))
+            }
+        });
         self.tables()?
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;

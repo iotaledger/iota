@@ -604,6 +604,10 @@ impl ConsensusAdapter {
             }
         }
 
+        // Note: UserTransactionV1 (pcool flow) is internally ignored by
+        // insert_pending_consensus_transactions - they are fire-and-forget and don't
+        // need crash recovery. Only certificate-flow transactions are persisted.
+        // Will be removed once pcool completely takes over.
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
 
         Ok(self.submit_unchecked(transactions, epoch_store))
@@ -858,21 +862,10 @@ impl ConsensusAdapter {
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In the certificate-less mode, `UserTransactionV1` kind corresponds
-                // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::UserTransactionV1(_)
-                )
-            } else {
-                // In the certificate mode, `CertifiedTransaction` kind corresponds
-                // to user transactions.
-                matches!(
+            || matches!(
                     transactions[0].kind,
                     ConsensusTransactionKind::CertifiedTransaction(_)
-                )
-            };
+                );
         let send_end_of_publish = if is_user_tx {
             // If we are in `RejectUserCerts` state, we need to send `EndOfPublish` to
             // signal other validators that we are not submitting more user
