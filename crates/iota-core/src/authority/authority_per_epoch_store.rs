@@ -659,10 +659,10 @@ pub struct AuthorityPerEpochStore {
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
 
-    /// Notifies waiters when a transaction is dropped by white-flag conflict
-    /// resolution. This allows `wait_for_effects` to return immediately with a
+    /// In-memory bounded cache for transactions dropped by white-flag conflict
+    /// resolution. Allows `wait_for_effects` to return immediately with a
     /// `Rejected` response instead of waiting for the gRPC deadline.
-    dropped_tx_notify_read: NotifyRead<TransactionDigest, IotaError>,
+    dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,
@@ -833,11 +833,6 @@ pub struct AuthorityEpochTables {
     /// association here
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, CheckpointSequenceNumber>,
-
-    /// Transactions dropped by white-flag conflict resolution.
-    /// Stored so that late `wait_for_effects` callers can get immediate
-    /// rejection instead of hanging until timeout.
-    dropped_transactions: DBMap<TransactionDigest, IotaError>,
 
     /// JWKs that have been voted for by one or more authorities but are not yet
     /// active.
@@ -1214,7 +1209,7 @@ impl AuthorityPerEpochStore {
             checkpoint_state_notify_read: NotifyRead::new(),
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
-            dropped_tx_notify_read: NotifyRead::new(),
+            dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1745,11 +1740,9 @@ impl AuthorityPerEpochStore {
         &self,
         digest: TransactionDigest,
     ) -> IotaResult<IotaError> {
-        let registration = self.dropped_tx_notify_read.register_one(&digest);
-        if let Some(error) = self.tables()?.dropped_transactions.get(&digest)? {
-            return Ok(error);
-        }
-        Ok(registration.await)
+        self.dropped_tx_status_cache
+            .notify_read_dropped(digest)
+            .await
     }
 
     pub async fn notify_read_running_root(
@@ -3252,19 +3245,7 @@ impl AuthorityPerEpochStore {
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
-                let tables = self.tables()?;
-                let mut batch = tables.dropped_transactions.batch();
-                batch.insert_batch(
-                    &tables.dropped_transactions,
-                    dropped
-                        .iter()
-                        .map(|(digest, error)| (*digest, error.clone())),
-                )?;
-                batch.write()?;
-
-                for (digest, error) in &dropped {
-                    self.dropped_tx_notify_read.notify(digest, error);
-                }
+                self.dropped_tx_status_cache.insert_and_notify(&dropped);
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);

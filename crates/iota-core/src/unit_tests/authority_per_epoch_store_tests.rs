@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use iota_types::{base_types::TransactionDigest, error::IotaError};
 use tokio::time::timeout;
-use typed_store::Map;
 
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
@@ -64,40 +63,36 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
 }
 
 /// Tests the race condition fix: when a transaction was already dropped and
-/// persisted to the `dropped_transactions` table *before* the client calls
-/// `notify_read_dropped_digests`, the method should return immediately
-/// instead of hanging until timeout.
+/// cached *before* the client calls `notify_read_dropped_digests`, the method
+/// should return immediately instead of hanging until timeout.
 #[tokio::test]
-async fn test_notify_read_dropped_digests_returns_persisted_error() {
+async fn test_notify_read_dropped_digests_returns_cached_error() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
 
     let digest = TransactionDigest::random();
     let expected_error = IotaError::TransactionExpired;
 
-    // Simulate the consensus handler having already persisted the drop.
+    // Simulate the consensus handler having already recorded the drop.
     store
-        .tables()
-        .expect("tables should be available")
-        .dropped_transactions
-        .insert(&digest, &expected_error)
-        .expect("insert should not fail");
+        .dropped_tx_status_cache
+        .insert_and_notify(&[(digest, expected_error.clone())]);
 
-    // notify_read_dropped_digests should return immediately from the DB check,
+    // notify_read_dropped_digests should return immediately from the cache,
     // not hang waiting for a notification that already fired.
     let result = timeout(
         Duration::from_secs(5),
         store.notify_read_dropped_digests(digest),
     )
     .await
-    .expect("should not timeout — the DB lookup should return immediately")
+    .expect("should not timeout — the cache lookup should return immediately")
     .expect("should not return a storage error");
 
     assert_eq!(result.to_string(), expected_error.to_string());
 }
 
 /// Tests the normal (non-race) path: the client registers before the drop
-/// is persisted, and the notification resolves the future.
+/// is recorded, and the notification resolves the future.
 #[tokio::test]
 async fn test_notify_read_dropped_digests_waits_for_notification() {
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -108,7 +103,6 @@ async fn test_notify_read_dropped_digests_waits_for_notification() {
 
     // Spawn a task that waits for the drop notification.
     let store_clone = store.clone();
-    let expected_error_clone = expected_error.clone();
     let handle = tokio::spawn(async move {
         store_clone
             .notify_read_dropped_digests(digest)
@@ -116,15 +110,13 @@ async fn test_notify_read_dropped_digests_waits_for_notification() {
             .expect("should not return a storage error")
     });
 
-    // Simulate the consensus handler: write to table, then notify.
-    let tables = store.tables().expect("tables should be available");
-    tables
-        .dropped_transactions
-        .insert(&digest, &expected_error_clone)
-        .expect("insert should not fail");
+    // Small delay so the spawned task registers before we notify.
+    tokio::time::sleep(Duration::from_millis(10)).await;
+
+    // Simulate the consensus handler: insert and notify.
     store
-        .dropped_tx_notify_read
-        .notify(&digest, &expected_error_clone);
+        .dropped_tx_status_cache
+        .insert_and_notify(&[(digest, expected_error.clone())]);
 
     let result = timeout(Duration::from_secs(5), handle)
         .await
