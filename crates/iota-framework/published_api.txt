@@ -1864,12 +1864,6 @@ native_tx_inputs
 native_tx_commands
 	fun
 	0x2::auth_context
-native_enriched_tx_inputs
-	fun
-	0x2::auth_context
-native_enriched_tx_commands
-	fun
-	0x2::auth_context
 Receiving
 	public struct
 	0x2::transfer
