@@ -6,13 +6,14 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::{generate_fields::FileDescriptorWithPackageVersion, message_graph::DescriptorGraph};
+use crate::{
+    codegen::generate_fields::FileDescriptorWithPackageVersion, message_graph::DescriptorGraph,
+};
 
 mod codegen;
 mod comments;
 mod context;
 mod dependency_graph;
-mod generate_fields;
 mod ident;
 mod message_graph;
 
@@ -192,8 +193,17 @@ fn main() {
             .to_string();
     }
 
+    // Parse transparent message options from the descriptor pool
+    let transparent_messages =
+        codegen::generate_fields::parse_transparent_messages_from_pool(&descriptor_pool);
+
     // Generate field constants and MessageFields impls
-    generate_fields::generate_field_info(&packages, &out_dir, &boxed_types_field_info);
+    codegen::generate_fields::generate_field_info(
+        &packages,
+        &out_dir,
+        &boxed_types_field_info,
+        &transparent_messages,
+    );
 
     let status = std::process::Command::new("git")
         .arg("diff")

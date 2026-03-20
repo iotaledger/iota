@@ -118,12 +118,6 @@ jobs:
         run: |
           echo "extension=$(echo ".exe")" >> $GITHUB_ENV
 
-      - name: Setup caching
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
-        with:
-          cache-on-failure: true
-          cache-bin: "false"
-
       - name: Install postgres (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
@@ -138,13 +132,14 @@ jobs:
       - name: Install postgres (MacOS arm64)
         if: ${{ matrix.os_type == 'macos-arm64' }}
         shell: bash
-        env:
-          PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
-          LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
-          PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-          PATH: "/opt/homebrew/bin:$PATH"
         run: |
           brew install postgresql
+
+          PQ_PREFIX="$(brew --prefix libpq)"
+          echo "PQ_LIB_DIR=${PQ_PREFIX}/lib" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=${PQ_PREFIX}/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=${PQ_PREFIX}/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> $GITHUB_ENV
+          echo "${PQ_PREFIX}/bin" >> $GITHUB_PATH
 
       - name: Install protoc (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}

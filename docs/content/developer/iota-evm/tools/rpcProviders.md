@@ -1,13 +1,13 @@
 ---
 description: RPC Providers provide highly optimized RPC endpoints for your dApps
 keywords:
- - IOTA EVM
- - blockchain API
- - decentralized
- - node infrastructure
- - tools
- - Ankr api
- - archive node
+  - IOTA EVM
+  - blockchain API
+  - decentralized
+  - node infrastructure
+  - tools
+  - Ankr api
+  - archive node
 image: /img/logo/WASP_logo_dark.png
 ---
 

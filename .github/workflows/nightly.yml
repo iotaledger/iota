@@ -67,6 +67,8 @@ jobs:
   examples:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_rust_examples.yml
+    with:
+      isNightly: true
 
   tests:
     if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
@@ -79,6 +81,7 @@ jobs:
       runSimtest: false
       # run all tests by default
       testOnlyChangedCrates: false
+      isNightly: true
 
   tests-with-starfish:
     if: ${{ inputs.rustTestsOnly || !inputs.simTestsOnly }}
@@ -92,6 +95,7 @@ jobs:
       runSimtest: false
       # run all tests by default
       testOnlyChangedCrates: false
+      isNightly: true
 
   deny:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
@@ -106,14 +110,16 @@ jobs:
   execution-cut:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_execution_cut.yml
+    with:
+      isNightly: true
 
   split-cluster:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
 
-  rosetta:
+  split-cluster-sync-check:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
-    uses: ./.github/workflows/_rosetta.yml
+    uses: ./.github/workflows/_split_cluster_sync_check.yml
 
   simtest:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
@@ -126,13 +132,6 @@ jobs:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ env.IOTA_REF }}
-
-      - name: Setup caching
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
-        with:
-          shared-key: "rust-simtest"
-          cache-on-failure: true
-          cache-bin: "false"
 
       - name: Get latest simtest script from commit that triggered this workflow
         run: |
@@ -153,13 +152,6 @@ jobs:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           ref: ${{ env.IOTA_REF }}
-
-      - name: Setup caching
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.8.2
-        with:
-          shared-key: "rust-simtest"
-          cache-on-failure: true
-          cache-bin: "false"
 
       - name: Get latest simtest script from commit that triggered this workflow
         run: |

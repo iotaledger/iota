@@ -16,14 +16,17 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction as _};
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction};
+use tracing::debug;
 
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, Slot, VerifiedBlockHeader,
         VerifiedTransactions,
     },
+    context::Context,
     leader_scoring::ReputationScores,
     storage::Store,
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 /// Index of a commit among all consensus commits.
@@ -57,26 +60,65 @@ pub(crate) type WaveNumber = u32;
 #[enum_dispatch(CommitAPI)]
 pub(crate) enum Commit {
     V1(CommitV1),
+    V2(CommitV2),
 }
 
 impl Commit {
-    /// Create a new commit.
+    /// Create a new commit. The variant (V1 or V2) is determined by the
+    /// consensus_fast_commit_sync protocol flag.
     pub(crate) fn new(
+        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<BlockRef>,
+        committed_transactions: Vec<GenericTransactionRef>,
+        reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
     ) -> Self {
-        Commit::V1(CommitV1 {
-            index,
-            previous_digest,
-            timestamp_ms,
-            leader,
-            blocks,
-            committed_transactions,
-        })
+        if context.protocol_config.consensus_fast_commit_sync() {
+            debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
+            // Extract TransactionRefs from GenericTransactionRef
+            let transaction_refs: Vec<TransactionRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::TransactionRef(tr) => tr,
+                    GenericTransactionRef::BlockRef(_) => {
+                        panic!("Expected TransactionRef when consensus_fast_commit_sync is enabled")
+                    }
+                })
+                .collect();
+
+            Commit::V2(CommitV2 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                block_headers: blocks,
+                committed_transactions: transaction_refs,
+                reputation_scores_desc,
+            })
+        } else {
+            debug!("Creating CommitV1 as consensus_fast_commit_sync is disabled");
+            // Extract BlockRefs from GenericTransactionRef
+            let block_refs: Vec<BlockRef> = committed_transactions
+                .into_iter()
+                .map(|gen_ref| match gen_ref {
+                    GenericTransactionRef::BlockRef(br) => br,
+                    GenericTransactionRef::TransactionRef(_) => {
+                        panic!("Expected BlockRef when consensus_fast_commit_sync is disabled")
+                    }
+                })
+                .collect();
+            Commit::V1(CommitV1 {
+                index,
+                previous_digest,
+                timestamp_ms,
+                leader,
+                blocks,
+                committed_transactions: block_refs,
+            })
+        }
     }
 
     pub(crate) fn serialize(&self) -> Result<Bytes, bcs::Error> {
@@ -93,8 +135,9 @@ pub(crate) trait CommitAPI {
     fn previous_digest(&self) -> CommitDigest;
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
-    fn blocks(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> &[BlockRef];
+    fn block_headers(&self) -> &[BlockRef];
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef>;
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)];
 }
 
 /// Specifies one consensus commit.
@@ -142,12 +185,85 @@ impl CommitAPI for CommitV1 {
         self.leader
     }
 
-    fn blocks(&self) -> &[BlockRef] {
+    fn block_headers(&self) -> &[BlockRef] {
         &self.blocks
     }
 
-    fn committed_transactions(&self) -> &[BlockRef] {
-        &self.committed_transactions
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions
+            .iter()
+            .map(|b| GenericTransactionRef::BlockRef(*b))
+            .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        // CommitV1 does not have reputation scores
+        &[]
+    }
+}
+
+/// Specifies one consensus commit.
+/// It is stored on disk, so it does not contain blocks which are stored
+/// individually.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub(crate) struct CommitV2 {
+    /// Index of the commit.
+    /// First commit after genesis has an index of 1, then every next commit has
+    /// an index incremented by 1.
+    index: CommitIndex,
+    /// Digest of the previous commit.
+    /// Set to CommitDigest::MIN for the first commit after genesis.
+    previous_digest: CommitDigest,
+    /// Timestamp of the commit, max of the timestamp of the leader block and
+    /// previous Commit timestamp.
+    timestamp_ms: BlockTimestampMs,
+    /// A reference to the commit leader.
+    leader: BlockRef,
+    /// Refs to committed headers, in the commit order.
+    block_headers: Vec<BlockRef>,
+    /// Refs to transactions in blocks for which quorum of acknowledgments has
+    /// been collected in this and past commits.
+    committed_transactions: Vec<TransactionRef>,
+    /// Optional scores that are provided as part of the consensus output to
+    /// IOTA that can then be used by IOTA for future transaction submission to
+    /// consensus.
+    reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
+}
+
+impl CommitAPI for CommitV2 {
+    fn round(&self) -> Round {
+        self.leader.round
+    }
+
+    fn index(&self) -> CommitIndex {
+        self.index
+    }
+
+    fn previous_digest(&self) -> CommitDigest {
+        self.previous_digest
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn leader(&self) -> BlockRef {
+        self.leader
+    }
+
+    fn block_headers(&self) -> &[BlockRef] {
+        &self.block_headers
+    }
+
+    fn committed_transactions(&self) -> Vec<GenericTransactionRef> {
+        self.committed_transactions
+            .iter()
+            .map(|t| GenericTransactionRef::TransactionRef(*t))
+            .collect()
+    }
+
+    fn reputation_scores(&self) -> &[(AuthorityIndex, u64)] {
+        &self.reputation_scores_desc
     }
 }
 
@@ -177,20 +293,23 @@ impl TrustedCommit {
 
     #[cfg(test)]
     pub(crate) fn new_for_test(
+        context: &Arc<Context>,
         index: CommitIndex,
         previous_digest: CommitDigest,
         timestamp_ms: BlockTimestampMs,
         leader: BlockRef,
         blocks: Vec<BlockRef>,
-        committed_transactions: Vec<BlockRef>,
+        committed_transactions: Vec<GenericTransactionRef>,
     ) -> Self {
         let commit = Commit::new(
+            context,
             index,
             previous_digest,
             timestamp_ms,
             leader,
             blocks,
             committed_transactions,
+            vec![],
         );
         let serialized = commit.serialize().unwrap();
         Self::new_trusted(commit, serialized)
@@ -366,8 +485,20 @@ pub type CommitVote = CommitRef;
 pub struct SubDagBase {
     /// A reference to the leader of the sub-dag
     pub leader: BlockRef,
-    /// All the block headers that are traversed on DAG starting with the leader
+
+    /// All the block headers that are traversed on DAG starting with the
+    /// leader.
+    ///
+    /// Required for leader scoring (ancestors) and metrics (timestamp_ms).
+    /// In the future, it may be optional when syncing via FastCommitSyncer.
     pub headers: Vec<VerifiedBlockHeader>,
+
+    /// Block references of committed headers.
+    ///
+    /// Used for operations that only need reference data (round, author,
+    /// digest) without full header details. Removes dependency on the
+    /// optional headers field in ConsensusOutputAPI trait implementation.
+    pub committed_header_refs: Vec<BlockRef>,
     /// The timestamp of the commit, obtained from the timestamp of the leader
     /// block.
     pub timestamp_ms: BlockTimestampMs,
@@ -407,17 +538,6 @@ impl SubDagBase {
             .map(|(round_auth, set)| (round_auth, set.into_iter().collect()))
             .collect()
     }
-
-    /// Helper method to format blocks consistently for display
-    fn format_block_refs(&self) -> String {
-        format_block_digests(
-            &self
-                .headers
-                .iter()
-                .map(|b| b.reference())
-                .collect::<Vec<_>>(),
-        )
-    }
 }
 
 impl Display for SubDagBase {
@@ -427,7 +547,7 @@ impl Display for SubDagBase {
             "CommittedSubDag(leader={}, ref={}, blocks=[{}])",
             self.leader,
             self.commit_ref,
-            self.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
         )
     }
 }
@@ -439,7 +559,7 @@ impl fmt::Debug for SubDagBase {
             "{}@{} ([{}];{}ms;rs{:?})",
             self.leader,
             self.commit_ref,
-            self.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             self.timestamp_ms,
             self.reputation_scores_desc
         )
@@ -465,6 +585,7 @@ impl CommittedSubDag {
     pub fn new(
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
+        committed_header_refs: Vec<BlockRef>,
         transactions: Vec<VerifiedTransactions>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
@@ -474,6 +595,7 @@ impl CommittedSubDag {
             base: SubDagBase {
                 leader,
                 headers,
+                committed_header_refs,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -482,18 +604,13 @@ impl CommittedSubDag {
         }
     }
 
-    /// Returns the leader round of the sub-dag.
-    pub(crate) fn leader_round(&self) -> Round {
-        self.base.leader.round
-    }
-
     /// Helper method to format transaction refs in a consistent way
     fn format_transaction_refs(&self) -> String {
-        format_block_digests(
+        format_transaction_ref_digests(
             &self
                 .transactions
                 .iter()
-                .map(|t| t.block_ref())
+                .map(|t| GenericTransactionRef::TransactionRef(t.transaction_ref()))
                 .collect::<Vec<_>>(),
         )
     }
@@ -506,7 +623,7 @@ impl Display for CommittedSubDag {
             "CommittedSubDag(leader={}, ref={}, blocks=[{}], committed_transactions=[{}])",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             self.format_transaction_refs(),
         )
     }
@@ -519,7 +636,7 @@ impl fmt::Debug for CommittedSubDag {
             "{}@{} ([{}];[{}];{}ms;rs{:?})",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
+            format_block_digests(&self.committed_header_refs),
             self.format_transaction_refs(),
             self.timestamp_ms,
             self.reputation_scores_desc
@@ -546,7 +663,7 @@ pub struct PendingSubDag {
     pub base: SubDagBase,
     /// References to blocks whose transactions were committed as part of this
     /// SubDag.
-    pub committed_transaction_refs: Vec<BlockRef>,
+    pub committed_transaction_refs: Vec<GenericTransactionRef>,
 }
 
 impl PendingSubDag {
@@ -554,7 +671,8 @@ impl PendingSubDag {
     pub fn new(
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
-        committed_transaction_refs: Vec<BlockRef>,
+        committed_header_refs: Vec<BlockRef>,
+        committed_transaction_refs: Vec<GenericTransactionRef>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
@@ -563,6 +681,7 @@ impl PendingSubDag {
             base: SubDagBase {
                 leader,
                 headers,
+                committed_header_refs,
                 timestamp_ms,
                 commit_ref,
                 reputation_scores_desc,
@@ -587,8 +706,8 @@ impl Display for PendingSubDag {
             "PendingSubDag(leader={}, ref={}, blocks=[{}], committed_transactions=[{}])",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
-            format_block_digests(&self.committed_transaction_refs),
+            format_block_digests(&self.committed_header_refs),
+            format_transaction_ref_digests(&self.committed_transaction_refs),
         )
     }
 }
@@ -600,8 +719,8 @@ impl fmt::Debug for PendingSubDag {
             "{}@{} ([{}];[{}];{}ms;rs{:?})",
             self.leader,
             self.commit_ref,
-            self.base.format_block_refs(),
-            format_block_digests(&self.committed_transaction_refs),
+            format_block_digests(&self.committed_header_refs),
+            format_transaction_ref_digests(&self.committed_transaction_refs),
             self.timestamp_ms,
             self.reputation_scores_desc
         )
@@ -618,7 +737,7 @@ pub(crate) fn sort_sub_dag_blocks(block_headers: &mut [VerifiedBlockHeader]) {
     })
 }
 
-// Recovers the full CommittedSubDag from block store, based on Commit.
+// Recovers PendingSubDAG from block store, based on Commit.
 pub fn load_pending_subdag_from_store(
     store: &dyn Store,
     commit: TrustedCommit,
@@ -626,14 +745,16 @@ pub fn load_pending_subdag_from_store(
 ) -> PendingSubDag {
     let mut leader_block_idx = None;
     let commit_block_headers = store
-        .read_verified_block_headers(commit.blocks())
-        .expect("We should have the block referenced in the commit data");
+        .read_verified_block_headers(commit.block_headers())
+        .expect("Block headers referenced in commit data should exist");
     let block_headers = commit_block_headers
         .into_iter()
         .enumerate()
         .map(|(idx, commit_block_opt)| {
-            let commit_block =
-                commit_block_opt.expect("We should have the block referenced in the commit data");
+            let commit_block = commit_block_opt.expect(
+                "Block header referenced in commit data should exist. \
+                 This could be due to unfinished fast syncing.",
+            );
             if commit_block.reference() == commit.leader() {
                 leader_block_idx = Some(idx);
             }
@@ -645,11 +766,25 @@ pub fn load_pending_subdag_from_store(
     PendingSubDag::new(
         leader_block_ref,
         block_headers,
-        commit.committed_transactions().to_vec(),
+        commit.block_headers().to_vec(),
+        commit.committed_transactions(),
         commit.timestamp_ms(),
         commit.reference(),
         reputation_scores_desc,
     )
+}
+
+fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) -> String {
+    let mut result = String::new();
+    for (idx, block) in transaction_refs.iter().enumerate() {
+        if idx > 0 {
+            result.push_str(", ");
+        }
+        result.push_str(&block.digest().to_string());
+        result.push('@');
+        result.push_str(&block.round().to_string());
+    }
+    result
 }
 
 fn format_block_digests(blocks: &[BlockRef]) -> String {
@@ -859,18 +994,20 @@ impl Debug for CommitRange {
 mod tests {
     use std::sync::Arc;
 
-    use super::*;
     use crate::{
+        BlockHeaderAPI, BlockTimestampMs, CommitDigest, VerifiedBlockHeader,
         block_header::{TestBlockHeader, VerifiedBlock},
+        commit::{CommitRange, TrustedCommit, WAVE_LENGTH, load_pending_subdag_from_store},
         context::Context,
         encoder::create_encoder,
-        storage::{WriteBatch, mem_store::MemStore},
+        storage::{Store, WriteBatch, mem_store::MemStore},
+        transaction_ref::convert_block_refs_to_generic_transaction_refs,
     };
 
     #[tokio::test]
     async fn test_new_committed_subdag_from_commit() {
-        let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
+        let store = Arc::new(MemStore::new(context.clone()));
         let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
@@ -909,6 +1046,7 @@ mod tests {
                 WriteBatch::default()
                     .block_headers(first_round_headers)
                     .transactions(first_round_transactions),
+                context.clone(),
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
@@ -931,6 +1069,7 @@ mod tests {
                         WriteBatch::default()
                             .block_headers(vec![block.verified_block_header.clone()])
                             .transactions(vec![block.verified_transactions.clone()]),
+                        context.clone(),
                     )
                     .unwrap();
                 new_ancestors.push(block.reference());
@@ -949,13 +1088,22 @@ mod tests {
         let leader_block = leader.unwrap();
         let leader_ref = leader_block.reference();
         let commit_index = 1;
+
+        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
+        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
+            &context,
+            store.as_ref(),
+            &first_round_references,
+        );
+
         let commit = TrustedCommit::new_for_test(
+            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            first_round_references.clone(),
+            generic_committed_transactions.clone(),
         );
 
         let subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
@@ -966,7 +1114,10 @@ mod tests {
             (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
-        assert_eq!(subdag.committed_transaction_refs, first_round_references);
+        assert_eq!(
+            subdag.committed_transaction_refs,
+            generic_committed_transactions
+        );
         assert_eq!(subdag.reputation_scores_desc, vec![]);
         let transactions = store
             .read_verified_transactions(&subdag.committed_transaction_refs)
@@ -979,9 +1130,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_new_pending_subdag_from_commit() {
-        let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
-
+        let store = Arc::new(MemStore::new(context.clone()));
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
         let num_authorities: u8 = 4;
@@ -998,7 +1148,10 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(WriteBatch::default().block_headers(first_round_headers))
+            .write(
+                WriteBatch::default().block_headers(first_round_headers),
+                context.clone(),
+            )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -1016,7 +1169,10 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
+                    .write(
+                        WriteBatch::default().block_headers(vec![block.clone()]),
+                        context.clone(),
+                    )
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
@@ -1034,13 +1190,22 @@ mod tests {
         let leader_block = leader.unwrap();
         let leader_ref = leader_block.reference();
         let commit_index = 1;
+
+        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
+        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
+            &context,
+            store.as_ref(),
+            &first_round_references,
+        );
+
         let commit = TrustedCommit::new_for_test(
+            &context,
             commit_index,
             CommitDigest::MIN,
             leader_block.timestamp_ms(),
             leader_ref,
             blocks.clone(),
-            first_round_references.clone(),
+            generic_committed_transactions.clone(),
         );
 
         let pending_subdag = load_pending_subdag_from_store(store.as_ref(), commit.clone(), vec![]);
@@ -1053,7 +1218,7 @@ mod tests {
         assert_eq!(pending_subdag.commit_ref, commit.reference());
         assert_eq!(
             pending_subdag.committed_transaction_refs,
-            first_round_references
+            generic_committed_transactions
         );
         assert_eq!(pending_subdag.reputation_scores_desc, vec![]);
     }

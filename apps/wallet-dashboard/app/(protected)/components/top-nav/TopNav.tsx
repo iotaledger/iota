@@ -8,6 +8,7 @@ import { Network } from '@iota/iota-sdk/client';
 import { toTitleCase, ThemeSwitcher, Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { Settings } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
+import { ampli } from '@/lib/utils/analytics';
 
 export function TopNav() {
     const { persistedNetwork } = usePersistedNetwork();
@@ -32,18 +33,21 @@ export function TopNav() {
                     persistedNetwork === Network.Mainnet ? BadgeType.PrimarySoft : BadgeType.Neutral
                 }
             />
-            <ConnectButton size="md" iotaNamesEnabled={iotaNamesEnabled} />
+            <div data-amp-mask>
+                <ConnectButton size="md" iotaNamesEnabled={iotaNamesEnabled} />
+            </div>
             <SettingsDialog
                 isOpen={isSettingsDialogOpen}
                 handleClose={onCloseSettingsDialogClick}
                 view={settingsDialogView}
                 setView={setSettingsDialogView}
             />
-            <ThemeSwitcher />
+            <ThemeSwitcher onThemeChange={(theme) => ampli.themeChanged({ theme })} />
             <Button
                 icon={<Settings />}
                 type={ButtonType.Ghost}
                 onClick={onOpenSettingsDialogClick}
+                aria-label="Settings"
             />
         </div>
     );

@@ -16,13 +16,13 @@ mod _accessor_impls {
             );
             self
         }
-        /// Sets `transactions` with the provided value.
+        /// Sets `executed_transactions` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_transactions<
+        pub fn with_executed_transactions<
             T: Into<super::super::transaction::ExecutedTransactions>,
         >(mut self, field: T) -> Self {
             self.payload = Some(
-                super::checkpoint_data::Payload::Transactions(field.into()),
+                super::checkpoint_data::Payload::ExecutedTransactions(field.into()),
             );
             self
         }
@@ -33,6 +33,15 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.payload = Some(super::checkpoint_data::Payload::Events(field.into()));
+            self
+        }
+        /// Sets `progress` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_progress<T: Into<super::checkpoint_data::Progress>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.payload = Some(super::checkpoint_data::Payload::Progress(field.into()));
             self
         }
         /// Sets `end_marker` with the provided value.
@@ -51,6 +60,13 @@ mod _accessor_impls {
         /// Sets `sequence_number` with the provided value.
         pub fn with_sequence_number(mut self, field: u64) -> Self {
             self.sequence_number = Some(field);
+            self
+        }
+    }
+    impl super::checkpoint_data::Progress {
+        /// Sets `latest_scanned_sequence_number` with the provided value.
+        pub fn with_latest_scanned_sequence_number(mut self, field: u64) -> Self {
+            self.latest_scanned_sequence_number = field;
             self
         }
     }
@@ -86,6 +102,16 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.events_filter = Some(field.into());
+            self
+        }
+        /// Sets `filter_checkpoints` with the provided value.
+        pub fn with_filter_checkpoints(mut self, field: bool) -> Self {
+            self.filter_checkpoints = Some(field);
+            self
+        }
+        /// Sets `progress_interval_ms` with the provided value.
+        pub fn with_progress_interval_ms(mut self, field: u32) -> Self {
+            self.progress_interval_ms = Some(field);
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.
@@ -173,6 +199,25 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.epoch = Some(field.into());
+            self
+        }
+    }
+    impl super::GetHealthRequest {
+        /// Sets `threshold_ms` with the provided value.
+        pub fn with_threshold_ms(mut self, field: u64) -> Self {
+            self.threshold_ms = Some(field);
+            self
+        }
+    }
+    impl super::GetHealthResponse {
+        /// Sets `executed_checkpoint_height` with the provided value.
+        pub fn with_executed_checkpoint_height(mut self, field: u64) -> Self {
+            self.executed_checkpoint_height = Some(field);
+            self
+        }
+        /// Sets `estimated_validator_latency_ms` with the provided value.
+        pub fn with_estimated_validator_latency_ms(mut self, field: u32) -> Self {
+            self.estimated_validator_latency_ms = Some(field);
             self
         }
     }
@@ -293,12 +338,12 @@ mod _accessor_impls {
         }
     }
     impl super::GetTransactionsResponse {
-        /// Sets `transactions` with the provided value.
-        pub fn with_transactions(
+        /// Sets `transaction_results` with the provided value.
+        pub fn with_transaction_results(
             mut self,
             field: Vec<super::TransactionResult>,
         ) -> Self {
-            self.transactions = field;
+            self.transaction_results = field;
             self
         }
         /// Sets `has_next` with the provided value.
@@ -361,14 +406,13 @@ mod _accessor_impls {
         }
     }
     impl super::TransactionResult {
-        /// Sets `transaction` with the provided value.
+        /// Sets `executed_transaction` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_transaction<T: Into<super::super::transaction::ExecutedTransaction>>(
-            mut self,
-            field: T,
-        ) -> Self {
+        pub fn with_executed_transaction<
+            T: Into<super::super::transaction::ExecutedTransaction>,
+        >(mut self, field: T) -> Self {
             self.result = Some(
-                super::transaction_result::Result::Transaction(field.into()),
+                super::transaction_result::Result::ExecutedTransaction(field.into()),
             );
             self
         }

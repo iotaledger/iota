@@ -26,6 +26,7 @@ async fn simulate_transaction_scenarios() {
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
         let effects = result
+            .body()
             .executed_transaction()
             .expect("Failed to get executed_transaction from simulation result")
             .effects()
@@ -47,11 +48,17 @@ async fn simulate_transaction_scenarios() {
     // Test: minimal read mask
     let transaction = create_transaction_for_simulation(&test_cluster).await;
     let result = client
-        .simulate_transaction(transaction, false, false, Some("transaction.effects"))
+        .simulate_transaction(
+            transaction,
+            false,
+            false,
+            Some("executed_transaction.effects"),
+        )
         .await
         .expect("Failed to simulate transaction with minimal mask");
 
     let effects = result
+        .body()
         .executed_transaction()
         .expect("Failed to get executed_transaction from simulation result")
         .effects()
@@ -106,6 +113,7 @@ async fn simulate_transaction_scenarios() {
         .expect("Simulation should succeed at RPC level");
 
     let effects = response
+        .body()
         .executed_transaction()
         .expect("Failed to get executed_transaction from simulation result")
         .effects()

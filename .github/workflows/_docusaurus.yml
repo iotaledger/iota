@@ -1,6 +1,11 @@
 name: Docusaurus Build
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: docusaurus-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -27,3 +32,13 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build
         run: pnpm iota-docs build
+
+  build-cancel:
+    needs: [build]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

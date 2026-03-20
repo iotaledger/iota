@@ -9,7 +9,7 @@ use std::{
 
 use parking_lot::RwLock;
 use starfish_config::{AuthorityIndex, Stake};
-use tracing::instrument;
+use tracing::{error, instrument};
 
 use crate::{
     Round,
@@ -21,6 +21,7 @@ use crate::{
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// The `StorageAPI` trait provides an interface for the block store and has
@@ -61,6 +62,13 @@ impl Linearizer {
             transactions_ack_tracker: BTreeMap::new(),
             traversed_headers_tracker: BTreeSet::new(),
         }
+    }
+
+    /// Reinitialize Linearizer after fast sync completes.
+    /// Clears tracked state for a fresh start.
+    pub(crate) fn clear_state(&mut self) {
+        self.transactions_ack_tracker.clear();
+        self.traversed_headers_tracker.clear();
     }
 
     /// Collect the sub-dag and the corresponding commit from a specific leader,
@@ -135,8 +143,38 @@ impl Linearizer {
             "Duplicate BlockRef found"
         );
 
+        // Convert BlockRef to GenericTransactionRef based on protocol flag
+        let committed_transactions_refs: Vec<GenericTransactionRef> =
+            if self.context.protocol_config.consensus_fast_commit_sync() {
+                // Use batch function to get transaction commitments efficiently
+                let dag_state_guard = self.dag_state.read();
+                let transactions_commitments =
+                    dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
+
+                // Zip block_refs with their corresponding transaction commitments
+                committed_transactions
+                    .into_iter()
+                    .zip(transactions_commitments)
+                    .map(|(block_ref, transactions_commitment_opt)| {
+                        let transactions_commitment = transactions_commitment_opt
+                            .expect("Block header must exist for committed transaction");
+                        GenericTransactionRef::TransactionRef(TransactionRef {
+                            round: block_ref.round,
+                            author: block_ref.author,
+                            transactions_commitment,
+                        })
+                    })
+                    .collect()
+            } else {
+                committed_transactions
+                    .into_iter()
+                    .map(GenericTransactionRef::BlockRef)
+                    .collect()
+            };
+
         // Create the Commit.
         let commit = Commit::new(
+            &self.context,
             last_commit_index + 1,
             last_commit_digest,
             timestamp_ms,
@@ -145,7 +183,8 @@ impl Linearizer {
                 .iter()
                 .map(|block| block.reference())
                 .collect::<Vec<BlockRef>>(),
-            committed_transactions,
+            committed_transactions_refs,
+            reputation_scores_desc.clone(),
         );
         let serialized = commit
             .serialize()
@@ -156,7 +195,8 @@ impl Linearizer {
         let sub_dag = PendingSubDag::new(
             leader_block.reference(),
             to_commit,
-            commit.committed_transactions().to_vec(),
+            commit.block_headers().to_vec(),
+            commit.committed_transactions(),
             timestamp_ms,
             commit.reference(),
             reputation_scores_desc,
@@ -271,18 +311,22 @@ impl Linearizer {
     pub(crate) fn evict_linearizer(&mut self, solid_commit_leader_round: Round) {
         let lower_bound_round =
             solid_commit_leader_round.saturating_sub(self.context.protocol_config.gc_depth() * 2);
-        let lower_bound = BlockRef::new(
+        let lower_header_bound = BlockRef::new(
             lower_bound_round + 1,
             AuthorityIndex::ZERO,
             BlockHeaderDigest::MIN,
         );
-        self.transactions_ack_tracker = self.transactions_ack_tracker.split_off(&lower_bound);
+
+        self.transactions_ack_tracker =
+            self.transactions_ack_tracker.split_off(&lower_header_bound);
         if self
             .context
             .protocol_config
             .consensus_commit_transactions_only_for_traversed_headers()
         {
-            self.traversed_headers_tracker = self.traversed_headers_tracker.split_off(&lower_bound);
+            self.traversed_headers_tracker = self
+                .traversed_headers_tracker
+                .split_off(&lower_header_bound);
         }
     }
 
@@ -328,12 +372,28 @@ impl Linearizer {
     /// have acknowledged this reference.
     pub fn get_transaction_ack_authors(
         &self,
-        missing_refs: Vec<BlockRef>,
-    ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        missing_refs: Vec<GenericTransactionRef>,
+    ) -> BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>> {
         let mut acknowledged_map = BTreeMap::new();
 
         for missing_ref in missing_refs {
-            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&missing_ref) {
+            let block_ref = match missing_ref {
+                GenericTransactionRef::BlockRef(br) => br,
+                GenericTransactionRef::TransactionRef(tx_ref) => {
+                    let dag = self.dag_state.read();
+                    match dag.resolve_block_ref(&tx_ref) {
+                        Some(br) => br,
+                        None => {
+                            error!(
+                                "block_digest not found for {tx_ref:?} in transactions_ack_tracker lookup; \
+                                 entry should exist since missing txns are above eviction boundary"
+                            );
+                            continue;
+                        }
+                    }
+                }
+            };
+            if let Some(acknowledgments) = self.transactions_ack_tracker.get(&block_ref) {
                 acknowledged_map.insert(missing_ref, acknowledgments.votes());
             }
         }
@@ -458,6 +518,7 @@ mod tests {
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
+        transaction_ref::GenericTransactionRefAPI,
     };
 
     #[tokio::test]
@@ -467,7 +528,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -526,12 +587,12 @@ mod tests {
                 // from 2 rounds before the leader round
                 assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
-            for header in subdag.headers.iter() {
-                assert!(header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round == leaders[idx].round() - 2);
+                assert!(committed_transactions_ref.round() == leaders[idx].round() - 2);
             }
 
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
@@ -545,7 +606,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         const NUM_OF_COMMITS_PER_SCHEDULE: u64 = 10;
         let leader_schedule = Arc::new(
@@ -572,13 +633,13 @@ mod tests {
 
         // Create some commits
         let commits = linearizer.get_pending_sub_dags(leaders.clone());
-
-        // Write them in DagState
-        dag_state
-            .write()
-            .add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
-        // Now update the leader schedule
-        leader_schedule.update_leader_schedule(&dag_state);
+        {
+            // Write them in DagState
+            let mut write = dag_state.write();
+            write.add_scoring_subdags(commits.iter().map(|d| d.base.clone()).collect());
+            // Now update the leader schedule
+            leader_schedule.update_leader_schedule(&mut write);
+        }
         assert!(
             leader_schedule.leader_schedule_updated(&dag_state),
             "Leader schedule should have been updated"
@@ -617,7 +678,7 @@ mod tests {
 
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -652,6 +713,7 @@ mod tests {
             .expect("Wave 1 leader round block should exist");
         let mut last_commit_index = 1;
         let first_commit_data = TrustedCommit::new_for_test(
+            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
@@ -696,6 +758,7 @@ mod tests {
 
         last_commit_index += 1;
         let expected_second_commit = TrustedCommit::new_for_test(
+            &context,
             last_commit_index,
             CommitDigest::MIN,
             0,
@@ -729,17 +792,9 @@ mod tests {
         // Using the same sorting as used in CommittedSubDag::sort
         block_refs_wave_2
             .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
-        assert_eq!(
-            subdag
-                .headers
-                .clone()
-                .into_iter()
-                .map(|b| b.reference())
-                .collect::<Vec<_>>(),
-            block_refs_wave_2
-        );
-        for header in subdag.headers.iter() {
-            assert!(header.round() <= expected_second_commit.leader().round);
+        assert_eq!(subdag.committed_header_refs, block_refs_wave_2);
+        for block_ref in subdag.base.committed_header_refs.iter() {
+            assert!(block_ref.round <= expected_second_commit.leader().round);
         }
     }
 
@@ -755,7 +810,7 @@ mod tests {
         let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -883,12 +938,12 @@ mod tests {
                     assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
                 }
             }
-            for header in subdag.headers.iter() {
-                assert!(header.round() <= leaders[idx].round());
+            for block_ref in subdag.base.committed_header_refs.iter() {
+                assert!(block_ref.round <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
-                assert!(committed_transactions_ref.round < leaders[idx].round());
+                assert!(committed_transactions_ref.round() < leaders[idx].round());
             }
             assert_eq!(subdag.commit_ref.index, idx as CommitIndex + 1);
         }
@@ -901,7 +956,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
-            Arc::new(MemStore::new()),
+            Arc::new(MemStore::new(context.clone())),
         )));
         let leader_schedule = Arc::new(LeaderSchedule::new(
             context.clone(),
@@ -932,8 +987,9 @@ mod tests {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| bh.reference())
+                .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
+
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             assert_eq!(ack_authors.len(), 4);
         }
@@ -945,7 +1001,7 @@ mod tests {
             let round_references: Vec<_> = dag_builder
                 .block_headers(round..=round)
                 .into_iter()
-                .map(|bh| bh.reference())
+                .map(|bh| GenericTransactionRef::from(bh.reference()))
                 .collect();
             let ack_authors = linearizer.get_transaction_ack_authors(round_references.clone());
             if round <= num_rounds_to_evict {
@@ -965,7 +1021,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let ancestors = vec![
             VerifiedBlockHeader::new_for_test(

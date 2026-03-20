@@ -58,6 +58,16 @@ fn build_tonic_services(out_dir: &Path) {
         )
         .method(
             tonic_build::manual::Method::builder()
+                .name("fetch_commits_and_transactions")
+                .route_name("FetchCommitsAndTransactions")
+                .input_type("crate::network::tonic_network::FetchCommitsAndTransactionsRequest")
+                .output_type("crate::network::tonic_network::FetchCommitsAndTransactionsResponse")
+                .codec_path(codec_path)
+                .server_streaming()
+                .build(),
+        )
+        .method(
+            tonic_build::manual::Method::builder()
                 .name("fetch_latest_block_headers")
                 .route_name("FetchLatestBlockHeaders")
                 .input_type("crate::network::tonic_network::FetchLatestBlockHeadersRequest")

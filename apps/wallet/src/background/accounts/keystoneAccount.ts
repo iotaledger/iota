@@ -29,12 +29,8 @@ export function isKeystoneAccountSerializedUI(
     return account.type === AccountType.KeystoneDerived;
 }
 
-type EphemeralData = {
-    unlocked: true;
-};
-
 export class KeystoneAccount
-    extends Account<KeystoneAccountSerialized, EphemeralData>
+    extends Account<KeystoneAccountSerialized>
     implements PasswordUnlockableAccount
 {
     readonly unlockType = 'password';
@@ -79,27 +75,29 @@ export class KeystoneAccount
         return this.getCachedData().then(({ sourceID }) => sourceID);
     }
 
-    async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+    async lock(): Promise<void> {
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
+            await (await this.#getKeystoneSource()).lock();
+            await this.onLocked();
+        }
     }
 
     async isLocked(): Promise<boolean> {
-        return !(await this.getEphemeralValue())?.unlocked;
+        return (await this.#getKeystoneSource()).isLocked();
     }
 
     async passwordUnlock(password?: string): Promise<void> {
         const keystoneSource = await this.#getKeystoneSource();
-        if ((await keystoneSource.isLocked()) && !password) {
-            throw new Error('Missing password to unlock the account');
-        }
-        if (password) {
+        const isLocked = await keystoneSource.isLocked();
+        if (isLocked) {
+            if (!password) {
+                throw new Error('Missing password to unlock the account');
+            }
+
             await keystoneSource.unlock(password);
+            await this.onUnlocked();
         }
-        await this.setEphemeralValue({
-            unlocked: true,
-        });
-        await this.onUnlocked();
     }
 
     async verifyPassword(password: string): Promise<void> {

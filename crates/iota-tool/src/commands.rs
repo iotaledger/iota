@@ -394,6 +394,14 @@ pub enum ToolCommand {
         )]
         sender_signed_data: String,
     },
+
+    /// Create an IOTA Genesis Ceremony with multiple remote validators.
+    GenesisCeremony(crate::genesis_ceremony::Ceremony),
+    /// Tool for Fire Drill
+    FireDrill {
+        #[command(subcommand)]
+        fire_drill: crate::fire_drill::FireDrill,
+    },
 }
 
 async fn check_locked_object(
@@ -1074,6 +1082,12 @@ impl ToolCommand {
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();
                 let result = agg.process_transaction(transaction, None).await;
                 println!("{result:?}");
+            }
+            ToolCommand::GenesisCeremony(cmd) => {
+                crate::genesis_ceremony::run(cmd).await?;
+            }
+            ToolCommand::FireDrill { fire_drill } => {
+                crate::fire_drill::run_fire_drill(fire_drill).await?;
             }
         };
         Ok(())

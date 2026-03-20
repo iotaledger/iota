@@ -3,6 +3,15 @@ name: Changesets CI
 on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - "apps/**"
+      - "sdk/**"
+      - "dapps/**"
+      - "docs/site/**"
+      - ".changeset/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
 
 jobs:
   validate:

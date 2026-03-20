@@ -59,14 +59,13 @@ class RustTestOrchestrator:
     
     # filter_set for tests that depend on the Move examples
     # iota-test-transaction-builder + iota-core provide functions that publish packages from the Move examples for other crates to use.
-    # iota-framework-tests, iota-json, iota-json-rpc-tests, iota-rosetta use the Move examples directly as part of their tests.
+    # iota-framework-tests, iota-json, iota-json-rpc-tests use the Move examples directly as part of their tests.
     FILTERSET_TESTS_MOVE_EXAMPLES_RDEPS = [
         "rdeps(iota-test-transaction-builder)",
         "rdeps(iota-core)",
         "package(iota-framework-tests)",
         "(package(iota-json) and test(test_basic_args_linter_top_level))",
-        "(package(iota-json-rpc-tests) and (test(try_get_past_object_deleted) or test(test_publish)))",
-        "(package(iota-rosetta) and test(test_publish_and_move_call))"
+        "(package(iota-json-rpc-tests) and (test(try_get_past_object_deleted) or test(test_publish)))"
     ]
     
     # initialize the orchestrator with configuration
@@ -98,6 +97,8 @@ class RustTestOrchestrator:
                 'tests_crates_external',
                 'tests_pg_integration',
                 'tests_move_examples_rdeps',
+                'filter_overwrite',
+                'filter_overwrite_external',
             }
             
             self.logger.info("Additional command line arguments:")
@@ -197,6 +198,7 @@ class RustTestOrchestrator:
             'simtest_timeout': get_arg_with_default('simtest_timeout', 180000),
             'base_branch': get_arg_with_default('base_branch', 'origin/develop'),
             'dry_run': get_arg_with_default('dry_run', False),
+            'no_fail_fast': get_arg_with_default('no_fail_fast', False),
         }
     
     # parse the crates-filters.yml file using regex.
@@ -552,6 +554,9 @@ class RustTestOrchestrator:
         if self.config['no_capture']:
             parts.append("--nocapture")
         
+        if self.config.get('no_fail_fast'):
+            parts.append("--no-fail-fast")
+        
         # Tests written with #[sim_test] are often flaky if run as #[tokio::test] - this var
         # causes #[sim_test] to only run under the deterministic `simtest` job, and not the
         # non-deterministic `test` job.
@@ -574,6 +579,9 @@ class RustTestOrchestrator:
         if self.config['no_capture']:
             parts.append("--nocapture")
         
+        if self.config.get('no_fail_fast'):
+            parts.append("--no-fail-fast")
+        
         # Set simtest timeout
         test_env = {
             'MSIM_WATCHDOG_TIMEOUT_MS': str(self.config['simtest_timeout'])
@@ -589,6 +597,8 @@ class RustTestOrchestrator:
                              tests_crates_external=False,
                              tests_pg_integration=False,
                              tests_move_example_used_by_others=False,
+                             filter_overwrite: str = None,
+                             filter_overwrite_external: str = None,
                              ) -> int:
         
         if test_type not in [self.TEST_TYPE_NEXTEST, self.TEST_TYPE_SIMTEST]:
@@ -607,16 +617,41 @@ class RustTestOrchestrator:
         restart_postgres = config['restart_postgres']
         
         # Early return if no conditions are set
-        if not any([tests_crates_workspace, tests_crates_external, tests_pg_integration, tests_move_example_used_by_others]):
+        if not any([
+            tests_crates_workspace,
+            tests_crates_external,
+            tests_pg_integration,
+            tests_move_example_used_by_others,
+            filter_overwrite,
+            filter_overwrite_external
+        ]):
             self.logger.error("No conditions are set to run tests. Exiting.")
             return 1
         
+        no_fail_fast = self.config.get('no_fail_fast', False)
+        first_failure = 0
+
+        def handle_result(res: int) -> Optional[int]:
+            """Returns the result to propagate immediately (fail-fast), or None to continue."""
+            nonlocal first_failure
+            if res != 0:
+                if first_failure == 0:
+                    first_failure = res
+                if not no_fail_fast:
+                    return res
+            return None
+
         # check if external crates are set
-        if tests_crates_external:
-            external_filter = self.build_filterset_changed_crates(
-                test_only_changed_crates, changed_crates_external, changed_crates_external_given,
-                "external-crates/move/crates/", ".github/external-crates-filters.yml"
-            )
+        if tests_crates_external or filter_overwrite_external:
+            external_filter = ""
+            if filter_overwrite_external:
+                self.logger.info(f"Using filter overwrite for external crates tests: \"{filter_overwrite_external}\"")
+                external_filter = filter_overwrite_external
+            else:
+                external_filter = self.build_filterset_changed_crates(
+                    test_only_changed_crates, changed_crates_external, changed_crates_external_given,
+                    "external-crates/move/crates/", ".github/external-crates-filters.yml"
+                )
             
             # If external_filter is None, it means no external crates changed,
             # so we shouldn't add any external tests
@@ -632,20 +667,32 @@ class RustTestOrchestrator:
                         "external-crates/move/Cargo.toml",
                         "tracing"
                     )
-                    if result != 0:
-                        return result
+                    if (propagate := handle_result(result)) is not None:
+                        return propagate
             else:
                 self.logger.info("Skipping external crates tests - no external crates changed")
         
         # check again if any of the other conditions are set, in case only external crates were set
-        if not any([tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others]):
-            return 0
+        if not any([
+            tests_crates_workspace,
+            tests_pg_integration,
+            tests_move_example_used_by_others,
+            filter_overwrite,
+        ]):
+            return first_failure
         
         # Build main test filter set
-        combined_set, tests_added = self.build_filterset_tests(
-            tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others,
-            test_only_changed_crates, changed_crates, changed_crates_given
-        )
+        combined_set, tests_added = "", False
+
+        if filter_overwrite:
+            self.logger.info(f"Using filter overwrite for main tests: \"{filter_overwrite}\"")
+            combined_set = filter_overwrite
+            tests_added = True
+        else:
+            combined_set, tests_added = self.build_filterset_tests(
+                tests_crates_workspace, tests_pg_integration, tests_move_example_used_by_others,
+                test_only_changed_crates, changed_crates, changed_crates_given
+            )
         
         if not tests_added:
             self.logger.error("No tests to run after building filter set. Exiting.")
@@ -658,8 +705,8 @@ class RustTestOrchestrator:
         # Run tests based on type
         if test_type == self.TEST_TYPE_NEXTEST:
             result = self.run_cargo_nextest(combined_set)
-            if result != 0:
-                return result
+            if (propagate := handle_result(result)) is not None:
+                return propagate
                 
             # Run special postgres shared runtime tests with cargo test
             if tests_pg_integration:
@@ -673,16 +720,18 @@ class RustTestOrchestrator:
                 rpc_test_cmd = "cargo test --profile simulator --package iota-indexer --test rpc-tests --all-features"
                 if self.config['no_capture']:
                     rpc_test_cmd += " --nocapture"
+                if self.config.get('no_fail_fast'):
+                    rpc_test_cmd += " --no-fail-fast"
                 result = self.print_and_run_command(rpc_test_cmd)
-                if result != 0:
-                    return result
+                if (propagate := handle_result(result)) is not None:
+                    return propagate
                     
         elif test_type == self.TEST_TYPE_SIMTEST:
             result = self.run_cargo_simtest(combined_set)
-            if result != 0:
-                return result
+            if (propagate := handle_result(result)) is not None:
+                return propagate
         
-        return 0
+        return first_failure
     
     ### Step execution methods
 
@@ -691,13 +740,18 @@ class RustTestOrchestrator:
                   tests_crates_workspace=False,
                   tests_crates_external=False,
                   tests_pg_integration=False,
-                  tests_move_example_used_by_others=False) -> int:
+                  tests_move_example_used_by_others=False,
+                  filter_overwrite: str = None,
+                  filter_overwrite_external: str = None,
+                  ) -> int:
         return self.filter_and_run_tests(
             self.TEST_TYPE_NEXTEST,
             tests_crates_workspace,
             tests_crates_external,
             tests_pg_integration,
             tests_move_example_used_by_others,
+            filter_overwrite,
+            filter_overwrite_external,
         )
     
     # run simtest with current configuration
@@ -705,13 +759,17 @@ class RustTestOrchestrator:
                      tests_crates_workspace=False,
                      tests_crates_external=False,
                      tests_pg_integration=False,
-                     tests_move_example_used_by_others=False) -> int:
+                     tests_move_example_used_by_others=False,
+                     filter_overwrite: str = None,
+                     filter_overwrite_external: str = None) -> int:
         return self.filter_and_run_tests(
             self.TEST_TYPE_SIMTEST,
             tests_crates_workspace,
             tests_crates_external,
             tests_pg_integration,
-            tests_move_example_used_by_others
+            tests_move_example_used_by_others,
+            filter_overwrite,
+            filter_overwrite_external,
         )
     
     # run stress tests for new tests to check for flakiness
@@ -818,6 +876,10 @@ PostgreSQL Environment variables (infrastructure config):
     parser.add_argument('--tests-pg-integration', action='store_true', help='Run PostgreSQL-dependent tests (in combination with `--run-tests` or `--run-sim-tests`)')
     parser.add_argument('--tests-move-examples-rdeps', action='store_true', help='Run tests for crates dependent on Move examples (in combination with `--run-tests` or `--run-sim-tests`)')
     
+    # Filter overwrite flags for "run-tests" and "run-sim-tests"
+    parser.add_argument('--filter-overwrite', type=str, help='Directly specify a filter set to overwrite the automatically built filter for main tests (in combination with `--run-tests` or `--run-sim-tests`). Example: --filter-overwrite "crate_a or rdeps(crate_b) or test(test_a)"')
+    parser.add_argument('--filter-overwrite-external', type=str, help='Directly specify a filter set to overwrite the automatically built filter for external crates tests (in combination with `--run-tests` or `--run-sim-tests`). Example: --filter-overwrite-external "crate_c or rdeps(crate_d) or test(test_b)"')
+
     # Configuration arguments
     parser.add_argument('--test-only-changed-crates', action='store_true', help='Only test changed crates (default: test all crates)')
     parser.add_argument('--changed-crates', type=str, help='Space-separated list of changed crates to test')
@@ -828,6 +890,7 @@ PostgreSQL Environment variables (infrastructure config):
     parser.add_argument('--simtest-timeout', type=int, help='Timeout in milliseconds for simulation tests (default: 180000)')
     parser.add_argument('--base-branch', type=str, help='Base branch to compare for changed crates detection if no changed crates are given (default: origin/develop)')
     parser.add_argument('--dry-run', action='store_true', help='Print commands that would be executed without actually running them')
+    parser.add_argument('--no-fail-fast', action='store_true', help='Continue running all test commands even if one fails, instead of stopping on the first failure. The script still exits with a non-zero code if any command failed.')
 
     parser.add_argument(
         '--verbose', '-v',
@@ -846,16 +909,20 @@ PostgreSQL Environment variables (infrastructure config):
         args.tests_crates_workspace, 
         args.tests_crates_external, 
         args.tests_pg_integration, 
-        args.tests_move_examples_rdeps
+        args.tests_move_examples_rdeps,
+        args.filter_overwrite,
+        args.filter_overwrite_external,
     ]):
-        parser.error("When using --run-tests or --run-sim-tests, at least one of the specific test type flags must be set: --tests-crates-workspace, --tests-crates-external, --tests-pg-integration, --tests-move-examples-rdeps")
+        parser.error("When using --run-tests or --run-sim-tests, at least one of the specific test type flags must be set: --tests-crates-workspace, --tests-crates-external, --tests-pg-integration, --tests-move-examples-rdeps, --filter-overwrite, --filter-overwrite-external")
 
     # Verify if any specific test type flag is set without "run_tests" or "run_sim_tests"
     if any([
         args.tests_crates_workspace, 
         args.tests_crates_external, 
         args.tests_pg_integration, 
-        args.tests_move_examples_rdeps
+        args.tests_move_examples_rdeps,
+        args.filter_overwrite,
+        args.filter_overwrite_external,
     ]) and not (args.run_tests or args.run_sim_tests):
         parser.error("Specific test type flags cannot be used without --run-tests or --run-sim-tests. Please specify which test type to run with the specific test type flags.")
 
@@ -896,7 +963,9 @@ PostgreSQL Environment variables (infrastructure config):
                         tests_crates_workspace=args.tests_crates_workspace,
                         tests_crates_external=args.tests_crates_external,
                         tests_pg_integration=args.tests_pg_integration,
-                        tests_move_example_used_by_others=args.tests_move_examples_rdeps
+                        tests_move_example_used_by_others=args.tests_move_examples_rdeps,
+                        filter_overwrite=args.filter_overwrite,
+                        filter_overwrite_external=args.filter_overwrite_external,
                     )
                 else:
                     result = step_method()
