@@ -147,16 +147,38 @@ interface ObjectDetailProps {
 }
 
 function ObjectDetail({ objectType, objectId, display }: ObjectDetailProps): JSX.Element | null {
+    if (display?.data) return <ObjectDisplay display={display} objectId={objectId} />;
+
+    if (!objectType) {
+        return (
+            <ObjectDetailPanel
+                headerContent={
+                    <div className="flex shrink-0 items-center gap-sm">
+                        <Badge type={BadgeType.Neutral} label="Object" />
+                        {objectId && (
+                            <div className="flex flex-col items-end gap-xxxs">
+                                <ObjectLink objectId={objectId} />
+                            </div>
+                        )}
+                    </div>
+                }
+                panelContent={
+                    <div className="flex flex-col gap-xs px-md--rs py-sm--rs pr-16">
+                        <KeyValueInfo keyText="Object ID" value={objectId} />
+                    </div>
+                }
+            />
+        );
+    }
+
     const separator = '::';
-    const objectTypeSplit = objectType?.split(separator) || [];
+    const objectTypeSplit = objectType.split(separator) || [];
     const typeName = objectTypeSplit.slice(2).join(separator);
     const { address, module, name } = parseStructTag(objectType);
 
     const objectDetailLabels = [ItemLabel.Package, ItemLabel.Module, ItemLabel.Type];
     const isIotaCoin = typeName?.startsWith('Coin');
     const typeArg = typeName?.match(/<([^>]+)>/)?.[1] || '';
-
-    if (display?.data) return <ObjectDisplay display={display} objectId={objectId} />;
 
     return (
         <ObjectDetailPanel

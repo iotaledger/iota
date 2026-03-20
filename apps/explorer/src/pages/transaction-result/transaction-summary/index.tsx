@@ -51,6 +51,7 @@ const EMPTY_OBJECT_SUMMARY: ObjectChangeSummary = {
     mutated: {},
     deleted: {},
     wrapped: {},
+    unwrapped: {},
     created: {},
 };
 

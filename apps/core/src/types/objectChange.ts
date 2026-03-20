@@ -9,6 +9,7 @@ export type IotaObjectChangeTypes =
     | 'mutated'
     | 'deleted'
     | 'wrapped'
+    | 'unwrapped'
     | 'created';
 
 export type WithDisplayFields<T> = T & { display?: DisplayFieldsResponse };
