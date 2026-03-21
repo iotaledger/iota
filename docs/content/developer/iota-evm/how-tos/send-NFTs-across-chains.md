@@ -142,8 +142,8 @@ approve step is also required, but the operations will happen on the `ONFT` cont
 
 ##### LayerZero
 
-- [LayerZero Endpoint V1](https://docs.layerzero.network/v1/developers/technical-reference/mainnet/mainnet-addresses)
-- [LayerZero explorer](https://Testnet.layerzeroscan.com/)
+- [LayerZero Endpoint V1](https://docs.layerzero.network/v1/deployments/deployed-contracts)
+- [LayerZero explorer](https://testnet.layerzeroscan.com/)
 
 ### Install the Library
 

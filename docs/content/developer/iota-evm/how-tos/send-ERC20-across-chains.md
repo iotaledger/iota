@@ -273,8 +273,6 @@ For a complete list of endpoint IDs, see [LayerZero Deployed Contracts](https://
 
 ## References
 
-- [LayerZero OFT Interface - quoteSend()](https://github.com/LayerZero-Labs/LayerZero-v2/blob/main/oapp/contracts/oft/interfaces/IOFT.sol#L127C60-L127C73)
-- [LayerZero OFT Interface - send()](https://github.com/LayerZero-Labs/LayerZero-v2/blob/main/oapp/contracts/oft/interfaces/IOFT.sol#L144)
-- [LayerZero OFT Interface - SendParam struct](https://github.com/LayerZero-Labs/LayerZero-v2/blob/main/oapp/contracts/oft/interfaces/IOFT.sol#L10)
+- [LayerZero OFT Documentation](https://docs.layerzero.network/developers/evm/oft/quickstart)
 - [@layerzerolabs/scan-client](https://www.npmjs.com/package/@layerzerolabs/scan-client#example-usage)
 - [LayerZero Explorer](https://layerzeroscan.com/)
