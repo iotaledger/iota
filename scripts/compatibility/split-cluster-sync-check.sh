@@ -26,7 +26,8 @@ RELEASE_CANDIDATE_COMMIT=${2:-origin/develop}
 
 # Abort if git repo is dirty
 if ! git diff-index --quiet HEAD --; then
-  echo "Git repo is dirty, aborting"
+  echo "ERROR: Git repo is dirty, aborting"
+  git diff-index --name-only HEAD --
   exit 1
 fi
 
@@ -81,7 +82,7 @@ mkdir -p "$METRICS_DIR"
 CONFIGS=()
 while IFS= read -r -d '' file; do
   CONFIGS+=("$file")
-done < <(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print0)
+done < <(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print0 | sort -z)
 
 export RUST_LOG=iota=debug,info
 
@@ -91,7 +92,10 @@ NODE_PIDS=()
 # Cleanup function to kill child processes on exit
 cleanup() {
   echo "Cleaning up..."
-  pkill -P $$
+  # SIGINT first for graceful shutdown
+  pkill -INT -P $$ 2>/dev/null
+  sleep 2
+  pkill -TERM -P $$ 2>/dev/null
   wait 2>/dev/null
 }
 trap cleanup EXIT
@@ -164,8 +168,49 @@ echo "Started node-2 (release) with PID ${NODE_PIDS[2]}"
 FULLNODE_PID=$!
 echo "Started fullnode with PID $FULLNODE_PID"
 
-echo "Waiting 3 minutes (180 seconds) for initial quorum to accumulate rounds..."
-sleep 180
+echo ""
+echo "=== Validator configs (sorted) ==="
+for i in "${!CONFIGS[@]}"; do
+  echo "  CONFIGS[$i]: ${CONFIGS[$i]}"
+done
+echo ""
+
+# Check initial startup after 5s
+sleep 5
+echo "=== Node status after 5s ==="
+EARLY_CRASH=false
+for i in 0 1 2; do
+  if kill -0 "${NODE_PIDS[$i]}" 2>/dev/null; then
+    echo "  node-$i (release, PID ${NODE_PIDS[$i]}): running"
+  else
+    wait "${NODE_PIDS[$i]}" 2>/dev/null
+    echo "  node-$i (release, PID ${NODE_PIDS[$i]}): CRASHED (exit code $?)"
+    EARLY_CRASH=true
+  fi
+done
+if kill -0 "$FULLNODE_PID" 2>/dev/null; then
+  echo "  fullnode (PID $FULLNODE_PID): running"
+else
+  wait "$FULLNODE_PID" 2>/dev/null
+  echo "  fullnode (PID $FULLNODE_PID): CRASHED (exit code $?)"
+  EARLY_CRASH=true
+fi
+
+if [ "$EARLY_CRASH" = true ]; then
+  echo ""
+  echo "ERROR: One or more nodes crashed within 5 seconds of startup!"
+  echo "=== Last 100 lines of each log ==="
+  for log in "$LOG_DIR"/*.log; do
+    echo "--- $(basename "$log") ---"
+    tail -100 "$log"
+    echo ""
+  done
+  exit 1
+fi
+
+echo ""
+echo "Waiting ~175 more seconds (180s total) for initial quorum to accumulate rounds..."
+sleep 175
 
 # Capture initial metrics from node-0
 get_metrics "${CONFIGS[0]}" "$METRICS_DIR/node-0-before-node3.txt"
@@ -299,8 +344,14 @@ echo "  Node-2 (release): $FINAL_NODE2_COMMIT"
 echo "  Node-3 (candidate): $FINAL_NODE3_COMMIT"
 
 echo -e "\n=== Shutting Down Cluster ==="
-kill ${NODE_PIDS[0]} ${NODE_PIDS[1]} ${NODE_PIDS[2]} ${NODE_PIDS[3]} $FULLNODE_PID 2>/dev/null
-pkill -P $$
+# SIGINT first for graceful shutdown, then SIGTERM
+for pid in ${NODE_PIDS[0]} ${NODE_PIDS[1]} ${NODE_PIDS[2]} ${NODE_PIDS[3]} $FULLNODE_PID; do
+  kill -INT "$pid" 2>/dev/null
+done
+sleep 3
+for pid in ${NODE_PIDS[0]} ${NODE_PIDS[1]} ${NODE_PIDS[2]} ${NODE_PIDS[3]} $FULLNODE_PID; do
+  kill -TERM "$pid" 2>/dev/null
+done
 wait 2>/dev/null
 
 # Print summary
@@ -330,6 +381,26 @@ else
     echo "  $failure"
   done
   echo ""
+  echo "=== Log file sizes ==="
+  for log in "$LOG_DIR"/*.log; do
+    echo "  $(basename "$log"): $(wc -l < "$log") lines, $(du -h "$log" | cut -f1)"
+  done
+  echo ""
+  echo "=== Last 100 lines of each log ==="
+  for log in "$LOG_DIR"/*.log; do
+    echo "--- $(basename "$log") ---"
+    tail -100 "$log"
+    echo ""
+  done
+  echo "=== Errors and panics across all logs ==="
+  for log in "$LOG_DIR"/*.log; do
+    ERRORS=$(grep -c -iE "panic|error|fatal|SIGSEGV|SIGABRT" "$log" 2>/dev/null || true)
+    if [ "$ERRORS" -gt 0 ]; then
+      echo "--- $(basename "$log") ($ERRORS error lines) ---"
+      grep -iE "panic|error|fatal|SIGSEGV|SIGABRT" "$log" | tail -30
+      echo ""
+    fi
+  done
   echo "Metrics available in: $METRICS_DIR"
   echo "Check metrics files for detailed sync statistics"
   exit 1
