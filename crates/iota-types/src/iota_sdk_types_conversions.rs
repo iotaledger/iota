@@ -435,7 +435,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .into_iter()
                         .map(|event| {
                             let module = Identifier::new(event.transaction_module.as_str());
-                            let type_ = struct_tag_core_to_sdk(event.type_);
+                            let type_ = struct_tag_core_to_sdk(event.tag);
 
                             match (module, type_) {
                                 (Ok(module), Ok(type_)) => Ok(Event {
@@ -569,7 +569,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                                     package_id: event.package_id.into(),
                                     transaction_module,
                                     sender: event.sender.into(),
-                                    type_,
+                                    tag: type_,
                                     contents: event.contents,
                                 }),
                                 _ => Err(SdkTypeConversionError(
@@ -1865,7 +1865,7 @@ impl TryFrom<crate::event::Event> for Event {
             package_id: value.package_id.into(),
             module: Identifier::new(value.transaction_module.as_str())?,
             sender: value.sender.into(),
-            type_: struct_tag_core_to_sdk(value.type_)?,
+            type_: struct_tag_core_to_sdk(value.tag)?,
             contents: value.contents,
         }
         .pipe(Ok)
@@ -1880,7 +1880,7 @@ impl TryFrom<Event> for crate::event::Event {
             package_id: value.package_id.into(),
             transaction_module: crate::Identifier::new(value.module.as_str())?,
             sender: value.sender.into(),
-            type_: struct_tag_sdk_to_core(&value.type_)?,
+            tag: struct_tag_sdk_to_core(&value.type_)?,
             contents: value.contents,
         }
         .pipe(Ok)

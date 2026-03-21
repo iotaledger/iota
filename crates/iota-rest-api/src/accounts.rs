@@ -72,7 +72,7 @@ async fn list_account_objects(
                         owner: info.owner.into(),
                         object_id: info.object_id.into(),
                         version: info.version.into(),
-                        type_: struct_tag_core_to_sdk(info.type_.into())?,
+                        tag: struct_tag_core_to_sdk(info.tag.into())?,
                     }
                     .pipe(Ok)
                 })
@@ -120,5 +120,5 @@ pub struct AccountOwnedObjectInfo {
     #[schemars(with = "crate::_schemars::U64")]
     pub version: Version,
     #[serde(rename = "type")]
-    pub type_: StructTag,
+    pub tag: StructTag,
 }

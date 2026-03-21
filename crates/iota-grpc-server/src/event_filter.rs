@@ -157,10 +157,10 @@ impl EventFilter {
                         || matches!(module,  Some(m2) if m2 == &item.transaction_module))
             }
             EventFilter::MoveEventPackageAndModule { package, module } => {
-                ObjectID::from(item.type_.address) == *package
-                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.type_.module))
+                ObjectID::from(item.tag.address) == *package
+                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.tag.module))
             }
-            EventFilter::MoveEventType(event_type) => item.type_ == *event_type,
+            EventFilter::MoveEventType(event_type) => item.tag == *event_type,
         }
     }
 

@@ -526,8 +526,8 @@ mod checked {
         used_in_non_entry_move_call: bool,
     ) -> Result<Value, ExecutionError> {
         Ok(match value_info {
-            ValueKind::Object { type_, .. } => Value::Object(context.make_object_value(
-                type_,
+            ValueKind::Object { tag, .. } => Value::Object(context.make_object_value(
+                tag,
                 used_in_non_entry_move_call,
                 &bytes,
             )?),
@@ -1230,7 +1230,7 @@ mod checked {
     /// Used to remember type information about a type when resolving the
     /// signature
     enum ValueKind {
-        Object { type_: MoveObjectType },
+        Object { tag: MoveObjectType },
         Raw(Type, AbilitySet),
     }
 
@@ -1425,7 +1425,7 @@ mod checked {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
                         ValueKind::Object {
-                            type_: MoveObjectType::from(*struct_tag),
+                            tag: MoveObjectType::from(*struct_tag),
                         }
                     }
                     Type::Datatype(_)
@@ -1588,8 +1588,8 @@ mod checked {
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        let type_ = (*struct_tag).into();
-                        ValueKind::Object { type_ }
+                        let tag = (*struct_tag).into();
+                        ValueKind::Object { tag }
                     } else {
                         let abilities = context
                             .vm

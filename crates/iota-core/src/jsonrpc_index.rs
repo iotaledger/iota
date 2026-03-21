@@ -738,7 +738,7 @@ impl IndexStore {
             &self.tables.event_by_move_event,
             events.data.iter().enumerate().map(|(i, e)| {
                 (
-                    (e.type_.clone(), (sequence, i)),
+                    (e.tag.clone(), (sequence, i)),
                     (event_digest, *digest, timestamp_ms),
                 )
             }),
@@ -759,7 +759,7 @@ impl IndexStore {
             events.data.iter().enumerate().map(|(i, e)| {
                 (
                     (
-                        ModuleId::new(e.type_.address, e.type_.module.clone()),
+                        ModuleId::new(e.tag.address, e.tag.module.clone()),
                         (sequence, i),
                     ),
                     (event_digest, *digest, timestamp_ms),

@@ -118,13 +118,13 @@ impl EventHandler {
                 package_id,
                 transaction_module,
                 sender,
-                type_,
+                tag,
                 contents,
             } = event;
             let layout = state
                 .resolver
                 .type_layout(move_core_types::language_storage::TypeTag::Struct(
-                    Box::new(type_.clone()),
+                    Box::new(tag.clone()),
                 ))
                 .await?;
             let move_value = MoveValue::simple_deserialize(contents, &layout)?;
@@ -138,7 +138,7 @@ impl EventHandler {
                 sender: sender.to_string(),
                 package: package_id.to_string(),
                 module: transaction_module.to_string(),
-                event_type: type_.to_string(),
+                event_type: tag.to_string(),
                 bcs: Base64::encode(contents.clone()),
                 event_json: event_json.to_string(),
             };

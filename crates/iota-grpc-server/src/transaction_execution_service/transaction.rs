@@ -175,7 +175,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
                         message.json_contents = crate::utils::render_json(
                             source.reader.clone(),
                             source.config.max_json_move_value_size,
-                            &iota_types::TypeTag::Struct(Box::new(event.type_.clone())),
+                            &iota_types::TypeTag::Struct(Box::new(event.tag.clone())),
                             &event.contents,
                         );
                     }

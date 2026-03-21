@@ -555,7 +555,7 @@ impl InMemory {
                 senders: vec![Some(native.sender.to_vec())],
                 package: native.package_id.to_vec(),
                 module: native.transaction_module.to_string(),
-                event_type: native.type_.to_canonical_string(with_prefix),
+                event_type: native.tag.to_canonical_string(with_prefix),
                 timestamp_ms: tx.timestamp_ms,
                 bcs: native.contents,
             })

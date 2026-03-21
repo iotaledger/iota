@@ -970,7 +970,7 @@ impl ReadApiServer for ReadApi {
                         .into_iter()
                         .enumerate()
                         .map(|(seq, e)| {
-                            let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.type_)?;
+                            let layout = store.executor().type_layout_resolver(Box::new(&state.get_backing_package_store().as_ref())).get_annotated_layout(&e.tag)?;
                             IotaEvent::try_from(e, transaction_digest, seq as u64, None, layout)
                         })
                         .collect::<Result<Vec<_>, _>>()

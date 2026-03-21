@@ -133,7 +133,7 @@ impl StoredEvent {
             package_id,
             transaction_module: Identifier::from_str(&self.module)?,
             sender,
-            type_,
+            tag: type_,
             bcs: BcsEvent::new(self.bcs),
             parsed_json,
             timestamp_ms: Some(self.timestamp_ms as u64),

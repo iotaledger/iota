@@ -575,7 +575,7 @@ impl RestIndexes for RestIndexStore {
                         owner,
                         object_id,
                         version,
-                        type_,
+                        tag: type_,
                     }
                 },
             )

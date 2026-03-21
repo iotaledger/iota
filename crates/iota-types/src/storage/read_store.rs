@@ -882,7 +882,7 @@ pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
     pub version: SequenceNumber,
-    pub type_: MoveObjectType,
+    pub tag: MoveObjectType,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]

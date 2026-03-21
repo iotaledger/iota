@@ -105,7 +105,8 @@ pub struct Event {
     pub package_id: ObjectID,
     pub transaction_module: Identifier,
     pub sender: IotaAddress,
-    pub type_: StructTag,
+    #[serde(rename = "type_")]
+    pub tag: StructTag,
     #[serde_as(as = "Bytes")]
     pub contents: Vec<u8>,
 }
@@ -115,14 +116,14 @@ impl Event {
         package_id: &AccountAddress,
         module: &IdentStr,
         sender: IotaAddress,
-        type_: StructTag,
+        tag: StructTag,
         contents: Vec<u8>,
     ) -> Self {
         Self {
             package_id: ObjectID::from(*package_id),
             transaction_module: Identifier::from(module),
             sender,
-            type_,
+            tag,
             contents,
         }
     }
@@ -138,15 +139,15 @@ impl Event {
     }
 
     pub fn is_system_epoch_info_event_v1(&self) -> bool {
-        self.type_.address == IOTA_SYSTEM_ADDRESS
-            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
+        self.tag.address == IOTA_SYSTEM_ADDRESS
+            && self.tag.module.as_ident_str() == ident_str!("iota_system_state_inner")
+            && self.tag.name.as_ident_str() == ident_str!("SystemEpochInfoEventV1")
     }
 
     pub fn is_system_epoch_info_event_v2(&self) -> bool {
-        self.type_.address == IOTA_SYSTEM_ADDRESS
-            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
-            && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
+        self.tag.address == IOTA_SYSTEM_ADDRESS
+            && self.tag.module.as_ident_str() == ident_str!("iota_system_state_inner")
+            && self.tag.name.as_ident_str() == ident_str!("SystemEpochInfoEventV2")
     }
 
     pub fn is_system_epoch_info_event(&self) -> bool {
@@ -160,7 +161,7 @@ impl Event {
             package_id: ObjectID::random(),
             transaction_module: Identifier::new("test").unwrap(),
             sender: AccountAddress::random().into(),
-            type_: StructTag {
+            tag: StructTag {
                 address: AccountAddress::random(),
                 module: Identifier::new("test").unwrap(),
                 name: Identifier::new("test").unwrap(),

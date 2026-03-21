@@ -497,7 +497,7 @@ impl From<MoveValue> for IotaMoveValue {
                 tag: _,
                 fields,
             }) => IotaMoveValue::Variant(IotaMoveVariant {
-                type_,
+                tag: type_,
                 variant: variant_name.to_string(),
                 fields: fields
                     .into_iter()
@@ -533,7 +533,7 @@ pub struct IotaMoveVariant {
     #[schemars(with = "String")]
     #[serde(rename = "type")]
     #[serde_as(as = "IotaStructTag")]
-    pub type_: StructTag,
+    pub tag: StructTag,
     pub variant: String,
     pub fields: BTreeMap<String, IotaMoveValue>,
 }
@@ -558,12 +558,12 @@ impl Display for IotaMoveVariant {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         let IotaMoveVariant {
-            type_,
+            tag,
             variant,
             fields,
         } = self;
         writeln!(writer)?;
-        writeln!(writer, "  {}: {type_}", "type".bold().bright_black())?;
+        writeln!(writer, "  {}: {tag}", "type".bold().bright_black())?;
         writeln!(writer, "  {}: {variant}", "variant".bold().bright_black())?;
         for (name, value) in fields {
             let value = format!("{value}");

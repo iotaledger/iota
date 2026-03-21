@@ -67,7 +67,7 @@ impl DisplayVersionUpdatedEvent {
     }
 
     pub fn try_from_event(event: &Event) -> Option<(&StructTag, Self)> {
-        let inner_type = Self::inner_type(&event.type_)?;
+        let inner_type = Self::inner_type(&event.tag)?;
 
         bcs::from_bytes(&event.contents)
             .ok()
