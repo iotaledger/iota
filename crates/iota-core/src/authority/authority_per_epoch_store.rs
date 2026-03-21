@@ -138,6 +138,8 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
+#[path = "misbehavior_config.rs"]
+pub(crate) mod misbehavior_config;
 #[path = "misbehavior_monitor.rs"]
 pub(crate) mod misbehavior_monitor;
 #[path = "scorer.rs"]
