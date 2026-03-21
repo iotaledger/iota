@@ -142,6 +142,8 @@ pub(crate) mod consensus_quarantine;
 pub(crate) mod misbehavior_config;
 #[path = "misbehavior_monitor.rs"]
 pub(crate) mod misbehavior_monitor;
+#[path = "report_aggregator.rs"]
+pub(crate) mod report_aggregator;
 #[path = "scorer.rs"]
 pub(crate) mod scorer;
 
