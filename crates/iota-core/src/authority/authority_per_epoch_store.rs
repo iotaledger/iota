@@ -96,7 +96,10 @@ use super::{
 use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
-        authority_per_epoch_store::misbehavior_monitor::MisbehaviorMonitor,
+        authority_per_epoch_store::{
+            misbehavior_config::MisbehaviorConfig, misbehavior_monitor::MisbehaviorMonitor,
+            report_aggregator::ReportAggregator,
+        },
         epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
@@ -682,10 +685,11 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
-    pub(crate) misbehavior_monitor: Arc<MisbehaviorMonitor>,
-    /// Component including the local view about the other authorities'
-    /// misbehavior metrics, and received reports.
-    pub(crate) scorer: Arc<Scorer>,
+    pub(crate) misbehavior_monitor: MisbehaviorMonitor,
+    /// Aggregates incoming misbehavior reports from peers.
+    pub(crate) report_aggregator: ReportAggregator,
+    /// Pure score computation engine.
+    pub(crate) scorer: Scorer,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -1138,9 +1142,11 @@ impl AuthorityPerEpochStore {
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
         let committee_size = committee.num_members();
-        let misbehavior_monitor =
-            Arc::new(MisbehaviorMonitor::new(&protocol_config, committee_size));
+        let misbehavior_config = MisbehaviorConfig::from_protocol(&protocol_config);
+        let misbehavior_monitor = MisbehaviorMonitor::new(&protocol_config, committee_size);
+        let report_aggregator = ReportAggregator::new(&misbehavior_config, committee_size);
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+        let scorer = Scorer::new(voting_power, &protocol_config, &misbehavior_config);
 
         let s = Arc::new(Self {
             name,
@@ -1177,12 +1183,9 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            scorer: Arc::new(Scorer::new(
-                voting_power,
-                &protocol_config,
-                &misbehavior_monitor,
-            )),
             misbehavior_monitor,
+            report_aggregator,
+            scorer,
         });
 
         s.update_buffer_stake_metric();
@@ -2869,7 +2872,7 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(authority, _, _),
+                kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -2877,8 +2880,30 @@ impl AuthorityPerEpochStore {
                         "MisbehaviorReport authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
                     );
-                    self.scorer
-                        .update_invalid_reports_count(transaction.certificate_author_index);
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
+                }
+                if !self.protocol_config().calculate_validator_scores() {
+                    warn!(
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
+                        authority.concise()
+                    );
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
+                }
+                // Check validity of the report.
+                if !self
+                    .report_aggregator
+                    .validate_report(report, self.committee.num_members())
+                {
+                    warn!(
+                        "Received invalid misbehavior report from {:?}",
+                        authority.concise()
+                    );
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
                     return None;
                 }
             }
@@ -3204,6 +3229,13 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker,
             )
             .await?;
+        // Update scores on the consensus handler thread, right after processing
+        // reports and snapshotting. This avoids cross-thread reads of the
+        // aggregator — the checkpoint service only reads the final scores
+        // (Vec<AtomicU64>).
+        if self.protocol_config().calculate_validator_scores() {
+            self.scorer.update_scores(&self.report_aggregator);
+        }
         self.finish_consensus_certificate_process(&verified_transactions);
         output.record_consensus_commit_stats(consensus_stats.clone());
 
@@ -4154,22 +4186,30 @@ impl AuthorityPerEpochStore {
                 kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
                 ..
             }) => {
-                let authority_index = self
-                    .committee
-                    .authority_index(authority)
-                    .expect("authority in committee");
-                // Check validity of the report and update scores depending on the result. We
-                // already have consensus on inclusion of this report in the DAG.
-                if !report.verify(self.committee.num_members()) {
-                    self.scorer.update_invalid_reports_count(authority_index);
+                if !self.protocol_config().calculate_validator_scores() {
                     warn!(
-                        "Received invalid misbehavior report from {:?}",
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
                         authority.concise()
                     );
+                    return Ok(ConsensusCertificateResult::ConsensusMessage);
+                }
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    let authority_index = self
+                        .committee
+                        .authority_index(authority)
+                        .expect("authority in committee");
+                    // Here we update all counts related to the information in the
+                    // reports.
+                    self.report_aggregator
+                        .process_report(authority_index, report);
                 } else {
-                    // Here we update all counts related to the information in
-                    // the reports.
-                    self.scorer.update_received_reports(authority_index, report);
+                    debug!(
+                        "Ignoring misbehavior report from {:?} because of end of epoch",
+                        authority.concise()
+                    );
                 }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
