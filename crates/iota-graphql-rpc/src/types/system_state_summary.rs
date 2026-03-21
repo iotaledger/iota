@@ -169,7 +169,7 @@ impl From<NativeSystemStateSummary> for NativeStateValidatorInfo {
                 inner.validator_candidates_id,
                 inner.validator_candidates_size,
             ),
-            _ => unimplemented!(),
+            _ => unimplemented!("a new IotaSystemStateSummary variant was added and needs to be handled"),
         };
         Self {
             active_validators,
