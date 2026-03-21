@@ -1,7 +1,10 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
 
 use arc_swap::ArcSwap;
 use iota_protocol_config::ProtocolConfig;
@@ -202,6 +205,17 @@ pub struct MisbehaviorMonitor {
     // about the behaviour of the rest of the committee, according to the blocks received.
     pub(crate) current_local_metrics_count: ArcSwap<MisbehaviorCounts>,
     pub(crate) version: MisbehaviorMonitorVersion,
+    // Summary of the last MisbehaviorReport this node submitted, defined as the sum of all
+    // metrics across authorities. Since reported counts are monotonically non-decreasing within
+    // an epoch, the summary is also monotonic. Used to skip submitting reports when nothing has
+    // changed since the last submission (rate limiting).
+    last_report_summary: AtomicU64,
+    // Sequence number of the last checkpoint at which this node submitted a report. Used together
+    // with `MIN_CHECKPOINTS_BETWEEN_REPORTS` to rate-limit submissions.
+    last_report_checkpoint_seq: AtomicU64,
+    // Whether this node has already submitted a report close to the epoch end. Ensures the
+    // end-of-epoch report is sent at most once per epoch.
+    has_sent_end_of_epoch_report: AtomicBool,
 }
 
 impl MisbehaviorMonitor {
@@ -217,7 +231,36 @@ impl MisbehaviorMonitor {
         Self {
             current_local_metrics_count,
             version,
+            last_report_summary: AtomicU64::new(0),
+            last_report_checkpoint_seq: AtomicU64::new(0),
+            has_sent_end_of_epoch_report: AtomicBool::new(false),
         }
+    }
+
+    pub(crate) fn last_report_summary(&self) -> u64 {
+        self.last_report_summary.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn store_last_report_summary(&self, summary: u64) {
+        self.last_report_summary.store(summary, Ordering::Relaxed)
+    }
+
+    pub(crate) fn last_report_checkpoint_seq(&self) -> u64 {
+        self.last_report_checkpoint_seq.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn store_last_report_checkpoint_seq(&self, seq: u64) {
+        self.last_report_checkpoint_seq
+            .store(seq, Ordering::Relaxed)
+    }
+
+    pub(crate) fn has_sent_end_of_epoch_report(&self) -> bool {
+        self.has_sent_end_of_epoch_report.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn mark_end_of_epoch_report_sent(&self) {
+        self.has_sent_end_of_epoch_report
+            .store(true, Ordering::Relaxed);
     }
 
     pub fn generate_report(&self) -> VersionedMisbehaviorReport {

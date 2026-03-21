@@ -147,9 +147,10 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             >= self
                 .next_reconfiguration_timestamp_ms
                 .saturating_sub(REPORT_END_OF_EPOCH_MARGIN_MS)
-            && !epoch_store.scorer.has_sent_end_of_epoch_report();
+            && !epoch_store.misbehavior_monitor.has_sent_end_of_epoch_report();
         if epoch_store.protocol_config().calculate_validator_scores()
-            && ((checkpoint_seq.saturating_sub(epoch_store.scorer.last_report_checkpoint_seq())
+            && ((checkpoint_seq
+                .saturating_sub(epoch_store.misbehavior_monitor.last_report_checkpoint_seq())
                 >= MIN_CHECKPOINTS_BETWEEN_REPORTS
                 && Some(checkpoint_seq + MAX_CHECKPOINT_LAG_FOR_REPORT)
                     >= highest_verified_checkpoint)
@@ -157,7 +158,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         {
             let misbehavior_report = epoch_store.misbehavior_monitor.generate_report();
             let new_report_summary = misbehavior_report.summary();
-            if new_report_summary != epoch_store.scorer.last_report_summary()
+            if new_report_summary != epoch_store.misbehavior_monitor.last_report_summary()
                 || should_send_last_report
             {
                 let transaction = ConsensusTransaction::new_misbehavior_report(
@@ -169,13 +170,15 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 self.sender
                     .submit_to_consensus(&[transaction], epoch_store)?;
                 epoch_store
-                    .scorer
+                    .misbehavior_monitor
                     .store_last_report_summary(new_report_summary);
                 epoch_store
-                    .scorer
+                    .misbehavior_monitor
                     .store_last_report_checkpoint_seq(checkpoint_seq);
                 if should_send_last_report {
-                    epoch_store.scorer.mark_end_of_epoch_report_sent();
+                    epoch_store
+                        .misbehavior_monitor
+                        .mark_end_of_epoch_report_sent();
                 }
             }
         }
