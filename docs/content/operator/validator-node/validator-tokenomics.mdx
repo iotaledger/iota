@@ -63,9 +63,11 @@ Importantly, the gas object's value persists across epochs so that a validator w
 
 ## Validator Slashing and Tallying Rule
 
-IOTA is designed to encourage and enforce community monitoring of the validator set. This is done through the Tallying Rule by which each validator monitors and scores every other validator in order to ensure that everyone is operating efficiently and in the network's best interest. Validators that receive a low score can be penalized with slashed stake rewards.
+IOTA is designed to encourage and enforce community monitoring of the validator set. This is done through the Tallying Rule by which each validator monitors and assigns a binary score (0 or 1) to every other validator in order to ensure that everyone is operating efficiently and in the network's best interest. Validators that receive a low score can be penalized with slashed stake rewards.
 
-The protocol only computes the global Tallying Rule score at the epoch boundary and so relies on validators monitoring actively and changing their individual scores whenever they detect changes in other validator behavior. In general, the Tallying Rule default option should always be a score of one for all validators and only be changed to zero upon determining bad operations. In practice, the Tallying Rule consists of a set of objects each validator owns that default to scores of one and thus a validator will generally be passive and only update the object corresponding to another validator's score whenever needed.
+At the epoch boundary, the protocol computes a global Tallying Rule score for each validator by taking the **stake-weighted median** of all individual scores assigned to that validator. A global score of 1 means the validator receives full stake rewards; a global score of 0 means slashed rewards. The protocol relies on validators actively monitoring each other and updating scores whenever they detect changes in behavior.
+
+In practice, the Tallying Rule default score is 1 for all validators and should only be changed to 0 upon determining bad operations. Each validator owns a set of score objects that default to 1, so a validator will generally be passive and only update the score for another validator when needed.
 
 For example, to report a validator whose IOTA address is `0x44840a79dd5cf1f5efeff1379f5eece04c72db13512a2e31e8750f5176285446` as bad or non-performant, run:
 
@@ -73,6 +75,8 @@ For example, to report a validator whose IOTA address is `0x44840a79dd5cf1f5efef
 iota client call --package <PACKAGE-ID> --module iota_system --function report_validator --args 0x5 0x44840a79dd5cf1f5efeff1379f5eece04c72db13512a2e31e8750f5176285446 --gas-budget <GAS-AMOUNT>
 ```
 
-The Tallying Rule should be implemented through a social equilibrium. The validator set should actively monitor itself and if one validator is clearly non-performant, then the other validators should score that validator with a 0 and slash its rewards. Community members can launch public dashboards tracking validator performance and that can be used as further signal into a validator's operations. There is no limit on the number of validators that can receive a 0 tallying score in an epoch.
+The Tallying Rule is enforced through a social equilibrium. The validator set should actively monitor itself, and if a validator is clearly non-performant, the other validators should score that validator with a 0 to slash its rewards. Community members can launch public dashboards tracking validator performance to provide additional signal for scoring decisions. There is no limit on the number of validators that can receive a 0 tallying score in an epoch.
+
+For more details on gas pricing, the tallying rule, and how transaction fees work, see the [Gas Pricing and Transaction Fees](/about-iota/tokenomics/gas-in-iota) documentation.
 
 <Quiz questions={questions} />

@@ -275,6 +275,10 @@ const config = {
             {
               from: '/about-iota/iota-wallet/how-to/integrate-ledger',
               to: '/users/iota-wallet/how-to/import/ledger'
+            },
+            {
+              from: '/about-iota/tokenomics/gas-pricing',
+              to: '/about-iota/tokenomics/gas-in-iota'
             }
           ];
           let paths = [];
