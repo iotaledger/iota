@@ -14,9 +14,9 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use futures::{
-    FutureExt, StreamExt,
-    future::{Either, join_all, select},
-    stream::FuturesUnordered,
+    future::{join_all, select, Either}, stream::FuturesUnordered,
+    FutureExt,
+    StreamExt,
 };
 use iota_common::{
     fatal,
@@ -72,12 +72,12 @@ use tap::TapOptional;
 use tokio::{sync::OnceCell, time::Instant};
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
-    DBMapUtils, Map,
     rocks::{
-        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
-        read_size_from_env,
-    },
-    rocksdb::Options,
+        default_db_options, read_size_from_env, DBBatch, DBMap, DBOptions, MetricConf,
+        ReadWriteOptions,
+    }, rocksdb::Options,
+    DBMapUtils,
+    Map,
 };
 
 use super::{
@@ -86,18 +86,21 @@ use super::{
     shared_object_congestion_tracker::{
         ExecutionTime, SequencingResult, SharedObjectCongestionTracker,
     },
-    transaction_deferral::{DeferralKey, DeferralReason, transaction_deferral_within_limit},
+    transaction_deferral::{transaction_deferral_within_limit, DeferralKey, DeferralReason},
 };
 use crate::{
     authority::{
-        AuthorityMetrics, ResolverWrapper,
-        authority_per_epoch_store::misbehavior_monitor::MisbehaviorMonitor,
-        epoch_start_configuration::EpochStartConfiguration,
+        authority_per_epoch_store::{
+            misbehavior_config::MisbehaviorConfig, misbehavior_monitor::MisbehaviorMonitor,
+            report_aggregator::ReportAggregator,
+        }, epoch_start_configuration::EpochStartConfiguration,
         shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
         suggested_gas_price_calculator::SuggestedGasPriceCalculator,
+        AuthorityMetrics,
+        ResolverWrapper,
     },
     checkpoints::{
         BuilderCheckpointSummary, CheckpointHeight, CheckpointServiceNotify, EpochStats,
@@ -110,12 +113,12 @@ use crate::{
     epoch::{
         epoch_metrics::EpochMetrics,
         randomness::{
-            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, SINGLETON_KEY,
-            VersionedProcessedMessage, VersionedUsedProcessedMessages,
+            CommitTimestampMs, DkgStatus, RandomnessManager, RandomnessReporter, VersionedProcessedMessage,
+            VersionedUsedProcessedMessages, SINGLETON_KEY,
         },
         reconfiguration::ReconfigState,
     },
-    execution_cache::{ObjectCacheRead, TransactionCacheRead, cache_types::CacheResult},
+    execution_cache::{cache_types::CacheResult, ObjectCacheRead, TransactionCacheRead},
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     post_consensus_tx_reorder::PostConsensusTxReorder,
@@ -673,10 +676,11 @@ pub struct AuthorityPerEpochStore {
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
 
-    pub(crate) misbehavior_monitor: Arc<MisbehaviorMonitor>,
-    /// Component including the local view about the other authorities'
-    /// misbehavior metrics, and received reports.
-    pub(crate) scorer: Arc<Scorer>,
+    pub(crate) misbehavior_monitor: MisbehaviorMonitor,
+    /// Aggregates incoming misbehavior reports from peers.
+    pub(crate) report_aggregator: ReportAggregator,
+    /// Pure score computation engine.
+    pub(crate) scorer: Scorer,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -1075,9 +1079,11 @@ impl AuthorityPerEpochStore {
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
         let committee_size = committee.num_members();
-        let misbehavior_monitor =
-            Arc::new(MisbehaviorMonitor::new(&protocol_config, committee_size));
+        let misbehavior_config = MisbehaviorConfig::from_protocol(&protocol_config);
+        let misbehavior_monitor = MisbehaviorMonitor::new(&protocol_config, committee_size);
+        let report_aggregator = ReportAggregator::new(&misbehavior_config, committee_size);
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+        let scorer = Scorer::new(voting_power, &protocol_config, &misbehavior_config);
 
         let s = Arc::new(Self {
             name,
@@ -1113,12 +1119,9 @@ impl AuthorityPerEpochStore {
             chain,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            scorer: Arc::new(Scorer::new(
-                voting_power,
-                &protocol_config,
-                &misbehavior_monitor,
-            )),
             misbehavior_monitor,
+            report_aggregator,
+            scorer,
         });
 
         s.update_buffer_stake_metric();
@@ -2810,7 +2813,7 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::MisbehaviorReport(authority, _, _),
+                kind: ConsensusTransactionKind::MisbehaviorReport(authority, report, _),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -2818,7 +2821,29 @@ impl AuthorityPerEpochStore {
                         "MisbehaviorReport authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
                     );
-                    self.scorer
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
+                }
+                if !self.protocol_config().calculate_validator_scores() {
+                    warn!(
+                        "Received misbehavior report from {:?} but validator scores are disabled, so the report is ignored",
+                        authority.concise()
+                    );
+                    self.report_aggregator
+                        .increment_invalid_reports_count(transaction.certificate_author_index);
+                    return None;
+                }
+                // Check validity of the report.
+                if !self
+                    .report_aggregator
+                    .validate_report(report, self.committee.num_members())
+                {
+                    warn!(
+                        "Received invalid misbehavior report from {:?}",
+                        authority.concise()
+                    );
+                    self.report_aggregator
                         .increment_invalid_reports_count(transaction.certificate_author_index);
                     return None;
                 }
@@ -3135,6 +3160,13 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker,
             )
             .await?;
+        // Update scores on the consensus handler thread, right after processing
+        // reports and snapshotting. This avoids cross-thread reads of the
+        // aggregator — the checkpoint service only reads the final scores
+        // (Vec<AtomicU64>).
+        if self.protocol_config().calculate_validator_scores() {
+            self.scorer.update_scores(&self.report_aggregator);
+        }
         self.process_user_signatures(
             verified_non_randomness_transactions
                 .iter()
@@ -4162,26 +4194,15 @@ impl AuthorityPerEpochStore {
                     .committee
                     .authority_index(authority)
                     .expect("authority in committee");
-                // Check validity of the report and update scores depending on
-                // the result. We already have consensus on inclusion of this
-                // report in the DAG.
-                if !report.is_valid_version(self.protocol_config()) {
-                    self.scorer.increment_invalid_reports_count(authority_index);
-                    warn!(
-                        "Received misbehavior report with unsupported version from {:?}",
-                        authority.concise()
-                    );
-                } else if !report.verify(self.committee.num_members()) {
-                    self.scorer.increment_invalid_reports_count(authority_index);
-                    warn!(
-                        "Received invalid misbehavior report from {:?}",
-                        authority.concise()
-                    );
-                } else {
-                    // Here we update all counts related to the information in
-                    // the reports.
-                    self.scorer.update_received_reports(authority_index, report);
-                }
+                // TODO: revisit the relationship between report verification
+                // (now done in `verify_consensus_transaction` via
+                // `report_aggregator.validate_report`) and report processing
+                // here. The current split assumes any report reaching this
+                // point has already been validated; reconcile the two paths
+                // and decide whether processing should also be guarded by a
+                // reconfig-state check.
+                self.report_aggregator
+                    .process_report(authority_index, report);
 
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
