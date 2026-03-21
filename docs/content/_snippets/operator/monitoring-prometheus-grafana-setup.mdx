@@ -1,0 +1,166 @@
+## Setting Up Prometheus and Grafana
+
+This section walks you through setting up a local Prometheus and Grafana stack to monitor your validator or full node.
+The setup uses Docker Compose and connects to the metrics endpoint exposed by your IOTA node at `http://localhost:9184/metrics`.
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) installed on your machine
+- An IOTA validator or full node running and exposing metrics on port `9184`
+
+### 1. Create the Monitoring Directory
+
+Create a dedicated directory for your monitoring setup:
+
+```bash
+mkdir -p iota-monitoring && cd iota-monitoring
+```
+
+### 2. Create the Prometheus Configuration
+
+Create a `prometheus.yaml` file:
+
+```yaml title="prometheus.yaml"
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "iota-node"
+    static_configs:
+      - targets: ["host.docker.internal:9184"]
+        labels:
+          host: my-validator
+          network: mainnet
+
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          host: system
+```
+
+:::info
+If your IOTA node runs on the same machine as Docker, use `host.docker.internal` (macOS/Windows) or add `extra_hosts: ["host.docker.internal:host-gateway"]` on Linux.
+If your node runs on a different machine, replace `host.docker.internal:9184` with the node's IP address and port.
+:::
+
+### 3. Create the Grafana Datasource Configuration
+
+Create a `grafana-datasources.yaml` file to auto-configure Prometheus as a data source:
+
+```yaml title="grafana-datasources.yaml"
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+```
+
+### 4. Create the Docker Compose File
+
+Create a `docker-compose.yaml` file:
+
+```yaml title="docker-compose.yaml"
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=iota-monitoring
+    ports:
+      - "3000:3000"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    ports:
+      - "9100:9100"
+
+volumes:
+  grafana-data:
+```
+
+### 5. Start the Stack
+
+```bash
+docker compose up -d
+```
+
+After a few seconds, the services should be running:
+
+| Service       | URL                        | Description                |
+|---------------|----------------------------|----------------------------|
+| Prometheus    | `http://localhost:9090`     | Metrics collection and queries |
+| Grafana       | `http://localhost:3000`     | Dashboards and visualization   |
+| Node Exporter | `http://localhost:9100`     | System metrics (CPU, RAM, disk)|
+
+Log in to Grafana with user `admin` and password `iota-monitoring`.
+
+### 6. Import Dashboards
+
+The IOTA repository includes pre-built Grafana dashboards. You can import them into your Grafana instance:
+
+1. Open Grafana at `http://localhost:3000`
+2. Go to **Dashboards** → **Import**
+3. Upload one of the following dashboard JSON files from the repository:
+   - [`setups/grafana/iota_mainnet_validators.json`](https://github.com/iotaledger/iota/blob/develop/setups/grafana/iota_mainnet_validators.json) — Mainnet validator overview
+   - [`dev-tools/grafana-local/dashboards/validator-dashboard.json`](https://github.com/iotaledger/iota/blob/develop/dev-tools/grafana-local/dashboards/validator-dashboard.json) — Detailed validator metrics
+   - [`dev-tools/grafana-local/dashboards/consensus-overview.json`](https://github.com/iotaledger/iota/blob/develop/dev-tools/grafana-local/dashboards/consensus-overview.json) — Consensus layer overview
+4. Select **Prometheus** as the data source when prompted
+
+### 7. Recommended Alert Rules
+
+Configure Grafana alerts for critical validator metrics:
+
+| Alert                        | Condition                                                  | Severity |
+|------------------------------|------------------------------------------------------------|----------|
+| Checkpoint lag               | `last_executed_checkpoint_timestamp_ms` older than 60s     | Critical |
+| Consensus sync lag           | `consensus_commit_sync_quorum_index - local_index > 100`   | Warning  |
+| Skipped proposals            | `consensus_core_skipped_proposals` increasing              | Warning  |
+| Disk usage                   | Node exporter disk usage > 85%                             | Warning  |
+| Node down                    | Prometheus target down for > 2 minutes                     | Critical |
+
+To create an alert in Grafana:
+1. Go to **Alerting** → **Alert rules** → **New alert rule**
+2. Use a PromQL expression (e.g., `time() * 1000 - last_executed_checkpoint_timestamp_ms > 60000`)
+3. Configure notification channels (email, Slack, PagerDuty, etc.)
+
+### 8. Verify the Setup
+
+Confirm Prometheus is scraping your node metrics:
+
+```bash
+curl -s http://localhost:9090/api/v1/targets | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for target in data['data']['activeTargets']:
+    print(f\"{target['labels'].get('job', '?'):20s} {target['health']:10s} {target['lastScrape'][:19]}\")
+"
+```
+
+You should see your `iota-node` target with health status `up`.
