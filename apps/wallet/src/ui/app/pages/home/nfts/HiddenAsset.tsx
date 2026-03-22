@@ -57,7 +57,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
                       objectId,
                   }).toString()}`,
         );
-        ampli.collectibleCardClicked({
+        ampli.clickedCollectibleCard({
             collectibleType: type!,
         });
     }

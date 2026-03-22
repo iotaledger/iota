@@ -138,7 +138,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                 );
             },
             onSuccess: () => {
-                ampli.iotaUnstaked({
+                ampli.unstakedIota({
                     stakedAmount: Number(tokenBalanceFormatted),
                     validatorAddress: validatorAddress!,
                     rewards: Number(rewards),

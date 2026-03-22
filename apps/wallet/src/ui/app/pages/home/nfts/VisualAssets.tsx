@@ -68,7 +68,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                               }).toString()}`
                     }
                     onClick={() => {
-                        ampli.collectibleCardClicked({
+                        ampli.clickedCollectibleCard({
                             collectibleType: object.type!,
                         });
                     }}
