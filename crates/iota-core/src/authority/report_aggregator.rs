@@ -165,3 +165,134 @@ pub struct DBReceivedReportsStatePerAuthority {
     pub received_metrics: Option<MisbehaviorCounts>,
     pub invalid_reports_count: u64,
 }
+
+#[cfg(test)]
+mod tests {
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
+
+    use crate::authority::authority_per_epoch_store::{
+        misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts},
+        report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
+    };
+
+    fn mock_protocol_config() -> ProtocolConfig {
+        ProtocolConfig::get_for_max_version_UNSAFE()
+    }
+
+    fn mock_misbehavior_config() -> MisbehaviorConfig {
+        MisbehaviorConfig::from_protocol(&mock_protocol_config())
+    }
+
+    fn mock_aggregator(committee_size: usize) -> ReportAggregator {
+        ReportAggregator::new(&mock_misbehavior_config(), committee_size)
+    }
+
+    fn report_v1(raw_counts: &[Vec<u64>; 4]) -> VersionedMisbehaviorReport {
+        VersionedMisbehaviorReport::new_v1(LegacyReportPayload {
+            faulty_blocks_provable: raw_counts[0].clone(),
+            faulty_blocks_unprovable: raw_counts[1].clone(),
+            missing_proposals: raw_counts[2].clone(),
+            equivocations: raw_counts[3].clone(),
+        })
+    }
+
+    fn full_snapshot(
+        aggregator: &ReportAggregator,
+        committee_size: usize,
+    ) -> Vec<DBReceivedReportsStatePerAuthority> {
+        (0..committee_size as u32)
+            .map(|i| aggregator.received_reports_state_per_authority_snapshot(i))
+            .collect()
+    }
+
+    fn empty_state() -> DBReceivedReportsStatePerAuthority {
+        DBReceivedReportsStatePerAuthority {
+            received_metrics: None,
+            invalid_reports_count: 0,
+        }
+    }
+
+    #[test]
+    fn test_aggregator_initialization() {
+        let aggregator = mock_aggregator(3);
+        assert_eq!(full_snapshot(&aggregator, 3), vec![empty_state(); 3]);
+    }
+
+    #[test]
+    fn test_increment_invalid_reports_count() {
+        let aggregator = mock_aggregator(3);
+
+        aggregator.increment_invalid_reports_count(2);
+
+        assert_eq!(full_snapshot(&aggregator, 3)[2].invalid_reports_count, 1);
+
+        aggregator.increment_invalid_reports_count(1);
+        aggregator.increment_invalid_reports_count(1);
+
+        let snapshot = full_snapshot(&aggregator, 3);
+        assert_eq!(snapshot[0].invalid_reports_count, 0);
+        assert_eq!(snapshot[1].invalid_reports_count, 2);
+        assert_eq!(snapshot[2].invalid_reports_count, 1);
+    }
+
+    #[test]
+    fn test_process_report_single() {
+        let aggregator = mock_aggregator(3);
+
+        let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        aggregator.process_report(0, &report);
+
+        let snapshot = full_snapshot(&aggregator, 3);
+        assert_eq!(
+            snapshot[0].received_metrics,
+            Some(MisbehaviorCounts(vec![
+                vec![1, 2, 3],
+                vec![4, 5, 6],
+                vec![7, 8, 9],
+                vec![0, 0, 0],
+            ]))
+        );
+        assert!(snapshot[1].received_metrics.is_none());
+        assert!(snapshot[2].received_metrics.is_none());
+    }
+
+    #[test]
+    fn test_process_report_monotone_merge() {
+        let aggregator = mock_aggregator(3);
+
+        // First report
+        let report1 = report_v1(&[vec![1, 5, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        aggregator.process_report(0, &report1);
+
+        // Second report from same authority with some higher, some lower values
+        let report2 = report_v1(&[vec![3, 2, 10], vec![1, 10, 6], vec![7, 8, 9], vec![1, 0, 0]]);
+        aggregator.process_report(0, &report2);
+
+        // Should be element-wise max
+        assert_eq!(
+            full_snapshot(&aggregator, 3)[0].received_metrics,
+            Some(MisbehaviorCounts(vec![
+                vec![3, 5, 10],
+                vec![4, 10, 6],
+                vec![7, 8, 9],
+                vec![1, 0, 0],
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_validate_report_valid() {
+        let aggregator = mock_aggregator(3);
+        let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        assert!(aggregator.validate_report(&report, 3));
+    }
+
+    #[test]
+    fn test_validate_report_wrong_committee_size() {
+        let aggregator = mock_aggregator(3);
+        // Report has 3 entries per metric but we validate against committee_size=4
+        let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
+        assert!(!aggregator.validate_report(&report, 4));
+    }
+}
