@@ -11,7 +11,9 @@ use iota_json_rpc_types::IotaExecutionStatus;
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
     event::Event as NativeEvent,
-    execution_status::ExecutionStatus as NativeExecutionStatus,
+    execution_status::{
+        ExecutionFailureStatus, ExecutionStatus as NativeExecutionStatus,
+    },
     transaction::TransactionData as NativeTransactionData,
 };
 
@@ -134,6 +136,30 @@ impl TransactionBlockEffects {
         match status {
             IotaExecutionStatus::Success => Ok(None),
             IotaExecutionStatus::Failure { error } => Ok(Some(error)),
+        }
+    }
+
+    /// The error code of the Move abort, populated if this transaction failed
+    /// with a Move abort.
+    #[graphql(complexity = 0)]
+    async fn abort_code(&self, ctx: &Context<'_>) -> Result<Option<u64>> {
+        let NativeExecutionStatus::Failure { error, command: Some(_) } = self.native().status()
+        else {
+            return Ok(None);
+        };
+
+        let ExecutionFailureStatus::MoveAbort(loc, code) = error else {
+            return Ok(None);
+        };
+
+        let resolver: &PackageResolver = ctx.data_unchecked();
+        let clever = resolver
+            .resolve_clever_error(loc.module.clone(), *code)
+            .await;
+
+        match clever.and_then(|c| c.error_code) {
+            Some(error_code) => Ok(Some(error_code as u64)),
+            None => Ok(Some(*code)),
         }
     }
 

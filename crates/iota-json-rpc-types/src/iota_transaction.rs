@@ -1514,6 +1514,7 @@ impl IotaExecutionStatus {
                         module_id,
                         source_line_number,
                         error_info,
+                        error_code: _,
                     }) = resolver
                         .resolve_clever_error(loc.module.clone(), *code)
                         .await
