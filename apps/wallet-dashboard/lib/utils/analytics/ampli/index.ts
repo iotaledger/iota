@@ -88,11 +88,11 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
-export interface ElementCopiedProperties {
+export interface CopiedElementProperties {
     type: string;
 }
 
-export interface ExternalLinkOpenedProperties {
+export interface OpenedExternalLinkProperties {
     type: string;
 }
 
@@ -151,7 +151,7 @@ export interface SwitchedNetworkProperties {
     toNetwork?: string;
 }
 
-export interface ThemeChangedProperties {
+export interface ChangedThemeProperties {
     theme: string;
 }
 
@@ -209,18 +209,18 @@ export class ClickedUnstakeIota implements BaseEvent {
     }
 }
 
-export class ElementCopied implements BaseEvent {
-    event_type = 'element copied';
+export class CopiedElement implements BaseEvent {
+    event_type = 'copied element';
 
-    constructor(public event_properties: ElementCopiedProperties) {
+    constructor(public event_properties: CopiedElementProperties) {
         this.event_properties = event_properties;
     }
 }
 
-export class ExternalLinkOpened implements BaseEvent {
-    event_type = 'external link opened';
+export class OpenedExternalLink implements BaseEvent {
+    event_type = 'opened external link';
 
-    constructor(public event_properties: ExternalLinkOpenedProperties) {
+    constructor(public event_properties: OpenedExternalLinkProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -281,10 +281,10 @@ export class SwitchedNetwork implements BaseEvent {
     }
 }
 
-export class ThemeChanged implements BaseEvent {
-    event_type = 'theme changed';
+export class ChangedTheme implements BaseEvent {
+    event_type = 'changed theme';
 
-    constructor(public event_properties: ThemeChangedProperties) {
+    constructor(public event_properties: ChangedThemeProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -483,37 +483,37 @@ export class Ampli {
   }
 
   /**
-   * element copied
+   * copied element
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/element%20copied)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/copied%20element)
    *
    * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. type)
    * @param options Amplitude event options.
    */
-  elementCopied(
-    properties: ElementCopiedProperties,
+  copiedElement(
+    properties: CopiedElementProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ElementCopied(properties), options);
+    return this.track(new CopiedElement(properties), options);
   }
 
   /**
-   * external link opened
+   * opened external link
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/external%20link%20opened)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/opened%20external%20link)
    *
    * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. type)
    * @param options Amplitude event options.
    */
-  externalLinkOpened(
-    properties: ExternalLinkOpenedProperties,
+  openedExternalLink(
+    properties: OpenedExternalLinkProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ExternalLinkOpened(properties), options);
+    return this.track(new OpenedExternalLink(properties), options);
   }
 
   /**
@@ -636,20 +636,20 @@ export class Ampli {
   }
 
   /**
-   * theme changed
+   * changed theme
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/theme%20changed)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/changed%20theme)
    *
    * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. theme)
    * @param options Amplitude event options.
    */
-  themeChanged(
-    properties: ThemeChangedProperties,
+  changedTheme(
+    properties: ChangedThemeProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ThemeChanged(properties), options);
+    return this.track(new ChangedTheme(properties), options);
   }
 
   /**
