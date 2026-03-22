@@ -71,11 +71,12 @@ where
 
     #[cfg(test)]
     pub fn new_for_test(authority_aggregator: Arc<AuthorityAggregator<A>>) -> Arc<Self> {
-        use prometheus::Registry;
-
+        // Use a fresh isolated registry per test instance to prevent parallel
+        // tests from conflicting when registering metrics with the same names
+        // into the global default registry.
         Self::new(
             ValidatorClientMonitorConfig::default(),
-            Arc::new(ValidatorClientMetrics::new(&Registry::default())),
+            Arc::new(ValidatorClientMetrics::new(&prometheus::Registry::new())),
             Arc::new(ArcSwap::new(authority_aggregator)),
         )
     }
@@ -265,5 +266,14 @@ impl<A: Clone> ValidatorClientMonitor<A> {
             .read()
             .validator_stats
             .contains_key(validator)
+    }
+
+    /// Returns a read guard over the raw client stats for use in tests.
+    #[cfg(test)]
+    pub fn client_stats_for_test(
+        &self,
+    ) -> parking_lot::RwLockReadGuard<'_, crate::validator_client_monitor::stats::ClientObservedStats>
+    {
+        self.client_stats.read()
     }
 }

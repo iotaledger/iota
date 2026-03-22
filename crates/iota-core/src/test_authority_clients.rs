@@ -623,3 +623,251 @@ impl Default for HandleTransactionTestAuthorityClient {
         Self::new()
     }
 }
+
+/// A controllable mock `AuthorityAPI` for testing validator scoring behavior.
+///
+/// Unlike `MockAuthorityApi`, this implementation:
+/// - Distinguishes between ping and real transaction requests in
+///   `handle_submit_transactions`
+/// - Supports configurable per-method delays and failure injection
+/// - Tracks call counts per method so tests can assert on invocation frequency
+///
+/// Only `handle_validator_health` and `handle_submit_transactions` are
+/// implemented. All other methods will panic — do not use this mock for tests
+/// that exercise those code paths.
+#[derive(Clone)]
+pub struct ScoringTestAuthorityApi {
+    inner: Arc<ScoringTestAuthorityApiInner>,
+}
+
+struct ScoringTestAuthorityApiInner {
+    health_check_delay: Mutex<Duration>,
+    health_check_fail: std::sync::atomic::AtomicBool,
+    real_submit_delay: Mutex<Duration>,
+    real_submit_fail: std::sync::atomic::AtomicBool,
+    health_check_calls: std::sync::atomic::AtomicUsize,
+    real_submit_calls: std::sync::atomic::AtomicUsize,
+    ping_calls: std::sync::atomic::AtomicUsize,
+}
+
+impl ScoringTestAuthorityApi {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(ScoringTestAuthorityApiInner {
+                health_check_delay: Mutex::new(Duration::ZERO),
+                health_check_fail: std::sync::atomic::AtomicBool::new(false),
+                real_submit_delay: Mutex::new(Duration::ZERO),
+                real_submit_fail: std::sync::atomic::AtomicBool::new(false),
+                health_check_calls: std::sync::atomic::AtomicUsize::new(0),
+                real_submit_calls: std::sync::atomic::AtomicUsize::new(0),
+                ping_calls: std::sync::atomic::AtomicUsize::new(0),
+            }),
+        }
+    }
+
+    /// Set how long `handle_validator_health` will sleep before responding.
+    /// Use this to simulate a slow or distant validator.
+    pub fn set_health_check_delay(&self, delay: Duration) {
+        *self.inner.health_check_delay.lock().unwrap() = delay;
+    }
+
+    /// When set to `true`, `handle_validator_health` returns an error.
+    /// Use this to simulate a validator that is down or unreachable.
+    pub fn set_health_check_fail(&self, fail: bool) {
+        self.inner
+            .health_check_fail
+            .store(fail, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Set how long `handle_submit_transactions` sleeps for non-ping requests.
+    /// Use this to simulate a slow validator for real transactions only, while
+    /// keeping health checks fast — testing ping-gaming scenarios.
+    pub fn set_real_submit_delay(&self, delay: Duration) {
+        *self.inner.real_submit_delay.lock().unwrap() = delay;
+    }
+
+    /// When set to `true`, non-ping `handle_submit_transactions` returns an
+    /// error. Use this to simulate a validator that selectively blocks real
+    /// transactions while passing health checks.
+    pub fn set_real_submit_fail(&self, fail: bool) {
+        self.inner
+            .real_submit_fail
+            .store(fail, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    pub fn health_check_call_count(&self) -> usize {
+        self.inner
+            .health_check_calls
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    pub fn real_submit_call_count(&self) -> usize {
+        self.inner
+            .real_submit_calls
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    pub fn ping_call_count(&self) -> usize {
+        self.inner
+            .ping_calls
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+impl Default for ScoringTestAuthorityApi {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl AuthorityAPI for ScoringTestAuthorityApi {
+    async fn handle_transaction(
+        &self,
+        _transaction: Transaction,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<HandleTransactionResponse, IotaError> {
+        unimplemented!("ScoringTestAuthorityApi: handle_transaction not used in scoring tests")
+    }
+
+    async fn handle_certificate_v1(
+        &self,
+        _request: HandleCertificateRequestV1,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
+        unimplemented!("ScoringTestAuthorityApi: handle_certificate_v1 not used in scoring tests")
+    }
+
+    async fn handle_soft_bundle_certificates_v1(
+        &self,
+        _request: HandleSoftBundleCertificatesRequestV1,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
+        unimplemented!(
+            "ScoringTestAuthorityApi: handle_soft_bundle_certificates_v1 not used in scoring tests"
+        )
+    }
+
+    async fn handle_object_info_request(
+        &self,
+        _request: ObjectInfoRequest,
+    ) -> Result<ObjectInfoResponse, IotaError> {
+        unimplemented!(
+            "ScoringTestAuthorityApi: handle_object_info_request not used in scoring tests"
+        )
+    }
+
+    async fn handle_transaction_info_request(
+        &self,
+        _request: TransactionInfoRequest,
+    ) -> Result<TransactionInfoResponse, IotaError> {
+        unimplemented!(
+            "ScoringTestAuthorityApi: handle_transaction_info_request not used in scoring tests"
+        )
+    }
+
+    async fn handle_checkpoint(
+        &self,
+        _request: CheckpointRequest,
+    ) -> Result<CheckpointResponse, IotaError> {
+        unimplemented!("ScoringTestAuthorityApi: handle_checkpoint not used in scoring tests")
+    }
+
+    async fn handle_system_state_object(
+        &self,
+        _request: SystemStateRequest,
+    ) -> Result<IotaSystemState, IotaError> {
+        unimplemented!(
+            "ScoringTestAuthorityApi: handle_system_state_object not used in scoring tests"
+        )
+    }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!(
+            "ScoringTestAuthorityApi: handle_capability_notification_v1 not used in scoring tests"
+        )
+    }
+
+    /// Handles submit_transactions, distinguishing ping from real transactions.
+    /// Pings (`req.is_ping() == true`) always respond immediately with
+    /// `Submitted`. Real transactions sleep for `real_submit_delay` and return
+    /// an error if `real_submit_fail` is set.
+    async fn handle_submit_transactions(
+        &self,
+        request: SubmitTransactionsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<SubmitTransactionsResponse, IotaError> {
+        use iota_types::messages_grpc::{SubmitTransactionResult, SubmitTransactionsResponse};
+
+        if request.is_ping() {
+            self.inner
+                .ping_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            return Ok(SubmitTransactionsResponse {
+                result: SubmitTransactionResult::Submitted,
+            });
+        }
+
+        self.inner
+            .real_submit_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+        let delay = *self.inner.real_submit_delay.lock().unwrap();
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
+
+        if self
+            .inner
+            .real_submit_fail
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(IotaError::GenericAuthority {
+                error: "ScoringTestAuthorityApi: simulated real submit failure".to_owned(),
+            });
+        }
+
+        Ok(SubmitTransactionsResponse {
+            result: SubmitTransactionResult::Submitted,
+        })
+    }
+
+    async fn handle_wait_for_effects(
+        &self,
+        _request: WaitForEffectsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<WaitForEffectsResponse, IotaError> {
+        unimplemented!("ScoringTestAuthorityApi: handle_wait_for_effects not used in scoring tests")
+    }
+
+    /// Handles health checks with configurable delay and failure injection.
+    /// Records every call in `health_check_calls` counter.
+    async fn handle_validator_health(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        self.inner
+            .health_check_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+        let delay = *self.inner.health_check_delay.lock().unwrap();
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
+
+        if self
+            .inner
+            .health_check_fail
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(IotaError::GenericAuthority {
+                error: "ScoringTestAuthorityApi: simulated health check failure".to_owned(),
+            });
+        }
+
+        Ok(ValidatorHealthResponse::default())
+    }
+}
