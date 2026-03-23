@@ -201,7 +201,7 @@ impl WalletContext {
                 Ok(res) => {
                     if let Some(o) = res.data {
                         match GasCoin::try_from(&o) {
-                            Ok(gas_coin) => Some(Ok((gas_coin.value(), o.clone()))),
+                            Ok(gas_coin) => Some(Ok((gas_coin.value(), o))),
                             Err(e) => Some(Err(anyhow!("{e}"))),
                         }
                     } else {

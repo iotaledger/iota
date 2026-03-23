@@ -3,16 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import {
-    useAccountSources,
-    useActiveAccount,
-    useBackgroundClient,
-    useCreateAccountsMutation,
-} from '_hooks';
+import { AccountsFormType, useAccountsFormContext, useSourceFlow } from '_components';
+import { useAccountSources, useActiveAccount, useCreateAccountsMutation } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
@@ -41,8 +37,6 @@ const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.LedgerDerived,
 ];
 
-const SOURCE_FLOW = 'Manage Accounts';
-
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
@@ -67,12 +61,10 @@ export function AccountGroup({
     const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
-    const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
-    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [, setAccountsFormValues] = useAccountsFormContext();
+    const { setSourceFlow } = useSourceFlow();
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-
-    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -88,14 +80,10 @@ export function AccountGroup({
             type: accountsFormType,
             sourceID: accountSource.id,
         });
-        if (accountSource.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
-            createAccountsMutation.mutate({
-                type: accountsFormType,
-                sourceFlow: SOURCE_FLOW,
-            });
-        }
+        setSourceFlow(AmpliSourceFlow.ManageAccounts);
+        createAccountsMutation.mutate({
+            type: accountsFormType,
+        });
     }
 
     function getUrlForLedgerDerivedAccounts(url: string) {
@@ -296,25 +284,6 @@ export function AccountGroup({
                     </Dropdown>
                 </OutsideClickHandler>
             </div>
-            {isPasswordModalVisible ? (
-                <VerifyPasswordModal
-                    open
-                    onVerify={async (password) => {
-                        await backgroundClient.unlockAllAccountsAndSources({
-                            password,
-                        });
-
-                        if (accountsFormValues.current) {
-                            await createAccountsMutation.mutateAsync({
-                                type: accountsFormValues.current.type,
-                                sourceFlow: SOURCE_FLOW,
-                            });
-                        }
-                        setPasswordModalVisible(false);
-                    }}
-                    onClose={() => setPasswordModalVisible(false)}
-                />
-            ) : null}
         </div>
     );
 }

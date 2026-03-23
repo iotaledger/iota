@@ -18,7 +18,7 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "build-package",
-        "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\"",
+        "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\" \"./tests/**/*.{js,ts}\"",
         "eslint:fix": "pnpm eslint:check --fix",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=.prettierignore .",

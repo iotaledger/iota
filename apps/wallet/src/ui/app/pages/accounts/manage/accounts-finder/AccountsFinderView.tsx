@@ -21,7 +21,6 @@ import { getSourceId, getLedgerConnectionErrorMessage, isFirstAccount } from '_s
 import {
     useAccountSources,
     useAccounts,
-    useUnlockMutation,
     useAccountsFinder,
     useGetOwnedObjectsMultipleAddresses,
     useGetSharedObjectsMultipleAddresses,
@@ -42,7 +41,11 @@ import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAcco
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
 import { ampli } from '_src/shared/analytics/ampli';
-import { ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE, AmpliAccountOrigin } from '_src/shared/analytics';
+import {
+    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE,
+    AmpliAccountOrigin,
+    AmpliSourceFlow,
+} from '_src/shared/analytics';
 import type { AccountsAddedProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
@@ -97,8 +100,6 @@ enum SearchPhase {
     Idle, // search has finished and is idle, ready to start again
 }
 
-const SOURCE_FLOW = 'Balance Finder';
-
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
@@ -117,7 +118,6 @@ export function AccountsFinderView(): JSX.Element {
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
 
     const ledgerIotaClient = useIotaLedgerClient();
-    const unlockAllAccountsMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -165,7 +165,7 @@ export function AccountsFinderView(): JSX.Element {
                     accountOrigin: AmpliAccountOrigin.Import,
                     numberOfAccounts: numberOfAccountsCreated,
                     isFirstAccount: isFirstAccount(accounts),
-                    sourceFlow: SOURCE_FLOW,
+                    sourceFlow: AmpliSourceFlow.BalanceFinder,
                 });
             }
         } finally {
@@ -334,13 +334,7 @@ export function AccountsFinderView(): JSX.Element {
                         if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived) {
                             // for ledger
                             setPassword(password);
-                        } else if (accountSourceId) {
-                            // unlock software account sources
-                            await unlockAllAccountsMutation.mutateAsync({
-                                password,
-                            });
                         }
-
                         setPasswordModalVisible(false);
                     }}
                     onClose={() => setPasswordModalVisible(false)}

@@ -802,7 +802,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .metrics
                     .node_metrics
                     .synchronizer_invalid_block_headers
-                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -1792,11 +1792,7 @@ mod tests {
             all_guards.push(guard);
 
             let authority_5 = AuthorityIndex::new_for_test(5);
-            let guard = map.lock_headers(
-                missing_block_refs.clone(),
-                authority_5,
-                SyncMethod::Periodic,
-            );
+            let guard = map.lock_headers(missing_block_refs, authority_5, SyncMethod::Periodic);
             assert!(guard.is_none());
         }
     }
@@ -1985,11 +1981,7 @@ mod tests {
 
             // Authority 4 would exceed the Periodic limit.
             let authority_4 = AuthorityIndex::new_for_test(4);
-            let guard_4 = map.lock_headers(
-                missing_block_refs.clone(),
-                authority_4,
-                SyncMethod::Periodic,
-            );
+            let guard_4 = map.lock_headers(missing_block_refs, authority_4, SyncMethod::Periodic);
 
             assert!(
                 guard_4.is_none(),

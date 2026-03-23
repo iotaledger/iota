@@ -7,8 +7,10 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
     use std::{
+        cell::RefCell,
         collections::{BTreeMap, BTreeSet},
         fmt,
+        rc::Rc,
         sync::Arc,
     };
 
@@ -17,9 +19,9 @@ mod checked {
     use iota_types::{
         IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
-            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
-            RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
-            TxContextKind,
+            IotaAddress, MoveLegacyTxContext, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
+            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
+            TxContext, TxContextKind,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -93,7 +95,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         vm: &MoveVM,
         state_view: &mut dyn ExecutionState,
-        tx_context: &mut TxContext,
+        tx_context: Rc<RefCell<TxContext>>,
         gas_charger: &mut GasCharger,
         pt: ProgrammableTransaction,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -141,6 +143,7 @@ mod checked {
         state_view.save_loaded_runtime_objects(loaded_runtime_objects);
         state_view.save_wrapped_object_containers(wrapped_object_containers);
         state_view.record_execution_results(finished?);
+
         Ok(mode_results)
     }
 
@@ -565,7 +568,7 @@ mod checked {
             // do not calculate or substitute id for predefined packages
             (*modules[0].self_id().address()).into()
         } else {
-            let id = context.tx_context.fresh_id();
+            let id = context.tx_context.borrow_mut().fresh_id();
             substitute_package_id(&mut modules, id)?;
             id
         };
@@ -697,7 +700,7 @@ mod checked {
 
         // Upgraded packages share their predecessor's runtime ID but get a new storage
         // ID.
-        let storage_id = context.tx_context.fresh_id();
+        let storage_id = context.tx_context.borrow_mut().fresh_id();
 
         let dependencies = fetch_packages(context, &dep_ids)?;
         let package = context.upgrade_package(
@@ -1061,7 +1064,7 @@ mod checked {
         match tx_context_kind {
             TxContextKind::None => (),
             TxContextKind::Mutable | TxContextKind::Immutable => {
-                serialized_arguments.push(context.tx_context.to_vec());
+                serialized_arguments.push(context.tx_context.borrow().to_bcs_legacy_context());
             }
         }
         // script visibility checked manually for entry points
@@ -1086,12 +1089,12 @@ mod checked {
             let Some((_, ctx_bytes, _)) = result.mutable_reference_outputs.pop() else {
                 invariant_violation!("Missing TxContext in reference outputs");
             };
-            let updated_ctx: TxContext = bcs::from_bytes(&ctx_bytes).map_err(|e| {
+            let updated_ctx: MoveLegacyTxContext = bcs::from_bytes(&ctx_bytes).map_err(|e| {
                 ExecutionError::invariant_violation(format!(
                     "Unable to deserialize TxContext bytes. {e}"
                 ))
             })?;
-            context.tx_context.update_state(updated_ctx)?;
+            context.tx_context.borrow_mut().update_state(updated_ctx)?;
         }
         Ok(result)
     }

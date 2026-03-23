@@ -121,6 +121,74 @@ export async function getFaucetRequestStatus(input: {
     });
 }
 
+const DEFAULT_MAX_FAUCET_ATTEMPTS = 20;
+const DEFAULT_FAUCET_POLL_DELAY_MS = 1500;
+
+/**
+ * Submits a V1 faucet request for the given recipient and polls until the
+ * request succeeds, is discarded, or the attempt limit is reached.
+ *
+ * @param input.host - Base URL of the faucet service.
+ * @param input.recipient - Address to receive the tokens.
+ * @param input.headers - Optional HTTP headers forwarded to every faucet call.
+ * @param input.maxAttempts - Maximum number of status-poll attempts before
+ *   giving up (default: 20).
+ * @param input.delayMs - Milliseconds to wait between poll attempts
+ *   (default: 1500).
+ * @returns The total amount of gas transferred, or `undefined` if the faucet
+ *   response contained no coin info.
+ * @throws {Error} When the request is discarded, the attempt limit is exceeded,
+ *   or the faucet returns an error at any stage.
+ */
+export async function requestIotaFromFaucet(input: {
+    host: string;
+    recipient: string;
+    headers?: HeadersInit;
+    maxAttempts?: number;
+    delayMs?: number;
+}): Promise<number | undefined> {
+    const maxAttempts = input.maxAttempts ?? DEFAULT_MAX_FAUCET_ATTEMPTS;
+    const delayMs = input.delayMs ?? DEFAULT_FAUCET_POLL_DELAY_MS;
+
+    const { error, task: taskId } = await requestIotaFromFaucetV1({
+        recipient: input.recipient,
+        host: input.host,
+        headers: input.headers,
+    });
+
+    if (error || !taskId) {
+        throw new Error(error ?? 'Failed, task id not found.');
+    }
+
+    let currentStatus = 'INPROGRESS';
+    let attempts = 0;
+    while (currentStatus === 'INPROGRESS') {
+        const {
+            status: { status, transferred_gas_objects },
+            error,
+        } = await getFaucetRequestStatus({
+            host: input.host,
+            taskId,
+            headers: input.headers,
+        });
+
+        currentStatus = status;
+
+        if (currentStatus === 'DISCARDED' || error || attempts > maxAttempts) {
+            throw new Error(error ?? status ?? 'Something went wrong');
+        }
+
+        if (currentStatus === 'SUCCEEDED') {
+            return transferred_gas_objects?.sent.reduce((total, { amount }) => total + amount, 0);
+        }
+
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error('Something went wrong');
+}
+
 export function getFaucetHost(network: NetworkId): string {
     const requestedNetwork = getNetwork(network);
 
