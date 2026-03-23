@@ -1088,7 +1088,7 @@ impl AuthorityPerEpochStore {
         let s = Arc::new(Self {
             name,
             committee,
-            protocol_config: protocol_config.clone(),
+            protocol_config,
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
