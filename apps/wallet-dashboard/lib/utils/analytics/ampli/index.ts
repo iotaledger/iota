@@ -88,6 +88,10 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
+export interface ElementCopiedProperties {
+    type: string;
+}
+
 export interface ExternalLinkOpenedProperties {
     type: string;
 }
@@ -201,6 +205,14 @@ export class ClickedUnstakeIota implements BaseEvent {
     event_type = 'clicked unstake IOTA';
 
     constructor(public event_properties?: ClickedUnstakeIotaProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ElementCopied implements BaseEvent {
+    event_type = 'element copied';
+
+    constructor(public event_properties: ElementCopiedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -468,6 +480,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedUnstakeIota(properties), options);
+  }
+
+  /**
+   * element copied
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/element%20copied)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  elementCopied(
+    properties: ElementCopiedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ElementCopied(properties), options);
   }
 
   /**

@@ -7,12 +7,13 @@ import { ExplorerLink } from '../ExplorerLink';
 import {
     ExplorerLinkType,
     OutlinedCopyButton,
-    toast,
     TransactionReceipt,
     useGetTransactionWithSummary,
     ViewTxnOnExplorerButton,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface TransactionViewProps {
     onClose: () => void;
@@ -30,6 +31,10 @@ export function TransactionDialogView({
         txDigest ?? '',
         activeAddress,
     );
+
+    const onCopySuccess = useCallback(() => {
+        trackElementCopied('transaction-digest');
+    }, []);
 
     return (
         <DialogLayout>
@@ -61,9 +66,8 @@ export function TransactionDialogView({
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={txDigest ?? ''}
-                            onCopySuccess={() =>
-                                toast.success('Transaction digest copied to clipboard')
-                            }
+                            onCopySuccess={onCopySuccess}
+                            successMessage="Transaction digest copied to clipboard"
                         />
                     </div>
                 </div>
