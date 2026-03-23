@@ -30,3 +30,7 @@ export async function genFileTypeMsg(displayString: string, signal: AbortSignal)
 export function isString(value: unknown): boolean {
     return typeof value === 'string';
 }
+
+export function replaceJsonKeyValue(_key: unknown, value: unknown) {
+    return typeof value === 'bigint' ? value.toString() : value;
+}

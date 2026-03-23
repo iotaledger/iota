@@ -17,7 +17,14 @@ import { useCopyToClipboard } from '@iota/core';
 import clsx from 'clsx';
 import { type MetaItem, PageHeaderMeta } from './PageHeaderMeta';
 
-type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package' | 'Identity';
+type PageHeaderType =
+    | 'Transaction'
+    | 'Checkpoint'
+    | 'Address'
+    | 'Object'
+    | 'Package'
+    | 'Identity'
+    | 'Notarization';
 
 export interface PageHeaderProps {
     title: string | React.JSX.Element;

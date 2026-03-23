@@ -2,10 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaObjectData } from '@iota/iota-sdk/client';
+import { parseStructTag } from '@iota/iota-sdk/utils';
+import { type OnChainNotarization } from '@iota/notarization/web';
 import { type MetaItem } from '~/components/ui/PageHeaderMeta';
 
 const IDENTITY_MODULE = 'identity';
 const IDENTITY_METHOD = 'Identity';
+const NOTARIZATION_MODULE = 'notarization';
+const NOTARIZATION_METHOD = 'Notarization';
 
 const metadata = {
     objectLegacyId: {
@@ -16,6 +20,15 @@ const metadata = {
         label: 'Type',
         visible: true,
         badge: 'IOTA Identity',
+    },
+    notarizationMethod: {
+        label: 'Method',
+        visible: true,
+    },
+    notarizationType: {
+        label: 'Type',
+        visible: true,
+        badge: 'IOTA Notarization',
     },
 };
 
@@ -104,5 +117,55 @@ export function getLegacyMetadata(didObject: IotaObjectData | null): MetaItem | 
         label: metadata.objectLegacyId.label,
         value: legacyId,
         visible: metadata.objectLegacyId.visible,
+    } as MetaItem;
+}
+
+export function getNotarizationMethod(notarizationDocument: OnChainNotarization): MetaItem {
+    return {
+        label: metadata.notarizationMethod.label,
+        value: notarizationDocument.method,
+        visible: metadata.notarizationMethod.visible,
+    };
+}
+
+/**
+ * Determines the notarization type of an Notarization Object based on its type.
+ *
+ * @param notarizationObject - The IOTA object data to analyze.
+ * @param pkgId - The package ID to compare against for official notarization package.
+ * @returns A MetaItem object containing identity type information, or null if
+ *          the objectData is null or has no type.
+ */
+export function getNotarizationType(
+    notarizationObject: IotaObjectData | null,
+    pkgId: string,
+): MetaItem | null {
+    if (notarizationObject == null || notarizationObject.type == null) {
+        return null;
+    }
+
+    const tooltipText =
+        'The method used to create and resolve this Notarization. "IOTA Notarization" is the Foundation\'s official notarization framework, anchored onchain on IOTA L1.';
+
+    const {
+        address: _package,
+        module: _module,
+        name: _method,
+    } = parseStructTag(notarizationObject.type);
+    if (_method === NOTARIZATION_METHOD && _module === NOTARIZATION_MODULE && _package === pkgId) {
+        // Official Notarization package for the current network
+        return {
+            label: metadata.notarizationType.label,
+            value: metadata.notarizationType.badge,
+            visible: metadata.notarizationType.visible,
+            tooltipText,
+        } as MetaItem;
+    }
+
+    return {
+        label: metadata.identityType.label,
+        value: notarizationObject.type,
+        visible: metadata.identityType.visible,
+        tooltipText,
     } as MetaItem;
 }
