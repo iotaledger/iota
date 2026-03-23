@@ -1307,14 +1307,22 @@ impl ValidatorService {
         }
 
         let transactions = request.transactions;
+        let tx_count = transactions.len();
 
-        // Per-tx validity and overload checks. These are validator-wide
-        // conditions so we short-circuit before spawning parallel futures.
-        for tx in &transactions {
-            tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+        // Pre-allocate a results vector aligned 1:1 with the input transactions.
+        let mut results: Vec<Option<SubmitTransactionResult>> = vec![None; tx_count];
 
-            // System overload check per transaction: check_execution_overload examines
-            // per-transaction input objects (shared objects, object queue depth).
+        // Per-tx validity and overload checks. Failures are stored per-tx
+        // rather than aborting the whole batch, so valid transactions can
+        // still proceed.
+        let mut valid_transactions: Vec<(usize, Transaction)> = Vec::with_capacity(tx_count);
+
+        for (idx, tx) in transactions.into_iter().enumerate() {
+            if let Err(e) = tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch()) {
+                results[idx] = Some(SubmitTransactionResult::Rejected { error: e });
+                continue;
+            }
+
             if let Err(e) = state.check_system_overload(
                 &consensus_adapter,
                 tx.data(),
@@ -1323,25 +1331,38 @@ impl ValidatorService {
                 metrics
                     .num_rejected_tx_during_overload
                     .with_label_values(&[e.as_ref()])
-                    .inc_by(transactions.len() as u64);
-                return Err(e.into());
+                    .inc();
+                results[idx] = Some(SubmitTransactionResult::Rejected { error: e });
+                continue;
             }
+
+            valid_transactions.push((idx, tx));
         }
 
         // Latency timer starts after pre-flight checks, mirroring handle_transaction
         // where the timer also starts after the overload check.
         let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
 
-        // Process each transaction independently in parallel.
-        let futures = transactions
-            .into_iter()
-            .map(|tx| self.handle_submit_transaction_impl(tx, &epoch_store));
-        // Waits for all to finish, does not stop if any error out.
+        // Process each valid transaction independently in parallel.
+        let epoch_store_ref = &epoch_store;
+        let futures = valid_transactions.into_iter().map(|(idx, tx)| async move {
+            let result = self
+                .handle_submit_transaction_impl(tx, epoch_store_ref)
+                .await;
+            (idx, result)
+        });
         let futures_result = join_all(futures).await;
 
-        let results = futures_result
+        // Fill in results for transactions that passed pre-flight checks.
+        for (idx, result) in futures_result {
+            results[idx] = Some(
+                result.unwrap_or_else(|e| SubmitTransactionResult::Rejected { error: e.into() }),
+            );
+        }
+
+        let results = results
             .into_iter()
-            .map(|x| x.unwrap_or_else(|e| SubmitTransactionResult::Rejected { error: e.into() }))
+            .map(|r| r.expect("every transaction slot must be filled"))
             .collect::<Vec<_>>();
 
         Ok((

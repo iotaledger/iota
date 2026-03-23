@@ -575,15 +575,20 @@ async fn test_submit_transaction_invalid_transaction() {
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
-    let result = validator_service
+    let (response, _weight) = validator_service
         .handle_submit_transactions_impl(make_tonic_request_for_testing(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
-        .await;
+        .await
+        .expect("batch call should succeed even when individual txs fail");
 
-    // TODO: check for specific error once we have better error handling in place
-    // for the white-flag flow. For now, just check that it's an error.
-    assert!(result.is_err(), "Expected Err for invalid transaction");
+    let results = response.into_inner().results;
+    assert_eq!(results.len(), 1);
+    assert!(
+        matches!(&results[0], SubmitTransactionResult::Rejected { .. }),
+        "Expected Rejected for invalid transaction, got {:?}",
+        results[0]
+    );
 }
 
 /// Re-submitting an already-executed transaction returns
@@ -958,11 +963,18 @@ async fn test_submit_oversized_transaction() {
     );
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
-    let result = validator_service
+    let (response, _weight) = validator_service
         .handle_submit_transactions_impl(make_tonic_request_for_testing(
             SubmitTransactionsRequest::new_transaction(tx),
         ))
-        .await;
+        .await
+        .expect("batch call should succeed even when individual txs fail");
 
-    assert!(result.is_err(), "Expected Err for oversized transaction");
+    let results = response.into_inner().results;
+    assert_eq!(results.len(), 1);
+    assert!(
+        matches!(&results[0], SubmitTransactionResult::Rejected { .. }),
+        "Expected Rejected for oversized transaction, got {:?}",
+        results[0]
+    );
 }
