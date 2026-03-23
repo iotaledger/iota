@@ -65,7 +65,6 @@ import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
-import clsx from 'clsx';
 import BigNumber from 'bignumber.js';
 
 export default function VestingDashboardPage(): JSX.Element {
@@ -108,6 +107,7 @@ export default function VestingDashboardPage(): JSX.Element {
         groupTimelockedStakedObjects(supplyIncreaseVestingStakedMapped || []);
 
     const {
+        isDialogStakeOpen,
         stakeDialogView,
         setStakeDialogView,
         selectedStake,
@@ -118,6 +118,7 @@ export default function VestingDashboardPage(): JSX.Element {
     } = useStakeDialog();
 
     const {
+        isOpen: isUnstakeDialogOpen,
         openUnstakeDialog,
         defaultDialogProps,
         setTxDigest,
@@ -612,22 +613,28 @@ export default function VestingDashboardPage(): JSX.Element {
                     </div>
                 ) : null}
             </div>
-            <UnstakeDialog
-                {...defaultDialogProps}
-                groupedTimelockedObjects={timelockedObjectsToUnstake || undefined}
-                onSuccess={handleOnSuccessUnstake}
-            />
-            <StakeDialog
-                isTimelockedStaking={true}
-                stakedDetails={selectedStake}
-                onSuccess={handleOnSuccess}
-                handleClose={handleCloseStakeDialog}
-                view={stakeDialogView}
-                setView={setStakeDialogView}
-                selectedValidator={selectedValidator}
-                setSelectedValidator={setSelectedValidator}
-                maxStakableTimelockedAmount={BigInt(supplyIncreaseVestingSchedule.availableStaking)}
-            />
+            {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
+                <UnstakeDialog
+                    {...defaultDialogProps}
+                    groupedTimelockedObjects={timelockedObjectsToUnstake}
+                    onSuccess={handleOnSuccessUnstake}
+                />
+            )}
+            {isDialogStakeOpen && (
+                <StakeDialog
+                    isTimelockedStaking={true}
+                    stakedDetails={selectedStake}
+                    onSuccess={handleOnSuccess}
+                    handleClose={handleCloseStakeDialog}
+                    view={stakeDialogView}
+                    setView={setStakeDialogView}
+                    selectedValidator={selectedValidator}
+                    setSelectedValidator={setSelectedValidator}
+                    maxStakableTimelockedAmount={BigInt(
+                        supplyIncreaseVestingSchedule.availableStaking,
+                    )}
+                />
+            )}
         </>
     );
 }

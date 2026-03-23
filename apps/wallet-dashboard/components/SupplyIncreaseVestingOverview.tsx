@@ -87,7 +87,7 @@ export function SupplyIncreaseVestingOverview({
             });
     }
 
-    // Show simplified UI only for Staker users
+    // Show simplified UI for Staker users
     if (userType === SupplyIncreaseUserType.Staker) {
         return !isSupplyIncreaseVestingScheduleEmpty ||
             supplyIncreaseVestingStakedMapped.length > 0 ? (
