@@ -5,8 +5,9 @@ import { getObjectOrPastObjectQuery } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import type { IotaObjectData } from '@iota/iota-sdk/src/client';
 import { useQueries } from '@tanstack/react-query';
-import { extractControllerCaps, getOwnerAddress, getOwnerType } from '../helper';
 import type { IdentityController } from '../types';
+import { extractControllerCaps } from '../helper';
+import { getOwnerAddress, getOwnerType } from '../../objectOwnerHelper';
 
 /**
  * This hook:

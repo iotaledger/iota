@@ -10,13 +10,13 @@ import { onCopySuccess } from '~/lib';
 import { useIdentityPkgId } from '~/contexts';
 import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
-import { ControllerView } from './ControllerView';
-import { ServiceView } from './ServiceView';
-import { IdentitySummaryView } from './IdentitySummaryView';
-import { IdentityDocumentJsonView } from './IdentityDocumentJsonView';
-import { SideBySidePanelsView } from './SideBySidePanelsView';
-import { TransactionsView } from './TransactionsView';
-import { extractDidDoc } from '../helper';
+import { ControllerView } from './views/ControllerView';
+import { ServiceView } from './views/ServiceView';
+import { IdentitySummaryView } from './views/IdentitySummaryView';
+import { TransactionsView } from '../common/TransactionsView';
+import { SideBySidePanels } from '~/components/ui/SideBySidePanels';
+import { extractDidDoc } from './helper';
+import { IdentityDocumentJsonView } from './views/IdentityDocumentJsonView';
 
 interface IdentityContentProps {
     did: IotaDID;
@@ -120,9 +120,9 @@ export function IdentityContent({ did }: IdentityContentProps) {
                             .build()}
                     />
                     <IdentitySummaryView objectData={didObject} didDocument={didDocument} />
-                    <SideBySidePanelsView
-                        firstPanelView={<ControllerView objectData={didObject} />}
-                        secondPanelView={<ServiceView didDocument={didDocument} />}
+                    <SideBySidePanels
+                        firstPanel={<ControllerView objectData={didObject} />}
+                        secondPanel={<ServiceView didDocument={didDocument} />}
                     />
                     <IdentityDocumentJsonView didDocument={didDocument} />
                     <TransactionsView objectId={did.tag()} />

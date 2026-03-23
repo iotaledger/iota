@@ -4,15 +4,24 @@
 import { Panel, PanelGroup } from 'react-resizable-panels';
 import { ErrorBoundary } from '~/components';
 
-interface ControllerAndServiceViewProps {
-    firstPanelView: React.ReactNode;
-    secondPanelView: React.ReactNode;
+/**
+ * The props for the SideBySidePanels component.
+ */
+interface SideBySidePanelsProps {
+    /**
+     * The component for the first panel.
+     */
+    firstPanel: React.ReactNode;
+    /**
+     * The component for the second panel.
+     */
+    secondPanel: React.ReactNode;
 }
 
-export function SideBySidePanelsView({
-    firstPanelView,
-    secondPanelView,
-}: ControllerAndServiceViewProps) {
+/**
+ * Component that displays two panels side by side, already wrapped in ErrorBoundary.
+ */
+export function SideBySidePanels({ firstPanel, secondPanel }: SideBySidePanelsProps) {
     return (
         <ErrorBoundary>
             <div className="flex flex-col gap-md md:flex-row">
@@ -20,7 +29,7 @@ export function SideBySidePanelsView({
                     <div className="panel-bg flex w-full flex-col rounded-xl border border-transparent p-md--rs">
                         <PanelGroup direction="horizontal">
                             <Panel>
-                                <ErrorBoundary>{firstPanelView}</ErrorBoundary>
+                                <ErrorBoundary>{firstPanel}</ErrorBoundary>
                             </Panel>
                         </PanelGroup>
                     </div>
@@ -29,7 +38,7 @@ export function SideBySidePanelsView({
                     <div className="panel-bg flex w-full flex-col rounded-xl border border-transparent p-md--rs">
                         <PanelGroup direction="horizontal">
                             <Panel>
-                                <ErrorBoundary>{secondPanelView}</ErrorBoundary>
+                                <ErrorBoundary>{secondPanel}</ErrorBoundary>
                             </Panel>
                         </PanelGroup>
                     </div>
