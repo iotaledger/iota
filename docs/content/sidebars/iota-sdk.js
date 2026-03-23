@@ -32,6 +32,13 @@ const iotaSDK = [
                     'developer/rust-sdk/how-tos/accounts-and-addresses/coin-balance',
                 ],
             },
+            {
+                type: 'category',
+                label: 'Transactions',
+                items: [
+                    'developer/rust-sdk/how-tos/transactions/prepare-send-iota',
+                ],
+            },
         ],
     },
     {
