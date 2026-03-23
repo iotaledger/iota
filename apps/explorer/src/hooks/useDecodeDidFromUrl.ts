@@ -3,7 +3,7 @@
 
 import type { IotaDID } from '@iota/identity-wasm/web';
 import { useQuery } from '@tanstack/react-query';
-import { tryDecodeDidFromUrl } from '~/lib/utils/trust-framework/identity';
+import { tryDecodeDidFromUrl } from '~/lib/utils/trust-framework/client';
 
 /**
  * A React hook that decodes a URL-encoded DID.

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as identity from '@iota/identity-wasm/web';
+import * as notarization from '@iota/notarization/web';
 import { isValidIotaObjectId } from '@iota/iota-sdk/utils';
 import { type IotaClient, Network } from '@iota/iota-sdk/client';
 import {
@@ -9,10 +10,13 @@ import {
     DID_URL_SEGMENT_SYMBOL,
     IDENTITY_WASM_PATH,
     IOTA_IDENTITY_PKG_ID,
+    IOTA_NOTARIZATION_PKG_ID,
+    NOTARIZATION_WASM_PATH,
 } from '~/lib/constants/trustFramework.constants';
 
 const regularNetworks = new Set([Network.Mainnet, Network.Testnet, Network.Devnet]);
-let initPromise: Promise<void> | null = null;
+let initIdentityPromise: Promise<void> | null = null;
+let initNotarizationPromise: Promise<void> | null = null;
 
 /**
  * Idempotent initialization of WASM module of Identity.
@@ -20,14 +24,30 @@ let initPromise: Promise<void> | null = null;
  * Use it everytime you need to call any identity API.
  */
 export const initIdentityWasmWeb = async (): Promise<void> => {
-    if (!initPromise) {
-        initPromise = identity.init(IDENTITY_WASM_PATH).catch((e) => {
+    if (!initIdentityPromise) {
+        initIdentityPromise = identity.init(IDENTITY_WASM_PATH).catch((e) => {
             console.error('failed to load identity wasm (web version)', e);
-            initPromise = null; // allow retry
+            initIdentityPromise = null; // allow retry
             throw e;
         });
     }
-    return initPromise;
+    return initIdentityPromise;
+};
+
+/**
+ * Idempotent initialization of WASM module of Notarization.
+ *
+ * Use it everytime you need to call any notarization API.
+ */
+export const initNotarizationWasmWeb = async (): Promise<void> => {
+    if (!initNotarizationPromise) {
+        initNotarizationPromise = notarization.init(NOTARIZATION_WASM_PATH).catch((e) => {
+            console.error('failed to load notarization wasm (web version)', e);
+            initNotarizationPromise = null; // allow retry
+            throw e;
+        });
+    }
+    return initNotarizationPromise;
 };
 
 export const createIdentityClientReadOnly = async (
@@ -50,6 +70,29 @@ export const createIdentityClientReadOnly = async (
 
     throw new Error(
         'Failed to create an IdentityClientReadOnly; declare IOTA_IDENTITY_PKG_ID environment if running on a custom network.',
+    );
+};
+
+export const createNotarizationClientReadOnly = async (
+    iotaClient: IotaClient,
+    network: string,
+): Promise<notarization.NotarizationClientReadOnly> => {
+    // If IOTA_NOTARIZATION_PKG_ID is declared it has precedence
+    await initNotarizationWasmWeb();
+    if (IOTA_NOTARIZATION_PKG_ID != null) {
+        return await notarization.NotarizationClientReadOnly.createWithPkgId(
+            iotaClient,
+            IOTA_NOTARIZATION_PKG_ID,
+        );
+    }
+
+    // Well-known networks have well-known notarization package id
+    if (regularNetworks.has(network as Network)) {
+        return await notarization.NotarizationClientReadOnly.create(iotaClient);
+    }
+
+    throw new Error(
+        'Failed to create a NotarizationClientReadOnly; declare IOTA_NOTARIZATION_PKG_ID environment if running on a custom network.',
     );
 };
 

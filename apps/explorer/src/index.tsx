@@ -18,13 +18,16 @@ import './index.css';
 import { Disclaimer, handleConsentAccepted } from '@iota/core';
 import { LEGAL_LINKS } from './lib';
 import { Link } from './components';
-import { initIdentityWasmWeb } from './lib/utils/trust-framework/identity';
+import { initIdentityWasmWeb, initNotarizationWasmWeb } from './lib/utils/trust-framework/client';
 
 // Load Amplitude as early as we can:
 initAmplitude();
 
 // Load Identity WASM module as early as we can:
 initIdentityWasmWeb();
+
+// Load Notarization WASM module as early as we can:
+initNotarizationWasmWeb();
 
 // Start loading features as early as we can:
 growthbook.refreshFeatures();
