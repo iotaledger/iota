@@ -652,7 +652,7 @@ mod tests {
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
         let data = Data::Move(
-            { MoveObject::new_from_execution_with_limit(object_type, 1.into(), contents, 256) }
+            MoveObject::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
                 .unwrap(),
         );
 

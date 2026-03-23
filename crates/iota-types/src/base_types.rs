@@ -17,7 +17,6 @@ use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
     account_address::AccountAddress, annotated_value as A, ident_str, identifier::IdentStr,
-    language_storage::ModuleId,
 };
 use schemars::JsonSchema;
 use serde::{
@@ -27,12 +26,10 @@ use serde::{
 
 use crate::{
     MOVE_STDLIB_ADDRESS,
-    account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     crypto::{
         AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
         SignatureScheme,
     },
-    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TransactionEffects, TransactionEffectsAPI},
     epoch_data::EpochData,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
@@ -85,39 +82,6 @@ pub fn random_object_ref() -> ObjectRef {
         SequenceNumber::default(),
         ObjectDigest::new([0; 32]),
     )
-}
-
-/// Extension trait for `StructTag` providing node-internal methods that depend
-/// on iota-types (stardust, dynamic fields, auth, move-core-types).
-pub trait StructTagExt {
-    fn module_id(&self) -> ModuleId;
-
-    fn is_authenticator_function_ref_v1(&self) -> bool;
-
-    fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag>;
-
-    fn try_extract_field_value(&self) -> IotaResult<TypeTag>;
-}
-
-impl StructTagExt for StructTag {
-    fn module_id(&self) -> ModuleId {
-        ModuleId::new(
-            AccountAddress::new(self.address().into_bytes()),
-            move_core_types::identifier::Identifier::new(self.module().as_str()).unwrap(),
-        )
-    }
-
-    fn is_authenticator_function_ref_v1(&self) -> bool {
-        AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(self)
-    }
-
-    fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
-        DynamicFieldInfo::try_extract_field_name(self, type_)
-    }
-
-    fn try_extract_field_value(&self) -> IotaResult<TypeTag> {
-        DynamicFieldInfo::try_extract_field_value(self)
-    }
 }
 
 /// Whether this type is valid as a primitive (pure) transaction input.
