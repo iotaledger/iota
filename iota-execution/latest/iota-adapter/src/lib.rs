@@ -43,6 +43,9 @@ pub(crate) fn validate_type_tag(tag: &TypeTag) -> Result<(), ExecutionError> {
                         e.to_string(),
                     )
                 })?;
+            for tag in struct_tag.type_params() {
+                validate_type_tag(tag)?;
+            }
             Ok(())
         }
     }
