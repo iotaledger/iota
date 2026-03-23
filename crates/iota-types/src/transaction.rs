@@ -84,7 +84,7 @@ mod messages_tests;
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
-pub fn type_input_validity_check(
+pub fn type_tag_validity_check(
     tag: &TypeTag,
     config: &ProtocolConfig,
     starting_count: &mut usize,
@@ -480,7 +480,7 @@ impl ProgrammableMoveCall {
         fp_ensure!(!is_blocked, UserInputError::BlockedMoveFunction);
         let mut type_arguments_count = 0;
         for tag in &self.type_arguments {
-            type_input_validity_check(tag, config, &mut type_arguments_count)?;
+            type_tag_validity_check(tag, config, &mut type_arguments_count)?;
         }
         fp_ensure!(
             self.arguments.len() < config.max_arguments() as usize,
@@ -599,7 +599,7 @@ impl Command {
                 );
                 if let Some(ty) = ty_opt {
                     let mut type_arguments_count = 0;
-                    type_input_validity_check(ty, config, &mut type_arguments_count)?;
+                    type_tag_validity_check(ty, config, &mut type_arguments_count)?;
                 }
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
