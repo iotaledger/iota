@@ -612,16 +612,9 @@ export default function VestingDashboardPage(): JSX.Element {
                         </Panel>
                     </div>
                 ) : null}
-                {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
-                    <UnstakeDialog
-                        {...defaultDialogProps}
-                        groupedTimelockedObjects={timelockedObjectsToUnstake}
-                        onSuccess={handleOnSuccessUnstake}
-                    />
-                )}
                 {isDialogStakeOpen && (
                     <StakeDialog
-                        isTimelockedStaking={true}
+                        isTimelockedStaking
                         stakedDetails={selectedStake}
                         onSuccess={handleOnSuccess}
                         handleClose={handleCloseStakeDialog}
@@ -632,6 +625,13 @@ export default function VestingDashboardPage(): JSX.Element {
                         maxStakableTimelockedAmount={BigInt(
                             supplyIncreaseVestingSchedule.availableStaking,
                         )}
+                    />
+                )}
+                {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
+                    <UnstakeDialog
+                        {...defaultDialogProps}
+                        groupedTimelockedObjects={timelockedObjectsToUnstake}
+                        onSuccess={handleOnSuccessUnstake}
                     />
                 )}
             </div>
