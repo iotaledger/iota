@@ -61,37 +61,34 @@ export function Interstitial({
         return null;
     }
 
+    if (!imageUrl) return null;
+
+    const imageNode = (
+        <img src={imageUrl} alt="interstitial-banner" className="h-full w-auto max-w-full" />
+    );
+
     return (
         <Portal containerId="overlay-portal-container">
             <div className="absolute inset-0 z-50 flex items-center justify-center p-5 backdrop-blur-sm">
                 <div className="relative h-full overflow-hidden rounded-3xl">
-                    {imageUrl &&
-                        (bannerUrl ? (
-                            <ExternalLink
-                                href={bannerUrl}
-                                onClick={() => {
-                                    ampli.appsBannerCtaClicked({
-                                        sourceFlow: 'Interstitial',
-                                        bannerUrl,
-                                    });
-                                    closeInterstitial(dismissKey);
-                                }}
-                                className="block h-full"
-                                trackEvent={false}
-                            >
-                                <img
-                                    src={imageUrl}
-                                    alt="interstitial-banner"
-                                    className="h-full w-auto max-w-full"
-                                />
-                            </ExternalLink>
-                        ) : (
-                            <img
-                                src={imageUrl}
-                                alt="interstitial-banner"
-                                className="h-full w-auto max-w-full"
-                            />
-                        ))}
+                    {bannerUrl ? (
+                        <ExternalLink
+                            href={bannerUrl}
+                            onClick={() => {
+                                ampli.appsBannerCtaClicked({
+                                    sourceFlow: 'Interstitial',
+                                    bannerUrl,
+                                });
+                                closeInterstitial(dismissKey);
+                            }}
+                            className="block h-full"
+                            trackEvent={false}
+                        >
+                            {imageNode}
+                        </ExternalLink>
+                    ) : (
+                        imageNode
+                    )}
 
                     <div className="absolute right-3 top-3">
                         <Button
