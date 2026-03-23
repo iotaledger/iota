@@ -1,5 +1,5 @@
 ---
-'@iota/iota-sdk': patch
+'@iota/iota-sdk': minor
 ---
 
 Remove getAppsBackend function
