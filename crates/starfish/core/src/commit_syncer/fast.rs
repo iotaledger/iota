@@ -1218,8 +1218,6 @@ mod tests {
         // cordial dissemination), so there's no commit gap for syncers to act
         // on. Phase 5 creates a commit gap larger than the threshold for fast
         // sync to trigger on restart.
-        // Phase 3 uses 2x duration to give enough time under CPU pressure for
-        // headers to propagate and pending subdags to appear.
         let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
@@ -1238,7 +1236,11 @@ mod tests {
         let test_validator_index: usize = 0;
         let blocked_validator_index: usize = 1;
 
-        // Phase 1: Start all authorities and let them create initial commits
+        // Phase 1: Start all authorities and let them create initial commits.
+        // Disable fast commit syncer for the test validator so it won't resolve
+        // pending subdags during Phase 3 (the fast syncer uses last_solid_commit_index
+        // for gap detection, which would trigger fetching when pending subdags exist).
+        // Phase 6 restarts the test validator with enable_fast_commit_syncer: true.
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
@@ -1247,7 +1249,7 @@ mod tests {
                 commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
-                enable_fast_commit_syncer: true,
+                enable_fast_commit_syncer: index.value() != test_validator_index,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -1334,9 +1336,9 @@ mod tests {
         // - Transaction synchronizer is stopped (blocks active transaction fetching)
         // - Shard reconstructor is stopped (blocks erasure-coded shard reconstruction)
         // This creates pending subdags.
-        // Commit syncers are running but have nothing to fetch (no commit gap exists).
+        // The fast commit syncer is disabled for the test validator (see Phase 1).
         let phase3_start = Instant::now();
-        while phase3_start.elapsed() < stable_work_duration * 2 {
+        while phase3_start.elapsed() < stable_work_duration {
             // Submit transactions to all validators (rotating)
             let authority_index = txn_counter as usize % authorities.len();
             let txn = vec![txn_counter as u8; 16];
