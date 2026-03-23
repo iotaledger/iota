@@ -1,18 +1,34 @@
 [workspace]
 resolver = "2"
+
 members = [
-  "crates/*",
-  # "move-execution/$CUT/crates/bytecode-verifier-tests",
-  # "move-execution/$CUT/crates/move-abstract-interpreter",
-  # "move-execution/$CUT/crates/move-bytecode-verifier",
-  # "move-execution/$CUT/crates/move-stdlib-natives",
-  # "move-execution/$CUT/crates/move-vm-runtime",
-  # "move-execution/$CUT/crates/move-vm-types",
+    "crates/*",
+    "move-execution/v0/crates/bytecode-verifier-tests",
+    "move-execution/v1/crates/bytecode-verifier-tests",
+    "move-execution/v2/crates/bytecode-verifier-tests",
+    # "move-execution/$CUT/crates/bytecode-verifier-tests",
+    "move-execution/v0/crates/move-bytecode-verifier",
+    "move-execution/v1/crates/move-bytecode-verifier",
+    "move-execution/v2/crates/move-bytecode-verifier",
+    # "move-execution/$CUT/crates/move-bytecode-verifier",
+    "move-execution/v0/crates/move-vm-runtime",
+    "move-execution/v1/crates/move-vm-runtime",
+    "move-execution/v2/crates/move-vm-runtime",
+    # "move-execution/$CUT/crates/move-vm-runtime",
+    "move-execution/v0/crates/move-stdlib-natives",
+    "move-execution/v1/crates/move-stdlib-natives",
+    "move-execution/v2/crates/move-stdlib-natives",
+    # "move-execution/$CUT/crates/move-stdlib-natives",
+    "move-execution/v2/crates/move-abstract-interpreter",
+    # "move-execution/$CUT/crates/move-abstract-interpreter",
+    "move-execution/v0/crates/move-vm-types",
+    "move-execution/v1/crates/move-vm-types",
+    "move-execution/v2/crates/move-vm-types",
+    # "move-execution/$CUT/crates/move-vm-types",
 ]
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
-# external dependencies
 aes-gcm = "0.8.0"
 anyhow = "1.0.52"
 append-only-vec = "0.1.7"
@@ -50,10 +66,8 @@ hex = "0.4.3"
 hex-literal = "0.3.4"
 hkdf = "0.10.0"
 im = "15.1.0"
-indexmap = "2.11.0"
-inline_colorization = "0.1.6"
-insta = "1.42.0"
-internment = { version = "0.5.0", features = ["arc"] }
+indexmap = "2.8.0"
+internment = { version = "0.5.0", features = [ "arc"] }
 itertools = "0.10.0"
 json_comments = "0.2.2"
 leb128 = "0.2.5"
@@ -68,18 +82,18 @@ num = "0.4.0"
 num_cpus = "1.13.0"
 once_cell = "1.7.2"
 ouroboros = "0.17.2"
-packed_struct = "0.10.1"
 parking_lot = "0.11.1"
 paste = "1.0.5"
-petgraph = "0.5.1"
+packed_struct = "0.10.1"
+petgraph = "0.8.1"
 phf = { version = "0.11", features = ["macros"] }
-plotters = { version = "0.3.0", default-features = false, features = ["evcxr", "line_series", "histogram"] }
+plotters = { version = "0.3.0", default-features = false, features = ["evcxr", "line_series", "histogram"]}
 pretty = "0.10.0"
-prettydiff = "0.8.0"
-primitive-types = { version = "0.10.1", features = ["impl-serde"] }
+prettydiff = "0.4.0"
+primitive-types = { version = "0.10.1", features = ["impl-serde"]}
 proc-macro2 = "1.0.24"
 proptest = "1.6.0"
-proptest-derive = "0.5.1"
+proptest-derive = "0.5"
 quote = "1.0.9"
 rand = "0.8.0"
 ratatui = "0.29.0"
@@ -92,14 +106,14 @@ serde-name = "0.1.1"
 serde-reflection = "0.5"
 serde_bytes = "0.11.5"
 serde_json = "1.0.64"
-serde_spanned = { version = "0.6.9", features = ["serde"] }
-serde_with = "3.9.0"
+serde_spanned = { version = "0.6.8", features = ["serde"] }
 serde_yaml = "0.8.26"
-sha2 = "0.10.9"
-sha3 = "0.10.8"
+serde_with = "3.9.0"
+sha2 = "0.9.3"
+sha3 = "0.9.1"
 shell-words = "1.0.0"
-similar = "2.4.0"
 simplelog = "0.9.0"
+similar = "2.4.0"
 smallvec = "1.6.1"
 stacker = "0.1.15"
 static_assertions = "1.1.0"
@@ -110,11 +124,11 @@ tempfile = "3.2.0"
 tera = "1.16.0"
 thiserror = "1.0.24"
 tiny-keccak = { version = "2.0.2", features = ["sha3"] }
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { version = "1.44.2", features = ["full"] }
 toml = "0.5.8"
-toml_edit = { version = "0.22.24", features = ["serde", "default"] }
-tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+toml_edit =  { version = "0.22.24", features = ["serde", "default"] }
+tracing = "0.1.26"
+tracing-subscriber = { version = "0.3.15", features = ["env-filter"] }
 treeline = "0.1.0"
 uint = "0.9.4"
 url = "2.2.2"
@@ -124,10 +138,11 @@ walkdir = "2.3.1"
 whoami = { version = "1.2.1" }
 x25519-dalek = { version = "0.1.0", package = "x25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
 z3tracer = "0.8.0"
+inline_colorization = "0.1.6"
+insta = "1.42.0"
 zstd = "0.13.2"
 lcov = "0.8.1"
 
-# internal dependencies
 bytecode-interpreter-crypto = { path = "crates/bytecode-interpreter-crypto" }
 enum-compat-util = { path = "crates/enum-compat-util" }
 invalid-mutations = { path = "crates/invalid-mutations" }
@@ -135,6 +150,7 @@ module-generation = { path = "crates/module-generation" }
 move-abstract-interpreter = { path = "crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "crates/move-abstract-stack" }
 move-binary-format = { path = "crates/move-binary-format" }
+move-trace-format = { path = "crates/move-trace-format" }
 move-borrow-graph = { path = "crates/move-borrow-graph" }
 move-bytecode-source-map = { path = "crates/move-bytecode-source-map" }
 move-bytecode-utils = { path = "crates/move-bytecode-utils" }
@@ -157,12 +173,11 @@ move-model = { path = "crates/move-model" }
 move-model-2 = { path = "crates/move-model-2" }
 move-package = { path = "crates/move-package" }
 move-package-alt = { path = "crates/move-package-alt" }
-move-proc-macros = { path = "crates/move-proc-macros" }
+move-proc-macros = { path = "crates/move-proc-macros"}
 move-stackless-bytecode = { path = "crates/move-stackless-bytecode" }
 move-stdlib = { path = "crates/move-stdlib" }
 move-stdlib-natives = { path = "crates/move-stdlib-natives" }
 move-symbol-pool = { path = "crates/move-symbol-pool" }
-move-trace-format = { path = "crates/move-trace-format" }
 move-transactional-test-runner = { path = "crates/move-transactional-test-runner" }
 move-unit-test = { path = "crates/move-unit-test" }
 move-vm-config = { path = "crates/move-vm-config" }
@@ -170,7 +185,7 @@ move-vm-profiler = { path = "crates/move-vm-profiler" }
 move-vm-runtime = { path = "crates/move-vm-runtime" }
 move-vm-test-utils = { path = "crates/move-vm-test-utils" }
 move-vm-types = { path = "crates/move-vm-types" }
-prover_bytecode = { path = "crates/move-stackless-bytecode", package = "move-stackless-bytecode" }
+prover_bytecode = { path = "crates/move-stackless-bytecode", package="move-stackless-bytecode" }
 
 [profile.bench]
 debug = true
@@ -185,7 +200,7 @@ opt-level = 3
 
 # use release settings to reduce memory pressure in the linking step in CI
 [profile.ci]
-codegen-units = 16
+inherits = "test"
 debug = 0 # for saving disk space during linking
 incremental = false
-inherits = "test"
+codegen-units = 16
