@@ -14,7 +14,7 @@ use iota_macros::fail_point;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::{
     DBPinnableSlice, DBWithThreadMode, Error, LiveFile, MultiThreaded, ReadOptions, WriteBatch,
-    WriteOptions, checkpoint::Checkpoint,
+    checkpoint::Checkpoint,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
@@ -251,13 +251,12 @@ impl Database {
         &self,
         cf: &ColumnFamily,
         key: K,
-        writeopts: &WriteOptions,
     ) -> Result<(), TypedStoreError> {
         fail_point!("delete-cf-before");
         let ret = match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
                 .underlying
-                .delete_cf_opt(&cf.rocks_cf(db), key, writeopts)
+                .delete_cf(&cf.rocks_cf(db), key)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
                 db.delete(cf_name, key.as_ref());
@@ -284,13 +283,12 @@ impl Database {
         cf: &ColumnFamily,
         key: Vec<u8>,
         value: Vec<u8>,
-        writeopts: &WriteOptions,
     ) -> Result<(), TypedStoreError> {
         fail_point!("put-cf-before");
         let ret = match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
                 .underlying
-                .put_cf_opt(&cf.rocks_cf(db), key, value, writeopts)
+                .put_cf(&cf.rocks_cf(db), key, value)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
                 db.put(cf_name, key, value);
@@ -323,16 +321,12 @@ impl Database {
         }
     }
 
-    pub fn write(
-        &self,
-        batch: StorageWriteBatch,
-        writeopts: &WriteOptions,
-    ) -> Result<(), TypedStoreError> {
+    pub fn write(&self, batch: StorageWriteBatch) -> Result<(), TypedStoreError> {
         fail_point!("batch-write-before");
         let ret = match (&self.storage, batch) {
             (Storage::Rocks(rocks), StorageWriteBatch::Rocks(batch)) => rocks
                 .underlying
-                .write_opt(batch, writeopts)
+                .write(batch)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), StorageWriteBatch::InMemory(batch)) => {
                 db.write(batch);
@@ -597,7 +591,6 @@ impl<K, V> DBMap<K, V> {
         DBBatch::new(
             &self.db,
             batch,
-            self.opts.writeopts(),
             &self.db_metrics,
             &self.write_sample_interval,
         )
@@ -925,7 +918,6 @@ impl<K, V> DBMap<K, V> {
 pub struct DBBatch {
     database: Arc<Database>,
     batch: StorageWriteBatch,
-    opts: WriteOptions,
     db_metrics: Arc<DBMetrics>,
     write_sample_interval: SamplingInterval,
 }
@@ -937,14 +929,12 @@ impl DBBatch {
     pub fn new(
         dbref: &Arc<Database>,
         batch: StorageWriteBatch,
-        opts: WriteOptions,
         db_metrics: &Arc<DBMetrics>,
         write_sample_interval: &SamplingInterval,
     ) -> Self {
         DBBatch {
             database: dbref.clone(),
             batch,
-            opts,
             db_metrics: db_metrics.clone(),
             write_sample_interval: write_sample_interval.clone(),
         }
@@ -967,7 +957,7 @@ impl DBBatch {
         } else {
             None
         };
-        self.database.write(self.batch, &self.opts)?;
+        self.database.write(self.batch)?;
         self.db_metrics
             .op_metrics
             .rocksdb_batch_commit_bytes
@@ -1195,12 +1185,7 @@ where
                 .write_perf_ctx_metrics
                 .report_metrics(self.cf_name());
         }
-        self.db.put_cf(
-            &self.column_family,
-            key_buf,
-            value_buf,
-            &self.opts.writeopts(),
-        )?;
+        self.db.put_cf(&self.column_family, key_buf, value_buf)?;
 
         let elapsed = timer.stop_and_record();
         if elapsed > 1.0 {
@@ -1234,8 +1219,7 @@ where
             None
         };
         let key_buf = be_fix_int_ser(key)?;
-        self.db
-            .delete_cf(&self.column_family, key_buf, &self.opts.writeopts())?;
+        self.db.delete_cf(&self.column_family, key_buf)?;
         self.db_metrics
             .op_metrics
             .rocksdb_deletes
@@ -1399,8 +1383,6 @@ where
 #[derive(Clone, Debug)]
 pub struct ReadWriteOptions {
     pub ignore_range_deletions: bool,
-    // Whether to sync to disk on every write.
-    sync_to_disk: bool,
 }
 
 impl ReadWriteOptions {
@@ -1408,12 +1390,6 @@ impl ReadWriteOptions {
         let mut readopts = ReadOptions::default();
         readopts.set_ignore_range_deletions(self.ignore_range_deletions);
         readopts
-    }
-
-    pub fn writeopts(&self) -> WriteOptions {
-        let mut opts = WriteOptions::default();
-        opts.set_sync(self.sync_to_disk);
-        opts
     }
 
     pub fn set_ignore_range_deletions(mut self, ignore: bool) -> Self {
@@ -1426,7 +1402,6 @@ impl Default for ReadWriteOptions {
     fn default() -> Self {
         Self {
             ignore_range_deletions: true,
-            sync_to_disk: std::env::var("IOTA_DB_SYNC_TO_DISK").is_ok_and(|v| v != "0"),
         }
     }
 }
