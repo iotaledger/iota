@@ -107,7 +107,6 @@ const config = {
             includePatterns: ['developer/workshops/**'],
             fullContent: true,
           },
-          // ── Developer section split by main sidebar categories ──────────────
           {
             filename: 'llms-full-developer-getting-started.txt',
             title: 'IOTA Developer Documentation - Getting Started',
