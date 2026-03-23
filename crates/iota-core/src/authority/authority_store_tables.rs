@@ -5,8 +5,11 @@
 use std::path::Path;
 
 use iota_types::{
-    accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
-    effects::TransactionEffects, storage::MarkerValue,
+    accumulator::Accumulator,
+    base_types::SequenceNumber,
+    digests::TransactionEventsDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -108,6 +111,9 @@ pub struct AuthorityPerpetualTables {
     // TODO: Figure out what to do with this table in the long run.
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
+
+    // Events keyed by the digest of the transaction that produced them.
+    pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
     /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
@@ -476,6 +482,7 @@ impl AuthorityPerpetualTables {
         self.objects.unsafe_clear()?;
         self.live_owned_object_markers.unsafe_clear()?;
         self.executed_effects.unsafe_clear()?;
+        self.events_2.unsafe_clear()?;
         self.events.unsafe_clear()?;
         self.executed_transactions_to_checkpoint.unsafe_clear()?;
         self.root_state_hash_by_epoch.unsafe_clear()?;

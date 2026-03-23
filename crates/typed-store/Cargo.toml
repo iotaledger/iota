@@ -43,3 +43,6 @@ uint = "0.9"
 # that creates a circular dependency.
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true
+
+[lints]
+workspace = true

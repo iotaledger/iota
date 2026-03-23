@@ -50,16 +50,16 @@ export function TokenStakingOverview({
     });
 
     function handleOnClick() {
+        ampli.stakeClicked({
+            isCurrentlyStaking: totalDelegatedStake > 0,
+            sourceFlow: SOURCE_FLOW,
+        });
+
         if (shouldOpenNewTab) {
             openInNewTab('/stake');
         } else {
             navigate('/stake');
         }
-
-        ampli.stakeClicked({
-            isCurrentlyStaking: totalDelegatedStake > 0,
-            sourceFlow: SOURCE_FLOW,
-        });
     }
 
     const isLoading = isPending || queryResultStake.isPending;

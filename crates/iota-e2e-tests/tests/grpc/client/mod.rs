@@ -4,7 +4,11 @@
 mod checkpoints;
 mod common;
 mod epochs;
+mod event_filters;
 mod execute;
+mod health;
+mod metadata;
 mod objects;
 mod simulate;
+mod transaction_filters;
 mod transactions;

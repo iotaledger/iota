@@ -96,6 +96,14 @@ export enum CoinFormat {
     Full = 'Full',
 }
 
+interface FormatBalanceOptions {
+    useGroupSeparator?: boolean;
+}
+
+const defaultOptions: FormatBalanceOptions = {
+    useGroupSeparator: true,
+};
+
 /**
  * Formats a coin balance based on our standard coin display logic.
  * If the balance is less than 1, it will be displayed in its full decimal form.
@@ -106,12 +114,19 @@ export function formatBalance(
     decimals: number,
     format: CoinFormat = CoinFormat.Rounded,
     showSign = false,
+    options: FormatBalanceOptions = {},
 ) {
     const bn = new BigNumber(balance.toString()).shiftedBy(-1 * decimals);
     let formattedBalance = formatAmount(bn);
 
+    options = { ...defaultOptions, ...options };
+
     if (format === CoinFormat.Full) {
-        formattedBalance = bn.toFormat();
+        if (options?.useGroupSeparator === false) {
+            formattedBalance = bn.toFormat({ groupSeparator: '', decimalSeparator: '.' });
+        } else {
+            formattedBalance = bn.toFormat();
+        }
     }
 
     if (showSign && !formattedBalance.startsWith('-')) {

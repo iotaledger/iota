@@ -58,7 +58,7 @@ pub(crate) struct BlockSuspender {
 impl BlockSuspender {
     pub(crate) fn new(context: Arc<Context>) -> Self {
         Self {
-            context: context.clone(),
+            context,
             suspended_headers: BTreeMap::new(),
             missing_ancestors: BTreeMap::new(),
             headers_to_fetch: BTreeMap::new(),

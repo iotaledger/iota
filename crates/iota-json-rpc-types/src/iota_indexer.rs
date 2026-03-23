@@ -40,7 +40,7 @@ impl From<NameRecord> for IotaNameRecord {
                 .data
                 .contents
                 .into_iter()
-                .map(|entry| (entry.key.to_string(), entry.value.to_string()))
+                .map(|entry| (entry.key.to_string(), entry.value))
                 .collect(),
         }
     }

@@ -107,7 +107,11 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
     const { amount } = values;
     const amountWithoutDecimals = parseAmount(amount, decimals);
-    const [stakedAmountFormatted] = useFormatCoin({ balance: amountWithoutDecimals });
+    const [stakedAmountFormattedPlain] = useFormatCoin({
+        balance: amountWithoutDecimals,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
@@ -150,7 +154,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             await stakeTokenMutateAsync(undefined, {
                 onSuccess(data) {
                     ampli.iotaStaked({
-                        stakedAmount: Number(stakedAmountFormatted),
+                        stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: validatorAddress || '',
                         validatorAPY: validatorApy,
                         validatorName,
@@ -246,7 +250,9 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 errorMessage={amount && meta.error ? meta.error : undefined}
                                 label="Amount"
                                 trailingElement={
-                                    <ButtonPill onClick={setMaxAmount}>Max</ButtonPill>
+                                    <ButtonPill onClick={setMaxAmount} disabled={!availableBalance}>
+                                        Max
+                                    </ButtonPill>
                                 }
                             />
                         );

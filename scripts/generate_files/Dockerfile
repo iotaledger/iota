@@ -1,4 +1,4 @@
-FROM node:20-trixie
+FROM node:24-trixie
 
 # Accept a build argument for the Rust version
 ARG RUST_VERSION=1.88

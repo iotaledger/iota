@@ -11,10 +11,11 @@ import {
     useRecognizedPackages,
     ExtendedTransaction,
     OutlinedCopyButton,
-    toast,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
+import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface TransactionDialogDetailsProps {
     transaction: ExtendedTransaction;
@@ -29,6 +30,10 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
         currentAddress: address,
         recognizedPackagesList,
     });
+
+    const onCopySuccess = useCallback(() => {
+        trackElementCopied('transaction-digest');
+    }, []);
 
     if (!summary) return <LoadingIndicator />;
 
@@ -56,9 +61,8 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                     <div className="self-center">
                         <OutlinedCopyButton
                             textToCopy={transaction.raw.digest ?? ''}
-                            onCopySuccess={() =>
-                                toast.success('Transaction digest copied to clipboard')
-                            }
+                            onCopySuccess={onCopySuccess}
+                            successMessage="Transaction digest copied to clipboard"
                         />
                     </div>
                 </div>
