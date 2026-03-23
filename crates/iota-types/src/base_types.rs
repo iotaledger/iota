@@ -89,12 +89,7 @@ pub fn random_object_ref() -> ObjectRef {
 
 /// Extension trait for `StructTag` providing node-internal methods that depend
 /// on iota-types (stardust, dynamic fields, auth, move-core-types).
-///
-/// Generic type-checking methods like `is_coin_t()`,
-/// `is_regulated_coin_metadata()`, `is_timelocked_balance()`, etc. are inherent
-/// methods on `StructTag` in `iota-sdk-types`.
 pub trait StructTagExt {
-    /// Return the `ModuleId` for this type (requires `move-core-types`).
     fn module_id(&self) -> ModuleId;
 
     fn is_authenticator_function_ref_v1(&self) -> bool;
