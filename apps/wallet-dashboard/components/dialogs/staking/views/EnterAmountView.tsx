@@ -8,10 +8,11 @@ import {
     useNewStakeTransaction,
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
+    useGetValidatorsApy,
 } from '@iota/core';
 import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
-import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useSignAndExecuteTransaction, useIotaClientQuery } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import { ampli } from '@/lib/utils/analytics';
 import { ButtonPill, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
@@ -42,6 +43,11 @@ export function EnterAmountView({
 }: EnterAmountViewProps): JSX.Element {
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
+    const { data: rollingAverageApys } = useGetValidatorsApy();
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const validatorApy = rollingAverageApys?.[selectedValidator]?.apy ?? 0;
+    const validatorName =
+        systemState?.activeValidators.find((v) => v.iotaAddress === selectedValidator)?.name ?? '';
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
     const decimals = metadata?.decimals ?? 0;
@@ -96,7 +102,9 @@ export function EnterAmountView({
                     toast.success('Stake transaction has been sent');
                     ampli.stakedIota({
                         stakedAmount: Number(stakedAmountFormatted),
-                        validatorAddress: selectedValidator,
+                        validatorAddress: selectedValidator || '',
+                        validatorAPY: validatorApy,
+                        validatorName,
                     });
                     resetForm();
                 },

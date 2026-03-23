@@ -25,7 +25,11 @@ import {
     GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
 import { CoinFormat } from '@iota/iota-sdk/utils';
-import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    useCurrentAccount,
+    useSignAndExecuteTransaction,
+    useIotaClientQuery,
+} from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
@@ -50,6 +54,12 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const validatorName =
+        systemState?.activeValidators.find((v) => v.iotaAddress === extendedStake.validatorAddress)
+            ?.name ?? '';
+    const iotaEarned = extendedStake.estimatedReward || '0';
+    const [rewards] = useFormatCoin({ balance: iotaEarned });
     const {
         data: unstakeData,
         isPending: isUnstakeTxPending,
@@ -110,6 +120,8 @@ export function UnstakeView({
                     ampli.unstakedIota({
                         stakedAmount: Number(totalStakeFormatted),
                         validatorAddress: extendedStake.validatorAddress,
+                        rewards: Number(rewards),
+                        validatorName,
                     });
                 },
             },

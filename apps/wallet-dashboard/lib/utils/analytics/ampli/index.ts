@@ -123,18 +123,29 @@ export interface OpenedWalletDashboardProperties {
     walletDashboardVersion?: string;
 }
 
-export interface SelectValidatorProperties {
+export interface SelectedValidatorProperties {
     validatorAddress?: string;
-    validatorAPY?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
     validatorName?: string;
 }
 
 export interface SentCoinsProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    amount?: number;
     coinType?: string;
 }
 
 export interface SentCollectibleProperties {
-    objectId?: string;
+    collectibleType?: string;
 }
 
 export interface StakedIotaProperties {
@@ -145,6 +156,13 @@ export interface StakedIotaProperties {
      */
     stakedAmount?: number;
     validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
+    validatorName?: string;
 }
 
 export interface SwitchedNetworkProperties {
@@ -181,8 +199,15 @@ export interface UnstakedIotaProperties {
      * |---|---|
      * | Type | number |
      */
+    rewards?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
     stakedAmount?: number;
     validatorAddress?: string;
+    validatorName?: string;
 }
 
 export class ClickedCollectibleCard implements BaseEvent {
@@ -241,10 +266,10 @@ export class OpenedWalletDashboard implements BaseEvent {
     }
 }
 
-export class SelectValidator implements BaseEvent {
-    event_type = 'select validator';
+export class SelectedValidator implements BaseEvent {
+    event_type = 'selected validator';
 
-    constructor(public event_properties?: SelectValidatorProperties) {
+    constructor(public event_properties?: SelectedValidatorProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -551,20 +576,20 @@ export class Ampli {
   }
 
   /**
-   * select validator
+   * selected validator
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/select%20validator)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/selected%20validator)
    *
    * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. validatorAddress)
    * @param options Amplitude event options.
    */
-  selectValidator(
-    properties?: SelectValidatorProperties,
+  selectedValidator(
+    properties?: SelectedValidatorProperties,
     options?: EventOptions,
   ) {
-    return this.track(new SelectValidator(properties), options);
+    return this.track(new SelectedValidator(properties), options);
   }
 
   /**
@@ -591,7 +616,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. objectId)
+   * @param properties The event's properties (e.g. collectibleType)
    * @param options Amplitude event options.
    */
   sentCollectible(
