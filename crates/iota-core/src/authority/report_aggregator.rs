@@ -174,12 +174,26 @@ pub struct DBReceivedReportsStatePerAuthority {
 
 #[cfg(test)]
 mod tests {
-    use iota_protocol_config::ProtocolConfig;
-    use iota_types::messages_consensus::{LegacyReportPayload, VersionedMisbehaviorReport};
+    use std::sync::Arc;
 
-    use crate::authority::authority_per_epoch_store::{
-        misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts},
-        report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::messages_consensus::{
+        ConsensusTransaction, LegacyReportPayload, VersionedMisbehaviorReport,
+    };
+    use prometheus::Registry;
+
+    use crate::{
+        authority::{
+            AuthorityMetrics,
+            authority_per_epoch_store::{
+                consensus_quarantine::ConsensusCommitOutput,
+                misbehavior_config::{MisbehaviorConfig, MisbehaviorCounts},
+                report_aggregator::{DBReceivedReportsStatePerAuthority, ReportAggregator},
+            },
+            test_authority_builder::TestAuthorityBuilder,
+        },
+        checkpoints::CheckpointServiceNoop,
+        consensus_handler::{SequencedConsensusTransaction, SequencedConsensusTransactionKind},
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
@@ -300,5 +314,170 @@ mod tests {
         // Report has 3 entries per metric but we validate against committee_size=4
         let report = report_v1(&[vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9], vec![0, 0, 0]]);
         assert!(!aggregator.validate_report(&report, 4));
+    }
+
+    /// Test simulating partial quarantine flush + resync recovery:
+    ///
+    /// 1. Process report 1 (commit 1)
+    /// 2. Flush commit 1 to DB (quarantine flush)
+    /// 3. Process report 2 with higher values (commit 2)
+    /// 4. Do NOT flush commit 2 (still in quarantine at crash time)
+    /// 5. Capture pre-crash state (aggregator has both reports applied)
+    /// 6. Simulate crash: create new aggregator, restore from DB (only commit
+    ///    1)
+    /// 7. Replay report 2 (resync of unflushed commit)
+    /// 8. Verify restored+replayed state matches pre-crash state
+    #[tokio::test]
+    async fn test_aggregator_partial_flush_and_resync_recovery() {
+        let authority = TestAuthorityBuilder::new().build().await;
+        let epoch_store = authority.epoch_store_for_testing();
+        let committee = epoch_store.committee();
+        let committee_size = committee.num_members();
+        let authority_name = *committee.names().next().unwrap();
+        let authority_index = committee
+            .authority_index(&authority_name)
+            .expect("authority should be in committee");
+
+        let authority_metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
+        let checkpoint_service = Arc::new(CheckpointServiceNoop {});
+
+        let initial_report_state = DBReceivedReportsStatePerAuthority {
+            received_metrics: None,
+            invalid_reports_count: 0u64,
+        };
+
+        let raw_reported_counts_1 = [
+            vec![3; committee_size],  // faulty_blocks_provable
+            vec![1; committee_size],  // faulty_blocks_unprovable
+            vec![10; committee_size], // missing_proposals
+            vec![2; committee_size],  // equivocations
+        ];
+        let raw_reported_counts_2 = [
+            vec![7; committee_size],  // faulty_blocks_provable
+            vec![4; committee_size],  // faulty_blocks_unprovable
+            vec![15; committee_size], // missing_proposals
+            vec![5; committee_size],  // equivocations
+        ];
+
+        // Create reports
+        let report_1 = &report_v1(&raw_reported_counts_1);
+        let report_2 = &report_v1(&raw_reported_counts_2);
+        let consensus_tx_1 =
+            ConsensusTransaction::new_misbehavior_report(authority_name, report_1, 0);
+        let consensus_tx_2 =
+            ConsensusTransaction::new_misbehavior_report(authority_name, report_2, 0);
+        let seq_consensus_tx_1 = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx_1),
+        };
+        let seq_consensus_tx_2 = SequencedConsensusTransaction {
+            certificate_author_index: authority_index,
+            certificate_author: authority_name,
+            consensus_index: Default::default(),
+            transaction: SequencedConsensusTransactionKind::External(consensus_tx_2),
+        };
+
+        let expected_state_after_report_1 = (0..committee_size as u32)
+            .map(|i| {
+                if i == authority_index {
+                    DBReceivedReportsStatePerAuthority {
+                        received_metrics: (Some(MisbehaviorCounts(raw_reported_counts_1.to_vec()))),
+                        invalid_reports_count: 0u64,
+                    }
+                } else {
+                    initial_report_state.clone()
+                }
+            })
+            .collect::<Vec<DBReceivedReportsStatePerAuthority>>();
+        let expected_state_after_report_2 = (0..committee_size as u32)
+            .map(|i| {
+                if i == authority_index {
+                    DBReceivedReportsStatePerAuthority {
+                        received_metrics: (Some(MisbehaviorCounts(raw_reported_counts_2.to_vec()))),
+                        invalid_reports_count: 0u64,
+                    }
+                } else {
+                    initial_report_state.clone()
+                }
+            })
+            .collect::<Vec<DBReceivedReportsStatePerAuthority>>();
+
+        // Process report 1 and flush to DB
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![seq_consensus_tx_1],
+                &checkpoint_service,
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Simulate quarantine flushing commit 1 to DB.
+        {
+            let mut output = ConsensusCommitOutput::new(100);
+            // Snapshot only the authority that sent a report, mirroring what
+            // handle_consensus_commit does with misbehavior_reports_authors_seen.
+            output.set_received_reports_state_for_authority(
+                authority_index,
+                epoch_store
+                    .report_aggregator
+                    .received_reports_state_per_authority_snapshot(authority_index),
+            );
+            output.set_default_commit_stats_for_testing();
+            let mut batch = epoch_store.db_batch_for_test();
+            output.write_to_batch(&epoch_store, &mut batch).unwrap();
+            batch.write().unwrap();
+        }
+
+        // Process report 2 (higher values) but do NOT flush
+        epoch_store
+            .process_consensus_transactions_for_tests(
+                vec![seq_consensus_tx_2],
+                &checkpoint_service,
+                authority.get_object_cache_reader().as_ref(),
+                authority.get_transaction_cache_reader().as_ref(),
+                &authority_metrics,
+                true,
+            )
+            .await
+            .unwrap();
+
+        // Aggregator now reflects both reports, but DB only has commit 1.
+        assert_eq!(
+            full_snapshot(&epoch_store.report_aggregator, committee_size),
+            expected_state_after_report_2,
+            "aggregator should have report 2 values after processing report 2, even without flushing"
+        );
+
+        // Simulate crash: restore from DB (only has commit 1 state)
+        let misbehavior_config = mock_misbehavior_config();
+        let restored_aggregator = ReportAggregator::new(&misbehavior_config, committee_size);
+        let tables = epoch_store.tables().unwrap();
+        restored_aggregator
+            .restore_from_tables(&tables)
+            .expect("restore_from_tables should succeed");
+
+        // After restore, aggregator only has commit 1 values.
+        assert_eq!(
+            full_snapshot(&restored_aggregator, committee_size),
+            expected_state_after_report_1,
+            "restored aggregator should only have commit 1 data from DB"
+        );
+
+        // Resync: replay report 2 (the unflushed commit). During consensus resync,
+        // unflushed commits are re-processed, which calls process_report.
+        restored_aggregator.process_report(authority_index, report_2);
+
+        // Verify restored+replayed state matches pre-crash state
+        assert_eq!(
+            full_snapshot(&restored_aggregator, committee_size),
+            expected_state_after_report_2,
+            "after replaying report 2, aggregator should match the pre-crash state reflecting both reports"
+        );
     }
 }
