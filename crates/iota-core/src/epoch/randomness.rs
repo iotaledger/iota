@@ -358,7 +358,7 @@ impl RandomnessManager {
                 .expect("typed_store should not fail")
             {
                 rm.used_messages
-                    .set(used_messages.clone())
+                    .set(used_messages)
                     .expect("setting new OnceCell should succeed");
             }
             rm.confirmations.extend(

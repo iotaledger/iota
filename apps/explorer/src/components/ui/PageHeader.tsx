@@ -13,7 +13,7 @@ import {
     Placeholder,
 } from '@iota/apps-ui-kit';
 import { Copy, Warning } from '@iota/apps-ui-icons';
-import { onCopySuccess } from '~/lib/utils';
+import { useCopyToClipboard } from '@iota/core';
 import clsx from 'clsx';
 
 type PageHeaderType = 'Transaction' | 'Checkpoint' | 'Address' | 'Object' | 'Package';
@@ -41,17 +41,14 @@ export function PageHeader({
     showCopyButton = true,
     isLoadingSubtitle,
 }: PageHeaderProps): JSX.Element {
+    const copyToClipboard = useCopyToClipboard();
+
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         event.stopPropagation();
-        if (!navigator.clipboard) {
-            return;
-        }
         if (title && typeof title === 'string') {
-            try {
-                await navigator.clipboard.writeText(title);
-                onCopySuccess();
-            } catch (error) {
-                console.error('Failed to copy:', error);
+            const success = await copyToClipboard(title);
+            if (!success) {
+                console.error('Failed to copy to clipboard.');
             }
         }
     }

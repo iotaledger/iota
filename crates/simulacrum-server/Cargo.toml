@@ -34,3 +34,6 @@ iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
 simulacrum.workspace = true
+
+[lints]
+workspace = true

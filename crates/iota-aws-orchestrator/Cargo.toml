@@ -51,3 +51,6 @@ path = "src/main.rs"
 ignored = [
   "prettytable-rs", # library name is different than crate name
 ]
+
+[lints]
+workspace = true
