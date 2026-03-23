@@ -24,7 +24,7 @@ import {
     tryGenerateDidFromObjectId,
     tryDIDParse,
     tryEncodeDidToUrl,
-} from '~/lib/utils/trust-framework/identity';
+} from '~/lib/utils/trust-framework/client';
 import { useIdentityClient } from '~/contexts';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);

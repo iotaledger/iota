@@ -5,14 +5,21 @@
 
 import { useIotaClient, useIotaClientContext } from '@iota/dapp-kit';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
+import { type NotarizationClientReadOnly } from '@iota/notarization/web';
 import { type PropsWithChildren, useEffect, useMemo, useState } from 'react';
 import { TrustFrameworkContext, type TrustFrameworkProviderContext } from '~/contexts';
-import { createIdentityClientReadOnly } from '~/lib/utils/trust-framework/identity';
+import {
+    createIdentityClientReadOnly,
+    createNotarizationClientReadOnly,
+} from '~/lib/utils/trust-framework/client';
 
 export function TrustFrameworkProvider({ children }: PropsWithChildren) {
     const { network } = useIotaClientContext();
     const iotaClient = useIotaClient();
     const [identityClient, setIdentityClient] = useState<IdentityClientReadOnly | null>(null);
+    const [notarizationClient, setNotarizationClient] = useState<NotarizationClientReadOnly | null>(
+        null,
+    );
 
     useEffect(() => {
         if (!iotaClient) return;
@@ -22,11 +29,18 @@ export function TrustFrameworkProvider({ children }: PropsWithChildren) {
             setIdentityClient(_identityClient);
         };
         instantiateIdentityClient();
+
+        const instantiateNotarizationClient = async () => {
+            const _notarizationClient = await createNotarizationClientReadOnly(iotaClient, network);
+            setNotarizationClient(_notarizationClient);
+        };
+        instantiateNotarizationClient();
     }, [iotaClient, network]);
 
     const ctx = useMemo(
         (): TrustFrameworkProviderContext => ({
             identityClient,
+            notarizationClient,
         }),
         [identityClient],
     );
