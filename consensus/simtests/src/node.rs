@@ -15,7 +15,6 @@ use consensus_core::{
     ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
     transaction::NoopTransactionVerifier,
 };
-use iota_common::scoring_metrics::VersionedScoringMetrics;
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
 use parking_lot::Mutex;
