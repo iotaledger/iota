@@ -136,7 +136,6 @@ where
     }
 
     /// Returns the validator client monitor for use in tests.
-    #[cfg(test)]
     pub fn client_monitor_for_test(&self) -> &Arc<ValidatorClientMonitor<A>> {
         &self.client_monitor
     }

@@ -250,7 +250,6 @@ impl<A: Clone> ValidatorClientMonitor<A> {
             .collect()
     }
 
-    #[cfg(test)]
     pub fn force_update_cached_latencies(&self, authority_agg: &AuthorityAggregator<A>) {
         self.update_cached_latencies(authority_agg);
     }
@@ -269,7 +268,6 @@ impl<A: Clone> ValidatorClientMonitor<A> {
     }
 
     /// Returns a read guard over the raw client stats for use in tests.
-    #[cfg(test)]
     pub fn client_stats_for_test(
         &self,
     ) -> parking_lot::RwLockReadGuard<'_, crate::validator_client_monitor::stats::ClientObservedStats>
