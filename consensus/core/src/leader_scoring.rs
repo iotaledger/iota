@@ -44,7 +44,7 @@ impl ReputationScoreCalculator {
             "Attempted to calculate scores with no unscored subdags"
         );
 
-        let unscored_subdag = UnscoredSubdag::new(context.clone(), unscored_subdags);
+        let unscored_subdag = UnscoredSubdag::new(context, unscored_subdags);
         let commit_range = unscored_subdag.commit_range.clone();
 
         Self {
@@ -530,7 +530,7 @@ mod tests {
             .skip_block()
             .build();
 
-        let mut scoring_subdag = ScoringSubdag::new(context.clone());
+        let mut scoring_subdag = ScoringSubdag::new(context);
 
         for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
             scoring_subdag.add_subdags(vec![sub_dag]);
@@ -565,7 +565,7 @@ mod tests {
         for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
             unscored_subdags.push(sub_dag);
         }
-        let mut calculator = ReputationScoreCalculator::new(context.clone(), &unscored_subdags);
+        let mut calculator = ReputationScoreCalculator::new(context, &unscored_subdags);
         let scores = calculator.calculate();
         assert_eq!(scores.scores_per_authority, vec![3, 2, 2, 2]);
         assert_eq!(scores.commit_range, (1..=4).into());
@@ -578,7 +578,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(4).0);
 
         let unscored_subdags = vec![];
-        let mut calculator = ReputationScoreCalculator::new(context.clone(), &unscored_subdags);
+        let mut calculator = ReputationScoreCalculator::new(context, &unscored_subdags);
         calculator.calculate();
     }
 
@@ -596,7 +596,7 @@ mod tests {
             CommitRef::new(1, CommitDigest::MIN),
             vec![],
         )];
-        let mut calculator = ReputationScoreCalculator::new(context.clone(), &unscored_subdags);
+        let mut calculator = ReputationScoreCalculator::new(context, &unscored_subdags);
         calculator.calculate();
     }
 
@@ -631,7 +631,7 @@ mod tests {
             unscored_subdags.push(sub_dag);
         }
 
-        let mut calculator = ReputationScoreCalculator::new(context.clone(), &unscored_subdags);
+        let mut calculator = ReputationScoreCalculator::new(context, &unscored_subdags);
         let scores = calculator.calculate();
         assert_eq!(scores.scores_per_authority, vec![3, 2, 2, 2]);
         assert_eq!(scores.commit_range, (1..=4).into());

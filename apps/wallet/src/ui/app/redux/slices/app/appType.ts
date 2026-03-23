@@ -4,28 +4,17 @@
 
 import Browser from 'webextension-polyfill';
 
-export enum AppType {
-    Unknown,
-    Fullscreen,
-    Popup,
-}
-
-export function getFromLocationSearch() {
-    if (/type=popup/.test(window.location.search)) {
-        return AppType.Popup;
-    }
-    return AppType.Fullscreen;
-}
-
 export enum ExtensionViewType {
+    Unknown = 'unknown',
     Popup = 'popup',
-    Tab = 'tab',
+    FullScreen = 'fullScreen',
     SidePanel = 'sidePanel',
 }
+
 export function getAppViewType(): ExtensionViewType {
     const currentView = window;
     if (Browser.extension.getViews({ type: 'tab' }).includes(currentView)) {
-        return ExtensionViewType.Tab;
+        return ExtensionViewType.FullScreen;
     }
     if (Browser.extension.getViews({ type: 'popup' }).includes(currentView)) {
         return ExtensionViewType.Popup;

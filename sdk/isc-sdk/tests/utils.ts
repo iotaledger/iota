@@ -1,10 +1,14 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import type { IotaClient } from '@iota/iota-sdk/client';
-import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
+import { requestIotaFromFaucet } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import type { AssetsResponse } from '../src/index.js';
 import { EvmRpcClient } from '../src/index.js';
 import { CONFIG } from './config.js';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 const { L2 } = CONFIG;
 
@@ -16,13 +20,13 @@ export async function requestFunds(
     const keypair = new Ed25519Keypair();
     const address = keypair.toIotaAddress();
 
-    await requestIotaFromFaucetV0({
+    await requestIotaFromFaucet({
         host: faucetUrl,
         recipient: address,
     });
 
     const transaction = new Transaction();
-    const [coin] = transaction.splitCoins(transaction.gas, [9]);
+    const [coin] = transaction.splitCoins(transaction.gas, [1n * NANOS_PER_IOTA]);
     transaction.transferObjects([coin], recipientAddress);
     transaction.setSender(address);
 

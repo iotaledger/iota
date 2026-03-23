@@ -114,9 +114,9 @@ where
         let notifier = Arc::new(NotifyRead::new());
         let reconfig_observer = Arc::new(reconfig_observer);
         let quorum_driver_handler = Arc::new(
-            QuorumDriverHandlerBuilder::new(validators.clone(), metrics.clone())
+            QuorumDriverHandlerBuilder::new(validators, metrics)
                 .with_notifier(notifier.clone())
-                .with_reconfig_observer(reconfig_observer.clone())
+                .with_reconfig_observer(reconfig_observer)
                 .start(),
         );
 

@@ -49,7 +49,7 @@ use iota_sdk_types::{
 use move_core_types::language_storage::ModuleId;
 use tap::Pipe;
 
-use crate::transaction::TransactionDataAPI as _;
+use crate::{object::ObjectInner, transaction::TransactionDataAPI as _};
 
 #[derive(Debug)]
 pub struct SdkTypeConversionError(pub String);
@@ -98,11 +98,12 @@ impl TryFrom<Object> for crate::object::Object {
     type Error = SdkTypeConversionError;
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
-        Self::new_from_genesis(
-            value.data.try_into()?,
-            value.owner.into(),
-            value.previous_transaction.into(),
-        )
+        Self::from(ObjectInner {
+            data: value.data.try_into()?,
+            owner: value.owner.into(),
+            previous_transaction: value.previous_transaction.into(),
+            storage_rebate: value.storage_rebate,
+        })
         .pipe(Ok)
     }
 }

@@ -7,7 +7,6 @@ use std::sync::Arc;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     committee::{Committee, EpochId},
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -225,7 +224,7 @@ impl ReadStore for RocksDbStore {
 
     fn try_get_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
@@ -479,7 +478,7 @@ impl ReadStore for RestReadStore {
 
     fn try_get_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.rocks.try_get_events(digest)
     }
@@ -548,10 +547,12 @@ impl RestStateReader for RestReadStore {
 }
 
 impl RestIndexes for RestIndexStore {
+    // only used in "grpc-server"
     fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<iota_types::storage::EpochInfo>> {
         self.get_epoch_info(epoch).map_err(StorageError::custom)
     }
 
+    // used in both "grpc-server" and "rest-api"
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -560,6 +561,7 @@ impl RestIndexes for RestIndexStore {
             .map_err(StorageError::custom)
     }
 
+    // only used in "rest-api"
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
@@ -582,6 +584,7 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
+    // only used in "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -596,6 +599,7 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
+    // only used in "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,

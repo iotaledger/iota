@@ -4,7 +4,6 @@
 
 use std::collections::BTreeMap;
 
-use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
@@ -21,8 +20,12 @@ const DEFAULT_DB_OPTIONS_CUSTOM_FN: &str = "typed_store::rocks::default_db_optio
 const DB_OPTIONS_CUSTOM_FUNCTION: &str = "default_options_override_fn";
 // Use a different name for the column than the identifier
 const DB_OPTIONS_RENAME: &str = "rename";
-// Deprecate a column family
-const DB_OPTIONS_DEPRECATE: &str = "deprecated";
+// Deprecate a column family with optional migration support
+// Usage: `#[deprecated_db_map]` or `#[deprecated_db_map(migration =
+// "migration_fn_path")]`
+// Hint: we can't use `#[deprecated]` because it doesn't allow us to specify a
+// migration parameter
+const DB_OPTIONS_DEPRECATED_TABLE: &str = "deprecated_db_map";
 
 /// Options can either be simplified form or
 enum GeneralTableOptions {
@@ -35,19 +38,44 @@ impl Default for GeneralTableOptions {
     }
 }
 
+/// Parse the migration function path from `#[deprecated_db_map(migration =
+/// "fn_path")]`
+fn parse_deprecated_db_map_migration(attr: &Attribute) -> Option<syn::Path> {
+    match attr.parse_meta() {
+        Ok(Meta::Path(_)) => None, // #[deprecated_db_map] with no args
+        Ok(Meta::List(ml)) => {
+            for nested in &ml.nested {
+                if let syn::NestedMeta::Meta(Meta::NameValue(nv)) = nested {
+                    if nv.path.is_ident("migration") {
+                        if let Lit::Str(s) = &nv.lit {
+                            let fn_path: syn::Path =
+                                s.parse().expect("migration value must be a valid path");
+                            return Some(fn_path);
+                        }
+                    }
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 // Extracts the field names, field types, inner types (K,V in {map_type_name}<K,
 // V>), and the options attrs
 fn extract_struct_info(input: ItemStruct) -> ExtractedStructInfo {
-    let mut deprecated_cfs = vec![];
+    let mut active_table_fields = TableFields::default();
+    let mut deprecated_table_fields = TableFields::default();
+    let mut deprecated_cfs_with_migration_opts: Vec<(Ident, Option<syn::Path>)> = Vec::new();
 
-    let info = input.fields.iter().map(|f| {
+    for f in &input.fields {
         let attrs: BTreeMap<_, _> = f
             .attrs
             .iter()
             .filter(|a| {
                 a.path.is_ident(DB_OPTIONS_CUSTOM_FUNCTION)
                     || a.path.is_ident(DB_OPTIONS_RENAME)
-                    || a.path.is_ident(DB_OPTIONS_DEPRECATE)
+                    || a.path.is_ident(DB_OPTIONS_DEPRECATED_TABLE)
             })
             .map(|a| (a.path.get_ident().unwrap().to_string(), a))
             .collect();
@@ -58,69 +86,104 @@ fn extract_struct_info(input: ItemStruct) -> ExtractedStructInfo {
             GeneralTableOptions::default()
         };
 
-        let ty = &f.ty;
-        if let Type::Path(p) = ty {
-            let type_info = &p.path.segments.first().unwrap();
+        let Type::Path(p) = &f.ty else {
+            panic!("All struct members must be of type DBMap or Option<DBMap>");
+        };
+
+        let is_deprecated = attrs.contains_key(DB_OPTIONS_DEPRECATED_TABLE);
+
+        let type_info = &p.path.segments.first().unwrap();
+
+        // For deprecated fields, unwrap Option<DBMap<K,V>> to extract DBMap<K,V>.
+        // Active fields must be DBMap<K,V> directly.
+        let (db_map_ident_str, inner_type) = if is_deprecated {
+            if type_info.ident == "Option" {
+                // Extract DBMap<K,V> from Option<DBMap<K,V>>
+                let option_args = match &type_info.arguments {
+                    PathArguments::AngleBracketed(ab) => ab,
+                    _ => panic!(
+                        "Expected Option<DBMap<K, V>> for deprecated field `{}`",
+                        f.ident.as_ref().unwrap()
+                    ),
+                };
+                let inner_path = match option_args.args.first() {
+                    Some(syn::GenericArgument::Type(Type::Path(p))) => p,
+                    _ => panic!(
+                        "Expected Option<DBMap<K, V>> for deprecated field `{}`",
+                        f.ident.as_ref().unwrap()
+                    ),
+                };
+                let inner_info = inner_path.path.segments.first().unwrap();
+                let inner_type = match &inner_info.arguments {
+                    PathArguments::AngleBracketed(ab) => ab.clone(),
+                    _ => panic!(
+                        "Expected DBMap<K, V> inside Option for deprecated field `{}`",
+                        f.ident.as_ref().unwrap()
+                    ),
+                };
+                (inner_info.ident.to_string(), inner_type)
+            } else {
+                panic!(
+                    "Deprecated field `{}` must use Option<DBMap<K, V>> instead of DBMap<K, V>",
+                    f.ident.as_ref().unwrap()
+                );
+            }
+        } else {
             let inner_type =
                 if let PathArguments::AngleBracketed(angle_bracket_type) = &type_info.arguments {
                     angle_bracket_type.clone()
                 } else {
                     panic!("All struct members must be of type DBMap");
                 };
+            (type_info.ident.to_string(), inner_type)
+        };
 
-            let type_str = format!("{}", &type_info.ident);
-            if type_str == "DBMap" {
-                let field_name = f.ident.as_ref().unwrap().clone();
-                let cf_name = if let Some(rename) = attrs.get(DB_OPTIONS_RENAME) {
-                    match rename.parse_meta().expect("Cannot parse meta of attribute") {
-                        Meta::NameValue(val) => {
-                            if let Lit::Str(s) = val.lit {
-                                // convert to ident
-                                s.parse().expect("Rename value must be identifier")
-                            } else {
-                                panic!("Expected string value for rename")
-                            }
-                        }
-                        _ => panic!("Expected string value for rename"),
+        assert!(
+            db_map_ident_str == "DBMap",
+            "All struct members must be of type DBMap (or Option<DBMap> for deprecated fields)"
+        );
+
+        let field_name = f.ident.as_ref().unwrap().clone();
+        let cf_name = if let Some(rename) = attrs.get(DB_OPTIONS_RENAME) {
+            match rename.parse_meta().expect("Cannot parse meta of attribute") {
+                Meta::NameValue(val) => {
+                    if let Lit::Str(s) = val.lit {
+                        // convert to ident
+                        s.parse().expect("Rename value must be identifier")
+                    } else {
+                        panic!("Expected string value for rename")
                     }
-                } else {
-                    field_name.clone()
-                };
-                if attrs.contains_key(DB_OPTIONS_DEPRECATE) {
-                    deprecated_cfs.push(field_name.clone());
                 }
-
-                return ((field_name, cf_name, type_str), (inner_type, options));
-            } else {
-                panic!("All struct members must be of type DBMap");
+                _ => panic!("Expected string value for rename"),
             }
-        }
-        panic!("All struct members must be of type DBMap");
-    });
+        } else {
+            field_name.clone()
+        };
 
-    let (field_info, inner_types_with_opts): (Vec<_>, Vec<_>) = info.unzip();
-    let (field_names, cf_names, simple_field_type_names): (Vec<_>, Vec<_>, Vec<_>) =
-        field_info.into_iter().multiunzip();
+        // None: active cf
+        // Some(None): deprecated cf with no migration
+        // Some(Some(fn_path)): deprecated cf with migration
+        let deprecated_cf_with_migration_opt = attrs
+            .get(DB_OPTIONS_DEPRECATED_TABLE)
+            .map(|attr| parse_deprecated_db_map_migration(attr));
 
-    // Check for homogeneous types
-    if let Some(first) = simple_field_type_names.first() {
-        simple_field_type_names.iter().for_each(|q| {
-            if q != first {
-                panic!("All struct members must be of same type");
-            }
-        })
-    } else {
-        panic!("Cannot derive on empty struct");
-    };
+        let target_table_fields = if let Some(migration_opt) = deprecated_cf_with_migration_opt {
+            deprecated_cfs_with_migration_opts.push((cf_name.clone(), migration_opt));
+            &mut deprecated_table_fields
+        } else {
+            &mut active_table_fields
+        };
 
-    let (inner_types, options): (Vec<_>, Vec<_>) = inner_types_with_opts.into_iter().unzip();
+        target_table_fields.field_names.push(field_name);
+        target_table_fields.cf_names.push(cf_name);
+        target_table_fields.inner_types.push(inner_type);
+        target_table_fields.derived_table_options.push(options);
+    }
 
     ExtractedStructInfo {
-        field_names,
-        cf_names,
-        inner_types,
-        derived_table_options: options,
-        deprecated_cfs,
+        active_table_fields,
+        deprecated_table_fields,
+        deprecated_cfs_with_migration_opts,
     }
 }
 
@@ -175,15 +238,28 @@ fn extract_generics_names(generics: &Generics) -> Vec<Ident> {
         .collect()
 }
 
-struct ExtractedStructInfo {
+/// Parallel vecs describing a set of DB column families.
+#[derive(Default)]
+struct TableFields {
     field_names: Vec<Ident>,
     cf_names: Vec<Ident>,
     inner_types: Vec<AngleBracketedGenericArguments>,
     derived_table_options: Vec<GeneralTableOptions>,
-    deprecated_cfs: Vec<Ident>,
 }
 
-#[proc_macro_derive(DBMapUtils, attributes(default_options_override_fn, rename))]
+struct ExtractedStructInfo {
+    /// Active (non-deprecated) tables
+    active_table_fields: TableFields,
+    /// Deprecated tables
+    deprecated_table_fields: TableFields,
+    /// CF names paired with their optional migration function paths
+    deprecated_cfs_with_migration_opts: Vec<(Ident, Option<syn::Path>)>,
+}
+
+#[proc_macro_derive(
+    DBMapUtils,
+    attributes(default_options_override_fn, rename, deprecated_db_map)
+)]
 pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
@@ -192,24 +268,43 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
 
     // TODO: use `parse_quote` over `parse()`
     let ExtractedStructInfo {
-        field_names,
-        cf_names,
-        inner_types,
-        derived_table_options,
-        deprecated_cfs,
+        active_table_fields,
+        deprecated_table_fields,
+        deprecated_cfs_with_migration_opts,
     } = extract_struct_info(input.clone());
 
-    let (key_names, value_names): (Vec<_>, Vec<_>) = inner_types
-        .iter()
-        .map(|q| (q.args.first().unwrap(), q.args.last().unwrap()))
-        .unzip();
+    // Bind fields for use in quote! macro
+    let active_field_names = &active_table_fields.field_names;
+    let active_cf_names = &active_table_fields.cf_names;
+    let active_inner_types = &active_table_fields.inner_types;
+    let deprecated_field_names = &deprecated_table_fields.field_names;
+    let deprecated_cf_names = &deprecated_table_fields.cf_names;
+    let deprecated_inner_types = &deprecated_table_fields.inner_types;
 
-    let default_options_override_fn_names: Vec<proc_macro2::TokenStream> = derived_table_options
+    // Combined field names for struct definitions (need all fields, active +
+    // deprecated)
+    let all_field_names: Vec<_> = active_field_names
         .iter()
-        .map(|q| {
-            let GeneralTableOptions::OverrideFunction(fn_name) = q;
-            fn_name.parse().unwrap()
-        })
+        .chain(deprecated_field_names.iter())
+        .collect();
+
+    let active_default_options_override_fn_names: Vec<proc_macro2::TokenStream> =
+        active_table_fields
+            .derived_table_options
+            .iter()
+            .map(|q| {
+                let GeneralTableOptions::OverrideFunction(fn_name) = q;
+                fn_name.parse().unwrap()
+            })
+            .collect();
+
+    let active_key_names: Vec<_> = active_inner_types
+        .iter()
+        .map(|q| q.args.first().unwrap())
+        .collect();
+    let active_value_names: Vec<_> = active_inner_types
+        .iter()
+        .map(|q| q.args.last().unwrap())
         .collect();
 
     let generics_bounds =
@@ -227,14 +322,36 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
     let secondary_db_map_struct_name: proc_macro2::TokenStream =
         secondary_db_map_struct_name_str.parse().unwrap();
 
+    // Generate deprecation cleanup code: for each deprecated CF, optionally run
+    // migration then drop the CF. Uses cf_handle check for idempotency.
+    // Note: Migration functions are only called when the CF exists on disk.
+    // They receive `&Arc<RocksDB>` and may assume the deprecated CF is present.
+    let deprecation_cleanup: Vec<proc_macro2::TokenStream> = deprecated_cfs_with_migration_opts
+        .iter()
+        .map(|(cf_name, migration)| {
+            let migration_call = if let Some(fn_path) = migration {
+                quote! { #fn_path(&db).expect("deprecated table migration failed"); }
+            } else {
+                quote! {}
+            };
+            quote! {
+                if db.cf_handle(stringify!(#cf_name)).is_some() {
+                    #migration_call
+                    db.drop_cf(stringify!(#cf_name)).expect("failed to drop a deprecated cf");
+                }
+            }
+        })
+        .collect();
+
     TokenStream::from(quote! {
 
         // <----------- This section generates the configurator struct -------------->
 
-        /// Create config structs for configuring DBMap tables
+        /// Create config structs for configuring DBMap tables.
+        /// Only active (non-deprecated) tables are configurable.
         pub struct #config_struct_name {
             #(
-                pub #field_names : typed_store::rocks::DBOptions,
+                pub #active_field_names : typed_store::rocks::DBOptions,
             )*
         }
 
@@ -243,7 +360,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             pub fn init() -> Self {
                 Self {
                     #(
-                        #field_names : typed_store::rocks::default_db_options(),
+                        #active_field_names : typed_store::rocks::default_db_options(),
                     )*
                 }
             }
@@ -252,7 +369,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             pub fn build(&self) -> typed_store::rocks::DBMapTableConfigMap {
                 typed_store::rocks::DBMapTableConfigMap::new([
                     #(
-                        (stringify!(#field_names).to_owned(), self.#field_names.clone()),
+                        (stringify!(#active_field_names).to_owned(), self.#active_field_names.clone()),
                     )*
                 ].into_iter().collect())
             }
@@ -275,7 +392,10 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
         /// This is only used internally
         struct #intermediate_db_map_struct_name #generics {
                 #(
-                    pub #field_names : DBMap #inner_types,
+                    pub #active_field_names : DBMap #active_inner_types,
+                )*
+                #(
+                    pub #deprecated_field_names : Option<DBMap #deprecated_inner_types>,
                 )*
         }
 
@@ -293,7 +413,6 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 metric_conf: typed_store::rocks::MetricConf,
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
                 tables_db_options_override: Option<typed_store::rocks::DBMapTableConfigMap>,
-                remove_deprecated_tables: bool,
             ) -> Self {
                 let path = &path;
                 let default_cf_opt = if let Some(opt) = global_db_options_override.as_ref() {
@@ -308,12 +427,12 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                     let opt_cfs = match tables_db_options_override {
                         None => [
                             #(
-                                (stringify!(#cf_names).to_owned(), #default_options_override_fn_names()),
+                                (stringify!(#active_cf_names).to_owned(), #active_default_options_override_fn_names()),
                             )*
                         ],
                         Some(o) => [
                             #(
-                                (stringify!(#cf_names).to_owned(), o.to_map().get(stringify!(#cf_names)).unwrap_or(&default_cf_opt).clone()),
+                                (stringify!(#active_cf_names).to_owned(), o.to_map().get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
                             )*
                         ]
                     };
@@ -326,23 +445,41 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                     };
                     db.map(|d| (d, rwopt_cfs))
                 }.expect(&format!("Cannot open DB at {:?}", path));
-                let deprecated_tables = vec![#(stringify!(#deprecated_cfs),)*];
                 let (
                         #(
-                            #field_names
+                            #active_field_names
                         ),*
                 ) = (#(
-                        DBMap::#inner_types::reopen(&db, Some(stringify!(#cf_names)), rwopt_cfs.get(stringify!(#cf_names)).unwrap_or(&typed_store::rocks::ReadWriteOptions::default()), remove_deprecated_tables && deprecated_tables.contains(&stringify!(#cf_names))).expect(&format!("Cannot open {} CF.", stringify!(#cf_names))[..])
+                        DBMap::#active_inner_types::reopen(&db, Some(stringify!(#active_cf_names)), rwopt_cfs.get(stringify!(#active_cf_names)).unwrap_or(&typed_store::rocks::ReadWriteOptions::default()), false).expect(&format!("Cannot open {} CF.", stringify!(#active_cf_names))[..])
                     ),*);
 
-                if as_secondary_with_path.is_none() && remove_deprecated_tables {
+                // Open deprecated CFs only if they exist on disk.
+                // `mut` is needed because primary mode reassigns to `None` after cleanup,
+                // but in secondary mode no reassignment happens — hence `allow(unused_mut)`.
+                #(
+                    #[allow(unused_mut)]
+                    let mut #deprecated_field_names = if db.cf_handle(stringify!(#deprecated_cf_names)).is_some() {
+                        Some(DBMap::#deprecated_inner_types::reopen(
+                            &db,
+                            Some(stringify!(#deprecated_cf_names)),
+                            rwopt_cfs.get(stringify!(#deprecated_cf_names)).unwrap_or(&typed_store::rocks::ReadWriteOptions::default()),
+                            true,
+                        ).expect(&format!("Cannot open deprecated {} CF.", stringify!(#deprecated_cf_names))[..]))
+                    } else {
+                        None
+                    };
+                )*
+
+                if as_secondary_with_path.is_none() {
+                    #(#deprecation_cleanup)*
+                    // After cleanup, CF handles for deprecated tables are stale
                     #(
-                        db.drop_cf(stringify!(#deprecated_cfs)).expect("failed to drop a deprecated cf");
+                        #deprecated_field_names = None;
                     )*
                 }
                 Self {
                     #(
-                        #field_names,
+                        #all_field_names,
                     )*
                 }
             }
@@ -367,26 +504,10 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
                 tables_db_options_override: Option<typed_store::rocks::DBMapTableConfigMap>
             ) -> Self {
-                let inner = #intermediate_db_map_struct_name::open_tables_impl(path, None, metric_conf, global_db_options_override, tables_db_options_override, false);
+                let inner = #intermediate_db_map_struct_name::open_tables_impl(path, None, metric_conf, global_db_options_override, tables_db_options_override);
                 Self {
                     #(
-                        #field_names: inner.#field_names,
-                    )*
-                }
-            }
-
-            #[expect(unused_parens)]
-            pub fn open_tables_read_write_with_deprecation_option(
-                path: std::path::PathBuf,
-                metric_conf: typed_store::rocks::MetricConf,
-                global_db_options_override: Option<typed_store::rocksdb::Options>,
-                tables_db_options_override: Option<typed_store::rocks::DBMapTableConfigMap>,
-                remove_deprecated_tables: bool,
-            ) -> Self {
-                let inner = #intermediate_db_map_struct_name::open_tables_impl(path, None, metric_conf, global_db_options_override, tables_db_options_override, remove_deprecated_tables);
-                Self {
-                    #(
-                        #field_names: inner.#field_names,
+                        #all_field_names: inner.#all_field_names,
                     )*
                 }
             }
@@ -394,7 +515,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Returns a list of the tables name and type pairs
             pub fn describe_tables() -> std::collections::BTreeMap<String, (String, String)> {
                 vec![#(
-                    (stringify!(#field_names).to_owned(), (stringify!(#key_names).to_owned(), stringify!(#value_names).to_owned())),
+                    (stringify!(#active_field_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
                 )*].into_iter().collect()
             }
 
@@ -415,7 +536,10 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
         /// This is only used internally
         pub struct #secondary_db_map_struct_name #generics {
             #(
-                pub #field_names : DBMap #inner_types,
+                pub #active_field_names : DBMap #active_inner_types,
+            )*
+            #(
+                pub #deprecated_field_names : Option<DBMap #deprecated_inner_types>,
             )*
         }
 
@@ -432,17 +556,17 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 global_db_options_override: Option<typed_store::rocksdb::Options>,
             ) -> Self {
                 let inner = match with_secondary_path {
-                    Some(q) => #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(q), metric_conf, global_db_options_override, None, false),
+                    Some(q) => #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(q), metric_conf, global_db_options_override, None),
                     None => {
                         let p: std::path::PathBuf = tempfile::tempdir()
                         .expect("Failed to open temporary directory")
                         .keep();
-                        #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(p), metric_conf, global_db_options_override, None, false)
+                        #intermediate_db_map_struct_name::open_tables_impl(primary_path, Some(p), metric_conf, global_db_options_override, None)
                     }
                 };
                 Self {
                     #(
-                        #field_names: inner.#field_names,
+                        #all_field_names: inner.#all_field_names,
                     )*
                 }
             }
@@ -450,7 +574,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             fn cf_name_to_table_name(cf_name: &str) -> eyre::Result<&'static str> {
                 Ok(match cf_name {
                     #(
-                        stringify!(#cf_names) => stringify!(#field_names),
+                        stringify!(#active_cf_names) => stringify!(#active_field_names),
                     )*
                     _ => eyre::bail!("No such cf name: {}", cf_name),
                 })
@@ -463,9 +587,9 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
 
                 Ok(match table_name {
                     #(
-                        stringify!(#field_names) => {
-                            typed_store::traits::Map::try_catch_up_with_primary(&self.#field_names)?;
-                            typed_store::traits::Map::safe_iter(&self.#field_names)
+                        stringify!(#active_field_names) => {
+                            typed_store::traits::Map::try_catch_up_with_primary(&self.#active_field_names)?;
+                            typed_store::traits::Map::safe_iter(&self.#active_field_names)
                                 .skip((page_number * (page_size) as usize))
                                 .take(page_size as usize)
                                 .map(|result| result.map(|(k, v)| (format!("{:?}", k), format!("{:?}", v))))
@@ -485,9 +609,9 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 let mut value_bytes = 0;
                 match table_name {
                     #(
-                        stringify!(#field_names) => {
-                            typed_store::traits::Map::try_catch_up_with_primary(&self.#field_names)?;
-                            self.#field_names.table_summary()
+                        stringify!(#active_field_names) => {
+                            typed_store::traits::Map::try_catch_up_with_primary(&self.#active_field_names)?;
+                            self.#active_field_names.table_summary()
                         }
                     )*
 
@@ -500,9 +624,9 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             pub fn count_keys(&self, table_name: &str) -> eyre::Result<usize> {
                 Ok(match table_name {
                     #(
-                        stringify!(#field_names) => {
-                            typed_store::traits::Map::try_catch_up_with_primary(&self.#field_names)?;
-                            typed_store::traits::Map::safe_iter(&self.#field_names)
+                        stringify!(#active_field_names) => {
+                            typed_store::traits::Map::try_catch_up_with_primary(&self.#active_field_names)?;
+                            typed_store::traits::Map::safe_iter(&self.#active_field_names)
                                 .collect::<Result<Vec<_>, _>>()?
                                 .len()
                         }
@@ -514,7 +638,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
 
             pub fn describe_tables() -> std::collections::BTreeMap<String, (String, String)> {
                 vec![#(
-                    (stringify!(#field_names).to_owned(), (stringify!(#key_names).to_owned(), stringify!(#value_names).to_owned())),
+                    (stringify!(#active_field_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
                 )*].into_iter().collect()
             }
 
@@ -522,7 +646,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Tables must be opened in read only mode using `open_tables_read_only`
             pub fn try_catch_up_with_primary_all(&self) -> eyre::Result<()> {
                 #(
-                    typed_store::traits::Map::try_catch_up_with_primary(&self.#field_names)?;
+                    typed_store::traits::Map::try_catch_up_with_primary(&self.#active_field_names)?;
                 )*
                 Ok(())
             }

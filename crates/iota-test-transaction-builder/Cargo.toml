@@ -17,3 +17,6 @@ iota-sdk.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
+
+[lints]
+workspace = true

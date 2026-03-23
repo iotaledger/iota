@@ -88,6 +88,48 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
+export interface ElementCopiedProperties {
+    type: string;
+}
+
+export interface ExternalLinkOpenedProperties {
+    type: string;
+}
+
+export interface IotaStakedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
+    validatorName?: string;
+}
+
+export interface IotaUnstakedProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    rewards?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    validatorAddress?: string;
+    validatorName?: string;
+}
+
 export interface MigrationProperties {
     /**
      * | Rule | Value |
@@ -117,7 +159,12 @@ export interface OpenedWalletDashboardProperties {
 
 export interface SelectValidatorProperties {
     validatorAddress?: string;
-    validatorAPY?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY?: number;
     validatorName?: string;
 }
 
@@ -141,6 +188,10 @@ export interface StakedIotaProperties {
 
 export interface SwitchedNetworkProperties {
     toNetwork?: string;
+}
+
+export interface ThemeChangedProperties {
+    theme: string;
 }
 
 export interface TimelockStakeProperties {
@@ -197,6 +248,38 @@ export class ClickedUnstakeIota implements BaseEvent {
     }
 }
 
+export class ElementCopied implements BaseEvent {
+    event_type = 'element copied';
+
+    constructor(public event_properties: ElementCopiedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ExternalLinkOpened implements BaseEvent {
+    event_type = 'external link opened';
+
+    constructor(public event_properties: ExternalLinkOpenedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class IotaStaked implements BaseEvent {
+    event_type = 'iota staked';
+
+    constructor(public event_properties?: IotaStakedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class IotaUnstaked implements BaseEvent {
+    event_type = 'iota unstaked';
+
+    constructor(public event_properties?: IotaUnstakedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class Migration implements BaseEvent {
     event_type = 'migration';
 
@@ -249,6 +332,14 @@ export class SwitchedNetwork implements BaseEvent {
     event_type = 'switched network';
 
     constructor(public event_properties?: SwitchedNetworkProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ThemeChanged implements BaseEvent {
+    event_type = 'theme changed';
+
+    constructor(public event_properties: ThemeChangedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -447,6 +538,74 @@ export class Ampli {
   }
 
   /**
+   * element copied
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/element%20copied)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  elementCopied(
+    properties: ElementCopiedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ElementCopied(properties), options);
+  }
+
+  /**
+   * external link opened
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/external%20link%20opened)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  externalLinkOpened(
+    properties: ExternalLinkOpenedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ExternalLinkOpened(properties), options);
+  }
+
+  /**
+   * iota staked
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/iota%20staked)
+   *
+   * Join with "staked IOTA"
+   *
+   * @param properties The event's properties (e.g. stakedAmount)
+   * @param options Amplitude event options.
+   */
+  iotaStaked(
+    properties?: IotaStakedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new IotaStaked(properties), options);
+  }
+
+  /**
+   * iota unstaked
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/iota%20unstaked)
+   *
+   * Merge with "Unstaked IOTA" later.
+   *
+   * @param properties The event's properties (e.g. rewards)
+   * @param options Amplitude event options.
+   */
+  iotaUnstaked(
+    properties?: IotaUnstakedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new IotaUnstaked(properties), options);
+  }
+
+  /**
    * migration
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/migration)
@@ -566,6 +725,23 @@ export class Ampli {
   }
 
   /**
+   * theme changed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/theme%20changed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. theme)
+   * @param options Amplitude event options.
+   */
+  themeChanged(
+    properties: ThemeChangedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ThemeChanged(properties), options);
+  }
+
+  /**
    * timelock collect
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/timelock%20collect)
@@ -604,7 +780,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   timelockUnstake(

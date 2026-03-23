@@ -7,6 +7,7 @@ import type {
     IotaTransport,
     IotaTransportRequestOptions,
     IotaTransportSubscribeOptions,
+    RequestInspector,
 } from '@iota/iota-sdk/client';
 import { IotaHTTPTransport } from '@iota/iota-sdk/client';
 import type { DocumentNode } from 'graphql';
@@ -20,6 +21,8 @@ export interface IotaClientGraphQLTransportOptions {
     fallbackTransportUrl?: string;
     fallbackMethods?: (keyof typeof RPC_METHODS)[];
     unsupportedMethods?: (keyof typeof RPC_METHODS)[];
+    /** Optional inspector function for monitoring and tracing requests */
+    inspector?: RequestInspector;
 }
 
 export type GraphQLDocument<
@@ -81,6 +84,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
         if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
                 url: options.fallbackTransportUrl,
+                inspector: options.inspector,
             });
         }
     }
@@ -134,49 +138,55 @@ export class IotaClientGraphQLTransport implements IotaTransport {
     }
 
     async request<T = unknown>(input: IotaTransportRequestOptions): Promise<T> {
-        let clientMethod: keyof typeof RPC_METHODS;
+        const executeRequest = async () => {
+            let clientMethod: keyof typeof RPC_METHODS;
 
-        switch (input.method) {
-            case 'rpc.discover':
-                clientMethod = 'getRpcApiVersion';
-                break;
-            case 'iotax_getLatestAddressMetrics':
-                clientMethod = 'getAddressMetrics';
-                break;
-            default:
-                clientMethod = input.method.split('_')[1] as keyof typeof RPC_METHODS;
-        }
-
-        // Methods with allowed fallback will go through GraphQL first and only default to JSON-RPC if they fail
-        const allowFallback = this.#fallbackMethods.includes(clientMethod);
-        // Unsupported methods will go through JSON-RPC directly
-        const isUnsupported = this.#unsupportedMethods.includes(clientMethod);
-
-        const method = RPC_METHODS[clientMethod];
-
-        if (isUnsupported) {
-            // If Unsupported we force to try fallback
-            return this.#tryUseFallback(input);
-        }
-
-        // No method and no fallback allowed
-        if (!method && !allowFallback) {
-            throw new UnsupportedMethodError(input.method);
-        }
-
-        try {
-            // Method doesnt have a graphql implementation
-            if (!method) throw new Error('Missing method');
-
-            return method(this, input.params as never) as Promise<T>;
-        } catch (error) {
-            // Method has an allowed fallback or is partially unsupported
-            if (allowFallback || error instanceof UnsupportedParamError) {
-                return this.#tryUseFallback(input);
-            } else {
-                throw error;
+            switch (input.method) {
+                case 'rpc.discover':
+                    clientMethod = 'getRpcApiVersion';
+                    break;
+                case 'iotax_getLatestAddressMetrics':
+                    clientMethod = 'getAddressMetrics';
+                    break;
+                default:
+                    clientMethod = input.method.split('_')[1] as keyof typeof RPC_METHODS;
             }
-        }
+
+            // Methods with allowed fallback will go through GraphQL first and only default to JSON-RPC if they fail
+            const allowFallback = this.#fallbackMethods.includes(clientMethod);
+            // Unsupported methods will go through JSON-RPC directly
+            const isUnsupported = this.#unsupportedMethods.includes(clientMethod);
+
+            const method = RPC_METHODS[clientMethod];
+
+            if (isUnsupported) {
+                // If Unsupported we force to try fallback
+                return await this.#tryUseFallback(input);
+            }
+
+            // No method and no fallback allowed
+            if (!method && !allowFallback) {
+                throw new UnsupportedMethodError(input.method);
+            }
+
+            try {
+                // Method doesnt have a graphql implementation
+                if (!method) throw new Error('Missing method');
+
+                return await method(this, input.params as never);
+            } catch (error) {
+                // Method has an allowed fallback or is partially unsupported
+                if (allowFallback || error instanceof UnsupportedParamError) {
+                    return this.#tryUseFallback(input);
+                } else {
+                    throw error;
+                }
+            }
+        };
+
+        return this.#options.inspector
+            ? this.#options.inspector(input, executeRequest as () => Promise<T>)
+            : (executeRequest() as Promise<T>);
     }
 
     async subscribe<T = unknown>(

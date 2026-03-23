@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -22,8 +22,21 @@ jobs:
 
   e2e:
     uses: ./.github/workflows/_e2e.yml
+    with:
+      isNightly: true
+      isRpc: true
+      isExplorer: true
+      isAppsBackend: true
+      isTypescriptSDK: true
+      isWallet: true
+      isGraphQlTransport: true
+      isWalletDashboard: true
+      isEvmBridge: true
+      isIscSDK: true
+      isKiosk: true
     secrets:
       EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
       EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
+
   check-sri-integrity-webassets:
     uses: ./.github/workflows/check_sri.yml

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 19;
+pub const MAX_PROTOCOL_VERSION: u64 = 23;
 
 // Record history of protocol version allocations here:
 //
@@ -108,6 +108,31 @@ pub const MAX_PROTOCOL_VERSION: u64 = 19;
 //             Change epoch transaction will contain validator scores.
 //             Enable validator scoring on testnet and enable adjustment of
 //             validator rewards based on scores on Devnet.
+// Version 20: Supports the calculation of validator scores while still passing
+//             a default score value to the advance_epoch call. Enables this
+//             decoupling on Testnet; Devnet and Mainnet behavior remain the
+//             same.
+//             Introduce Dynamic Minimum Commission (IIP-8) on all networks.
+// Version 21: Enable overshoot of 100 in congestion control on testnet.
+//             Enable congestion limit overshoot in the gas price feedback
+//             mechanism on testnet.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on testnet.
+//             Enable fast commit syncer for faster recovery in devnet.
+//             Add auth_context_tx native functions costs.
+//             Reduce max_auth_gas in Devnet.
+// Version 22: Enable overshoot of 100 in congestion control on all networks.
+//             Enable congestion limit overshoot in the gas price feedback
+//             mechanism on all networks.
+//             Enable a separate gas price feedback mechanism for transactions
+//             using randomness on all networks.
+//             Enable Move-based account authentication in testnet.
+//             Enable fast commit syncer for faster recovery on testnet.
+// Version 23: Enable Move native context (TxContext via native functions) in
+//             all networks. TxContext fields are read via native functions
+//             instead of being deserialized from a BCS-encoded struct.
+//             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
+//             Move.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -421,6 +446,22 @@ struct FeatureFlags {
     // If true, validators will use the committee's score to adjust rewards.
     #[serde(skip_serializing_if = "is_false")]
     adjust_rewards_by_score: bool,
+
+    // If true, the change epoch transaction will contain the locally calculated validator scores.
+    // If false, a default score (MAX_SCORE) is passed
+    #[serde(skip_serializing_if = "is_false")]
+    pass_calculated_validator_scores_to_advance_epoch: bool,
+
+    // If true, enables the fast commit syncer in Starfish consensus for faster recovery
+    // from large commit gaps. Also controls whether TransactionRef is used in commits
+    // instead of BlockRef, and enables the associated gRPC endpoints for fetching
+    // commits and transactions.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_fast_commit_sync: bool,
+
+    // If true, enable `TxContext` Move API to go native.
+    #[serde(skip_serializing_if = "is_false")]
+    move_native_tx_context: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -956,6 +997,16 @@ pub struct ProtocolConfig {
     // TxContext
     // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
     tx_context_derive_id_cost_base: Option<u64>,
+    tx_context_fresh_id_cost_base: Option<u64>,
+    tx_context_sender_cost_base: Option<u64>,
+    tx_context_epoch_cost_base: Option<u64>,
+    tx_context_epoch_timestamp_ms_cost_base: Option<u64>,
+    tx_context_sponsor_cost_base: Option<u64>,
+    tx_context_rgp_cost_base: Option<u64>,
+    tx_context_gas_price_cost_base: Option<u64>,
+    tx_context_gas_budget_cost_base: Option<u64>,
+    tx_context_ids_created_cost_base: Option<u64>,
+    tx_context_replace_cost_base: Option<u64>,
 
     // Types
     // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -1236,6 +1287,20 @@ pub struct ProtocolConfig {
     /// component is created, having access to metrics and being able to expose
     /// validator scores.
     scorer_version: Option<u16>,
+
+    // `auth_context` module
+    // Cost params for the Move native function `native_digest(): vector<u8>`
+    auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
+    auth_context_tx_commands_cost_base: Option<u64>,
+    auth_context_tx_commands_cost_per_byte: Option<u64>,
+    // Cost params for the Move native function `native_tx_inputs<I>(): vector<I>`
+    auth_context_tx_inputs_cost_base: Option<u64>,
+    auth_context_tx_inputs_cost_per_byte: Option<u64>,
+    // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
+    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    auth_context_replace_cost_base: Option<u64>,
+    auth_context_replace_cost_per_byte: Option<u64>,
 }
 
 // feature flags
@@ -1553,6 +1618,31 @@ impl ProtocolConfig {
             "adjust_rewards_by_score requires scorer_version to be set"
         );
         adjust
+    }
+
+    pub fn pass_calculated_validator_scores_to_advance_epoch(&self) -> bool {
+        let pass = self
+            .feature_flags
+            .pass_calculated_validator_scores_to_advance_epoch;
+        assert!(
+            !pass
+                || (self.pass_validator_scores_to_advance_epoch()
+                    && self.calculate_validator_scores()),
+            "pass_calculated_validator_scores_to_advance_epoch requires pass_validator_scores_to_advance_epoch and calculate_validator_scores to be enabled"
+        );
+        pass
+    }
+    pub fn consensus_fast_commit_sync(&self) -> bool {
+        let res = self.feature_flags.consensus_fast_commit_sync;
+        assert!(
+            !res || self.consensus_commit_transactions_only_for_traversed_headers(),
+            "consensus_fast_commit_sync requires consensus_commit_transactions_only_for_traversed_headers to be enabled"
+        );
+        res
+    }
+
+    pub fn move_native_tx_context(&self) -> bool {
+        self.feature_flags.move_native_tx_context
     }
 }
 
@@ -1873,6 +1963,16 @@ impl ProtocolConfig {
             // Cost params for the Move native function `transfer_impl<T: key>(obj: T, recipient:
             // address)`
             tx_context_derive_id_cost_base: Some(52),
+            tx_context_fresh_id_cost_base: None,
+            tx_context_sender_cost_base: None,
+            tx_context_epoch_cost_base: None,
+            tx_context_epoch_timestamp_ms_cost_base: None,
+            tx_context_sponsor_cost_base: None,
+            tx_context_rgp_cost_base: None,
+            tx_context_gas_price_cost_base: None,
+            tx_context_gas_budget_cost_base: None,
+            tx_context_ids_created_cost_base: None,
+            tx_context_replace_cost_base: None,
 
             // `types` module
             // Cost params for the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
@@ -2118,6 +2218,15 @@ impl ProtocolConfig {
             max_congestion_limit_overshoot_per_commit: None,
 
             scorer_version: None,
+
+            // `auth_context` module
+            auth_context_digest_cost_base: None,
+            auth_context_tx_commands_cost_base: None,
+            auth_context_tx_commands_cost_per_byte: None,
+            auth_context_tx_inputs_cost_base: None,
+            auth_context_tx_inputs_cost_per_byte: None,
+            auth_context_replace_cost_base: None,
+            auth_context_replace_cost_per_byte: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2478,6 +2587,95 @@ impl ProtocolConfig {
                     // Enable passkey authentication support in mainnet
                     cfg.feature_flags.passkey_auth = true;
                 }
+                20 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Passes the calculated validator scores to advance epoch only on Devnet
+                        cfg.feature_flags
+                            .pass_calculated_validator_scores_to_advance_epoch = true;
+                    }
+                }
+                21 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery in devnet.
+                        cfg.feature_flags.consensus_fast_commit_sync = true;
+                    }
+                    if chain != Chain::Mainnet {
+                        // Enable overshoot of 100 in congestion control on testnet.
+                        // This allows bursts of shared-object transactions
+                        // up to 10 times the average allowable load set by
+                        // `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                        cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                        // Enable congestion limit overshoot in the gas price feedback
+                        // mechanism on testnet.
+                        cfg.feature_flags
+                            .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                        // Enable a separate gas price feedback mechanism for transactions using
+                        // randomness on testnet.
+                        cfg.feature_flags
+                            .separate_gas_price_feedback_mechanism_for_randomness = true;
+                    }
+
+                    cfg.auth_context_digest_cost_base = Some(30);
+                    cfg.auth_context_tx_commands_cost_base = Some(30);
+                    cfg.auth_context_tx_commands_cost_per_byte = Some(2);
+                    cfg.auth_context_tx_inputs_cost_base = Some(30);
+                    cfg.auth_context_tx_inputs_cost_per_byte = Some(2);
+                    cfg.auth_context_replace_cost_base = Some(30);
+                    cfg.auth_context_replace_cost_per_byte = Some(2);
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Decrease max_auth_gas to 0.00025 IOTA
+                        cfg.max_auth_gas = Some(250_000);
+                    }
+                }
+                22 => {
+                    // Enable overshoot of 100 in congestion control on all networks.
+                    // This allows bursts of shared-object transactions
+                    // up to 10 times the average allowable load set by
+                    // `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                    cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                    // Enable congestion limit overshoot in the gas price feedback
+                    // mechanism on all networks.
+                    cfg.feature_flags
+                        .congestion_limit_overshoot_in_gas_price_feedback_mechanism = true;
+                    // Enable a separate gas price feedback mechanism for transactions using
+                    // randomness on all networks.
+                    cfg.feature_flags
+                        .separate_gas_price_feedback_mechanism_for_randomness = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable storing metadata in module bytes and then
+                        // publishing package metadata in testnet
+                        cfg.feature_flags.metadata_in_module_bytes = true;
+                        cfg.feature_flags.publish_package_metadata = true;
+                        // Enable Move authentication in testnet
+                        cfg.feature_flags.enable_move_authentication = true;
+                        // Max_auth_gas is 0.00025 IOTA
+                        cfg.max_auth_gas = Some(250_000);
+                        // Increase the base cost for transfer receive object in testnet, since the
+                        // implementation now does check if parent is not an account.
+                        cfg.transfer_receive_object_cost_base = Some(100);
+                    }
+
+                    if chain != Chain::Mainnet {
+                        // Enable fast commit syncer for faster recovery on testnet.
+                        cfg.feature_flags.consensus_fast_commit_sync = true;
+                    }
+                }
+                23 => {
+                    // Enable Move native context (TxContext via native functions) in all networks.
+                    cfg.feature_flags.move_native_tx_context = true;
+                    cfg.tx_context_fresh_id_cost_base = Some(52);
+                    cfg.tx_context_sender_cost_base = Some(30);
+                    cfg.tx_context_epoch_cost_base = Some(30);
+                    cfg.tx_context_epoch_timestamp_ms_cost_base = Some(30);
+                    cfg.tx_context_sponsor_cost_base = Some(30);
+                    cfg.tx_context_rgp_cost_base = Some(30);
+                    cfg.tx_context_gas_price_cost_base = Some(30);
+                    cfg.tx_context_gas_budget_cost_base = Some(30);
+                    cfg.tx_context_ids_created_cost_base = Some(30);
+                    cfg.tx_context_replace_cost_base = Some(30);
+                }
 
                 // Use this template when making changes:
                 //
@@ -2695,6 +2893,9 @@ impl ProtocolConfig {
 
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
+    }
+    pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_fast_commit_sync = val;
     }
 }
 

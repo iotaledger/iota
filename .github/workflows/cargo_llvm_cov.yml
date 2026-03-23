@@ -50,8 +50,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
 
-      - uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
-
       - name: Set Swap Space
         uses: actionhippie/swap-space@73376950a0019f8e1f6a3d3d2673fe2aed74ae17 # v1.0.2
         with:

@@ -13,7 +13,7 @@ import cx from 'classnames';
 import { ButtonSegmentType } from './buttonSegment.enums';
 import { ButtonUnstyled } from '../button';
 
-interface ButtonSegmentProps {
+interface ButtonSegmentProps extends React.AriaAttributes {
     /**
      * The label of the button.
      */
@@ -52,6 +52,7 @@ export function ButtonSegment({
     onClick,
     type = ButtonSegmentType.Rounded,
     isNested = false,
+    ...ariaProps
 }: ButtonSegmentProps): React.JSX.Element {
     const isUnderlined = type === ButtonSegmentType.Underlined;
 
@@ -88,10 +89,11 @@ export function ButtonSegment({
                 },
             )}
             disabled={disabled}
+            {...ariaProps}
         >
             <div className={cx('flex flex-row items-center justify-center gap-2', textSize)}>
                 {icon && <span>{icon}</span>}
-                <span className="shrink-0 font-inter">{label}</span>
+                <span className="text-start font-inter">{label}</span>
             </div>
         </ButtonUnstyled>
     );

@@ -76,6 +76,9 @@ export function EpochDetail() {
             (committeeMemberIndex) => epochData.validators[Number(committeeMemberIndex)],
         ) ?? [];
 
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
+    const hasEffectiveCommissionRate = Number(systemState?.protocolVersion ?? 0) >= 20;
+
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
         const includeColumns = [
@@ -83,6 +86,7 @@ export function EpochDetail() {
             'Stake',
             'APY',
             'Commission',
+            ...(hasEffectiveCommissionRate ? ['Effective Commission'] : []),
             'Last Epoch Rewards',
             'Voting Power',
             'Status',
@@ -97,7 +101,7 @@ export function EpochDetail() {
             includeColumns,
             currentEpoch: epochData.epoch,
         });
-    }, [epochData, validatorEvents, committeeMembers]);
+    }, [epochData, validatorEvents, committeeMembers, hasEffectiveCommissionRate]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
 
@@ -145,6 +149,7 @@ export function EpochDetail() {
                                             size={ButtonSize.Small}
                                             icon={<ArrowLeft />}
                                             disabled={epochData.epoch === '0'}
+                                            aria-label="Go to previous epoch"
                                         />
                                     </LinkWithQuery>
                                     <Link to={`/epoch/${Number(epochData.epoch) + 1}`}>
@@ -153,6 +158,7 @@ export function EpochDetail() {
                                             size={ButtonSize.Small}
                                             icon={<ArrowRight />}
                                             disabled={!epochData?.endOfEpochInfo}
+                                            aria-label="Go to next epoch"
                                         />
                                     </Link>
                                 </div>

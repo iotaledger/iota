@@ -1,0 +1,77 @@
+---
+title: Sequencing on IOTA
+sidebar_label: Sequencing
+description: Overview of the IOTA sequencer.
+tags: [core-protocol]
+---
+
+# Sequencing
+
+Sequencing is the post-consensus phase in which transactions agreed upon by the IOTA [consensus protocol](./consensus.mdx) are processed and scheduled for execution.
+
+Due to the nature of [shared objects](../../developer/iota-101/objects/object-ownership/shared.mdx), conflicting transactions writing to the same shared objects must be executed sequentially.
+If not carefully managed, scheduling a large number of such conflicting transactions can lead to congestion during execution.
+The primary goal of sequencing is to schedule as many transactions as possible while avoiding an unmanageable load on the execution layer.
+
+The sequencing phase is responsible for two main tasks:
+
+-   **Ordering**: Establishing the causal order of transactions committed by the IOTA [consensus protocol](./consensus.mdx).
+-   **Congestion prevention**: Deferring the execution of transactions that could otherwise overwhelm the execution layer.
+
+The IOTA sequencing algorithm addresses both of these tasks simultaneously.
+
+## Sequencing Algorithm
+
+In IOTA, transactions are initially ordered based on their gas prices.
+Each transaction is then evaluated individually using the placement algorithm described below to determine its position in the execution trace.
+During this evaluation, every transaction is subject to a binary decision: **Schedule** or **Defer**.
+
+-   **Deferred** transactions are carried over to the transaction set of the next consensus commit. If a transaction is deferred a specific number of times (currently 10), is it eventually **cancelled**.
+-   **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
+
+:::info Best-effort sequencing
+
+In the IOTA sequencing algorithm, a transaction is deferred only if there is no way to schedule it without exceeding the load threshold on any individual execution worker.
+
+:::
+
+## Placement algorithm: Causal ordering of transactions
+
+The IOTA sequencing algorithm orders transactions with a strong emphasis on execution efficiency.
+When a transaction is evaluated, the algorithm searches for a suitable position in the execution trace where it can be placed without causing conflicts.
+This allows for parallel execution of transactions that operate on disjoint sets of shared objects.
+
+To achieve this, the algorithm maintains an allocation map that tracks access to shared objects.
+This ensures that no shared object is written to by more than one transaction at the same time, preserving execution safety.
+
+Once all transactions have been evaluated, the allocation map implicitly defines the causal ordering of the scheduled transactions.
+
+The sequencing algorithm guarantees that the longest sequential execution trace remains within a predefined load threshold.
+
+:::info Fairness in sequencing
+
+In IOTA, transactions included in the same consensus commit that write to an identical set of shared objects are guaranteed to be executed in descending order of their gas prices.
+
+:::
+
+### Example
+
+In the example below, we consider three transactions:
+
+-   `Tx1` touches only object `a`,
+-   `Tx3` touches only object `b`,
+-   `Tx2` touches both objects `a` and `b`.
+
+`Tx1` is willing to pay the highest gas price, while `Tx3` offers the lowest.
+Additionally, `Tx2` is _estimated_ to have the longest execution time, while `Tx3` has the shortest.
+In the figure below, the length of the transactions depict their execution time.
+
+![Sequencing example, final sequencing](/img/about-iota/iota-architecture/sequencing1.svg)
+
+A naive sequencing of these transactions based solely on gas price would result in a serial execution, since `Tx2` would have to wait for `Tx1` to complete (due to their shared access to object `a`), and `Tx3` would need to wait for `Tx2` (due to shared access to `b`).
+As a result, all transactions would be executed one after another.
+
+Instead, IOTA's sequencing algorithm carefully places `Tx3` before `Tx2` in the causal order. This enables simultaneous execution of `Tx1` and `Tx3` (which access disjoint objects), provided that there are sufficient parallel resources.
+The case is illustrated in the following image.
+
+![Sequencing example, final sequencing](/img/about-iota/iota-architecture/sequencing2.svg)

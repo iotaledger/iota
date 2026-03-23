@@ -4,8 +4,9 @@
 
 include!("../../../generated/iota.grpc.v0.types.rs");
 include!("../../../generated/iota.grpc.v0.types.field_info.rs");
+include!("../../../generated/iota.grpc.v0.types.accessors.rs");
 
-use crate::proto::TryFromProtoError;
+use crate::proto::{TryFromProtoError, get_inner_field};
 
 impl From<iota_sdk_types::Digest> for Digest {
     fn from(value: iota_sdk_types::Digest) -> Self {
@@ -39,6 +40,15 @@ impl TryFrom<&Address> for iota_sdk_types::Address {
     fn try_from(value: &Address) -> Result<Self, Self::Error> {
         iota_sdk_types::Address::from_bytes(&value.address)
             .map_err(|e| TryFromProtoError::invalid("address", e))
+    }
+}
+
+impl TryFrom<&Address> for iota_sdk_types::ObjectId {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &Address) -> Result<Self, Self::Error> {
+        let sdk_address: iota_sdk_types::Address = value.try_into()?;
+        Ok(iota_sdk_types::ObjectId::from(sdk_address))
     }
 }
 
@@ -88,20 +98,43 @@ impl TryFrom<&ObjectReference> for iota_sdk_types::ObjectReference {
 }
 
 impl Address {
+    /// Deserialize the address to SDK type.
     pub fn address(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
         self.try_into()
     }
 }
 
 impl Digest {
+    /// Deserialize the digest to SDK type.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 }
 
 impl ObjectReference {
+    /// Deserialize the full object reference to SDK type.
     pub fn object_reference(&self) -> Result<iota_sdk_types::ObjectReference, TryFromProtoError> {
         self.try_into()
+    }
+
+    /// Get the object ID parsed as SDK type.
+    pub fn object_identifier(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
+        self.object_id
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing(Self::OBJECT_ID_FIELD.name))?
+            .parse()
+            .map_err(|e| TryFromProtoError::invalid(Self::OBJECT_ID_FIELD.name, e))
+    }
+
+    /// Get the object version number.
+    pub fn object_version(&self) -> Result<iota_sdk_types::Version, TryFromProtoError> {
+        self.version
+            .ok_or_else(|| TryFromProtoError::missing(Self::VERSION_FIELD.name))
+    }
+
+    /// Get the object digest.
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        get_inner_field!(self.digest, Self::DIGEST_FIELD, digest)
     }
 }
 
@@ -132,5 +165,49 @@ impl From<&iota_sdk_types::TypeTag> for TypeTag {
         Self {
             type_tag: Some(type_tag),
         }
+    }
+}
+
+impl TryFrom<&TypeTag> for iota_sdk_types::TypeTag {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &TypeTag) -> Result<Self, Self::Error> {
+        match &value.type_tag {
+            Some(type_tag::TypeTag::BoolTag(_)) => Ok(iota_sdk_types::TypeTag::Bool),
+            Some(type_tag::TypeTag::U8Tag(_)) => Ok(iota_sdk_types::TypeTag::U8),
+            Some(type_tag::TypeTag::U16Tag(_)) => Ok(iota_sdk_types::TypeTag::U16),
+            Some(type_tag::TypeTag::U32Tag(_)) => Ok(iota_sdk_types::TypeTag::U32),
+            Some(type_tag::TypeTag::U64Tag(_)) => Ok(iota_sdk_types::TypeTag::U64),
+            Some(type_tag::TypeTag::U128Tag(_)) => Ok(iota_sdk_types::TypeTag::U128),
+            Some(type_tag::TypeTag::U256Tag(_)) => Ok(iota_sdk_types::TypeTag::U256),
+            Some(type_tag::TypeTag::AddressTag(_)) => Ok(iota_sdk_types::TypeTag::Address),
+            Some(type_tag::TypeTag::SignerTag(_)) => Ok(iota_sdk_types::TypeTag::Signer),
+            Some(type_tag::TypeTag::VectorTag(inner)) => {
+                let inner_type = inner
+                    .inner_type
+                    .as_ref()
+                    .ok_or_else(|| TryFromProtoError::missing("type_tag.vector.inner_type"))?;
+                let inner_sdk: iota_sdk_types::TypeTag = inner_type.as_ref().try_into()?;
+                Ok(iota_sdk_types::TypeTag::Vector(Box::new(inner_sdk)))
+            }
+            Some(type_tag::TypeTag::StructTag(struct_tag)) => {
+                let parsed: iota_sdk_types::StructTag = struct_tag
+                    .struct_tag
+                    .parse()
+                    .map_err(|e| TryFromProtoError::invalid("type_tag.struct_tag", e))?;
+                Ok(iota_sdk_types::TypeTag::Struct(Box::new(parsed)))
+            }
+            None => Err(TryFromProtoError::missing("type_tag")),
+        }
+    }
+}
+
+// TypeTag
+//
+
+impl TypeTag {
+    /// Deserialize the type tag to SDK type.
+    pub fn type_tag(&self) -> Result<iota_sdk_types::TypeTag, TryFromProtoError> {
+        self.try_into()
     }
 }

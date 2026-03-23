@@ -29,20 +29,44 @@ import {
 import { TriangleDown } from '@iota/apps-ui-icons';
 import { ObjectChange, RenderExplorerLink } from '../../types';
 import { NamedAddressTooltip } from '../NamedAddressTooltip';
+import toast from 'react-hot-toast';
 
 interface ObjectDetailProps {
     change: IotaObjectChangeWithDisplay;
-    ownerKey: string;
     renderExplorerLink: RenderExplorerLink;
-    display?: boolean;
 }
 
 export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: ObjectDetailProps) {
-    if (change.type === 'transferred' || change.type === 'published') {
+    const [open, setOpen] = useState(false);
+
+    if (change.type === 'transferred') {
         return null;
     }
 
-    const [open, setOpen] = useState(false);
+    if (change.type === 'published') {
+        return (
+            <div className="flex w-full flex-col gap-2 px-md pb-md">
+                <KeyValueInfo
+                    keyText="Package"
+                    fullwidth
+                    copyText={change.packageId}
+                    value={formatAddress(change.packageId)}
+                    onCopySuccess={() => toast.success('Package ID copied to clipboard')}
+                />
+                {change.modules.map((moduleName, index) => (
+                    <KeyValueInfo
+                        key={index}
+                        keyText="Module"
+                        fullwidth
+                        copyText={moduleName}
+                        value={moduleName}
+                        onCopySuccess={() => toast.success('Module name copied to clipboard')}
+                    />
+                ))}
+            </div>
+        );
+    }
+
     const [packageId, moduleName, typeName] = change.objectType?.split('<')[0]?.split('::') || [];
 
     return (
@@ -75,6 +99,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                                     <ExplorerLink
                                         type={ExplorerLinkType.Object}
                                         objectID={change.objectId}
+                                        eventType="object"
                                     >
                                         {formatAddress(packageId)}
                                     </ExplorerLink>
@@ -94,6 +119,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                             objectID={packageId}
                             type={ExplorerLinkType.Object}
                             moduleName={moduleName}
+                            eventType="object"
                         >
                             {formatAddress(packageId)}
                         </ExplorerLink>
@@ -107,6 +133,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                             objectID={packageId}
                             type={ExplorerLinkType.Object}
                             moduleName={moduleName}
+                            eventType="object"
                         >
                             {moduleName}
                         </ExplorerLink>
@@ -119,6 +146,7 @@ export function ObjectDetail({ change, renderExplorerLink: ExplorerLink }: Objec
                             objectID={packageId}
                             type={ExplorerLinkType.Object}
                             moduleName={moduleName}
+                            eventType="object"
                         >
                             {typeName}
                         </ExplorerLink>
@@ -220,7 +248,6 @@ function ObjectChangeByOwnerPanel({
                                 items={change.changes.map((change) => (
                                     <ObjectDetail
                                         renderExplorerLink={renderExplorerLink}
-                                        ownerKey={owner}
                                         change={change}
                                     />
                                 ))}
@@ -234,11 +261,21 @@ function ObjectChangeByOwnerPanel({
                         <KeyValueInfo
                             keyText="Owner"
                             value={
-                                <NamedAddressTooltip name={iotaName} address={owner}>
-                                    <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                        {formatIotaName(iotaName) || formatAddress(owner)}
-                                    </ExplorerLink>
-                                </NamedAddressTooltip>
+                                owner === 'Shared' ? (
+                                    <span className="text-iota-neutral-10 dark:text-iota-neutral-92">
+                                        {owner}
+                                    </span>
+                                ) : (
+                                    <NamedAddressTooltip name={iotaName} address={owner}>
+                                        <ExplorerLink
+                                            type={ExplorerLinkType.Address}
+                                            address={owner}
+                                            eventType="address"
+                                        >
+                                            {formatIotaName(iotaName) || formatAddress(owner)}
+                                        </ExplorerLink>
+                                    </NamedAddressTooltip>
+                                )
                             }
                             fullwidth
                         />

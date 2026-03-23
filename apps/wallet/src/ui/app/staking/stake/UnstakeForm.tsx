@@ -22,6 +22,7 @@ import {
 } from '@iota/core';
 import { useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 import {
     Button,
     ButtonType,
@@ -53,6 +54,9 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const activeAccount = useActiveAccount();
     const activeAddress = activeAccount?.address ?? '';
     const signer = useSigner(activeAccount);
+    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
+    const validatorName =
+        systemState?.activeValidators.find((v) => v.iotaAddress === validatorAddress)?.name ?? '';
 
     const { data: allDelegation, isPending } = useGetDelegatedStake({
         address: activeAddress || '',
@@ -77,6 +81,16 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const [rewards, rewardSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalIota] = useFormatCoin({ balance: BigInt(iotaEarned || 0) + totalTokenBalance });
     const [tokenBalanceFormatted] = useFormatCoin({ balance: totalTokenBalance });
+    const [tokenBalanceFormattedPlain] = useFormatCoin({
+        balance: totalTokenBalance,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+    const [rewardsFormattedPlain] = useFormatCoin({
+        balance: iotaEarned,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const {
         data: unstakeData,
@@ -134,9 +148,11 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                 );
             },
             onSuccess: () => {
-                ampli.unstakedIota({
-                    stakedAmount: Number(tokenBalanceFormatted),
+                ampli.iotaUnstaked({
+                    stakedAmount: Number(tokenBalanceFormattedPlain),
                     validatorAddress: validatorAddress!,
+                    rewards: Number(rewardsFormattedPlain),
+                    validatorName,
                 });
             },
         });

@@ -4,8 +4,12 @@
 
 include!("../../../generated/iota.grpc.v0.checkpoint.rs");
 include!("../../../generated/iota.grpc.v0.checkpoint.field_info.rs");
+include!("../../../generated/iota.grpc.v0.checkpoint.accessors.rs");
 
-use crate::{proto::TryFromProtoError, v0::bcs::BcsData};
+use crate::{
+    proto::{TryFromProtoError, get_inner_field},
+    v0::{bcs::BcsData, versioned::VersionedCheckpointSummary},
+};
 
 // CheckpointSummary
 //
@@ -19,12 +23,24 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
         let bcs = bcs
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(CheckpointSummary::BCS_FIELD.name))?;
-        BcsData::deserialize(bcs)
-            .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))
+        bcs.deserialize::<VersionedCheckpointSummary>()
+            .map_err(|e| TryFromProtoError::invalid(CheckpointSummary::BCS_FIELD, e))?
+            .try_into_v1()
+            .map_err(|_| {
+                TryFromProtoError::invalid(
+                    CheckpointSummary::BCS_FIELD,
+                    "unsupported CheckpointSummary version",
+                )
+            })
     }
 }
 
 impl CheckpointSummary {
+    /// Get the digest of this checkpoint summary.
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        get_inner_field!(self.digest, Self::DIGEST_FIELD, try_into)
+    }
+
     /// Deserialize checkpoint summary.
     pub fn summary(&self) -> Result<iota_sdk_types::CheckpointSummary, TryFromProtoError> {
         self.try_into()
@@ -42,56 +58,21 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
             .bcs
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(CheckpointContents::BCS_FIELD.name))?;
-        // TODO: add version
+        // CheckpointContents has a custom Serialize impl that embeds
+        // a BCS enum discriminant byte, so no versioned wrapper needed.
         BcsData::deserialize(bcs)
             .map_err(|e| TryFromProtoError::invalid(CheckpointContents::BCS_FIELD, e))
     }
 }
 
 impl CheckpointContents {
+    /// Get the digest of this checkpoint contents.
+    pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
+        get_inner_field!(self.digest, Self::DIGEST_FIELD, try_into)
+    }
+
     /// Deserialize checkpoint contents.
     pub fn contents(&self) -> Result<iota_sdk_types::CheckpointContents, TryFromProtoError> {
         self.try_into()
-    }
-}
-
-// Checkpoint
-//
-
-impl Checkpoint {
-    /// Deserialize checkpoint summary.
-    pub fn summary(&self) -> Result<Option<iota_sdk_types::CheckpointSummary>, TryFromProtoError> {
-        self.summary
-            .as_ref()
-            .map(|s| s.summary().map_err(|e| e.nested(Self::SUMMARY_FIELD.name)))
-            .transpose()
-    }
-
-    /// Deserialize checkpoint contents.
-    pub fn contents(
-        &self,
-    ) -> Result<Option<iota_sdk_types::CheckpointContents>, TryFromProtoError> {
-        self.contents
-            .as_ref()
-            .map(|c| {
-                c.contents()
-                    .map_err(|e| e.nested(Self::CONTENTS_FIELD.name))
-            })
-            .transpose()
-    }
-
-    /// Deserialize validator signature.
-    pub fn signature(
-        &self,
-    ) -> Result<Option<iota_sdk_types::ValidatorAggregatedSignature>, TryFromProtoError> {
-        self.signature
-            .as_ref()
-            .map(|s| {
-                <&super::signatures::ValidatorAggregatedSignature as TryInto<
-                    iota_sdk_types::ValidatorAggregatedSignature,
-                >>::try_into(s)
-                .map_err(|e: TryFromProtoError| e.nested(Self::SIGNATURE_FIELD.name))
-            })
-            .transpose()
     }
 }

@@ -80,7 +80,7 @@ pub enum ReplayToolCommand {
         /// not specified defaults to
         /// `gas_profile_{tx_digest}_{unix_timestamp}.json in the working
         /// directory.
-        #[arg(long, short, allow_hyphen_values = true)]
+        #[arg(long, short = 'o', allow_hyphen_values = true)]
         profile_output: Option<PathBuf>,
         /// Required config objects and versions of the config objects to use if
         /// replaying a transaction that utilizes the config object for

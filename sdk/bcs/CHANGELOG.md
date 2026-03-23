@@ -1,5 +1,16 @@
 # @iota/bcs
 
+## 1.5.0
+
+### Minor Changes
+
+-   f445f37: Verify hex string is valid hex in `fromHex`
+-   0cc417d: replace bs58 and bech32 packages with @scure/base
+
+### Patch Changes
+
+-   94b38e1: Accept arrays of numbers when serializing bcs.bytes()
+
 ## 1.4.0
 
 ### Minor Changes

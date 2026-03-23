@@ -87,6 +87,14 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         }
     }
 
+    /// Unsubscribe from a specific peer. Used for testing scenarios where
+    /// we need to simulate network partitions without stopping the validator.
+    #[cfg(test)]
+    pub(crate) fn unsubscribe(&self, peer: AuthorityIndex) {
+        let mut subscriptions = self.subscriptions.lock();
+        self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
+    }
+
     fn unsubscribe_locked(&self, peer: AuthorityIndex, subscription: &mut Option<JoinHandle<()>>) {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         if let Some(subscription) = subscription.take() {
@@ -264,6 +272,7 @@ mod test {
         error::ConsensusResult,
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
+        transaction_ref::GenericTransactionRef,
     };
 
     struct SubscriberTestClient {}
@@ -296,7 +305,7 @@ mod test {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
+            _block_refs: Vec<GenericTransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -329,6 +338,15 @@ mod test {
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+            unimplemented!("Unimplemented")
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -338,7 +356,7 @@ mod test {
         let context = Arc::new(context);
         let authority_service = Arc::new(Mutex::new(TestService::new()));
         let network_client = Arc::new(SubscriberTestClient::new());
-        let store = Arc::new(MemStore::new());
+        let store = Arc::new(MemStore::new(context.clone()));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let subscriber = Subscriber::new(
             context.clone(),
