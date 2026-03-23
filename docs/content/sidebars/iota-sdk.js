@@ -37,6 +37,7 @@ const iotaSDK = [
                 label: 'Transactions',
                 items: [
                     'developer/rust-sdk/how-tos/transactions/prepare-send-iota',
+                    'developer/rust-sdk/how-tos/transactions/sign-send-iota',
                 ],
             },
         ],
