@@ -19,27 +19,23 @@ use iota_types::{
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
     effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
-    error::{ExecutionError, IotaError, IotaResult},
+    error::{ExecutionError, IotaResult},
     execution::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
     },
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
-    fp_bail,
     gas::GasCostSummary,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
     is_system_package,
     layout_resolver::LayoutResolver,
-    object::{Data, Object, Owner},
+    object::{Object, Owner},
     storage::{
         BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
         Storage,
     },
     transaction::InputObjects,
-};
-use move_core_types::{
-    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
 };
 use parking_lot::RwLock;
 
@@ -1140,40 +1136,3 @@ impl BackingPackageStore for TemporaryStore<'_> {
     }
 }
 
-impl ResourceResolver for TemporaryStore<'_> {
-    type Error = IotaError;
-
-    fn get_resource(
-        &self,
-        address: &AccountAddress,
-        struct_tag: &StructTag,
-    ) -> Result<Option<Vec<u8>>, Self::Error> {
-        let object = match self.read_object(&ObjectID::from(*address)) {
-            Some(x) => x,
-            None => match self.read_object(&ObjectID::from(*address)) {
-                None => return Ok(None),
-                Some(x) => {
-                    if !x.is_immutable() {
-                        fp_bail!(IotaError::ExecutionInvariantViolation);
-                    }
-                    x
-                }
-            },
-        };
-
-        match &object.data {
-            Data::Move(m) => {
-                assert!(
-                    m.is_type(struct_tag),
-                    "Invariant violation: ill-typed object in storage \
-                    or bad object request from caller"
-                );
-                Ok(Some(m.contents().to_vec()))
-            }
-            other => unimplemented!(
-                "Bad object lookup: expected Move object, but got {:?}",
-                other
-            ),
-        }
-    }
-}

@@ -30,7 +30,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     message_envelope::Message,
     metrics::LimitsMetrics,
-    object::{Data, Object, Owner},
+    object::{Object, Owner},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, get_module,
         get_module_by_id,
@@ -44,11 +44,7 @@ use iota_types::{
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-    resolver::{ModuleResolver, ResourceResolver},
-};
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
@@ -1974,60 +1970,6 @@ impl ChildObjectResolver for LocalExec {
                 owner: *owner,
                 receive: *receiving_object_id,
                 receive_at_version: receive_object_at_version,
-                result: res.clone(),
-            });
-        res
-    }
-}
-
-impl ResourceResolver for LocalExec {
-    type Error = IotaError;
-
-    /// In this case we might need to download a Move object on the fly which
-    /// was not present in the modified at versions list because packages
-    /// are immutable
-    fn get_resource(
-        &self,
-        address: &AccountAddress,
-        type_: &StructTag,
-    ) -> IotaResult<Option<Vec<u8>>> {
-        fn inner(
-            self_: &LocalExec,
-            address: &AccountAddress,
-            type_: &StructTag,
-        ) -> IotaResult<Option<Vec<u8>>> {
-            // If package not present fetch it from the network or some remote location
-            let Some(object) = self_.get_or_download_object(
-                &ObjectID::from(*address),
-                false, // we expect a Move obj
-            )?
-            else {
-                return Ok(None);
-            };
-
-            match &object.data {
-                Data::Move(m) => {
-                    assert!(
-                        m.is_type(type_),
-                        "Invariant violation: ill-typed object in storage \
-                        or bad object request from caller"
-                    );
-                    Ok(Some(m.contents().to_vec()))
-                }
-                other => unimplemented!(
-                    "Bad object lookup: expected Move object, but got {:#?}",
-                    other
-                ),
-            }
-        }
-
-        let res = inner(self, address, type_);
-        self.exec_store_events
-            .lock()
-            .expect("Unable to lock events list")
-            .push(ExecutionStoreEvent::ResourceResolverGetResource {
-                address: *address,
-                typ: type_.clone(),
                 result: res.clone(),
             });
         res

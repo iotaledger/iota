@@ -9,10 +9,7 @@ use iota_types::{
     layout_resolver::LayoutResolver,
     storage::{BackingPackageStore, PackageObject},
 };
-use move_core_types::{
-    account_address::AccountAddress, annotated_value as A, language_storage::StructTag,
-    resolver::ResourceResolver,
-};
+use move_core_types::{annotated_value as A, language_storage::StructTag};
 use move_vm_runtime::move_vm::MoveVM;
 
 use crate::programmable_transactions::{context::load_type_from_struct, linkage_view::LinkageView};
@@ -64,14 +61,3 @@ impl BackingPackageStore for NullIotaResolver<'_> {
     }
 }
 
-impl ResourceResolver for NullIotaResolver<'_> {
-    type Error = IotaError;
-
-    fn get_resource(
-        &self,
-        _address: &AccountAddress,
-        _type: &StructTag,
-    ) -> Result<Option<Vec<u8>>, Self::Error> {
-        Ok(None)
-    }
-}

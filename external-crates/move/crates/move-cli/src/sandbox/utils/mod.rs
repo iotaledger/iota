@@ -29,7 +29,7 @@ use move_core_types::{
     account_address::AccountAddress,
     effects::{ChangeSet, Op},
     language_storage::{ModuleId, TypeTag},
-    transaction_argument::TransactionArgument,
+    runtime_value::MoveValue,
     vm_status::{StatusCode, StatusType},
 };
 use move_ir_types::location::Loc;
@@ -98,7 +98,7 @@ pub(crate) fn explain_publish_changeset(changeset: &ChangeSet) {
 pub(crate) fn explain_type_error(
     script_params: &[SignatureToken],
     signers: &[AccountAddress],
-    txn_args: &[TransactionArgument],
+    txn_args: &[MoveValue],
 ) {
     use SignatureToken::*;
     let expected_num_signers = script_params
@@ -293,7 +293,7 @@ pub(crate) fn explain_execution_error(
     script_parameters: &[SignatureToken],
     vm_type_args: &[TypeTag],
     signers: &[AccountAddress],
-    txn_args: &[TransactionArgument],
+    txn_args: &[MoveValue],
 ) -> Result<()> {
     use StatusCode::*;
     match (error.location(), error.major_status(), error.sub_status()) {

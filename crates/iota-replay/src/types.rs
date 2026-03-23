@@ -16,10 +16,7 @@ use iota_types::{
 };
 use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;
-use move_core_types::{
-    account_address::AccountAddress,
-    language_storage::{ModuleId, StructTag},
-};
+use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Duration;
@@ -279,11 +276,6 @@ pub enum ExecutionStoreEvent {
         parent: ObjectID,
         child: ObjectID,
         result: IotaResult<Option<Object>>,
-    },
-    ResourceResolverGetResource {
-        address: AccountAddress,
-        typ: StructTag,
-        result: IotaResult<Option<Vec<u8>>>,
     },
     ModuleResolverGetModule {
         module_id: ModuleId,
