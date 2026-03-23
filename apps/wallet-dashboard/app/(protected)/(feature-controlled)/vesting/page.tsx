@@ -612,6 +612,7 @@ export default function VestingDashboardPage(): JSX.Element {
                         </Panel>
                     </div>
                 ) : null}
+
                 {isDialogStakeOpen && (
                     <StakeDialog
                         isTimelockedStaking
@@ -627,11 +628,12 @@ export default function VestingDashboardPage(): JSX.Element {
                         )}
                     />
                 )}
+
                 {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
                     <UnstakeDialog
-                        {...defaultDialogProps}
                         groupedTimelockedObjects={timelockedObjectsToUnstake}
                         onSuccess={handleOnSuccessUnstake}
+                        {...defaultDialogProps}
                     />
                 )}
             </div>
