@@ -1,5 +1,17 @@
 # @iota/apps-ui-kit
 
+## 0.9.4
+
+### Patch Changes
+
+-   4a5ec26: Always show Copy and explorer buttons in Address component.
+-   adea573: Enable declarationMap in TS packages
+-   8ec6dd5: Extend support for aria props
+-   caf344f: Animations for dialog and Select.
+-   Updated dependencies [adea573]
+-   Updated dependencies [0142ab5]
+    -   @iota/apps-ui-icons@0.7.4
+
 ## 0.9.3
 
 ### Patch Changes
