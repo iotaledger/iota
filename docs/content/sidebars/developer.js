@@ -642,35 +642,8 @@ const developer = [
     },
     {
         type: 'category',
-        label: 'Rust SDK',
-        collapsible: true,
-        collapsed: true,
-        link: {
-            type: 'doc',
-            id: 'developer/references/rust-sdk',
-        },
-        items: [
-    {
-        type: 'doc',
-        label: 'Python',
-        id: 'developer/getting-started/rust-sdk-bindings-getting-started/python-binding-get-started',
-    },
-    {
-        type: 'doc',
-        label: 'Go',
-        id: 'developer/getting-started/rust-sdk-bindings-getting-started/go-binding-getting-started',
-    },
-    {
-        type: 'doc',
-        label: 'Kotlin',
-        id: 'developer/getting-started/rust-sdk-bindings-getting-started/kotlin-binding-getting-started',
-    },
-        {
-        type: 'doc',
-        label: 'Swift',
-        id: 'developer/getting-started/rust-sdk-bindings-getting-started/swift-binding-getting-started',
-    },
-],
+        label: 'IOTA SDK',
+        items: iotaSDK,
     },
     {
         type: 'category',
