@@ -1218,7 +1218,9 @@ mod tests {
         // cordial dissemination), so there's no commit gap for syncers to act
         // on. Phase 5 creates a commit gap larger than the threshold for fast
         // sync to trigger on restart.
-        let stable_work_duration = Duration::from_secs(10);
+        // 20s gives enough time under CPU pressure for the system to process
+        // Phase 1 backlog and advance into Phase 3, where pending subdags appear.
+        let stable_work_duration = Duration::from_secs(20);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
