@@ -5,6 +5,7 @@ import {
     SupplyIncreaseVestingPayout,
     SupplyIncreaseVestingPortfolio,
     VestingOverview,
+    SupplyIncreaseUserType,
 } from '@/lib/interfaces';
 import {
     buildSupplyIncreaseVestingSchedule,
@@ -13,6 +14,7 @@ import {
     isSizeExceededError,
     isSupplyIncreaseVestingObject,
     isTimelockedUnlockable,
+    getSupplyIncreaseVestingUserType,
 } from '@/lib/utils';
 import {
     TIMELOCK_IOTA_TYPE,
@@ -52,6 +54,7 @@ interface SupplyIncreaseVestingObject {
     resetMaxTransactionSize: () => void;
     isUnlockError: boolean;
     unlockError: Error | null;
+    userType: SupplyIncreaseUserType | undefined;
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
@@ -98,6 +101,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const supplyIncreaseVestingPortfolio =
         lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout);
+
+    const userType = lastPayout ? getSupplyIncreaseVestingUserType([lastPayout]) : undefined;
 
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
@@ -232,5 +237,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         resetMaxTransactionSize,
         isUnlockError,
         unlockError,
+        userType,
     };
 }

@@ -15,11 +15,15 @@ import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 import { useRouter } from 'next/navigation';
+import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
+import { SupplyIncreaseUserType } from '@/lib/interfaces';
 
 function HomeDashboardPage(): JSX.Element {
     const { connectionStatus } = useCurrentWallet();
     const account = useCurrentAccount();
     const router = useRouter();
+    const address = account?.address || '';
+    const { userType } = useGetSupplyIncreaseVestingObjects(address);
 
     const stardustMigrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
@@ -42,11 +46,13 @@ function HomeDashboardPage(): JSX.Element {
                         {supplyIncreaseVestingEnabled && (
                             <SupplyIncreaseVestingOverview
                                 customButton={
-                                    <Button
-                                        type={ButtonType.Primary}
-                                        text="Go to Vesting Page"
-                                        onClick={() => router.push('/vesting')}
-                                    />
+                                    userType === SupplyIncreaseUserType.Staker ? (
+                                        <Button
+                                            type={ButtonType.Primary}
+                                            text="Go to Vesting Page"
+                                            onClick={() => router.push('/vesting')}
+                                        />
+                                    ) : undefined
                                 }
                             />
                         )}
