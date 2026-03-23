@@ -16,6 +16,9 @@ Before using the Swift bindings, ensure you have:
 
 ## Installation
 
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
 ### Swift Package Manager (SPM)
 
 You can add the IOTA SDK to your project via Swift Package Manager. In Xcode:
@@ -25,7 +28,8 @@ You can add the IOTA SDK to your project via Swift Package Manager. In Xcode:
 3. In the dependency rule, select the `develop` branch or a specific version.
 4. Select the `IotaSDK` library.
 
-## Build from Source (Optional)
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
 
 The Swift bindings include prebuilt binaries for most macOS and iOS platforms. In most cases, using Swift Package Manager (SPM) with the repository URL will automatically fetch a compatible binary.
 
@@ -47,6 +51,9 @@ swift build
 Once built, you can add the locally generated Swift package to your Xcode project, ensuring the native Rust library is included and accessible in your build settings.
 
 For more details on development setup, platform-specific notes, and linking, refer to the official [Swift bindings documentation](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/swift)
+
+</TabItem>
+</Tabs>
 
 ## Quick Start Example
 

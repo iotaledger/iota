@@ -17,6 +17,9 @@ Before using the Python bindings, ensure you have:
 
 ## Installation
 
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
 You can install the IOTA SDK directly from PyPI:
 
 ```bash
@@ -25,7 +28,8 @@ pip install iota-sdk==3.0.0-alpha.1
 
 The package includes pre-compiled binary wheels for Windows, macOS, and Linux, so no Rust compiler is required for standard installation.
 
-## Build from Source (Optional)
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
 
 The PyPI package includes precompiled binary wheels for common platforms (Windows, macOS, and Linux). However, if you are using a Python version or CPU architecture that is not supported by the prebuilt binaries, you may need to build the bindings from source.
 
@@ -44,6 +48,9 @@ maturin develop
 ```
 
 For detailed instructions and development setup, refer to the official [Python bindings documentation](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/python) in the repository:
+
+</TabItem>
+</Tabs>
 
 ## Quick Start Example
 

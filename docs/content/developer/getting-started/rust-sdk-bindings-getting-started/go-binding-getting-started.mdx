@@ -14,6 +14,9 @@ Before using the Go bindings, ensure you have:
 
 ## Installation
 
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
 Add the IOTA SDK to your Go project using `go get`:
 
 ```bash
@@ -22,7 +25,8 @@ go get github.com/iotaledger/iota-sdk-go
 
 The package automatically includes pre-built native libraries for most modern operating systems (Windows, macOS, and Linux).
 
-## Build from Source (Optional)
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
 
 The `iota-sdk-go` package includes precompiled native libraries for common platforms such as Windows, macOS, and Linux. In most cases, installing the package with:
 
@@ -43,6 +47,9 @@ go build ./...
 ```
 
 For additional setup instructions and platform-specific details, refer to the official [Go bindings documentation](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/go) in the repository.
+
+</TabItem>
+</Tabs>
 
 ## Quick Start Example
 
