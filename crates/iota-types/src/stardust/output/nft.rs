@@ -10,7 +10,7 @@ use super::unlock_conditions::{
 };
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, StructTagExt},
+    base_types::IotaAddress,
     collection_types::{Bag, VecMap},
     error::IotaError,
     id::UID,
@@ -192,7 +192,7 @@ impl TryFrom<&Object> for NftOutput {
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_nft_output() {
+                if NftOutput::is_nft_output(o.type_()) {
                     return NftOutput::from_bcs_bytes(o.contents());
                 }
             }

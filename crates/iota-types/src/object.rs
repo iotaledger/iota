@@ -23,7 +23,7 @@ use crate::{
     balance::Balance,
     base_types::{
         IotaAddress, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
-        StructTagExt, TransactionDigest,
+        TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::{default_hash, deterministic_random_account_key},
@@ -357,7 +357,7 @@ impl MoveObject {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.type_.coin_type_maybe() {
+        if let Some(type_tag) = self.type_.coin_type_opt() {
             let balance = self.get_coin_value_unsafe();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
@@ -719,9 +719,9 @@ impl ObjectInner {
         }
     }
 
-    pub fn coin_type_maybe(&self) -> Option<TypeTag> {
+    pub fn coin_type_opt(&self) -> Option<&TypeTag> {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().coin_type_maybe()
+            move_object.type_().coin_type_opt()
         } else {
             None
         }

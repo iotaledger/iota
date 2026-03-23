@@ -44,7 +44,6 @@ use crate::{
     object::{Object, Owner},
     parse_iota_struct_tag,
     signature::GenericSignature,
-    stardust::output::{AliasOutput, BasicOutput, NftOutput},
     transaction::{Transaction, VerifiedTransaction},
     zk_login_authenticator::ZkLoginAuthenticator,
 };
@@ -95,17 +94,8 @@ pub fn random_object_ref() -> ObjectRef {
 /// `is_regulated_coin_metadata()`, `is_timelocked_balance()`, etc. are inherent
 /// methods on `StructTag` in `iota-sdk-types`.
 pub trait StructTagExt {
-    /// Return the coin type if this is a `Coin<T>`, cloning the inner type tag.
-    fn coin_type_maybe(&self) -> Option<TypeTag>;
-
     /// Return the `ModuleId` for this type (requires `move-core-types`).
     fn module_id(&self) -> ModuleId;
-
-    fn is_alias_output(&self) -> bool;
-
-    fn is_basic_output(&self) -> bool;
-
-    fn is_nft_output(&self) -> bool;
 
     fn is_authenticator_function_ref_v1(&self) -> bool;
 
@@ -115,27 +105,11 @@ pub trait StructTagExt {
 }
 
 impl StructTagExt for StructTag {
-    fn coin_type_maybe(&self) -> Option<TypeTag> {
-        self.coin_type_opt().cloned()
-    }
-
     fn module_id(&self) -> ModuleId {
         ModuleId::new(
             AccountAddress::new(self.address().into_bytes()),
             move_core_types::identifier::Identifier::new(self.module().as_str()).unwrap(),
         )
-    }
-
-    fn is_alias_output(&self) -> bool {
-        AliasOutput::is_alias_output(self)
-    }
-
-    fn is_basic_output(&self) -> bool {
-        BasicOutput::is_basic_output(self)
-    }
-
-    fn is_nft_output(&self) -> bool {
-        NftOutput::is_nft_output(self)
     }
 
     fn is_authenticator_function_ref_v1(&self) -> bool {

@@ -11,7 +11,6 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, TypeTag},
     coin::CoinMetadata,
     coin_manager::CoinManager,
-    gas_coin::GAS,
     object::Object,
     stardust::coin_type::CoinType,
 };
@@ -363,7 +362,13 @@ fn create_gas_coin() -> Result<()> {
     );
 
     assert!(gas_coin_object.type_().unwrap().is_gas_coin());
-    assert_eq!(gas_coin_object.coin_type_maybe().unwrap(), GAS::type_tag());
+    assert!(
+        gas_coin_object
+            .coin_type_opt()
+            .unwrap()
+            .as_struct_tag()
+            .is_gas()
+    );
     assert_eq!(coin.value(), 1_000_000);
     assert_eq!(package_object.version(), gas_coin_object.version());
 

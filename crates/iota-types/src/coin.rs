@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::{Balance, Supply},
-    base_types::{ObjectID, StructTagExt},
+    base_types::ObjectID,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
@@ -52,7 +52,7 @@ impl Coin {
         let Data::Move(obj) = &object.data else {
             return Ok(None);
         };
-        let Some(_) = obj.type_().coin_type_maybe() else {
+        let Some(_) = obj.type_().coin_type_opt() else {
             return Ok(None);
         };
 
