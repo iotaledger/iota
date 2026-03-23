@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
 };
 
-use move_abstract_interpreter::absint::{AbstractDomain, FunctionContext, JoinResult};
+use crate::absint::{AbstractDomain, FunctionContext, JoinResult};
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{

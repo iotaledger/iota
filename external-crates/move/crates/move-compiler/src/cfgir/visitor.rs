@@ -11,7 +11,7 @@ use move_proc_macros::growing_stack;
 use crate::{
     cfgir::{
         CFGContext,
-        absint::{AbstractDomain, AbstractInterpreter, JoinResult, TransferFunctions},
+        absint::{AbstractDomain, JoinResult, TransferFunctions, analyze_function},
         ast as G,
         cfg::ImmForwardCFG,
     },
@@ -530,7 +530,7 @@ pub trait SimpleAbsIntConstructor: Sized {
         let Some(mut ai) = Self::new(context, cfg, &mut init_state) else {
             return Diagnostics::new();
         };
-        let (final_state, ds) = ai.analyze_function(cfg, init_state);
+        let (final_state, ds) = analyze_function(&mut ai, cfg, init_state);
         ai.finish(final_state, ds)
     }
 }
@@ -808,7 +808,6 @@ impl<V: SimpleAbsInt> TransferFunctions for V {
         self.finish_command(context, pre)
     }
 }
-impl<V: SimpleAbsInt> AbstractInterpreter for V {}
 
 impl<V: AbstractInterpreterVisitor + 'static> From<V> for AbsIntVisitorObj {
     fn from(value: V) -> Self {

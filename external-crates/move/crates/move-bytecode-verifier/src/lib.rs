@@ -8,6 +8,7 @@
 //! Verifies bytecode sanity.
 
 // Bounds checks are implemented in the `vm` crate.
+pub mod absint;
 pub mod ability_cache;
 pub mod ability_field_requirements;
 pub mod check_duplication;

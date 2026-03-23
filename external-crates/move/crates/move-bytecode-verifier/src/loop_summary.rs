@@ -4,9 +4,11 @@
 
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
 
-use move_abstract_interpreter::control_flow_graph::{
-    BlockId, ControlFlowGraph, VMControlFlowGraph,
-};
+use crate::absint::VMControlFlowGraph;
+use move_abstract_interpreter::control_flow_graph::ControlFlowGraph;
+use move_binary_format::file_format::CodeOffset;
+
+type BlockId = CodeOffset;
 
 /// Dense index into nodes in the same `LoopSummary`
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -100,10 +102,9 @@ impl LoopSummary {
 
         let mut stack: Vec<Frontier> = cfg
             .successors(root_block)
-            .iter()
             .map(|succ| Visit {
                 from_node: root_node,
-                to_block: *succ,
+                to_block: succ,
             })
             .collect();
 
@@ -146,9 +147,9 @@ impl LoopSummary {
                             parent: from_node,
                         });
 
-                        stack.extend(cfg.successors(to_block).iter().map(|succ| Visit {
+                        stack.extend(cfg.successors(to_block).map(|succ| Visit {
                             from_node: to_node,
-                            to_block: *succ,
+                            to_block: succ,
                         }));
                     }
                 },

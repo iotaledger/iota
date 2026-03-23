@@ -15,7 +15,7 @@
 //! For bytecode versions 5 and below, delegates to `control_flow_v5`.
 use std::collections::BTreeSet;
 
-use move_abstract_interpreter::absint::FunctionContext;
+use crate::absint::FunctionContext;
 use move_binary_format::{
     CompiledModule,
     errors::{PartialVMError, PartialVMResult},

@@ -449,7 +449,7 @@ impl InclusionCheck {
                 Mark::New(name, new) => context.function_new(name, new),
                 Mark::Missing(name, old) => context.function_missing(name, old),
                 Mark::Existing(name, old, new) => {
-                    if !old.equals(new) {
+                    if !old.equivalent(new) {
                         context.function_change(name, old, new);
                     }
                 }

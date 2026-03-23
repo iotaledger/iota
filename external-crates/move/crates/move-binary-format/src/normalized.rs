@@ -692,7 +692,7 @@ impl<S: Hash + Eq> Module<S> {
                 && functions
                     .iter()
                     .zip(other_functions)
-                    .all(|((n1, f1), (n2, f2))| n1 == n2 && f1.equals(f2))
+                    .all(|((n1, f1), (n2, f2))| n1 == n2 && f1.equivalent(f2))
         }
         let Self {
             tables: _,
@@ -841,7 +841,10 @@ impl<S> Function<S> {
 
     /// Should not be called if `code_included` is `false`--will panic in debug builds.
     /// This ignores locals.
-    pub fn equivalent(&self, other: &Self) -> bool {
+    pub fn equivalent(&self, other: &Self) -> bool
+    where
+        S: Eq,
+    {
         let Self {
             name,
             visibility,
@@ -864,8 +867,8 @@ impl<S> Function<S> {
             && type_parameters == &other.type_parameters
             && parameters == &other.parameters
             && return_ == &other.return_
-            && vec_ordered_equivalent(jump_tables, &other.jump_tables, |j1, j2| j1.equivalent(j2))
-            && vec_ordered_equivalent(code, &other.code, |b1, b2| b1.equivalent(b2))
+            && jump_tables == &other.jump_tables
+            && code == &other.code
     }
 }
 
@@ -1420,4 +1423,12 @@ impl StringPool for ArcPool {
     fn as_ident_str<'a>(&'a self, s: &'a Self::String) -> &'a IdentStr {
         s.0.as_ident_str()
     }
+}
+
+fn vec_ordered_equivalent<T, P: FnMut(&T, &T) -> bool>(
+    a: &[T],
+    b: &[T],
+    mut equivalent: P,
+) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(a, b)| equivalent(a, b))
 }

@@ -10,13 +10,13 @@ use std::{
     io::{self, Write},
 };
 
-use move_abstract_interpreter::control_flow_graph::{
-    BlockId, ControlFlowGraph, VMControlFlowGraph,
-};
+use move_abstract_interpreter::control_flow_graph::{ControlFlowGraph, VMControlFlowGraph};
 use move_binary_format::{
     CompiledModule,
     file_format::{Bytecode, CodeOffset},
 };
+
+type BlockId = CodeOffset;
 use move_core_types::{identifier::Identifier, language_storage::ModuleId};
 use petgraph::{Graph, algo::tarjan_scc};
 use serde::{Deserialize, Serialize};
@@ -211,7 +211,7 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
                     // get function entry and return points
                     let fn_entry = fn_cfg.block_start(fn_cfg.entry_block_id());
                     let mut fn_returns: BTreeSet<CodeOffset> = BTreeSet::new();
-                    for block_id in fn_cfg.blocks().into_iter() {
+                    for block_id in fn_cfg.blocks() {
                         for i in fn_cfg.block_start(block_id)..=fn_cfg.block_end(block_id) {
                             if let Bytecode::Ret = &code_unit.code[i as usize] {
                                 fn_returns.insert(i);
@@ -224,15 +224,14 @@ pub fn summarize_path_cov(module: &CompiledModule, trace_map: &TraceMap) -> Modu
 
                     let block_to_node: BTreeMap<_, _> = fn_cfg
                         .blocks()
-                        .into_iter()
                         .map(|block_id| (block_id, fn_dgraph.add_node(block_id)))
                         .collect();
 
-                    for block_id in fn_cfg.blocks().into_iter() {
-                        for succ_block_id in fn_cfg.successors(block_id).iter() {
+                    for block_id in fn_cfg.blocks() {
+                        for succ_block_id in fn_cfg.successors(block_id) {
                             fn_dgraph.add_edge(
                                 *block_to_node.get(&block_id).unwrap(),
-                                *block_to_node.get(succ_block_id).unwrap(),
+                                *block_to_node.get(&succ_block_id).unwrap(),
                                 (),
                             );
                         }

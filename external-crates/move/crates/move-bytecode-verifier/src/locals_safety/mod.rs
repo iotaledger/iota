@@ -10,7 +10,7 @@
 mod abstract_state;
 
 use abstract_state::{AbstractState, LocalState, RET_COST, STEP_BASE_COST};
-use move_abstract_interpreter::absint::{AbstractInterpreter, FunctionContext, TransferFunctions};
+use crate::absint::{FunctionContext, TransferFunctions, analyze_function};
 use move_binary_format::{
     CompiledModule,
     errors::{PartialVMError, PartialVMResult},
@@ -28,7 +28,7 @@ pub(crate) fn verify<'a>(
     meter: &mut (impl Meter + ?Sized),
 ) -> PartialVMResult<()> {
     let initial_state = AbstractState::new(module, function_context, ability_cache, meter)?;
-    LocalsSafetyAnalysis().analyze_function(initial_state, function_context, meter)
+    analyze_function(function_context, meter, &mut LocalsSafetyAnalysis(), initial_state)
 }
 
 fn execute_inner(
@@ -178,18 +178,17 @@ struct LocalsSafetyAnalysis();
 
 impl TransferFunctions for LocalsSafetyAnalysis {
     type State = AbstractState;
-    type Error = PartialVMError;
 
     fn execute(
         &mut self,
         state: &mut Self::State,
         bytecode: &Bytecode,
         index: CodeOffset,
-        _last_index: CodeOffset,
+        _bounds: (CodeOffset, CodeOffset),
         meter: &mut (impl Meter + ?Sized),
     ) -> PartialVMResult<()> {
         execute_inner(state, bytecode, index, meter)
     }
 }
 
-impl AbstractInterpreter for LocalsSafetyAnalysis {}
+

@@ -19,7 +19,7 @@ fn cfg_compile_script_ret() {
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
     cfg.display();
-    assert_eq!(cfg.blocks().len(), 1);
+    assert_eq!(cfg.blocks().count(), 1);
     assert_eq!(cfg.num_blocks(), 1);
     assert_eq!(cfg.reachable_from(0).len(), 1);
 }
@@ -40,7 +40,7 @@ fn cfg_compile_script_let() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 1);
+    assert_eq!(cfg.blocks().count(), 1);
     assert_eq!(cfg.num_blocks(), 1);
     assert_eq!(cfg.reachable_from(0).len(), 1);
 }
@@ -64,7 +64,7 @@ fn cfg_compile_if() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 4);
 }
@@ -91,7 +91,7 @@ fn cfg_compile_if_else() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 4);
 }
@@ -114,7 +114,7 @@ fn cfg_compile_if_else_with_else_return() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 4);
 }
@@ -145,7 +145,7 @@ fn cfg_compile_nested_if() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 7);
+    assert_eq!(cfg.blocks().count(), 7);
     assert_eq!(cfg.num_blocks(), 7);
     assert_eq!(cfg.reachable_from(8).len(), 3);
 }
@@ -168,7 +168,7 @@ fn cfg_compile_if_else_with_if_return() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 4);
     assert_eq!(cfg.reachable_from(4).len(), 2);
@@ -191,7 +191,7 @@ fn cfg_compile_if_else_with_two_returns() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 3);
     assert_eq!(cfg.reachable_from(4).len(), 1);
@@ -218,7 +218,7 @@ fn cfg_compile_if_else_with_else_abort() {
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
     cfg.display();
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 4);
 }
@@ -242,7 +242,7 @@ fn cfg_compile_if_else_with_if_abort() {
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
     cfg.display();
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 4);
     assert_eq!(cfg.reachable_from(4).len(), 2);
@@ -266,7 +266,7 @@ fn cfg_compile_if_else_with_two_aborts() {
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
     cfg.display();
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 3);
     assert_eq!(cfg.reachable_from(4).len(), 1);
@@ -296,7 +296,7 @@ fn cfg_compile_variant_switch_simple() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 3);
+    assert_eq!(cfg.blocks().count(), 3);
     assert_eq!(cfg.num_blocks(), 3);
     assert_eq!(cfg.reachable_from(0).len(), 3);
 }
@@ -326,7 +326,7 @@ fn cfg_compile_variant_switch_simple_unconditional_jump() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 4);
+    assert_eq!(cfg.blocks().count(), 4);
     assert_eq!(cfg.num_blocks(), 4);
     assert_eq!(cfg.reachable_from(0).len(), 3);
 }
@@ -362,7 +362,7 @@ fn cfg_compile_variant_switch() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 6);
+    assert_eq!(cfg.blocks().count(), 6);
     assert_eq!(cfg.num_blocks(), 6);
     assert_eq!(cfg.reachable_from(0).len(), 6);
 }
@@ -398,7 +398,7 @@ fn cfg_compile_variant_switch_with_two_aborts() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 6);
+    assert_eq!(cfg.blocks().count(), 6);
     assert_eq!(cfg.num_blocks(), 6);
     assert_eq!(cfg.reachable_from(0).len(), 5);
 }
@@ -440,7 +440,7 @@ fn cfg_compile_variant_switch_with_return() {
         ";
     let (code, jump_tables) = compile_module_with_single_function(text);
     let cfg: VMControlFlowGraph = VMControlFlowGraph::new(&code, &jump_tables);
-    assert_eq!(cfg.blocks().len(), 7);
+    assert_eq!(cfg.blocks().count(), 7);
     assert_eq!(cfg.num_blocks(), 7);
     assert_eq!(cfg.reachable_from(0).len(), 5);
 }

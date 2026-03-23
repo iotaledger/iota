@@ -9,7 +9,8 @@
 //! these two files.
 use std::collections::HashMap;
 
-use move_abstract_interpreter::{absint::FunctionContext, control_flow_graph::ControlFlowGraph};
+use crate::absint::{FunctionContext, VMControlFlowGraph};
+use move_abstract_interpreter::control_flow_graph::ControlFlowGraph;
 use move_binary_format::{
     IndexKind,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
@@ -108,7 +109,7 @@ fn verify_function<'env>(
     )?;
 
     if let Some(limit) = verifier_config.max_basic_blocks {
-        if function_context.cfg().blocks().len() > limit {
+        if function_context.cfg().blocks().count() > limit {
             return Err(
                 PartialVMError::new(StatusCode::TOO_MANY_BASIC_BLOCKS).at_code_offset(index, 0)
             );
