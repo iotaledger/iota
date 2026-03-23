@@ -132,6 +132,13 @@ type NetworkOrTransport =
 
 const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient') as never;
 
+/** Protocol version that introduced V2 system state. */
+const PROTOCOL_VERSION_V2_SYSTEM_STATE = 5;
+/** Protocol version that introduced effective commission rate (IIP-8). */
+const PROTOCOL_VERSION_EFFECTIVE_COMMISSION = 20;
+/** Protocol version that populates effectiveCommissionRate in the API response. */
+const PROTOCOL_VERSION_EFFECTIVE_COMMISSION_ROLLED_OUT = 23;
+
 export function isIotaClient(client: unknown): client is IotaClient {
     return (
         typeof client === 'object' && client !== null && (client as any)[IOTA_CLIENT_BRAND] === true
@@ -643,8 +650,13 @@ export class IotaClient {
         signal,
     }: { signal?: AbortSignal } = {}): Promise<LatestIotaSystemStateSummary> {
         const protocolConfig = await this.getProtocolConfig({ signal });
-        const isV2Supported = Number(protocolConfig.maxSupportedProtocolVersion) >= 5;
-        const isEffectiveCommissionRateSupported = Number(protocolConfig.protocolVersion) >= 20;
+        const isV2Supported =
+            Number(protocolConfig.maxSupportedProtocolVersion) >= PROTOCOL_VERSION_V2_SYSTEM_STATE;
+        const currentProtocolVersion = Number(protocolConfig.protocolVersion);
+        const isEffectiveCommissionRateSupported =
+            currentProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION;
+        const hasEffectiveCommission =
+            currentProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION_ROLLED_OUT;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2({ signal })
@@ -656,9 +668,11 @@ export class IotaClient {
             'V2' in iotaSystemStateSummary ? iotaSystemStateSummary.V2 : iotaSystemStateSummary.V1
         ).activeValidators.map((v) => ({
             ...v,
-            effectiveCommissionRate: isEffectiveCommissionRateSupported
+            effectiveCommissionRate: hasEffectiveCommission
                 ? v.effectiveCommissionRate
-                : v.commissionRate,
+                : isEffectiveCommissionRateSupported
+                  ? String(Math.max(Number(v.commissionRate), Number(v.votingPower)) / 100)
+                  : v.commissionRate,
         }));
 
         return 'V2' in iotaSystemStateSummary
