@@ -96,6 +96,9 @@ export class FeaturesController {
                 [Feature.ExplorerTFIdentity]: {
                     defaultValue: true,
                 },
+                [Feature.ExplorerTFNotarization]: {
+                    defaultValue: true,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -174,13 +177,17 @@ export class FeaturesController {
                 },
                 [Feature.KnownIotaEVMCoinTypes]: {
                     defaultValue: [
-                        '0xd3b63e603a78786facf65ff22e79701f3e824881a12fa3268d62a75530fe904f::vusd::VUSD',
+                        '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD',
+                        '0xe1e88f4962b3ea96cfad19aee42f666b04bbce4dc4327c3cd63f1b8ff16e13b2::tool_coin::TOOL_COIN',
                     ],
                 },
                 [Feature.IotaNames]: {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
                 [Feature.ExplorerTFIdentity]: {
+                    defaultValue: false,
+                },
+                [Feature.ExplorerTFNotarization]: {
                     defaultValue: false,
                 },
             },
