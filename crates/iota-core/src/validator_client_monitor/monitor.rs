@@ -210,6 +210,15 @@ impl<A: Clone> ValidatorClientMonitor<A> {
 
     /// Select validators based on client-observed performance for the given
     /// transaction type.
+    ///
+    /// Scores are computed live from the current `client_stats` so that
+    /// recently recorded failures or latency spikes are reflected immediately
+    /// without waiting for the next health-check cache refresh.
+    ///
+    /// The preferred prefix (validators within `delta` of the best score) is
+    /// shuffled to spread traffic; the rest are returned in score order.
+    /// The prefix is guaranteed to contain at least `min_preferred_group_size`
+    /// validators to prevent a single validator from monopolising all traffic.
     pub fn select_shuffled_preferred_validators(
         &self,
         committee: &Committee,
@@ -217,17 +226,13 @@ impl<A: Clone> ValidatorClientMonitor<A> {
     ) -> Vec<AuthorityName> {
         let mut rng = rand::thread_rng();
 
-        let cached_latencies = self.cached_latencies.read();
+        let stats = self.client_stats.read();
 
         let mut validator_with_latencies: Vec<_> = committee
             .names()
-            .map(|v| {
-                (
-                    *v,
-                    cached_latencies.get(v).cloned().unwrap_or(Duration::ZERO),
-                )
-            })
+            .map(|v| (*v, stats.calculate_selection_score(v)))
             .collect();
+
         if validator_with_latencies.is_empty() {
             return vec![];
         }
@@ -241,6 +246,28 @@ impl<A: Clone> ValidatorClientMonitor<A> {
             .find(|(_, (_, latency))| *latency > threshold)
             .map(|(i, _)| i)
             .unwrap_or(validator_with_latencies.len());
+
+        // Enforce minimum preferred group size to prevent a single validator
+        // from monopolising all traffic — but only when the additional
+        // validators are within 2× the best score.  A 500× slower validator
+        // should never be force-included; this guards against the case where
+        // delta is tight (e.g. 2 %) but two validators have nearly identical
+        // latency (e.g. 49 ms vs 51 ms).
+        let k_min = self
+            .config
+            .min_preferred_group_size
+            .min(validator_with_latencies.len());
+        let k = if k < k_min {
+            let expansion_threshold = lowest_latency.mul_f64(2.0);
+            if validator_with_latencies[k_min - 1].1 <= expansion_threshold {
+                k_min
+            } else {
+                k
+            }
+        } else {
+            k
+        };
+
         validator_with_latencies[..k].shuffle(&mut rng);
         self.metrics.shuffled_validators.observe(k as f64);
 
