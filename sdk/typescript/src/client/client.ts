@@ -955,11 +955,36 @@ export class IotaClient {
             signal?: AbortSignal;
         } & PaginationArguments<EpochPage['nextCursor']>,
     ): Promise<EpochPage> {
-        return await this.transport.request({
+        const epochPage = await this.transport.request<EpochPage>({
             method: 'iotax_getEpochs',
             params: [input?.cursor, input?.limit, input?.descendingOrder],
             signal: input?.signal,
         });
+
+        return {
+            ...epochPage,
+            data: epochPage.data.map((epoch) => {
+                const epochProtocolVersion = Number(epoch.endOfEpochInfo?.protocolVersion ?? 0);
+                const isEffectiveCommissionRateSupported =
+                    epochProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION;
+                const hasEffectiveCommission =
+                    epochProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION_ROLLED_OUT;
+
+                return {
+                    ...epoch,
+                    validators: epoch.validators.map((v) => ({
+                        ...v,
+                        effectiveCommissionRate: hasEffectiveCommission
+                            ? v.effectiveCommissionRate
+                            : isEffectiveCommissionRateSupported
+                              ? String(
+                                    Math.max(Number(v.commissionRate), Number(v.votingPower)) / 100,
+                                )
+                              : v.commissionRate,
+                    })),
+                };
+            }),
+        };
     }
 
     /**
