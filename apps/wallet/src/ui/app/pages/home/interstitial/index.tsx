@@ -5,8 +5,6 @@
 import { ampli } from '_src/shared/analytics/ampli';
 import { ExternalLink } from '_components';
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-
 import { Portal } from '../../../shared/Portal';
 import { Close } from '@iota/apps-ui-icons';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
@@ -38,7 +36,6 @@ export function Interstitial({
     bannerUrl,
     onClose,
 }: InterstitialProps) {
-    const navigate = useNavigate();
     const overlayContainer = document.getElementById('overlay-portal-container');
     const validDismissKey = getValidDismissKey(dismissKey);
 
@@ -57,7 +54,6 @@ export function Interstitial({
             setInterstitialDismissed(validDismissKey);
         }
         onClose();
-        navigate('/apps');
     };
 
     // Prevent crash: if the portal container is not mounted yet, do not render the interstitial
