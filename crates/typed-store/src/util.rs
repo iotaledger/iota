@@ -63,9 +63,10 @@ where
             if !is_max(&key_buf) {
                 // Since we want exclusive, we need to increment the key to get the upper bound
                 big_endian_saturating_add_one(&mut key_buf);
-                // readopts.set_iterate_upper_bound(key_buf);
+                Some(key_buf)
+            } else {
+                None
             }
-            Some(key_buf)
         }
         Bound::Excluded(upper_bound) => {
             // Rocksdb upper bound is inclusive by default so nothing to do

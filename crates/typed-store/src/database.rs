@@ -12,10 +12,7 @@ use std::{
 
 use iota_macros::fail_point;
 use prometheus::{Histogram, HistogramTimer};
-use rocksdb::{
-    DBPinnableSlice, DBWithThreadMode, Error, LiveFile, MultiThreaded, ReadOptions, WriteBatch,
-    checkpoint::Checkpoint,
-};
+use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::oneshot;
 use tracing::{debug, error, instrument, warn};
