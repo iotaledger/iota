@@ -42,6 +42,19 @@ export function Interstitial({ dismissKey, imageUrl, bannerUrl, onClose }: Inter
         onClose();
     };
 
+    if (!imageUrl) return null;
+
+    const imageNode = (
+        <Image
+            src={imageUrl}
+            alt="interstitial banner image"
+            width={308}
+            height={616}
+            style={{ height: '80vh', width: 'auto' }}
+            unoptimized
+        />
+    );
+
     return (
         <Dialog open onOpenChange={(open) => !open && close()}>
             <DialogContent
@@ -58,24 +71,10 @@ export function Interstitial({ dismissKey, imageUrl, bannerUrl, onClose }: Inter
                             onClick={close}
                             className="block h-full"
                         >
-                            <Image
-                                src={imageUrl!}
-                                alt="interstitial banner image"
-                                width={308}
-                                height={616}
-                                style={{ height: '80vh', width: 'auto' }}
-                                unoptimized
-                            />
+                            {imageNode}
                         </a>
                     ) : (
-                        <Image
-                            src={imageUrl!}
-                            alt="interstitial banner image"
-                            width={308}
-                            height={616}
-                            style={{ height: '80vh', width: 'auto' }}
-                            unoptimized
-                        />
+                        imageNode
                     )}
 
                     <div className="absolute right-3 top-3">
