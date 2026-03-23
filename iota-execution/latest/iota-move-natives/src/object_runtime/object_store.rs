@@ -309,7 +309,7 @@ impl Inner<'_> {
         child_ty: &Type,
         child_ty_layout: &R::MoveTypeLayout,
         child_ty_fully_annotated_layout: &A::MoveTypeLayout,
-        child_move_type: &StructTag,
+        child_struct_tag: &StructTag,
     ) -> PartialVMResult<ObjectResult<(Type, GlobalValue, ObjectFingerprint)>> {
         // we copy the reference to the protocol config ahead of time for lifetime
         // reasons
@@ -326,28 +326,31 @@ impl Inner<'_> {
             Some(obj) => obj,
         };
         // object exists, but the type does not match
-        if obj.type_() != child_move_type {
+        if obj.type_() != child_struct_tag {
             return Ok(ObjectResult::MismatchedType);
         }
         // deserialize the value
         let obj_contents = obj.contents();
         let v = match Value::simple_deserialize(obj_contents, child_ty_layout) {
             Some(v) => v,
-            None => return Err(
-                PartialVMError::new(StatusCode::FAILED_TO_DESERIALIZE_RESOURCE).with_message(
-                    format!("Failed to deserialize object {child} with type {child_move_type}",),
-                ),
-            ),
+            None => {
+                return Err(
+                    PartialVMError::new(StatusCode::FAILED_TO_DESERIALIZE_RESOURCE).with_message(
+                        format!(
+                            "Failed to deserialize object {child} with type {child_struct_tag}",
+                        ),
+                    ),
+                );
+            }
         };
         // save a fingerprint
         let fingerprint =
-            ObjectFingerprint::preexisting(protocol_config, &parent, child_move_type, &v).map_err(
-                |e| {
+            ObjectFingerprint::preexisting(protocol_config, &parent, child_struct_tag, &v)
+                .map_err(|e| {
                     PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
                         format!("Failed to fingerprint value for object {child}. Error: {e}"),
                     )
-                },
-            )?;
+                })?;
         // generate a global value
         let global_value =
             match GlobalValue::cached(v) {
@@ -387,11 +390,11 @@ fn deserialize_move_object(
     obj: &MoveObject,
     child_ty: &Type,
     child_ty_layout: &R::MoveTypeLayout,
-    child_move_type: StructTag,
+    child_struct_tag: StructTag,
 ) -> PartialVMResult<ObjectResult<(Type, StructTag, Value)>> {
     let child_id = obj.id();
     // object exists, but the type does not match
-    if obj.type_() != &child_move_type {
+    if obj.type_() != &child_struct_tag {
         return Ok(ObjectResult::MismatchedType);
     }
     let value = match Value::simple_deserialize(obj.contents(), child_ty_layout) {
@@ -399,14 +402,14 @@ fn deserialize_move_object(
         None => {
             return Err(
                 PartialVMError::new(StatusCode::FAILED_TO_DESERIALIZE_RESOURCE).with_message(
-                    format!("Failed to deserialize object {child_id} with type {child_move_type}",),
+                    format!("Failed to deserialize object {child_id} with type {child_struct_tag}",),
                 ),
             );
         }
     };
     Ok(ObjectResult::Loaded((
         child_ty.clone(),
-        child_move_type,
+        child_struct_tag,
         value,
     )))
 }
@@ -446,7 +449,7 @@ impl<'a> ChildObjectStore<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &A::MoveTypeLayout,
-        child_move_type: StructTag,
+        child_struct_tag: StructTag,
     ) -> PartialVMResult<LoadedWithMetadataResult<ObjectResult<Value>>> {
         let Some((obj, obj_meta)) =
             self.inner
@@ -456,7 +459,7 @@ impl<'a> ChildObjectStore<'a> {
         };
 
         Ok(Some(
-            match deserialize_move_object(&obj, child_ty, child_layout, child_move_type)? {
+            match deserialize_move_object(&obj, child_ty, child_layout, child_struct_tag)? {
                 ObjectResult::MismatchedType => (ObjectResult::MismatchedType, obj_meta),
                 ObjectResult::Loaded((_, _, v)) => {
                     // Find all UIDs inside of the value and update the object parent maps with the
@@ -501,16 +504,16 @@ impl<'a> ChildObjectStore<'a> {
         &mut self,
         parent: ObjectID,
         child: ObjectID,
-        child_move_type: &StructTag,
+        child_struct_tag: &StructTag,
     ) -> PartialVMResult<bool> {
         if let Some(child_object) = self.store.get(&child) {
             // exists and has same type
-            return Ok(child_object.value.exists()? && &child_object.move_type == child_move_type);
+            return Ok(child_object.value.exists()? && &child_object.move_type == child_struct_tag);
         }
         Ok(self
             .inner
             .get_or_fetch_object_from_store(parent, child)?
-            .map(|move_obj| move_obj.type_() == child_move_type)
+            .map(|move_obj| move_obj.type_() == child_struct_tag)
             .unwrap_or(false))
     }
 
@@ -521,7 +524,7 @@ impl<'a> ChildObjectStore<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &A::MoveTypeLayout,
-        child_move_type: StructTag,
+        child_struct_tag: StructTag,
     ) -> PartialVMResult<ObjectResult<&mut ChildObject>> {
         let store_entries_count = self.store.len() as u64;
         let child_object = match self.store.entry(child) {
@@ -532,7 +535,7 @@ impl<'a> ChildObjectStore<'a> {
                     child_ty,
                     child_layout,
                     child_fully_annotated_layout,
-                    &child_move_type,
+                    &child_struct_tag,
                 )? {
                     ObjectResult::MismatchedType => return Ok(ObjectResult::MismatchedType),
                     ObjectResult::Loaded(res) => res,
@@ -562,14 +565,14 @@ impl<'a> ChildObjectStore<'a> {
                 e.insert(ChildObject {
                     owner: parent,
                     ty,
-                    move_type: child_move_type,
+                    move_type: child_struct_tag,
                     value,
                     fingerprint,
                 })
             }
             btree_map::Entry::Occupied(e) => {
                 let child_object = e.into_mut();
-                if child_object.move_type != child_move_type {
+                if child_object.move_type != child_struct_tag {
                     return Ok(ObjectResult::MismatchedType);
                 }
                 child_object
@@ -583,7 +586,7 @@ impl<'a> ChildObjectStore<'a> {
         parent: ObjectID,
         child: ObjectID,
         child_ty: &Type,
-        child_move_type: StructTag,
+        child_struct_tag: StructTag,
         child_value: Value,
     ) -> PartialVMResult<()> {
         if let LimitThresholdCrossed::Hard(_, lim) = check_limit_by_meter!(
@@ -637,7 +640,7 @@ impl<'a> ChildObjectStore<'a> {
         let child_object = ChildObject {
             owner: parent,
             ty: child_ty.clone(),
-            move_type: child_move_type,
+            move_type: child_struct_tag,
             value,
             fingerprint,
         };
@@ -658,7 +661,7 @@ impl<'a> ChildObjectStore<'a> {
 
         let setting = match self.config_setting_cache.entry(child) {
             btree_map::Entry::Vacant(e) => {
-                let child_move_type = field_setting_object_type;
+                let child_struct_tag = field_setting_object_type;
                 let inner = &self.inner;
                 let obj_opt = fetch_child_object_unbounded!(
                     inner,
@@ -683,7 +686,7 @@ impl<'a> ChildObjectStore<'a> {
                 };
                 e.insert(ConfigSetting {
                     config: parent,
-                    ty: child_move_type.clone(),
+                    ty: child_struct_tag.clone(),
                     value,
                 })
             }
@@ -725,12 +728,12 @@ impl<'a> ChildObjectStore<'a> {
         setting_value_object_type: StructTag,
         value: Option<Value>,
     ) {
-        let child_move_type = setting_value_object_type;
+        let child_struct_tag = setting_value_object_type;
         match value {
             Some(value) => {
                 let setting = ConfigSetting {
                     config: config_id,
-                    ty: child_move_type,
+                    ty: child_struct_tag,
                     value,
                 };
                 self.config_setting_cache.insert(name_df_id, setting);

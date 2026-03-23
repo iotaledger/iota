@@ -675,8 +675,7 @@ pub fn allocate_receiving_ticket_for_object(
         ));
     };
     let move_object =
-        { MoveObject::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024) }
-            .unwrap();
+        MoveObject::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024).unwrap();
 
     let Some((owner, _)) = inventories
         .address_inventories

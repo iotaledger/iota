@@ -180,8 +180,7 @@ fn foundry_with_simple_metadata() -> Result<()> {
     assert_eq!(coin_manager.maximum_supply.unwrap(), 100_000_000);
 
     let coin_manager_object_type = coin_manager_object.type_().unwrap();
-    assert_eq!(coin_manager_object_type.module().as_str(), "coin_manager");
-    assert_eq!(coin_manager_object_type.name().as_str(), "CoinManager");
+    assert!(coin_manager_object_type.is_coin_manager());
 
     let coin_manager_object_type_params = coin_manager_object_type.type_params().to_vec();
     assert_eq!(coin_manager_object_type_params.len(), 1);
@@ -272,8 +271,7 @@ fn foundry_with_special_metadata() -> Result<()> {
     assert_eq!(coin_manager.maximum_supply.unwrap(), u64::MAX - 1);
 
     let coin_manager_object_type = coin_manager_object.type_().unwrap();
-    assert_eq!(coin_manager_object_type.module().as_str(), "coin_manager");
-    assert_eq!(coin_manager_object_type.name().as_str(), "CoinManager");
+    assert!(coin_manager_object_type.is_coin_manager());
 
     let coin_manager_object_type_params = coin_manager_object_type.type_params().to_vec();
     assert_eq!(coin_manager_object_type_params.len(), 1);
@@ -364,7 +362,7 @@ fn create_gas_coin() -> Result<()> {
         stardust_to_iota_address(alias_address).unwrap()
     );
 
-    assert_eq!(*gas_coin_object.type_().unwrap(), StructTag::new_gas_coin());
+    assert!(gas_coin_object.type_().unwrap().is_gas_coin());
     assert_eq!(gas_coin_object.coin_type_maybe().unwrap(), GAS::type_tag());
     assert_eq!(coin.value(), 1_000_000);
     assert_eq!(package_object.version(), gas_coin_object.version());

@@ -30,8 +30,8 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
         let version = changed_object.version;
         let digest = changed_object.digest;
         let o = object_provider.get_object(&object_id, &version).await?;
-        if let Some(type_) = o.type_() {
-            let object_type = type_.clone();
+        if let Some(struct_tag) = o.type_() {
+            let object_type = struct_tag.clone();
 
             match kind {
                 WriteKind::Mutate => object_changes.push(ObjectChange::Mutated {

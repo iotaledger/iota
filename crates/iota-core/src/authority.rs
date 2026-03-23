@@ -3854,7 +3854,7 @@ impl AuthorityState {
     pub async fn get_move_objects<T>(
         &self,
         owner: IotaAddress,
-        type_: StructTag,
+        tag: StructTag,
     ) -> IotaResult<Vec<T>>
     where
         T: DeserializeOwned,
@@ -3862,7 +3862,7 @@ impl AuthorityState {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
             .filter(|o| match &o.type_ {
-                ObjectType::Struct(s) => &type_ == s,
+                ObjectType::Struct(s) => &tag == s,
                 ObjectType::Package => false,
             })
             .map(|info| ObjectKey(info.object_id, info.version))

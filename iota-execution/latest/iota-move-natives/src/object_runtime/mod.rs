@@ -351,7 +351,7 @@ impl<'a> ObjectRuntime<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &MoveTypeLayout,
-        child_move_type: StructTag,
+        child_struct_tag: StructTag,
     ) -> PartialVMResult<Option<ObjectResult<Value>>> {
         let Some((value, obj_meta)) = self.child_object_store.receive_object(
             parent,
@@ -360,7 +360,7 @@ impl<'a> ObjectRuntime<'a> {
             child_ty,
             child_layout,
             child_fully_annotated_layout,
-            child_move_type,
+            child_struct_tag,
         )?
         else {
             return Ok(None);
@@ -388,7 +388,7 @@ impl<'a> ObjectRuntime<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &MoveTypeLayout,
-        child_move_type: StructTag,
+        child_struct_tag: StructTag,
     ) -> PartialVMResult<ObjectResult<&mut GlobalValue>> {
         let res = self.child_object_store.get_or_fetch_object(
             parent,
@@ -396,7 +396,7 @@ impl<'a> ObjectRuntime<'a> {
             child_ty,
             child_layout,
             child_fully_annotated_layout,
-            child_move_type,
+            child_struct_tag,
         )?;
         Ok(match res {
             ObjectResult::MismatchedType => ObjectResult::MismatchedType,
@@ -409,11 +409,11 @@ impl<'a> ObjectRuntime<'a> {
         parent: ObjectID,
         child: ObjectID,
         child_ty: &Type,
-        child_move_type: StructTag,
+        child_struct_tag: StructTag,
         child_value: Value,
     ) -> PartialVMResult<()> {
         self.child_object_store
-            .add_object(parent, child, child_ty, child_move_type, child_value)
+            .add_object(parent, child, child_ty, child_struct_tag, child_value)
     }
 
     pub(crate) fn config_setting_unsequenced_read(
