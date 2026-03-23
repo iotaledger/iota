@@ -19,17 +19,38 @@ import {
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { useNetwork } from './useNetwork';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
+import { type NotarizationClientReadOnly } from '@iota/notarization/web';
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
 import {
     tryGenerateDidFromObjectId,
     tryDIDParse,
     tryEncodeDidToUrl,
 } from '~/lib/utils/trust-framework/client';
-import { useIdentityClient } from '~/contexts';
+import { useIdentityClient, useNotarizationClient } from '~/contexts';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
 
 type Results = { id: string; label: string; type: string }[];
+
+const getResultsForNotarization = async (
+    notarizationClient: NotarizationClientReadOnly | null,
+    isNotarizationEnabled: boolean,
+    query: string,
+): Promise<Results | null> => {
+    if (notarizationClient == null) return null; // client not available
+    if (!isNotarizationEnabled) return null; // feature flag disabled
+
+    const notarizationChain = await notarizationClient.getNotarizationById(query);
+    if (!notarizationChain) return null;
+
+    return [
+        {
+            id: notarizationChain.id,
+            label: notarizationChain.id,
+            type: 'notarization',
+        },
+    ];
+};
 
 const getResultsForDid = async (
     identityClient: IdentityClientReadOnly | null,
@@ -238,12 +259,14 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
     const identityClient = useIdentityClient();
+    const notarizationClient = useNotarizationClient();
     const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
     const [networkId] = useNetwork();
     const network = getNetwork(networkId).id;
 
     const isNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
     const isTFIdentityEnabled = useFeatureIsOn(Feature.ExplorerTFIdentity as string);
+    const isTFNotarizationEnabled = useFeatureIsOn(Feature.ExplorerTFNotarization as string);
     const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery<Results, Error>({
@@ -257,6 +280,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                     getResultsForEpoch(client, query),
                     getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
                     getResultsForDid(identityClient, isTFIdentityEnabled, query),
+                    getResultsForNotarization(notarizationClient, isTFNotarizationEnabled, query),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
                 ])
