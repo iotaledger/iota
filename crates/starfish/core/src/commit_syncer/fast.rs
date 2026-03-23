@@ -1218,9 +1218,9 @@ mod tests {
         // cordial dissemination), so there's no commit gap for syncers to act
         // on. Phase 5 creates a commit gap larger than the threshold for fast
         // sync to trigger on restart.
-        // 20s gives enough time under CPU pressure for the system to process
-        // Phase 1 backlog and advance into Phase 3, where pending subdags appear.
-        let stable_work_duration = Duration::from_secs(20);
+        // Phase 3 uses 2x duration to give enough time under CPU pressure for
+        // headers to propagate and pending subdags to appear.
+        let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -1336,7 +1336,7 @@ mod tests {
         // This creates pending subdags.
         // Commit syncers are running but have nothing to fetch (no commit gap exists).
         let phase3_start = Instant::now();
-        while phase3_start.elapsed() < stable_work_duration {
+        while phase3_start.elapsed() < stable_work_duration * 2 {
             // Submit transactions to all validators (rotating)
             let authority_index = txn_counter as usize % authorities.len();
             let txn = vec![txn_counter as u8; 16];
