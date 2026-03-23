@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[features]
+tracing = ["iota-replay/tracing"]
+
 [lints]
 workspace = true
 
@@ -50,7 +53,7 @@ iota-keys.workspace = true
 iota-network.workspace = true
 iota-package-dump.workspace = true
 iota-protocol-config.workspace = true
-iota-replay = { workspace = true, features = ["tracing"] }
+iota-replay.workspace = true
 iota-sdk.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
