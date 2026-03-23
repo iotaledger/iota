@@ -59,14 +59,8 @@ impl Builder {
         cert_file: impl AsRef<std::path::Path>,
         private_key_file: impl AsRef<std::path::Path>,
     ) -> Result<Self, BoxError> {
-        use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
-
-        let certs = CertificateDer::pem_file_iter(cert_file)?.collect::<Result<_, _>>()?;
-        let private_key = PrivateKeyDer::from_pem_file(private_key_file)?;
-        let tls_config = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certs, private_key)?;
-
+        let tls_config =
+            iota_tls::create_rustls_server_config_from_pem(cert_file, private_key_file)?;
         Ok(self.tls_config(tls_config))
     }
 

@@ -7,6 +7,7 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 bytes.workspace = true
 http.workspace = true
 http-body.workspace = true
@@ -16,11 +17,14 @@ hyper-util.workspace = true
 pin-project-lite.workspace = true
 socket2 = { version = "0.5", features = ["all"] }
 tokio = { workspace = true, features = ["macros"] }
-# TLS support
 tokio-rustls.workspace = true
 tokio-util.workspace = true
 tower.workspace = true
 tracing.workspace = true
+
+# internal dependencies
+# TLS support
+iota-tls.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
