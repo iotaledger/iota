@@ -109,13 +109,6 @@ fn get_registry() -> Result<Registry> {
 
     // MoveObject.type_ uses MoveObjectType which has custom serde.
     // Trace all variants so the schema is complete:
-    // GasCoin (variant 1)
-    tracer
-        .trace_value(
-            &mut samples,
-            &iota_sdk_types::MoveObjectType::from(StructTag::new_gas_coin()),
-        )
-        .unwrap();
     // Other (variant 0) - any non-special struct tag
     tracer
         .trace_value(
@@ -126,6 +119,13 @@ fn get_registry() -> Result<Registry> {
                 iota_sdk_types::Identifier::from_static("T"),
                 Vec::new(),
             )),
+        )
+        .unwrap();
+    // GasCoin (variant 1)
+    tracer
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_gas_coin()),
         )
         .unwrap();
     // StakedIota (variant 2)
