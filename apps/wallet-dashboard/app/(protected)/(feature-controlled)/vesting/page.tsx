@@ -612,29 +612,29 @@ export default function VestingDashboardPage(): JSX.Element {
                         </Panel>
                     </div>
                 ) : null}
+                {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
+                    <UnstakeDialog
+                        {...defaultDialogProps}
+                        groupedTimelockedObjects={timelockedObjectsToUnstake}
+                        onSuccess={handleOnSuccessUnstake}
+                    />
+                )}
+                {isDialogStakeOpen && (
+                    <StakeDialog
+                        isTimelockedStaking={true}
+                        stakedDetails={selectedStake}
+                        onSuccess={handleOnSuccess}
+                        handleClose={handleCloseStakeDialog}
+                        view={stakeDialogView}
+                        setView={setStakeDialogView}
+                        selectedValidator={selectedValidator}
+                        setSelectedValidator={setSelectedValidator}
+                        maxStakableTimelockedAmount={BigInt(
+                            supplyIncreaseVestingSchedule.availableStaking,
+                        )}
+                    />
+                )}
             </div>
-            {isUnstakeDialogOpen && timelockedObjectsToUnstake && (
-                <UnstakeDialog
-                    {...defaultDialogProps}
-                    groupedTimelockedObjects={timelockedObjectsToUnstake}
-                    onSuccess={handleOnSuccessUnstake}
-                />
-            )}
-            {isDialogStakeOpen && (
-                <StakeDialog
-                    isTimelockedStaking={true}
-                    stakedDetails={selectedStake}
-                    onSuccess={handleOnSuccess}
-                    handleClose={handleCloseStakeDialog}
-                    view={stakeDialogView}
-                    setView={setStakeDialogView}
-                    selectedValidator={selectedValidator}
-                    setSelectedValidator={setSelectedValidator}
-                    maxStakableTimelockedAmount={BigInt(
-                        supplyIncreaseVestingSchedule.availableStaking,
-                    )}
-                />
-            )}
         </>
     );
 }
