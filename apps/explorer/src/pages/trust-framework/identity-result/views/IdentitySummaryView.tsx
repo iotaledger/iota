@@ -37,16 +37,14 @@ export function IdentitySummaryView({
                         </div>
                     )}
 
-                    {isActive && (
-                        <div>
-                            <DisplayStats
-                                label="Active"
-                                value={isActive ? 'Yes' : 'No'}
-                                tooltipPosition={TooltipPosition.Left}
-                                tooltipText="Whether this Identity is currently active on the ledger. Once deleted, an Identity is permanently deactivated and cannot be recovered."
-                            />
-                        </div>
-                    )}
+                    <div>
+                        <DisplayStats
+                            label="Active"
+                            value={isActive ? 'Yes' : 'No'}
+                            tooltipPosition={TooltipPosition.Left}
+                            tooltipText="Whether this Identity is currently active on the ledger. Once deleted, an Identity is permanently deactivated and cannot be recovered."
+                        />
+                    </div>
 
                     {storageRebate && (
                         <div>

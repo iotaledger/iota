@@ -103,7 +103,7 @@ export async function fetchDidConfigurationJson(
     const DomainLinkageResourceSchema = z
         .object({
             '@context': z.enum(SUPPORTED_DID_CONFIGURATION_CONTEXTS),
-            linked_dids: z.array(z.string()),
+            linked_dids: z.array(z.string()).nonempty(),
         })
         .strict();
 
@@ -137,13 +137,13 @@ export async function validateDomainLinkageByEndpoint(
     endpointUrl: string,
 ) {
     const { data: didConfigurationJson, isError } = await fetchDidConfigurationJson(endpointUrl);
-    if (isError) {
+    if (isError || !didConfigurationJson) {
         return false;
     }
 
     try {
         const domainLinkageConfiguration = getFirstDomainLinkageConfiguration(
-            didConfigurationJson!.linked_dids,
+            didConfigurationJson.linked_dids,
         );
 
         // Throws if invalid
