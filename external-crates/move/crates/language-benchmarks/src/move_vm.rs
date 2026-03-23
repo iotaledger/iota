@@ -22,8 +22,8 @@ static PRECOMPILED_MOVE_STDLIB: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     let program_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: None,
-            paths: move_stdlib::move_stdlib_files(),
-            named_address_map: move_stdlib::move_stdlib_named_addresses(),
+            paths: move_stdlib::source_files(),
+            named_address_map: move_stdlib::named_addresses(),
         }],
         None,
         move_compiler::Flags::empty(),
@@ -64,7 +64,7 @@ pub fn compile_modules(filename: &str) -> Vec<CompiledModule> {
         None,
         src_files,
         vec![],
-        move_stdlib::move_stdlib_named_addresses(),
+        move_stdlib::named_addresses(),
     )
     .set_pre_compiled_lib(Arc::new(PRECOMPILED_MOVE_STDLIB.clone()))
     .set_default_config(pkg_config)

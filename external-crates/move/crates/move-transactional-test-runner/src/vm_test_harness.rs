@@ -21,7 +21,7 @@ use move_core_types::{
     parsing::address::ParsedAddress,
     runtime_value::MoveValue,
 };
-use move_stdlib::move_stdlib_named_addresses;
+use move_stdlib::named_addresses;
 use move_symbol_pool::Symbol;
 use move_vm_config::runtime::VMConfig;
 use move_vm_runtime::{
@@ -81,7 +81,7 @@ impl MoveTestAdapter<'_> for SimpleVMTestAdapter {
             None => (BTreeMap::new(), Edition::LEGACY),
         };
 
-        let mut named_address_mapping = move_stdlib_named_addresses();
+        let mut named_address_mapping = named_addresses();
         for (name, addr) in additional_mapping {
             if named_address_mapping.contains_key(&name) {
                 panic!(
@@ -125,7 +125,7 @@ impl MoveTestAdapter<'_> for SimpleVMTestAdapter {
             )
             .unwrap();
         let mut addr_to_name_mapping = BTreeMap::new();
-        for (name, addr) in move_stdlib_named_addresses() {
+        for (name, addr) in named_addresses() {
             let prev = addr_to_name_mapping.insert(addr, Symbol::from(name));
             assert!(prev.is_none());
         }
@@ -300,8 +300,8 @@ pub static PRECOMPILED_MOVE_STDLIB: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     let program_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: None,
-            paths: move_stdlib::move_stdlib_files(),
-            named_address_map: move_stdlib::move_stdlib_named_addresses(),
+            paths: move_stdlib::source_files(),
+            named_address_map: move_stdlib::named_addresses(),
         }],
         None,
         move_compiler::Flags::empty(),
@@ -320,9 +320,9 @@ pub static PRECOMPILED_MOVE_STDLIB: Lazy<FullyCompiledProgram> = Lazy::new(|| {
 static MOVE_STDLIB_COMPILED: Lazy<Vec<CompiledModule>> = Lazy::new(|| {
     let (files, units_res) = move_compiler::Compiler::from_files(
         None,
-        move_stdlib::move_stdlib_files(),
+        move_stdlib::source_files(),
         vec![],
-        move_stdlib::move_stdlib_named_addresses(),
+        move_stdlib::named_addresses(),
     )
     .build()
     .unwrap();
