@@ -315,20 +315,6 @@ pub struct ExecutedData {
     pub output_objects: Vec<Object>,
 }
 
-/// Discriminates the submission mode in ['SubmitTransactionsRequest']. TODO: Is
-/// it even necessary though?
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub enum SubmitTransactionsType {
-    /// Single transaction submission (default path).
-    #[default]
-    Default,
-    /// Ping (health-check / latency measurement); no transaction data.
-    Ping,
-    /// Multiple transactions submitted together as a soft bundle for
-    /// post-consensus owned-object conflict detection.
-    SoftBundle,
-}
-
 /// Contains either a transaction or the type of Ping request.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionsRequest {
