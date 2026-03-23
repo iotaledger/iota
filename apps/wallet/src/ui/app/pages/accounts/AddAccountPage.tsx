@@ -20,20 +20,21 @@ import {
     ButtonType,
     ImageShape,
 } from '@iota/apps-ui-kit';
-import { AccountsFormType, ConnectLedgerModal, PageTemplate } from '_components';
-import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import {
-    useAppSelector,
-    useCheckCameraPermissionStatus,
-    useCreateAccountsMutation,
-    useAccounts,
-} from '_hooks';
+    AccountsFormType,
+    ConnectLedgerModal,
+    PageTemplate,
+    useBootstrapSourceFlow,
+    useSourceFlow,
+} from '_components';
+import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
+import { useAppSelector, useCheckCameraPermissionStatus, useAccounts } from '_hooks';
 import { Create, Ledger, Keystone, Wallet } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import Browser from 'webextension-polyfill';
 import clsx from 'clsx';
-import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 import { isFirstAccount } from '../../helpers';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
 
 export interface ActionCardItem {
     title: string;
@@ -54,11 +55,13 @@ export interface ButtonCardItem {
     actionType: AccountsFormType;
 }
 
-async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
+async function openTabWithSearchParams(params: Record<string, string>) {
     const currentURL = new URL(window.location.href);
     const [currentHash, currentHashSearch] = currentURL.hash.split('?');
     const urlSearchParams = new URLSearchParams(currentHashSearch);
-    urlSearchParams.set(searchParam, searchParamValue);
+    for (const [key, value] of Object.entries(params)) {
+        urlSearchParams.set(key, value);
+    }
     currentURL.hash = `${currentHash}?${urlSearchParams.toString()}`;
     currentURL.searchParams.delete('type');
     await Browser.tabs.create({
@@ -66,9 +69,11 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
-async function openTabOnImportKeystone() {
+async function openTabOnImportKeystone(sourceFlow: string) {
+    const url = new URL(Browser.runtime.getURL('ui.html'));
+    url.hash = `/accounts/import-keystone?sourceFlow=${encodeURIComponent(sourceFlow)}`;
     await Browser.tabs.create({
-        url: Browser.runtime.getURL('ui.html#/accounts/import-keystone'),
+        url: url.href,
     });
 }
 
@@ -79,8 +84,10 @@ export function AddAccountPage() {
     const forceShowLedger =
         searchParams.has('showLedger') && searchParams.get('showLedger') !== 'false';
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
-    const createAccountsMutation = useCreateAccountsMutation();
-    const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
+    const { sourceFlowRef } = useSourceFlow();
+    useBootstrapSourceFlow();
+
+    const sourceFlow = sourceFlowRef.current;
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
             state.app.extensionViewType === ExtensionViewType.Popup ||
@@ -134,7 +141,10 @@ export function AddAccountPage() {
         switch (actionType) {
             case AccountsFormType.ImportLedger:
                 if (isPopupOrSidePanel) {
-                    await openTabWithSearchParam('showLedger', 'true');
+                    await openTabWithSearchParams({
+                        showLedger: 'true',
+                        sourceFlow,
+                    });
                     window.close();
                 } else {
                     setConnectLedgerModalOpen(true);
@@ -142,7 +152,7 @@ export function AddAccountPage() {
                 break;
             case AccountsFormType.ImportKeystone:
                 if (isPopupOrSidePanel && cameraPermissionStatus === 'prompt') {
-                    await openTabOnImportKeystone();
+                    await openTabOnImportKeystone(sourceFlow);
                     window.close();
                 } else {
                     navigate('/accounts/import-keystone');
@@ -184,17 +194,8 @@ export function AddAccountPage() {
                 <div className="flex flex-col gap-lg">
                     <div className="flex flex-col gap-y-xs text-start">
                         {cardLinks.map((card) => (
-                            <Link
-                                to={card.href + '?sourceFlow=' + sourceFlow}
-                                key={card.title}
-                                className="no-underline"
-                            >
-                                <Card
-                                    key={card.title}
-                                    type={CardType.Filled}
-                                    isDisabled={createAccountsMutation.isPending}
-                                    isHoverable
-                                >
+                            <Link to={card.href} key={card.title} className="no-underline">
+                                <Card key={card.title} type={CardType.Filled} isHoverable>
                                     <OnboardingCardIcon Icon={card.icon} />
                                     <CardBody title={card.title} subtitle={card.subtitle} />
                                     <CardAction type={CardActionType.Link} />

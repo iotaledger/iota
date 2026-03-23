@@ -81,7 +81,7 @@ fn mock_summary(sequence_number: u64) -> CertifiedCheckpointSummary {
 fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
     let summary = mock_summary(sequence_number);
     CheckpointData {
-        checkpoint_summary: summary.clone(),
+        checkpoint_summary: summary,
         checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
         transactions: vec![],
     }
@@ -140,7 +140,7 @@ fn mock_large_checkpoint_data(sequence_number: u64) -> CheckpointData {
     }
 
     CheckpointData {
-        checkpoint_summary: summary.clone(),
+        checkpoint_summary: summary,
         checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
         transactions,
     }

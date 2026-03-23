@@ -71,7 +71,7 @@ impl Scenario {
     async fn new(do_after: Option<(u32, ActionCb)>, action_count: Arc<AtomicU32>) -> Self {
         let authority = TestAuthorityBuilder::new().build().await;
 
-        let store = authority.database_for_testing().clone();
+        let store = authority.database_for_testing();
         let epoch_store = authority.epoch_store_for_testing().clone();
 
         static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
@@ -349,7 +349,7 @@ impl Scenario {
         assert!(self.transactions.insert(tx), "transaction is not unique");
 
         self.cache()
-            .write_transaction_outputs(1 /* epoch */, outputs.clone());
+            .write_transaction_outputs(1 /* epoch */, outputs);
 
         self.count_action();
         tx
@@ -1191,14 +1191,14 @@ async fn latest_object_cache_race_test() {
     telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
-    let store = authority.database_for_testing().clone();
+    let store = authority.database_for_testing();
 
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
         &WritebackCacheConfig::default(),
-        store.clone(),
+        store,
         (*METRICS).clone(),
         BackpressureManager::new_for_tests(),
     ));
@@ -1286,7 +1286,7 @@ async fn latest_object_cache_race_test() {
 
     // a thread that does nothing but watch to see if the cache goes back in time
     let checker = {
-        let cache = cache.clone();
+        let cache = cache;
         let start = Instant::now();
         std::thread::spawn(move || {
             let mut latest = OBJECT_START_VERSION;
@@ -1359,7 +1359,6 @@ async fn test_transaction_cache_race() {
     };
 
     let t2 = {
-        let barrier = barrier.clone();
         std::thread::spawn(move || {
             for (tx, _) in txns {
                 barrier.wait();
@@ -1378,14 +1377,14 @@ async fn concurrent_latest_object_cache_race_test() {
     telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
-    let store = authority.database_for_testing().clone();
+    let store = authority.database_for_testing();
 
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
         &WritebackCacheConfig::default(),
-        store.clone(),
+        store,
         (*METRICS).clone(),
         BackpressureManager::new_for_tests(),
     ));
@@ -1481,14 +1480,14 @@ async fn concurrent_latest_object_cache_collision_test() {
     telemetry_subscribers::init_for_testing();
     let authority = TestAuthorityBuilder::new().build().await;
 
-    let store = authority.database_for_testing().clone();
+    let store = authority.database_for_testing();
 
     static METRICS: once_cell::sync::Lazy<Arc<ExecutionCacheMetrics>> =
         once_cell::sync::Lazy::new(|| Arc::new(ExecutionCacheMetrics::new(default_registry())));
 
     let cache = Arc::new(WritebackCache::new(
         &WritebackCacheConfig::default(),
-        store.clone(),
+        store,
         (*METRICS).clone(),
         BackpressureManager::new_for_tests(),
     ));

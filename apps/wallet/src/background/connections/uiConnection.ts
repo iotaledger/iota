@@ -273,9 +273,9 @@ export class UiConnection extends Connection {
                     }
                 });
                 await backupDB();
+                this.send(createMessage({ type: 'done' }, msg.id));
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
-                this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isDeriveBipPathAccountsFinder(payload)) {
                 const accountSource = await getAccountSourceByID(payload.sourceID);
 
@@ -362,6 +362,7 @@ export class UiConnection extends Connection {
                         msg.id,
                     ),
                 );
+                accountsEvents.emit('accountsChanged');
             } else if (isSidepanelSetState(payload)) {
                 this.isSidePanel = true;
                 SidePanel._setOpen(payload.open);

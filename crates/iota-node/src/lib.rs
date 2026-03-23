@@ -1562,7 +1562,7 @@ impl IotaNode {
         prometheus_registry: &Registry,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
-            state.clone(),
+            state,
             consensus_adapter,
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
             TrafficControllerMetrics::new(prometheus_registry),
