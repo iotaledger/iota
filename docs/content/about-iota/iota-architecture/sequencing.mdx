@@ -15,8 +15,8 @@ The primary goal of sequencing is to schedule as many transactions as possible w
 
 The sequencing phase is responsible for two main tasks:
 
-- **Ordering**: Establishing the causal order of transactions committed by the IOTA [consensus protocol](./consensus.mdx).
-- **Congestion prevention**: Deferring the execution of transactions that could otherwise overwhelm the execution layer.
+-   **Ordering**: Establishing the causal order of transactions committed by the IOTA [consensus protocol](./consensus.mdx).
+-   **Congestion prevention**: Deferring the execution of transactions that could otherwise overwhelm the execution layer.
 
 The IOTA sequencing algorithm addresses both of these tasks simultaneously.
 
@@ -26,8 +26,8 @@ In IOTA, transactions are initially ordered based on their gas prices.
 Each transaction is then evaluated individually using the placement algorithm described below to determine its position in the execution trace.
 During this evaluation, every transaction is subject to a binary decision: **Schedule** or **Defer**.
 
-- **Deferred** transactions are carried over to the transaction set of the next consensus commit. If a transaction is deferred a specific number of times (currently 10), is it eventually **cancelled**.
-- **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
+-   **Deferred** transactions are carried over to the transaction set of the next consensus commit. If a transaction is deferred a specific number of times (currently 10), is it eventually **cancelled**.
+-   **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
 
 :::info Best-effort sequencing
 
@@ -58,9 +58,9 @@ In IOTA, transactions included in the same consensus commit that write to an ide
 
 In the example below, we consider three transactions:
 
-- `Tx1` touches only object `a`,
-- `Tx3` touches only object `b`,
-- `Tx2` touches both objects `a` and `b`.
+-   `Tx1` touches only object `a`,
+-   `Tx3` touches only object `b`,
+-   `Tx2` touches both objects `a` and `b`.
 
 `Tx1` is willing to pay the highest gas price, while `Tx3` offers the lowest.
 Additionally, `Tx2` is _estimated_ to have the longest execution time, while `Tx3` has the shortest.
