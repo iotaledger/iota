@@ -101,6 +101,7 @@ import type {
     IsTransactionIndexedOnNodeParams,
     IotaMoveViewCallResults,
     ViewParams,
+    IotaValidatorSummary,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -136,6 +137,25 @@ const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient') as never;
 const PROTOCOL_VERSION_V2_SYSTEM_STATE = 5;
 /** Protocol version that introduced IIP-8 (effective commission rate). */
 const PROTOCOL_VERSION_IIP8 = 20;
+
+/**
+ * Maps an array of validators, filling in `effectiveCommissionRate` when absent.
+ * For protocol >= IIP-8: uses the API value if present, otherwise calculates max(commissionRate, votingPower).
+ * For protocol < IIP-8: falls back to commissionRate.
+ */
+function mapValidatorsWithEffectiveCommission(
+    validators: IotaValidatorSummary[],
+    protocolVersion: number,
+): IotaValidatorSummary[] {
+    const isIIP8Active = protocolVersion >= PROTOCOL_VERSION_IIP8;
+    return validators.map((v) => ({
+        ...v,
+        effectiveCommissionRate: isIIP8Active
+            ? (v.effectiveCommissionRate ??
+              String(Math.max(Number(v.commissionRate), Number(v.votingPower))))
+            : v.commissionRate,
+    }));
+}
 
 export function isIotaClient(client: unknown): client is IotaClient {
     return (
@@ -650,8 +670,6 @@ export class IotaClient {
         const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported =
             Number(protocolConfig.maxSupportedProtocolVersion) >= PROTOCOL_VERSION_V2_SYSTEM_STATE;
-        const isEffectiveCommissionRateSupported =
-            Number(protocolConfig.protocolVersion) >= PROTOCOL_VERSION_IIP8;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2({ signal })
@@ -659,15 +677,11 @@ export class IotaClient {
                   V1: await this.getLatestIotaSystemStateV1({ signal }),
               };
 
-        const activeValidators = (
-            'V2' in iotaSystemStateSummary ? iotaSystemStateSummary.V2 : iotaSystemStateSummary.V1
-        ).activeValidators.map((v) => ({
-            ...v,
-            effectiveCommissionRate: isEffectiveCommissionRateSupported
-                ? (v.effectiveCommissionRate ??
-                  String(Math.max(Number(v.commissionRate), Number(v.votingPower))))
-                : v.commissionRate,
-        }));
+        const activeValidators = mapValidatorsWithEffectiveCommission(
+            ('V2' in iotaSystemStateSummary ? iotaSystemStateSummary.V2 : iotaSystemStateSummary.V1)
+                .activeValidators,
+            Number(protocolConfig.protocolVersion),
+        );
 
         return 'V2' in iotaSystemStateSummary
             ? {
@@ -963,24 +977,16 @@ export class IotaClient {
         return {
             ...epochPage,
             data: epochPage.data.map((epoch) => {
-                // Use the epoch's own protocol version if available (historical epochs).
-                // If endOfEpochInfo is absent, this is the current in-progress epoch —
-                // use the current network protocol version instead.
                 const epochProtocolVersion = epoch.endOfEpochInfo
                     ? Number(epoch.endOfEpochInfo.protocolVersion)
                     : currentProtocolVersion;
-                const isEffectiveCommissionRateSupported =
-                    epochProtocolVersion >= PROTOCOL_VERSION_IIP8;
 
                 return {
                     ...epoch,
-                    validators: epoch.validators.map((v) => ({
-                        ...v,
-                        effectiveCommissionRate: isEffectiveCommissionRateSupported
-                            ? (v.effectiveCommissionRate ??
-                              String(Math.max(Number(v.commissionRate), Number(v.votingPower))))
-                            : v.commissionRate,
-                    })),
+                    validators: mapValidatorsWithEffectiveCommission(
+                        epoch.validators,
+                        epochProtocolVersion,
+                    ),
                 };
             }),
         };
