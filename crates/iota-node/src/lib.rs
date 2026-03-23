@@ -145,7 +145,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
-use tracing::{Instrument, debug, error, error_span, info, warn};
+use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 use typed_store::{
     DBMetrics,
     rocks::{check_and_mark_db_corruption, default_db_options, unmark_db_corruption},
@@ -580,10 +580,9 @@ impl IotaNode {
             )))
         };
 
-        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
         let chain = match config.chain_override_for_testing {
             Some(chain) => chain,
-            None => ChainIdentifier::from(*genesis.checkpoint().digest()).chain(),
+            None => chain_identifier.chain(),
         };
 
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
@@ -599,7 +598,7 @@ impl IotaNode {
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
-            (chain_id, chain),
+            (chain_identifier, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .expect("checkpoint store read cannot fail")
@@ -663,7 +662,6 @@ impl IotaNode {
                 epoch_store
                     .protocol_config()
                     .max_move_identifier_len_as_option(),
-                config.remove_deprecated_tables,
             )))
         } else {
             None
@@ -886,8 +884,14 @@ impl IotaNode {
                 .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
+        let grpc_server_handle = build_grpc_server(
+            &config,
+            state.clone(),
+            state_sync_store.clone(),
+            executor,
+            &registry_service.default_registry(),
+        )
+        .await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -1558,7 +1562,7 @@ impl IotaNode {
         prometheus_registry: &Registry,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
-            state.clone(),
+            state,
             consensus_adapter,
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
             TrafficControllerMetrics::new(prometheus_registry),
@@ -1834,6 +1838,9 @@ impl IotaNode {
                 spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
                     node_clone
                         .send_signed_capability_notification_to_committee_with_retry(&epoch_store)
+                        .instrument(trace_span!(
+                            "send_signed_capability_notification_to_committee_with_retry"
+                        ))
                         .await;
                 }));
             }
@@ -2423,6 +2430,7 @@ async fn build_grpc_server(
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    prometheus_registry: &Registry,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2447,6 +2455,9 @@ async fn build_grpc_server(
         Some(env!("CARGO_PKG_VERSION").to_string()),
     ));
 
+    // Create gRPC server metrics
+    let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
+
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
     let handle = start_grpc_server(
@@ -2455,6 +2466,7 @@ async fn build_grpc_server(
         grpc_config.clone(),
         shutdown_token,
         chain_id,
+        Some(grpc_server_metrics),
     )
     .await?;
 

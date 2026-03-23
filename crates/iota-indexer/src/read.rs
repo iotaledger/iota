@@ -1375,7 +1375,7 @@ impl IndexerReader {
         tracing::debug!("query transaction blocks: {}", query);
         let pool = self.get_pool();
         let tx_sequence_numbers = run_query_async!(&pool, move |conn| {
-            diesel::sql_query(query.clone()).load::<TxSequenceNumber>(conn)
+            diesel::sql_query(query).load::<TxSequenceNumber>(conn)
         })?
         .into_iter()
         .map(|tsn| tsn.tx_sequence_number)
@@ -2274,7 +2274,7 @@ impl IndexerReader {
         let maybe_obj = match cache.cache_get(&cache_key) {
             Some(Some(id)) => self.get_object(id, None).ok().flatten(),
             _ => {
-                let fetched = self.get_singleton_object(tag.clone())?;
+                let fetched = self.get_singleton_object(tag)?;
                 cache.cache_set(cache_key.clone(), fetched.as_ref().map(|o| o.id()));
                 fetched
             }

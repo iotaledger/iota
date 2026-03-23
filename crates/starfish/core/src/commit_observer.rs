@@ -222,11 +222,22 @@ impl CommitObserver {
         reputation_scores: Vec<(AuthorityIndex, u64)>,
     ) -> Option<CommittedSubDag> {
         let tx_refs = commit.committed_transactions();
-        let transactions = self
+        let transactions = match self
             .dag_state
             .read()
             .try_get_all_verified_transactions(&tx_refs)
-            .ok()?;
+        {
+            Ok(transactions) => transactions,
+            Err(missing_refs) => {
+                warn!(
+                    "Missing {} transactions for commit {}: {:?}",
+                    missing_refs.len(),
+                    commit.index(),
+                    missing_refs,
+                );
+                return None;
+            }
+        };
 
         Some(CommittedSubDag::new(
             commit.leader(),
@@ -474,6 +485,22 @@ impl CommitObserver {
             };
 
             committed_subdags.push(committed_subdag);
+        }
+
+        // If we couldn't resend any commits, still initialize
+        // last_solid_subdag_base from last_processed so fast sync
+        // starts from the right position instead of index 0.
+        if committed_subdags.is_empty() && last_processed_commit_index > 0 {
+            if let Some(commit) = self
+                .store
+                .scan_commits((last_processed_commit_index..=last_processed_commit_index).into())
+                .ok()
+                .and_then(|commits| commits.into_iter().next())
+            {
+                if let Some(subdag) = self.build_committed_subdag_from_commit(&commit, vec![]) {
+                    self.update_with_solid_subdags_and_flush(&[subdag]);
+                }
+            }
         }
 
         self.finalize_and_send_solid_subdags(&[], &committed_subdags, source)
@@ -818,7 +845,6 @@ mod tests {
             &mut observer
                 .handle_committed_leaders(
                     leaders
-                        .clone()
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
@@ -851,10 +877,10 @@ mod tests {
         // Re-create commit observer starting from index 2 which represents the
         // last processed index from the consumer over consensus output channel
         let _observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, expected_last_processed_index as CommitIndex),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -927,7 +953,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders.clone(), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate
@@ -955,10 +981,10 @@ mod tests {
         // Re-create commit observer starting from index 3 which represents the
         // last processed index from the consumer over consensus output channel
         let _observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, expected_last_processed_index as CommitIndex),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -1082,10 +1108,10 @@ mod tests {
         // Recovery should resend commits up to (but not including) the first commit
         // with missing transactions.
         let observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, 0),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -1255,11 +1281,11 @@ mod tests {
         // Create new observer starting from 0 to trigger recovery
         // This mimics what happens when the node restarts
         let mut observer_after_restart = CommitObserver::new(
-            context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            context,
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            mem_store.clone(),
-            leader_schedule.clone(),
+            mem_store,
+            leader_schedule,
         );
 
         // Drain recovery commits
@@ -1267,10 +1293,7 @@ mod tests {
 
         // Create new blocks (rounds 7-8) that will acknowledge blocks from before
         // restart
-        builder
-            .layers(7..=8)
-            .build()
-            .persist_layers(dag_state.clone());
+        builder.layers(7..=8).build().persist_layers(dag_state);
 
         let new_leaders = builder
             .leader_blocks(7..=8)

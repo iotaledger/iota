@@ -25,8 +25,8 @@ use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
-        VerifiedOwnShard, VerifiedTransactions,
+        ShardWithProofAPI, ShardWithProofV1, SignedBlockHeader, TransactionsCommitment,
+        VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -190,7 +190,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .metrics
                 .node_metrics
                 .bundles_with_invalid_parts
-                .with_label_values(&[peer_hostname, "header", e.clone().name()])
+                .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
@@ -296,7 +296,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "header", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "header", e.name()])
                     .inc();
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
@@ -334,7 +334,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
             let shard: ShardWithProof =
-                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+                if !self.context.protocol_config.consensus_fast_commit_sync() {
+                    // For backward compatibility, we still support ShardWithProofV1 during the
+                    // epoch during which nodes are upgraded to a new software version. Peers
+                    // running an old version will still send ShardWithProofV1 without the enum
+                    // wrapping. We can remove this support after we are sure
+                    // all peers have been updated to send versioned ShardWithProof.
+                    let shard_v1: ShardWithProofV1 = bcs::from_bytes(serialized_shard)
+                        .map_err(ConsensusError::MalformedShard)?;
+                    ShardWithProof::V1(shard_v1)
+                } else {
+                    bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?
+                };
 
             if shard.round() >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
@@ -345,7 +356,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -367,7 +378,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -734,9 +745,24 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
         if let Some(shard_for_core) = shard_for_core {
-            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
-                .map_err(ConsensusError::SerializationFailure)?
-                .into();
+            let serialized_shard_for_core: Bytes = match shard_for_core {
+                // For backward compatibility, we still support ShardWithProofV1 during the
+                // epoch during which nodes are upgraded to a new software version. Because of
+                // peers running an old version will still need to send
+                // ShardWithProofV1 without the enum wrapping. We can remove this
+                // support after we are sure all peers have been updated to send
+                // versioned ShardWithProof.
+                ShardWithProof::V1(shard_v1)
+                    if !self.context.protocol_config.consensus_fast_commit_sync() =>
+                {
+                    bcs::to_bytes(&shard_v1)
+                        .map_err(ConsensusError::SerializationFailure)?
+                        .into()
+                }
+                _ => bcs::to_bytes(&shard_for_core)
+                    .map_err(ConsensusError::SerializationFailure)?
+                    .into(),
+            };
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
                 gen_transaction_ref,
@@ -908,37 +934,45 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // For commit sync, optimize by fetching from store for headers below GC round
             let gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-            // Partition block_refs into those below and at-or-above GC round
-            let (below_gc, above_gc): (Vec<_>, Vec<_>) = block_refs
-                .iter()
-                .partition(|block_ref| block_ref.round < gc_round);
+            // Separate indices for below/above GC while preserving original order
+            let mut below_gc_indices = Vec::new();
+            let mut above_gc_indices = Vec::new();
+            let mut below_gc_refs = Vec::new();
+            let mut above_gc_refs = Vec::new();
+            for (i, block_ref) in block_refs.iter().enumerate() {
+                if block_ref.round < gc_round {
+                    below_gc_indices.push(i);
+                    below_gc_refs.push(*block_ref);
+                } else {
+                    above_gc_indices.push(i);
+                    above_gc_refs.push(*block_ref);
+                }
+            }
 
-            let mut headers = Vec::new();
+            let mut headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
 
             // Read headers below GC from store
-            if !below_gc.is_empty() {
-                let store_headers = self
-                    .store
-                    .read_serialized_block_headers(&below_gc)?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                headers.extend(store_headers);
+            if !below_gc_refs.is_empty() {
+                for (idx, header) in below_gc_indices
+                    .iter()
+                    .zip(self.store.read_serialized_block_headers(&below_gc_refs)?)
+                {
+                    headers[*idx] = header;
+                }
             }
 
             // Read headers at-or-above GC from dag_state
-            if !above_gc.is_empty() {
-                let dag_headers = self
-                    .dag_state
-                    .read()
-                    .get_serialized_block_headers(&above_gc)
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                headers.extend(dag_headers);
+            if !above_gc_refs.is_empty() {
+                for (idx, header) in above_gc_indices.iter().zip(
+                    self.dag_state
+                        .read()
+                        .get_serialized_block_headers(&above_gc_refs),
+                ) {
+                    headers[*idx] = header;
+                }
             }
 
-            headers
+            headers.into_iter().flatten().collect()
         } else {
             // For periodic or live synchronizer, we respond with requested blocks from the
             // store and with additional blocks from the cache
@@ -1605,7 +1639,7 @@ mod tests {
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
             SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
         },
-        storage::{Store, mem_store::MemStore},
+        storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
         transaction_ref::GenericTransactionRef,
@@ -3661,5 +3695,208 @@ mod tests {
         // Verify that we received zero transactions since they are not present in the
         // dag
         assert!(serialized_transactions.is_empty());
+    }
+
+    /// Tests that handle_fetch_headers preserves the original request order
+    /// of block refs when they span the GC boundary — i.e. some are fetched
+    /// from the persistent store (below GC) and others from in-memory
+    /// dag_state (at or above GC). The interleaved input order must be
+    /// maintained in the response.
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn test_handle_fetch_headers_commit_sync_order_across_gc_boundary() {
+        // GIVEN
+        let rounds = 20;
+        let validators = 4;
+        let gc_depth = 5;
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context.protocol_config.set_gc_depth_for_testing(gc_depth);
+        context.parameters.max_headers_per_commit_sync_fetch = 100;
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        );
+
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+        );
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store.clone(),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+
+        // Build DAG and persist all blocks to dag_state
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=rounds).build();
+        dag_builder.persist_all_blocks(dag_state.clone());
+
+        // Also write all block headers to the store so below-GC refs can be found
+        let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
+        store
+            .write(
+                WriteBatch::new(vec![], all_headers, vec![], vec![], vec![], Some(false)),
+                context.clone(),
+            )
+            .expect("Failed to write block headers to store");
+
+        // Set last_solid_subdag_base so gc_round_for_last_solid_commit() is ~10.
+        // gc_round = leader_round.saturating_sub(gc_depth * 2) = 20 - 10 = 10
+        let leader_ref = dag_builder
+            .block_headers(rounds..=rounds)
+            .first()
+            .unwrap()
+            .reference();
+        dag_state
+            .write()
+            .update_last_solid_subdag_base(crate::commit::SubDagBase {
+                leader: leader_ref,
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: crate::commit::CommitRef::new(1, crate::commit::CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
+
+        let gc_round = dag_state.read().gc_round_for_last_solid_commit();
+        assert!(
+            gc_round > GENESIS_ROUND && gc_round < rounds,
+            "GC round {gc_round} should be between genesis and max round"
+        );
+
+        // Collect block headers per round for easy access
+        let mut headers_by_round: Vec<Vec<VerifiedBlockHeader>> =
+            vec![vec![]; (rounds + 1) as usize];
+        for round in 1..=rounds {
+            headers_by_round[round as usize] = dag_builder.block_headers(round..=round);
+        }
+
+        // Create interleaved block_refs that alternate between below-GC and above-GC
+        // rounds. E.g., [round 3 auth 0, round 15 auth 1, round 5 auth 2, round 12 auth
+        // 3, ...]
+        let below_gc_rounds: Vec<Round> = (1..gc_round).collect();
+        let above_gc_rounds: Vec<Round> = (gc_round..=rounds).collect();
+        let mut interleaved_refs = Vec::new();
+        let max_pairs = min(below_gc_rounds.len(), above_gc_rounds.len());
+        for i in 0..max_pairs {
+            let below_round = below_gc_rounds[i];
+            let auth_idx = i % validators;
+            if auth_idx < headers_by_round[below_round as usize].len() {
+                interleaved_refs.push(headers_by_round[below_round as usize][auth_idx].reference());
+            }
+            let above_round = above_gc_rounds[i];
+            let auth_idx2 = (i + 1) % validators;
+            if auth_idx2 < headers_by_round[above_round as usize].len() {
+                interleaved_refs
+                    .push(headers_by_round[above_round as usize][auth_idx2].reference());
+            }
+        }
+
+        // Verify that we have refs from both sides of the GC boundary
+        assert!(
+            interleaved_refs.iter().any(|r| r.round < gc_round),
+            "Should have refs below GC round"
+        );
+        assert!(
+            interleaved_refs.iter().any(|r| r.round >= gc_round),
+            "Should have refs above GC round"
+        );
+
+        // WHEN: call handle_fetch_headers with empty highest_accepted_rounds (commit
+        // sync path)
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let returned_headers = authority_service
+            .handle_fetch_headers(peer, interleaved_refs.clone(), vec![])
+            .await
+            .expect("Should return valid serialized block headers");
+
+        // THEN: each returned header should match the corresponding input ref at the
+        // same index
+        assert_eq!(
+            returned_headers.len(),
+            interleaved_refs.len(),
+            "Should receive all requested headers"
+        );
+        for (i, serialized_block_header) in returned_headers.into_iter().enumerate() {
+            let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
+                .map_err(ConsensusError::MalformedHeader)
+                .unwrap();
+            let verified_block_header =
+                VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
+            assert_eq!(
+                verified_block_header.reference(),
+                interleaved_refs[i],
+                "Header at index {i} should match requested ref. \
+                 Expected {:?}, got {:?}",
+                interleaved_refs[i],
+                verified_block_header.reference()
+            );
+        }
     }
 }

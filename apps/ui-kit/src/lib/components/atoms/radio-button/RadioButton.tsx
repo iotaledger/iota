@@ -4,7 +4,7 @@
 import cx from 'classnames';
 import { RadioOn, RadioOff } from '@iota/apps-ui-icons';
 
-interface RadioButtonProps {
+interface RadioButtonProps extends React.AriaAttributes {
     /**
      * The id of the radio button.
      */
@@ -48,6 +48,7 @@ function RadioButton({
     isChecked,
     isDisabled,
     onChange,
+    ...ariaProps
 }: RadioButtonProps): React.JSX.Element {
     const RadioIcon = isChecked ? RadioOn : RadioOff;
 
@@ -77,6 +78,7 @@ function RadioButton({
                     onChange={onChange}
                     disabled={isDisabled}
                     className={cx('peer appearance-none')}
+                    {...ariaProps}
                 />
                 <span className="radio-icon-color peer-checked:radio-icon-checked-color peer-checked:peer-disabled:radio-icon-checked-disabled-color absolute size-6">
                     <RadioIcon className="size-full" />

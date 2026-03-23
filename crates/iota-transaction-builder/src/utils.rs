@@ -320,7 +320,7 @@ impl TransactionBuilder {
                             matches!(expected_type, SignatureToken::Reference(_)),
                             UserInputError::InvalidMoveViewFunction {
                                 error: format!("Found a function parameter which is not an immutable reference {expected_type:?}")
-                                    .to_owned(),
+                                    ,
                             }
                             .into()
                         );

@@ -924,7 +924,7 @@ pub fn type_and_fields_from_move_event_data(
                 error: "Found non-type IotaMoveStruct in MoveValue event".to_string(),
             }),
         },
-        IotaMoveValue::Variant(v) => Ok((v.type_.clone(), v.clone().to_json_value())),
+        IotaMoveValue::Variant(v) => Ok((v.type_.clone(), v.to_json_value())),
         IotaMoveValue::Vector(_)
         | IotaMoveValue::Number(_)
         | IotaMoveValue::Bool(_)

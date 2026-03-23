@@ -50,3 +50,28 @@ export function toSearchQueryString(searchParams: URLSearchParams) {
     }
     return '';
 }
+
+/**
+ * Extracts application name from URL hostname
+ * Removes 'www.' prefix and returns first part of domain
+ * Returns empty string if URL is invalid
+ */
+export function getAppNameFromOrigin(origin: string): string {
+    try {
+        return new URL(origin).hostname.replace('www.', '').split('.')[0];
+    } catch (e) {
+        return '';
+    }
+}
+
+/**
+ * Resolves application name from permission request or origin
+ * Prioritizes provided name, then parses from origin
+ */
+export function resolveApplicationName(permissionName: string | undefined, origin: string): string {
+    // Return in priority order: permission name > parsed origin name
+    if (permissionName) {
+        return permissionName;
+    }
+    return getAppNameFromOrigin(origin);
+}

@@ -1,0 +1,72 @@
+---
+description: 'How to authenticate an account using public key verification in Move'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Authenticate an Account with a Public Key
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to authenticate an account using public key verification.
+The supported schemes are Ed25519, Secp256k1, and Secp256r1.
+If you want to learn more about the concepts of Account Abstraction, check out the [Account Abstraction Introduction](../../../explanations/account-abstraction/introduction.mdx).
+
+:::tip Why use Account Abstraction for this?
+
+IOTA natively supports Ed25519, Secp256k1, and Secp256r1 signatures. Account Abstraction gives you two additional capabilities:
+
+- **Key rotation without address change** — the account address is a stable on-chain object ID, independent of the signing key. You can rotate to a new key at any time without changing the account address.
+- **Custom signature schemes** — because the authenticator is just a Move function, you are not limited to the natively supported schemes. You can implement any verification logic, including post-quantum algorithms or any other scheme expressible in Move.
+
+:::
+
+:::tip Recommended reading
+
+This guide builds on the [Create an Account Using the Builder Pattern](../create-manage/create-iotaccount.mdx) how-to. Reviewing that one first will help you understand the account creation used here.
+
+:::
+
+## Example Code
+
+1. Define authenticator functions for the desired cryptographic scheme. Each verifies the transaction signature against the public key stored on the account.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L95-L125
+```
+2. The authenticators rely on standard IOTA Move cryptographic functions. For example, the Ed25519 helper verifies the signature against the stored public key and the transaction digest.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move#L67-L74
+```
+3. Create the account with a public key attached and the authenticator function reference set.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move#L31-L37
+```
+
+:::note
+
+Additional helper functions for rotating or adding a public key to an existing account are available in the full example. These are standard dynamic field mutations — see [Manage Account Dynamic Fields](../create-manage/manage-iotaccount-fields.mdx) for the underlying pattern.
+
+:::
+
+## Expected Behavior
+
+- The account validates each transaction by verifying the provided signature against the stored public key using the configured scheme.
+- Transactions with an invalid or missing signature are rejected during authentication.
+
+## Full Example Code
+
+<Tabs groupId="module" queryString>
+<TabItem value="pubkey" label="Public key authentication helpers">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_authentication.move
+```
+
+</TabItem>
+<TabItem value="iotaccount" label="IOTAccount public key authentication">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/public_key_authentication/sources/public_key_iotaccount.move
+```
+
+</TabItem>
+</Tabs>

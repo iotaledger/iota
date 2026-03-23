@@ -342,24 +342,24 @@ impl ConsensusAdapter {
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
-        #[expect(clippy::collapsible_if)] // This if can be collapsed but it will be ugly
         if epoch_store
             .get_reconfig_state_read_lock_guard()
             .is_reject_user_certs()
             && epoch_store.pending_consensus_certificates_empty()
         {
-            if recovered
+            // If `recovered` does not contain `EndOfPublish` yet, we need to insert it.
+            if !recovered
                 .iter()
                 .any(ConsensusTransaction::is_end_of_publish)
             {
-                // There are two cases when this is needed
-                // (1) We send EndOfPublish message after removing pending certificates in
-                // submit_and_wait_inner It is possible that node will crash
+                // There are two cases when this is needed:
+                // (1) We send `EndOfPublish` message after removing pending certificates in
+                // `submit_and_wait_inner`. It is possible that node will crash
                 // between those two steps, in which case we might need to
-                // re-introduce EndOfPublish message on restart
-                // (2) If node crashed inside ConsensusAdapter::close_epoch,
+                // re-introduce `EndOfPublish` message on restart.
+                // (2) If node crashed inside `ConsensusAdapter::close_epoch`,
                 // after reconfig lock state was written to DB and before we persisted
-                // EndOfPublish message
+                // `EndOfPublish` message.
                 recovered.push(ConsensusTransaction::new_end_of_publish(self.authority));
             }
         }

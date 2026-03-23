@@ -19,6 +19,7 @@ use starfish_config::{
     AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
     ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
 };
+use tracing::instrument;
 
 use crate::{
     commit::CommitVote,
@@ -760,6 +761,7 @@ impl SignedBlockHeader {
 
     /// This method only verifies this block header's signature. Verification of
     /// the full block header should be done via BlockHeaderVerifier.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
         let block_header = &self.inner;
         ConsensusError::quick_validation_authority_indices(
@@ -810,6 +812,7 @@ fn to_consensus_block_header_intent(
 /// 1. Compute the digest of `BlockHeader`.
 /// 2. Wrap the digest in `IntentMessage`.
 /// 3. Sign the serialized `IntentMessage`, or verify the signature against it.
+#[tracing::instrument(level = "trace", skip_all)]
 fn compute_block_header_signature(
     block_header: &BlockHeader,
     protocol_keypair: &ProtocolKeyPair,
@@ -819,6 +822,7 @@ fn compute_block_header_signature(
         .map_err(ConsensusError::SerializationFailure)?;
     Ok(protocol_keypair.sign(&message))
 }
+#[tracing::instrument(level = "trace", skip_all)]
 fn verify_block_header_signature(
     block_header: &BlockHeader,
     signature: &[u8],
@@ -1423,10 +1427,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b];
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(
-                ancestors.clone(),
-                acknowledgments.clone(),
-            );
+            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
@@ -1440,10 +1441,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b, ref_c];
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(
-                ancestors.clone(),
-                acknowledgments.clone(),
-            );
+            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
@@ -1458,10 +1456,7 @@ mod tests {
         let acknowledgments = vec![ref_a, ref_c, ref_d, ref_e];
 
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(
-                ancestors.clone(),
-                acknowledgments.clone(),
-            );
+            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
 
         let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());

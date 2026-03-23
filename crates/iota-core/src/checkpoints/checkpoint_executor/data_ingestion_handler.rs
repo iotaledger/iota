@@ -13,40 +13,42 @@ use iota_types::{
 };
 
 use crate::{
-    checkpoints::checkpoint_executor::CheckpointExecutionData,
+    checkpoints::checkpoint_executor::{CheckpointExecutionData, CheckpointTransactionData},
     execution_cache::TransactionCacheRead,
 };
 
 pub(crate) fn load_checkpoint_data(
     checkpoint_exec_data: &CheckpointExecutionData,
+    checkpoint_tx_data: &CheckpointTransactionData,
     object_store: &dyn ObjectStore,
     transaction_cache_reader: &dyn TransactionCacheRead,
 ) -> IotaResult<CheckpointData> {
-    let event_digests = checkpoint_exec_data
+    let event_tx_digests = checkpoint_tx_data
         .effects
         .iter()
-        .flat_map(|fx| fx.events_digest().copied())
+        .flat_map(|fx| fx.events_digest().map(|_| fx.transaction_digest()).copied())
         .collect::<Vec<_>>();
 
     let events = transaction_cache_reader
-        .try_multi_get_events(&event_digests)?
+        .try_multi_get_events(&event_tx_digests)?
         .into_iter()
-        .zip(&event_digests)
-        .map(|(event, digest)| {
-            event.ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
+        .zip(event_tx_digests)
+        .map(|(maybe_event, tx_digest)| {
+            maybe_event
+                .ok_or(IotaError::TransactionEventsNotFound { digest: tx_digest })
+                .map(|event| (tx_digest, event))
         })
-        .collect::<IotaResult<Vec<_>>>()?;
+        .collect::<IotaResult<HashMap<_, _>>>()?;
 
-    let events: HashMap<_, _> = event_digests.into_iter().zip(events).collect();
-    let mut full_transactions = Vec::with_capacity(checkpoint_exec_data.transactions.len());
-    for (tx, fx) in checkpoint_exec_data
+    let mut full_transactions = Vec::with_capacity(checkpoint_tx_data.transactions.len());
+    for (tx, fx) in checkpoint_tx_data
         .transactions
         .iter()
-        .zip(checkpoint_exec_data.effects.iter())
+        .zip(checkpoint_tx_data.effects.iter())
     {
-        let events = fx.events_digest().map(|event_digest| {
+        let events = fx.events_digest().map(|_event_digest| {
             events
-                .get(event_digest)
+                .get(fx.transaction_digest())
                 .cloned()
                 .expect("event was already checked to be present")
         });

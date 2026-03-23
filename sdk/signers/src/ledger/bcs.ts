@@ -5,7 +5,7 @@
 import { bcs, TypeTagSerializer } from '@iota/iota-sdk/bcs';
 import type { ObjectOwner } from '@iota/iota-sdk/client';
 import {
-    fromB64,
+    fromBase64,
     normalizeStructTag,
     normalizeIotaAddress,
     parseStructTag,
@@ -64,7 +64,7 @@ export const IotaMoveObject = bcs.struct('IotaMoveObject', {
                 },
             }),
             version: bcs.u64(),
-            contents: bcs.byteVector().transform({ input: fromB64 }),
+            contents: bcs.byteVector().transform({ input: fromBase64 }),
         }),
     }),
     owner: bcs.Owner.transform({

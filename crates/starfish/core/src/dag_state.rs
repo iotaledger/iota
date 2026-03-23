@@ -210,7 +210,7 @@ pub(crate) struct DagState {
     voting_block_headers_to_write: Vec<VerifiedBlockHeader>,
 
     /// Fast sync ongoing flag to be flushed to storage.
-    fast_sync_ongoing_flag_to_write: bool,
+    fast_sync_ongoing_flag_to_write: Option<bool>,
 
     /// Buffer the reputation scores & last_committed_rounds to be flushed with
     /// the next dag state flush. This is okay because we can recover
@@ -302,7 +302,7 @@ impl DagState {
         );
 
         let mut state = Self {
-            context: context.clone(),
+            context,
             genesis,
             recent_block_headers: BTreeMap::new(),
             recent_transactions_by_authority: vec![BTreeMap::new(); num_authorities],
@@ -311,7 +311,7 @@ impl DagState {
             tx_ref_to_block_digest_by_authority: vec![BTreeMap::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
-            last_commit: last_commit.clone(),
+            last_commit,
             last_commit_round_advancement_time: None,
             last_committed_rounds: last_committed_rounds.clone(),
             last_solid_subdag_base: None, /* Later the commit observer might update
@@ -321,7 +321,7 @@ impl DagState {
             block_headers_to_write: vec![],
             commits_to_write: vec![],
             voting_block_headers_to_write: vec![],
-            fast_sync_ongoing_flag_to_write: fast_sync_ongoing,
+            fast_sync_ongoing_flag_to_write: None,
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
@@ -591,7 +591,7 @@ impl DagState {
     }
 
     pub(crate) fn set_fast_sync_ongoing_flag(&mut self, flag: bool) {
-        self.fast_sync_ongoing_flag_to_write = flag;
+        self.fast_sync_ongoing_flag_to_write = Some(flag);
     }
 
     pub(crate) fn fast_sync_ongoing(&self) -> bool {
@@ -2180,7 +2180,7 @@ impl DagState {
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info = std::mem::take(&mut self.commit_info_to_write);
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
-        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write;
+        let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
         // Early return if there's nothing to flush
         if transactions.is_empty()
@@ -2188,6 +2188,7 @@ impl DagState {
             && commits.is_empty()
             && commit_info.is_empty()
             && voting_block_headers.is_empty()
+            && fast_commit_sync_flag.is_none()
         {
             return;
         }
@@ -2212,6 +2213,8 @@ impl DagState {
                 .map(|(commit_ref, _)| commit_ref.to_string())
                 .join(","),
             fast_commit_sync_flag
+                .map(|f| f.to_string())
+                .unwrap_or_else(|| "unchanged".to_string())
         );
 
         // Write all buffered data to storage
@@ -2544,7 +2547,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store);
+        let mut dag_state = DagState::new(context, store);
 
         // Populate DagState.
 
@@ -2600,7 +2603,7 @@ mod test {
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(11, 3)
                     .set_timestamp_ms(1130)
-                    .set_ancestors(round_10_refs.clone())
+                    .set_ancestors(round_10_refs)
                     .build(),
             ),
         ];
@@ -2627,7 +2630,7 @@ mod test {
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 3)
                     .set_timestamp_ms(1230)
-                    .set_ancestors(ancestors_for_round_12.clone())
+                    .set_ancestors(ancestors_for_round_12)
                     .build(),
             ),
         ];
@@ -2655,7 +2658,7 @@ mod test {
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(12, 3)
                     .set_timestamp_ms(1330)
-                    .set_ancestors(ancestors_for_round_13.clone())
+                    .set_ancestors(ancestors_for_round_13)
                     .build(),
             ),
         ];
@@ -3034,7 +3037,7 @@ mod test {
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
             dag_state.add_transactions(verified_transactions, DataSource::Test);
         }
-        for commit in later_commits.clone() {
+        for commit in later_commits {
             dag_state.add_commit(commit);
         }
 
@@ -3101,7 +3104,7 @@ mod test {
         drop(dag_state);
 
         // Recover the state from the store
-        let dag_state = DagState::new(context.clone(), store);
+        let dag_state = DagState::new(context, store);
 
         // Block headers from the first 5 rounds should be found in DagState.
         let block_headers = dag_builder.block_headers(1..=5);
@@ -3193,7 +3196,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
         // Create one block header (round 10) for authority 1
@@ -3335,7 +3338,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
         // Create one block header (round 1) for authority 1
@@ -3524,7 +3527,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no block headers exist, then genesis should be returned
         {
@@ -3536,7 +3539,7 @@ mod test {
         // WHEN a fully connected DAG up to round 4 is created, then round 4 block
         // headers should be returned as quorum
         {
-            let mut dag_builder = DagBuilder::new(context.clone());
+            let mut dag_builder = DagBuilder::new(context);
             dag_builder
                 .layers(1..=4)
                 .build()
@@ -3581,7 +3584,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no block headers exist, then genesis should be returned
         {
@@ -3668,13 +3671,12 @@ mod test {
             if block.round() <= 4 {
                 store
                     .write(
-                        WriteBatch::default()
-                            .transactions(vec![block.verified_transactions.clone()]),
+                        WriteBatch::default().transactions(vec![block.verified_transactions]),
                         context.clone(),
                     )
                     .unwrap();
             } else {
-                dag_state.add_transactions(block.verified_transactions.clone(), DataSource::Test);
+                dag_state.add_transactions(block.verified_transactions, DataSource::Test);
             }
         });
 
@@ -3722,7 +3724,7 @@ mod test {
         drop(dag_state);
 
         // Recover the state from the store
-        let dag_state = DagState::new(context.clone(), store.clone());
+        let dag_state = DagState::new(context, store);
 
         let transactions_refs = blocks
             .iter()
@@ -3750,7 +3752,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         let future_timestamp = context.clock.timestamp_utc_ms() + 100_000;
         let block_header = VerifiedBlockHeader::new_for_test(
@@ -3965,7 +3967,7 @@ mod test {
         // GIVEN
         let context = Arc::new(Context::new_for_test(4).0);
         let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
         // Set a timestamp for the block that is ahead of the current time
         let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
         let block = VerifiedBlockHeader::new_for_test(
@@ -3982,7 +3984,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store);
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -4011,7 +4013,7 @@ mod test {
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut encoder = create_encoder(&context);
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
