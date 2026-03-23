@@ -158,7 +158,6 @@ mod checked {
                         "input checker ensures if args are empty, there is a type specified"
                     );
                 };
-                validate_type_tag(context, &tag)?;
 
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
@@ -191,7 +190,6 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
-                        validate_type_tag(context, &tag)?;
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
                                 context.convert_type_argument_error(0, e)
@@ -344,7 +342,6 @@ mod checked {
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
                 for (ix, type_arg) in type_arguments.into_iter().enumerate() {
-                    validate_type_tag(context, &type_arg)?;
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
@@ -1751,16 +1748,6 @@ mod checked {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
             Ok(Identifier::new_unchecked(&ident))
         }
-    }
-
-    fn validate_type_tag(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        tag: &TypeTag,
-    ) -> Result<(), ExecutionError> {
-        if context.protocol_config.validate_identifier_inputs() {
-            crate::validate_type_tag(tag)?;
-        }
-        Ok(())
     }
 
     fn get_datatype_ident(s: &CachedDatatype) -> (&AccountAddress, &IdentStr, &IdentStr) {

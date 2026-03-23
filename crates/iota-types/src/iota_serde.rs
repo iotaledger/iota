@@ -237,10 +237,6 @@ impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
     }
 }
 
-/// A marker for type tags that are serialized as strings. Normally, a
-/// type tag is serialized as a string for readable formats, and as a byte array
-/// for non-readable formats. This marker can be used to serialize a type tag as
-/// a string even in non-readable formats.
 pub struct TypeName;
 
 impl SerializeAs<TypeTag> for TypeName {
