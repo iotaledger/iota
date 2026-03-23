@@ -809,11 +809,11 @@ async fn test_submit_soft_bundle_transactions() {
     }
 }
 
-/// A soft bundle whose transactions have mismatched gas prices is rejected
-/// (all-or-nothing semantics). This covers the `GasPriceMismatch` path inside
-/// `submit_transactions_bundle_validity_check`.
+/// In white-flag mode, transactions with different gas prices are processed
+/// independently — there is no bundle-level gas price matching. Each
+/// transaction is submitted on its own regardless of gas price differences.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_soft_bundle_transactions_gas_price_mismatch() {
+async fn test_submit_transactions_different_gas_prices_accepted() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -846,7 +846,7 @@ async fn test_submit_soft_bundle_transactions_gas_price_mismatch() {
         Arc::new(ValidatorServiceMetrics::new_for_tests()),
     ));
 
-    // tx1 at base rgp, tx2 at 2× rgp — gas prices must match within a bundle.
+    // tx1 at base rgp, tx2 at 2× rgp — both should be accepted independently.
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas1 = authority_state.get_object(&gas_id1).await.unwrap();
     let gas2 = authority_state.get_object(&gas_id2).await.unwrap();
@@ -874,7 +874,7 @@ async fn test_submit_soft_bundle_transactions_gas_price_mismatch() {
         gas2.compute_object_reference(),
         vec![CallArg::CLOCK_IMM],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp * 2,
-        rgp * 2, // different price — causes GasPriceMismatch
+        rgp * 2, // different price — accepted in white-flag mode
     )
     .unwrap();
     let tx2 = to_sender_signed_transaction(tx_data2, &sender_key);
