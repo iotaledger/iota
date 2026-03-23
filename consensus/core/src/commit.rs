@@ -454,7 +454,8 @@ pub fn load_committed_subdag_from_store(
     let leader_block_idx = leader_block_idx.expect("Leader block must be in the sub-dag");
     let leader_block_ref = blocks[leader_block_idx].reference();
     // Misbehaviors are already being stored separately with the DagState, so we
-    // don't need to store them in the commit for recovery.
+    // don't need to store them in the commit for recovery. This logic should not be
+    // ported to Starfish.
     CommittedSubDag::new(
         leader_block_ref,
         blocks,

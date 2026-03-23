@@ -480,6 +480,9 @@ mod tests {
         processed_subdag_index = expected_last_processed_index;
         while let Ok(subdag) = receiver.try_recv() {
             tracing::info!("Processed {subdag} on resubmission");
+            // Recovered subdags have empty misbehavior_counts by design, so
+            // clear them on the original before comparing.
+            commits[processed_subdag_index].misbehavior_counts = vec![];
             assert_eq!(subdag, commits[processed_subdag_index]);
             assert_eq!(subdag.reputation_scores_desc, vec![]);
             processed_subdag_index = subdag.commit_ref.index as usize;
