@@ -6,9 +6,9 @@ import { useParams } from 'react-router-dom';
 import { PageLayout } from '~/components';
 import { useDecodeDidFromUrl } from '~/hooks/useDecodeDidFromUrl';
 import { Warning } from '@iota/apps-ui-icons';
-import { DidContent } from './views/DidContent';
+import { IdentityContent } from './views/IdentityContent';
 
-export function DidResult() {
+export function IdentityResult() {
     const { id: encodedDid } = useParams();
     const { data: decodedDid, isPending } = useDecodeDidFromUrl(encodedDid);
 
@@ -16,7 +16,7 @@ export function DidResult() {
         return <PageLayout loading loadingText="Decoding DID..." content={[]} />;
     }
 
-    if (decodedDid === null) {
+    if (decodedDid == null) {
         return (
             <PageLayout
                 content={
@@ -32,5 +32,5 @@ export function DidResult() {
         );
     }
 
-    return <DidContent did={decodedDid!} />;
+    return <IdentityContent did={decodedDid} />;
 }

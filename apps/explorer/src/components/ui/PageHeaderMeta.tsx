@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { KeyValueInfo } from '@iota/apps-ui-kit';
+import { KeyValueInfo, TooltipPosition } from '@iota/apps-ui-kit';
 import { useCopyToClipboard } from '@iota/core';
 import { isString, onCopySuccess } from '~/lib';
 
@@ -22,6 +22,10 @@ export interface MetaItem {
      * Useful for cases like "Legacy ID" that don't always exist.
      */
     visible?: boolean;
+    /**
+     * (Optional) Clarifying text place on tooltip besides label.
+     */
+    tooltipText?: string;
 }
 
 export interface PageHeaderMetaProps {
@@ -58,9 +62,16 @@ function MetaItemKV({ item }: MetaItemKVProps) {
                     copyText={item.value as string}
                     onCopySuccess={() => copyToClipboard(item.value as string)}
                     value={item.value}
+                    tooltipPosition={TooltipPosition.Left}
+                    tooltipText={item.tooltipText}
                 />
             ) : (
-                <KeyValueInfo keyText={item.label} value={item.value} />
+                <KeyValueInfo
+                    keyText={item.label}
+                    value={item.value}
+                    tooltipPosition={TooltipPosition.Left}
+                    tooltipText={item.tooltipText}
+                />
             )}
         </>
     );

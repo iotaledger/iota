@@ -53,6 +53,8 @@ export function getIdentityType(didObject: IotaObjectData | null, pkgId: string)
     if (didObject == null || didObject.type == null) {
         return null;
     }
+    const tooltipText =
+        'The method used to create and resolve this Identity. "IOTA Identity" is the Foundation\'s official identity framework, anchored onchain on IOTA L1.';
 
     const [_package, _module, _method] = didObject.type.split('::');
     if (_method === IDENTITY_METHOD && _module === IDENTITY_MODULE && _package === pkgId) {
@@ -61,6 +63,7 @@ export function getIdentityType(didObject: IotaObjectData | null, pkgId: string)
             label: metadata.type.label,
             value: IdentityPackageOfficial({ value: metadata.type.badge, copyValue: _package }),
             visible: true,
+            tooltipText,
         } as MetaItem;
     }
 
@@ -68,6 +71,7 @@ export function getIdentityType(didObject: IotaObjectData | null, pkgId: string)
         label: metadata.type.label,
         value: didObject.type,
         visible: true,
+        tooltipText,
     } as MetaItem;
 }
 

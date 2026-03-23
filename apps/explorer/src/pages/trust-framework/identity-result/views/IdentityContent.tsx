@@ -12,17 +12,17 @@ import { Warning } from '@iota/apps-ui-icons';
 import { getIdentityType, getLegacyMetadata, MetadataBuilder } from '../headerMetadataHelper';
 import { ControllerView } from './ControllerView';
 import { ServiceView } from './ServiceView';
-import { DidSummaryView } from './DidSummaryView';
-import { DidDocumentJsonView } from './DidDocumentJsonView';
+import { IdentitySummaryView } from './IdentitySummaryView';
+import { IdentityDocumentJsonView } from './IdentityDocumentJsonView';
 import { SideBySidePanelsView } from './SideBySidePanelsView';
 import { TransactionsView } from './TransactionsView';
 import { extractDidDoc } from '../helper';
 
-interface DidContentProps {
+interface IdentityContentProps {
     did: IotaDID;
 }
 
-export function DidContent({ did }: DidContentProps) {
+export function IdentityContent({ did }: IdentityContentProps) {
     const { data: didDocument, isPending: isDidDocumentPending } = useResolveDid(did);
     const { data: objectResult, isPending: isObjectPending } = useGetObjectOrPastObject(did.tag());
     const didObject = objectResult?.data ?? null;
@@ -106,7 +106,7 @@ export function DidContent({ did }: DidContentProps) {
             content={
                 <div className="flex flex-col gap-y-2xl">
                     <PageHeader
-                        type="DID"
+                        type="Identity"
                         title={
                             <AddressAlias
                                 address={did.toString() || ''}
@@ -119,12 +119,12 @@ export function DidContent({ did }: DidContentProps) {
                             .addItem(getLegacyMetadata(didObject))
                             .build()}
                     />
-                    <DidSummaryView objectData={didObject} didDocument={didDocument} />
+                    <IdentitySummaryView objectData={didObject} didDocument={didDocument} />
                     <SideBySidePanelsView
                         firstPanelView={<ControllerView objectData={didObject} />}
                         secondPanelView={<ServiceView didDocument={didDocument} />}
                     />
-                    <DidDocumentJsonView didDocument={didDocument} />
+                    <IdentityDocumentJsonView didDocument={didDocument} />
                     <TransactionsView objectId={did.tag()} />
                 </div>
             }

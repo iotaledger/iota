@@ -13,3 +13,15 @@ export interface IdentityController extends ControllerCap {
     error?: Error | unknown;
     isError: boolean;
 }
+
+export interface FetchResult<T> {
+    isSuccess: boolean;
+    isError: boolean;
+    errorMsg?: string;
+    data?: T;
+}
+
+export interface DomainLinkageResource {
+    '@context': string;
+    linked_dids: string[];
+}
