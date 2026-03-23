@@ -5,7 +5,10 @@
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -21,7 +24,8 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, TransactionInfo,
+        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, PackageVersionInfo,
+        PackageVersionIteratorItem, PackageVersionKey, TransactionInfo,
         error::Error as StorageError,
     },
 };
@@ -41,6 +45,15 @@ use crate::{
     par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
 };
 
+/// Bump this when changing the serialization format of an existing table.
+/// A version mismatch triggers a full re-index via
+/// `needs_to_do_initialization`.
+///
+/// NOTE: Adding a *new* table does NOT require a version bump.  New tables
+/// start empty and are populated by a background backfill task tracked via
+/// dedicated `Watermark` variants (`PackageVersionBackfilled`,
+/// `RegulatedCoinBackfilled`, …).  While the backfill runs, affected
+/// endpoints return `Code::Unavailable` with a `RetryInfo` hint.
 const CURRENT_DB_VERSION: u64 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -54,6 +67,10 @@ struct MetadataInfo {
 pub enum Watermark {
     Indexed,
     Pruned,
+    /// Written once the `package_version` table backfill has completed.
+    PackageVersionBackfilled,
+    /// Written once the `regulated_coin` table backfill has completed.
+    RegulatedCoinBackfilled,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -164,6 +181,24 @@ struct IndexStoreTables {
     /// ObjectID of its coorisponding CoinMetadata.
     /// REST-API only
     coin: DBMap<CoinIndexKey, CoinIndexInfo>,
+
+    /// An index of Package versions.
+    ///
+    /// Maps original package ID and version to the storage ID of that version.
+    /// Allows efficient listing of all versions of a package, including
+    /// upgraded user packages that have different storage IDs.
+    /// Bounded by the live object set (one entry per package version).
+    /// gRPC-server only
+    package_version: DBMap<PackageVersionKey, PackageVersionInfo>,
+
+    /// An index of RegulatedCoinMetadata objects by coin type.
+    ///
+    /// Maps coin type to the ObjectID of the `RegulatedCoinMetadata<T>` object.
+    /// Bounded by the live object set (at most one entry per regulated coin).
+    /// Kept separate from the `coin` table so adding this index does not
+    /// require a DB version bump.
+    /// gRPC-server only
+    regulated_coin: DBMap<CoinIndexKey, ObjectID>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
     // - are prune-able and have corresponding logic in the `prune` function
@@ -254,6 +289,13 @@ impl IndexStoreTables {
             &Watermark::Indexed,
             &highest_executed_checkpoint.unwrap_or(0),
         )?;
+
+        // Mark the new backfill-only tables as complete: a full init populates
+        // them via par_index_live_object_set, so no background backfill needed.
+        self.watermark
+            .insert(&Watermark::PackageVersionBackfilled, &0u64)?;
+        self.watermark
+            .insert(&Watermark::RegulatedCoinBackfilled, &0u64)?;
 
         self.meta.insert(
             &(),
@@ -588,6 +630,25 @@ impl IndexStoreTables {
 
         batch.insert_batch(&self.coin, coin_index)?;
 
+        // package version + regulated coin indexing
+        // Both use created_objects(): packages and RegulatedCoinMetadata objects are
+        // always created, never mutated in-place, so changed_objects() would only add
+        // noise from unrelated object mutations.
+        let mut package_version_index: Vec<(PackageVersionKey, PackageVersionInfo)> = Vec::new();
+        let mut regulated_coin_index: Vec<(CoinIndexKey, ObjectID)> = Vec::new();
+        for tx in &checkpoint.transactions {
+            for object in tx.created_objects() {
+                if let Some((key, info)) = try_create_package_version_info(object) {
+                    package_version_index.push((key, info));
+                }
+                if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
+                    regulated_coin_index.push((key, object_id));
+                }
+            }
+        }
+        batch.insert_batch(&self.package_version, package_version_index)?;
+        batch.insert_batch(&self.regulated_coin, regulated_coin_index)?;
+
         Ok(())
     }
 
@@ -604,7 +665,7 @@ impl IndexStoreTables {
         self.transactions.get(digest)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     fn owner_iter(
         &self,
         owner: IotaAddress,
@@ -620,7 +681,7 @@ impl IndexStoreTables {
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -637,7 +698,7 @@ impl IndexStoreTables {
         Ok(iter)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
@@ -647,17 +708,54 @@ impl IndexStoreTables {
         };
         self.coin.get(&key)
     }
+
+    // only used in "grpc-server"
+    // Note: bounds are inclusive (same as `owner_iter` / `dynamic_field_iter`).
+    // Callers must `.skip(1)` when a cursor is provided to avoid re-returning
+    // the cursor item.
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
+        let lower_bound = PackageVersionKey {
+            original_package_id,
+            version: cursor.unwrap_or(0),
+        };
+        let upper_bound = PackageVersionKey {
+            original_package_id,
+            version: u64::MAX,
+        };
+        Ok(self
+            .package_version
+            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
+    }
+
+    // only used in "grpc-server"
+    fn get_regulated_coin_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> Result<Option<ObjectID>, TypedStoreError> {
+        let key = CoinIndexKey {
+            coin_type: coin_type.to_owned(),
+        };
+        self.regulated_coin.get(&key)
+    }
 }
 
 pub struct RestIndexStore {
-    tables: IndexStoreTables,
+    tables: Arc<IndexStoreTables>,
     pending_updates: Mutex<BTreeMap<u64, typed_store::rocks::DBBatch>>,
+    /// Set to `true` once the `package_version` table backfill completes.
+    package_version_ready: Arc<AtomicBool>,
+    /// Set to `true` once the `regulated_coin` table backfill completes.
+    regulated_coin_ready: Arc<AtomicBool>,
 }
 
 impl RestIndexStore {
     pub async fn new(
         path: PathBuf,
-        authority_store: &AuthorityStore,
+        authority_store: Arc<AuthorityStore>,
         checkpoint_store: &CheckpointStore,
         epoch_store: &AuthorityPerEpochStore,
         package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
@@ -678,7 +776,7 @@ impl RestIndexStore {
 
                 tables
                     .init(
-                        authority_store,
+                        &authority_store,
                         checkpoint_store,
                         epoch_store,
                         package_store,
@@ -690,18 +788,84 @@ impl RestIndexStore {
             }
         };
 
+        let tables = Arc::new(tables);
+
+        // Check whether the backfill-only tables have been populated.  After a
+        // full `init()` the watermarks are written, so nodes that just ran init
+        // won't spawn any background tasks.  Upgrading nodes that already have
+        // DB version 1 but never ran the new init will have the watermarks
+        // absent and will spawn background backfills.
+        let pkg_done = tables
+            .watermark
+            .get(&Watermark::PackageVersionBackfilled)
+            .ok()
+            .flatten()
+            .is_some();
+        let reg_done = tables
+            .watermark
+            .get(&Watermark::RegulatedCoinBackfilled)
+            .ok()
+            .flatten()
+            .is_some();
+
+        let package_version_ready = Arc::new(AtomicBool::new(pkg_done));
+        let regulated_coin_ready = Arc::new(AtomicBool::new(reg_done));
+
+        if !pkg_done {
+            let tables_clone = Arc::clone(&tables);
+            let auth_clone = Arc::clone(&authority_store);
+            let flag = Arc::clone(&package_version_ready);
+            tokio::spawn(async move {
+                match tokio::task::spawn_blocking(move || {
+                    backfill_package_version(&tables_clone, &auth_clone, &flag);
+                })
+                .await
+                {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::error!("package_version backfill task panicked: {e}");
+                    }
+                }
+            });
+        }
+
+        if !reg_done {
+            let tables_clone = Arc::clone(&tables);
+            let auth_clone = Arc::clone(&authority_store);
+            let flag = Arc::clone(&regulated_coin_ready);
+            tokio::spawn(async move {
+                match tokio::task::spawn_blocking(move || {
+                    backfill_regulated_coin(&tables_clone, &auth_clone, &flag);
+                })
+                .await
+                {
+                    Ok(()) => {}
+                    Err(e) => {
+                        tracing::error!("regulated_coin backfill task panicked: {e}");
+                    }
+                }
+            });
+        }
+
         Self {
             tables,
             pending_updates: Default::default(),
+            package_version_ready,
+            regulated_coin_ready,
         }
     }
 
     pub fn new_without_init(path: PathBuf) -> Self {
-        let tables = IndexStoreTables::open(path);
+        let tables = Arc::new(IndexStoreTables::open(path));
 
         Self {
             tables,
             pending_updates: Default::default(),
+            // new_without_init is used in tests / tooling — mark both tables
+            // as ready so callers don't get spurious "backfill in progress"
+            // errors.
+            package_version_ready: Arc::new(AtomicBool::new(true)),
+            regulated_coin_ready: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -774,7 +938,7 @@ impl RestIndexStore {
         self.tables.get_transaction_info(digest)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     pub fn owner_iter(
         &self,
         owner: IotaAddress,
@@ -786,7 +950,7 @@ impl RestIndexStore {
         self.tables.owner_iter(owner, cursor)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     pub fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -798,12 +962,40 @@ impl RestIndexStore {
         self.tables.dynamic_field_iter(parent, cursor)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     pub fn get_coin_info(
         &self,
         coin_type: &StructTag,
     ) -> Result<Option<CoinIndexInfo>, TypedStoreError> {
         self.tables.get_coin_info(coin_type)
+    }
+
+    // only used in "grpc-server"
+    pub fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
+        self.tables
+            .package_versions_iter(original_package_id, cursor)
+    }
+
+    // only used in "grpc-server"
+    pub fn get_regulated_coin_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> Result<Option<ObjectID>, TypedStoreError> {
+        self.tables.get_regulated_coin_info(coin_type)
+    }
+
+    // only used in "grpc-server"
+    pub fn is_package_version_index_ready(&self) -> bool {
+        self.package_version_ready.load(Ordering::Acquire)
+    }
+
+    // only used in "grpc-server"
+    pub fn is_regulated_coin_index_ready(&self) -> bool {
+        self.regulated_coin_ready.load(Ordering::Acquire)
     }
 }
 
@@ -853,35 +1045,63 @@ fn try_create_dynamic_field_info(
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
     use iota_types::coin::{CoinMetadata, TreasuryCap};
 
-    object
-        .type_()
-        .and_then(MoveObjectType::other)
-        .and_then(|object_type| {
-            CoinMetadata::is_coin_metadata_with_coin_type(object_type)
-                .cloned()
-                .map(|coin_type| {
-                    (
-                        CoinIndexKey { coin_type },
-                        CoinIndexInfo {
-                            coin_metadata_object_id: Some(object.id()),
-                            treasury_object_id: None,
-                        },
-                    )
-                })
-                .or_else(|| {
-                    TreasuryCap::is_treasury_with_coin_type(object_type)
-                        .cloned()
-                        .map(|coin_type| {
-                            (
-                                CoinIndexKey { coin_type },
-                                CoinIndexInfo {
-                                    coin_metadata_object_id: None,
-                                    treasury_object_id: Some(object.id()),
-                                },
-                            )
-                        })
-                })
-        })
+    let object_type = object.type_()?.other()?;
+
+    if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type).cloned() {
+        return Some((
+            CoinIndexKey { coin_type },
+            CoinIndexInfo {
+                coin_metadata_object_id: Some(object.id()),
+                treasury_object_id: None,
+            },
+        ));
+    }
+
+    if let Some(coin_type) = TreasuryCap::is_treasury_with_coin_type(object_type).cloned() {
+        return Some((
+            CoinIndexKey { coin_type },
+            CoinIndexInfo {
+                coin_metadata_object_id: None,
+                treasury_object_id: Some(object.id()),
+            },
+        ));
+    }
+
+    None
+}
+
+/// Returns `(CoinIndexKey, regulated_coin_metadata_object_id)` if `object` is
+/// a `RegulatedCoinMetadata<T>`.  Used to populate the separate
+/// `regulated_coin` table.
+fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectID)> {
+    use move_core_types::language_storage::TypeTag;
+
+    let move_object_type = object.type_()?;
+    if !move_object_type.is_regulated_coin_metadata() {
+        return None;
+    }
+    let object_type = move_object_type.other()?;
+    // RegulatedCoinMetadata<T> has one type parameter: the coin type
+    let coin_type = match object_type.type_params.first()? {
+        TypeTag::Struct(s) => *s.clone(),
+        _ => return None,
+    };
+    Some((CoinIndexKey { coin_type }, object.id()))
+}
+
+fn try_create_package_version_info(
+    object: &Object,
+) -> Option<(PackageVersionKey, PackageVersionInfo)> {
+    let package = object.data.try_as_package()?;
+    Some((
+        PackageVersionKey {
+            original_package_id: package.original_package_id(),
+            version: object.version().value(),
+        },
+        PackageVersionInfo {
+            storage_id: object.id(),
+        },
+    ))
 }
 
 struct RestParLiveObjectSetIndexer<'a> {
@@ -954,6 +1174,18 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
             }
         }
 
+        // Package version index
+        if let Some((key, info)) = try_create_package_version_info(&object) {
+            self.batch
+                .insert_batch(&self.tables.package_version, [(key, info)])?;
+        }
+
+        // Regulated coin index (separate table to avoid bumping DB version)
+        if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
+            self.batch
+                .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
+        }
+
         // If the batch size grows to greater that 128MB then write out to the DB so
         // that the data we need to hold in memory doesn't grown unbounded.
         if self.batch.size_in_bytes() >= 1 << 27 {
@@ -968,6 +1200,139 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
         Ok(())
     }
 }
+
+// ---------------------------------------------------------------------------
+// Background backfill infrastructure
+//
+// When a new index table is added without bumping CURRENT_DB_VERSION, existing
+// nodes will have an empty table.  The functions below scan the live object set
+// in the background and populate the table, then write a Watermark entry so the
+// backfill is not repeated on the next restart.
+// ---------------------------------------------------------------------------
+
+struct PackageVersionBackfillIndexer<'a> {
+    tables: &'a IndexStoreTables,
+}
+
+struct PackageVersionBatchIndexer<'a> {
+    tables: &'a IndexStoreTables,
+    batch: typed_store::rocks::DBBatch,
+}
+
+impl<'a> ParMakeLiveObjectIndexer for PackageVersionBackfillIndexer<'a> {
+    type ObjectIndexer = PackageVersionBatchIndexer<'a>;
+
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer {
+        PackageVersionBatchIndexer {
+            batch: self.tables.package_version.batch(),
+            tables: self.tables,
+        }
+    }
+}
+
+impl LiveObjectIndexer for PackageVersionBatchIndexer<'_> {
+    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+        if let Some((key, info)) = try_create_package_version_info(&object) {
+            self.batch
+                .insert_batch(&self.tables.package_version, [(key, info)])?;
+        }
+        if self.batch.size_in_bytes() >= 1 << 27 {
+            std::mem::replace(&mut self.batch, self.tables.package_version.batch()).write()?;
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Result<(), StorageError> {
+        self.batch.write()?;
+        Ok(())
+    }
+}
+
+fn backfill_package_version(
+    tables: &IndexStoreTables,
+    authority_store: &AuthorityStore,
+    flag: &AtomicBool,
+) {
+    info!("Starting package_version backfill");
+    let indexer = PackageVersionBackfillIndexer { tables };
+    match crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer) {
+        Ok(()) => {
+            if let Err(e) = tables
+                .watermark
+                .insert(&Watermark::PackageVersionBackfilled, &0u64)
+            {
+                tracing::error!("Failed to write PackageVersionBackfilled watermark: {e}");
+                return;
+            }
+            flag.store(true, Ordering::Release);
+            info!("package_version backfill complete");
+        }
+        Err(e) => tracing::error!("package_version backfill failed: {e}"),
+    }
+}
+
+struct RegulatedCoinBackfillIndexer<'a> {
+    tables: &'a IndexStoreTables,
+}
+
+struct RegulatedCoinBatchIndexer<'a> {
+    tables: &'a IndexStoreTables,
+    batch: typed_store::rocks::DBBatch,
+}
+
+impl<'a> ParMakeLiveObjectIndexer for RegulatedCoinBackfillIndexer<'a> {
+    type ObjectIndexer = RegulatedCoinBatchIndexer<'a>;
+
+    fn make_live_object_indexer(&self) -> Self::ObjectIndexer {
+        RegulatedCoinBatchIndexer {
+            batch: self.tables.regulated_coin.batch(),
+            tables: self.tables,
+        }
+    }
+}
+
+impl LiveObjectIndexer for RegulatedCoinBatchIndexer<'_> {
+    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
+        if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
+            self.batch
+                .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
+        }
+        if self.batch.size_in_bytes() >= 1 << 27 {
+            std::mem::replace(&mut self.batch, self.tables.regulated_coin.batch()).write()?;
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Result<(), StorageError> {
+        self.batch.write()?;
+        Ok(())
+    }
+}
+
+fn backfill_regulated_coin(
+    tables: &IndexStoreTables,
+    authority_store: &AuthorityStore,
+    flag: &AtomicBool,
+) {
+    info!("Starting regulated_coin backfill");
+    let indexer = RegulatedCoinBackfillIndexer { tables };
+    match crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer) {
+        Ok(()) => {
+            if let Err(e) = tables
+                .watermark
+                .insert(&Watermark::RegulatedCoinBackfilled, &0u64)
+            {
+                tracing::error!("Failed to write RegulatedCoinBackfilled watermark: {e}");
+                return;
+            }
+            flag.store(true, Ordering::Release);
+            info!("regulated_coin backfill complete");
+        }
+        Err(e) => tracing::error!("regulated_coin backfill failed: {e}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 
 // TODO figure out a way to dedup this logic. Today we'd need to do quite a bit
 // of refactoring to make it possible.

@@ -7,7 +7,8 @@ use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
 use iota_grpc_types::v0::{
-    ledger_service as grpc_ledger_service, transaction_execution_service as grpc_tx_service,
+    ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
+    state_service as grpc_state_service, transaction_execution_service as grpc_tx_service,
 };
 use iota_types::transaction_executor::TransactionExecutor;
 use tokio::sync::broadcast;
@@ -17,7 +18,8 @@ use tonic::transport::{Identity, Server, ServerTlsConfig};
 
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
-    TransactionExecutionGrpcService, metrics::GrpcMetricsLayer,
+    MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
+    metrics::GrpcMetricsLayer,
 };
 
 /// Handle to control a running gRPC server
@@ -59,7 +61,8 @@ impl GrpcServerHandle {
 /// across the with-metrics and without-metrics code paths, since
 /// `Server::layer()` changes the builder's type parameter.
 macro_rules! build_and_spawn {
-    ($server_builder:expr, $ledger_service:expr, $tx_service:expr, $config:expr,
+    ($server_builder:expr, $ledger_service:expr, $tx_service:expr, $state_service:expr,
+     $move_package_service:expr, $config:expr,
      $listener:expr, $actual_addr:expr, $shutdown_token:expr) => {{
         let mut router = $server_builder.add_service(
             grpc_ledger_service::ledger_service_server::LedgerServiceServer::new($ledger_service)
@@ -72,6 +75,16 @@ macro_rules! build_and_spawn {
                 .max_encoding_message_size($config.max_message_size_bytes() as usize),
             );
         }
+
+        router = router.add_service(
+            grpc_state_service::state_service_server::StateServiceServer::new($state_service)
+                .max_encoding_message_size($config.max_message_size_bytes() as usize),
+        );
+
+        router = router.add_service(
+            grpc_move_package_service::move_package_service_server::MovePackageServiceServer::new($move_package_service)
+                .max_encoding_message_size($config.max_message_size_bytes() as usize),
+        );
 
         let shutdown_token_for_server = $shutdown_token.clone();
         if $config.tls_config().is_some() {
@@ -138,6 +151,15 @@ pub async fn start_grpc_server(
         TransactionExecutionGrpcService::new(config.clone(), grpc_reader.clone(), executor)
     });
 
+    // Create StateService and MovePackageService.
+    // Unlike TransactionExecutionService (conditional on executor), these are
+    // always registered: they are read-only and return a clear error
+    // ("indexes are not available") at request time if indexes are absent,
+    // which is more informative than an `Unimplemented` from an unregistered
+    // service.
+    let state_service = StateGrpcService::new(grpc_reader.clone());
+    let move_package_service = MovePackageGrpcService::new(grpc_reader.clone());
+
     // Bind to the address to get the actual local address (especially important for
     // port 0)
     let listener = tokio::net::TcpListener::bind(config.address).await?;
@@ -184,6 +206,8 @@ pub async fn start_grpc_server(
             layered_builder,
             ledger_service,
             tx_service,
+            state_service,
+            move_package_service,
             config,
             listener,
             actual_addr,
@@ -194,6 +218,8 @@ pub async fn start_grpc_server(
             server_builder,
             ledger_service,
             tx_service,
+            state_service,
+            move_package_service,
             config,
             listener,
             actual_addr,

@@ -6,6 +6,8 @@ use std::time::Duration;
 
 use iota_grpc_types::v0::{
     ledger_service::ledger_service_client::LedgerServiceClient,
+    move_package_service::move_package_service_client::MovePackageServiceClient,
+    state_service::state_service_client::StateServiceClient,
     transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient,
 };
 use tonic::codec::CompressionEncoding;
@@ -132,6 +134,22 @@ impl Client {
         ))
     }
 
+    /// Get a state service client.
+    pub fn state_service_client(&self) -> StateServiceClient<InterceptedChannel> {
+        self.configure_client(StateServiceClient::with_interceptor(
+            self.channel.clone(),
+            self.headers.clone(),
+        ))
+    }
+
+    /// Get a move package service client.
+    pub fn move_package_service_client(&self) -> MovePackageServiceClient<InterceptedChannel> {
+        self.configure_client(MovePackageServiceClient::with_interceptor(
+            self.channel.clone(),
+            self.headers.clone(),
+        ))
+    }
+
     /// Apply common client configuration (compression, message size limits).
     fn configure_client<C: GrpcClientConfig>(&self, client: C) -> C {
         let client = client.accept_compressed(CompressionEncoding::Zstd);
@@ -172,4 +190,6 @@ macro_rules! impl_grpc_client_config {
 impl_grpc_client_config!(
     LedgerServiceClient<InterceptedChannel>,
     TransactionExecutionServiceClient<InterceptedChannel>,
+    StateServiceClient<InterceptedChannel>,
+    MovePackageServiceClient<InterceptedChannel>,
 );

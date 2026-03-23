@@ -11,14 +11,17 @@ use iota_grpc_types::v0::{
         ExecuteTransactionResult, SimulateTransactionResult, SimulatedTransaction,
         execute_transaction_result, simulate_transaction_result,
     },
+    types::ObjectId as ProtoObjectId,
 };
 pub use iota_grpc_types::{
     field::{FieldMask, FieldMaskUtil},
     google::rpc::Status as RpcStatus,
     proto::TryFromProtoError,
 };
-use iota_sdk_types::Digest;
+use iota_sdk_types::{Digest, ObjectId};
 use serde::Serialize;
+
+use super::MetadataEnvelope;
 
 /// Errors that can occur during gRPC client API operations.
 #[derive(Debug, thiserror::Error)]
@@ -90,6 +93,12 @@ pub fn field_mask_with_default(custom: Option<&str>, default: &str) -> FieldMask
     FieldMask::from_str(custom.unwrap_or(default))
 }
 
+/// Safely convert a `usize` to `u32`, saturating at `u32::MAX` instead of
+/// silently truncating on 64-bit platforms.
+pub fn saturating_usize_to_u32(value: usize) -> u32 {
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
 /// A trait for proto result types that follow the pattern of having
 /// `Some(Result::Value)`, `Some(Result::Error)`, or `None`.
 ///
@@ -157,6 +166,46 @@ impl ProtoResult for SimulateTransactionResult {
             )),
         }
     }
+}
+
+/// Collect all items from a paginated gRPC stream into a single `Vec`.
+///
+/// This handles the common pattern of iterating over a `tonic::Streaming<T>`,
+/// extracting items from each message via the `extract` closure, and checking
+/// that the stream was not truncated (i.e. `has_next` is `false` on the last
+/// message).
+///
+/// The `extract` closure receives each stream message and must return
+/// `(has_next, items)`.  Because some streams require fallible per-item
+/// conversion (e.g. via [`ProtoResult`]), the closure itself returns
+/// `Result<…>`.
+pub async fn collect_stream<T, I, F>(
+    mut stream: tonic::Streaming<T>,
+    metadata: tonic::metadata::MetadataMap,
+    extract: F,
+) -> Result<MetadataEnvelope<Vec<I>>>
+where
+    F: Fn(T) -> Result<(bool, Vec<I>)>,
+{
+    let mut results = Vec::new();
+    let mut has_next = false;
+
+    while let Some(response) = stream.message().await? {
+        let (next, items) = extract(response)?;
+        has_next = next;
+        results.extend(items);
+    }
+
+    if has_next {
+        return Err(Error::UnexpectedEndOfStream);
+    }
+
+    Ok(MetadataEnvelope::new(results, metadata))
+}
+
+/// Convert an `ObjectId` to the gRPC proto `ObjectId` type.
+pub fn proto_object_id(id: ObjectId) -> ProtoObjectId {
+    ProtoObjectId::default().with_object_id(id.inner().to_vec())
 }
 
 /// Build a proto Transaction from serializable transaction data and digest.

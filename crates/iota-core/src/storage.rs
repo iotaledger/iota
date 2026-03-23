@@ -561,30 +561,51 @@ impl RestIndexes for RestIndexStore {
             .map_err(StorageError::custom)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
+    /// **Performance note:** When `object_type` is `Some`, the filter is
+    /// applied as a post-filter on the iterator — it scans **all** objects
+    /// owned by `owner` (starting from `cursor`) and checks each one's type.
+    /// This is O(N) in the total number of owned objects, not O(result-set).
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
+        object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>
     {
-        let iter = self.owner_iter(owner, cursor)?.map(|result| {
-            result.map(
-                |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
-                    AccountOwnedObjectInfo {
-                        owner,
-                        object_id,
-                        version,
-                        type_,
+        let iter = self
+            .owner_iter(owner, cursor)?
+            .map(|result| {
+                result.map(
+                    |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
+                        AccountOwnedObjectInfo {
+                            owner,
+                            object_id,
+                            version,
+                            type_,
+                        }
+                    },
+                )
+            })
+            .filter(move |result| match (&object_type, result) {
+                (None, _) => true,
+                (_, Err(_)) => true,
+                (Some(filter), Ok(info)) => {
+                    let obj_type: StructTag = info.type_.clone().into();
+                    if filter.type_params.is_empty() {
+                        obj_type.address == filter.address
+                            && obj_type.module == filter.module
+                            && obj_type.name == filter.name
+                    } else {
+                        obj_type == *filter
                     }
-                },
-            )
-        });
+                }
+            });
 
         Ok(Box::new(iter) as _)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -599,7 +620,7 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
-    // only used in "rest-api"
+    // used in both "grpc-server" and "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
@@ -615,5 +636,36 @@ impl RestIndexes for RestIndexStore {
                 },
             )
             .pipe(Ok)
+    }
+
+    // only used in "grpc-server"
+    fn get_regulated_coin_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<iota_types::base_types::ObjectID>> {
+        self.get_regulated_coin_info(coin_type)
+            .map_err(StorageError::custom)
+    }
+
+    // only used in "grpc-server"
+    fn is_package_version_index_ready(&self) -> bool {
+        self.is_package_version_index_ready()
+    }
+
+    // only used in "grpc-server"
+    fn is_regulated_coin_index_ready(&self) -> bool {
+        self.is_regulated_coin_index_ready()
+    }
+
+    // only used in "grpc-server"
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
+    > {
+        let iter = self.package_versions_iter(original_package_id, cursor)?;
+        Ok(Box::new(iter) as _)
     }
 }

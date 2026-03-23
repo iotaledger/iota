@@ -3,6 +3,8 @@
 
 mod header;
 mod ledger_service;
+mod move_package_service;
+mod state_service;
 mod transaction_execution_service;
 
 use iota_grpc_types::v0::{

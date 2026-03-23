@@ -83,7 +83,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         &self,
         request: tonic::Request<grpc_ledger_service::GetObjectsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
-        let response = get_objects::get_objects((*self.reader).clone(), request.into_inner())
+        let response = get_objects::get_objects(self.reader.clone(), request.into_inner())
             .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
             .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))

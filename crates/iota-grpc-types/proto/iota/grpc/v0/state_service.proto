@@ -63,7 +63,7 @@ message ListOwnedObjectsRequest {
   optional uint32 limit = 2;
 
   // Mask specifying which fields to read.
-  // If no mask is specified, defaults to `object_id,version,object_type`.
+  // If no mask is specified, defaults to `reference,bcs`.
   optional google.protobuf.FieldMask read_mask = 3;
 
   // Optional type filter to limit the types of objects listed.
@@ -92,7 +92,7 @@ message ListOwnedObjectsResponse {
   bool has_next = 2;
 }
 
-// Request message for `NodeService.GetCoinInfo`.
+// Request message for `StateService.GetCoinInfo`.
 message GetCoinInfoRequest {
   option (iota.grpc.message_accessors) = "with";
 
@@ -100,7 +100,7 @@ message GetCoinInfoRequest {
   optional string coin_type = 1;
 }
 
-// Response message for `NodeService.GetCoinInfo`.
+// Response message for `StateService.GetCoinInfo`.
 message GetCoinInfoResponse {
   option (iota.grpc.message_accessors) = "with";
 

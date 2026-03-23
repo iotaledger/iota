@@ -15,10 +15,11 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_types::base_types::ObjectID;
 use prost_types::FieldMask;
 
-use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+use crate::utils::{
+    assert_field_presence, comma_separated_field_mask_to_paths, object_id_from_hex, setup_grpc_test,
+};
 
 async fn assert_get_objects_request(
     ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
@@ -104,7 +105,7 @@ async fn get_objects_readmask_scenarios() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
+    let object_id = object_id_from_hex("0x5");
 
     // Tests for single-object readmask scenarios
     type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
@@ -168,14 +169,18 @@ async fn get_objects_batch() {
     let responses = assert_get_objects_request(
         &mut ledger_client,
         vec![
-            ObjectRequest::default()
-                .with_object_ref(ObjectReference::default().with_object_id("0x1".to_string())),
-            ObjectRequest::default()
-                .with_object_ref(ObjectReference::default().with_object_id("0x2".to_string())),
-            ObjectRequest::default()
-                .with_object_ref(ObjectReference::default().with_object_id("0x3".to_string())),
-            ObjectRequest::default()
-                .with_object_ref(ObjectReference::default().with_object_id("0x5".to_string())),
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex("0x1")),
+            ),
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex("0x2")),
+            ),
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex("0x3")),
+            ),
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex("0x5")),
+            ),
         ],
         Some(FieldMask::from_paths(["reference.object_id", "bcs"])),
         None,
@@ -194,7 +199,7 @@ async fn get_objects_with_version() {
 
     let mut ledger_client = client.ledger_service_client();
 
-    let object_id = ObjectID::from_hex_literal("0x5").unwrap().to_string();
+    let object_id = object_id_from_hex("0x5");
 
     // Request specific version
     let responses = assert_get_objects_request(
@@ -240,10 +245,9 @@ async fn get_objects_streaming() {
     // around 2-3 MB)
     for _ in 0..20 {
         for obj_id in &known_objects {
-            requests
-                .push(ObjectRequest::default().with_object_ref(
-                    ObjectReference::default().with_object_id(obj_id.to_string()),
-                ));
+            requests.push(ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex(obj_id)),
+            ));
         }
     }
 
@@ -303,10 +307,12 @@ async fn get_objects_nonexistent() {
     let responses = assert_get_objects_request(
         &mut ledger_client,
         vec![
-            ObjectRequest::default()
-                .with_object_ref(ObjectReference::default().with_object_id("0xdead".to_string())),
-            ObjectRequest::default()
-                .with_object_ref(ObjectReference::default().with_object_id("0xbeef".to_string())),
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex("0xdead")),
+            ),
+            ObjectRequest::default().with_object_ref(
+                ObjectReference::default().with_object_id(object_id_from_hex("0xbeef")),
+            ),
         ],
         None,
         None,

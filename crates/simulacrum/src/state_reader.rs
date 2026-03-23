@@ -286,6 +286,50 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         }))
     }
 
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::DynamicFieldIterItem> + '_>> {
+        // Simulacrum does not have index support for dynamic fields
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
+        _cursor: Option<ObjectID>,
+        _object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectIterItem> + '_>> {
+        // Simulacrum does not have index support for owned objects
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<iota_types::storage::CoinInfo>> {
+        // Simulacrum does not have index support for coin info
+        Ok(None)
+    }
+
+    fn get_regulated_coin_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<iota_types::base_types::ObjectID>> {
+        // Simulacrum does not have index support for regulated coin info
+        Ok(None)
+    }
+
+    fn package_versions_iter(
+        &self,
+        _original_package_id: ObjectID,
+        _cursor: Option<u64>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::PackageVersionIterItem> + '_>> {
+        // Simulacrum does not have index support for package versions
+        Ok(Box::new(std::iter::empty()))
+    }
+
     fn stream_checkpoint_transactions(
         &self,
         checkpoint_contents: CheckpointContents,

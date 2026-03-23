@@ -3,7 +3,21 @@
 
 use std::collections::{HashMap, HashSet};
 
+use iota_grpc_types::v0::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    effects::TransactionEffectsAPI,
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
+
+// --- Shared example package names used by filter tests ---
+
+pub const NFT_PACKAGE: &str = "nft";
+pub const BASICS_PACKAGE: &str = "basics";
+pub const NFT_MODULE: &str = "testnet_nft";
+pub const CLOCK_MODULE: &str = "clock";
+pub const CLOCK_ACCESS_FUNCTION: &str = "access";
+pub const NFT_MINTED_EVENT: &str = "NFTMinted";
 
 /// Set up a gRPC test cluster and high-level client with default settings
 ///
@@ -56,6 +70,127 @@ where
     }
 
     (test_cluster, client)
+}
+
+/// Helper to create a proto `ObjectId` from a hex literal (e.g. "0x5").
+pub fn object_id_from_hex(hex: &str) -> ProtoObjectId {
+    ProtoObjectId::default().with_object_id(ObjectID::from_hex_literal(hex).unwrap().to_vec())
+}
+
+/// Helper to create a proto `Address` from an `IotaAddress`.
+pub fn address_proto(addr: IotaAddress) -> ProtoAddress {
+    ProtoAddress::default().with_address(addr.to_vec())
+}
+
+/// Publish an example Move package from the `iota-test-transaction-builder`
+/// examples directory and return the published package's `ObjectID`.
+///
+/// The `sender` signs and executes the publish transaction on `cluster`.
+pub async fn publish_example_package(
+    cluster: &TestCluster,
+    sender: IotaAddress,
+    package_name: &'static str,
+) -> ObjectID {
+    let tx = cluster
+        .test_transaction_builder_with_sender(sender)
+        .await
+        .publish_examples(package_name)
+        .build();
+    let signed_tx = cluster.sign_transaction(&tx);
+    let (effects, _) = cluster
+        .execute_transaction_return_raw_effects(signed_tx)
+        .await
+        .unwrap_or_else(|e| panic!("Publishing '{package_name}' should succeed: {e}"));
+    effects
+        .created()
+        .iter()
+        .find(|obj| obj.1.is_immutable())
+        .map(|obj| obj.0.0)
+        .unwrap_or_else(|| panic!("Should have created '{package_name}' package"))
+}
+
+/// Assert that a raw tonic result is an error with the expected status code.
+pub fn assert_tonic_error<T: std::fmt::Debug>(
+    result: std::result::Result<T, tonic::Status>,
+    expected_code: tonic::Code,
+    scenario: &str,
+) {
+    let status = result.expect_err(&format!("{scenario}: expected error"));
+    assert_eq!(
+        status.code(),
+        expected_code,
+        "{scenario}: expected {expected_code:?}, got: {status:?}"
+    );
+}
+
+/// Macro to collect all streaming responses from a gRPC server-streaming RPC,
+/// validating the `has_next` pagination protocol:
+/// - Intermediate responses have `has_next = true`
+/// - The last response has `has_next = false`
+/// - The stream is exhausted after the last response
+///
+/// # Parameters
+/// - `$client`: the gRPC service client (e.g. `StateServiceClient`)
+/// - `$rpc_method`: the RPC method name (e.g. `list_dynamic_fields`)
+/// - `$request`: the request message
+/// - `$scenario`: a string label for assertion messages
+///
+/// # Returns
+/// A `Vec` of response messages.
+///
+/// # Example
+/// ```ignore
+/// let responses = collect_streaming_responses!(
+///     state_client, list_dynamic_fields, request, "system state dynamic fields"
+/// );
+/// ```
+#[macro_export]
+macro_rules! collect_streaming_responses {
+    ($client:expr, $rpc_method:ident, $request:expr, $scenario:expr) => {{
+        use futures::StreamExt as _;
+
+        let mut stream = $client.$rpc_method($request).await.unwrap().into_inner();
+
+        let mut responses = Vec::new();
+
+        while let Some(response) = stream.next().await {
+            let response = response.unwrap();
+            let has_next = response.has_next;
+            responses.push(response);
+
+            if !has_next {
+                break;
+            }
+        }
+
+        // Validate has_next: intermediate=true, last=false
+        assert!(
+            !responses.is_empty(),
+            "{}: expected at least one response in stream",
+            $scenario
+        );
+        for (idx, response) in responses[..responses.len() - 1].iter().enumerate() {
+            assert!(
+                response.has_next,
+                "Intermediate stream message #{} should have has_next=true",
+                idx + 1
+            );
+        }
+        assert!(
+            !responses.last().unwrap().has_next,
+            "{}: last response should have has_next=false",
+            $scenario
+        );
+
+        // Verify stream is exhausted
+        assert!(
+            stream.next().await.is_none(),
+            "{}: stream should be exhausted after has_next=false",
+            $scenario
+        );
+
+        responses
+    }};
 }
 
 /// Trait for checking field presence/absence
