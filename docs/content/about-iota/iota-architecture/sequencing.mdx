@@ -15,8 +15,8 @@ The primary goal of sequencing is to schedule as many transactions as possible w
 
 The sequencing phase is responsible for two main tasks:
 
--   **Ordering**: Establishing the causal order of transactions committed by the IOTA [consensus protocol](./consensus.mdx).
--   **Congestion prevention**: Deferring the execution of transactions that could otherwise overwhelm the execution layer.
+- **Ordering**: Establishing the causal order of transactions committed by the IOTA [consensus protocol](./consensus.mdx).
+- **Congestion prevention**: Deferring the execution of transactions that could otherwise overwhelm the execution layer.
 
 The IOTA sequencing algorithm addresses both of these tasks simultaneously.
 
@@ -26,8 +26,8 @@ In IOTA, transactions are initially ordered based on their gas prices.
 Each transaction is then evaluated individually using the placement algorithm described below to determine its position in the execution trace.
 During this evaluation, every transaction is subject to a binary decision: **Schedule** or **Defer**.
 
--   **Deferred** transactions are carried over to the transaction set of the next consensus commit. If a transaction is deferred a specific number of times (currently 10), is it eventually **cancelled**.
--   **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
+- **Deferred** transactions are carried over to the transaction set of the next consensus commit. If a transaction is deferred a specific number of times (currently 10), is it eventually **cancelled**.
+- **Scheduled** transactions are forwarded to the execution phase in the order determined by the placement algorithm.
 
 :::info Best-effort sequencing
 
@@ -58,9 +58,9 @@ In IOTA, transactions included in the same consensus commit that write to an ide
 
 In the example below, we consider three transactions:
 
--   `Tx1` touches only object `a`,
--   `Tx3` touches only object `b`,
--   `Tx2` touches both objects `a` and `b`.
+- `Tx1` touches only object `a`,
+- `Tx3` touches only object `b`,
+- `Tx2` touches both objects `a` and `b`.
 
 `Tx1` is willing to pay the highest gas price, while `Tx3` offers the lowest.
 Additionally, `Tx2` is _estimated_ to have the longest execution time, while `Tx3` has the shortest.
@@ -77,3 +77,44 @@ The case is illustrated in the following image.
 ![Sequencing example, final sequencing](/img/about-iota/iota-architecture/sequencing2.svg)
 
 ## Gas Price Feedback for Cancelled Transactions
+
+When a transaction is cancelled due to shared object congestion, IOTA provides
+a **suggested gas price** in the execution status of that cancelled transaction.
+This suggested gas price informs the sender about the minimum gas price they
+should have paid for their transaction to have been successfully scheduled in
+the _same_ consensus commit.
+
+Other networks such as Sui only report which shared objects were congested, but
+not what gas price would have been enough for successful execution. Users on
+those networks have to rely on dry-run simulations to figure out a sufficient
+gas price. IOTA instead computes the suggested gas price from the actual
+scheduling decisions in the commit, so the sender already knows what gas price
+to bid when retrying.
+
+### How the suggested gas price is calculated
+
+- The gas price feedback algorithm performs imaginary allocation of the
+cancelled transaction at the latest possible execution start time within the
+commit's capacity, so that only the last scheduled transactions on each
+congested object overlap with it.
+- The clearing gas price for each object is the maximum gas price across those
+last scheduled transactions that overlap with the imaginary allocation of the
+cancelled transaction.
+- The suggested gas price is then calculated as the maximum clearing gas price
+across all input objects of the cancelled transaction, plus one - this ensures
+the retried transaction would outbid competitors and get scheduled.
+- The suggested gas price value is capped at the protocol's maximum gas price.
+
+### Using the suggested gas price
+
+The sender can then retry the cancelled transaction with a gas price equal to
+or greater than the suggested value.
+
+:::note Suggested gas price is an estimate
+
+If the same congestion pattern repeats in a future commit, paying the suggested
+gas price guarantees scheduling. In practice, congestion changes between
+commits, so the suggested value should be considered as a good starting
+estimate but not as a hard guarantee to be scheduled.
+
+:::
