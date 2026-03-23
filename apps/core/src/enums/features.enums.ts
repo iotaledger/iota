@@ -26,4 +26,5 @@ export enum Feature {
     IotaNames = 'iota-names',
     ValidatorAddressAlias = 'validator-address-alias',
     ExplorerTFIdentity = 'explorer-trust-framework-identity',
+    ExplorerTFNotarization = 'explorer-trust-framework-notarization',
 }

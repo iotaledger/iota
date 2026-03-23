@@ -28,11 +28,16 @@ export default defineConfig({
                         'node_modules/@iota/identity-wasm/web/identity_wasm_bg.wasm',
                         'public/identity_wasm_bg.wasm',
                     );
+                    copyFileSync(
+                        'node_modules/@iota/notarization/web/notarization_wasm_bg.wasm',
+                        'public/notarization_wasm_bg.wasm',
+                    );
                 } catch (error) {
                     console.warn('Could not copy WASM files:', error);
                 }
             },
         },
+        ,
     ],
     test: {
         // Omit end-to-end tests:
