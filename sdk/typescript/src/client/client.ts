@@ -134,10 +134,8 @@ const IOTA_CLIENT_BRAND = Symbol.for('@iota/IotaClient') as never;
 
 /** Protocol version that introduced V2 system state. */
 const PROTOCOL_VERSION_V2_SYSTEM_STATE = 5;
-/** Protocol version that introduced effective commission rate (IIP-8). */
-const PROTOCOL_VERSION_EFFECTIVE_COMMISSION = 20;
-/** Protocol version that populates effectiveCommissionRate in the API response. */
-const PROTOCOL_VERSION_EFFECTIVE_COMMISSION_ROLLED_OUT = 23;
+/** Protocol version that introduced IIP-8 (effective commission rate). */
+const PROTOCOL_VERSION_IIP8 = 20;
 
 export function isIotaClient(client: unknown): client is IotaClient {
     return (
@@ -652,11 +650,8 @@ export class IotaClient {
         const protocolConfig = await this.getProtocolConfig({ signal });
         const isV2Supported =
             Number(protocolConfig.maxSupportedProtocolVersion) >= PROTOCOL_VERSION_V2_SYSTEM_STATE;
-        const currentProtocolVersion = Number(protocolConfig.protocolVersion);
         const isEffectiveCommissionRateSupported =
-            currentProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION;
-        const hasEffectiveCommission =
-            currentProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION_ROLLED_OUT;
+            Number(protocolConfig.protocolVersion) >= PROTOCOL_VERSION_IIP8;
 
         const iotaSystemStateSummary: IotaSystemStateSummary = isV2Supported
             ? await this.getLatestIotaSystemStateV2({ signal })
@@ -668,11 +663,10 @@ export class IotaClient {
             'V2' in iotaSystemStateSummary ? iotaSystemStateSummary.V2 : iotaSystemStateSummary.V1
         ).activeValidators.map((v) => ({
             ...v,
-            effectiveCommissionRate: hasEffectiveCommission
-                ? v.effectiveCommissionRate
-                : isEffectiveCommissionRateSupported
-                  ? String(Math.max(Number(v.commissionRate), Number(v.votingPower)) / 100)
-                  : v.commissionRate,
+            effectiveCommissionRate: isEffectiveCommissionRateSupported
+                ? (v.effectiveCommissionRate ??
+                  String(Math.max(Number(v.commissionRate), Number(v.votingPower))))
+                : v.commissionRate,
         }));
 
         return 'V2' in iotaSystemStateSummary
@@ -955,32 +949,37 @@ export class IotaClient {
             signal?: AbortSignal;
         } & PaginationArguments<EpochPage['nextCursor']>,
     ): Promise<EpochPage> {
-        const epochPage = await this.transport.request<EpochPage>({
-            method: 'iotax_getEpochs',
-            params: [input?.cursor, input?.limit, input?.descendingOrder],
-            signal: input?.signal,
-        });
+        const [epochPage, protocolConfig] = await Promise.all([
+            this.transport.request<EpochPage>({
+                method: 'iotax_getEpochs',
+                params: [input?.cursor, input?.limit, input?.descendingOrder],
+                signal: input?.signal,
+            }),
+            this.getProtocolConfig({ signal: input?.signal }),
+        ]);
+
+        const currentProtocolVersion = Number(protocolConfig.protocolVersion);
 
         return {
             ...epochPage,
             data: epochPage.data.map((epoch) => {
-                const epochProtocolVersion = Number(epoch.endOfEpochInfo?.protocolVersion ?? 0);
+                // Use the epoch's own protocol version if available (historical epochs).
+                // If endOfEpochInfo is absent, this is the current in-progress epoch —
+                // use the current network protocol version instead.
+                const epochProtocolVersion = epoch.endOfEpochInfo
+                    ? Number(epoch.endOfEpochInfo.protocolVersion)
+                    : currentProtocolVersion;
                 const isEffectiveCommissionRateSupported =
-                    epochProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION;
-                const hasEffectiveCommission =
-                    epochProtocolVersion >= PROTOCOL_VERSION_EFFECTIVE_COMMISSION_ROLLED_OUT;
+                    epochProtocolVersion >= PROTOCOL_VERSION_IIP8;
 
                 return {
                     ...epoch,
                     validators: epoch.validators.map((v) => ({
                         ...v,
-                        effectiveCommissionRate: hasEffectiveCommission
-                            ? v.effectiveCommissionRate
-                            : isEffectiveCommissionRateSupported
-                              ? String(
-                                    Math.max(Number(v.commissionRate), Number(v.votingPower)) / 100,
-                                )
-                              : v.commissionRate,
+                        effectiveCommissionRate: isEffectiveCommissionRateSupported
+                            ? (v.effectiveCommissionRate ??
+                              String(Math.max(Number(v.commissionRate), Number(v.votingPower))))
+                            : v.commissionRate,
                     })),
                 };
             }),
