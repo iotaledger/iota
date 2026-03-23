@@ -71,6 +71,7 @@ mod checked {
         programmable_transactions,
         temporary_store::TemporaryStore,
         type_layout_resolver::TypeLayoutResolver,
+        validate_type_tag,
     };
 
     /// The main entry point to the adapter's transaction execution. It
@@ -2012,6 +2013,10 @@ mod checked {
 
         let mut args = vec![authenticator.object_to_authenticate().to_owned()];
         args.extend(authenticator.call_args().to_owned());
+
+        for tag in authenticator.type_arguments() {
+            validate_type_tag(tag)?;
+        }
 
         let res = builder.move_call(
             authenticator_function_ref.package,
