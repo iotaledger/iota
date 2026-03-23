@@ -79,7 +79,6 @@ const config = {
         // llms.txt is maintained by the llms-txt plugin at src/plugins/llms-txt
         generateLLMsTxt: false,
         customLLMFiles: [
-          // ── Top-level navbar sections ──────────────────────────────────────
           {
             filename: 'llms-full-about.txt',
             title: 'IOTA Documentation - About IOTA',
