@@ -38,6 +38,7 @@ const iotaSDK = [
                 items: [
                     'developer/rust-sdk/how-tos/transactions/prepare-send-iota',
                     'developer/rust-sdk/how-tos/transactions/sign-send-iota',
+                    'developer/rust-sdk/how-tos/transactions/transactions-with-function',
                 ],
             },
         ],
