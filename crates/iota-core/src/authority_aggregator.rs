@@ -512,8 +512,7 @@ impl ProcessTransactionResult {
 
 /// The AuthorityAggregator is responsible for aggregating the responses from
 /// the validators and determining the final state of the transaction.
-#[derive(Clone)]
-pub struct AuthorityAggregator<A: Clone> {
+pub struct AuthorityAggregator<A> {
     /// Our IOTA committee.
     pub committee: Arc<Committee>,
     /// For more human readable metrics reporting.
@@ -532,7 +531,22 @@ pub struct AuthorityAggregator<A: Clone> {
     pub committee_store: Arc<CommitteeStore>,
 }
 
-impl<A: Clone> AuthorityAggregator<A> {
+impl<A> Clone for AuthorityAggregator<A> {
+    fn clone(&self) -> Self {
+        Self {
+            committee: Arc::clone(&self.committee),
+            validator_display_names: Arc::clone(&self.validator_display_names),
+            authority_clients: Arc::clone(&self.authority_clients),
+            metrics: Arc::clone(&self.metrics),
+            safe_client_metrics_base: self.safe_client_metrics_base.clone(),
+            timeouts: self.timeouts.clone(),
+            committee_store: Arc::clone(&self.committee_store),
+        }
+    }
+}
+
+
+impl<A> AuthorityAggregator<A> {
     /// Create a new `AuthorityAggregator`.
     pub fn new(
         committee: Committee,
@@ -635,8 +649,6 @@ impl<A: Clone> AuthorityAggregator<A> {
 
     /// Gets the cloned authority client for the given name.
     pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
-    where
-        A: Clone,
     {
         self.authority_clients[name].clone()
     }
@@ -652,7 +664,7 @@ impl<A: Clone> AuthorityAggregator<A> {
     }
 
     /// Get the cloned authority clients.
-    pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>> {
+    pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>> where A: Clone {
         (*self.authority_clients)
             .clone()
             .into_iter()
@@ -662,7 +674,7 @@ impl<A: Clone> AuthorityAggregator<A> {
 }
 
 /// Creates safe clients for each authority.
-fn create_safe_clients<A: Clone>(
+fn create_safe_clients<A>(
     authority_clients: BTreeMap<AuthorityName, A>,
     committee_store: &Arc<CommitteeStore>,
     safe_client_metrics_base: &SafeClientMetricsBase,
@@ -746,7 +758,7 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
 
 impl<A> AuthorityAggregator<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     // Repeatedly calls the provided closure on a randomly selected validator until
     // it succeeds. Once all validators have been attempted, starts over at the

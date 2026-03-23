@@ -175,8 +175,6 @@ impl SafeClientMetrics {
 /// The metrics are per validator client.
 #[derive(Clone)]
 pub struct SafeClient<C>
-where
-    C: Clone,
 {
     authority_client: C,
     committee_store: Arc<CommitteeStore>,
@@ -184,7 +182,7 @@ where
     metrics: SafeClientMetrics,
 }
 
-impl<C: Clone> SafeClient<C> {
+impl<C> SafeClient<C> {
     pub fn new(
         authority_client: C,
         committee_store: Arc<CommitteeStore>,
@@ -198,9 +196,7 @@ impl<C: Clone> SafeClient<C> {
             metrics,
         }
     }
-}
 
-impl<C: Clone> SafeClient<C> {
     pub fn authority_client(&self) -> &C {
         &self.authority_client
     }
@@ -335,7 +331,7 @@ impl<C: Clone> SafeClient<C> {
 
 impl<C> SafeClient<C>
 where
-    C: AuthorityAPI + Send + Sync + Clone + 'static,
+    C: AuthorityAPI + Send + Sync + 'static,
 {
     /// Initiate a new transfer to an IOTA or Primary account.
     pub async fn handle_transaction(

@@ -45,7 +45,7 @@ pub use reconfig_observer::ReconfigObserver;
 /// Trait for components that can update their AuthorityAggregator during
 /// reconfiguration. Used by ReconfigObserver to notify components of epoch
 /// changes.
-pub trait AuthorityAggregatorUpdatable<A: Clone>: Send + Sync + 'static {
+pub trait AuthorityAggregatorUpdatable<A>: Send + Sync + 'static {
     fn epoch(&self) -> EpochId;
     fn authority_aggregator(&self) -> Arc<AuthorityAggregator<A>>;
     fn update_authority_aggregator(&self, new_authorities: Arc<AuthorityAggregator<A>>);
@@ -83,7 +83,7 @@ pub struct QuorumTransactionResponse {
     pub auxiliary_data: Option<Vec<u8>>,
 }
 
-pub struct TransactionDriver<A: Clone> {
+pub struct TransactionDriver<A> {
     authority_aggregator: Arc<ArcSwap<AuthorityAggregator<A>>>,
     state: Mutex<State>,
     metrics: Arc<TransactionDriverMetrics>,
@@ -94,7 +94,7 @@ pub struct TransactionDriver<A: Clone> {
 
 impl<A> TransactionDriver<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     pub fn new(
         authority_aggregator: Arc<AuthorityAggregator<A>>,
@@ -441,7 +441,7 @@ where
 
 impl<A> AuthorityAggregatorUpdatable<A> for TransactionDriver<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     fn epoch(&self) -> EpochId {
         self.authority_aggregator.load().committee.epoch

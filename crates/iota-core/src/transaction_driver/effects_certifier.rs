@@ -81,7 +81,7 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         // Skip the first attempt to get full effects if it is already provided.
         let full_effects = match submit_txn_result {
@@ -235,7 +235,7 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> FullEffectsResult
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let request = if let Some(digest) = tx_digest {
             GetTxStatusRequest {
@@ -317,7 +317,7 @@ impl EffectsCertifier {
         mut acked_validators_rx: Receiver<AuthorityName>,
     ) -> (FullEffectsResult, AuthorityName)
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let mut pending_requests: FuturesUnordered<
             BoxFuture<'_, (AuthorityName, FullEffectsResult)>,
@@ -387,7 +387,7 @@ impl EffectsCertifier {
         acked_validators_tx: Sender<AuthorityName>,
     ) -> Result<TransactionEffectsDigest, TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let ping_type = tx_digest.is_none();
         let ping_label = ping_type.to_string();
@@ -681,7 +681,7 @@ impl EffectsCertifier {
         options: &SubmitTransactionOptions,
     ) -> IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let effects_start = Instant::now();
         let backoff =

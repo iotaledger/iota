@@ -31,7 +31,7 @@ use crate::{
 };
 
 /// Monitors validator interactions from the client's perspective.
-pub struct ValidatorClientMonitor<A: Clone> {
+pub struct ValidatorClientMonitor<A> {
     config: ValidatorClientMonitorConfig,
     metrics: Arc<ValidatorClientMetrics>,
     client_stats: RwLock<ClientObservedStats>,
@@ -41,7 +41,7 @@ pub struct ValidatorClientMonitor<A: Clone> {
 
 impl<A> ValidatorClientMonitor<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     pub fn new(
         config: ValidatorClientMonitorConfig,
@@ -155,7 +155,7 @@ where
     }
 }
 
-impl<A: Clone> ValidatorClientMonitor<A> {
+impl<A> ValidatorClientMonitor<A> {
     /// Calculate and cache latencies for all validators.
     fn update_cached_latencies(&self, authority_agg: &AuthorityAggregator<A>) {
         let committee = &authority_agg.committee;

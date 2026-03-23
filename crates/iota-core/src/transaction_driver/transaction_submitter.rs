@@ -55,7 +55,7 @@ impl TransactionSubmitter {
         options: &SubmitTransactionOptions,
     ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let start_time = Instant::now();
 
@@ -194,7 +194,7 @@ impl TransactionSubmitter {
         display_name: String,
     ) -> Result<TxStatusUpdate, TransactionRequestError>
     where
-        A: AuthorityAPI + Send + Sync + 'static + Clone,
+        A: AuthorityAPI + Send + Sync + 'static,
     {
         let submit_start = Instant::now();
         let is_ping = transaction.is_none();

@@ -39,13 +39,13 @@ const SELECT_LATENCY_DELTA: f64 = 0.02;
 /// empty, no restrictions are applied.
 ///
 /// This component helps to manage this retry pattern.
-pub(crate) struct RequestRetrier<A: Clone> {
+pub(crate) struct RequestRetrier<A> {
     ranked_clients: VecDeque<(AuthorityName, Arc<SafeClient<A>>)>,
     pub(crate) non_retriable_errors_aggregator: StatusAggregator<TransactionRequestError>,
     pub(crate) retriable_errors_aggregator: StatusAggregator<TransactionRequestError>,
 }
 
-impl<A: Clone> RequestRetrier<A> {
+impl<A> RequestRetrier<A> {
     pub(crate) fn new(
         auth_agg: &Arc<AuthorityAggregator<A>>,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
