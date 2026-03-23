@@ -146,8 +146,7 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                         "Object digest mismatch--got bad data from object_provider?"
                     )
                 }
-                let [coin_type]: [TypeTag; 1] =
-                    struct_tag.type_params().to_vec().try_into().unwrap();
+                let coin_type = struct_tag.type_params()[0].clone();
                 all_mutated_coins.push((
                     o.owner,
                     coin_type,
