@@ -21,7 +21,7 @@ use iota_light_client::{
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef},
+    base_types::{ObjectID, ObjectRef, StructTag},
     committee::Committee,
     digests::{CheckpointDigest, TransactionDigest},
     event::EventID,
@@ -147,7 +147,7 @@ pub async fn main() -> Result<()> {
             println!("Successfully verified object: {object_id}");
 
             if let Data::Move(move_object) = &object.data {
-                let object_type = move_object.type_().clone();
+                let object_type: StructTag = move_object.type_().clone().into();
 
                 let type_layout = resolver.type_layout(object_type.clone().into()).await?;
 

@@ -337,7 +337,7 @@ impl RpcExampleProvider {
                     object_id,
                     version: SequenceNumber::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin())),
+                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -381,7 +381,7 @@ impl RpcExampleProvider {
             object_id,
             version: SequenceNumber::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(StructTag::new_gas_coin())),
+            type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
             bcs: None,
             display: None,
         });
@@ -472,7 +472,7 @@ impl RpcExampleProvider {
                 object_id: ObjectID::new(self.rng.gen()),
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 owner: Some(Owner::Address(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
@@ -1226,7 +1226,9 @@ impl RpcExampleProvider {
             version: SequenceNumber::from_u64(1),
             digest: ObjectDigest::new(self.rng.gen()),
             type_: Some(ObjectType::Struct(
-                parse_iota_struct_tag("0x9::test::TestField").unwrap(),
+                parse_iota_struct_tag("0x9::test::TestField")
+                    .unwrap()
+                    .into(),
             )),
             bcs: None,
             display: None,
@@ -1273,7 +1275,7 @@ impl RpcExampleProvider {
                     object_id: ObjectID::new(self.rng.gen()),
                     version: SequenceNumber::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin())),
+                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -1494,7 +1496,7 @@ impl RpcExampleProvider {
                 object_id,
                 version: SequenceNumber::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),
@@ -1514,7 +1516,7 @@ impl RpcExampleProvider {
                 object_id: object_id2,
                 version: version2,
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),

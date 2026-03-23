@@ -189,7 +189,7 @@ impl StoredHistoryObject {
         };
 
         let move_type_layout = package_resolver
-            .type_layout(move_object.type_().clone().into())
+            .type_layout(move_object.type_tag())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
@@ -389,7 +389,7 @@ impl StoredObject {
         };
 
         let move_type_layout = package_resolver
-            .type_layout(move_object.type_().clone().into())
+            .type_layout(move_object.type_tag())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(

@@ -1423,7 +1423,7 @@ mod checked {
             vm,
             linkage_view,
             new_packages,
-            object.type_().clone(),
+            object.type_().clone().into(),
             used_in_non_entry_move_call,
             object.contents(),
         )

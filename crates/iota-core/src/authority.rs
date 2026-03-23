@@ -3862,7 +3862,7 @@ impl AuthorityState {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
             .filter(|o| match &o.type_ {
-                ObjectType::Struct(s) => &tag == s,
+                ObjectType::Struct(s) => tag == **s,
                 ObjectType::Package => false,
             })
             .map(|info| ObjectKey(info.object_id, info.version))

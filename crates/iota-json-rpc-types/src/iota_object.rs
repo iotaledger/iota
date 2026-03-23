@@ -888,7 +888,7 @@ impl IotaMoveObject for IotaParsedMoveObject {
                 }
             } else {
                 IotaParsedMoveObject {
-                    type_: object.type_().clone(),
+                    type_: object.type_().clone().into(),
                     fields: move_struct,
                 }
             },
@@ -960,7 +960,7 @@ pub struct IotaRawMoveObject {
 impl From<MoveObject> for IotaRawMoveObject {
     fn from(o: MoveObject) -> Self {
         Self {
-            type_: o.type_().clone(),
+            type_: o.type_().clone().into(),
             version: o.version(),
             bcs_bytes: o.into_contents(),
         }
@@ -973,7 +973,7 @@ impl IotaMoveObject for IotaRawMoveObject {
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            type_: object.type_().clone(),
+            type_: object.type_().clone().into(),
             version: object.version(),
             bcs_bytes: object.into_contents(),
         })
@@ -1202,7 +1202,7 @@ impl IotaObjectDataFilter {
             IotaObjectDataFilter::StructType(s) => {
                 let obj_tag: StructTag = match &object.type_ {
                     ObjectType::Package => return false,
-                    ObjectType::Struct(s) => s.clone(),
+                    ObjectType::Struct(s) => s.clone().into(),
                 };
                 // If people do not provide type_params, we will match all type_params
                 // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::iota::IOTA>`

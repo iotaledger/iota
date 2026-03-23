@@ -17,6 +17,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
+use serde_with::{Bytes, serde_as};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
@@ -46,6 +47,7 @@ pub mod option_visitor;
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
 pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
+#[serde_as]
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MoveObject {
     /// The type of this object. Immutable
@@ -55,7 +57,7 @@ pub struct MoveObject {
     /// version
     pub(crate) version: SequenceNumber,
     /// BCS bytes of a Move struct value
-    #[serde(with = "serde_with::As::<serde_with::Bytes>")]
+    #[serde_as(as = "Bytes")]
     pub(crate) contents: Vec<u8>,
 }
 
@@ -128,8 +130,12 @@ impl MoveObject {
         }
     }
 
-    pub fn type_(&self) -> &StructTag {
+    pub fn type_(&self) -> &MoveObjectType {
         &self.type_
+    }
+
+    pub fn type_tag(&self) -> TypeTag {
+        TypeTag::Struct(Box::new(self.type_().clone().into()))
     }
 
     pub fn is_type(&self, s: &StructTag) -> bool {
@@ -286,7 +292,7 @@ impl MoveObject {
     /// and the (transitive) dependencies of `self.type_` in order for this
     /// to succeed. Failure will result in an `ObjectSerializationError`
     pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.type_().clone(), resolver)
+        Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
     }
 
     pub fn get_struct_layout_from_struct_tag(
@@ -428,7 +434,7 @@ impl Data {
         }
     }
 
-    pub fn type_(&self) -> Option<&StructTag> {
+    pub fn type_(&self) -> Option<&MoveObjectType> {
         use Data::*;
         match self {
             Move(m) => Some(m.type_()),
@@ -439,7 +445,7 @@ impl Data {
     pub fn struct_tag(&self) -> Option<StructTag> {
         use Data::*;
         match self {
-            Move(m) => Some(m.type_().clone()),
+            Move(m) => Some(m.type_().clone().into()),
             Package(_) => None,
         }
     }
@@ -676,7 +682,7 @@ impl ObjectInner {
         }
     }
 
-    pub fn type_(&self) -> Option<&StructTag> {
+    pub fn type_(&self) -> Option<&MoveObjectType> {
         self.data.type_()
     }
 

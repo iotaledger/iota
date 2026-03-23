@@ -79,11 +79,7 @@ impl OwnerIndexInfo {
     pub fn new(object: &Object) -> Self {
         Self {
             version: object.version(),
-            type_: object
-                .type_()
-                .expect("packages cannot be owned")
-                .clone()
-                .into(),
+            type_: object.type_().expect("packages cannot be owned").clone(),
         }
     }
 }

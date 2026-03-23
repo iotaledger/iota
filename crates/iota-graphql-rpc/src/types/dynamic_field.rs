@@ -8,7 +8,6 @@ use async_graphql::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
 use iota_types::{
-    base_types::TypeTag,
     dynamic_field::{
         DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
         visitor::{Field, FieldVisitor},
@@ -73,7 +72,7 @@ impl DynamicField {
     async fn name(&self, ctx: &Context<'_>) -> Result<Option<MoveValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        let type_ = TypeTag::from(self.super_.native.type_().clone());
+        let type_ = self.super_.native.type_tag();
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",
@@ -102,7 +101,7 @@ impl DynamicField {
     async fn value(&self, ctx: &Context<'_>) -> Result<Option<DynamicFieldValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
-        let type_ = TypeTag::from(self.super_.native.type_().clone());
+        let type_ = self.super_.native.type_tag();
         let layout = resolver.type_layout(type_.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error fetching layout for type {}: {e}",

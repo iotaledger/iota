@@ -124,7 +124,7 @@ pub enum ObjectType {
     /// Move package containing one or more bytecode modules
     Package,
     /// A Move struct of the given type
-    Struct(StructTag),
+    Struct(MoveObjectType),
 }
 
 impl From<&Object> for ObjectType {
@@ -142,7 +142,7 @@ impl TryFrom<ObjectType> for StructTag {
     fn try_from(o: ObjectType) -> Result<Self, anyhow::Error> {
         match o {
             ObjectType::Package => Err(anyhow!("Cannot create StructTag from Package")),
-            ObjectType::Struct(s) => Ok(s),
+            ObjectType::Struct(s) => Ok(s.into()),
         }
     }
 }
@@ -155,7 +155,7 @@ impl FromStr for ObjectType {
             Ok(ObjectType::Package)
         } else {
             let tag = parse_iota_struct_tag(s)?;
-            Ok(ObjectType::Struct(tag))
+            Ok(ObjectType::Struct(tag.into()))
         }
     }
 }
