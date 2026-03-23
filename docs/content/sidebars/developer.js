@@ -645,6 +645,7 @@ const developer = [
         label: 'IOTA SDK',
         items: iotaSDK,
     },
+    'developer/references/rust-sdk',
     {
         type: 'category',
         label: 'GraphQL',
