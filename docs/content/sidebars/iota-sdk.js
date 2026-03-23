@@ -6,17 +6,17 @@ const iotaSDK = [
         type: 'category',
         label: 'Getting Started',
         items: [
-            'developer/sdks/iota-sdk/getting-started/rust',
-            'developer/sdks/iota-sdk/getting-started/go',
-            'developer/sdks/iota-sdk/getting-started/kotlin',
-            'developer/sdks/iota-sdk/getting-started/python',
+            'developer/iota-sdk/getting-started/rust',
+            'developer/iota-sdk/getting-started/go',
+            'developer/iota-sdk/getting-started/kotlin',
+            'developer/iota-sdk/getting-started/python',
         ],
     },
     {
         type: 'category',
         label: 'Explantations',
         items: [
-            'developer/sdks/iota-sdk/explanations/place-holder',
+            'developer/iota-sdk/explanations/place-holder',
         ],
     },
     {
@@ -27,7 +27,7 @@ const iotaSDK = [
                 type: 'category',
                 label: 'Accounts and Addresses',
                 items: [
-                    'developer/sdks/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
+                    'developer/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
                 ],
             },
         ],
@@ -36,7 +36,7 @@ const iotaSDK = [
         type: 'category',
         label: 'API Reference',
         items: [
-            'developer/sdks/iota-sdk/references/place-holder',
+            'developer/iota-sdk/references/place-holder',
         ],
     },
 ];
