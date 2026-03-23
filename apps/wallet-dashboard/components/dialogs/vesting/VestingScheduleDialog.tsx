@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SupplyIncreaseVestingPortfolio } from '@/lib/interfaces';
+import { SupplyIncreaseVestingPortfolio, SupplyIncreaseUserType } from '@/lib/interfaces';
 import {
     Dialog,
     DialogContent,
@@ -18,12 +18,14 @@ interface VestingScheduleDialogProps {
     setOpen: (bool: boolean) => void;
     open: boolean;
     vestingPortfolio: SupplyIncreaseVestingPortfolio;
+    userType?: SupplyIncreaseUserType;
 }
 
 export function VestingScheduleDialog({
     open,
     setOpen,
     vestingPortfolio,
+    userType,
 }: VestingScheduleDialogProps): React.JSX.Element {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -34,13 +36,15 @@ export function VestingScheduleDialog({
                 <Header title="Rewards Schedule" onClose={() => setOpen(false)} titleCentered />
                 <DialogBody>
                     <div className="flex flex-col gap-md">
-                        <InfoBox
-                            title="Please note"
-                            supportingText="Amounts are estimates and may not be fully accurate."
-                            style={InfoBoxStyle.Elevated}
-                            type={InfoBoxType.Warning}
-                            icon={<Warning />}
-                        />
+                        {userType === SupplyIncreaseUserType.Staker && (
+                            <InfoBox
+                                title="Please note"
+                                supportingText="Amounts are estimates and may not be fully accurate."
+                                style={InfoBoxStyle.Elevated}
+                                type={InfoBoxType.Warning}
+                                icon={<Warning />}
+                            />
+                        )}
                         <div className="h-[440px] overflow-y-auto">
                             <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 md:grid-cols-4">
                                 {vestingPortfolio?.map((vestingObject, index) => (
