@@ -38,6 +38,7 @@ move-package.workspace = true
 move-stdlib-natives.workspace = true
 move-symbol-pool.workspace = true
 move-unit-test.workspace = true
+move-trace-format.workspace = true
 move-vm-profiler.workspace = true
 move-vm-runtime.workspace = true
 move-vm-test-utils.workspace = true

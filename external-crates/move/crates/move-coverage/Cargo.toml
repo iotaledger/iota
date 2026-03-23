@@ -26,5 +26,9 @@ move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-ir-types.workspace = true
 
+lcov.workspace = true
+move-trace-format.workspace = true
+move-compiler.workspace = true
+
 [features]
 default = []
