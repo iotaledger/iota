@@ -6,18 +6,19 @@ This file guides agents writing or reviewing documentation in this directory. Al
 
 Diátaxis organizes docs on two axes: **action vs. cognition** and **acquisition vs. application**. This produces four distinct types. Mixing types degrades all of them.
 
-| Type | User's question | User state | Axis |
-|---|---|---|---|
-| Tutorial | "Teach me how to do this" | New learner | Action + acquiring |
-| How-to guide | "How do I achieve X?" | Experienced, goal-driven | Action + applying |
-| Reference | "What is the exact spec for Y?" | Working practitioner | Cognition + applying |
-| Explanation | "Why does this work this way?" | Reflective practitioner | Cognition + acquiring |
+| Type         | User's question                 | User state               | Axis                  |
+| ------------ | ------------------------------- | ------------------------ | --------------------- |
+| Tutorial     | "Teach me how to do this"       | New learner              | Action + acquiring    |
+| How-to guide | "How do I achieve X?"           | Experienced, goal-driven | Action + applying     |
+| Reference    | "What is the exact spec for Y?" | Working practitioner     | Cognition + applying  |
+| Explanation  | "Why does this work this way?"  | Reflective practitioner  | Cognition + acquiring |
 
 ### Tutorials
 
 A tutorial guides a learner through acquiring a skill via hands-on activity. The goal is **skill and confidence**, not task completion.
 
 **Rules:**
+
 - Minimize explanation — link out to explanation pages instead
 - Deliver rapid, visible feedback at every step so learners see cause and effect
 - Stay concrete; guide through specific actions, never abstract concepts
@@ -33,6 +34,7 @@ A tutorial guides a learner through acquiring a skill via hands-on activity. The
 A how-to guide directs an **already capable user** through achieving a specific goal. It is a contract: "if you face this situation, follow these steps."
 
 **Rules:**
+
 - Focus strictly on action — no digressions, no teaching moments, no embedded explanations
 - Address real-world goals, not tool mechanics
 - Sequence steps logically in the order the user thinks and works
@@ -107,6 +109,7 @@ This how-to demonstrates how to <concise one-line goal>.
 Reference is technical description users consult **during** their work. It describes the machinery objectively.
 
 **Rules:**
+
 - Describe, don't instruct — no "do this", only "this is"
 - Be authoritative and precise to eliminate all doubt
 - Mirror the product's own structure (e.g., one page per module/type/function)
@@ -122,6 +125,7 @@ Reference is technical description users consult **during** their work. It descr
 Explanation provides context, design decisions, and deeper understanding. It is the only type that makes sense to read away from the product.
 
 **Rules:**
+
 - Make connections across topics and to broader ecosystem context
 - Provide context: design decisions, tradeoffs, constraints, history
 - Discuss alternatives and the reasoning behind choices
