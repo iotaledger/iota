@@ -143,7 +143,6 @@ built_in_ids! {
 
 pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
 
 const fn builtin_address(suffix: u16) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];

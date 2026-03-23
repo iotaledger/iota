@@ -31,9 +31,8 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
-    IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -98,11 +97,6 @@ impl CallArg {
     pub const CLOCK_MUT: Self = Self::Object(ObjectArg::SharedObject {
         id: IOTA_CLOCK_OBJECT_ID,
         initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
-        mutable: true,
-    });
-    pub const AUTHENTICATOR_MUT: Self = Self::Object(ObjectArg::SharedObject {
-        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-        initial_shared_version: IOTA_AUTHENTICATOR_STATE_OBJECT_SHARED_VERSION,
         mutable: true,
     });
 }
