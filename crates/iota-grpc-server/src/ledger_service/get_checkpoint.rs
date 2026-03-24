@@ -258,6 +258,18 @@ pub(crate) fn get_checkpoint_data(
         }
     };
 
+    // Check if the requested checkpoint has been pruned
+    let lowest_available = service
+        .reader
+        .get_lowest_available_checkpoint()
+        .map_err(|e| Status::internal(format!("failed to get lowest available checkpoint: {e}")))?;
+    if sequence_number < lowest_available {
+        return Err(Status::not_found(format!(
+            "Requested checkpoint {sequence_number} is below the lowest available checkpoint {lowest_available}"
+        ))
+        .into());
+    }
+
     let client_max_message_size_bytes = req.max_message_size_bytes;
 
     debug!(

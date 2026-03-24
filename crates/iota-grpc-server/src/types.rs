@@ -847,6 +847,18 @@ impl GrpcReader {
             while start <= end {
                 // Try fetching historical data from the DB first
                 if start <= latest {
+                    // Check if the checkpoint has been pruned since we started
+                    // (e.g. genesis checkpoint 0 is always in DB but may be
+                    // below the pruning watermark).
+                    let lowest_available = state_reader
+                        .get_lowest_available_checkpoint()
+                        .map_err(|e| Status::internal(format!("Failed to get lowest available checkpoint: {e}")))?;
+                    if start < lowest_available {
+                        Err(Status::not_found(format!(
+                            "Checkpoint {data_type_name} {start} is below the lowest available checkpoint {lowest_available}"
+                        )))?;
+                    }
+
                     match fetch_historical(state_reader.clone(), start)? {
                         Some(item) => {
                             debug!("[profile][grpc] Fetched checkpoint {data_type_name} for index {start} from DB.");
