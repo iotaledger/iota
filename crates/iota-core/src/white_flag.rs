@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! White flag conflict resolution for post-consensus owned object locking.
@@ -35,6 +34,13 @@ use crate::{
     consensus_handler::{SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction},
 };
 
+/// Dropped transactions paired with their conflict errors, and the acquired
+/// locks for surviving transactions.
+type ConflictResolutionResult = (
+    Vec<(TransactionDigest, IotaError)>,
+    HashMap<ObjectRef, LockDetails>,
+);
+
 /// Resolves owned object conflicts for white-flag transactions using persistent
 /// object locks. Runs BEFORE PostConsensusTxReorder.
 ///
@@ -58,9 +64,9 @@ use crate::{
 ///
 /// # Returns
 ///
-/// * `Ok((Vec<TransactionDigest>, HashMap<ObjectRef, LockDetails>))` - Tuple
-///   of:
-///   - Vector of dropped transaction digests
+/// * `Ok((Vec<(TransactionDigest, IotaError)>, HashMap<ObjectRef,
+///   LockDetails>))` - Tuple of:
+///   - Vector of (dropped transaction digest, reason for dropping)
 ///   - HashMap of accumulated locks acquired in this commit
 /// * `Err(IotaError)` - If lock acquisition or object loading fails
 ///
@@ -71,8 +77,8 @@ use crate::{
 pub fn resolve_owned_object_conflicts(
     epoch_store: &AuthorityPerEpochStore,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
-) -> IotaResult<(Vec<TransactionDigest>, HashMap<ObjectRef, LockDetails>)> {
-    let mut dropped = Vec::new();
+) -> IotaResult<ConflictResolutionResult> {
+    let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
 
     transactions.retain(|tx| {
@@ -107,7 +113,7 @@ pub fn resolve_owned_object_conflicts(
                     error = ?e,
                     "Failed to extract owned input objects for white flag transaction, dropping"
                 );
-                dropped.push(tx_digest);
+                dropped.push((tx_digest, e));
                 return false; // drop tx on error
             }
         };
@@ -118,13 +124,19 @@ pub fn resolve_owned_object_conflicts(
         // Tier 3: DB (committed data)
         for obj_ref in &owned_inputs {
             // Tier 1: Check local tracking (within this commit)
-            if current_commit_locks.contains_key(obj_ref) {
+            if let Some(&pending_transaction) = current_commit_locks.get(obj_ref) {
                 debug!(
                     ?tx_digest,
                     ?obj_ref,
                     "White flag transaction conflicts with earlier tx in same commit, dropping"
                 );
-                dropped.push(tx_digest);
+                dropped.push((
+                    tx_digest,
+                    IotaError::ObjectLockConflict {
+                        obj_ref: *obj_ref,
+                        pending_transaction,
+                    },
+                ));
                 return false;
             }
 
@@ -136,7 +148,13 @@ pub fn resolve_owned_object_conflicts(
                     ?locked_by,
                     "White flag transaction conflicts with quarantined lock, dropping"
                 );
-                dropped.push(tx_digest);
+                dropped.push((
+                    tx_digest,
+                    IotaError::ObjectLockConflict {
+                        obj_ref: *obj_ref,
+                        pending_transaction: locked_by,
+                    },
+                ));
                 return false;
             }
 
@@ -151,7 +169,13 @@ pub fn resolve_owned_object_conflicts(
                                 ?locked_by,
                                 "White flag transaction conflicts with persistent lock, dropping"
                             );
-                            dropped.push(tx_digest);
+                            dropped.push((
+                                tx_digest,
+                                IotaError::ObjectLockConflict {
+                                    obj_ref: *obj_ref,
+                                    pending_transaction: locked_by,
+                                },
+                            ));
                             return false;
                         }
                         Ok(None) => {} // object is unlocked, continue checking
@@ -162,7 +186,7 @@ pub fn resolve_owned_object_conflicts(
                                 error = ?e,
                                 "Failed to check persistent lock for white flag transaction, dropping"
                             );
-                            dropped.push(tx_digest);
+                            dropped.push((tx_digest, e));
                             return false;
                         }
                     }
@@ -173,7 +197,7 @@ pub fn resolve_owned_object_conflicts(
                         error = ?e,
                         "Failed to access epoch store tables for white flag transaction, dropping"
                     );
-                    dropped.push(tx_digest);
+                    dropped.push((tx_digest, e));
                     return false;
                 }
             }

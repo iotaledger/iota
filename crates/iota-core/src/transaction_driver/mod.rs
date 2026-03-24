@@ -22,7 +22,7 @@ use iota_common::backoff::ExponentialBackoff;
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_types::{
     committee::EpochId,
-    messages_grpc::{SubmitTxRequest, SubmitTxResult},
+    messages_grpc::{SubmitTransactionResult, SubmitTransactionsRequest},
 };
 pub use metrics::*;
 use parking_lot::Mutex;
@@ -144,10 +144,10 @@ where
     /// - The transaction is finalized.
     /// - The transaction observes a non-retriable error.
     /// - Timeout is reached.
-    #[instrument(level = "error", skip_all, fields(tx_digest = ?request.transaction.as_ref().map(|t| t.digest()), ping = %request.transaction.is_none()))]
+    #[instrument(level = "error", skip_all, fields(tx_digest = ?request.tx_digest(), ping = %request.is_ping()))]
     pub async fn drive_transaction(
         &self,
-        request: SubmitTxRequest,
+        request: SubmitTransactionsRequest,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
@@ -159,7 +159,7 @@ where
         // / reference_gas_price.
         let amplification_factor: u64 = 1;
 
-        let ping_label = request.transaction.is_none().to_string();
+        let ping_label = request.transactions.is_empty().to_string();
         let ping_label = ping_label.as_str();
 
         let timer = Instant::now();
@@ -207,7 +207,7 @@ where
                                 .transaction_retries
                                 .with_label_values(&["failure", ping_label])
                                 .observe(attempts as f64);
-                            if request.transaction.is_some() {
+                            if !request.transactions.is_empty() {
                                 tracing::info!(
                                     "User transaction failed to finalize (attempt {}), with non-retriable error: {}",
                                     attempts,
@@ -216,7 +216,7 @@ where
                             }
                             return Err(e);
                         }
-                        if request.transaction.is_some() {
+                        if !request.transactions.is_empty() {
                             tracing::info!(
                                 "User transaction failed to finalize (attempt {}): {}. Retrying ...",
                                 attempts,
@@ -258,7 +258,7 @@ where
                             attempts,
                             timeout: duration,
                         };
-                        if request.transaction.is_some() {
+                        if !request.transactions.is_empty() {
                             tracing::info!(
                                 "User transaction timed out after {} attempts. Last error: {}",
                                 attempts,
@@ -276,7 +276,7 @@ where
     async fn drive_transaction_once(
         &self,
         amplification_factor: u64,
-        request: SubmitTxRequest,
+        request: SubmitTransactionsRequest,
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         let auth_agg = self.authority_aggregator.load();
@@ -284,7 +284,7 @@ where
             amplification_factor.min(auth_agg.committee.num_members() as u64);
         let start_time = Instant::now();
         let tx_digest = request.tx_digest();
-        let is_ping = request.transaction.is_none();
+        let is_ping = request.transactions.is_empty();
 
         let (name, submit_txn_result) = self
             .submitter
@@ -296,7 +296,7 @@ where
                 options,
             )
             .await?;
-        if let SubmitTxResult::Rejected { error } = &submit_txn_result {
+        if let SubmitTransactionResult::Rejected { error } = &submit_txn_result {
             return Err(TransactionDriverError::ClientInternal {
                 error: format!(
                     "SubmitTxResult::Rejected should have been returned as an error in submit_transaction(): {error}"
@@ -310,7 +310,7 @@ where
             .get_certified_finalized_effects(
                 &auth_agg,
                 &self.client_monitor,
-                tx_digest,
+                tx_digest.first().cloned(),
                 name,
                 submit_txn_result,
                 options,
@@ -382,7 +382,7 @@ where
                 // Now send a ping transaction to the chosen validator for the provided tx type
                 match self_clone
                     .drive_transaction(
-                        SubmitTxRequest::new_ping(),
+                        SubmitTransactionsRequest::new_ping(),
                         SubmitTransactionOptions {
                             allowed_validators: vec![display_name.clone()],
                             ..Default::default()

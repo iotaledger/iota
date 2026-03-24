@@ -38,7 +38,7 @@ pub(crate) enum TransactionRequestError {
     RejectedByConsensus,
     // Transaction status has been dropped from cache at the validator.
     #[error("Transaction status expired")]
-    StatusExpired(EpochId, u32),
+    StatusExpired(EpochId),
     // Request to submit transaction or get full effects failed.
     #[error("{0}")]
     Aborted(IotaError),
@@ -55,7 +55,7 @@ impl TransactionRequestError {
 
             TransactionRequestError::RejectedAtValidator(error) => error.categorize(),
             TransactionRequestError::RejectedByConsensus => ErrorCategory::Aborted,
-            TransactionRequestError::StatusExpired(_, _) => ErrorCategory::Aborted,
+            TransactionRequestError::StatusExpired(_) => ErrorCategory::Aborted,
             TransactionRequestError::Aborted(error) => error.categorize(),
         }
     }

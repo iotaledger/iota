@@ -662,12 +662,9 @@ impl ConsensusAdapter {
             return;
         }
 
-        // Current code path ensures:
-        // - If transactions.len() > 1, it is a soft bundle. Otherwise transactions
-        //   should have been submitted individually.
-        // - If is_soft_bundle, then all transactions are of UserTransaction kind.
-        // - If not is_soft_bundle, then transactions must contain exactly 1 tx, and
-        //   transactions[0] can be of any kind.
+        // submit_batch enforces that multi-tx batches (soft bundles) are
+        // homogeneous: either all CertifiedTransaction or all UserTransactionV1.
+        // Single-tx submits can be any kind.
         let is_soft_bundle = transactions.len() > 1;
 
         let mut transaction_keys = Vec::new();
@@ -841,6 +838,7 @@ impl ConsensusAdapter {
             || matches!(
                 transactions[0].kind,
                 ConsensusTransactionKind::CertifiedTransaction(_)
+                    | ConsensusTransactionKind::UserTransactionV1(_)
             );
         let send_end_of_publish = if is_user_tx {
             // If we are in RejectUserCerts state and we just drained the list we need to
