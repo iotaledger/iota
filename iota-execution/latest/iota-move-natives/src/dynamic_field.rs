@@ -5,7 +5,7 @@
 use std::collections::VecDeque;
 
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID},
+    base_types::{IotaAddress, ObjectID},
     dynamic_field::derive_dynamic_field_id,
     iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
 };
@@ -63,7 +63,7 @@ macro_rules! get_or_fetch_object {
             &child_ty,
             &layout,
             &annotated_layout,
-            MoveObjectType::from(tag),
+            tag,
         )?
     }};
 }
@@ -259,13 +259,7 @@ pub fn add_child_object(
     let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    object_runtime.add_child_object(
-        parent,
-        child_id,
-        &child_ty,
-        MoveObjectType::from(tag),
-        child,
-    )?;
+    object_runtime.add_child_object(parent, child_id, &child_ty, tag, child)?;
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
 
@@ -543,11 +537,7 @@ pub fn has_child_object_with_ty(
     let tag = struct_tag_core_to_sdk(&tag);
 
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    let has_child = object_runtime.child_object_exists_and_has_type(
-        parent,
-        child_id,
-        &MoveObjectType::from(tag),
-    )?;
+    let has_child = object_runtime.child_object_exists_and_has_type(parent, child_id, &tag)?;
     Ok(NativeResult::ok(
         context.gas_used(),
         smallvec![Value::bool(has_child)],

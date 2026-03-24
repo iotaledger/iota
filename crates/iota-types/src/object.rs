@@ -12,7 +12,7 @@ use std::{
 
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Owner;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{MoveObjectType, StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -23,8 +23,8 @@ use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor}
 use crate::{
     balance::Balance,
     base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef,
-        SequenceNumber, TransactionDigest,
+        IotaAddress, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
+        TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::{default_hash, deterministic_random_account_key},
@@ -68,7 +68,7 @@ impl MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
     /// `contents`.
     pub fn new_from_execution(
-        type_: MoveObjectType,
+        type_: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
@@ -84,7 +84,7 @@ impl MoveObject {
     /// Creates a new Move object of type `type_` with BCS encoded bytes in
     /// `contents`. It allows to set a `max_move_object_size` for that.
     pub fn new_from_execution_with_limit(
-        type_: MoveObjectType,
+        type_: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         max_move_object_size: u64,
@@ -98,7 +98,7 @@ impl MoveObject {
             ));
         }
         Ok(Self {
-            type_,
+            type_: type_.into(),
             version,
             contents,
         })
@@ -108,7 +108,7 @@ impl MoveObject {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                StructTag::new_gas_coin().into(),
+                StructTag::new_gas_coin(),
                 version,
                 GasCoin::new(id, value).to_bcs_bytes(),
                 256,
@@ -121,7 +121,7 @@ impl MoveObject {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                MoveObjectType::coin(coin_type),
+                StructTag::new_coin(coin_type),
                 version,
                 Coin::new(id, value).to_bcs_bytes(),
                 256,
@@ -134,8 +134,12 @@ impl MoveObject {
         &self.type_
     }
 
+    pub fn type_tag(&self) -> TypeTag {
+        TypeTag::Struct(Box::new(self.type_().clone().into()))
+    }
+
     pub fn is_type(&self, s: &StructTag) -> bool {
-        self.type_.is(s)
+        &self.type_ == s
     }
 
     pub fn id(&self) -> ObjectID {
@@ -197,7 +201,7 @@ impl MoveObject {
     }
 
     pub fn is_clock(&self) -> bool {
-        self.type_.is(&StructTag::new_clock())
+        self.type_ == StructTag::new_clock()
     }
 
     pub fn version(&self) -> SequenceNumber {
@@ -275,12 +279,12 @@ impl MoveObject {
         self.contents
     }
 
-    pub fn into_type(self) -> MoveObjectType {
-        self.type_
+    pub fn into_type(self) -> StructTag {
+        self.type_.into()
     }
 
-    pub fn into_inner(self) -> (MoveObjectType, Vec<u8>) {
-        (self.type_, self.contents)
+    pub fn into_inner(self) -> (StructTag, Vec<u8>) {
+        (self.type_.into(), self.contents)
     }
 
     /// Get a `MoveStructLayout` for `self`.
@@ -359,15 +363,15 @@ impl MoveObject {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.type_.coin_type_maybe() {
+        if let Some(type_tag) = self.type_.coin_type_opt() {
             let balance = self.get_coin_value_unsafe();
             Ok(if balance > 0 {
-                BTreeMap::from([(type_tag, balance)])
+                BTreeMap::from([(type_tag.clone(), balance)])
             } else {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(&self.type_().clone().into())?;
+            let layout = layout_resolver.get_annotated_layout(&self.type_().clone())?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
@@ -721,9 +725,9 @@ impl ObjectInner {
         }
     }
 
-    pub fn coin_type_maybe(&self) -> Option<TypeTag> {
+    pub fn coin_type_opt(&self) -> Option<&TypeTag> {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().coin_type_maybe()
+            move_object.type_().coin_type_opt()
         } else {
             None
         }

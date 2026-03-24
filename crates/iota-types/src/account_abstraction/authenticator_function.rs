@@ -59,7 +59,7 @@ impl TryFrom<Object> for AuthenticatorFunctionRefV1 {
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_authenticator_function_ref_v1() {
+                if AuthenticatorFunctionRefV1::is_authenticator_function_ref_v1(o.type_()) {
                     return AuthenticatorFunctionRefV1::from_bcs_bytes(o.contents());
                 }
             }

@@ -42,7 +42,7 @@ async fn test_regulated_coin_v1_types() {
             continue;
         }
         let t = object.type_().unwrap();
-        if t.is_coin_deny_cap_v1() {
+        if t.is_deny_cap_v1() {
             assert!(deny_cap_object.is_none());
             deny_cap_object = Some(object);
         } else if t.is_regulated_coin_metadata() {
