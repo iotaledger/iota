@@ -843,7 +843,7 @@ impl IotaNode {
             &transaction_orchestrator.clone(),
             &config,
             &prometheus_registry,
-            server_version,
+            server_version.clone(),
         )
         .await?;
 
@@ -891,6 +891,7 @@ impl IotaNode {
             state_sync_store.clone(),
             executor,
             &registry_service.default_registry(),
+            server_version,
         )
         .await?;
 
@@ -2432,6 +2433,7 @@ async fn build_grpc_server(
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     prometheus_registry: &Registry,
+    server_version: ServerVersion,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2453,7 +2455,7 @@ async fn build_grpc_server(
     // Create GrpcReader
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
         rest_read_store,
-        Some(env!("CARGO_PKG_VERSION").to_string()),
+        Some(server_version.to_string()),
     ));
 
     // Create gRPC server metrics
