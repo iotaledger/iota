@@ -2031,6 +2031,9 @@ impl AuthorityPerEpochStore {
                         SequencedConsensusTransactionKey::External(
                             ConsensusTransactionKey::Certificate(digest),
                         ) => (digest, (*deferral_key, tx.suggested_gas_price)),
+                        SequencedConsensusTransactionKey::External(
+                            ConsensusTransactionKey::UserTransaction(digest),
+                        ) => (digest, (*deferral_key, tx.suggested_gas_price)),
                         _ => {
                             panic!(
                                 "deferred randomness transaction was not a user certificate: {tx:?}"
