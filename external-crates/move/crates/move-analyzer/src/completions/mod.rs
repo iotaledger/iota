@@ -83,7 +83,6 @@ pub fn on_completion_request(
     ide_files_root: VfsPath,
     pkg_dependencies: Arc<Mutex<BTreeMap<PathBuf, PrecomputedPkgInfo>>>,
     implicit_deps: Dependencies,
-    auto_import: bool,
 ) {
     eprintln!("handling completion request");
     let parameters = serde_json::from_value::<CompletionParams>(request.params.clone())
@@ -109,7 +108,7 @@ pub fn on_completion_request(
         &path,
         pos,
         implicit_deps,
-        auto_import,
+        context.auto_imports,
     )
     .unwrap_or_default();
     let completions_len = completions.len();
