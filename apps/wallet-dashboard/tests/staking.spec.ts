@@ -36,7 +36,6 @@ test.describe('Wallet staking', () => {
 
         await submitAndVerifyStaking(dashboardPage, context);
 
-        await dashboardPage.reload();
         const stakedAmount = await getStakedAmount(dashboardPage);
         expect(stakedAmount).toEqual(STAKE_AMOUNT.toString());
 
@@ -60,7 +59,6 @@ test.describe('Wallet staking', () => {
 
         await submitAndVerifyStaking(dashboardPage, context);
 
-        await dashboardPage.reload();
         const stakedAmount = await getStakedAmount(dashboardPage);
         expect(stakedAmount).toEqual(STAKE_AMOUNT.toString());
 
@@ -69,7 +67,6 @@ test.describe('Wallet staking', () => {
         await submitAndVerifyPartialUnstaking(dashboardPage, context, partialAmount);
 
         // Verify remaining stake
-        await dashboardPage.reload();
         const remainingStake = await getStakedAmount(dashboardPage);
         expect(remainingStake).toEqual(partialAmount);
 
