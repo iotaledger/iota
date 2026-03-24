@@ -1,4 +1,4 @@
-grpc_url: "https://api.devnet.iota.cafe"
+rpc_url: "https://api.devnet.iota.cafe"
 graphql_url: "https://graphql.devnet.iota.cafe"
 checkpoints_dir: "checkpoints_devnet"
 genesis_blob_download_url: "https://dbfiles.devnet.iota.cafe/genesis.blob"

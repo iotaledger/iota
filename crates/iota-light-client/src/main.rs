@@ -216,7 +216,7 @@ pub async fn main() -> Result<()> {
                 CheckpointId::SequenceNumber(seq) => seq,
                 CheckpointId::Digest(_) => {
                     let client = IotaClientBuilder::default()
-                        .build(config.grpc_url.as_str())
+                        .build(config.rpc_url.as_str())
                         .await?;
                     let read_api = client.read_api();
                     let checkpoint = read_api.get_checkpoint(checkpoint_id).await?;

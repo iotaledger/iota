@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
@@ -61,7 +61,7 @@ pub fn extract_verified_effects_and_events(
 pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
-            .build(config.grpc_url.as_str())
+            .build(config.rpc_url.as_str())
             .await?,
     );
 
@@ -98,7 +98,7 @@ pub async fn get_verified_effects_and_events(
     transaction_digest: TransactionDigest,
 ) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
     let iota_client = IotaClientBuilder::default()
-        .build(config.grpc_url.as_str())
+        .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
 
@@ -121,9 +121,9 @@ pub async fn get_verified_effects_and_events(
             .fetch_full_checkpoint(seq)
             .await
             .context("Cannot get full checkpoint")?
-    } else {
+    } else if let Some(ref grpc_url) = config.grpc_url {
         // use gRPC API (for custom networks)
-        let client = iota_grpc_client::Client::connect(config.grpc_url.as_str())
+        let client = iota_grpc_client::Client::connect(grpc_url.as_str())
             .await
             .context("Failed to connect to gRPC server")?;
         client
@@ -140,6 +140,8 @@ pub async fn get_verified_effects_and_events(
             .context(format!("Failed to parse checkpoint data for {seq}"))?
             .try_into()
             .context(format!("Failed to convert checkpoint types for {seq}"))?
+    } else {
+        bail!("No checkpoint store or gRPC URL configured to fetch checkpoint data")
     };
 
     // Load the list of stored checkpoints
@@ -197,7 +199,7 @@ pub async fn get_verified_checkpoint(
     object_id: ObjectID,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
-        .build(config.grpc_url.as_str())
+        .build(config.rpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
     let object_json = read_api

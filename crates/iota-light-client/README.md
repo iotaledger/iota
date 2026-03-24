@@ -23,8 +23,8 @@ The light client requires a config file and a directory to cache checkpoints, an
 The config file for the light client takes a URL for a full node, a directory to store checkpoint summaries (that must exist) and within the directory the name of the genesis blob for the IOTA network.
 
 ```
-# A full node gRPC endpoint to query the latest network state (mandatory)
-grpc_url: "https://api.mainnet.iota.cafe"
+# A full node JSON RPC endpoint to query the latest network state (mandatory)
+rpc_url: "https://api.mainnet.iota.cafe"
 
 # A full node GraphQL RPC endpoint to query end-of-epoch checkpoints (optional if archive store config is provided)
 graphql_url: "https://graphql.mainnet.iota.cafe"
