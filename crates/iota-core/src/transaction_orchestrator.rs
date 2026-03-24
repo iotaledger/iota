@@ -26,7 +26,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
-    messages_grpc::SubmitTxRequest,
+    messages_grpc::SubmitTransactionsRequest,
     quorum_driver_types::{
         EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
         ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
@@ -173,7 +173,7 @@ where
             let handler = Arc::new(
                 QuorumDriverHandlerBuilder::new(validators.clone(), qd_metrics)
                     .with_notifier(notifier.clone())
-                .with_reconfig_observer(reconfig_observer)
+                    .with_reconfig_observer(reconfig_observer)
                     .start(),
             );
             let receiver = handler.subscribe_to_effects();
@@ -341,7 +341,7 @@ where
 
         let td_response = td
             .drive_transaction(
-                SubmitTxRequest::new_transaction(request.transaction),
+                SubmitTransactionsRequest::new_transaction(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
                     ..Default::default()
@@ -755,9 +755,7 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
 fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
     match e {
         TransactionDriverError::ValidationFailed { error } => {
-            QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature {
-                error,
-            })
+            QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature { error })
         }
         TransactionDriverError::TimeoutWithLastRetriableError { .. } => {
             QuorumDriverError::TimeoutBeforeFinality
