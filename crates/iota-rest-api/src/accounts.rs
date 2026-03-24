@@ -71,7 +71,7 @@ async fn list_account_objects(
                         owner: info.owner,
                         object_id: info.object_id,
                         version: info.version,
-                        type_: info.type_.into(),
+                        type_: info.type_,
                     }
                     .pipe(Ok)
                 })

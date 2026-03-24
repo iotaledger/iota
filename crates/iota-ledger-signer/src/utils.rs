@@ -78,7 +78,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
     };
 
     let move_object = MoveObject::new_from_execution_with_limit(
-        move_object_type,
+        move_object_type.into(),
         data.version,
         bcs_bytes,
         250 * 1024, // The limit is not important here, it is copied from the protocol config

@@ -314,7 +314,7 @@ pub fn end_transaction(
     let object_runtime_ref: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let mut config_settings = vec![];
     for child in object_runtime_ref.all_active_child_objects() {
-        let s: StructTag = child.move_type.clone().into();
+        let s: StructTag = child.move_type.clone();
         let is_setting = DynamicFieldInfo::is_dynamic_field(&s)
             && matches!(&s.type_params()[1], TypeTag::Struct(s) if s.is_config_setting());
         if is_setting {
@@ -674,10 +674,8 @@ pub fn allocate_receiving_ticket_for_object(
             E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET,
         ));
     };
-    let move_object = {
-        MoveObject::new_from_execution_with_limit(tag.into(), object_version, bytes, 250 * 1024)
-    }
-    .unwrap();
+    let move_object =
+        MoveObject::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024).unwrap();
 
     let Some((owner, _)) = inventories
         .address_inventories

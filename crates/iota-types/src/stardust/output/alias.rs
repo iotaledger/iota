@@ -104,7 +104,7 @@ impl TryFrom<&Object> for AliasOutput {
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_alias_output() {
+                if AliasOutput::is_alias_output(o.type_()) {
                     return AliasOutput::from_bcs_bytes(o.contents());
                 }
             }

@@ -10,7 +10,7 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_types::stardust::output::basic::BasicOutput;
 use iota_types::{
     balance::Balance,
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
     coin::Coin,
     collection_types::Bag,
     id::UID,
@@ -44,7 +44,7 @@ pub fn create_coin(
     let coin = Coin::new(object_id, amount);
     let move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::coin(coin_type.to_type_tag()),
+            StructTag::new_coin(coin_type.to_type_tag()),
             version,
             bcs::to_bytes(&coin)?,
             protocol_config,
@@ -154,7 +154,7 @@ impl BasicOutputExt for BasicOutput {
     ) -> Result<Object> {
         let move_object = {
             MoveObject::new_from_execution(
-                BasicOutput::tag(coin_type.to_type_tag()).into(),
+                BasicOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(self)?,
                 protocol_config,
