@@ -156,6 +156,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
                     staked_iota: {
                         fields: {
                             pool_id: stake.stakingPool,
+                            stake_activation_epoch: stake.stakeActiveEpoch,
                         },
                     },
                 },
@@ -163,7 +164,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         }));
     }, [supplyIncreaseVestingUnlockedStakes]);
 
-    // Convert normal stakes to IotaObjectData format for PTB
     const existingStakedObjects = useMemo(() => {
         if (!delegatedStakes) return [];
 
@@ -176,6 +176,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
                         dataType: 'moveObject' as const,
                         fields: {
                             pool_id: delegation.stakingPool,
+                            stake_activation_epoch: stake.stakeActiveEpoch,
                         },
                     },
                 })),
@@ -196,8 +197,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
             const ptb = createCollectAllTimelocksTransaction({
                 address,
                 timelockObjectIds: supplyIncreaseVestingUnlockedObjectIds,
-                timelockedStakedObjects: supplyIncreaseVestingUnlockedStakeObjectData as never,
-                existingStakedObjects: existingStakedObjects as never,
+                timelockedStakedObjects: supplyIncreaseVestingUnlockedStakeObjectData,
+                existingStakedObjects: existingStakedObjects,
             });
 
             ptb.setSenderIfNotSet(address);

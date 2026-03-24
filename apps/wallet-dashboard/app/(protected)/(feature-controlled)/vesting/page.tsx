@@ -73,7 +73,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
         useState<TimelockedStakedObjectsGrouped | null>(null);
     const [collectTxDigest, setCollectTxDigest] = useState<string | null>(null);
-    const [showCollectSummary, setShowCollectSummary] = useState(true);
+    const [showCollectSummary, setShowCollectSummary] = useState(false);
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
@@ -261,6 +261,34 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
+    if (showCollectSummary && collectTxDigest && collectTransaction) {
+        return (
+            <div className="flex w-full flex-col items-center justify-center gap-lg justify-self-center">
+                <div className="flex w-full flex-col gap-lg md:w-3/4">
+                    <Panel>
+                        <div className="flex items-center justify-between pr-lg pt-lg">
+                            <Title title="Collection Summary" size={TitleSize.Medium} />
+                            <Button
+                                size={ButtonSize.Small}
+                                type={ButtonType.Ghost}
+                                onClick={() => setShowCollectSummary(false)}
+                                icon={<Close />}
+                                testId="close-icon"
+                                aria-label="Close"
+                            />
+                        </div>
+                        <div className="px-lg py-lg">
+                            <CollectSummary
+                                transaction={collectTransaction}
+                                activeAddress={address}
+                            />
+                        </div>
+                    </Panel>
+                </div>
+            </div>
+        );
+    }
+
     const hasAvailableClaiming =
         !!supplyIncreaseVestingSchedule.availableClaiming &&
         supplyIncreaseVestingSchedule.availableClaiming !== 0n;
@@ -271,28 +299,6 @@ export default function VestingDashboardPage(): JSX.Element {
             <>
                 <div className="flex w-full flex-col items-center justify-center gap-lg justify-self-center">
                     <div className="flex w-full flex-col gap-lg md:w-3/4">
-                        {showCollectSummary && collectTxDigest && collectTransaction && (
-                            <Panel>
-                                <div className="flex items-center justify-between pr-lg pt-lg">
-                                    <Title title="Collection Summary" size={TitleSize.Medium} />
-                                    <Button
-                                        size={ButtonSize.Small}
-                                        type={ButtonType.Ghost}
-                                        onClick={() => setShowCollectSummary(false)}
-                                        icon={<Close />}
-                                        testId="close-icon"
-                                        aria-label="Close"
-                                    />
-                                </div>
-                                <div className="px-lg py-lg">
-                                    <CollectSummary
-                                        transaction={collectTransaction}
-                                        activeAddress={address}
-                                    />
-                                </div>
-                            </Panel>
-                        )}
-
                         <SupplyIncreaseVestingOverview
                             customButton={
                                 <Button

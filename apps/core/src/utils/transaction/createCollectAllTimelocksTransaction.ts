@@ -3,13 +3,40 @@
 
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS, IOTA_CLOCK_OBJECT_ID } from '@iota/iota-sdk/utils';
-import type { IotaObjectData } from '@iota/iota-sdk/client';
+
+// Timelocked stake: fields.staked_iota.fields.{pool_id, stake_activation_epoch}
+export interface TimelockedStakeObjectInput {
+    objectId: string;
+    content: {
+        dataType: 'moveObject';
+        fields: {
+            staked_iota: {
+                fields: {
+                    pool_id: string;
+                    stake_activation_epoch: string;
+                };
+            };
+        };
+    };
+}
+
+// Regular stake: fields.{pool_id, stake_activation_epoch}
+export interface RegularStakeObjectInput {
+    objectId: string;
+    content: {
+        dataType: 'moveObject';
+        fields: {
+            pool_id: string;
+            stake_activation_epoch: string;
+        };
+    };
+}
 
 interface CreateCollectAllTimelocksTransactionOptions {
     address: string;
     timelockObjectIds: string[];
-    timelockedStakedObjects: IotaObjectData[];
-    existingStakedObjects?: IotaObjectData[];
+    timelockedStakedObjects: TimelockedStakeObjectInput[];
+    existingStakedObjects?: RegularStakeObjectInput[];
 }
 
 export function createCollectAllTimelocksTransaction({
@@ -38,33 +65,32 @@ export function createCollectAllTimelocksTransaction({
         coins.push(coin);
     }
 
-    // Unlock timelock stakes and group by pool
-    const stakedIotaByPool = new Map<
+    // Unlock timelock stakes and group by (pool_id, stake_activation_epoch)
+    const stakedIotaByKey = new Map<
         string,
         { $kind: 'NestedResult'; NestedResult: [number, number] }[]
     >();
 
     for (const stakedObject of timelockedStakedObjects) {
-        const poolId = extractPoolId(stakedObject);
+        const poolKey = extractPoolKey(stakedObject);
 
         const [unlockedStakedIota] = ptb.moveCall({
             target: `0x3::timelocked_staking::unlock_with_clock`,
             arguments: [ptb.object(stakedObject.objectId), ptb.object(IOTA_CLOCK_OBJECT_ID)],
         });
 
-        if (poolId) {
-            if (!stakedIotaByPool.has(poolId)) {
-                stakedIotaByPool.set(poolId, []);
+        if (poolKey) {
+            if (!stakedIotaByKey.has(poolKey)) {
+                stakedIotaByKey.set(poolKey, []);
             }
-            stakedIotaByPool.get(poolId)!.push(unlockedStakedIota);
+            stakedIotaByKey.get(poolKey)!.push(unlockedStakedIota);
         } else {
             ptb.transferObjects([unlockedStakedIota], ptb.pure.address(address));
         }
     }
 
-    // Merge stakes by pool and join with existing stakes
-    for (const [poolId, stakedIotaObjects] of stakedIotaByPool.entries()) {
-        const existingStake = findExistingStakeForPool(existingStakedObjects, poolId);
+    for (const [poolKey, stakedIotaObjects] of stakedIotaByKey.entries()) {
+        const existingStake = findExistingStakeForKey(existingStakedObjects, poolKey);
 
         if (existingStake) {
             joinStakesWithExisting(ptb, existingStake.objectId, stakedIotaObjects);
@@ -84,31 +110,21 @@ export function createCollectAllTimelocksTransaction({
     return ptb;
 }
 
-function extractPoolId(stakedObject: IotaObjectData): string | null {
-    const content = stakedObject.content;
-    if (content?.dataType === 'moveObject' && content?.fields) {
-        const fields = content.fields as Record<string, unknown>;
-        const stakedIotaField = fields.staked_iota;
-        if (stakedIotaField && typeof stakedIotaField === 'object') {
-            const stakedFields = stakedIotaField as Record<string, unknown>;
-            const nestedFields = stakedFields.fields as Record<string, unknown> | undefined;
-            return (nestedFields?.pool_id as string) || null;
-        }
+function extractPoolKey(stakedObject: TimelockedStakeObjectInput): string | null {
+    const stakedIotaFields = stakedObject.content.fields.staked_iota?.fields;
+    if (stakedIotaFields?.pool_id && stakedIotaFields?.stake_activation_epoch) {
+        return `${stakedIotaFields.pool_id}:${stakedIotaFields.stake_activation_epoch}`;
     }
     return null;
 }
 
-function findExistingStakeForPool(
-    existingStakes: IotaObjectData[],
-    poolId: string,
-): IotaObjectData | undefined {
-    return existingStakes.find((stake) => {
-        if (stake.content?.dataType === 'moveObject' && stake.content?.fields) {
-            const fields = stake.content.fields as Record<string, unknown>;
-            return (fields.pool_id as string) === poolId;
-        }
-        return false;
-    });
+function findExistingStakeForKey(
+    existingStakes: RegularStakeObjectInput[],
+    poolKey: string,
+): RegularStakeObjectInput | undefined {
+    return existingStakes.find(
+        (s) => `${s.content.fields.pool_id}:${s.content.fields.stake_activation_epoch}` === poolKey,
+    );
 }
 
 function joinStakesWithExisting(
