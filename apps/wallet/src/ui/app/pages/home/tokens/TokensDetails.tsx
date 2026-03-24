@@ -290,6 +290,7 @@ export function TokenDetails() {
                                                 onClick={() => setDialogVestingOpen(true)}
                                                 title="Vesting"
                                                 icon={Vesting}
+                                                subtitle="Action required"
                                             />
                                         ) : null}
                                     </div>
