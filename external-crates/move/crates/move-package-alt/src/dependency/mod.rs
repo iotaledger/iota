@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod dependency_set;
-mod external;
+// TODO: this shouldn't be pub; need to move resolver error into resolver module
+pub mod external;
 mod git;
 mod local;
 
@@ -25,6 +26,16 @@ use external::ExternalDependency;
 use git::GitDependency;
 use local::LocalDependency;
 
+// TODO (potential refactor): consider using objects for manifest dependencies (i.e. `Box<dyn UnpinnedDependency>`).
+//      part of the complexity here would be deserialization - probably need a flavor-specific
+//      function that converts a toml value to a Box<dyn UnpinnedDependency>
+//
+//      resolution would also be interesting because of batch resolution. Would probably need a
+//      trait method to return a resolver object, and then a method on the resolver object to
+//      resolve a bunch of dependencies (resolvers could implement Eq)
+//
+// TODO: maybe rename ManifestDependencyInfo to UnpinnedDependency
+
 /// Phantom type to represent pinned dependencies (see [PinnedDependency])
 #[derive(Debug)]
 pub struct Pinned;
@@ -42,6 +53,7 @@ pub struct Unpinned;
 /// separate these partly because these things are not serialized to the Lock
 /// file. See [crate::package::manifest] for the full representation of an entry
 /// in the `dependencies` table.
+// TODO: this paragraph will change with upcoming design changes
 #[derive(Debug, Serialize, Deserialize)]
 #[derive_where(Clone)]
 #[serde(untagged)]
@@ -98,6 +110,7 @@ fn split<F: MoveFlavor>(
     (gits, exts, locs, flav)
 }
 
+// TODO: this will change with upcoming design changes:
 /// Replace all dependencies with their pinned versions. The returned set may have a different set
 /// of keys than the input, for example if new implicit dependencies are added or if external
 /// resolvers resolve default deps to dep-overrides, or if dep-overrides are identical to the
@@ -155,6 +168,7 @@ pub async fn pin<F: MoveFlavor>(
     ]))
 }
 
+// TODO: this will change with the upcoming design changes:
 /// For each environment, if none of the implicit dependencies are present in [deps] (or the
 /// default environment), then they are all added.
 // TODO: what's the notion of identity used here?
@@ -173,3 +187,7 @@ fn fetch<F: MoveFlavor>(
 ) -> PackageResult<DependencySet<PathBuf>> {
     todo!()
 }
+
+// TODO: unit tests
+#[cfg(test)]
+mod tests {}

@@ -6,6 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::package::{EnvironmentName, PackageName};
 
+// TODO (potential refactor): using [Option] here and representing the default environment as
+// [None] has led to some confusion, it might be better to make a specific enumeration, so that
+// [DependencySet] becomes closer to a vanilla map. In fact, in the dependency graph we'll have
+// `Option<EnvironmentName>, PackageName` edges - this might be a good type to encapsulate; then
+// DependencySet just becomes a map from edges to T. A little curry can go a long way
+
 /// A set of default dependencies and dep overrides. Within each environment, package names are
 /// unique.
 ///
@@ -57,6 +63,21 @@ impl<T> DependencySet<T> {
         result
     }
 
+    /// Convenience method to return either [default_deps] or [deps_for_env] depending on [env]; an
+    /// [env] of [None] indicates a request for the default dependencies.
+    /// TODO rename to deps
+    pub fn deps_for(&self, env: Option<&EnvironmentName>) -> BTreeMap<PackageName, &T> {
+        match env {
+            Some(env) => self.deps_for_env(env),
+            None => self
+                .default_deps()
+                .iter()
+                .map(|(pkg, dep)| (pkg.clone(), dep))
+                .collect(),
+        }
+    }
+
+
     /// Set `self[env][package_name] = value` (dropping previous value if any)
     pub fn insert(&mut self, env: Option<EnvironmentName>, package_name: PackageName, value: T) {
         match env {
@@ -75,6 +96,64 @@ impl<T> DependencySet<T> {
     /// and [deps_for_env].
     pub fn iter(&self) -> Iter<T> {
         self.into_iter()
+    }
+
+    /// Check if the dependency set contains the [`package_name`] for [`env`].
+    pub fn contains(&self, env: &Option<EnvironmentName>, package_name: &PackageName) -> bool {
+        match env {
+            Some(env) => self
+                .overrides
+                .get(env)
+                .is_some_and(|deps| deps.contains_key(package_name)),
+            None => self.defaults.contains_key(package_name),
+        }
+    }
+
+    /// Get the dependency for [`package_name`] in [`env`]. If the dependency is not found,
+    /// return None.
+    pub fn get(&self, env: &Option<EnvironmentName>, package_name: &PackageName) -> Option<&T> {
+        match env {
+            Some(env) => self
+                .overrides
+                .get(env)
+                .and_then(|deps| deps.get(package_name)),
+            None => self.defaults.get(package_name),
+        }
+    }
+
+    /// A copy of [self] expanded with an entry (package name, env, dep) for all
+    /// packages in [self] and environments in [envs].
+    /// TODO: rename to expand or extend
+    pub fn explode(&mut self, envs: impl IntoIterator<Item = EnvironmentName>)
+    where
+        T: Clone,
+    {
+        for env in envs {
+            let deps: Vec<(PackageName, T)> = self
+                .deps_for_env(&env)
+                .into_iter()
+                .map(|(pkg, dep)| (pkg, dep.clone()))
+                .collect();
+
+            for (pkg, dep) in deps {
+                self.insert(Some(env.clone()), pkg, dep)
+            }
+        }
+    }
+
+    /// Remove any override entries from [self] that are the same as the default entries.
+    ///
+    /// Calling [collapse] changes the results of iteration but leaves the `deps_for...` methods
+    /// unchanged
+    pub fn collapse(&mut self)
+    where
+        T: Eq,
+    {
+        for (env, values) in self.overrides.iter_mut() {
+            values.retain(|name, value| self.defaults.get(name) != Some(value));
+        }
+        self.overrides
+            .retain(|_env, packages| !packages.is_empty());
     }
 }
 
@@ -181,6 +260,7 @@ impl<T> FromIterator<(Option<EnvironmentName>, PackageName, T)> for DependencySe
     }
 }
 
+// TODO: maybe this can be derived with our fancy derive macros?
 // Note: can't be derived because that adds a spurious T: Default bound
 impl<T> Default for DependencySet<T> {
     /// The empty dependency set

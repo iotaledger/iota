@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::flavor::MoveFlavor;
 
+// TODO: we might want to use [move_core_types::Identifier] here, particularly for `PackageName`.
+// This will force us to maintain invariants.
 pub type EnvironmentName = String;
 pub type PackageName = String;
 

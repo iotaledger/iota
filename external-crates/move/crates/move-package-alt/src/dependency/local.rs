@@ -18,6 +18,7 @@ pub struct LocalDependency {
     local: PathBuf,
 }
 
+// TODO: dead code
 impl TryFrom<(&Path, toml_edit::Value)> for LocalDependency {
     type Error = anyhow::Error; // TODO
 

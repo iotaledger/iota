@@ -8,6 +8,7 @@
 //!
 //! Git dependencies are cached in `~/.move`, which has the following structure:
 //!
+//! TODO: this doesn't match the implementation below:
 //! ```ignore
 //! .move/
 //!   git/
@@ -27,6 +28,10 @@ use serde::{Deserialize, Serialize};
 use crate::errors::PackageResult;
 
 use super::{DependencySet, Pinned, Unpinned};
+
+// TODO: (potential refactor): it might be good to separate out a separate module that is just git
+//       stuff and another that uses that git stuff to implement the dependency operations (like
+//       the jsonrpc / dependency::external split).
 
 // TODO: custom deserialization to verify pinnedness for pinned deps?
 #[derive(Debug, Serialize, Deserialize)]

@@ -78,6 +78,8 @@ impl ExternalDependency {
     }
 }
 
+// TODO: CLEANUP
+// Explain this conversion
 impl TryFrom<RField> for ExternalDependency {
     type Error = anyhow::Error;
 
