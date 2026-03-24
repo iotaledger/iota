@@ -7425,6 +7425,7 @@ version = "1.20.0-alpha"
 dependencies = [
  "anyhow",
  "fastcrypto",
+ "iota-common",
  "iota-package-management",
  "iota-types",
  "iota-verifier-latest",
