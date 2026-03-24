@@ -102,6 +102,18 @@ cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localho
 
 The TOML file specifies a default retention policy (in epochs) and optional per-table overrides:
 
+```toml
+# Default retention for all prunable tables (in epochs)
+epochs_to_keep = 10
+
+# Per-table overrides (snake_case, must match prunable table names)
+[overrides]
+objects_history = 2
+transactions = 5
+events = 5
+tx_senders = 3
+```
+
 > [!NOTE]
 > All retention values must be greater than 0.
 
@@ -121,26 +133,12 @@ When an epoch boundary is crossed, retention policies are evaluated and lower bo
 
 When pruning is enabled, the following tables are subject to pruning:
 
-| Strategy | Tables |
-|---|---|
-| **Epoch partition** (drop partition) | `objects_history`, `transactions`, `events` |
-| **By checkpoint** (DELETE) | `checkpoints`, `pruner_cp_watermark` |
-| **By transaction** (DELETE) | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
-| **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions` |
-
-#### Example configuration
-
-```toml
-# Default retention for all prunable tables (in epochs)
-epochs_to_keep = 10
-
-# Per-table overrides (snake_case, must match prunable table names)
-[overrides]
-objects_history = 2
-transactions = 5
-events = 5
-tx_senders = 3
-```
+| Strategy                                          | Tables                                                                           |
+| ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Epoch partition** (drop partition)              | `objects_history`, `transactions`, `events`                                      |
+| **By checkpoint** (DELETE)                        | `checkpoints`, `pruner_cp_watermark`                                             |
+| **By transaction** (DELETE)                       | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
+| **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions`                                                        |
 
 ### Backfilling of data
 
