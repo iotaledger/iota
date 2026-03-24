@@ -167,6 +167,7 @@ pub fn make_consensus_adapter_for_test(
                                     self.state.get_transaction_cache_reader().as_ref(),
                                     &self.state.metrics,
                                     true,
+                                    self.state.as_ref(),
                                 )
                                 .await?,
                         );
@@ -181,6 +182,7 @@ pub fn make_consensus_adapter_for_test(
                                 self.state.get_transaction_cache_reader().as_ref(),
                                 &self.state.metrics,
                                 true,
+                                self.state.as_ref(),
                             )
                             .await?,
                     );

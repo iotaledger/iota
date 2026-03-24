@@ -23,7 +23,7 @@ use iota_network::{
 use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
     base_types::TransactionEffectsDigest,
-    effects::TransactionEffectsAPI,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     error::*,
     fp_ensure,
     iota_system_state::IotaSystemState,
@@ -1437,7 +1437,7 @@ impl ValidatorService {
             // TODO: handle ping response better. Do we even need ping requests?
             return Ok((
                 tonic::Response::new(SubmitTransactionsResponse {
-                    results: vec![SubmitTransactionResult::Submitted],
+                    result: SubmitTransactionResult::Submitted,
                 }),
                 Weight::zero(),
             ));
@@ -1476,7 +1476,6 @@ impl ValidatorService {
 
         if is_soft_bundle {
             // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
-            let n = transactions.len();
 
             // Bundle-level validity checks (shared-object, size, gas price, already
             // processed).
@@ -1490,13 +1489,40 @@ impl ValidatorService {
             // Verify each transaction's user signature individually.
             // TODO: switch to batch verification once a parallel helper exists.
             let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+            let mut verified_transactions = Vec::with_capacity(transactions.len());
             for tx in &transactions {
-                if let Err(e) = epoch_store.verify_transaction(tx.clone()) {
-                    metrics.signature_errors.inc();
-                    return Err(e.into());
+                match epoch_store.verify_transaction(tx.clone()) {
+                    Ok(verified) => verified_transactions.push(verified),
+                    Err(e) => {
+                        metrics.signature_errors.inc();
+                        return Err(e.into());
+                    }
                 }
             }
             drop(tx_verif_guard);
+
+            // Early bail-out during epoch boundary, before running expensive deny checks.
+            if !epoch_store
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_user_certs()
+            {
+                metrics
+                    .num_rejected_tx_in_epoch_boundary
+                    .inc_by(transactions.len() as u64);
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
+
+            // Content validation: deny checks + owned object version validation.
+            for verified_tx in &verified_transactions {
+                let owned_objects = state
+                    .handle_transaction_validation_checks(verified_tx, &epoch_store)
+                    .await
+                    .map_err(tonic::Status::from)?;
+                state
+                    .get_cache_writer()
+                    .validate_owned_object_versions(&owned_objects)
+                    .map_err(tonic::Status::from)?;
+            }
 
             // Acquire the reconfiguration lock once for the whole bundle so that
             // all transactions are either accepted or rejected together.
@@ -1518,10 +1544,10 @@ impl ValidatorService {
                 .submit_batch(&consensus_txs, Some(&reconfiguration_lock), &epoch_store)
                 .map_err(tonic::Status::from)?;
 
-            // TODO: do we need a vector in the response, since it's all or nothing anyway?
-            let results = vec![SubmitTransactionResult::Submitted; n];
             Ok((
-                tonic::Response::new(SubmitTransactionsResponse { results }),
+                tonic::Response::new(SubmitTransactionsResponse {
+                    result: SubmitTransactionResult::Submitted,
+                }),
                 Weight::one(),
             ))
         } else {
@@ -1532,32 +1558,84 @@ impl ValidatorService {
                 .expect("single transaction expected: ping and soft-bundle cases already handled");
             let tx_digest = *transaction.digest();
 
+            // Helper to build an Executed response from transaction effects.
+            let build_executed_response =
+                |effects: TransactionEffects| -> Result<_, tonic::Status> {
+                    let effects_digest = effects.digest();
+                    let events = if effects.events_digest().is_some() {
+                        state
+                            .get_transaction_events(effects.transaction_digest())
+                            .ok()
+                    } else {
+                        None
+                    };
+                    let input_objects = state.get_transaction_input_objects(&effects).ok();
+                    let output_objects = state.get_transaction_output_objects(&effects).ok();
+                    let details = Some(Box::new(ExecutedData {
+                        effects,
+                        events,
+                        input_objects: input_objects.unwrap_or_default(),
+                        output_objects: output_objects.unwrap_or_default(),
+                    }));
+                    Ok((
+                        tonic::Response::new(SubmitTransactionsResponse {
+                            result: SubmitTransactionResult::Executed {
+                                effects_digest,
+                                details,
+                            },
+                        }),
+                        Weight::one(),
+                    ))
+                };
+
             // Check if already executed.
-            if let Some(effects) =
-                state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
+            if let Some(effects) = state
+                .get_transaction_cache_reader()
+                .try_get_executed_effects(&tx_digest)?
             {
-                let effects_digest = *effects.digest();
-                // TODO: populate `details` with effects/events/objects to allow the
-                // TransactionDriver to skip the get_full_effects RPC call. The client
-                // already handles Some(details) in effects_certifier.rs.
-                return Ok((
-                    tonic::Response::new(SubmitTransactionsResponse {
-                        results: vec![SubmitTransactionResult::Executed {
-                            effects_digest,
-                            details: None,
-                        }],
-                    }),
-                    Weight::one(),
-                ));
+                return build_executed_response(effects);
             }
 
             // Verify user signature.
             let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-            if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
-                metrics.signature_errors.inc();
-                return Err(e.into());
-            }
+            let verified_tx = match epoch_store.verify_transaction(transaction.clone()) {
+                Ok(verified) => verified,
+                Err(e) => {
+                    metrics.signature_errors.inc();
+                    return Err(e.into());
+                }
+            };
             drop(tx_verif_guard);
+
+            // Early bail-out during epoch boundary, before running expensive deny checks.
+            if !epoch_store
+                .get_reconfig_state_read_lock_guard()
+                .should_accept_user_certs()
+            {
+                metrics.num_rejected_tx_in_epoch_boundary.inc();
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
+
+            // Content validation: deny checks + owned object version validation.
+            let owned_objects = state
+                .handle_transaction_validation_checks(&verified_tx, &epoch_store)
+                .await
+                .map_err(tonic::Status::from)?;
+            if let Err(e) = state
+                .get_cache_writer()
+                .validate_owned_object_versions(&owned_objects)
+            {
+                // Check if the transaction was executed while being validated, and that's why
+                // the owned object version validation failed. This is an edge
+                // case so checking executed effects twice is acceptable.
+                if let Some(effects) = state
+                    .get_transaction_cache_reader()
+                    .try_get_executed_effects(&tx_digest)?
+                {
+                    return build_executed_response(effects);
+                }
+                return Err(tonic::Status::from(e));
+            }
 
             // Reconfig check.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
@@ -1577,7 +1655,7 @@ impl ValidatorService {
 
             Ok((
                 tonic::Response::new(SubmitTransactionsResponse {
-                    results: vec![SubmitTransactionResult::Submitted],
+                    result: SubmitTransactionResult::Submitted,
                 }),
                 Weight::one(),
             ))

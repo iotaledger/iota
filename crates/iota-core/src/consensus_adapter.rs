@@ -568,14 +568,16 @@ impl ConsensusAdapter {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<JoinHandle<()>> {
         if transactions.len() > 1 {
-            // In soft bundle, we need to check if all transactions are of UserTransaction
-            // kind. The check is required because we assume this in
-            // submit_and_wait_inner.
+            // Soft-bundle batches must be homogeneous: either all
+            // CertifiedTransaction (certificate flow) or all
+            // UserTransactionV1 (white-flag flow). submit_and_wait_inner
+            // assumes a single transaction kind across the batch.
             for transaction in transactions {
                 fp_ensure!(
                     matches!(
                         transaction.kind,
                         ConsensusTransactionKind::CertifiedTransaction(_)
+                            | ConsensusTransactionKind::UserTransactionV1(_)
                     ),
                     IotaError::InvalidTxKindInSoftBundle
                 );
