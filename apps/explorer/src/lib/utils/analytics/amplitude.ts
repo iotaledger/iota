@@ -28,7 +28,7 @@ const ANTI_BOT_CONFIG = {
     INITIAL_QUEUE_SIZE: 500,
 } as const;
 
-// Every page load produces 1 event visible to the custom counter enrinchment plugin: [Amplitude] Page Viewed.
+// Every page load produces 1 event visible to the custom counter enrichment plugin: [Amplitude] Page Viewed.
 // [Amplitude] Start Session is NOT counted — it fires before the plugin is registered.
 // Special events are not counted either.
 // Sessions with only this automatic event (no real user interaction) are treated as bots.
