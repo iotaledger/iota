@@ -6,7 +6,7 @@ import * as amplitude from '@amplitude/analytics-browser';
 import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
 
 import { ampli } from './ampli';
-import { LogLevel, SpecialEventType } from '@amplitude/analytics-types';
+import { LogLevel } from '@amplitude/analytics-types';
 
 const IS_ENABLED =
     import.meta.env.VITE_BUILD_ENV === 'production' &&
@@ -15,29 +15,18 @@ const IS_ENABLED =
 const IS_DEV = import.meta.env.VITE_BUILD_ENV !== 'production';
 
 /**
- * Anti-bot configuration: Events are queued but not sent initially.
- * After BOT_DETECTION_DELAY, we assume the user is human and start sending events.
+ * Anti-bot configuration: Events are queued but not sent until a human interaction is detected.
+ * Sessions are classified as human on the first DOM interaction (scroll, mousemove, keydown, touchstart).
  */
 const ANTI_BOT_CONFIG = {
-    // Detection delay: bots typically leave within a few seconds
-    DETECTION_DELAY_MS: 5000,
-    // Regular flush interval after bot detection passes
+    // Regular flush interval once the session is classified as human
     REGULAR_FLUSH_INTERVAL_MS: 1000,
-    // Initial flush settings (effectively disabled to queue events locally)
+    // Initial flush settings — effectively disabled so events queue locally until bot check passes
     INITIAL_FLUSH_INTERVAL_MS: 3600000, // 1 hour
     INITIAL_QUEUE_SIZE: 500,
 } as const;
 
-// Every page load produces 1 event visible to the custom counter enrichment plugin: [Amplitude] Page Viewed.
-// [Amplitude] Start Session is NOT counted — it fires before the plugin is registered.
-// Special events are not counted either.
-// Sessions with only this automatic event (no real user interaction) are treated as bots.
-const BOT_EVENT_COUNT_THRESHOLD = 1;
-
-const SPECIAL_EVENT_TYPE_SET = new Set<string>(Object.values(SpecialEventType));
-
 let isBotCleared = false;
-let trackedEventCount = 0;
 
 export async function initAmplitude() {
     const consentStatus = getAmplitudeConsentStatus();
@@ -75,36 +64,49 @@ export async function initAmplitude() {
 
     ampli.client.add(attachEnvironmentPlugin(IS_DEV));
 
-    // Enrichment plugin to count events for bot detection
-    ampli.client.add({
-        name: 'event-counter',
-        type: 'enrichment' as const,
-        setup: async () => {},
-        execute: async (event) => {
-            if (!SPECIAL_EVENT_TYPE_SET.has(event.event_type)) {
-                trackedEventCount++;
-            }
-            return event;
-        },
-    });
-
     setupAntiBotProtection();
 }
 
+const HUMAN_SIGNAL_EVENTS = ['scroll', 'mousemove', 'keydown', 'touchstart'] as const;
+
 /**
- * Sets up anti-bot protection by:
- * 1. Queueing events initially without sending them
- * 2. After DETECTION_DELAY_MS, marking user as human and flushing events
- * 3. Starting regular flush intervals for subsequent events
- * 4. Handling page exit to flush remaining events
+ * Sets up anti-bot protection:
+ * 1. Queues all events locally (1-hour flush interval prevents premature sends)
+ * 2. Classifies the session as human on the first DOM interaction and enables regular flushing
+ * 3. On page exit, beacon-flushes only if the session was classified as human
  */
 function setupAntiBotProtection() {
     let flushInterval: ReturnType<typeof setInterval> | null = null;
 
-    // Handle page exit: only flush if user passed bot detection
+    function enableFlushing() {
+        if (isBotCleared) {
+            return;
+        }
+        isBotCleared = true;
+        ampli.flush();
+        flushInterval = setInterval(() => {
+            if (ampli.isLoaded) {
+                ampli.flush();
+            }
+        }, ANTI_BOT_CONFIG.REGULAR_FLUSH_INTERVAL_MS);
+    }
+
+    const humanSignalController = new AbortController();
+    const options = { passive: true, signal: humanSignalController.signal } as const;
+    const handler = () => {
+        humanSignalController.abort();
+        enableFlushing();
+    };
+    for (const event of HUMAN_SIGNAL_EVENTS) {
+        window.addEventListener(event, handler, options);
+    }
+
+    // Flush on page exit only if the session was classified as human.
     window.addEventListener(
         'pagehide',
         () => {
+            humanSignalController.abort();
+
             if (flushInterval) {
                 clearInterval(flushInterval);
             }
@@ -116,24 +118,6 @@ function setupAntiBotProtection() {
         },
         { once: true },
     );
-
-    // After delay, check if only the autocaptured Page Viewed event fired (bot pattern)
-    setTimeout(() => {
-        if (trackedEventCount <= BOT_EVENT_COUNT_THRESHOLD) {
-            // Bot-like session: discard queued data without flushing
-            return;
-        }
-
-        isBotCleared = true;
-        ampli.flush(); // Send all queued events
-
-        // Start regular flushing since Amplitude's config can't be changed after init
-        flushInterval = setInterval(() => {
-            if (ampli.isLoaded) {
-                ampli.flush();
-            }
-        }, ANTI_BOT_CONFIG.REGULAR_FLUSH_INTERVAL_MS);
-    }, ANTI_BOT_CONFIG.DETECTION_DELAY_MS);
 }
 
 /**
