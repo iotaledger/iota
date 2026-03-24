@@ -8,10 +8,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use iota_common::sync::notify_read::NotifyRead;
-use iota_types::{
-    base_types::TransactionDigest,
-    error::{IotaError, IotaResult},
-};
+use iota_types::{base_types::TransactionDigest, error::IotaError};
 use parking_lot::RwLock;
 
 /// Maximum number of dropped transaction entries to retain.
@@ -65,9 +62,15 @@ impl DroppedTxStatusCache {
     /// Record a batch of dropped transactions and notify any waiters.
     /// When the cache is at capacity, the oldest entries are evicted first.
     pub(crate) fn insert_and_notify(&self, dropped: &[(TransactionDigest, IotaError)]) {
-        let mut inner = self.inner.write();
+        {
+            let mut inner = self.inner.write();
+            for (digest, error) in dropped {
+                inner.insert(*digest, error.clone());
+            }
+        }
+        // Notify outside the lock — entries are already visible to readers,
+        // so the register-then-check pattern in notify_read_dropped is safe.
         for (digest, error) in dropped {
-            inner.insert(*digest, error.clone());
             self.notify_read.notify(digest, error);
         }
     }
@@ -75,15 +78,12 @@ impl DroppedTxStatusCache {
     /// Wait for a transaction to be dropped, or return immediately if it was
     /// already dropped. Uses the register-then-check pattern to avoid the
     /// race where `notify()` fires before the caller registers.
-    pub(crate) async fn notify_read_dropped(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaResult<IotaError> {
+    pub(crate) async fn notify_read_dropped(&self, digest: TransactionDigest) -> IotaError {
         let registration = self.notify_read.register_one(&digest);
         if let Some(error) = self.inner.read().entries.get(&digest) {
-            return Ok(error.clone());
+            return error.clone();
         }
-        Ok(registration.await)
+        registration.await
     }
 }
 
@@ -107,8 +107,7 @@ mod tests {
 
         let result = timeout(Duration::from_secs(5), cache.notify_read_dropped(digest))
             .await
-            .expect("should not timeout")
-            .expect("should not return a storage error");
+            .expect("should not timeout");
 
         assert_eq!(result.to_string(), expected_error.to_string());
     }
@@ -122,8 +121,7 @@ mod tests {
         let expected_error = IotaError::TransactionExpired;
 
         let cache_clone = cache.clone();
-        let handle =
-            tokio::spawn(async move { cache_clone.notify_read_dropped(digest).await.unwrap() });
+        let handle = tokio::spawn(async move { cache_clone.notify_read_dropped(digest).await });
 
         // Small delay so the spawned task registers before we notify.
         tokio::time::sleep(Duration::from_millis(10)).await;

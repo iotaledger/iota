@@ -1736,10 +1736,7 @@ impl AuthorityPerEpochStore {
     /// Returns the `IotaError` describing why it was dropped.
     /// Callers should race this against `notify_read_executed_effects_digests`
     /// to determine whether the transaction was executed or dropped.
-    pub async fn notify_read_dropped_digests(
-        &self,
-        digest: TransactionDigest,
-    ) -> IotaResult<IotaError> {
+    pub async fn notify_read_dropped_digests(&self, digest: TransactionDigest) -> IotaError {
         self.dropped_tx_status_cache
             .notify_read_dropped(digest)
             .await
