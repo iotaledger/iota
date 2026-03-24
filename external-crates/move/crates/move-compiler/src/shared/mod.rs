@@ -789,6 +789,7 @@ pub struct PackageConfig {
     pub warning_filter: WarningFiltersBuilder,
     pub flavor: Flavor,
     pub edition: Edition,
+    pub max_fields_in_struct: Option<usize>,
 }
 
 impl Default for PackageConfig {
@@ -798,6 +799,7 @@ impl Default for PackageConfig {
             warning_filter: WarningFiltersBuilder::new_for_source(),
             flavor: Flavor::default(),
             edition: Edition::default(),
+            max_fields_in_struct: None,
         }
     }
 }

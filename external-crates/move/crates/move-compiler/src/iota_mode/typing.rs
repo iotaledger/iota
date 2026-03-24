@@ -155,7 +155,7 @@ impl TypingVisitorContext for Context<'_> {
         }
 
         for (name, sdef) in mdef.structs.key_cloned_iter() {
-            struct_def(self, name, sdef)
+            struct_def(self, mdef.package_name, name, sdef)
         }
 
         for (name, edef) in mdef.enums.key_cloned_iter() {
@@ -189,25 +189,52 @@ impl TypingVisitorContext for Context<'_> {
 // Structs
 //**************************************************************************************************
 
-fn struct_def(context: &mut Context, name: DatatypeName, sdef: &N::StructDefinition) {
+fn struct_def(
+    context: &mut Context,
+    package_name: Option<Symbol>,
+    name: DatatypeName,
+    sdef: &N::StructDefinition,
+) {
     let N::StructDefinition {
         doc: _,
         warning_filter: _,
         index: _,
-        loc: _,
+        loc,
         attributes: _,
         abilities,
         type_parameters: _,
         fields,
     } = sdef;
+
+    let StructFields::Defined(_, fields) = fields else {
+        return;
+    };
+
+    let max_fields = context
+        .env
+        .package_config(package_name)
+        .max_fields_in_struct;
+    if let Some(max_fields) = max_fields.filter(|max| fields.len() > *max) {
+        let msg = format!(
+            "Struct '{}' has {} fields, exceeding the maximum allowed number of fields ({max_fields})",
+            name,
+            fields.len()
+        );
+        context.add_diag(diag!(
+            STRUCT_FIELD_LIMIT_DIAG,
+            (*loc, msg),
+            (
+                name.loc(),
+                "IOTA packages cannot be published if any struct exceeds this field limit"
+            ),
+        ));
+    }
+
     let Some(key_loc) = abilities.ability_loc_(Ability_::Key) else {
         // not an object, no extra rules
         return;
     };
 
-    let StructFields::Defined(_, fields) = fields else {
-        return;
-    };
     let invalid_first_field = if fields.is_empty() {
         // no fields
         Some(name.loc())

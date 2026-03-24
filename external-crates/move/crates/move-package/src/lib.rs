@@ -125,6 +125,11 @@ pub struct BuildConfig {
     /// Additional dependencies to be automatically included in every package
     #[clap(skip)]
     pub implicit_dependencies: Dependencies,
+
+    /// Maximum number of fields allowed in a struct definition for package
+    /// compilation checks.
+    #[clap(skip)]
+    pub max_fields_in_struct: Option<usize>,
 }
 
 #[derive(

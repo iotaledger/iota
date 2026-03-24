@@ -216,6 +216,7 @@ fn genesis_build_configuration() -> BuildConfig {
         additional_named_addresses: BTreeMap::default(),
         lint_flag: LintFlag::LEVEL_DEFAULT,
         implicit_dependencies: BTreeMap::default(),
+        max_fields_in_struct: None,
     };
     BuildConfig {
         config,

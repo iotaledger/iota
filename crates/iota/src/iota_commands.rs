@@ -12,6 +12,7 @@ use anyhow::{Context, bail};
 use clap::*;
 use colored::Colorize;
 use iota_config::{Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, iota_config_dir};
+use iota_json_rpc_types::IotaProtocolConfigValue;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_move::{
     self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
@@ -300,6 +301,13 @@ impl IotaCommand {
                         let protocol_config = read_api.get_protocol_config(None).await?;
                         build_config.implicit_dependencies =
                             implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
+                        build_config.max_fields_in_struct =
+                            match protocol_config.attributes.get("max_fields_in_struct") {
+                                Some(Some(IotaProtocolConfigValue::U64(max_fields))) => {
+                                    Some(*max_fields as usize)
+                                }
+                                _ => None,
+                            };
                         let mut pkg = IotaBuildConfig {
                             config: build_config.clone(),
                             run_bytecode_verifier: true,

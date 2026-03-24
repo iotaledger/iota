@@ -139,6 +139,7 @@ fn test_config(path: &Path) -> (TestKind, TestInfo, PackageConfig, Flags) {
         edition,
         is_dependency: false,
         warning_filter: WarningFiltersBuilder::new_for_source(),
+        max_fields_in_struct: None,
     };
     // Unused and IDE do not have additional warning filters
     if !matches!(test_kind, TestKind::Unused | TestKind::IDE) {

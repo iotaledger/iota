@@ -2147,6 +2147,11 @@ pub(crate) async fn compile_package(
 
     build_config.implicit_dependencies =
         implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
+    build_config.max_fields_in_struct = match protocol_config.attributes.get("max_fields_in_struct")
+    {
+        Some(Some(IotaProtocolConfigValue::U64(max_fields))) => Some(*max_fields as usize),
+        _ => None,
+    };
     let config = resolve_lock_file_path(build_config, Some(package_path))?;
     let run_bytecode_verifier = true;
     let print_diags_to_stderr = true;

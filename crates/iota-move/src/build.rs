@@ -7,6 +7,7 @@ use std::{fs, path::Path};
 use clap::Parser;
 use iota_move_build::{BuildConfig, implicit_deps};
 use iota_package_management::system_package_versions::latest_system_packages;
+use iota_protocol_config::ProtocolConfig;
 use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
 
@@ -68,6 +69,8 @@ impl Build {
         chain_id: Option<String>,
     ) -> anyhow::Result<()> {
         config.implicit_dependencies = implicit_deps(latest_system_packages());
+        config.max_fields_in_struct =
+            Some(ProtocolConfig::get_for_min_version().max_fields_in_struct() as usize);
         let pkg = BuildConfig {
             config,
             run_bytecode_verifier: true,

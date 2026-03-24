@@ -603,6 +603,7 @@ impl Package {
                 .or(config.default_edition)
                 .unwrap_or(Edition::LEGACY), // TODO require edition
             warning_filter: WarningFiltersBuilder::new_for_source(),
+            max_fields_in_struct: config.max_fields_in_struct,
         }
     }
 }
