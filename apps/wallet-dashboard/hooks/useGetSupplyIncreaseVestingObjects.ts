@@ -76,12 +76,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         refetch: refetchTimelockedStakedObjects,
     } = useGetTimelockedStakedObjects(address || '');
 
-    // Fetch normal (non-timelocked) stakes
-    const { data: delegatedStakes } = useGetDelegatedStake({
-        address: address || '',
-        enabled: !!address,
-    });
-
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
     );
@@ -111,6 +105,12 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const userType = lastPayout ? getSupplyIncreaseVestingUserType([lastPayout]) : undefined;
 
+    // Fetch normal stakes ONLY for Staker users (for join optimization)
+    const { data: delegatedStakes } = useGetDelegatedStake({
+        address: address || '',
+        enabled: !!address && userType === SupplyIncreaseUserType.Staker,
+    });
+
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
             isTimelockedUnlockable(supplyIncreaseVestingObject, clockTimestampMs),
@@ -134,14 +134,17 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const iotaClient = useIotaClient();
 
-    // Get unlocked timelocked staked objects
+    // Get unlocked timelocked staked objects (only for Staker users)
     const supplyIncreaseVestingUnlockedStakes = useMemo(() => {
         if (!timelockedStakedObjects || !clockTimestampMs) return [];
+
+        // Only Stakers can collect timelock stakes - Investors must unstake first
+        if (userType !== SupplyIncreaseUserType.Staker) return [];
 
         return formatDelegatedTimelockedStake(timelockedStakedObjects)
             .filter(isSupplyIncreaseVestingObject)
             .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs));
-    }, [timelockedStakedObjects, clockTimestampMs]);
+    }, [timelockedStakedObjects, clockTimestampMs, userType]);
 
     // Get all timelocked staked object IDs from delegations
     const supplyIncreaseVestingUnlockedStakeObjectData = useMemo(() => {
