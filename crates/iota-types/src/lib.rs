@@ -93,7 +93,6 @@ pub mod traffic_control;
 pub mod transaction;
 pub mod transaction_executor;
 pub mod transfer;
-pub mod type_input;
 pub mod versioned;
 
 #[path = "./unit_tests/utils.rs"]

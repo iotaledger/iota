@@ -1965,19 +1965,6 @@ mod checked {
         let mut args = vec![authenticator.object_to_authenticate().to_owned()];
         args.extend(authenticator.call_args().to_owned());
 
-        let type_arguments = authenticator
-            .type_arguments()
-            .iter()
-            .map(|t| {
-                t.as_type_tag().map_err(|err| {
-                    ExecutionError::new_with_source(
-                        ExecutionErrorKind::VmInvariantViolation,
-                        err.to_string(),
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
         let res = builder.move_call(
             authenticator_function_ref.package,
             Identifier::new(authenticator_function_ref.module.clone()).expect(
@@ -1986,7 +1973,7 @@ mod checked {
             Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
-            type_arguments,
+            authenticator.type_arguments().clone(),
             args,
         );
 

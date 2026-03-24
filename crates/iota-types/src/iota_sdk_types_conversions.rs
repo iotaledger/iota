@@ -729,11 +729,7 @@ impl TryFrom<crate::transaction::Command> for Command {
                 package: programmable_move_call.package,
                 module: Identifier::new(programmable_move_call.module.as_str())?,
                 function: Identifier::new(programmable_move_call.function.as_str())?,
-                type_arguments: programmable_move_call
-                    .type_arguments
-                    .into_iter()
-                    .map(|type_input| type_input.into_type_tag())
-                    .collect::<Result<_, _>>()?,
+                type_arguments: programmable_move_call.type_arguments,
                 arguments: programmable_move_call.arguments,
             }),
             InternalCmd::TransferObjects(objects, address) => {
@@ -751,9 +747,7 @@ impl TryFrom<crate::transaction::Command> for Command {
                 dependencies,
             }),
             InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
-                type_: type_tag
-                    .map(|type_input| type_input.into_type_tag())
-                    .transpose()?,
+                type_: type_tag,
                 elements,
             }),
             InternalCmd::Upgrade(modules, dependencies, package, ticket) => {

@@ -207,7 +207,7 @@ Command:
       MakeMoveVec:
         TUPLE:
           - OPTION:
-              TYPENAME: TypeInput
+              TYPENAME: TypeTag
           - SEQ:
               TYPENAME: Argument
     6:
@@ -774,7 +774,7 @@ ProgrammableMoveCall:
     - function: STR
     - type_arguments:
         SEQ:
-          TYPENAME: TypeInput
+          TYPENAME: TypeTag
     - arguments:
         SEQ:
           TYPENAME: Argument
@@ -825,15 +825,6 @@ SenderSignedTransaction:
     - tx_signatures:
         SEQ:
           TYPENAME: GenericSignature
-StructInput:
-  STRUCT:
-    - address:
-        TYPENAME: Address
-    - module: STR
-    - name: STR
-    - type_args:
-        SEQ:
-          TYPENAME: TypeInput
 StructTag:
   STRUCT:
     - address:
@@ -952,34 +943,6 @@ TypeArgumentError:
       type_not_found: UNIT
     1:
       constraint_not_satisfied: UNIT
-TypeInput:
-  ENUM:
-    0:
-      bool: UNIT
-    1:
-      U8: UNIT
-    2:
-      U64: UNIT
-    3:
-      U128: UNIT
-    4:
-      Address: UNIT
-    5:
-      Signer: UNIT
-    6:
-      Vector:
-        NEWTYPE:
-          TYPENAME: TypeInput
-    7:
-      Struct:
-        NEWTYPE:
-          TYPENAME: StructInput
-    8:
-      U16: UNIT
-    9:
-      U32: UNIT
-    10:
-      U256: UNIT
 TypeOrigin:
   STRUCT:
     - module_name: STR
