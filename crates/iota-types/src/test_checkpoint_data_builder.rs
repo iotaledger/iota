@@ -506,7 +506,12 @@ impl TestCheckpointDataBuilder {
         let lamport_version = effects.lamport_version();
         let input_objects: Vec<_> = mutated_objects
             .keys()
-            .chain(shared_inputs.keys())
+            .chain(
+                shared_inputs
+                    .iter()
+                    .filter(|(_, i)| i.mutable)
+                    .map(|(id, _)| id),
+            )
             .map(|id| self.live_objects.get(id).unwrap().clone())
             .chain(deleted_objects.clone())
             .chain(wrapped_objects.clone())
@@ -518,7 +523,12 @@ impl TestCheckpointDataBuilder {
             .values()
             .cloned()
             .chain(mutated_objects.values().cloned())
-            .chain(shared_inputs.values().map(|input| input.object.clone()))
+            .chain(
+                shared_inputs
+                    .values()
+                    .filter(|i| i.mutable)
+                    .map(|i| i.object.clone()),
+            )
             .chain(unwrapped_objects.clone())
             .chain(std::iter::once(
                 self.live_objects.get(&gas.0).cloned().unwrap(),
