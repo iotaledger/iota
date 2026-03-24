@@ -147,9 +147,9 @@ pub async fn main() -> Result<()> {
             println!("Successfully verified object: {object_id}");
 
             if let Data::Move(move_object) = &object.data {
-                let object_type = move_object.type_().clone();
+                let object_type = move_object.type_();
 
-                let type_layout = resolver.type_layout(object_type.clone().into()).await?;
+                let type_layout = resolver.type_layout(move_object.type_tag()).await?;
 
                 let result =
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)

@@ -11,12 +11,11 @@ use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, TypeTag},
     crypto::Signature,
     move_authenticator::MoveAuthenticator,
     signature::GenericSignature,
     transaction::{CallArg, SharedObjectRef, TransactionData},
-    type_input::TypeInput,
 };
 use serde::Serialize;
 
@@ -72,7 +71,7 @@ pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
     tx_data: &TransactionData,
     signer_address: &IotaAddress,
-    auth_args: Option<(Vec<CallArg>, Vec<TypeInput>)>,
+    auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
 ) -> Result<GenericSignature> {
     let iota_client = context.get_client().await?;
 

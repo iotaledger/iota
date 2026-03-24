@@ -17,8 +17,8 @@ mod checked {
     use iota_types::{
         auth_context,
         base_types::{
-            Identifier, IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
+            Identifier, IotaAddress, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, StructTag, TxContext, TxContextKind, TypeTag,
         },
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
@@ -40,7 +40,6 @@ mod checked {
             Publish, SplitCoins, TransferObjects, Upgrade,
         },
         transfer::RESOLVED_RECEIVING_STRUCT,
-        type_input::TypeName,
     };
     use iota_verifier::{
         INIT_FN_NAME,
@@ -162,8 +161,6 @@ mod checked {
                         "input checker ensures if elements are empty, there is a type specified"
                     );
                 };
-                // TODO
-                // let tag = to_type_tag(context, tag)?;
 
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
@@ -196,8 +193,6 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match type_ {
                     Some(tag) => {
-                        // TODO
-                        // let tag = to_type_tag(context, tag)?;
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
                                 context.convert_type_argument_error(0, e)
@@ -353,8 +348,6 @@ mod checked {
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
                 for (ix, type_arg) in type_arguments.into_iter().enumerate() {
-                    // TODO
-                    // let type_arg = to_type_tag(context, type_arg)?;
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
@@ -626,7 +619,7 @@ mod checked {
             // Upgrade cap creation
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
-                StructTag::new_upgrade_cap().into(),
+                StructTag::new_upgrade_cap(),
                 // used_in_non_entry_move_call
                 false,
                 &bcs::to_bytes(cap).unwrap(),
@@ -965,9 +958,7 @@ mod checked {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
                                 let contains = module_metadata_map.insert(
                                     fn_name.to_string(),
-                                    TypeName::from(&get_authenticator_first_param_type_tag(
-                                        module, &fn_name,
-                                    )?),
+                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
                                 );
                                 debug_assert!(
                                     contains.is_none(),
@@ -1003,7 +994,7 @@ mod checked {
             );
             // Turn the content into an object
             let package_metadata = context.make_object_value(
-                metadata.type_().into(),
+                metadata.type_(),
                 // used_in_non_entry_move_call
                 false,
                 &metadata.to_bcs_bytes(),
@@ -1249,7 +1240,7 @@ mod checked {
     /// Used to remember type information about a type when resolving the
     /// signature
     enum ValueKind {
-        Object { type_: MoveObjectType },
+        Object { type_: StructTag },
         Raw(Type, AbilitySet),
     }
 
@@ -1449,9 +1440,7 @@ mod checked {
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        ValueKind::Object {
-                            type_: MoveObjectType::from(*struct_tag),
-                        }
+                        ValueKind::Object { type_: *struct_tag }
                     }
                     Type::Datatype(_)
                     | Type::DatatypeInstantiation(_)
@@ -1617,8 +1606,7 @@ mod checked {
                         let TypeTag::Struct(struct_tag) = type_tag else {
                             invariant_violation!("Struct type make a non struct type tag")
                         };
-                        let type_ = (*struct_tag).into();
-                        ValueKind::Object { type_ }
+                        ValueKind::Object { type_: *struct_tag }
                     } else {
                         let abilities = context
                             .vm
@@ -1766,25 +1754,6 @@ mod checked {
     //     } else {
     //         // SAFETY: Preserving existing behaviour for identifier
     // deserialization.         Ok(Identifier::new_unchecked(&ident))
-    //     }
-    // }
-
-    // TODO
-    // fn to_type_tag(
-    //     context: &mut ExecutionContext<'_, '_, '_>,
-    //     type_input: TypeInput,
-    // ) -> Result<TypeTag, ExecutionError> {
-    //     if context.protocol_config.validate_identifier_inputs() {
-    //         type_input.into_type_tag().map_err(|e| {
-    //             ExecutionError::new_with_source(
-    //                 ExecutionErrorKind::VmInvariantViolation,
-    //                 e.to_string(),
-    //             )
-    //         })
-    //     } else {
-    //         // SAFETY: Preserving existing behaviour for identifier
-    // deserialization within         // type tags and inputs.
-    //         Ok(unsafe { type_input.into_type_tag_unchecked() })
     //     }
     // }
 

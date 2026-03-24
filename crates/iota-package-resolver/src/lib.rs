@@ -570,14 +570,9 @@ impl<S: PackageStore> Resolver<S> {
                         register_type(amount, &TypeTag::U64)?;
                     }
                 }
-                Command::MakeMoveVector(MakeMoveVector {
-                    type_: Some(tag),
-                    elements,
-                }) => {
-                    // TODO
-                    // let tag = as_type_tag(tag)?;
+                Command::MakeMoveVec(Some(tag), elems) => {
                     if is_primitive_type_tag(tag) {
-                        for elem in elements {
+                        for elem in elems {
                             register_type(elem, tag)?;
                         }
                     }
@@ -1128,7 +1123,7 @@ impl OpenSignature {
     /// the struct or function this signature is part of), but will
     /// produce an error if the signature references a type parameter that is
     /// out of bounds.
-    pub fn instantiate(&self, type_params: &[TypeInput]) -> Result<Signature> {
+    pub fn instantiate(&self, type_params: &[TypeTag]) -> Result<Signature> {
         Ok(Signature {
             ref_: self.ref_,
             body: self.body.instantiate(type_params)?,
@@ -1171,7 +1166,7 @@ impl OpenSignatureBody {
         })
     }
 
-    fn instantiate(&self, type_params: &[TypeInput]) -> Result<TypeTag> {
+    fn instantiate(&self, type_params: &[TypeTag]) -> Result<TypeTag> {
         use OpenSignatureBody as O;
         use TypeTag as T;
 
@@ -1196,11 +1191,10 @@ impl OpenSignatureBody {
                     .collect::<Result<_>>()?,
             ))),
 
-            O::TypeParameter(ix) => as_type_tag(
-                type_params
-                    .get(*ix as usize)
-                    .ok_or_else(|| Error::TypeParamOOB(*ix, type_params.len()))?,
-            )?,
+            O::TypeParameter(ix) => type_params
+                .get(*ix as usize)
+                .ok_or_else(|| Error::TypeParamOOB(*ix, type_params.len()))?
+                .clone(),
         })
     }
 }
@@ -1840,39 +1834,6 @@ impl<'s> From<&'s StructTag> for DatatypeRef<'s, 's> {
 /// module's error type.
 fn ident(s: &str) -> Result<Identifier> {
     Identifier::new(s).map_err(|_| Error::NotAnIdentifier(s.to_string()))
-}
-
-pub fn as_type_tag(type_input: &TypeInput) -> Result<TypeTag> {
-    // Keep this in sync with implementation in: crates/iota-types/src/type_input.rs
-    use TypeInput as I;
-    use TypeTag as T;
-    Ok(match type_input {
-        I::Bool => T::Bool,
-        I::U8 => T::U8,
-        I::U16 => T::U16,
-        I::U32 => T::U32,
-        I::U64 => T::U64,
-        I::U128 => T::U128,
-        I::U256 => T::U256,
-        I::Address => T::Address,
-        I::Signer => T::Signer,
-        I::Vector(t) => T::Vector(Box::new(as_type_tag(t)?)),
-        I::Struct(s) => {
-            let StructInput {
-                address,
-                module,
-                name,
-                type_params,
-            } = s.as_ref();
-            let type_params = type_params.iter().map(as_type_tag).collect::<Result<_>>()?;
-            T::Struct(Box::new(StructTag::new(
-                *address,
-                ident(module)?,
-                ident(name)?,
-                type_params,
-            )))
-        }
-    })
 }
 
 /// Read and deserialize a signature index (from function parameter or return
@@ -2552,7 +2513,7 @@ mod tests {
     #[tokio::test]
     async fn test_signature_instantiation() {
         use OpenSignatureBody as O;
-        use TypeInput as T;
+        use TypeTag as T;
 
         let sig = O::Datatype(
             key("0x2::table::Table"),
@@ -2571,7 +2532,7 @@ mod tests {
     #[tokio::test]
     async fn test_signature_instantiation_error() {
         use OpenSignatureBody as O;
-        use TypeInput as T;
+        use TypeTag as T;
 
         let sig = O::Datatype(
             key("0x2::table::Table"),

@@ -58,7 +58,6 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
-    type_input::TypeInput,
 };
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
@@ -86,8 +85,8 @@ mod messages_tests;
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
 
-pub fn type_input_validity_check(
-    tag: &TypeInput,
+pub fn type_tag_validity_check(
+    tag: &TypeTag,
     config: &ProtocolConfig,
     starting_count: &mut usize,
 ) -> UserInputResult<()> {
@@ -109,35 +108,35 @@ pub fn type_input_validity_check(
             }
         );
         match tag {
-            TypeInput::Bool
-            | TypeInput::U8
-            | TypeInput::U64
-            | TypeInput::U128
-            | TypeInput::Address
-            | TypeInput::Signer
-            | TypeInput::U16
-            | TypeInput::U32
-            | TypeInput::U256 => (),
-            TypeInput::Vector(t) => {
+            TypeTag::Bool
+            | TypeTag::U8
+            | TypeTag::U64
+            | TypeTag::U128
+            | TypeTag::Address
+            | TypeTag::Signer
+            | TypeTag::U16
+            | TypeTag::U32
+            | TypeTag::U256 => (),
+            TypeTag::Vector(t) => {
                 stack.push((t, depth + 1));
             }
-            TypeInput::Struct(s) => {
+            TypeTag::Struct(s) => {
                 let next_depth = depth + 1;
                 if config.validate_identifier_inputs() {
                     fp_ensure!(
-                        Identifier::is_valid(&s.module),
+                        Identifier::is_valid(s.module().as_str()),
                         UserInputError::InvalidIdentifier {
-                            error: s.module.clone()
+                            error: s.module().as_str().to_owned()
                         }
                     );
                     fp_ensure!(
-                        Identifier::is_valid(&s.name),
+                        Identifier::is_valid(s.name().as_str()),
                         UserInputError::InvalidIdentifier {
-                            error: s.name.clone()
+                            error: s.name().as_str().to_owned()
                         }
                     );
                 }
-                stack.extend(s.type_params.iter().map(|t| (t, next_depth)));
+                stack.extend(s.type_params().iter().map(|t| (t, next_depth)));
             }
         }
     }
@@ -435,12 +434,9 @@ impl MoveCallExt for ProgrammableMoveCall {
             self.function.as_str(),
         ));
         fp_ensure!(!is_blocked, UserInputError::BlockedMoveFunction);
-        // TODO
-        // let mut type_arguments_count = 0;
-        for _tag in &self.type_arguments {
-            // TODO
-            // type_input_validity_check(tag, config, &mut
-            // type_arguments_count)?;
+        let mut type_arguments_count = 0;
+        for tag in &self.type_arguments {
+            type_tag_validity_check(tag, config, &mut type_arguments_count)?;
         }
         fp_ensure!(
             self.arguments.len() < config.max_arguments() as usize,
@@ -531,13 +527,10 @@ impl CommandExt for Command {
                     ty_opt.is_some() || !args.is_empty(),
                     UserInputError::EmptyCommandInput
                 );
-                // TODO
-                // if let Some(ty) = ty_opt {
-                //     let mut type_arguments_count = 0;
-                // TODO
-                // type_input_validity_check(ty, config, &mut
-                // type_arguments_count)?;
-                // }
+                if let Some(ty) = ty_opt {
+                    let mut type_arguments_count = 0;
+                    type_tag_validity_check(ty, config, &mut type_arguments_count)?;
+                }
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
                     UserInputError::SizeLimitExceeded {

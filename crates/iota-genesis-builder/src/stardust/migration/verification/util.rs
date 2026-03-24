@@ -418,7 +418,8 @@ impl NativeTokenKind for (TypeTag, Coin) {
     }
 
     fn from_object(obj: &Object) -> Result<Self> {
-        obj.coin_type_maybe()
+        obj.coin_type_opt()
+            .cloned()
             .zip(obj.as_coin_maybe())
             .ok_or_else(|| anyhow!("expected a native token coin, found {:?}", obj.type_()))
     }

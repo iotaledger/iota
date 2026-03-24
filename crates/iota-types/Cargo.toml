@@ -62,7 +62,6 @@ tracing.workspace = true
 
 # internal dependencies
 consensus-config.workspace = true
-iota-enum-compat-util.workspace = true
 iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-protocol-config.workspace = true
@@ -86,7 +85,6 @@ p256.workspace = true
 passkey-authenticator.workspace = true
 passkey-client.workspace = true
 proptest.workspace = true
-serde_yaml.workspace = true
 tokio.workspace = true
 url.workspace = true
 
