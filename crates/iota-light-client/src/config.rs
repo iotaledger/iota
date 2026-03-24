@@ -21,9 +21,6 @@ const CHECKPOINTS_FILE_NAME: &str = "checkpoints.yaml";
 pub struct Config {
     /// An RPC endpoint to a full node.
     pub rpc_url: Url,
-    /// A gRPC endpoint to a full node. Used when no checkpoint store or archive
-    /// store is configured, to fetch checkpoint data directly via gRPC.
-    pub grpc_url: Option<Url>,
     /// A GraphQL endpoint to a full node.
     pub graphql_url: Option<Url>,
     /// The directory containing synced checkpoints.
@@ -116,7 +113,6 @@ impl Config {
     fn create_config_from_network_name(network: &str) -> Self {
         Self {
             rpc_url: Url::parse(&format!("https://api.{network}.iota.cafe")).unwrap(),
-            grpc_url: None,
             graphql_url: Some(Url::parse(&format!("https://graphql.{network}.iota.cafe")).unwrap()),
             checkpoints_dir: PathBuf::from_str(&format!("checkpoints_{network}")).unwrap(),
             genesis_blob_download_url: Some(
@@ -161,7 +157,6 @@ mod tests {
         std::fs::File::create(temp_dir.path().join(GENESIS_FILE_NAME)).unwrap();
         let config = Config {
             rpc_url: "http://localhost:9000".parse().unwrap(),
-            grpc_url: None,
             graphql_url: Some("http://localhost:9003".parse().unwrap()),
             checkpoints_dir: temp_dir.path().to_path_buf(),
             genesis_blob_download_url: None,
