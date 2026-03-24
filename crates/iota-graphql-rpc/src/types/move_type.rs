@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::{
-    base_types::{MoveObjectType, StructTag, TypeTag},
-    type_input::TypeInput,
-};
+use iota_types::base_types::{MoveObjectType, StructTag, TypeTag};
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::annotated_value as A;
 use serde::{Deserialize, Serialize};
@@ -216,15 +213,14 @@ impl MoveType {
 
 impl From<MoveObjectType> for MoveType {
     fn from(obj: MoveObjectType) -> Self {
-        let tag: TypeTag = obj.into();
-        Self { native: tag }
+        obj.into_inner().into()
     }
 }
 
 impl From<StructTag> for MoveType {
     fn from(tag: StructTag) -> Self {
         let tag: TypeTag = tag.into();
-        Self { native: tag.into() }
+        Self { native: tag }
     }
 }
 
