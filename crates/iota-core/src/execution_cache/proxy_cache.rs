@@ -279,6 +279,10 @@ impl ExecutionCacheWrite for ProxyCache {
             transaction
         ))
     }
+
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult {
+        delegate_method!(self.validate_owned_object_versions(owned_input_objects))
+    }
 }
 
 impl AccumulatorStore for ProxyCache {
