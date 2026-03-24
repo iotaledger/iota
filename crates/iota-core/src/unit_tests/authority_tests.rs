@@ -4691,9 +4691,22 @@ async fn test_shared_object_transaction_ok() {
 // consensus commit prologue transaction to the transactions in the current
 // consensus commit. It will be the first transaction in the batch and the first
 // one that updates the system clock object.
+//
+// When `white_flag` is true, transactions are submitted as UserTransactionV1
+// (the certificate-free path) with white-flag conflict resolution enabled.
+// This verifies that the white-flag merge/split logic produces the same
+// prologue generation and shared-object version assignment behaviour.
+#[rstest::rstest]
 #[tokio::test]
-async fn test_consensus_commit_prologue_generation() {
+async fn test_consensus_commit_prologue_generation(#[values(false, true)] white_flag: bool) {
     telemetry_subscribers::init_for_testing();
+
+    let _guard = white_flag.then(|| {
+        ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_white_flag_flow_for_testing(true);
+            config
+        })
+    });
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
@@ -4713,45 +4726,83 @@ async fn test_consensus_commit_prologue_generation() {
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let mut certificates = vec![];
-    certificates.push(
-        make_test_transaction(
-            &sender,
-            &sender_key,
-            &[],
-            &[(shared_object_id, initial_shared_version, true)],
-            &gas_objects[1].compute_object_reference(),
-            &[&authority_state],
-            0,
-            None,
-            None,
-        )
-        .await,
-    );
+    // Transaction 1: shared-object Move call.
+    let shared_tx_data = TransactionData::new_move_call(
+        sender,
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        ident_str!("object_basics").to_owned(),
+        ident_str!("set_value").to_owned(),
+        vec![],
+        gas_objects[1].compute_object_reference(),
+        vec![
+            CallArg::Object(ObjectArg::SharedObject {
+                id: shared_object_id,
+                initial_shared_version,
+                mutable: true,
+            }),
+            CallArg::Pure(0u64.to_le_bytes().to_vec()),
+        ],
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
+        rgp,
+    )
+    .unwrap();
+    let shared_tx = to_sender_signed_transaction(shared_tx_data, &sender_key);
 
-    let tx_data = TransactionData::new_move_call(
+    // Transaction 2: clock-using Move call (higher gas price → ordered later).
+    let clock_tx_data = TransactionData::new_move_call(
         sender,
         package_object_ref.0,
         ident_str!("object_basics").to_owned(),
         ident_str!("use_clock").to_owned(),
-        // type_args
         vec![],
         gas_objects[0].compute_object_reference(),
         vec![CallArg::CLOCK_IMM],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-        rgp * 2, // User transaction that uses the clock has the highest gas price.
+        rgp * 2,
     )
     .unwrap();
+    let clock_tx = to_sender_signed_transaction(clock_tx_data, &sender_key);
 
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
-    certificates.push(
-        certify_transaction(&authority_state, transaction)
+    let processed_consensus_transactions = if white_flag {
+        // Submit as UserTransactionV1 — no certificates needed.
+        let transactions = vec![
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(shared_tx)),
+                tracking_id: Default::default(),
+            }),
+            SequencedConsensusTransaction::new_test(ConsensusTransaction {
+                kind: ConsensusTransactionKind::UserTransactionV1(Box::new(clock_tx)),
+                tracking_id: Default::default(),
+            }),
+        ];
+        authority_state
+            .epoch_store_for_testing()
+            .process_consensus_transactions_for_tests(
+                transactions,
+                &Arc::new(CheckpointServiceNoop {}),
+                authority_state.get_object_cache_reader().as_ref(),
+                authority_state.get_transaction_cache_reader().as_ref(),
+                &authority_state.metrics,
+                false,
+                &authority_state,
+            )
             .await
-            .unwrap(),
-    );
-
-    let processed_consensus_transactions =
-        send_batch_consensus_no_execution(&authority_state, &certificates, false).await;
+            .unwrap()
+    } else {
+        // Submit as certificates (original path).
+        let mut certificates = vec![];
+        certificates.push(
+            certify_transaction(&authority_state, shared_tx)
+                .await
+                .unwrap(),
+        );
+        certificates.push(
+            certify_transaction(&authority_state, clock_tx)
+                .await
+                .unwrap(),
+        );
+        send_batch_consensus_no_execution(&authority_state, &certificates, false).await
+    };
 
     // Tests that new consensus commit prologue transaction is added to the batch,
     // and it is the first transaction.
