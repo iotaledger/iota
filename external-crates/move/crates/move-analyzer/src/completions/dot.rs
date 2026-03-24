@@ -6,6 +6,15 @@
 
 use std::path::Path;
 
+use crate::{
+    completions::utils::{call_completion_item, mod_defs},
+    symbols::{
+        Symbols,
+        def_info::{DefInfo, FunType},
+        ide_strings::type_to_ide_string,
+    },
+    utils::lsp_position_to_loc,
+};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat, Position,
 };
@@ -14,12 +23,6 @@ use move_compiler::{
     shared::{Identifier, ide::AutocompleteMethod},
 };
 use move_symbol_pool::Symbol;
-
-use crate::{
-    completions::utils::{call_completion_item, mod_defs},
-    symbols::{DefInfo, FunType, Symbols, type_to_ide_string},
-    utils::lsp_position_to_loc,
-};
 
 /// Handle "dot" auto-completion at a given position.
 pub fn dot_completions(

@@ -14,7 +14,8 @@ use move_compiler::{naming::ast as N, shared::Identifier};
 use crate::{
     context::Context,
     symbols::{
-        DefInfo, ModuleDefs, SymbolicatorRunner, Symbols, on_hover_markup, type_to_ide_string,
+        Symbols, def_info::DefInfo, ide_strings::type_to_ide_string, mod_defs::ModuleDefs,
+        requests::on_hover_markup, runner::SymbolicatorRunner,
     },
 };
 

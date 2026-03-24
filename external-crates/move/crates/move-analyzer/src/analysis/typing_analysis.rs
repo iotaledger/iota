@@ -2,7 +2,17 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use crate::{
+    analysis::{DefMap, add_member_use_def, find_datatype},
+    compiler_info::CompilerInfo,
+    symbols::{
+        def_info::DefInfo,
+        mod_defs::{MemberDefInfo, ModuleDefs},
+        type_def_loc,
+        use_def::{References, UseDef, UseDefMap},
+    },
+    utils::{expansion_mod_ident_to_map_key, ignored_function, loc_start_to_lsp_position_opt},
+};
 
 use im::OrdMap;
 use lsp_types::Position;
@@ -20,14 +30,9 @@ use move_compiler::{
 use move_ir_types::location::{Loc, sp};
 use move_symbol_pool::Symbol;
 
-use crate::{
-    compiler_info::CompilerInfo,
-    symbols::{
-        DefInfo, DefMap, LocalDef, MemberDefInfo, ModuleDefs, References, UseDef, UseDefMap,
-        add_member_use_def, expansion_mod_ident_to_map_key, find_datatype, type_def_loc,
-    },
-    utils::{ignored_function, loc_start_to_lsp_position_opt},
-};
+use im::OrdMap;
+use lsp_types::Position;
+use std::{cmp, collections::BTreeMap};
 
 /// Data used during analysis over typed AST
 pub struct TypingAnalysisContext<'a> {
@@ -65,6 +70,26 @@ pub struct TypingAnalysisContext<'a> {
     pub expression_scope: OrdMap<Symbol, LocalDef>,
     /// IDE Annotation Information from the Compiler
     pub compiler_info: &'a mut CompilerInfo,
+}
+
+/// Definition of a local (or parameter)
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct LocalDef {
+    /// Location of the definition
+    pub def_loc: Loc,
+    /// Type of definition
+    pub def_type: N::Type,
+}
+
+impl PartialOrd for LocalDef {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for LocalDef {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.def_loc.cmp(&other.def_loc)
+    }
 }
 
 fn def_info_to_type_def_loc(

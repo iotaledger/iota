@@ -13,14 +13,13 @@
 
 use std::{io::Write, path::PathBuf};
 
+use crate::symbols::runner::SymbolicatorRunner;
 use lsp_server::Notification;
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, notification::Notification as _,
 };
 use vfs::VfsPath;
-
-use crate::symbols;
 
 /// A mapping from identifiers (file names, potentially, but not necessarily) to
 /// their contents.
@@ -57,7 +56,7 @@ impl VirtualFileSystem {
 /// notification that was sent.
 pub fn on_text_document_sync_notification(
     ide_files_root: VfsPath,
-    symbolicator_runner: &symbols::SymbolicatorRunner,
+    symbolicator_runner: &SymbolicatorRunner,
     notification: &Notification,
 ) {
     fn vfs_file_create(

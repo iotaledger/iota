@@ -7,16 +7,19 @@
 
 use std::path::Path;
 
+use crate::{
+    completions::utils::mod_defs,
+    symbols::{
+        Symbols,
+        cursor::{CursorContext, CursorDefinition},
+        def_info::DefInfo,
+    },
+};
 use lsp_types::{CompletionItem, CompletionItemKind, Documentation, InsertTextFormat, Position};
 use move_command_line_common::files::FileHash;
 use move_compiler::{expansion::ast::Visibility, parser::ast::Ability_, shared::Identifier};
 use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
-
-use crate::{
-    completions::utils::mod_defs,
-    symbols::{CursorContext, CursorDefinition, DefInfo, Symbols},
-};
 
 /// Checks if the cursor is at the opening brace of a struct definition and
 /// returns auto-completion of this struct into an object if the struct has the

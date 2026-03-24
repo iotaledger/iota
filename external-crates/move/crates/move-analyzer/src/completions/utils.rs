@@ -4,6 +4,18 @@
 
 use std::path::PathBuf;
 
+use crate::symbols::{
+    Symbols,
+    compilation::{CompiledPkgInfo, SymbolsComputationData},
+    compute_symbols_parsed_program, compute_symbols_pre_process,
+    cursor::CursorContext,
+    def_info::DefInfo,
+    ide_strings::{
+        mod_ident_to_ide_string, ret_type_to_ide_str, type_args_to_ide_string,
+        type_list_to_ide_string,
+    },
+    mod_defs::{AutoImportInsertionInfo, AutoImportInsertionKind, ModuleDefs},
+};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat, Position,
     Range, TextEdit,
@@ -17,13 +29,6 @@ use move_compiler::{
 use move_ir_types::location::sp;
 use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
-
-use crate::symbols::{
-    AutoImportInsertionInfo, AutoImportInsertionKind, CompiledPkgInfo, CursorContext, DefInfo,
-    ModuleDefs, Symbols, SymbolsComputationData, compute_symbols_parsed_program,
-    compute_symbols_pre_process, mod_ident_to_ide_string, ret_type_to_ide_str,
-    type_args_to_ide_string, type_list_to_ide_string,
-};
 
 /// List of completion items of Move's primitive types.
 pub static PRIMITIVE_TYPE_COMPLETIONS: Lazy<Vec<CompletionItem>> = Lazy::new(|| {

@@ -9,6 +9,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use crate::{
+    completions::{
+        dot::dot_completions,
+        name_chain::{name_chain_completions, use_decl_completions},
+        snippets::{init_completion, object_completion},
+        utils::{PRIMITIVE_TYPE_COMPLETIONS, completion_item},
+    },
+    context::Context,
+    symbols::{
+        self, Symbols, compilation::PrecomputedPkgInfo, cursor::CursorContext,
+        runner::SymbolicatorRunner,
+    },
+};
 use lsp_server::{Message, Request, Response};
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionParams, Position};
 use move_command_line_common::files::FileHash;
@@ -24,17 +37,6 @@ use move_package::source_package::parsed_manifest::Dependencies;
 use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
 use vfs::VfsPath;
-
-use crate::{
-    completions::{
-        dot::dot_completions,
-        name_chain::{name_chain_completions, use_decl_completions},
-        snippets::{init_completion, object_completion},
-        utils::{PRIMITIVE_TYPE_COMPLETIONS, completion_item},
-    },
-    context::Context,
-    symbols::{self, CursorContext, PrecomputedPkgInfo, SymbolicatorRunner, Symbols},
-};
 
 mod dot;
 mod name_chain;

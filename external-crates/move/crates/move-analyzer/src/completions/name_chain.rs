@@ -15,6 +15,19 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::{
+    completions::utils::{
+        PRIMITIVE_TYPE_COMPLETIONS, addr_to_ide_string, call_completion_item, completion_item,
+        import_insertion_info, mod_defs,
+    },
+    symbols::{
+        Symbols,
+        cursor::{ChainCompletionKind, ChainInfo, CursorContext},
+        def_info::{DefInfo, FunType, VariantInfo},
+        mod_defs::{AutoImportInsertionInfo, MemberDef, MemberDefInfo, ModuleDefs},
+    },
+    utils::expansion_mod_ident_to_map_key,
+};
 use itertools::Itertools;
 use lsp_types::{CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat};
 use move_compiler::{
@@ -28,16 +41,6 @@ use move_symbol_pool::Symbol;
 use super::utils::{
     all_mod_consts_to_import, all_mod_enums_to_import, all_mod_functions_to_import,
     all_mod_structs_to_import, auto_import_text_edit,
-};
-use crate::{
-    completions::utils::{
-        PRIMITIVE_TYPE_COMPLETIONS, addr_to_ide_string, call_completion_item, completion_item,
-        import_insertion_info, mod_defs,
-    },
-    symbols::{
-        AutoImportInsertionInfo, ChainCompletionKind, ChainInfo, CursorContext, DefInfo, FunType,
-        MemberDef, MemberDefInfo, ModuleDefs, Symbols, VariantInfo, expansion_mod_ident_to_map_key,
-    },
 };
 
 /// Describes kind of the name access chain component.
