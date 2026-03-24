@@ -96,8 +96,8 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "rate(num_queries{host=~\"$host\"}{host=~\"$host\"}[$__rate_interval])",
-          "legendFormat": "{{host}}"
+          "expr": "rate(num_queries{instance=~\"$instance\"}[$__rate_interval])",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -164,8 +164,8 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "inflight_requests{host=~\"$host\"}",
-          "legendFormat": "{{host}}"
+          "expr": "inflight_requests{instance=~\"$instance\"}",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -232,8 +232,8 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(num_errors{host=~\"$host\"}[$__rate_interval])) / clamp_min(rate(num_queries{host=~\"$host\"}{host=~\"$host\"}[$__rate_interval]), 0.001)",
-          "legendFormat": "{{host}}"
+          "expr": "sum(rate(num_errors{instance=~\"$instance\"}[$__rate_interval])) / clamp_min(rate(num_queries{instance=~\"$instance\"}[$__rate_interval]), 0.001)",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -300,8 +300,8 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "rate(query_latency_sum{host=~\"$host\"}[$__rate_interval]) / clamp_min(rate(query_latency_count{host=~\"$host\"}[$__rate_interval]), 0.001)",
-          "legendFormat": "{{host}}"
+          "expr": "rate(query_latency_sum{instance=~\"$instance\"}[$__rate_interval]) / clamp_min(rate(query_latency_count{instance=~\"$instance\"}[$__rate_interval]), 0.001)",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -368,12 +368,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(query_latency_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(query_latency_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(query_latency_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(query_latency_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     },
@@ -428,12 +428,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(query_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(query_validation_latency_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(query_validation_latency_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(query_validation_latency_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     },
@@ -488,8 +488,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(db_fetch_latency_bucket{host=~\"$host\"}[$__rate_interval])) by (le, type))",
-          "legendFormat": "{{type}} - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(db_fetch_latency_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, type, instance))",
+          "legendFormat": "{{type}} - {{instance}}"
         }
       ]
     },
@@ -556,12 +556,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(input_nodes_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(input_nodes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(input_nodes_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(input_nodes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     },
@@ -616,12 +616,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(output_nodes_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(output_nodes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(output_nodes_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(output_nodes_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     },
@@ -676,12 +676,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(query_depth_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(query_depth_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(query_depth_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(query_depth_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     },
@@ -736,12 +736,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(query_payload_size_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(query_payload_size_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(query_payload_size_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(query_payload_size_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     },
@@ -808,8 +808,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(num_errors{host=~\"$host\"}[$__rate_interval])) by (type)",
-          "legendFormat": "{{type}} - {{host}}"
+          "expr": "sum(rate(num_errors{instance=~\"$instance\"}[$__rate_interval])) by (type, instance)",
+          "legendFormat": "{{type}} - {{instance}}"
         }
       ]
     },
@@ -864,8 +864,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(num_errors{host=~\"$host\"}[$__rate_interval])) by (path)",
-          "legendFormat": "{{path}} - {{host}}"
+          "expr": "sum(rate(num_errors{instance=~\"$instance\"}[$__rate_interval])) by (path, instance)",
+          "legendFormat": "{{path}} - {{instance}}"
         }
       ]
     },
@@ -920,8 +920,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(num_queries_top_level{host=~\"$host\"}[$__rate_interval])) by (path)",
-          "legendFormat": "{{path}} - {{host}}"
+          "expr": "sum(rate(num_queries_top_level{instance=~\"$instance\"}[$__rate_interval])) by (path, instance)",
+          "legendFormat": "{{path}} - {{instance}}"
         }
       ]
     },
@@ -988,8 +988,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(db_fetches{host=~\"$host\"}[$__rate_interval])) by (type)",
-          "legendFormat": "{{type}} - {{host}}"
+          "expr": "sum(rate(db_fetches{instance=~\"$instance\"}[$__rate_interval])) by (type, instance)",
+          "legendFormat": "{{type}} - {{instance}}"
         }
       ]
     },
@@ -1044,8 +1044,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "rate(db_fetches{host=~\"$host\", type=\"success\"}[$__rate_interval]) / clamp_min(rate(db_fetches{type=\"success\"}[$__rate_interval]) + rate(db_fetches{type=\"error\"}[$__rate_interval]), 0.001)",
-          "legendFormat": "{{host}}"
+          "expr": "rate(db_fetches{instance=~\"$instance\", type=\"success\"}[$__rate_interval]) / clamp_min(rate(db_fetches{instance=~\"$instance\", type=\"success\"}[$__rate_interval]) + (rate(db_fetches{instance=~\"$instance\", type=\"error\"}[$__rate_interval]) or vector(0)), 0.001)",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -1100,12 +1100,12 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum(rate(db_query_cost_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p50 - {{host}}"
+          "expr": "histogram_quantile(0.5, sum(rate(db_query_cost_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p50 - {{instance}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(db_query_cost_bucket{host=~\"$host\"}[$__rate_interval])) by (le))",
-          "legendFormat": "p99 - {{host}}"
+          "expr": "histogram_quantile(0.99, sum(rate(db_query_cost_bucket{instance=~\"$instance\"}[$__rate_interval])) by (le, instance))",
+          "legendFormat": "p99 - {{instance}}"
         }
       ]
     }
@@ -1149,10 +1149,10 @@
         "includeAll": true,
         "label": "Host",
         "multi": true,
-        "name": "host",
+        "name": "instance",
         "options": [],
         "query": {
-          "query": "label_values(num_queries, host)",
+          "query": "label_values(num_queries, instance)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
