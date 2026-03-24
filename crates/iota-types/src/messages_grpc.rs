@@ -32,6 +32,8 @@ pub struct ValidatorHealthResponse {
     pub num_inflight_execution_transactions: u64,
     /// Number of in-flight consensus transactions.
     pub num_inflight_consensus_transactions: u64,
+    /// Sequence number of the last locally built checkpoint.
+    pub last_locally_built_checkpoint: u64,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
