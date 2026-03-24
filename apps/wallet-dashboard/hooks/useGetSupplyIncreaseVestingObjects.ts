@@ -26,9 +26,10 @@ import {
     ExtendedDelegatedTimelockedStake,
     formatDelegatedTimelockedStake,
     createCollectAllTimelocksTransaction,
+    useGetDelegatedStake,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useIotaClient } from '@iota/dapp-kit';
 
 const REDUCTION_STEP_SIZE = 5;
@@ -74,6 +75,12 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         isLoading: isTimelockedStakedObjectsLoading,
         refetch: refetchTimelockedStakedObjects,
     } = useGetTimelockedStakedObjects(address || '');
+
+    // Fetch normal (non-timelocked) stakes
+    const { data: delegatedStakes } = useGetDelegatedStake({
+        address: address || '',
+        enabled: !!address,
+    });
 
     const supplyIncreaseVestingMapped = mapTimelockObjects(timelockedObjects || []).filter(
         isSupplyIncreaseVestingObject,
@@ -140,13 +147,45 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const supplyIncreaseVestingUnlockedStakeObjectData = useMemo(() => {
         return supplyIncreaseVestingUnlockedStakes.map((stake) => ({
             objectId: stake.timelockedStakedIotaId,
-            content: stake,
+            content: {
+                dataType: 'moveObject' as const,
+                fields: {
+                    staked_iota: {
+                        fields: {
+                            pool_id: stake.stakingPool,
+                        },
+                    },
+                },
+            },
         }));
     }, [supplyIncreaseVestingUnlockedStakes]);
 
+    // Convert normal stakes to IotaObjectData format for PTB
+    const existingStakedObjects = useMemo(() => {
+        if (!delegatedStakes) return [];
+
+        return delegatedStakes.flatMap((delegation) =>
+            delegation.stakes
+                .filter((stake) => stake.status === 'Active')
+                .map((stake) => ({
+                    objectId: stake.stakedIotaId,
+                    content: {
+                        dataType: 'moveObject' as const,
+                        fields: {
+                            pool_id: delegation.stakingPool,
+                        },
+                    },
+                })),
+        );
+    }, [delegatedStakes]);
+
     // Build the collect all transaction
     const unlockAllSupplyIncreaseVesting = useMemo(() => {
-        if (!address || (supplyIncreaseVestingUnlockedObjectIds.length === 0 && supplyIncreaseVestingUnlockedStakeObjectData.length === 0)) {
+        if (
+            !address ||
+            (supplyIncreaseVestingUnlockedObjectIds.length === 0 &&
+                supplyIncreaseVestingUnlockedStakeObjectData.length === 0)
+        ) {
             return undefined;
         }
 
@@ -155,6 +194,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
                 address,
                 timelockObjectIds: supplyIncreaseVestingUnlockedObjectIds,
                 timelockedStakedObjects: supplyIncreaseVestingUnlockedStakeObjectData as never,
+                existingStakedObjects: existingStakedObjects as never,
             });
 
             ptb.setSenderIfNotSet(address);
@@ -162,38 +202,67 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         } catch (error) {
             return undefined;
         }
-    }, [address, supplyIncreaseVestingUnlockedObjectIds, supplyIncreaseVestingUnlockedStakeObjectData]);
+    }, [
+        address,
+        supplyIncreaseVestingUnlockedObjectIds,
+        supplyIncreaseVestingUnlockedStakeObjectData,
+        existingStakedObjects,
+    ]);
 
     // Dry run the transaction to check for errors
     const [isUnlockError, setIsUnlockError] = useState(false);
     const [unlockError, setUnlockError] = useState<Error | null>(null);
     const [isUnlockPending, setIsUnlockPending] = useState(false);
+    const lastDryRunTxRef = useRef<string | null>(null);
 
     useEffect(() => {
         async function dryRunTransaction() {
             if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
                 setIsUnlockError(false);
                 setUnlockError(null);
+                setIsUnlockPending(false);
+                lastDryRunTxRef.current = null;
+                return;
+            }
+
+            // Create a unique key for this transaction configuration
+            const txKey = JSON.stringify({
+                objectIds: supplyIncreaseVestingUnlockedObjectIds,
+                stakeIds: supplyIncreaseVestingUnlockedStakeObjectData.map((s) => s.objectId),
+            });
+
+            // Skip if we already did a dry run for this exact transaction
+            if (lastDryRunTxRef.current === txKey) {
                 return;
             }
 
             setIsUnlockPending(true);
             try {
+                const txBytes = await unlockAllSupplyIncreaseVesting.transactionBlock.build({
+                    client: iotaClient,
+                });
                 await iotaClient.dryRunTransactionBlock({
-                    transactionBlock: await unlockAllSupplyIncreaseVesting.transactionBlock.build({ client: iotaClient }),
+                    transactionBlock: txBytes,
                 });
                 setIsUnlockError(false);
                 setUnlockError(null);
+                lastDryRunTxRef.current = txKey;
             } catch (error) {
                 setIsUnlockError(true);
                 setUnlockError(error as Error);
+                lastDryRunTxRef.current = txKey;
             } finally {
                 setIsUnlockPending(false);
             }
         }
 
         dryRunTransaction();
-    }, [unlockAllSupplyIncreaseVesting, iotaClient]);
+    }, [
+        unlockAllSupplyIncreaseVesting,
+        iotaClient,
+        supplyIncreaseVestingUnlockedObjectIds,
+        supplyIncreaseVestingUnlockedStakeObjectData,
+    ]);
 
     const isSupplyIncreaseVestingScheduleEmpty =
         !supplyIncreaseVestingSchedule.totalVested &&

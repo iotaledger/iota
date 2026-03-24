@@ -25,3 +25,4 @@ export * from './MigrationOverview';
 export * from './SupplyIncreaseVestingOverview';
 export * from './staked-timelock-object';
 export * from './loading';
+export * from './CollectSummary';
