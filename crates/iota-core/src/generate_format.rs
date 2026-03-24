@@ -430,110 +430,110 @@ fn get_registry() -> Result<Registry> {
     //     )
     //     .unwrap();
 
-    // // Trace all TransactionKind variants via trace_value
-    // let sample_pt = ProgrammableTransaction {
-    //     inputs: vec![CallArg::Pure(vec![0u8])],
-    //     commands: vec![Command::MakeMoveVec(None, vec![])],
-    // };
-    // tracer
-    //     .trace_value(
-    //         &mut samples,
-    //         &TransactionKind::ProgrammableTransaction(sample_pt),
-    //     )
-    //     .unwrap();
-    // let sample_genesis_obj = GenesisObject::RawObject {
-    //     data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO,
-    // 0)),     owner: Owner::Address(IotaAddress::ZERO),
-    // };
-    // tracer
-    //     .trace_value(
-    //         &mut samples,
-    //         &TransactionKind::Genesis(GenesisTransaction {
-    //             objects: vec![sample_genesis_obj.clone()],
-    //             events: vec![event.clone()],
-    //         }),
-    //     )
-    //     .unwrap();
-    // tracer
-    //     .trace_value(
-    //         &mut samples,
-    //         &TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1
-    // {             epoch: 0,
-    //             round: 0,
-    //             sub_dag_index: Some(0),
-    //             commit_timestamp_ms: 0,
-    //             consensus_commit_digest: ConsensusCommitDigest::default(),
-    //             consensus_determined_version_assignments:
-    //                 ConsensusDeterminedVersionAssignments::CancelledTransactions
-    // {                     cancelled_transactions: vec![],
-    //                 },
-    //         }),
-    //     )
-    //     .unwrap();
-    // tracer
-    //     .trace_value(
-    //         &mut samples,
-    //         &TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
-    //             epoch: 0,
-    //             round: 0,
-    //             new_active_jwks: vec![ActiveJwk {
-    //                 jwk_id: JwkId {
-    //                     iss: "iss".into(),
-    //                     kid: "kid".into(),
-    //                 },
-    //                 jwk: Jwk {
-    //                     kty: "RSA".into(),
-    //                     e: "AQAB".into(),
-    //                     n: "n".into(),
-    //                     alg: "RS256".into(),
-    //                 },
-    //                 epoch: 0,
-    //             }],
-    //             authenticator_obj_initial_shared_version: 0u64.into(),
-    //         }),
-    //     )
-    //     .unwrap();
-    // // EndOfEpochTransaction variant is already covered by sender_data below
-    // tracer
-    //     .trace_value(
-    //         &mut samples,
-    //         &TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
-    //             epoch: 0,
-    //             randomness_round: 0u64.into(),
-    //             random_bytes: vec![0u8],
-    //             randomness_obj_initial_shared_version: 0u64.into(),
-    //         }),
-    //     )
-    //     .unwrap();
+    // Trace all TransactionKind variants via trace_value
+    let sample_pt = ProgrammableTransaction {
+        inputs: vec![CallArg::Pure(vec![0u8])],
+        commands: vec![Command::make_move_vector(None, vec![])],
+    };
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::ProgrammableTransaction(sample_pt),
+        )
+        .unwrap();
+    let sample_genesis_obj = GenesisObject::RawObject {
+        data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        owner: Owner::Address(IotaAddress::ZERO),
+    };
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::Genesis(GenesisTransaction {
+                objects: vec![sample_genesis_obj.clone()],
+                events: vec![event.clone()],
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::ConsensusCommitPrologueV1(ConsensusCommitPrologueV1 {
+                epoch: 0,
+                round: 0,
+                sub_dag_index: Some(0),
+                commit_timestamp_ms: 0,
+                consensus_commit_digest: ConsensusCommitDigest::default(),
+                consensus_determined_version_assignments:
+                    ConsensusDeterminedVersionAssignments::CancelledTransactions {
+                        cancelled_transactions: vec![],
+                    },
+            }),
+        )
+        .unwrap();
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
+                epoch: 0,
+                round: 0,
+                new_active_jwks: vec![ActiveJwk {
+                    jwk_id: JwkId {
+                        iss: "iss".into(),
+                        kid: "kid".into(),
+                    },
+                    jwk: Jwk {
+                        kty: "RSA".into(),
+                        e: "AQAB".into(),
+                        n: "n".into(),
+                        alg: "RS256".into(),
+                    },
+                    epoch: 0,
+                }],
+                authenticator_obj_initial_shared_version: 0u64.into(),
+            }),
+        )
+        .unwrap();
+    // EndOfEpochTransaction variant is already covered by sender_data below
+    tracer
+        .trace_value(
+            &mut samples,
+            &TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
+                epoch: 0,
+                randomness_round: 0u64.into(),
+                random_bytes: vec![0u8],
+                randomness_obj_initial_shared_version: 0u64.into(),
+            }),
+        )
+        .unwrap();
 
-    // // Trace GenesisObject (single-variant enum)
-    // tracer
-    //     .trace_value(&mut samples, &sample_genesis_obj)
-    //     .unwrap();
+    // Trace GenesisObject (single-variant enum)
+    tracer
+        .trace_value(&mut samples, &sample_genesis_obj)
+        .unwrap();
 
-    // // Trace Object via trace_value. Object is a newtype wrapper around
-    // // Arc<ObjectInner>, but ObjectInner has #[serde(rename = "Object")],
-    // // so we need to trace ObjectInner directly to avoid a format conflict
-    // // (Struct vs NewTypeStruct both named "Object").
-    // let sample_obj_inner = ObjectInner {
-    //     data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO,
-    // 0)),     owner: Owner::Address(IotaAddress::ZERO),
-    //     previous_transaction: TransactionDigest::default(),
-    //     storage_rebate: 0,
-    // };
-    // tracer.trace_value(&mut samples, &sample_obj_inner).unwrap();
+    // Trace Object via trace_value. Object is a newtype wrapper around
+    // Arc<ObjectInner>, but ObjectInner has #[serde(rename = "Object")],
+    // so we need to trace ObjectInner directly to avoid a format conflict
+    // (Struct vs NewTypeStruct both named "Object").
+    let sample_obj_inner = ObjectInner {
+        data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        owner: Owner::Address(IotaAddress::ZERO),
+        previous_transaction: TransactionDigest::default(),
+        storage_rebate: 0,
+    };
+    tracer.trace_value(&mut samples, &sample_obj_inner).unwrap();
 
-    // // Trace TransactionEvents via trace_value
-    // let sample_events = TransactionEvents {
-    //     data: vec![Event {
-    //         package_id: ObjectID::ZERO,
-    //         module: Identifier::from_static("foo"),
-    //         sender: IotaAddress::ZERO,
-    //         type_: struct_tag.clone(),
-    //         contents: vec![0],
-    //     }],
-    // };
-    // tracer.trace_value(&mut samples, &sample_events).unwrap();
+    // Trace TransactionEvents via trace_value
+    let sample_events = TransactionEvents {
+        data: vec![Event {
+            package_id: ObjectID::ZERO,
+            module: Identifier::from_static("foo"),
+            sender: IotaAddress::ZERO,
+            type_: struct_tag.clone(),
+            contents: vec![0],
+        }],
+    };
+    tracer.trace_value(&mut samples, &sample_events).unwrap();
 
     tracer
         .trace_type::<base_types::IotaAddress>(&samples)
