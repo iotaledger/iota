@@ -666,6 +666,8 @@ pub enum IotaError {
     // Unsupported Operations on Fullnode
     #[error("Fullnode does not support handle_certificate")]
     FullNodeCantHandleCertificate,
+    #[error("Fullnode does not support handle_submit_transactions")]
+    FullNodeCantHandleSubmitTransactions,
     #[error("Fullnode does not support handle_authority_capabilities")]
     FullNodeCantHandleAuthorityCapabilities,
 

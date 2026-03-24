@@ -13,6 +13,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair;
+use futures::future::Either;
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use iota_metrics::spawn_monitored_task;
 use iota_network::{
@@ -33,8 +34,9 @@ use iota_types::{
         HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
         HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
         HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitCertificateResponse, SubmitTxResponse, SubmitTxResult,
-        SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+        ObjectInfoResponse, SubmitCertificateResponse, SubmitTransactionResult,
+        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
@@ -765,6 +767,17 @@ impl ValidatorService {
         request: tonic::Request<CertifiedTransaction>,
     ) -> WrappedServiceResponse<SubmitCertificateResponse> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        // Reject if white flag flow is enabled - certificates are not used in white
+        // flag flow
+        fp_ensure!(
+            !epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+            }
+            .into()
+        );
+
         let certificate = request.into_inner();
         certificate.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
@@ -1275,10 +1288,115 @@ impl ValidatorService {
         ))
     }
 
-    async fn submit_transaction_impl(
+    /// Validates a batch of transactions that arrive together as a soft bundle
+    /// (white-flag flow). Enforces the same invariants as
+    /// [`Self::soft_bundle_validity_check`] but operates on raw
+    /// [`Transaction`]s instead of [`CertifiedTransaction`]s.
+    ///
+    /// Checks (all-or-nothing — any failure rejects the entire bundle):
+    /// * Count ≤ `max_soft_bundle_size`
+    /// * Total serialized size ≤ half of
+    ///   `consensus_max_transactions_in_block_bytes`
+    /// * Every transaction accesses at least one shared object
+    /// * No transaction has already been executed
+    /// * All transactions share the same gas price
+    /// * No transaction has already been processed by consensus
+    async fn submit_transactions_bundle_validity_check(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::SubmitTxRequest>,
-    ) -> WrappedServiceResponse<SubmitTxResponse> {
+        transactions: &[Transaction],
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        total_size_bytes: u64,
+    ) -> Result<(), tonic::Status> {
+        let protocol_config = epoch_store.protocol_config();
+
+        // Enforce these checks:
+        // - All certs must access at least one shared object.
+        // - All certs must not be already executed.
+        // - All certs must have the same gas price.
+        // - Number of certs must not exceed the max allowed.
+        // - Total size of all certs must not exceed the max allowed.
+        fp_ensure!(
+            transactions.len() as u64 <= protocol_config.max_soft_bundle_size(),
+            IotaError::UserInput {
+                error: UserInputError::TooManyTransactionsInSoftBundle {
+                    limit: protocol_config.max_soft_bundle_size(),
+                },
+            }
+            .into()
+        );
+
+        // We set the soft bundle max size to be half of the consensus max transactions
+        // in block size. We do this to account for serialization overheads and
+        // to ensure that the soft bundle is not too large when is attempted to be
+        // posted via consensus. Although half the block size is on the extreme
+        // side, it's should be good enough for now.
+        let soft_bundle_max_size_bytes =
+            protocol_config.consensus_max_transactions_in_block_bytes() / 2;
+        fp_ensure!(
+            total_size_bytes <= soft_bundle_max_size_bytes,
+            IotaError::UserInput {
+                error: UserInputError::SoftBundleTooLarge {
+                    size: total_size_bytes,
+                    limit: soft_bundle_max_size_bytes,
+                },
+            }
+            .into()
+        );
+
+        let mut gas_price: Option<u64> = None;
+        for transaction in transactions {
+            let tx_digest = *transaction.digest();
+
+            fp_ensure!(
+                transaction.contains_shared_object(),
+                IotaError::UserInput {
+                    error: UserInputError::NoSharedObject { digest: tx_digest },
+                }
+                .into()
+            );
+            fp_ensure!(
+                !self.state.try_is_tx_already_executed(&tx_digest)?,
+                IotaError::UserInput {
+                    error: UserInputError::AlreadyExecuted { digest: tx_digest },
+                }
+                .into()
+            );
+
+            if let Some(gas) = gas_price {
+                fp_ensure!(
+                    gas == transaction.gas_price(),
+                    IotaError::UserInput {
+                        error: UserInputError::GasPriceMismatch {
+                            digest: tx_digest,
+                            expected: gas,
+                            actual: transaction.gas_price(),
+                        },
+                    }
+                    .into()
+                );
+            } else {
+                gas_price = Some(transaction.gas_price());
+            }
+        }
+
+        // Reject the entire bundle if any transaction has already been sequenced by
+        // consensus. This is a best-effort check — a race is possible but
+        // harmless (consensus deduplicates).
+        fp_ensure!(
+            !epoch_store.is_any_user_tx_consensus_message_processed(transactions.iter())?,
+            IotaError::UserInput {
+                error: UserInputError::CertificateAlreadyProcessed,
+            }
+            .into()
+        );
+
+        Ok(())
+    }
+
+    async fn handle_submit_transactions_impl(
+        &self,
+        request: tonic::Request<SubmitTransactionsRequest>,
+    ) -> WrappedServiceResponse<SubmitTransactionsResponse> {
         let Self {
             state,
             consensus_adapter,
@@ -1287,7 +1405,13 @@ impl ValidatorService {
         } = self.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
-        // 1. Check feature flag
+        // Ensure not a fullnode.
+        fp_ensure!(
+            !state.is_fullnode(&epoch_store),
+            IotaError::FullNodeCantHandleSubmitTransactions.into()
+        );
+
+        // Check feature flag.
         fp_ensure!(
             epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
@@ -1296,117 +1420,161 @@ impl ValidatorService {
             .into()
         );
 
-        let submit_request = request.into_inner();
+        let request = request.into_inner();
 
-        // Handle ping requests
-        if submit_request.transaction.is_none() {
+        // Handle ping.
+        if request.is_ping() {
+            // TODO: handle ping response better. Do we even need ping requests?
             return Ok((
-                tonic::Response::new(SubmitTxResponse {
-                    results: vec![SubmitTxResult::Submitted],
+                tonic::Response::new(SubmitTransactionsResponse {
+                    results: vec![SubmitTransactionResult::Submitted],
                 }),
                 Weight::zero(),
             ));
         }
 
-        let transaction = submit_request.transaction.unwrap();
-        let tx_digest = *transaction.digest();
+        let transactions = request.transactions;
+        // is_ping() = len() == 0 (handled above); is_soft_bundle() = len() > 1; else =
+        // len() == 1.
+        let is_soft_bundle = transactions.len() > 1;
 
-        // 2. Not a fullnode
-        fp_ensure!(
-            !state.is_fullnode(&epoch_store),
-            IotaError::FullNodeCantHandleCertificate.into()
-        );
+        // Per-tx validity checks. For soft bundles this also accumulates total
+        // serialized size for the bundle size limit.
+        let mut total_size_bytes: u64 = 0;
+        for tx in &transactions {
+            total_size_bytes +=
+                tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
 
-        // 3. Validity check
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
-            return Ok((
-                tonic::Response::new(SubmitTxResponse {
-                    results: vec![SubmitTxResult::Rejected { error: e }],
-                }),
-                Weight::zero(),
-            ));
-        }
-
-        // 4. Consensus overload check
-        if let Err(e) = consensus_adapter.check_consensus_overload() {
-            return Ok((
-                tonic::Response::new(SubmitTxResponse {
-                    results: vec![SubmitTxResult::Rejected { error: e }],
-                }),
-                Weight::zero(),
-            ));
-        }
-
-        // 5. Check if already executed
-        // TODO: we don't actually need to sign it for the response
-        if let Some(effects) =
-            state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
-        {
-            let effects_digest = *effects.digest();
-            return Ok((
-                tonic::Response::new(SubmitTxResponse {
-                    results: vec![SubmitTxResult::Executed {
-                        effects_digest,
-                        details: None, // TODO: optionally include details based on request flag
-                    }],
-                }),
-                Weight::zero(),
-            ));
-        }
-
-        // 6. Verify user signature
-        let _verified = match epoch_store.verify_transaction(transaction.clone()) {
-            Ok(v) => v,
-            Err(e) => {
-                metrics.signature_errors.inc();
-                return Ok((
-                    tonic::Response::new(SubmitTxResponse {
-                        results: vec![SubmitTxResult::Rejected { error: e }],
-                    }),
-                    Weight::one(),
-                ));
+            // System overload check per transaction: check_execution_overload examines
+            // per-transaction input objects (shared objects, object queue depth).
+            if let Err(e) = state.check_system_overload(
+                &consensus_adapter,
+                tx.data(),
+                state.check_system_overload_at_signing(),
+            ) {
+                metrics
+                    .num_rejected_tx_during_overload
+                    .with_label_values(&[e.as_ref()])
+                    .inc_by(transactions.len() as u64);
+                return Err(e.into());
             }
-        };
+        }
 
-        // 7. Submit to consensus (no pending tracking, no retry)
-        {
+        // Latency timer starts after pre-flight checks, mirroring handle_transaction
+        // where the timer also starts after the overload check.
+        let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
+
+        if is_soft_bundle {
+            // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
+            let n = transactions.len();
+
+            // Bundle-level validity checks (shared-object, size, gas price, already
+            // processed).
+            self.submit_transactions_bundle_validity_check(
+                &transactions,
+                &epoch_store,
+                total_size_bytes,
+            )
+            .await?;
+
+            // Verify each transaction's user signature individually.
+            // TODO: switch to batch verification once a parallel helper exists.
+            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+            for tx in &transactions {
+                if let Err(e) = epoch_store.verify_transaction(tx.clone()) {
+                    metrics.signature_errors.inc();
+                    return Err(e.into());
+                }
+            }
+            drop(tx_verif_guard);
+
+            // Acquire the reconfiguration lock once for the whole bundle so that
+            // all transactions are either accepted or rejected together.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
             if !reconfiguration_lock.should_accept_user_certs() {
+                metrics
+                    .num_rejected_tx_in_epoch_boundary
+                    .inc_by(transactions.len() as u64);
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
+
+            // Build consensus messages and submit as an atomic batch.
+            let consensus_txs: Vec<_> = transactions
+                .into_iter()
+                .map(ConsensusTransaction::new_user_transaction)
+                .collect();
+
+            self.consensus_adapter
+                .submit_batch(&consensus_txs, Some(&reconfiguration_lock), &epoch_store)
+                .map_err(tonic::Status::from)?;
+
+            // TODO: do we need a vector in the response, since it's all or nothing anyway?
+            let results = vec![SubmitTransactionResult::Submitted; n];
+            Ok((
+                tonic::Response::new(SubmitTransactionsResponse { results }),
+                Weight::one(),
+            ))
+        } else {
+            // ── Single-transaction path ─────────────────────────────────────────
+            let transaction = transactions
+                .into_iter()
+                .next()
+                .expect("single transaction expected: ping and soft-bundle cases already handled");
+            let tx_digest = *transaction.digest();
+
+            // Check if already executed.
+            if let Some(effects) =
+                state.get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)?
+            {
+                let effects_digest = *effects.digest();
+                // TODO: populate `details` with effects/events/objects to allow the
+                // TransactionDriver to skip the get_full_effects RPC call. The client
+                // already handles Some(details) in effects_certifier.rs.
                 return Ok((
-                    tonic::Response::new(SubmitTxResponse {
-                        results: vec![SubmitTxResult::Rejected {
-                            error: IotaError::ValidatorHaltedAtEpochEnd,
+                    tonic::Response::new(SubmitTransactionsResponse {
+                        results: vec![SubmitTransactionResult::Executed {
+                            effects_digest,
+                            details: None,
                         }],
                     }),
                     Weight::one(),
                 ));
             }
 
-            // Submit directly - UserTransactionV1 already accepts Box<Transaction>
-            let consensus_tx = ConsensusTransaction::new_user_transaction(transaction);
-            if let Err(e) =
-                consensus_adapter.submit(consensus_tx, Some(&reconfiguration_lock), &epoch_store)
-            {
-                return Ok((
-                    tonic::Response::new(SubmitTxResponse {
-                        results: vec![SubmitTxResult::Rejected { error: e }],
-                    }),
-                    Weight::one(),
-                ));
+            // Verify user signature.
+            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+            if let Err(e) = epoch_store.verify_transaction(transaction.clone()) {
+                metrics.signature_errors.inc();
+                return Err(e.into());
             }
-        }
+            drop(tx_verif_guard);
 
-        Ok((
-            tonic::Response::new(SubmitTxResponse {
-                results: vec![SubmitTxResult::Submitted],
-            }),
-            Weight::one(),
-        ))
+            // Reconfig check.
+            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+            if !reconfiguration_lock.should_accept_user_certs() {
+                metrics.num_rejected_tx_in_epoch_boundary.inc();
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            }
+
+            // Submit to consensus.
+            consensus_adapter
+                .submit(
+                    ConsensusTransaction::new_user_transaction(transaction),
+                    Some(&reconfiguration_lock),
+                    &epoch_store,
+                )
+                .map_err(tonic::Status::from)?;
+
+            Ok((
+                tonic::Response::new(SubmitTransactionsResponse {
+                    results: vec![SubmitTransactionResult::Submitted],
+                }),
+                Weight::one(),
+            ))
+        }
     }
 
-    async fn wait_for_effects_impl(
+    async fn handle_wait_for_effects_impl(
         &self,
         request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
     ) -> WrappedServiceResponse<iota_types::messages_grpc::WaitForEffectsResponse> {
@@ -1429,65 +1597,99 @@ impl ValidatorService {
         let tx_digest = wait_request.transaction_digest.unwrap();
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
-        // Wait for the transaction to be executed and get the effects digest
+        // Wait for the transaction to be executed and get the effects digest.
+        // Race against the transaction being dropped by white-flag conflict
+        // resolution, which gives an immediate Rejected response instead of
+        // waiting for the gRPC deadline.
         let cache = self.state.get_transaction_cache_reader();
-        let effects_digests = cache
-            .notify_read_executed_effects_digests(&[tx_digest])
-            .await;
 
-        if let Some(effects_digest) = effects_digests.into_iter().next() {
-            // Fetch detailed execution data if requested
-            let details = if wait_request.include_details {
-                // Get the full transaction effects from cache
-                if let Some(effects) = cache.get_executed_effects(&tx_digest) {
-                    // Get events if they exist (same as certificate flow at line ~691)
-                    let events = if effects.events_digest().is_some() {
-                        self.state
-                            .get_transaction_events(effects.transaction_digest())
-                            .ok()
+        const WAIT_TIMEOUT_SECS: u64 = 30;
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(WAIT_TIMEOUT_SECS),
+            async {
+                let digests_to_watch = [tx_digest];
+                tokio::select! {
+                    biased;
+                    effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
+                        Either::Left(effects_digests)
+                    }
+                    dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {
+                        Either::Right(dropped_error)
+                    }
+                }
+            },
+        )
+        .await;
+
+        match result {
+            Ok(Either::Left(effects_digests)) => {
+                if let Some(effects_digest) = effects_digests.into_iter().next() {
+                    // Fetch detailed execution data if requested
+                    let details = if wait_request.include_details {
+                        if let Some(effects) = cache.get_executed_effects(&tx_digest) {
+                            let events = if effects.events_digest().is_some() {
+                                self.state
+                                    .get_transaction_events(effects.transaction_digest())
+                                    .ok()
+                            } else {
+                                None
+                            };
+                            let input_objects =
+                                self.state.get_transaction_input_objects(&effects).ok();
+                            let output_objects =
+                                self.state.get_transaction_output_objects(&effects).ok();
+                            Some(Box::new(ExecutedData {
+                                effects,
+                                events,
+                                input_objects: input_objects.unwrap_or_default(),
+                                output_objects: output_objects.unwrap_or_default(),
+                            }))
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     };
 
-                    // Get input objects using the same helper as certificate flow (line ~693)
-                    let input_objects = self.state.get_transaction_input_objects(&effects).ok();
-
-                    // Get output objects using the same helper as certificate flow (line ~696)
-                    let output_objects = self.state.get_transaction_output_objects(&effects).ok();
-
-                    Some(Box::new(ExecutedData {
-                        effects,
-                        events,
-                        input_objects: input_objects.unwrap_or_default(),
-                        output_objects: output_objects.unwrap_or_default(),
-                    }))
+                    Ok((
+                        tonic::Response::new(WaitForEffectsResponse::Executed {
+                            effects_digest,
+                            details,
+                        }),
+                        Weight::one(),
+                    ))
                 } else {
-                    None
+                    // Empty effects list — should not happen, but treat as expired
+                    Ok((
+                        tonic::Response::new(WaitForEffectsResponse::Expired {
+                            epoch: epoch_store.epoch(),
+                        }),
+                        Weight::one(),
+                    ))
                 }
-            } else {
-                None
-            };
-
-            Ok((
-                tonic::Response::new(WaitForEffectsResponse::Executed {
-                    effects_digest,
-                    details,
-                }),
-                Weight::one(),
-            ))
-        } else {
-            // Transaction not found or expired
-            Ok((
-                tonic::Response::new(WaitForEffectsResponse::Expired {
-                    epoch: epoch_store.epoch(),
-                    round: None,
-                }),
-                Weight::one(),
-            ))
+            }
+            Ok(Either::Right(dropped_error)) => {
+                // Transaction was dropped by white-flag conflict resolution
+                Ok((
+                    tonic::Response::new(WaitForEffectsResponse::Rejected {
+                        error: Some(dropped_error),
+                    }),
+                    Weight::one(),
+                ))
+            }
+            Err(_timeout) => {
+                // Timed out waiting for effects
+                Ok((
+                    tonic::Response::new(WaitForEffectsResponse::Expired {
+                        epoch: epoch_store.epoch(),
+                    }),
+                    Weight::one(),
+                ))
+            }
         }
     }
 
-    async fn validator_health_impl(
+    async fn handle_validator_health_impl(
         &self,
         _request: tonic::Request<iota_types::messages_grpc::ValidatorHealthRequest>,
     ) -> WrappedServiceResponse<iota_types::messages_grpc::ValidatorHealthResponse> {
@@ -1649,36 +1851,36 @@ impl Validator for ValidatorService {
         handle_with_decoration!(self, handle_capability_notification_v1_impl, request)
     }
 
-    async fn submit_transaction(
+    async fn handle_submit_transactions(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::SubmitTxRequest>,
-    ) -> Result<tonic::Response<SubmitTxResponse>, tonic::Status> {
+        request: tonic::Request<SubmitTransactionsRequest>,
+    ) -> Result<tonic::Response<SubmitTransactionsResponse>, tonic::Status> {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
-            handle_with_decoration!(validator_service, submit_transaction_impl, request)
+            handle_with_decoration!(validator_service, handle_submit_transactions_impl, request)
         })
         .await
         .unwrap()
     }
 
-    async fn wait_for_effects(
+    async fn handle_wait_for_effects(
         &self,
         request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
     ) -> Result<tonic::Response<iota_types::messages_grpc::WaitForEffectsResponse>, tonic::Status>
     {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
-            handle_with_decoration!(validator_service, wait_for_effects_impl, request)
+            handle_with_decoration!(validator_service, handle_wait_for_effects_impl, request)
         })
         .await
         .unwrap()
     }
 
-    async fn validator_health(
+    async fn handle_validator_health(
         &self,
         request: tonic::Request<iota_types::messages_grpc::ValidatorHealthRequest>,
     ) -> Result<tonic::Response<iota_types::messages_grpc::ValidatorHealthResponse>, tonic::Status>
     {
-        handle_with_decoration!(self, validator_health_impl, request)
+        handle_with_decoration!(self, handle_validator_health_impl, request)
     }
 }
