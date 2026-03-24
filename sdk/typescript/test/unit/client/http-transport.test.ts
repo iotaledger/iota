@@ -59,6 +59,7 @@ describe('IotaHTTPTransport', () => {
                 }),
                 headers: {
                     'Content-Type': 'application/json',
+                    'Client-Sdk-Type': 'typescript',
                 },
                 method: 'POST',
             });

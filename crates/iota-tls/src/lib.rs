@@ -210,7 +210,7 @@ mod tests {
 
         let allowlist = AllowPublicKeys::new(BTreeSet::from([public_key.clone()]));
         let client_verifier =
-            ClientCertVerifier::new(allowlist.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string());
+            ClientCertVerifier::new(allowlist, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
         // Allowed public key but the server-name in the cert is not the required "iota"
         let err = client_verifier

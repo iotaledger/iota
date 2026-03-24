@@ -211,7 +211,7 @@ fn load_static_peers(
             let peer_id = hex::decode(spk.peer_id).unwrap();
             let public_key = Ed25519PublicKey::from_bytes(peer_id.as_ref()).unwrap();
             let s = AllowedPeer {
-                name: spk.name.clone(),
+                name: spk.name,
                 public_key,
             };
             info!(

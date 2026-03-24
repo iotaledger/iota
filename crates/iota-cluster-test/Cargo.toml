@@ -47,3 +47,6 @@ test-cluster.workspace = true
 [features]
 default = []
 pg_integration = []
+
+[lints]
+workspace = true

@@ -9,6 +9,7 @@
 		"explorer-dev": "turbo --filter iota-explorer --filter apps-backend dev",
 		"wallet-dev": "turbo --filter ./apps/wallet --filter apps-backend dev",
 		"wallet-dashboard-dev": "turbo --filter ./apps/wallet-dashboard --filter apps-backend dev",
+		"multisig": "turbo --filter ./dapps/multisig-toolkit",
 		"evm-bridge": "turbo --filter ./apps/evm-bridge",
 		"evm-bridge-dev": "turbo --filter ./apps/evm-bridge --filter apps-backend dev",
 		"ui-kit": "turbo --filter ./apps/ui-kit",
@@ -56,7 +57,7 @@
 	},
 	"engines": {
 		"node": ">=24",
-		"pnpm": ">=9.6.0 <=9.15.9"
+		"pnpm": ">=10"
 	},
 	"manypkg": {
 		"ignoredRules": [
@@ -95,5 +96,5 @@
 	"dependencies": {
 		"copy-text-to-clipboard": "^3.2.0"
 	},
-	"packageManager": "pnpm@9.6.0"
+	"packageManager": "pnpm@10.30.0"
 }

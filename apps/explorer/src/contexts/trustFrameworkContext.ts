@@ -3,7 +3,7 @@
 
 'use client';
 
-import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
+import type { IdentityClientReadOnly } from '@iota/identity-wasm/web';
 import { createContext, useContext } from 'react';
 
 export interface TrustFrameworkProviderContext {
@@ -26,4 +26,8 @@ export function useTrustFramework(): TrustFrameworkProviderContext {
 
 export function useIdentityClient(): IdentityClientReadOnly | null {
     return useTrustFramework().identityClient;
+}
+
+export function useIdentityPkgId(): string | null {
+    return useIdentityClient()?.packageId() || null;
 }

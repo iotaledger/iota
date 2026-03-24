@@ -37,6 +37,7 @@ export {
     IOTA_SYSTEM_MODULE_NAME,
     IOTA_TYPE_ARG,
     IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_RANDOM_OBJECT_ID,
 } from './constants.js';
 
 export { deriveDynamicFieldID } from './dynamic-fields.js';

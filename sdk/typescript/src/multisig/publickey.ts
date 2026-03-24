@@ -21,11 +21,14 @@ import { publicKeyFromRawBytes } from '../verify/index.js';
 import { MultiSigSigner } from './signer.js';
 
 type CompressedSignature =
-    | { ED25519: number[] }
-    | { Secp256k1: number[] }
-    | { Secp256r1: number[] };
+    | { ED25519: Uint8Array }
+    | { Secp256k1: Uint8Array }
+    | { Secp256r1: Uint8Array };
 
-type PublicKeyEnum = { ED25519: number[] } | { Secp256k1: number[] } | { Secp256r1: number[] };
+type PublicKeyEnum =
+    | { ED25519: Uint8Array }
+    | { Secp256k1: Uint8Array }
+    | { Secp256r1: Uint8Array };
 
 type PubkeyEnumWeightPair = {
     pubKey: PublicKeyEnum;
@@ -93,7 +96,7 @@ export class MultiSigPublicKey extends PublicKey {
         this.publicKeys = this.multisigPublicKey.pk_map.map(({ pubKey, weight }) => {
             const [scheme, bytes] = Object.entries(pubKey).filter(
                 ([name]) => name !== '$kind',
-            )[0] as [SignatureScheme, number[]];
+            )[0] as [SignatureScheme, Uint8Array];
             const publicKeyStr = Uint8Array.from(bytes).toString();
 
             if (seenPublicKeys.has(publicKeyStr)) {
@@ -141,7 +144,7 @@ export class MultiSigPublicKey extends PublicKey {
                 const scheme = SIGNATURE_FLAG_TO_SCHEME[publicKey.flag() as SignatureFlag];
 
                 return {
-                    pubKey: { [scheme]: Array.from(publicKey.toRawBytes()) } as PublicKeyEnum,
+                    pubKey: { [scheme]: publicKey.toRawBytes() } as PublicKeyEnum,
                     weight,
                 };
             }),
@@ -262,9 +265,7 @@ export class MultiSigPublicKey extends PublicKey {
             const publicKey = parsed.publicKey;
 
             compressedSignatures[i] = {
-                [parsed.signatureScheme]: Array.from(
-                    parsed.signature.map((x: number) => Number(x)),
-                ),
+                [parsed.signatureScheme]: parsed.signature,
             } as CompressedSignature;
 
             let publicKeyIndex;
@@ -307,7 +308,7 @@ export function parsePartialSignatures(multisig: MultiSigStruct): ParsedPartialM
     for (let i = 0; i < multisig.sigs.length; i++) {
         const [signatureScheme, signature] = Object.entries(multisig.sigs[i]).filter(
             ([name]) => name !== '$kind',
-        )[0] as [SignatureScheme, number[]];
+        )[0] as [SignatureScheme, Uint8Array];
         const pkIndex = asIndices(multisig.bitmap).at(i)!;
         const pair = multisig.multisig_pk.pk_map[pkIndex];
         const pkBytes = Uint8Array.from(Object.values(pair.pubKey)[0]);
@@ -320,7 +321,7 @@ export function parsePartialSignatures(multisig: MultiSigStruct): ParsedPartialM
 
         res[i] = {
             signatureScheme,
-            signature: Uint8Array.from(signature),
+            signature,
             publicKey: publicKey,
             weight: pair.weight,
         };

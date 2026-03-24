@@ -78,7 +78,7 @@ impl PersistedStore {
         let samp: SamplingInterval = SamplingInterval::new(Duration::from_secs(60), 0);
         let read_write = PersistedStoreInner::open_tables_read_write(
             path.clone(),
-            MetricConf::new("persisted").with_sampling(samp.clone()),
+            MetricConf::new("persisted").with_sampling(samp),
             None,
             None,
         );

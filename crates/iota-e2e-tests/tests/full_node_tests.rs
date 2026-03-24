@@ -940,7 +940,12 @@ async fn get_past_obj_read_from_node(
 #[sim_test]
 async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let test_cluster = TestClusterBuilder::new().build().await;
+    let test_cluster = TestClusterBuilder::new()
+        // The past objects that are expected to be read from the node can be pruned in 10 seconds.
+        // This causes test instability, so pruning is disabled in this test.
+        .disable_fullnode_pruning()
+        .build()
+        .await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let node = &test_cluster.fullnode_handle.iota_node;
     let package_id = publish_nfts_package(&test_cluster.wallet).await.0;
