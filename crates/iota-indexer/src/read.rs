@@ -1099,6 +1099,60 @@ impl IndexerReader {
         })
     }
 
+    /// Returns `true` if any of the requested objects exist in the DB at a
+    /// version greater than the one requested. Such check is useful when
+    /// waiting for exact object versions, as it indicates that further waiting
+    /// is futile.
+    pub async fn has_superseded_objects_in_blocking_task(
+        &self,
+        object_keys: Vec<(ObjectID, SequenceNumber)>,
+    ) -> Result<bool, IndexerError> {
+        self.spawn_blocking(move |this| this.has_superseded_objects(object_keys))
+            .await
+    }
+
+    fn has_superseded_objects(
+        &self,
+        object_keys: Vec<(ObjectID, SequenceNumber)>,
+    ) -> Result<bool, IndexerError> {
+        if object_keys.is_empty() {
+            return Ok(false);
+        }
+
+        let values_clause = object_keys
+            .iter()
+            .map(|(id, version)| {
+                format!(
+                    "('\\x{}'::bytea, {}::bigint)",
+                    Hex::encode(id.to_vec()),
+                    version.value()
+                )
+            })
+            .join(", ");
+
+        let query = format!(
+            "SELECT EXISTS(\
+               SELECT 1 FROM objects \
+               JOIN (VALUES {}) AS v(object_id, object_version) \
+                 ON objects.object_id = v.object_id \
+               WHERE objects.object_version > v.object_version\
+             ) as result",
+            values_clause
+        );
+
+        #[derive(QueryableByName)]
+        struct Exists {
+            #[diesel(sql_type = diesel::sql_types::Bool)]
+            result: bool,
+        }
+
+        run_query!(&self.pool, |conn| {
+            diesel::sql_query(query)
+                .get_result::<Exists>(conn)
+                .map(|r| r.result)
+        })
+    }
+
     pub async fn query_transaction_blocks_in_blocking_task(
         &self,
         filter: Option<TransactionFilter>,

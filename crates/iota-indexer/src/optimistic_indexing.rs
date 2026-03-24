@@ -100,10 +100,20 @@ impl OptimisticTransactionExecutor {
                 .read
                 .count_existing_object_keys_in_blocking_task(input_obj_keys.clone())
                 .await?;
-            if count as usize != expected_count {
-                return Err(IndexerError::TransactionDependenciesNotIndexed)?;
+            if count as usize == expected_count {
+                return Ok(());
             }
-            Ok(())
+            // If any dependency object already has a newer version - stop retrying.
+            if self
+                .read
+                .has_superseded_objects_in_blocking_task(input_obj_keys.clone())
+                .await?
+            {
+                return Err(backoff::Error::permanent(
+                    IndexerError::TransactionDependenciesNotIndexed,
+                ));
+            }
+            Err(IndexerError::TransactionDependenciesNotIndexed)?
         })
         .await
         .or(Err(IndexerError::TransactionDependenciesNotIndexed))
