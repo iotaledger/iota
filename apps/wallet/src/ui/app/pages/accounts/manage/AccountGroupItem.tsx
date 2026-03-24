@@ -150,25 +150,32 @@ export function AccountGroupItem({
                             top: dropdownPosition.y,
                         }}
                         className={clsx(
-                            `absolute right-0 z-[99] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6`,
+                            'absolute right-0 z-[99]',
                             showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >
-                        <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                            <Dropdown>
-                                <ListItem hideBottomBorder onClick={handleRename}>
-                                    Rename
-                                </ListItem>
-                                <ListItem hideBottomBorder onClick={handleExportKeys}>
-                                    Export Account Keys
-                                </ListItem>
-                                {allAccounts.isPending ? null : (
-                                    <ListItem hideBottomBorder onClick={handleRemove}>
-                                        Delete
+                        <div
+                            className={clsx(
+                                'animate-dropdown-show rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6',
+                                showDropdownOptionsBottom ? 'origin-bottom' : 'origin-top',
+                            )}
+                        >
+                            <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                                <Dropdown>
+                                    <ListItem hideBottomBorder onClick={handleRename}>
+                                        Rename
                                     </ListItem>
-                                )}
-                            </Dropdown>
-                        </OutsideClickHandler>
+                                    <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                        Export Account Keys
+                                    </ListItem>
+                                    {allAccounts.isPending ? null : (
+                                        <ListItem hideBottomBorder onClick={handleRemove}>
+                                            Delete
+                                        </ListItem>
+                                    )}
+                                </Dropdown>
+                            </OutsideClickHandler>
+                        </div>
                     </div>
                 </Portal>
             )}

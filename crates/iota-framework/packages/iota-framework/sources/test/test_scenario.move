@@ -77,7 +77,7 @@ public struct Scenario {
 }
 
 /// Builder for a `TxContext` to use in a test scenario.
-public struct TxContextBuilder has copy, drop {
+public struct TxContextBuilder has drop {
     sender: address,
     epoch: u64,
     epoch_timestamp_ms: u64,
@@ -196,6 +196,21 @@ public fun set_sponsor(mut builder: TxContextBuilder, sponsor: Option<address>):
     builder
 }
 
+/// Clone a `TxContextBuilder`.
+/// This is useful for building a new context that is mostly the same as an existing one.
+public fun clone(builder: &TxContextBuilder): TxContextBuilder {
+    TxContextBuilder {
+        sender: builder.sender,
+        epoch: builder.epoch,
+        epoch_timestamp_ms: builder.epoch_timestamp_ms,
+        ids_created: builder.ids_created,
+        rgp: builder.rgp,
+        gas_price: builder.gas_price,
+        gas_budget: builder.gas_budget,
+        sponsor: builder.sponsor,
+    }
+}
+
 // Create a `TxContext` from a `TxContextBuilder`.
 // This is an internal function called when building a `Scenario`.
 fun make_tx_context(builder: TxContextBuilder, tx_hash: vector<u8>): TxContext {
@@ -295,7 +310,7 @@ public fun next_with_context(
         loop {
             current_epoch = current_epoch + 1;
             scenario.txn_number = scenario.txn_number + 1;
-            let builder = ctx_builder.set_epoch(current_epoch);
+            let builder = ctx_builder.clone().set_epoch(current_epoch);
             let hash = tx_context::dummy_tx_hash_with_hint(scenario.txn_number);
             scenario.ctx = builder.make_tx_context(hash);
             let effects = end_transaction();

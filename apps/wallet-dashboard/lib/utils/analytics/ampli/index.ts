@@ -112,17 +112,6 @@ export interface MigrationProperties {
     nftOutputObjects?: number;
 }
 
-export interface OpenedWalletDashboardProperties {
-    activeAccountType?: string;
-    activeNetwork?: string;
-    activeOrigin?: string;
-    pagePath?: string;
-    pagePathFragment?: string;
-    walletDashboardMode?: string;
-    walletDashboardRev?: string;
-    walletDashboardVersion?: string;
-}
-
 export interface SelectedValidatorProperties {
     validatorAddress?: string;
     /**
@@ -254,14 +243,6 @@ export class Migration implements BaseEvent {
     event_type = 'migration';
 
     constructor(public event_properties?: MigrationProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class OpenedWalletDashboard implements BaseEvent {
-    event_type = 'opened wallet dashboard';
-
-    constructor(public event_properties?: OpenedWalletDashboardProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -559,23 +540,6 @@ export class Ampli {
   }
 
   /**
-   * opened wallet dashboard
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/opened%20wallet%20dashboard)
-   *
-   * Opened Wallet Dashboard
-   *
-   * @param properties The event's properties (e.g. activeAccountType)
-   * @param options Amplitude event options.
-   */
-  openedWalletDashboard(
-    properties?: OpenedWalletDashboardProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new OpenedWalletDashboard(properties), options);
-  }
-
-  /**
    * selected validator
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/selected%20validator)
@@ -716,7 +680,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   timelockUnstake(

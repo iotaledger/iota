@@ -6260,9 +6260,9 @@ dependencies = [
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
+ "iota-grpc-client",
  "iota-kvstore",
  "iota-metrics",
- "iota-rest-api",
  "iota-storage",
  "iota-types",
  "object_store 0.13.1",
@@ -6274,6 +6274,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util 0.7.18",
+ "tonic 0.14.2",
  "tracing",
 ]
 
@@ -6290,9 +6291,12 @@ dependencies = [
  "fastcrypto",
  "futures",
  "iota-config",
+ "iota-grpc-client",
+ "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-sdk-types",
  "iota-storage",
  "iota-types",
  "notify",
@@ -6307,6 +6311,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.18",
+ "tonic 0.14.2",
  "tracing",
  "url",
 ]
@@ -6637,6 +6642,8 @@ dependencies = [
  "iota-graphql-config",
  "iota-graphql-rpc-client",
  "iota-graphql-rpc-headers",
+ "iota-grpc-client",
+ "iota-grpc-server",
  "iota-indexer",
  "iota-indexer-streaming",
  "iota-json",
@@ -6652,7 +6659,6 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
- "jsonrpsee",
  "move-binary-format",
  "move-core-types",
  "move-disassembler",
@@ -6674,6 +6680,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.18",
  "toml 0.7.8",
+ "tonic 0.14.2",
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
@@ -6807,6 +6814,9 @@ dependencies = [
  "hex",
  "iota-config",
  "iota-data-ingestion-core",
+ "iota-grpc-client",
+ "iota-grpc-server",
+ "iota-grpc-types",
  "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -6838,6 +6848,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "simulacrum",
+ "simulacrum-server",
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "tap",
@@ -6849,6 +6860,7 @@ dependencies = [
  "tokio-stream",
  "tokio-util 0.7.18",
  "toml 0.7.8",
+ "tonic 0.14.2",
  "tracing",
  "url",
 ]
@@ -7710,6 +7722,7 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-protocol-config",
+ "iota-replay",
  "iota-sdk",
  "iota-simulator",
  "iota-transaction-checks",
@@ -7720,6 +7733,7 @@ dependencies = [
  "move-bytecode-utils",
  "move-core-types",
  "move-vm-config",
+ "move-vm-profiler",
  "parking_lot 0.12.3",
  "prometheus",
  "rand 0.8.5",
@@ -7864,7 +7878,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=654ddd7608ef5662611ae13edfe8cf4fd3b25ba0#654ddd7608ef5662611ae13edfe8cf4fd3b25ba0"
 dependencies = [
  "bip32",
  "bip39",
@@ -7879,7 +7893,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d#d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=654ddd7608ef5662611ae13edfe8cf4fd3b25ba0#654ddd7608ef5662611ae13edfe8cf4fd3b25ba0"
 dependencies = [
  "base64ct",
  "bcs",

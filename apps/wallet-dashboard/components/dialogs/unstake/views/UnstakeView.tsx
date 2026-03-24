@@ -25,11 +25,7 @@ import {
     GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
 import { CoinFormat } from '@iota/iota-sdk/utils';
-import {
-    useCurrentAccount,
-    useSignAndExecuteTransaction,
-    useIotaClientQuery,
-} from '@iota/dapp-kit';
+import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
@@ -54,12 +50,6 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { data: systemState } = useIotaClientQuery('getLatestIotaSystemState');
-    const validatorName =
-        systemState?.activeValidators.find((v) => v.iotaAddress === extendedStake.validatorAddress)
-            ?.name ?? '';
-    const iotaEarned = extendedStake.estimatedReward || '0';
-    const [rewards] = useFormatCoin({ balance: iotaEarned });
     const {
         data: unstakeData,
         isPending: isUnstakeTxPending,
@@ -82,10 +72,6 @@ export function UnstakeView({
             unstake: true,
         });
 
-    const [totalStakeFormatted] = useFormatCoin({
-        balance: totalStakeOriginal,
-    });
-
     useEffect(() => {
         if (isUnstakeError && error) {
             console.error('[DEBUG]: Unstake Error:', error);
@@ -105,6 +91,23 @@ export function UnstakeView({
         (error.message.includes(NOT_ENOUGH_BALANCE_ID) ||
             error.message.includes(GAS_BALANCE_TOO_LOW_ID));
 
+    const validatorName =
+        systemDataResult.data?.activeValidators.find(
+            (v) => v.iotaAddress === extendedStake.validatorAddress,
+        )?.name ?? '';
+
+    const [stakedFormattedPlain] = useFormatCoin({
+        balance: totalStakeOriginal,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+
+    const [rewardsFormattedPlain] = useFormatCoin({
+        balance: extendedStake.estimatedReward,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
 
@@ -118,9 +121,9 @@ export function UnstakeView({
                     onSuccess(tx);
 
                     ampli.unstakedIota({
-                        stakedAmount: Number(totalStakeFormatted),
+                        stakedAmount: Number(stakedFormattedPlain),
                         validatorAddress: extendedStake.validatorAddress,
-                        rewards: Number(rewards),
+                        rewards: Number(rewardsFormattedPlain),
                         validatorName,
                     });
                 },

@@ -2130,6 +2130,7 @@
                 "tx_context_derive_id_cost_base": {
                   "u64": "52"
                 },
+                "tx_context_digest_cost_base": null,
                 "tx_context_epoch_cost_base": null,
                 "tx_context_epoch_timestamp_ms_cost_base": null,
                 "tx_context_fresh_id_cost_base": null,
