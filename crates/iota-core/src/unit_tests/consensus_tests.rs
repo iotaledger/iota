@@ -641,10 +641,7 @@ async fn user_transaction_v1_not_persisted_to_pending_consensus() {
     // Create a UserTransactionV1 from one of the test gas objects.
     let (sender, keypair) = deterministic_random_account_key();
     let rgp = epoch_store.reference_gas_price();
-    let gas_object = state
-        .get_object(&test_gas_objects()[0].id())
-        .await
-        .unwrap();
+    let gas_object = state.get_object(&test_gas_objects()[0].id()).await.unwrap();
     let data = TransactionData::new_move_call(
         sender,
         IOTA_FRAMEWORK_PACKAGE_ID,

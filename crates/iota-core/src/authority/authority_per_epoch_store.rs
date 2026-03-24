@@ -955,9 +955,10 @@ impl AuthorityEpochTables {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Test-only: insert a transaction directly into pending_consensus_transactions,
-    /// bypassing the UserTransactionV1 filter in insert_pending_consensus_transactions.
-    /// Used to simulate pre-upgrade DB state.
+    /// Test-only: insert a transaction directly into
+    /// pending_consensus_transactions, bypassing the UserTransactionV1
+    /// filter in insert_pending_consensus_transactions. Used to simulate
+    /// pre-upgrade DB state.
     #[cfg(test)]
     pub fn insert_pending_consensus_transaction_for_test(
         &self,
@@ -2293,8 +2294,10 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    /// Insert transactions that will be submitted to consensus into
-    /// the persistent `pending_consensus_transactions` table.
+    /// Persists consensus transactions to the WAL for crash recovery.
+    /// UserTransactionV1 (pcool flow) is fire-and-forget and skipped
+    /// internally. Certificate-flow only; will be removed once pcool
+    /// completely takes over.
     ///
     /// Additionally, in the certificate mode, insert certified transactions
     /// into the in-memory `pending_consensus_certificates` set. When
