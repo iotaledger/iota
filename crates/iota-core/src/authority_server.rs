@@ -1487,7 +1487,7 @@ impl ValidatorService {
             // Content validation: deny checks + owned object version validation.
             for verified_tx in &verified_transactions {
                 let owned_objects = state
-                    .handle_transaction_deny_checks(verified_tx, &epoch_store)
+                    .handle_transaction_validation_checks(verified_tx, &epoch_store)
                     .await
                     .map_err(tonic::Status::from)?;
                 state
@@ -1590,7 +1590,7 @@ impl ValidatorService {
 
             // Content validation: deny checks + owned object version validation.
             let owned_objects = state
-                .handle_transaction_deny_checks(&verified_tx, &epoch_store)
+                .handle_transaction_validation_checks(&verified_tx, &epoch_store)
                 .await
                 .map_err(tonic::Status::from)?;
             if let Err(e) = state

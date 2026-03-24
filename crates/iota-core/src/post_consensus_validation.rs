@@ -24,8 +24,8 @@
 //! 4. `validity_check()` — drop with error.
 //! 5. Three-tier lock conflict check (local HashMap → quarantine → DB) — drop
 //!    with error. Cheap; performed before expensive checks.
-//! 6. `handle_transaction_deny_checks()` — drop with error. Only reached when
-//!    all locks are free.
+//! 6. `handle_transaction_validation_checks()` — drop with error. Only reached
+//!    when all locks are free.
 //! 7. All passed — acquire locks in the local tracking map, keep transaction.
 //!
 //! Non-`UserTransactionV1` transactions pass through unchanged.
@@ -39,7 +39,7 @@ use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::{InputObjectKind, TransactionDataAPI, VerifiedTransaction},
+    transaction::{InputObjectKind, VerifiedTransaction},
 };
 use tracing::{debug, warn};
 
@@ -174,6 +174,12 @@ pub async fn validate_and_resolve_conflicts(
         // Cheap (HashMap + quarantine + DB lookups); performed before the
         // expensive deny checks so conflicting transactions are filtered first.
         //
+        // Locks are keyed by full ObjectRef (id + version + digest), not just
+        // ObjectID. Two transactions referencing the same object at different
+        // versions will NOT conflict here — version freshness is validated
+        // later in Check #5 (deny checks load objects from DB and verify
+        // that the transaction's input refs match the current state).
+        //
         // Tier 1: Local HashMap (current commit).
         // Tier 2: Consensus quarantine (previous uncommitted commits).
         // Tier 3: Persistent DB (committed data).
@@ -268,7 +274,7 @@ pub async fn validate_and_resolve_conflicts(
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
         if let Err(e) = authority_state
-            .handle_transaction_deny_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(&verified_tx, epoch_store)
             .await
         {
             warn!(
@@ -325,7 +331,7 @@ fn extract_owned_input_objects(
         SequencedConsensusTransactionKind::External(ConsensusTransaction {
             kind: ConsensusTransactionKind::UserTransactionV1(transaction),
             ..
-        }) => transaction.data().transaction_data(),
+        }) => transaction.data(),
         _ => {
             return Err(IotaError::GenericAuthority {
                 error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
@@ -333,6 +339,9 @@ fn extract_owned_input_objects(
         }
     };
 
+    // Use SenderSignedData::input_objects() rather than
+    // TransactionData::input_objects() to also include any owned objects
+    // that may come from MoveAuthenticator signatures in the future.
     let owned_objects = transaction_data
         .input_objects()?
         .into_iter()

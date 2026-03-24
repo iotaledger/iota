@@ -27,7 +27,7 @@ macro_rules! deny_if_true {
 /// Check that the provided transaction is allowed to be signed according to the
 /// deny config.
 #[instrument(level = "trace", skip_all, fields(tx_digest = ?tx_data.digest()))]
-pub fn check_transaction_for_signing(
+pub fn check_transaction_for_validation(
     tx_data: &TransactionData,
     tx_signatures: &[GenericSignature],
     input_object_kinds: &[InputObjectKind],
