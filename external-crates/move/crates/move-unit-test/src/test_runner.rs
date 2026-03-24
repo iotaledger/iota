@@ -11,6 +11,7 @@ use move_binary_format::{
     errors::{Location, VMResult},
     file_format::CompiledModule,
 };
+use move_vm_runtime::native_extensions::NativeContextExtensions;
 use move_bytecode_utils::Modules;
 use move_command_line_common::error_bitset::ErrorBitset;
 use move_compiler::{

@@ -10,7 +10,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_common::debug_fatal;
+use tracing::error;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -77,7 +77,7 @@ impl MoveObject {
     ) -> Result<Self, ExecutionError> {
         let bound = if protocol_config.allow_unbounded_system_objects() && system_mutation {
             if contents.len() as u64 > protocol_config.max_move_object_size() {
-                debug_fatal!(
+                error!(
                     "System created object (ID = {:?}) of type {:?} and size {} exceeds normal max size {}",
                     MoveObject::id_opt(&contents).ok(),
                     type_,
@@ -232,7 +232,7 @@ impl MoveObject {
     ) -> Result<(), ExecutionError> {
         if new_contents.len() as u64 > protocol_config.max_move_object_size() {
             if protocol_config.allow_unbounded_system_objects() {
-                debug_fatal!(
+                error!(
                     "Safe mode object update (ID = {}) of size {} exceeds normal max size {}",
                     self.id(),
                     new_contents.len(),
