@@ -261,6 +261,8 @@ impl ValidatorConfigBuilder {
             iota_names_config: None,
             enable_grpc_api: false,
             grpc_api_config: None,
+            json_rpc_https_address: None,
+            json_rpc_tls: None,
             chain_override_for_testing: self.chain_override,
         }
     }
@@ -620,6 +622,8 @@ impl FullnodeConfigBuilder {
             iota_names_config: self.iota_names_config,
             enable_grpc_api: self.enable_grpc_api,
             grpc_api_config,
+            json_rpc_https_address: None,
+            json_rpc_tls: None,
             chain_override_for_testing: self.chain_override,
         }
     }

@@ -75,6 +75,19 @@ pub struct NodeConfig {
     #[serde(default = "default_json_rpc_address")]
     pub json_rpc_address: SocketAddr,
 
+    /// Configure the address to listen on for HTTPS JSON-RPC traffic.
+    ///
+    /// Defaults to `0.0.0.0:9443` if not specified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_rpc_https_address: Option<SocketAddr>,
+
+    /// TLS configuration for the JSON-RPC HTTPS server.
+    ///
+    /// If not provided then the node will not create an HTTPS service for
+    /// JSON-RPC.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_rpc_tls: Option<TlsConfig>,
+
     /// Flag to enable the REST API under `/api/v1`
     /// endpoint on the same interface as `json` `rpc` server.
     #[serde(default)]

@@ -225,9 +225,11 @@ mod simulator {
 pub struct IotaNode {
     config: NodeConfig,
     validator_components: Mutex<Option<ValidatorComponents>>,
-    /// The http server responsible for serving JSON-RPC as well as the
-    /// experimental rest service
-    _http_server: Option<iota_http::ServerHandle>,
+
+    /// The http servers responsible for serving RPC traffic (gRPC and JSON-RPC)
+    #[allow(unused)]
+    http_servers: HttpServers,
+
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
@@ -837,7 +839,7 @@ impl IotaNode {
             None
         };
 
-        let http_server = build_http_server(
+        let http_servers = build_http_servers(
             state.clone(),
             state_sync_store.clone(),
             &transaction_orchestrator.clone(),
@@ -931,7 +933,7 @@ impl IotaNode {
         let node = Self {
             config,
             validator_components: Mutex::new(validator_components),
-            _http_server: http_server,
+            http_servers,
             state,
             transaction_orchestrator,
             registry_service,
@@ -2476,8 +2478,8 @@ async fn build_grpc_server(
     Ok(Some(handle))
 }
 
-/// Builds and starts the HTTP server for the IOTA node, exposing JSON-RPC and
-/// REST APIs based on the node's configuration.
+/// Builds and starts the HTTP server(s) for the IOTA node, exposing JSON-RPC
+/// and REST APIs based on the node's configuration.
 ///
 /// This function performs the following tasks:
 /// 1. Checks if the node is a validator by inspecting the consensus
@@ -2491,18 +2493,19 @@ async fn build_grpc_server(
 /// 4. Optionally, if the REST API is enabled, nests the REST API router under
 ///    the `/api/v1` path.
 /// 5. Binds the server to the specified JSON-RPC address and starts listening
-///    for incoming connections.
-pub async fn build_http_server(
+///    for incoming connections. If TLS is configured, also starts an HTTPS
+///    server.
+async fn build_http_servers(
     state: Arc<AuthorityState>,
     store: RocksDbStore,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
     server_version: ServerVersion,
-) -> Result<Option<iota_http::ServerHandle>> {
+) -> Result<HttpServers> {
     // Validators do not expose these APIs
     if config.consensus_config().is_some() {
-        return Ok(None);
+        return Ok(HttpServers::default());
     }
 
     let mut router = axum::Router::new();
@@ -2602,12 +2605,41 @@ pub async fn build_http_server(
 
     router = router.layer(layers);
 
-    let handle = iota_http::Builder::new()
-        .serve(&config.json_rpc_address, router)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
-    info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
+    let https = if let Some(tls_config) = config.json_rpc_tls.as_ref() {
+        let https_address = config
+            .json_rpc_https_address
+            .unwrap_or_else(|| std::net::SocketAddr::from(([0, 0, 0, 0], 9443)));
 
-    Ok(Some(handle))
+        let https = iota_http::Builder::new()
+            .tls_single_cert(tls_config.cert(), tls_config.key())
+            .and_then(|builder| builder.serve(https_address, router.clone()))
+            .map_err(|e| anyhow::anyhow!(e))?;
+
+        info!(
+            https_address =? https.local_addr(),
+            "HTTPS rpc server listening on {}",
+            https.local_addr()
+        );
+
+        Some(https)
+    } else {
+        None
+    };
+
+    let http = iota_http::Builder::new()
+        .serve(&config.json_rpc_address, router)
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    info!(
+        http_address =? http.local_addr(),
+        "HTTP rpc server listening on {}",
+        http.local_addr()
+    );
+
+    Ok(HttpServers {
+        http: Some(http),
+        https,
+    })
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -2663,4 +2695,12 @@ fn max_tx_per_checkpoint(protocol_config: &ProtocolConfig) -> usize {
 #[cfg(test)]
 fn max_tx_per_checkpoint(_: &ProtocolConfig) -> usize {
     2
+}
+
+#[derive(Default)]
+struct HttpServers {
+    #[allow(unused)]
+    http: Option<iota_http::ServerHandle>,
+    #[allow(unused)]
+    https: Option<iota_http::ServerHandle>,
 }
