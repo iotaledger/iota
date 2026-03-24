@@ -41,7 +41,7 @@ use crate::{
     },
 };
 
-const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
+const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
 
 // As an optimization, we're trying to request only the fields we actually need.
 const GRPC_CHECKPOINT_STREAM_READ_MASK: &[&str] = &[
