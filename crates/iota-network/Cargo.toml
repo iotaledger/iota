@@ -20,11 +20,11 @@ fastcrypto-tbls.workspace = true
 futures.workspace = true
 governor = "0.6.0"
 prometheus.workspace = true
+prost.workspace = true
 rand.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
-prost.workspace = true
 tonic.workspace = true
 tonic-prost.workspace = true
 tower.workspace = true
