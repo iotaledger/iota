@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_types::{
-    base_types::{StructTag, TypeTag},
-    type_input::TypeInput,
-};
+use iota_types::base_types::{MoveObjectType, StructTag, TypeTag};
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::annotated_value as A;
 use serde::{Deserialize, Serialize};
@@ -17,7 +14,7 @@ use crate::{
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MoveType {
-    pub native: TypeInput,
+    pub native: TypeTag,
 }
 
 scalar!(
@@ -186,59 +183,58 @@ impl MoveType {
         &self,
         resolver: &PackageResolver,
     ) -> Result<Option<A::MoveTypeLayout>, Error> {
-        let Ok(tag) = self.native.as_type_tag() else {
-            return Ok(None);
-        };
-
-        Ok(Some(resolver.type_layout(tag).await.map_err(|e| {
-            Error::Internal(format!(
-                "Error calculating layout for {}: {e}",
-                self.native.to_canonical_display(/* with_prefix */ true),
-            ))
-        })?))
+        Ok(Some(
+            resolver
+                .type_layout(self.native.clone())
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Error calculating layout for {}: {e}",
+                        self.native.to_canonical_string(/* with_prefix */ true),
+                    ))
+                })?,
+        ))
     }
 
     pub(crate) async fn abilities_impl(
         &self,
         resolver: &PackageResolver,
     ) -> Result<Option<AbilitySet>, Error> {
-        let Ok(tag) = self.native.as_type_tag() else {
-            return Ok(None);
-        };
+        Ok(Some(
+            resolver.abilities(self.native.clone()).await.map_err(|e| {
+                Error::Internal(format!(
+                    "Error calculating abilities for {}: {e}",
+                    self.native.to_canonical_string(/* with_prefix */ true),
+                ))
+            })?,
+        ))
+    }
+}
 
-        Ok(Some(resolver.abilities(tag).await.map_err(|e| {
-            Error::Internal(format!(
-                "Error calculating abilities for {}: {e}",
-                self.native.to_canonical_string(/* with_prefix */ true),
-            ))
-        })?))
+impl From<MoveObjectType> for MoveType {
+    fn from(obj: MoveObjectType) -> Self {
+        obj.into_inner().into()
     }
 }
 
 impl From<StructTag> for MoveType {
     fn from(tag: StructTag) -> Self {
         let tag: TypeTag = tag.into();
-        Self { native: tag.into() }
+        Self { native: tag }
     }
 }
 
 impl From<TypeTag> for MoveType {
-    fn from(tag: TypeTag) -> Self {
-        Self { native: tag.into() }
-    }
-}
-
-impl From<TypeInput> for MoveType {
-    fn from(native: TypeInput) -> Self {
+    fn from(native: TypeTag) -> Self {
         Self { native }
     }
 }
 
-impl TryFrom<TypeInput> for MoveTypeSignature {
+impl TryFrom<TypeTag> for MoveTypeSignature {
     type Error = Error;
 
-    fn try_from(tag: TypeInput) -> Result<Self, Error> {
-        use TypeInput as T;
+    fn try_from(tag: TypeTag) -> Result<Self, Error> {
+        use TypeTag as T;
 
         Ok(match tag {
             T::Signer => return Err(unexpected_signer_error()),
@@ -256,12 +252,13 @@ impl TryFrom<TypeInput> for MoveTypeSignature {
             T::Vector(v) => Self::Vector(Box::new(Self::try_from(*v)?)),
 
             T::Struct(s) => Self::Datatype {
-                package: s.address.to_canonical_string(/* with_prefix */ true),
-                module: s.module,
-                type_: s.name,
+                package: s.address().to_canonical_string(/* with_prefix */ true),
+                module: s.module().as_str().to_owned(),
+                type_: s.name().as_str().to_owned(),
                 type_parameters: s
-                    .type_params
-                    .into_iter()
+                    .type_params()
+                    .iter()
+                    .cloned()
                     .map(Self::try_from)
                     .collect::<Result<Vec<_>, _>>()?,
             },

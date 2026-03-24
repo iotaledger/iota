@@ -38,7 +38,6 @@ mod checked {
         storage::{PackageObject, get_package_objects},
         transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
-        type_input::{TypeInput, TypeName},
     };
     use iota_verifier::{
         INIT_FN_NAME,
@@ -161,7 +160,6 @@ mod checked {
                         "input checker ensures if args are empty, there is a type specified"
                     );
                 };
-                let tag = to_type_tag(context, tag)?;
 
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
@@ -194,7 +192,6 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
-                        let tag = to_type_tag(context, tag)?;
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
                                 context.convert_type_argument_error(0, e)
@@ -347,7 +344,6 @@ mod checked {
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
                 for (ix, type_arg) in type_arguments.into_iter().enumerate() {
-                    let type_arg = to_type_tag(context, type_arg)?;
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
@@ -951,9 +947,7 @@ mod checked {
                             IotaAttribute::Authenticator(attribute) if attribute.version == 1 => {
                                 let contains = module_metadata_map.insert(
                                     fn_name.to_string(),
-                                    TypeName::from(&get_authenticator_first_param_type_tag(
-                                        module, &fn_name,
-                                    )?),
+                                    get_authenticator_first_param_type_tag(module, &fn_name)?,
                                 );
                                 debug_assert!(
                                     contains.is_none(),
@@ -1749,24 +1743,6 @@ mod checked {
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
             Ok(unsafe { move_core_types::identifier::Identifier::new_unchecked(ident) })
-        }
-    }
-
-    fn to_type_tag(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        type_input: TypeInput,
-    ) -> Result<TypeTag, ExecutionError> {
-        if context.protocol_config.validate_identifier_inputs() {
-            type_input.into_type_tag().map_err(|e| {
-                ExecutionError::new_with_source(
-                    ExecutionErrorKind::VmInvariantViolation,
-                    e.to_string(),
-                )
-            })
-        } else {
-            // SAFETY: Preserving existing behaviour for identifier deserialization within
-            // type tags and inputs.
-            Ok(type_input.into_type_tag_unchecked())
         }
     }
 
