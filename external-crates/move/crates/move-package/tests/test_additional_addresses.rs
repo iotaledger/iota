@@ -34,7 +34,8 @@ fn test_additional_addresses() {
         true,
         std::io::sink(),
         tempdir().unwrap().path().to_path_buf(),
-        Dependencies::default(), // implicit_deps
+        /* implicit_deps */ Dependencies::default(),
+        /* force_lock_file */ false,
     );
     let (dg, _) = dep_graph_builder
         .get_graph(
@@ -99,7 +100,8 @@ fn test_additional_addresses_already_assigned_same_value() {
         true,
         std::io::sink(),
         tempdir().unwrap().path().to_path_buf(),
-        Dependencies::default(), // implicit_deps
+        /* implicit_deps */ Dependencies::default(),
+        /* force_lock_file */ false,
     );
     let (dg, _) = dep_graph_builder
         .get_graph(
@@ -150,7 +152,8 @@ fn test_additional_addresses_already_assigned_different_value() {
         true,
         std::io::sink(),
         tempdir().unwrap().path().to_path_buf(),
-        Dependencies::default(), // implicit_deps
+        /* implicit_deps */ Dependencies::default(),
+        /* force_lock_file */ false,
     );
     let (dg, _) = dep_graph_builder
         .get_graph(

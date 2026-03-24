@@ -318,7 +318,7 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
         }
 
         // collect sub-graphs for "regular" and "dev" dependencies
-        let (always_dep_graphs, always_resolved_id_deps, always_dep_names, always_overrides) = self
+        let (mut dep_graphs, resolved_id_deps, mut dep_names, mut overrides) = self
             .collect_graphs(
                 parent,
                 root_pkg_id,
@@ -327,7 +327,7 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
                 DependencyMode::Always,
                 root_manifest.dependencies.clone(),
             )?;
-        let dep_lock_files = always_dep_graphs
+        let dep_lock_files = dep_graphs
             .values()
             // write_to_lock should create a fresh lockfile for computing the dependency digest, hence the `None` arg below
             .map(|graph_info| graph_info.g.write_to_lock(self.install_dir.clone(), None))
@@ -369,53 +369,8 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
         };
 
         // combine the subgraphs for the dependencies into a single graph for the root package
-        let mut dep_graphs = {
-            let mut m = always_dep_graphs;
-            m.extend(dev_dep_graphs);
-            m
-        };
-        let dep_names = {
-            let mut m = always_dep_names;
-            m.extend(dev_dep_names);
-            m
-        };
-
-        for (
-            &dep_id,
-            DependencyGraphInfo {
-                g,
-                mode: _,
-                is_override,
-                is_external: _,
-                version: _,
-            },
-        ) in &mut dep_graphs
-        {
-            g.prune_overridden_pkgs(dep_id, &always_overrides, &dev_overrides, *is_override);
-        }
-
-        let overrides = {
-            let mut m = always_overrides;
-            for (pkg_id, dev_pkg) in dev_overrides {
-                match m.entry(pkg_id) {
-                    Entry::Vacant(e) => {
-                        e.insert(dev_pkg);
-                    }
-                    Entry::Occupied(e) => {
-                        let pkg_name = dep_names.get(&pkg_id).unwrap_or(&pkg_id);
-                        let pkg = e.get();
-                        bail!(
-                            "Conflicting \"regular\" and \"dev\" overrides found in {0}:\n{1} = {2}\n{1} = {3}",
-                            root_pkg_name,
-                            pkg_name,
-                            PackageWithResolverTOML(pkg),
-                            PackageWithResolverTOML(&dev_pkg),
-                        );
-                    }
-                }
-            }
-            m
-        };
+        dep_graphs.extend(dev_dep_graphs);
+        dep_names.extend(dev_dep_names);
 
         let mut combined_graph = DependencyGraph {
             root_path,
@@ -431,20 +386,45 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
         combined_graph
             .package_graph
             .add_node(combined_graph.root_package_id);
-        let resolved_id_deps = {
-            let mut m = always_resolved_id_deps;
-            m.extend(dev_resolved_id_deps);
-            m
-        };
+
+        for (
+            dep_id,
+            DependencyGraphInfo {
+                g,
+                mode,
+                is_override,
+                is_external: _,
+                version: _,
+            },
+        ) in dep_graphs.iter_mut()
+        {
+            g.prune_subgraph(
+                root_pkg_name,
+                *dep_id,
+                *dep_names.get(dep_id).unwrap(),
+                *is_override,
+                *mode,
+                &overrides,
+                &dev_overrides,
+            )?;
+        }
+
+        let mut all_deps = resolved_id_deps;
+        all_deps.extend(dev_resolved_id_deps);
+
+        // we can mash overrides together as the sets cannot overlap (it's asserted during pruning)
+        overrides.extend(dev_overrides);
+
         combined_graph.merge(
             dep_graphs,
             parent,
-            &resolved_id_deps,
+            &all_deps,
             &overrides,
             &dep_names,
             root_pkg_name,
         )?;
         combined_graph.check_acyclic()?;
+        combined_graph.discover_always_deps();
 
         Ok((combined_graph, true))
     }
@@ -645,6 +625,21 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
 }
 
 impl DependencyGraph {
+    /// Main driver for sub-graph pruning based on information about overrides.
+    fn prune_subgraph(
+        &mut self,
+        _root_package_name: PM::PackageName,
+        dep_id: PackageIdentifier,
+        _dep_name: PM::PackageName,
+        is_override: bool,
+        _mode: DependencyMode,
+        overrides: &BTreeMap<PackageIdentifier, Package>,
+        dev_overrides: &BTreeMap<PackageIdentifier, Package>,
+    ) -> Result<()> {
+        self.prune_overridden_pkgs(dep_id, overrides, dev_overrides, is_override);
+        Ok(())
+    }
+
     /// Prunes packages in a sub-graph based on the overrides information from the outer graph.
     fn prune_overridden_pkgs(
         &mut self,
