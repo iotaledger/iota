@@ -5286,6 +5286,8 @@ impl AuthorityState {
                 self.get_reconfig_api().try_revert_state_update(&digest)?;
             }
             info!("All uncommitted local transactions reverted");
+        } else {
+            info!("Certificate-less mode: skipping revert of uncommitted epoch transactions");
         }
 
         Ok(())
