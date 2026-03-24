@@ -184,7 +184,7 @@ mod tests {
     fn auth_context_new_from_components() {
         let ptb = ProgrammableTransaction {
             inputs: vec![CallArg::Pure(vec![0xab])],
-            commands: vec![Command::move_call(
+            commands: vec![Command::new_move_call(
                 ObjectID::from_prefixed_short_hex("0x0000000000000000000000000000000000000001")
                     .unwrap(),
                 Identifier::new_unchecked("mod"),

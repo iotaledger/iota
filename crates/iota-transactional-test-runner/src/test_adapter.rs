@@ -789,7 +789,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let gas_price: u64 = gas_price.unwrap_or(self.gas_price);
                 let transaction = self.sign_txn(sender, |sender, gas| {
                     let rec_arg = builder.pure(recipient).unwrap();
-                    builder.command(iota_types::transaction::Command::transfer_objects(
+                    builder.command(iota_types::transaction::Command::new_transfer_objects(
                         vec![obj_arg],
                         rec_arg,
                     ));
@@ -1783,7 +1783,7 @@ impl IotaTestAdapter {
         let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
         let gas_price = gas_price.unwrap_or(self.gas_price);
         let data = |sender, gas| {
-            builder.command(Command::move_call(
+            builder.command(Command::new_move_call(
                 package_id,
                 Identifier::new_unchecked(module_id.name().as_str()),
                 function.to_owned(),
@@ -2410,8 +2410,9 @@ impl IotaTestAdapter {
 
         // Fund the abstract account with gas
         let gas_amount = builder.pure(GAS_FOR_ABSTRACT_ACCOUNT)?;
-        let new_coin_arg = builder.command(Command::split_coins(Argument::Gas, vec![gas_amount]));
-        builder.command(Command::transfer_objects(vec![new_coin_arg], aa_addr));
+        let new_coin_arg =
+            builder.command(Command::new_split_coins(Argument::Gas, vec![gas_amount]));
+        builder.command(Command::new_transfer_objects(vec![new_coin_arg], aa_addr));
 
         Ok(builder.finish())
     }

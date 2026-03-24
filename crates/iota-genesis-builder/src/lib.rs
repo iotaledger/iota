@@ -1441,7 +1441,7 @@ pub(crate) fn process_package(
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         // executing in Genesis mode does not create an `UpgradeCap`.
-        builder.command(Command::publish(module_bytes, dependencies));
+        builder.command(Command::new_publish(module_bytes, dependencies));
         builder.finish()
     };
     let InnerTemporaryStore {

@@ -38,7 +38,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     // Even if there is no easy interface for such things, we must protect against
     // as long as there are user facing interfaces that can accept raw transactional
     // bytes.
-    let commands = vec![iota_types::transaction::Command::move_call(
+    let commands = vec![iota_types::transaction::Command::new_move_call(
         ObjectID::FRAMEWORK,
         "_".into(),
         "timestamp_ms".into(),

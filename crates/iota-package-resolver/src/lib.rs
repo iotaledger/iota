@@ -2836,7 +2836,7 @@ mod tests {
                     I::Pure(bcs::to_bytes("hello").unwrap()),
                     I::Pure(bcs::to_bytes("world").unwrap()),
                 ],
-                commands: vec![Command::move_call(
+                commands: vec![Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2915,14 +2915,14 @@ mod tests {
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2970,7 +2970,7 @@ mod tests {
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2979,7 +2979,7 @@ mod tests {
                 ),
                 // This command is using the input that was previously used as a U64, but now as a
                 // U32, which will cause an error.
-                Command::make_move_vector(Some(T::U32), vec![Argument::Input(3)]),
+                Command::new_make_move_vector(Some(T::U32), vec![Argument::Input(3)]),
             ],
         };
 

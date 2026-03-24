@@ -604,7 +604,7 @@ mod tests {
     // --- CommandFilter matching tests ---
 
     fn make_move_call_cmd(package: ObjectID, module: &str, function: &str) -> Command {
-        Command::move_call(
+        Command::new_move_call(
             package,
             Identifier::new_unchecked(module),
             Identifier::new_unchecked(function),
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_transfer_objects() {
-        let commands = vec![Command::transfer_objects(
+        let commands = vec![Command::new_transfer_objects(
             vec![Argument::Input(0)],
             Argument::Input(1),
         )];
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_split_coins() {
-        let commands = vec![Command::split_coins(
+        let commands = vec![Command::new_split_coins(
             Argument::Input(0),
             vec![Argument::Input(1)],
         )];
@@ -697,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_merge_coins() {
-        let commands = vec![Command::merge_coins(
+        let commands = vec![Command::new_merge_coins(
             Argument::Input(0),
             vec![Argument::Input(1)],
         )];
@@ -708,7 +708,7 @@ mod tests {
 
     #[test]
     fn test_command_filter_publish() {
-        let commands = vec![Command::publish(vec![vec![1, 2, 3]], vec![])];
+        let commands = vec![Command::new_publish(vec![vec![1, 2, 3]], vec![])];
 
         assert!(CommandFilter::Publish.matches_commands(&commands));
         assert!(!CommandFilter::TransferObjects.matches_commands(&commands));
@@ -716,7 +716,10 @@ mod tests {
 
     #[test]
     fn test_command_filter_make_move_vec() {
-        let commands = vec![Command::make_move_vector(None, vec![Argument::Input(0)])];
+        let commands = vec![Command::new_make_move_vector(
+            None,
+            vec![Argument::Input(0)],
+        )];
 
         assert!(CommandFilter::MakeMoveVec.matches_commands(&commands));
         assert!(!CommandFilter::Publish.matches_commands(&commands));
@@ -725,7 +728,7 @@ mod tests {
     #[test]
     fn test_command_filter_upgrade_any() {
         let pkg = ObjectID::random();
-        let commands = vec![Command::upgrade(
+        let commands = vec![Command::new_upgrade(
             vec![vec![1, 2, 3]],
             vec![],
             pkg,
@@ -741,7 +744,7 @@ mod tests {
     fn test_command_filter_upgrade_specific_package() {
         let pkg = ObjectID::random();
         let other_pkg = ObjectID::random();
-        let commands = vec![Command::upgrade(
+        let commands = vec![Command::new_upgrade(
             vec![vec![1, 2, 3]],
             vec![],
             pkg,
@@ -779,9 +782,9 @@ mod tests {
     fn test_command_filter_multiple_commands() {
         let pkg = ObjectID::random();
         let commands = vec![
-            Command::split_coins(Argument::Input(0), vec![Argument::Input(1)]),
+            Command::new_split_coins(Argument::Input(0), vec![Argument::Input(1)]),
             make_move_call_cmd(pkg, "m", "f"),
-            Command::transfer_objects(vec![Argument::Result(0)], Argument::Input(2)),
+            Command::new_transfer_objects(vec![Argument::Result(0)], Argument::Input(2)),
         ];
 
         // All three types should match

@@ -423,7 +423,7 @@ mod tests {
             (TypeTag::Address, "address"),
         ];
         for (type_tag, expected_name) in cases {
-            let cmd = Command::move_call(
+            let cmd = Command::new_move_call(
                 obj_id(),
                 Identifier::new_unchecked("m"),
                 Identifier::new_unchecked("f"),
@@ -451,7 +451,7 @@ mod tests {
             vec![TypeTag::U64],
         )));
 
-        let cmd = Command::move_call(
+        let cmd = Command::new_move_call(
             obj_id(),
             Identifier::new_unchecked("m"),
             Identifier::new_unchecked("f"),
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn command_from_make_move_vec_type_input_becomes_type_name() {
         let expected = TypeTag::Bool;
-        let cmd = Command::make_move_vector(Some(expected.clone()), vec![Argument::Input(0)]);
+        let cmd = Command::new_make_move_vector(Some(expected.clone()), vec![Argument::Input(0)]);
         let MoveCommand::MakeMoveVec(name, _) = MoveCommand::from(&cmd) else {
             panic!("expected MakeMoveVec");
         };
@@ -476,7 +476,7 @@ mod tests {
 
     #[test]
     fn command_from_make_move_vec_none_type() {
-        let cmd = Command::make_move_vector(None, vec![]);
+        let cmd = Command::new_make_move_vector(None, vec![]);
         let MoveCommand::MakeMoveVec(name, elements) = MoveCommand::from(&cmd) else {
             panic!("expected MakeMoveVec");
         };
@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn command_from_command() {
-        let cmd = Command::move_call(
+        let cmd = Command::new_move_call(
             obj_id(),
             Identifier::new_unchecked("m"),
             Identifier::new_unchecked("f"),

@@ -952,7 +952,7 @@ mod tests {
                 .kind()
                 .iter_commands()
                 .any(|cmd| {
-                    cmd == &Command::move_call(
+                    cmd == &Command::new_move_call(
                         ObjectID::ZERO,
                         Identifier::new_unchecked("test"),
                         Identifier::new_unchecked("test"),

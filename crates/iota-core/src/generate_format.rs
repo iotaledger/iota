@@ -433,7 +433,7 @@ fn get_registry() -> Result<Registry> {
     // Trace all TransactionKind variants via trace_value
     let sample_pt = ProgrammableTransaction {
         inputs: vec![CallArg::Pure(vec![0u8])],
-        commands: vec![Command::make_move_vector(None, vec![])],
+        commands: vec![Command::new_make_move_vector(None, vec![])],
     };
     tracer
         .trace_value(

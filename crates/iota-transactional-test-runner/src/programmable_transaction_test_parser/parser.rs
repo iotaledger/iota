@@ -338,11 +338,11 @@ impl ParsedCommand {
         Ok(match self {
             ParsedCommand::MoveCall(c) => Command::MoveCall(c.into_move_call(address_mapping)?),
             ParsedCommand::TransferObjects(objs, recipient) => {
-                Command::transfer_objects(objs, recipient)
+                Command::new_transfer_objects(objs, recipient)
             }
-            ParsedCommand::SplitCoins(coin, amts) => Command::split_coins(coin, amts),
-            ParsedCommand::MergeCoins(target, coins) => Command::merge_coins(target, coins),
-            ParsedCommand::MakeMoveVec(ty_opt, args) => Command::make_move_vector(
+            ParsedCommand::SplitCoins(coin, amts) => Command::new_split_coins(coin, amts),
+            ParsedCommand::MergeCoins(target, coins) => Command::new_merge_coins(target, coins),
+            ParsedCommand::MakeMoveVec(ty_opt, args) => Command::new_make_move_vector(
                 ty_opt
                     .map(|t| {
                         t.into_type_tag(address_mapping)
@@ -362,7 +362,7 @@ impl ParsedCommand {
                         None => bail!("Unbound dependency '{d}"),
                     })
                     .collect::<Result<Vec<ObjectID>>>()?;
-                Command::publish(package_contents, dependencies)
+                Command::new_publish(package_contents, dependencies)
             }
             ParsedCommand::Upgrade(staged_package, dependencies, upgraded_package, ticket) => {
                 let Some(package_contents) = staged_packages(&staged_package) else {
@@ -379,7 +379,7 @@ impl ParsedCommand {
                     bail!("Unbound upgraded package '{upgraded_package}'");
                 };
                 let upgraded_package = ObjectID::new(upgraded_package.into_bytes());
-                Command::upgrade(package_contents, dependencies, upgraded_package, ticket)
+                Command::new_upgrade(package_contents, dependencies, upgraded_package, ticket)
             }
         })
     }
