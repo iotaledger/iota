@@ -18,7 +18,7 @@ use std::{
 use anyhow::bail;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
-use authority_per_epoch_store::CertLockGuard;
+use authority_per_epoch_store::TxLockGuard;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
 use fastcrypto::{
     encoding::{Base58, Encoding},
@@ -150,7 +150,7 @@ pub use crate::checkpoints::checkpoint_executor::utils::{
 };
 use crate::{
     authority::{
-        authority_per_epoch_store::{AuthorityPerEpochStore, CertTxGuard},
+        authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
@@ -1254,7 +1254,7 @@ impl AuthorityState {
 
     pub fn read_objects_for_execution(
         &self,
-        tx_lock: &CertLockGuard,
+        tx_lock: &TxLockGuard,
         certificate: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
@@ -1354,7 +1354,7 @@ impl AuthorityState {
     #[instrument(name = "process_certificate", level = "trace", skip_all, fields(tx_digest = ?certificate.digest(), sender = ?certificate.data().transaction_data().gas_owner().to_string()))]
     pub(crate) fn process_certificate(
         &self,
-        tx_guard: CertTxGuard,
+        tx_guard: TxGuard,
         certificate: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
         account_object: Option<ObjectReadResult>,
@@ -1514,7 +1514,7 @@ impl AuthorityState {
         certificate: &VerifiedExecutableTransaction,
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
-        tx_guard: CertTxGuard,
+        tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
