@@ -16,7 +16,9 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::TransactionEffectsAPI as _,
     error::{IotaError, IotaResult},
-    messages_grpc::{ExecutedData, SubmitTxResult, WaitForEffectsRequest, WaitForEffectsResponse},
+    messages_grpc::{
+        ExecutedData, SubmitTransactionResult, WaitForEffectsRequest, WaitForEffectsResponse,
+    },
     transaction_driver_types::{EffectsFinalityInfo, FinalizedEffects},
 };
 use tokio::{
@@ -76,7 +78,7 @@ impl EffectsCertifier {
         // This keeps track of the current target for getting full effects.
         mut current_target: AuthorityName,
         // Guaranteed to be not the Rejected variant.
-        submit_txn_result: SubmitTxResult,
+        submit_txn_result: SubmitTransactionResult,
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError>
     where
@@ -84,12 +86,12 @@ impl EffectsCertifier {
     {
         // Skip the first attempt to get full effects if it is already provided.
         let full_effects = match submit_txn_result {
-            SubmitTxResult::Submitted => None,
-            SubmitTxResult::Executed {
+            SubmitTransactionResult::Submitted => None,
+            SubmitTransactionResult::Executed {
                 effects_digest,
                 details,
             } => details.map(|details| (effects_digest, details)),
-            SubmitTxResult::Rejected { error } => {
+            SubmitTransactionResult::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
                         "Unexpected submission error in get_certified_finalized_effects(): {error}"
@@ -265,9 +267,9 @@ impl EffectsCertifier {
                     // by the caller as a retriable error.
                     None => Err(TransactionRequestError::RejectedByConsensus),
                 },
-                WaitForEffectsResponse::Expired { epoch, round } => Err(
-                    TransactionRequestError::StatusExpired(epoch, round.unwrap_or(0)),
-                ),
+                WaitForEffectsResponse::Expired { epoch } => {
+                    Err(TransactionRequestError::StatusExpired(epoch))
+                }
             },
             Ok(Err(e)) => Err(TransactionRequestError::Aborted(e)),
             Err(_) => Err(TransactionRequestError::TimedOutGettingFullEffectsAtValidator),
@@ -502,8 +504,8 @@ impl EffectsCertifier {
                         .with_label_values(&[ping_label.as_str()])
                         .inc();
                 }
-                Ok(WaitForEffectsResponse::Expired { epoch, round }) => {
-                    let error = TransactionRequestError::StatusExpired(epoch, round.unwrap_or(0));
+                Ok(WaitForEffectsResponse::Expired { epoch }) => {
+                    let error = TransactionRequestError::StatusExpired(epoch);
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
                     self.metrics

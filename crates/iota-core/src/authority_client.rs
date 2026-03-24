@@ -24,10 +24,10 @@ use iota_types::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SubmitTxRequest,
-        SubmitTxResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
-        ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
-        WaitForEffectsResponse,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
+        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
+        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
     },
     multiaddr::Multiaddr,
     transaction::*,
@@ -91,21 +91,21 @@ pub trait AuthorityAPI {
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
 
     /// Submit a transaction via the TransactionDriver protocol.
-    async fn submit_transaction(
+    async fn handle_submit_transactions(
         &self,
-        request: SubmitTxRequest,
+        request: SubmitTransactionsRequest,
         client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTxResponse, IotaError>;
+    ) -> Result<SubmitTransactionsResponse, IotaError>;
 
     /// Wait for a transaction's effects to be available.
-    async fn wait_for_effects(
+    async fn handle_wait_for_effects(
         &self,
         request: WaitForEffectsRequest,
         client_addr: Option<SocketAddr>,
     ) -> Result<WaitForEffectsResponse, IotaError>;
 
     /// Query validator health metrics (latency measurement / health check).
-    async fn validator_health(
+    async fn handle_validator_health(
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError>;
@@ -279,39 +279,39 @@ impl AuthorityAPI for NetworkAuthorityClient {
             .map_err(Into::into)
     }
 
-    async fn submit_transaction(
+    async fn handle_submit_transactions(
         &self,
-        request: SubmitTxRequest,
+        request: SubmitTransactionsRequest,
         client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTxResponse, IotaError> {
+    ) -> Result<SubmitTransactionsResponse, IotaError> {
         let mut grpc_request = request.into_request();
         insert_metadata(&mut grpc_request, client_addr);
 
         self.client()?
-            .submit_transaction(grpc_request)
+            .handle_submit_transactions(grpc_request)
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
     }
 
-    async fn wait_for_effects(
+    async fn handle_wait_for_effects(
         &self,
         request: WaitForEffectsRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<WaitForEffectsResponse, IotaError> {
         self.client()?
-            .wait_for_effects(request.into_request())
+            .handle_wait_for_effects(request.into_request())
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
     }
 
-    async fn validator_health(
+    async fn handle_validator_health(
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
         self.client()?
-            .validator_health(request.into_request())
+            .handle_validator_health(request.into_request())
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)

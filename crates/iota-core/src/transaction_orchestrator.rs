@@ -26,7 +26,7 @@ use iota_types::{
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
-    messages_grpc::SubmitTxRequest,
+    messages_grpc::SubmitTransactionsRequest,
     quorum_driver_types::{
         EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
         ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
@@ -341,7 +341,7 @@ where
 
         let td_response = td
             .drive_transaction(
-                SubmitTxRequest::new_transaction(request.transaction),
+                SubmitTransactionsRequest::new_transaction(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
                     ..Default::default()

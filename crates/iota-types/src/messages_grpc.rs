@@ -316,39 +316,65 @@ pub struct ExecutedData {
     pub output_objects: Vec<Object>,
 }
 
-/// Contains either a transaction or the type of Ping request.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SubmitTxRequest {
-    pub transaction: Option<Transaction>,
+/// Discriminates the submission mode in ['SubmitTransactionsRequest']. TODO: Is
+/// it even necessary though?
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SubmitTransactionsType {
+    /// Single transaction submission (default path).
+    #[default]
+    Default,
+    /// Ping (health-check / latency measurement); no transaction data.
+    Ping,
+    /// Multiple transactions submitted together as a soft bundle for
+    /// post-consensus owned-object conflict detection.
+    SoftBundle,
 }
 
-impl From<Transaction> for SubmitTxRequest {
+/// Contains either a transaction or the type of Ping request.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SubmitTransactionsRequest {
+    pub transactions: Vec<Transaction>,
+}
+
+impl From<Transaction> for SubmitTransactionsRequest {
     fn from(transaction: Transaction) -> Self {
         Self::new_transaction(transaction)
     }
 }
 
-impl SubmitTxRequest {
+impl SubmitTransactionsRequest {
     pub fn new_transaction(transaction: Transaction) -> Self {
         Self {
-            transaction: Some(transaction),
+            transactions: vec![transaction],
         }
     }
 
     pub fn new_ping() -> Self {
-        Self { transaction: None }
+        Self {
+            transactions: vec![],
+        }
     }
 
     /// Returns the digest of the transaction if it is a transaction request.
     /// Returns None if it is a ping request.
-    pub fn tx_digest(&self) -> Option<TransactionDigest> {
-        self.transaction.as_ref().map(|t| *t.digest())
+    pub fn tx_digest(&self) -> Vec<TransactionDigest> {
+        self.transactions.iter().map(|t| *t.digest()).collect()
+    }
+
+    // TODO: are those checks ok or should we have a single method that returns an
+    // enum?
+    pub fn is_ping(&self) -> bool {
+        self.transactions.is_empty()
+    }
+
+    pub fn is_soft_bundle(&self) -> bool {
+        self.transactions.len() > 1
     }
 }
 
 /// The result of submitting a transaction to a validator.
 #[derive(Clone, Serialize, Deserialize)]
-pub enum SubmitTxResult {
+pub enum SubmitTransactionResult {
     /// The transaction was submitted to consensus.
     Submitted,
     /// The transaction has already been executed (finalized).
@@ -361,7 +387,7 @@ pub enum SubmitTxResult {
     Rejected { error: IotaError },
 }
 
-impl std::fmt::Debug for SubmitTxResult {
+impl std::fmt::Debug for SubmitTransactionResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Submitted => f.debug_struct("Submitted").finish(),
@@ -376,8 +402,8 @@ impl std::fmt::Debug for SubmitTxResult {
 
 /// Response from the TransactionDriver submit_transaction endpoint.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SubmitTxResponse {
-    pub results: Vec<SubmitTxResult>,
+pub struct SubmitTransactionsResponse {
+    pub results: Vec<SubmitTransactionResult>,
 }
 
 /// Request to wait for transaction effects from a validator.
@@ -398,5 +424,5 @@ pub enum WaitForEffectsResponse {
     /// The transaction was rejected by consensus.
     Rejected { error: Option<IotaError> },
     /// Transaction status has expired from the cache.
-    Expired { epoch: EpochId, round: Option<u32> },
+    Expired { epoch: EpochId },
 }

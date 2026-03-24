@@ -10,6 +10,8 @@ mod tests {
     use iota_sdk_types::ObjectId;
     use iota_types::{
         crypto::{AccountKeyPair, get_key_pair},
+        digests::TransactionDigest,
+        error::IotaError,
         messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
         object::Object,
         transaction::VerifiedTransaction,
@@ -95,15 +97,17 @@ mod tests {
         // Run white flag conflict resolution
         let (dropped, locks) =
             white_flag::resolve_owned_object_conflicts(&epoch_store, &mut consensus_txs).unwrap();
+        let (dropped_tx, _dropped_error): (Vec<TransactionDigest>, Vec<IotaError>) =
+            dropped.into_iter().unzip();
 
         // Assert: tx1 should succeed (kept), tx2 should be dropped
         assert_eq!(consensus_txs.len(), 1, "Only one transaction should remain");
         assert_eq!(
-            dropped.len(),
+            dropped_tx.len(),
             1,
             "Exactly one transaction should be dropped"
         );
-        assert_eq!(dropped[0], *verified_tx2.digest());
+        assert_eq!(dropped_tx[0], *verified_tx2.digest());
 
         // Verify locks were acquired for tx1
         assert!(
@@ -295,15 +299,17 @@ mod tests {
         // Run white flag conflict resolution
         let (dropped, locks) =
             white_flag::resolve_owned_object_conflicts(&epoch_store, &mut consensus_txs).unwrap();
+        let (dropped_tx, _dropped_error): (Vec<TransactionDigest>, Vec<IotaError>) =
+            dropped.into_iter().unzip();
 
         // Assert: Tx1 and Tx2 should succeed, Tx3 should be dropped due to gas conflict
         assert_eq!(consensus_txs.len(), 2, "Two transactions should remain");
         assert_eq!(
-            dropped.len(),
+            dropped_tx.len(),
             1,
             "Exactly one transaction should be dropped"
         );
-        assert_eq!(dropped[0], *verified_tx3.digest());
+        assert_eq!(dropped_tx[0], *verified_tx3.digest());
 
         // Verify locks
         assert_eq!(
@@ -414,12 +420,14 @@ mod tests {
         // Run white flag conflict resolution
         let (dropped, locks) =
             white_flag::resolve_owned_object_conflicts(&epoch_store, &mut consensus_txs).unwrap();
+        let (dropped_tx, _dropped_error): (Vec<TransactionDigest>, Vec<IotaError>) =
+            dropped.into_iter().unzip();
 
         // Assert: tx1 and tx3 succeed (first in each conflict set), tx2 and tx4 dropped
         assert_eq!(consensus_txs.len(), 2, "Two transactions should remain");
-        assert_eq!(dropped.len(), 2, "Two transactions should be dropped");
-        assert!(dropped.contains(verified_tx2.digest()));
-        assert!(dropped.contains(verified_tx4.digest()));
+        assert_eq!(dropped_tx.len(), 2, "Two transactions should be dropped");
+        assert!(dropped_tx.contains(verified_tx2.digest()));
+        assert!(dropped_tx.contains(verified_tx4.digest()));
 
         // Verify locks for winners
         assert_eq!(
@@ -494,11 +502,13 @@ mod tests {
         // Run white flag conflict resolution
         let (dropped, locks) =
             white_flag::resolve_owned_object_conflicts(&epoch_store, &mut consensus_txs).unwrap();
+        let (dropped_tx, _dropped_error): (Vec<TransactionDigest>, Vec<IotaError>) =
+            dropped.into_iter().unzip();
 
         // Assert: tx1 succeeds, tx2 is dropped due to gas conflict
         assert_eq!(consensus_txs.len(), 1, "Only one transaction should remain");
-        assert_eq!(dropped.len(), 1, "One transaction should be dropped");
-        assert_eq!(dropped[0], *verified_tx2.digest());
+        assert_eq!(dropped_tx.len(), 1, "One transaction should be dropped");
+        assert_eq!(dropped_tx[0], *verified_tx2.digest());
 
         // Verify locks for gas and object
         assert_eq!(
@@ -606,12 +616,14 @@ mod tests {
         // Run white flag conflict resolution
         let (dropped, locks) =
             white_flag::resolve_owned_object_conflicts(&epoch_store, &mut consensus_txs).unwrap();
+        let (dropped_tx, _dropped_error): (Vec<TransactionDigest>, Vec<IotaError>) =
+            dropped.into_iter().unzip();
 
         // Assert: Only tx1 succeeds, tx2 and tx3 are both dropped
         assert_eq!(consensus_txs.len(), 1, "Only one transaction should remain");
-        assert_eq!(dropped.len(), 2, "Two transactions should be dropped");
-        assert!(dropped.contains(verified_tx2.digest()));
-        assert!(dropped.contains(verified_tx3.digest()));
+        assert_eq!(dropped_tx.len(), 2, "Two transactions should be dropped");
+        assert!(dropped_tx.contains(verified_tx2.digest()));
+        assert!(dropped_tx.contains(verified_tx3.digest()));
 
         // Verify tx1 locked both objects
         assert_eq!(
@@ -723,15 +735,17 @@ mod tests {
         // Run white flag conflict resolution
         let (dropped, locks) =
             white_flag::resolve_owned_object_conflicts(&epoch_store, &mut consensus_txs).unwrap();
+        let (dropped_tx, _dropped_error): (Vec<TransactionDigest>, Vec<IotaError>) =
+            dropped.into_iter().unzip();
 
         // Assert: tx1 and tx4 win, tx2 and tx3 dropped
         // tx2 drops due to object A conflict with tx1
         // tx3 drops due to shared_gas conflict with tx1
         // tx4 succeeds because object B is free (tx3 didn't lock it)
         assert_eq!(consensus_txs.len(), 2, "Two transactions should remain");
-        assert_eq!(dropped.len(), 2, "Two transactions should be dropped");
-        assert!(dropped.contains(verified_tx2.digest()));
-        assert!(dropped.contains(verified_tx3.digest()));
+        assert_eq!(dropped_tx.len(), 2, "Two transactions should be dropped");
+        assert!(dropped_tx.contains(verified_tx2.digest()));
+        assert!(dropped_tx.contains(verified_tx3.digest()));
 
         // Verify locks for winners
         assert_eq!(

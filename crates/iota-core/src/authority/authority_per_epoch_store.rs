@@ -637,6 +637,11 @@ pub struct AuthorityPerEpochStore {
     /// tasks.
     epoch_alive_token: CancellationToken,
 
+    /// Notifies waiters when a transaction is dropped by white-flag conflict
+    /// resolution. This allows `wait_for_effects` to return immediately with a
+    /// `Rejected` response instead of waiting for the gRPC deadline.
+    dropped_tx_notify_read: NotifyRead<TransactionDigest, IotaError>,
+
     /// Used to notify all epoch specific tasks that user certs are closed.
     user_certs_closed_notify: NotifyOnce,
 
@@ -1157,6 +1162,7 @@ impl AuthorityPerEpochStore {
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
             signed_effects_digests_cache,
+            dropped_tx_notify_read: NotifyRead::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1699,6 +1705,15 @@ impl AuthorityPerEpochStore {
                     .map_err(Into::into)
             })
             .await
+    }
+
+    /// Wait for a transaction to be dropped by white-flag conflict resolution.
+    /// Returns the `IotaError` describing why it was dropped.
+    /// Callers should race this against `notify_read_executed_effects_digests`
+    /// to determine whether the transaction was executed or dropped.
+    pub async fn notify_read_dropped_digests(&self, digest: TransactionDigest) -> IotaError {
+        let registration = self.dropped_tx_notify_read.register_one(&digest);
+        registration.await
     }
 
     pub async fn notify_read_running_root(
@@ -2317,6 +2332,24 @@ impl AuthorityPerEpochStore {
                 .lock()
                 .is_empty()
         }
+    }
+
+    /// Check whether any user transactions were processed by consensus.
+    /// This handles multiple transactions at once (white-flag / soft-bundle
+    /// path).
+    pub fn is_any_user_tx_consensus_message_processed<'a>(
+        &self,
+        transactions: impl Iterator<Item = &'a Transaction>,
+    ) -> IotaResult<bool> {
+        let keys = transactions.map(|tx| {
+            SequencedConsensusTransactionKey::External(ConsensusTransactionKey::UserTransaction(
+                *tx.digest(),
+            ))
+        });
+        Ok(self
+            .check_consensus_messages_processed(keys)?
+            .into_iter()
+            .any(|processed| processed))
     }
 
     /// Check whether any certificates were processed by consensus.
@@ -3207,12 +3240,11 @@ impl AuthorityPerEpochStore {
             //  consistent view
             if !dropped.is_empty() {
                 debug!("White flag flow dropped {} transactions", dropped.len());
+                for (digest, error) in dropped {
+                    self.dropped_tx_notify_read.notify(&digest, &error);
+                }
             }
         }
-
-        // TODO: At this point sequenced_transactions doesn't contain any conflicting
-        //  UserTransactions. Dropped transactions are in dropped and need to be handled
-        //  somehow
 
         // Save roots for checkpoint generation. One set for most tx, one for randomness
         // tx.
