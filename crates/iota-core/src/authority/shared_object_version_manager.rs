@@ -41,12 +41,12 @@ impl SharedObjVerManager {
     pub fn assign_versions_from_consensus(
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
-        certificates: &[VerifiedExecutableTransaction],
+        transactions: &[VerifiedExecutableTransaction],
         randomness_round: Option<RandomnessRound>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<ConsensusSharedObjVerAssignment> {
         let mut shared_input_next_versions = get_or_init_versions(
-            certificates.iter().map(|cert| cert.data()),
+            transactions.iter().map(|tx| tx.data()),
             epoch_store,
             cache_reader,
             randomness_round.is_some(),
@@ -71,19 +71,19 @@ impl SharedObjVerManager {
             ));
             version.increment();
         }
-        for cert in certificates {
-            if !cert.contains_shared_object() {
+        for transaction in transactions {
+            if !transaction.contains_shared_object() {
                 continue;
             }
-            let cert_assigned_versions = Self::assign_versions_for_certificate(
-                cert,
+            let tx_assigned_versions = Self::assign_versions_for_transaction(
+                transaction,
                 &mut shared_input_next_versions,
                 cancelled_txns,
                 epoch_store
                     .protocol_config()
                     .congestion_control_gas_price_feedback_mechanism(),
             );
-            assigned_versions.push((cert.key(), cert_assigned_versions));
+            assigned_versions.push((transaction.key(), tx_assigned_versions));
         }
 
         Ok(ConsensusSharedObjVerAssignment {
@@ -93,7 +93,7 @@ impl SharedObjVerManager {
     }
 
     pub fn assign_versions_from_effects(
-        certs_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
+        transactions_and_effects: &[(&VerifiedExecutableTransaction, &TransactionEffects)],
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
     ) -> AssignedTxAndVersions {
@@ -106,36 +106,36 @@ impl SharedObjVerManager {
         // done before we mutate it the first time, otherwise we would be initializing
         // it with the wrong version.
         let _ = get_or_init_versions(
-            certs_and_effects.iter().map(|(cert, _)| cert.data()),
+            transactions_and_effects.iter().map(|(tx, _)| tx.data()),
             epoch_store,
             cache_reader,
             false,
         );
         let mut assigned_versions = Vec::new();
-        for (cert, effects) in certs_and_effects {
-            let cert_assigned_versions: Vec<_> = effects
+        for (transaction, effects) in transactions_and_effects {
+            let tx_assigned_versions: Vec<_> = effects
                 .input_shared_objects()
                 .into_iter()
                 .map(|iso| iso.id_and_version())
                 .collect();
-            let tx_key = cert.key();
+            let tx_key = transaction.key();
             trace!(
                 ?tx_key,
-                ?cert_assigned_versions,
+                ?tx_assigned_versions,
                 "locking shared objects from effects"
             );
-            assigned_versions.push((tx_key, cert_assigned_versions));
+            assigned_versions.push((tx_key, tx_assigned_versions));
         }
         assigned_versions
     }
 
-    pub fn assign_versions_for_certificate(
-        cert: &VerifiedExecutableTransaction,
+    pub fn assign_versions_for_transaction(
+        transaction: &VerifiedExecutableTransaction,
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
         cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         enable_gas_price_feedback: bool,
     ) -> Vec<(ObjectID, SequenceNumber)> {
-        let tx_digest = cert.digest();
+        let tx_digest = transaction.digest();
 
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
@@ -152,14 +152,14 @@ impl SharedObjVerManager {
         let txn_cancelled = cancellation_info.is_some();
 
         // Make an iterator to update the locks of the transaction's shared objects.
-        let shared_input_objects = cert.shared_input_objects();
+        let shared_input_objects = transaction.shared_input_objects();
 
-        let mut input_object_keys = transaction_non_shared_input_object_keys(cert)
+        let mut input_object_keys = transaction_non_shared_input_object_keys(transaction)
             .expect("Transaction input should have been verified");
         let mut assigned_versions = Vec::with_capacity(shared_input_objects.len());
         let mut is_mutable_input = Vec::with_capacity(shared_input_objects.len());
         // Record receiving object versions towards the shared version computation.
-        let receiving_object_keys = transaction_receiving_object_keys(cert);
+        let receiving_object_keys = transaction_receiving_object_keys(transaction);
         input_object_keys.extend(receiving_object_keys);
 
         if txn_cancelled {
@@ -330,7 +330,7 @@ mod tests {
             .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
-        let certs = vec![
+        let transactions = vec![
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 3),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 5),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 9),
@@ -343,7 +343,7 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            &certs,
+            &transactions,
             None,
             &BTreeMap::new(),
         )
@@ -363,15 +363,24 @@ mod tests {
         // Check that the version assignment for each transaction is correct.
         // For a transaction that uses the shared object with mutable=false, it won't
         // update the version using lamport version, hence the next transaction
-        // will use the same version number. In the following case, certs[2] has
-        // the same assignment as certs[1] for this reason.
+        // will use the same version number. In the following case, transactions[2] has
+        // the same assignment as transactions[1] for this reason.
         assert_eq!(
             assigned_versions,
             vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+                (transactions[0].key(), vec![(id, init_shared_version),]),
+                (
+                    transactions[1].key(),
+                    vec![(id, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    transactions[2].key(),
+                    vec![(id, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    transactions[3].key(),
+                    vec![(id, SequenceNumber::from_u64(10)),]
+                ),
             ]
         );
     }
@@ -383,7 +392,7 @@ mod tests {
         let randomness_obj_version = epoch_store
             .epoch_start_config()
             .randomness_obj_initial_shared_version();
-        let certs = vec![
+        let transactions = vec![
             generate_shared_objs_tx_with_gas_version(
                 &[(
                     IOTA_RANDOMNESS_STATE_OBJECT_ID,
@@ -409,7 +418,7 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            &certs,
+            &transactions,
             Some(RandomnessRound::new(1)),
             &BTreeMap::new(),
         )
@@ -435,13 +444,13 @@ mod tests {
                     vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, randomness_obj_version),]
                 ),
                 (
-                    certs[0].key(),
+                    transactions[0].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
                     vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
                 ),
                 (
-                    certs[1].key(),
+                    transactions[1].key(),
                     // It is critical that the randomness object version is updated before the
                     // assignment.
                     vec![(IOTA_RANDOMNESS_STATE_OBJECT_ID, next_randomness_obj_version)]
@@ -496,7 +505,7 @@ mod tests {
         // lamport version = 10 due to gas object version = 9   tx5: shared
         // objects assign cancelled version, lamport version = 12 due to gas object
         // version = 11
-        let certs = vec![
+        let transactions = vec![
             generate_shared_objs_tx_with_gas_version(
                 &[
                     (id1, init_shared_version_1, true),
@@ -537,21 +546,21 @@ mod tests {
         let suggested_gas_price = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [
             (
-                *certs[1].digest(),
+                *transactions[1].digest(),
                 CancelConsensusTransactionReason::CongestionOnObjects {
                     congested_objects: vec![id1],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
-                *certs[3].digest(),
+                *transactions[3].digest(),
                 CancelConsensusTransactionReason::CongestionOnObjects {
                     congested_objects: vec![id2],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
-                *certs[4].digest(),
+                *transactions[4].digest(),
                 CancelConsensusTransactionReason::DkgFailed,
             ),
         ]
@@ -565,7 +574,7 @@ mod tests {
         } = SharedObjVerManager::assign_versions_from_consensus(
             &epoch_store,
             authority.get_object_cache_reader().as_ref(),
-            &certs,
+            &transactions,
             None,
             &cancelled_txns,
         )
@@ -587,11 +596,11 @@ mod tests {
             assigned_versions,
             vec![
                 (
-                    certs[0].key(),
+                    transactions[0].key(),
                     vec![(id1, init_shared_version_1), (id2, init_shared_version_2)]
                 ),
                 (
-                    certs[1].key(),
+                    transactions[1].key(),
                     vec![
                         (
                             id1,
@@ -602,9 +611,12 @@ mod tests {
                         (id2, SequenceNumber::CANCELLED_READ),
                     ]
                 ),
-                (certs[2].key(), vec![(id1, SequenceNumber::from_u64(4)),]),
                 (
-                    certs[3].key(),
+                    transactions[2].key(),
+                    vec![(id1, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    transactions[3].key(),
                     vec![
                         (id1, SequenceNumber::CANCELLED_READ),
                         (
@@ -616,7 +628,7 @@ mod tests {
                     ]
                 ),
                 (
-                    certs[4].key(),
+                    transactions[4].key(),
                     vec![
                         (
                             IOTA_RANDOMNESS_STATE_OBJECT_ID,
@@ -644,27 +656,27 @@ mod tests {
             .with_starting_objects(std::slice::from_ref(&shared_object))
             .build()
             .await;
-        let certs = [
+        let transactions = [
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 3),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, false)], 5),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 9),
             generate_shared_objs_tx_with_gas_version(&[(id, init_shared_version, true)], 11),
         ];
         let effects = [
-            TestEffectsBuilder::new(certs[0].data()).build(),
-            TestEffectsBuilder::new(certs[1].data())
+            TestEffectsBuilder::new(transactions[0].data()).build(),
+            TestEffectsBuilder::new(transactions[1].data())
                 .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(4))]))
                 .build(),
-            TestEffectsBuilder::new(certs[2].data())
+            TestEffectsBuilder::new(transactions[2].data())
                 .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(4))]))
                 .build(),
-            TestEffectsBuilder::new(certs[3].data())
+            TestEffectsBuilder::new(transactions[3].data())
                 .with_shared_input_versions(BTreeMap::from([(id, SequenceNumber::from_u64(10))]))
                 .build(),
         ];
         let epoch_store = authority.epoch_store_for_testing();
         let assigned_versions = SharedObjVerManager::assign_versions_from_effects(
-            certs
+            transactions
                 .iter()
                 .zip(effects.iter())
                 .collect::<Vec<_>>()
@@ -681,10 +693,19 @@ mod tests {
         assert_eq!(
             assigned_versions,
             vec![
-                (certs[0].key(), vec![(id, init_shared_version),]),
-                (certs[1].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[2].key(), vec![(id, SequenceNumber::from_u64(4)),]),
-                (certs[3].key(), vec![(id, SequenceNumber::from_u64(10)),]),
+                (transactions[0].key(), vec![(id, init_shared_version),]),
+                (
+                    transactions[1].key(),
+                    vec![(id, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    transactions[2].key(),
+                    vec![(id, SequenceNumber::from_u64(4)),]
+                ),
+                (
+                    transactions[3].key(),
+                    vec![(id, SequenceNumber::from_u64(10)),]
+                ),
             ]
         );
     }

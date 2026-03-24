@@ -3538,7 +3538,7 @@ impl AuthorityPerEpochStore {
             match cancelled_txns.get(txn.digest()) {
                 Some(CancelConsensusTransactionReason::CongestionOnObjects { .. })
                 | Some(CancelConsensusTransactionReason::DkgFailed) => {
-                    let assigned_versions = SharedObjVerManager::assign_versions_for_certificate(
+                    let assigned_versions = SharedObjVerManager::assign_versions_for_transaction(
                         txn,
                         &mut shared_input_next_version,
                         cancelled_txns,
