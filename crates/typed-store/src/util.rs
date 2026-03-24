@@ -42,7 +42,6 @@ where
         Bound::Included(lower_bound) => {
             // Rocksdb lower bound is inclusive by default so nothing to do
             Some(be_fix_int_ser(&lower_bound))
-            // readopts.set_iterate_lower_bound(key_buf);
         }
         Bound::Excluded(lower_bound) => {
             let mut key_buf = be_fix_int_ser(&lower_bound);
@@ -50,7 +49,6 @@ where
             // Since we want exclusive, we need to increment the key to exclude the previous
             big_endian_saturating_add_one(&mut key_buf);
             Some(key_buf)
-            // readopts.set_iterate_lower_bound(key_buf);
         }
         Bound::Unbounded => None,
     };
@@ -69,9 +67,8 @@ where
             }
         }
         Bound::Excluded(upper_bound) => {
-            // Rocksdb upper bound is inclusive by default so nothing to do
+            // Rocksdb upper bound is exclusive by default so nothing to do
             Some(be_fix_int_ser(&upper_bound))
-            // readopts.set_iterate_upper_bound(key_buf);
         }
         Bound::Unbounded => None,
     };

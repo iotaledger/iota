@@ -121,7 +121,7 @@ impl InMemoryDB {
             .with_big_endian()
             .with_fixint_encoding();
         let lower_bound = lower_bound.map(Bound::Included).unwrap_or(Bound::Unbounded);
-        let upper_bound = upper_bound.map(Bound::Included).unwrap_or(Bound::Unbounded);
+        let upper_bound = upper_bound.map(Bound::Excluded).unwrap_or(Bound::Unbounded);
 
         let data = self.data.read().expect("can't read data");
         let mut section: Vec<_> = data
@@ -134,8 +134,11 @@ impl InMemoryDB {
             section.reverse();
         }
         Box::new(section.into_iter().map(move |(raw_key, raw_value)| {
-            let key = config.deserialize(&raw_key).unwrap();
-            let value = bcs::from_bytes(&raw_value).unwrap();
+            let key = config
+                .deserialize(&raw_key)
+                .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
+            let value = bcs::from_bytes(&raw_value)
+                .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
             Ok((key, value))
         }))
     }
