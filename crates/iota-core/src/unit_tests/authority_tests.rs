@@ -3103,7 +3103,7 @@ async fn test_genesis_iota_system_state_object() {
     let move_object = wrapper.data.try_as_move().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is(&StructTag::new_iota_system_state()));
+    assert!(move_object.type_().is_iota_system_state());
     let iota_system_state = authority_state
         .get_iota_system_state_object_for_testing()
         .unwrap();

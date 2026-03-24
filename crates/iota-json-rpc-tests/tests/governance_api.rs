@@ -19,7 +19,7 @@ use iota_swarm_config::genesis_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID},
+    base_types::{ObjectID, StructTag},
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
@@ -508,7 +508,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
 
     let timelock_iota = {
         MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
+            StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),
@@ -663,7 +663,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
 
     let timelock_iota = {
         MoveObject::new_from_execution(
-            MoveObjectType::timelocked_iota_balance(),
+            StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
                 UID::new(ObjectID::random()),

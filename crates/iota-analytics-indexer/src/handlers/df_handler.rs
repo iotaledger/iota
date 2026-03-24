@@ -124,10 +124,7 @@ impl DynamicFieldHandler {
         if !move_object.type_().is_dynamic_field() {
             return Ok(());
         }
-        let layout = state
-            .resolver
-            .type_layout(move_object.type_().clone().into())
-            .await?;
+        let layout = state.resolver.type_layout(move_object.type_tag()).await?;
         let object_id = object.id();
 
         let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)?;
@@ -162,7 +159,7 @@ impl DynamicFieldHandler {
                 object_id: object.id().to_string(),
                 version: object.version().as_u64(),
                 digest: object.digest().to_string(),
-                object_type: move_object.clone().into_type().into_type_params()[1]
+                object_type: move_object.type_().type_params()[1]
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {

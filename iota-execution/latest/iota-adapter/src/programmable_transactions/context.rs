@@ -20,9 +20,7 @@ mod checked {
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
         balance::Balance,
-        base_types::{
-            Identifier, IotaAddress, MoveObjectType, ObjectID, StructTag, TxContext, TypeTag,
-        },
+        base_types::{Identifier, IotaAddress, ObjectID, StructTag, TxContext, TypeTag},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
@@ -1172,7 +1170,7 @@ mod checked {
         /// linkage view to properly interpret and instantiate the object.
         pub(crate) fn make_object_value(
             &mut self,
-            type_: MoveObjectType,
+            type_: StructTag,
             used_in_non_entry_move_call: bool,
             contents: &[u8],
         ) -> Result<ObjectValue, ExecutionError> {
@@ -1343,7 +1341,7 @@ mod checked {
         })
     }
 
-    /// Constructs an `ObjectValue` based on the provided `MoveObjectType`,
+    /// Constructs an `ObjectValue` based on the provided `StructTag`,
     /// contents, and additional flags such as transferability and usage
     /// context. If the object is a coin, it deserializes the contents into
     /// a `Coin` type; otherwise, it treats the contents as raw data. The
@@ -1353,7 +1351,7 @@ mod checked {
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
         new_packages: &[MovePackage],
-        type_: MoveObjectType,
+        type_: StructTag,
         used_in_non_entry_move_call: bool,
         contents: &[u8],
     ) -> Result<ObjectValue, ExecutionError> {
@@ -1366,8 +1364,7 @@ mod checked {
             ObjectContents::Raw(contents.to_vec())
         };
 
-        let tag: StructTag = type_.into();
-        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &tag)
+        let type_ = load_type_from_struct(vm, linkage_view, new_packages, &type_)
             .map_err(|e| crate::error::convert_vm_error(e, vm, linkage_view))?;
         let abilities = vm
             .get_runtime()
@@ -1406,7 +1403,7 @@ mod checked {
     }
 
     /// Converts a provided `Object` into an `ObjectValue`, extracting and
-    /// validating the `MoveObjectType` and contents. This function assumes
+    /// validating the `StructTag` and contents. This function assumes
     /// the object contains Move-specific data and passes the extracted data
     /// through `make_object_value` to create the corresponding `ObjectValue`.
     pub(crate) fn value_from_object(
@@ -1428,7 +1425,7 @@ mod checked {
             vm,
             linkage_view,
             new_packages,
-            object.type_().clone(),
+            object.type_().clone().into(),
             used_in_non_entry_move_call,
             object.contents(),
         )
@@ -1646,7 +1643,7 @@ mod checked {
             _ => invariant_violation!("Non struct type for object"),
         };
         MoveObject::new_from_execution(
-            struct_tag.into(),
+            struct_tag,
             old_obj_ver.unwrap_or_default(),
             contents,
             protocol_config,
