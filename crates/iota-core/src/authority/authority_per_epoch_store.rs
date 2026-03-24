@@ -2970,12 +2970,13 @@ impl AuthorityPerEpochStore {
         let mut current_commit_sequenced_randomness_transactions =
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
+        let enable_white_flag = self.protocol_config.enable_white_flag_flow();
         for tx in verified_transactions {
             if tx.0.is_end_of_publish() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
-            } else if tx.0.is_user_tx_with_randomness() {
+            } else if !enable_white_flag && tx.0.is_user_tx_with_randomness() {
                 current_commit_sequenced_randomness_transactions.push(tx);
             } else {
                 current_commit_sequenced_consensus_transactions.push(tx);
@@ -3008,17 +3009,25 @@ impl AuthorityPerEpochStore {
             })
             .collect();
 
-        // Sequenced_transactions and sequenced_randomness_transactions store all
+        // sequenced_transactions and sequenced_randomness_transactions store all
         // transactions that will be sent to process_consensus_transactions. We
         // put deferred transactions at the beginning of the list before
         // PostConsensusTxReorder::reorder, so that for transactions with the same gas
         // price, deferred transactions will be placed earlier in the execution
         // queue.
+        //
+        // White-flag flow: when enabled, the categorization loop above puts ALL
+        // user transactions (including randomness) into
+        // current_commit_sequenced_consensus_transactions to preserve consensus
+        // DAG ordering during conflict resolution. The deferred-loading paths
+        // below do the same. After validate_and_resolve_conflicts runs on the
+        // combined list, we partition back into regular/randomness for downstream
+        // processing (separate reordering and congestion tracking).
+        let total_user_tx_count = current_commit_sequenced_consensus_transactions.len()
+            + current_commit_sequenced_randomness_transactions.len()
+            + previously_deferred_tx_digests.len();
         let mut sequenced_transactions: Vec<VerifiedSequencedConsensusTransaction> =
-            Vec::with_capacity(
-                current_commit_sequenced_consensus_transactions.len()
-                    + previously_deferred_tx_digests.len(),
-            );
+            Vec::with_capacity(total_user_tx_count);
         let mut sequenced_randomness_transactions: Vec<VerifiedSequencedConsensusTransaction> =
             Vec::with_capacity(
                 current_commit_sequenced_randomness_transactions.len()
@@ -3067,7 +3076,11 @@ impl AuthorityPerEpochStore {
             self.load_and_process_deferred_transactions_for_randomness(
                 &mut output,
                 &mut previously_deferred_tx_digests,
-                &mut sequenced_randomness_transactions,
+                if enable_white_flag {
+                    &mut sequenced_transactions
+                } else {
+                    &mut sequenced_randomness_transactions
+                },
             )?;
         }
 
@@ -3076,7 +3089,7 @@ impl AuthorityPerEpochStore {
             .into_iter()
             .flat_map(|(_, txs)| txs.into_iter())
         {
-            if tx.transaction.0.is_user_tx_with_randomness() {
+            if !enable_white_flag && tx.transaction.0.is_user_tx_with_randomness() {
                 sequenced_randomness_transactions.push(tx.transaction);
             } else {
                 sequenced_transactions.push(tx.transaction);
@@ -3089,7 +3102,7 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // already have persistent locks, giving them natural precedence.
-        if self.protocol_config.enable_white_flag_flow() {
+        if enable_white_flag {
             let (dropped, owned_object_locks) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
@@ -3108,6 +3121,14 @@ impl AuthorityPerEpochStore {
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
             }
+
+            // Split back for downstream processing (separate reordering
+            // and congestion tracking).
+            let (regular, randomness): (Vec<_>, Vec<_>) = sequenced_transactions
+                .into_iter()
+                .partition(|tx| !tx.0.is_user_tx_with_randomness());
+            sequenced_transactions = regular;
+            sequenced_randomness_transactions = randomness;
         }
 
         // Save roots for checkpoint generation. One set for most tx, one for randomness
