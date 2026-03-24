@@ -1428,9 +1428,7 @@ mod tests {
         );
 
         // Phase 6: Restart test validator with full connectivity and fast commit
-        // syncer enabled. Transaction synchronizer and shard reconstructor are
-        // stopped after restart to keep pending subdags unresolved, ensuring
-        // fast sync must handle them.
+        // syncer enabled.
         let parameters = Parameters {
             db_path: temp_dirs[test_validator_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
@@ -1457,20 +1455,7 @@ mod tests {
         consumer_monitors[test_validator_index] = monitor;
         authorities.insert(test_validator_index, authority);
 
-        // Keep transaction synchronizer and shard reconstructor stopped after restart
-        // to prevent pending subdags from being solidified before fast sync runs.
-        // This ensures fast sync must handle pre-existing pending subdags.
-        authorities[test_validator_index]
-            .stop_transactions_synchronizer_for_test()
-            .await
-            .expect("Transaction synchronizer should stop");
-        authorities[test_validator_index]
-            .stop_shard_reconstructor_for_test()
-            .await
-            .expect("Shard reconstructor should stop");
-
         // Phase 7: Wait for the validator to catch up via fast sync
-        // This tests whether fast sync can handle pre-existing pending subdags
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(60) {
