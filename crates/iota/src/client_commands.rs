@@ -78,7 +78,6 @@ use iota_types::{
         CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
         TransactionDataAPI, TransactionKind,
     },
-    type_input::TypeInput,
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
@@ -3445,10 +3444,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 json_args,
             )
             .await?;
-            Some((
-                call_args,
-                type_args.into_iter().map(TypeInput::from).collect(),
-            ))
+            Some((call_args, type_args))
         } else {
             None
         };
@@ -3870,7 +3866,7 @@ async fn create_move_authenticator_signature(
     Ok(GenericSignature::MoveAuthenticator(
         MoveAuthenticator::new_v1(
             call_args,
-            type_args.into_iter().map(TypeInput::from).collect(),
+            type_args,
             CallArg::Shared(SharedObjectRef {
                 object_id: ObjectID::from(address),
                 initial_shared_version,

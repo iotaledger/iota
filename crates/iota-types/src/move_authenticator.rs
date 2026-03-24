@@ -16,7 +16,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
     committee::EpochId,
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
@@ -24,7 +24,6 @@ use crate::{
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
     transaction::{CallArg, CallArgExt, InputObjectKind, SharedObjectRef},
-    type_input::TypeInput,
 };
 
 /// MoveAuthenticator is a GenericSignature variant that enables a new
@@ -45,7 +44,7 @@ impl MoveAuthenticator {
     /// Creates a new MoveAuthenticator of version 1.
     pub fn new_v1(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeInput>,
+        type_arguments: Vec<TypeTag>,
         object_to_authenticate: CallArg,
     ) -> Self {
         Self {
@@ -88,7 +87,7 @@ impl MoveAuthenticator {
     }
 
     /// Returns the type arguments of the MoveAuthenticator.
-    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
         self.inner.type_arguments()
     }
 
@@ -238,7 +237,7 @@ pub enum MoveAuthenticatorInner {
 impl MoveAuthenticatorInner {
     pub fn new_v1(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeInput>,
+        type_arguments: Vec<TypeTag>,
         object_to_authenticate: CallArg,
     ) -> Self {
         MoveAuthenticatorInner::V1(MoveAuthenticatorV1::new(
@@ -266,7 +265,7 @@ impl MoveAuthenticatorInner {
         }
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
         match self {
             MoveAuthenticatorInner::V1(v1) => v1.type_arguments(),
         }
@@ -317,8 +316,7 @@ pub struct MoveAuthenticatorV1 {
     /// Input objects or primitive values
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
-    #[schemars(with = "Vec<String>")]
-    type_arguments: Vec<TypeInput>,
+    type_arguments: Vec<TypeTag>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.
     object_to_authenticate: CallArg,
@@ -327,7 +325,7 @@ pub struct MoveAuthenticatorV1 {
 impl MoveAuthenticatorV1 {
     pub fn new(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeInput>,
+        type_arguments: Vec<TypeTag>,
         object_to_authenticate: CallArg,
     ) -> Self {
         Self {
@@ -348,7 +346,7 @@ impl MoveAuthenticatorV1 {
         &self.call_args
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeInput> {
+    pub fn type_arguments(&self) -> &Vec<TypeTag> {
         &self.type_arguments
     }
 
@@ -469,11 +467,7 @@ impl MoveAuthenticatorV1 {
         // `ProgrammableMoveCall`.
         let mut type_arguments_count = 0;
         self.type_arguments().iter().try_for_each(|type_arg| {
-            crate::transaction::type_input_validity_check(
-                type_arg,
-                config,
-                &mut type_arguments_count,
-            )
+            crate::transaction::type_tag_validity_check(type_arg, config, &mut type_arguments_count)
         })?;
 
         Ok(())
