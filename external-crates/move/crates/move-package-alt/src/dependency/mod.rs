@@ -93,17 +93,20 @@ fn split<F: MoveFlavor>(
     DependencySet<LocalDependency>,
     DependencySet<F::FlavorDependency<Unpinned>>,
 ) {
-    let mut gits = DependencySet::new();
-    let mut exts = DependencySet::new();
-    let mut locs = DependencySet::new();
-    let mut flav = DependencySet::new();
+    use DependencySet as DS;
+    use ManifestDependencyInfo as M;
+
+    let mut gits = DS::new();
+    let mut exts = DS::new();
+    let mut locs = DS::new();
+    let mut flav = DS::new();
 
     for (env, package_name, dep) in deps.clone().into_iter() {
         match dep {
-            ManifestDependencyInfo::Git(info) => gits.insert(env, package_name, info),
-            ManifestDependencyInfo::External(info) => exts.insert(env, package_name, info),
-            ManifestDependencyInfo::Local(info) => locs.insert(env, package_name, info),
-            ManifestDependencyInfo::FlavorSpecific(info) => flav.insert(env, package_name, info),
+            M::Git(info) => gits.insert(env, package_name, info),
+            M::External(info) => exts.insert(env, package_name, info),
+            M::Local(info) => locs.insert(env, package_name, info),
+            M::FlavorSpecific(info) => flav.insert(env, package_name, info),
         }
     }
 
@@ -140,25 +143,19 @@ pub async fn pin<F: MoveFlavor>(
     let pinned_gits: DependencySet<PinnedDependencyInfo<F>> = GitDependency::pin(gits)
         .unwrap() // TODO: error collection!
         .into_iter()
-        .map(|(env, package, dep)| (env, package, PinnedDependencyInfo::Git::<F>(dep)))
+        .map(|(env, package, dep)| (env, package, P::Git::<F>(dep)))
         .collect();
 
     let pinned_locs = locs
         .into_iter()
-        .map(|(env, package, dep)| (env, package, PinnedDependencyInfo::Local::<F>(dep)))
+        .map(|(env, package, dep)| (env, package, P::Local::<F>(dep)))
         .collect();
 
     let pinned_flav = flavor
         .pin(flav)
         .unwrap() // TODO: Errors!
         .into_iter()
-        .map(|(env, package, dep)| {
-            (
-                env,
-                package,
-                PinnedDependencyInfo::FlavorSpecific::<F>(dep.clone()),
-            )
-        })
+        .map(|(env, package, dep)| (env, package, P::FlavorSpecific::<F>(dep.clone())))
         .collect();
 
     Ok(DependencySet::merge([
