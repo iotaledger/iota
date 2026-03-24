@@ -37,7 +37,7 @@ pub use script_signature::{
 pub use signature::SignatureChecker;
 pub use verifier::{
     verify_module_unmetered, verify_module_with_config_for_test, verify_module_with_config_metered,
-    verify_module_with_config_unmetered,
+    verify_module_with_config_metered_up_to_code_units, verify_module_with_config_unmetered,
 };
 
 mod acquires_list_verifier;
