@@ -355,9 +355,10 @@ impl TestCheckpointDataBuilder {
         let tx_builder = self.checkpoint_builder.next_transaction.as_mut().unwrap();
         let object_id = Self::derive_object_id(object_id);
 
-        let Some(obj) = self.live_objects.get(&object_id) else {
-            panic!("Frozen object not found");
-        };
+        let obj = self
+            .live_objects
+            .get(&object_id)
+            .expect("Frozen object not found");
 
         assert!(obj.owner().is_immutable());
         tx_builder
