@@ -113,7 +113,7 @@ impl EpochState {
         let input_object_kinds = tx_data.input_objects()?;
         let receiving_object_refs = tx_data.receiving_objects();
 
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             tx_data,
             transaction.tx_signatures(),
             &input_object_kinds,
@@ -187,7 +187,7 @@ impl EpochState {
         let receiving_object_refs = transaction.receiving_objects();
 
         // Check if some transaction elements are denied
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,

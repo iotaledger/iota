@@ -6730,6 +6730,7 @@ async fn test_post_consensus_white_flag_simple_conflict() {
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
+            authority.as_ref(),
         )
         .await
         .unwrap();
@@ -6842,6 +6843,7 @@ async fn test_post_consensus_white_flag_no_conflict() {
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
+            authority.as_ref(),
         )
         .await
         .unwrap();
@@ -6932,6 +6934,7 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
+            authority.as_ref(),
         )
         .await
         .unwrap();
@@ -6973,6 +6976,7 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
             authority.get_transaction_cache_reader().as_ref(),
             &authority.metrics,
             true,
+            authority.as_ref(),
         )
         .await
         .unwrap();

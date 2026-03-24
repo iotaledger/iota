@@ -79,6 +79,7 @@ impl MockConsensusClient {
                             validator.get_transaction_cache_reader().as_ref(),
                             &authority_metrics,
                             true,
+                            validator.as_ref(),
                         )
                         .await
                         .unwrap();
