@@ -27,14 +27,18 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-stream.workspace = true
 tokio-util.workspace = true
+tonic = { workspace = true, features = ["tls-native-roots"] }
 tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
+iota-grpc-client.workspace = true
+iota-grpc-types.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true
+iota-sdk-types.workspace = true
 iota-storage.workspace = true
 iota-types.workspace = true
 

@@ -36,7 +36,6 @@ const GAS_OBJECT_COUNT: usize = 3;
 pub const DEFAULT_INTERNAL_DATA_SOURCE_PORT: u16 = 3000;
 
 pub struct ExecutorCluster {
-    pub executor_server_handle: JoinHandle<()>,
     pub indexer_store: PgIndexerStore,
     pub indexer_join_handle: JoinHandle<Result<(), IndexerError>>,
     pub graphql_server_join_handle: JoinHandle<()>,
@@ -65,17 +64,18 @@ pub async fn start_cluster(
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
-    let val_fn =
+    let test_cluster =
         start_validator_with_fullnode(internal_data_source_rpc_port, data_ingestion_path.clone())
             .await;
 
+    let grpc_url = test_cluster.grpc_url();
     // Starts indexer
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
         // reset the existing db
         true,
         None,
-        val_fn.rpc_url().to_string(),
+        grpc_url.clone(),
         IndexerTypeConfig::writer_mode(None, None),
         Some(data_ingestion_path),
         cancellation_token.clone(),
@@ -83,10 +83,9 @@ pub async fn start_cluster(
     .await;
 
     // Starts graphql server
-    let fn_rpc_url = val_fn.rpc_url().to_string();
     let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
-        Some(fn_rpc_url),
+        Some(grpc_url),
         Some(cancellation_token.clone()),
         Some(service_config),
     )
@@ -102,7 +101,7 @@ pub async fn start_cluster(
     wait_for_graphql_server(&client).await;
 
     Cluster {
-        validator_fullnode_handle: val_fn,
+        validator_fullnode_handle: test_cluster,
         indexer_store: pg_store,
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
@@ -120,7 +119,7 @@ pub async fn start_cluster(
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
-    executor: Arc<dyn RestStateReader + Send + Sync>,
+    _executor: Arc<dyn RestStateReader + Send + Sync>,
     snapshot_config: Option<SnapshotLagConfig>,
     epochs_to_keep: Option<u64>,
     data_ingestion_path: PathBuf,
@@ -130,20 +129,14 @@ pub async fn serve_executor(
     // can send a cancellation token on cleanup
     let cancellation_token = CancellationToken::new();
 
+    // a dummy address to satisfy the indexer and graphql, the latter needs the url
+    // for the Write API, if not provided the server will return an error.
     let executor_server_url: SocketAddr = format!("127.0.0.1:{internal_data_source_rpc_port}")
         .parse()
         .unwrap();
 
-    info!("Starting executor server on {}", executor_server_url);
-
-    let executor_server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(executor)
-            .start_service(executor_server_url)
-            .await;
-    });
-
-    info!("spawned executor server");
-
+    // in writer mode the indexer will read checkpoint data from the data ingestion
+    // path and ignore the rpc_url.
     let (pg_store, pg_handle) = start_test_indexer_impl(
         db_url,
         true,
@@ -181,7 +174,6 @@ pub async fn serve_executor(
     wait_for_graphql_server(&client).await;
 
     ExecutorCluster {
-        executor_server_handle,
         indexer_store: pg_store,
         indexer_join_handle: pg_handle,
         graphql_server_join_handle: graphql_server_handle,
@@ -273,7 +265,8 @@ async fn start_validator_with_fullnode(
                 gas_amounts: vec![DEFAULT_GAS_AMOUNT; GAS_OBJECT_COUNT],
             };
             ACCOUNT_NUM
-        ]);
+        ])
+        .with_fullnode_enable_grpc_api(true);
 
     if let Some(internal_data_source_rpc_port) = internal_data_source_rpc_port {
         test_cluster_builder =
