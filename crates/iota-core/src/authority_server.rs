@@ -1544,12 +1544,12 @@ impl ValidatorService {
                     };
                     let input_objects = state.get_transaction_input_objects(&effects).ok();
                     let output_objects = state.get_transaction_output_objects(&effects).ok();
-                    let details = Some(Box::new(ExecutedData {
+                    let details = Box::new(ExecutedData {
                         effects,
                         events,
                         input_objects: input_objects.unwrap_or_default(),
                         output_objects: output_objects.unwrap_or_default(),
-                    }));
+                    });
                     Ok((
                         tonic::Response::new(SubmitTransactionsResponse {
                             result: SubmitTransactionResult::Executed {

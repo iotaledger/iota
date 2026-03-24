@@ -970,6 +970,19 @@ impl IotaError {
         matches!(self, IotaError::ValidatorOverloadedRetryAfter { .. })
     }
 
+    /// Returns `true` for errors caused by storage or epoch-lifecycle
+    /// failures (RocksDB, epoch store closed) rather than semantic transaction
+    /// problems. Used by post-consensus validation to distinguish fatal errors
+    /// (halt the commit) from per-transaction drops.
+    pub fn is_storage_or_epoch_error(&self) -> bool {
+        matches!(
+            self,
+            IotaError::Storage(..)
+                | IotaError::EpochEnded(..)
+                | IotaError::ValidatorHaltedAtEpochEnd
+        )
+    }
+
     pub fn retry_after_secs(&self) -> u64 {
         match self {
             IotaError::ValidatorOverloadedRetryAfter { retry_after_secs } => *retry_after_secs,
