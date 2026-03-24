@@ -1427,10 +1427,10 @@ mod tests {
             COMMIT_GAP_THRESHOLD
         );
 
-        // Phase 6: Restart test validator with full connectivity.
-        // Transaction synchronizer and shard reconstructor
-        // will be stopped after restart to prevent pending subdags from being
-        // solidified.
+        // Phase 6: Restart test validator with full connectivity and fast commit
+        // syncer enabled. Transaction synchronizer and shard reconstructor are
+        // stopped after restart to keep pending subdags unresolved, ensuring
+        // fast sync must handle them.
         let parameters = Parameters {
             db_path: temp_dirs[test_validator_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
@@ -1458,8 +1458,8 @@ mod tests {
         authorities.insert(test_validator_index, authority);
 
         // Keep transaction synchronizer and shard reconstructor stopped after restart
-        // to prevent pending subdags from being solidified. This forces the system
-        // to rely on fast sync to fill the gap, which should expose the bug.
+        // to prevent pending subdags from being solidified before fast sync runs.
+        // This ensures fast sync must handle pre-existing pending subdags.
         authorities[test_validator_index]
             .stop_transactions_synchronizer_for_test()
             .await
