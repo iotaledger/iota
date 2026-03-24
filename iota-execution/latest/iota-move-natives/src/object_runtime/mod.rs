@@ -13,7 +13,7 @@ use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
-    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag},
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
@@ -28,7 +28,7 @@ use move_core_types::{
     annotated_value::{MoveTypeLayout, MoveValue},
     annotated_visitor as AV,
     effects::Op,
-    language_storage::StructTag,
+    language_storage::StructTag as MoveStructTag,
     runtime_value as R,
     vm_status::StatusCode,
 };
@@ -76,7 +76,7 @@ pub struct LoadedRuntimeObject {
 
 pub struct RuntimeResults {
     pub writes: IndexMap<ObjectID, (Owner, Type, Value)>,
-    pub user_events: Vec<(Type, StructTag, Value)>,
+    pub user_events: Vec<(Type, MoveStructTag, Value)>,
     // Loaded child objects, their loaded version/digest and whether they were modified.
     pub loaded_child_objects: BTreeMap<ObjectID, LoadedRuntimeObject>,
     pub created_object_ids: Set<ObjectID>,
@@ -93,7 +93,7 @@ pub(crate) struct ObjectRuntimeState {
     // transfers to a new owner (shared, immutable, object, or account address)
     // TODO these struct tags can be removed if type_to_type_tag was exposed in the session
     transfers: IndexMap<ObjectID, (Owner, Type, Value)>,
-    events: Vec<(Type, StructTag, Value)>,
+    events: Vec<(Type, MoveStructTag, Value)>,
     // total size of events emitted so far
     total_events_size: u64,
     received: IndexMap<ObjectID, DynamicallyLoadedObjectMetadata>,
@@ -308,7 +308,12 @@ impl<'a> ObjectRuntime<'a> {
         Ok(transfer_result)
     }
 
-    pub fn emit_event(&mut self, ty: Type, tag: StructTag, event: Value) -> PartialVMResult<()> {
+    pub fn emit_event(
+        &mut self,
+        ty: Type,
+        tag: MoveStructTag,
+        event: Value,
+    ) -> PartialVMResult<()> {
         if self.state.events.len() >= (self.protocol_config.max_num_event_emit() as usize) {
             return Err(max_event_error(self.protocol_config.max_num_event_emit()));
         }
@@ -316,7 +321,7 @@ impl<'a> ObjectRuntime<'a> {
         Ok(())
     }
 
-    pub fn take_user_events(&mut self) -> Vec<(Type, StructTag, Value)> {
+    pub fn take_user_events(&mut self) -> Vec<(Type, MoveStructTag, Value)> {
         std::mem::take(&mut self.state.events)
     }
 
@@ -332,7 +337,7 @@ impl<'a> ObjectRuntime<'a> {
         &mut self,
         parent: ObjectID,
         child: ObjectID,
-        child_type: &MoveObjectType,
+        child_type: &StructTag,
     ) -> PartialVMResult<bool> {
         self.child_object_store
             .object_exists_and_has_type(parent, child, child_type)
@@ -346,7 +351,7 @@ impl<'a> ObjectRuntime<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &MoveTypeLayout,
-        child_move_type: MoveObjectType,
+        child_struct_tag: StructTag,
     ) -> PartialVMResult<Option<ObjectResult<Value>>> {
         let Some((value, obj_meta)) = self.child_object_store.receive_object(
             parent,
@@ -355,7 +360,7 @@ impl<'a> ObjectRuntime<'a> {
             child_ty,
             child_layout,
             child_fully_annotated_layout,
-            child_move_type,
+            child_struct_tag,
         )?
         else {
             return Ok(None);
@@ -383,7 +388,7 @@ impl<'a> ObjectRuntime<'a> {
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &MoveTypeLayout,
-        child_move_type: MoveObjectType,
+        child_struct_tag: StructTag,
     ) -> PartialVMResult<ObjectResult<&mut GlobalValue>> {
         let res = self.child_object_store.get_or_fetch_object(
             parent,
@@ -391,7 +396,7 @@ impl<'a> ObjectRuntime<'a> {
             child_ty,
             child_layout,
             child_fully_annotated_layout,
-            child_move_type,
+            child_struct_tag,
         )?;
         Ok(match res {
             ObjectResult::MismatchedType => ObjectResult::MismatchedType,
@@ -404,11 +409,11 @@ impl<'a> ObjectRuntime<'a> {
         parent: ObjectID,
         child: ObjectID,
         child_ty: &Type,
-        child_move_type: MoveObjectType,
+        child_struct_tag: StructTag,
         child_value: Value,
     ) -> PartialVMResult<()> {
         self.child_object_store
-            .add_object(parent, child, child_ty, child_move_type, child_value)
+            .add_object(parent, child, child_ty, child_struct_tag, child_value)
     }
 
     pub(crate) fn config_setting_unsequenced_read(
@@ -417,7 +422,7 @@ impl<'a> ObjectRuntime<'a> {
         name_df_id: ObjectID,
         field_setting_ty: &Type,
         field_setting_layout: &R::MoveTypeLayout,
-        field_setting_object_type: &MoveObjectType,
+        field_setting_object_type: &StructTag,
     ) -> Option<Value> {
         match self.child_object_store.config_setting_unsequenced_read(
             config_id,
@@ -445,7 +450,7 @@ impl<'a> ObjectRuntime<'a> {
         &mut self,
         config_id: ObjectID,
         name_df_id: ObjectID,
-        setting_value_object_type: MoveObjectType,
+        setting_value_object_type: StructTag,
         value: Option<Value>,
     ) {
         self.child_object_store.config_setting_cache_update(
@@ -612,7 +617,7 @@ impl ObjectRuntimeState {
         })
     }
 
-    pub fn events(&self) -> &[(Type, StructTag, Value)] {
+    pub fn events(&self) -> &[(Type, MoveStructTag, Value)] {
         &self.events
     }
 

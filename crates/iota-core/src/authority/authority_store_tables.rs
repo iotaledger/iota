@@ -275,7 +275,7 @@ impl AuthorityPerpetualTables {
         let StoreObject::Value(store_object) = store_object.migrate().into_inner() else {
             return Ok(None);
         };
-        Ok(Some(self.construct_object(object_key, store_object)?))
+        Ok(Some(self.construct_object(object_key, *store_object)?))
     }
 
     pub fn object_reference(
@@ -285,7 +285,7 @@ impl AuthorityPerpetualTables {
     ) -> Result<ObjectRef, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
             StoreObject::Value(object) => self
-                .construct_object(object_key, object)?
+                .construct_object(object_key, *object)?
                 .compute_object_reference(),
             StoreObject::Deleted => {
                 ObjectRef::new(object_key.0, object_key.1, ObjectDigest::OBJECT_DELETED)
@@ -592,7 +592,7 @@ impl LiveSetIter<'_> {
             StoreObject::Value(object) => {
                 let object = self
                     .tables
-                    .construct_object(&object_key, object)
+                    .construct_object(&object_key, *object)
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }

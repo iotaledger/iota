@@ -1980,7 +1980,7 @@ impl IndexerReader {
                 "Object is not a MoveObject".to_string(),
             ));
         };
-        let type_tag: TypeTag = move_object.type_().clone().into();
+        let type_tag = move_object.type_tag();
         let layout = self
             .package_resolver
             .type_layout(type_tag.clone())

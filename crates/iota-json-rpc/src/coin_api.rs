@@ -131,7 +131,7 @@ impl CoinReadApiServer for CoinReadApi {
                     let obj = self.internal.get_object(&object_id).await?;
                     match obj {
                         Some(obj) => {
-                            if let Some(coin_type) = obj.coin_type_maybe() {
+                            if let Some(coin_type) = obj.coin_type_opt() {
                                 Ok((coin_type.to_string(), object_id))
                             } else {
                                 Err(IotaRpcInputError::GenericInvalid(
@@ -358,7 +358,7 @@ async fn find_package_object_id(
         for (created, _) in effect.created() {
             if let Ok(object_read) = state.get_object_read(&created.object_id) {
                 if let Ok(object) = object_read.into_object() {
-                    if matches!(object.type_(), Some(type_) if type_.is(&object_struct_tag)) {
+                    if matches!(object.type_(), Some(struct_tag) if struct_tag == &object_struct_tag) {
                         return Ok(created.object_id);
                     }
                 }

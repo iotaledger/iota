@@ -341,8 +341,8 @@ impl CoinMetadata {
 
     /// The overall quantity of tokens that will be issued.
     async fn supply(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
-        let mut type_params = self.super_.native.type_().type_params();
-        let Some(coin_type) = type_params.pop() else {
+        let type_params = self.super_.native.type_().type_params();
+        let Some(coin_type) = type_params.last().cloned() else {
             return Ok(None);
         };
 

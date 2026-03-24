@@ -2750,7 +2750,7 @@ impl AuthorityState {
         }
 
         let layout = resolver
-            .get_annotated_layout(&move_object.type_().clone().into())?
+            .get_annotated_layout(&move_object.type_().clone())?
             .into_layout();
 
         let field =
@@ -2995,7 +2995,7 @@ impl AuthorityState {
                 epoch_store
                     .executor()
                     .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
-                    .get_annotated_layout(&move_obj.type_().clone().into())?,
+                    .get_annotated_layout(&move_obj.type_().clone())?,
             )?)
         } else {
             None
@@ -3895,7 +3895,7 @@ impl AuthorityState {
                         .executor()
                         // TODO(cache) - must read through cache
                         .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
-                        .get_annotated_layout(&object.type_().clone().into())?,
+                        .get_annotated_layout(&object.type_().clone())?,
                 )
             })
             .transpose()?;
@@ -3970,7 +3970,7 @@ impl AuthorityState {
     pub async fn get_move_objects<T>(
         &self,
         owner: IotaAddress,
-        type_: MoveObjectType,
+        tag: StructTag,
     ) -> IotaResult<Vec<T>>
     where
         T: DeserializeOwned,
@@ -3978,7 +3978,7 @@ impl AuthorityState {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
             .filter(|o| match &o.type_ {
-                ObjectType::Struct(s) => &type_ == s,
+                ObjectType::Struct(s) => *s == tag,
                 ObjectType::Package => false,
             })
             .map(|info| ObjectKey(info.object_id, info.version))

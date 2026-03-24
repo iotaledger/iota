@@ -117,7 +117,7 @@ impl MoveCommand {
 // MoveCallArg
 // ---------------------------------------------------------------------------
 
-/// Mirrors [`crate::transaction::ObjectArg`], matching the BCS layout expected
+/// Mirrors `ObjectArg`, matching the BCS layout expected
 /// by the Move-side `ptb_call_arg::ObjectArg`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MoveObjectArg {

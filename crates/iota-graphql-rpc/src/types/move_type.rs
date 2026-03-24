@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 use iota_types::{
-    base_types::{MoveObjectType, TypeTag},
+    base_types::{StructTag, TypeTag},
     type_input::TypeInput,
 };
 use move_binary_format::file_format::AbilitySet;
@@ -215,9 +215,9 @@ impl MoveType {
     }
 }
 
-impl From<MoveObjectType> for MoveType {
-    fn from(obj: MoveObjectType) -> Self {
-        let tag: TypeTag = obj.into();
+impl From<StructTag> for MoveType {
+    fn from(tag: StructTag) -> Self {
+        let tag: TypeTag = tag.into();
         Self { native: tag.into() }
     }
 }
