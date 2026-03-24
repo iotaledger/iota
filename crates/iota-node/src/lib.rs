@@ -101,7 +101,7 @@ use iota_network::{
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
-use iota_rest_api::RestMetrics;
+use iota_rest_api::{RestMetrics, ServerVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -286,7 +286,12 @@ impl IotaNode {
         config: NodeConfig,
         registry_service: RegistryService,
     ) -> Result<Arc<IotaNode>> {
-        Self::start_async(config, registry_service, "unknown").await
+        Self::start_async(
+            config,
+            registry_service,
+            ServerVersion::new("iota-node", "unknown"),
+        )
+        .await
     }
 
     /// Starts the JWK (JSON Web Key) updater tasks for the specified node
@@ -431,7 +436,7 @@ impl IotaNode {
     pub async fn start_async(
         config: NodeConfig,
         registry_service: RegistryService,
-        software_version: &'static str,
+        server_version: ServerVersion,
     ) -> Result<Arc<IotaNode>> {
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         let mut config = config.clone();
@@ -484,7 +489,7 @@ impl IotaNode {
                 } else {
                     "fullnode"
                 },
-                software_version,
+                server_version.version,
                 &chain_identifier.to_string(),
             ))
             .expect("Failed registering uptime metric");
@@ -838,7 +843,7 @@ impl IotaNode {
             &transaction_orchestrator.clone(),
             &config,
             &prometheus_registry,
-            software_version,
+            server_version.clone(),
         )
         .await?;
 
@@ -886,6 +891,7 @@ impl IotaNode {
             state_sync_store.clone(),
             executor,
             &registry_service.default_registry(),
+            server_version,
         )
         .await?;
 
@@ -2427,6 +2433,7 @@ async fn build_grpc_server(
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
     prometheus_registry: &Registry,
+    server_version: ServerVersion,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2448,7 +2455,7 @@ async fn build_grpc_server(
     // Create GrpcReader
     let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
         rest_read_store,
-        Some(env!("CARGO_PKG_VERSION").to_string()),
+        Some(server_version.to_string()),
     ));
 
     // Create gRPC server metrics
@@ -2491,7 +2498,7 @@ pub async fn build_http_server(
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
-    software_version: &'static str,
+    server_version: ServerVersion,
 ) -> Result<Option<iota_http::ServerHandle>> {
     // Validators do not expose these APIs
     if config.consensus_config().is_some() {
@@ -2560,10 +2567,9 @@ pub async fn build_http_server(
     router = router.merge(json_rpc_router);
 
     if config.enable_rest_api {
-        let mut rest_service = iota_rest_api::RestService::new(
-            Arc::new(RestReadStore::new(state.clone(), store)),
-            software_version,
-        );
+        let mut rest_service =
+            iota_rest_api::RestService::new(Arc::new(RestReadStore::new(state.clone(), store)));
+        rest_service.with_server_version(server_version);
 
         if let Some(config) = config.rest.clone() {
             rest_service.with_config(config);
