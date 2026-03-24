@@ -95,7 +95,7 @@ use super::{
 };
 use crate::{
     authority::{
-        AuthorityMetrics, ResolverWrapper,
+        AuthorityMetrics, AuthorityState, ResolverWrapper,
         authority_per_epoch_store::{
             misbehavior::MisbehaviorReportVersion, misbehavior_monitor::MisbehaviorMonitor,
             report_aggregator::ReportAggregator,
@@ -127,9 +127,9 @@ use crate::{
     fallback_fetch::do_fallback_lookup,
     module_cache_metrics::ResolverMetrics,
     post_consensus_tx_reorder::PostConsensusTxReorder,
+    post_consensus_validation,
     signature_verifier::*,
     stake_aggregator::StakeAggregator,
-    white_flag,
 };
 
 /// The key where the latest consensus index is stored in the database.
@@ -3081,7 +3081,7 @@ impl AuthorityPerEpochStore {
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
     >(
-        &self,
+        self: &Arc<Self>,
         transactions: Vec<SequencedConsensusTransaction>,
         consensus_stats: &ExecutionIndicesWithStats,
         checkpoint_service: &Arc<C>,
@@ -3089,6 +3089,7 @@ impl AuthorityPerEpochStore {
         tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         authority_metrics: &Arc<AuthorityMetrics>,
+        authority_state: &AuthorityState,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
         // Split transactions into different types for processing.
         let verified_transactions: Vec<_> = transactions
@@ -3221,28 +3222,28 @@ impl AuthorityPerEpochStore {
         sequenced_transactions.extend(current_commit_sequenced_consensus_transactions);
         sequenced_randomness_transactions.extend(current_commit_sequenced_randomness_transactions);
 
-        // WHITE FLAG: resolve owned object conflicts before reordering.
-        // Deferred txs from previous commits already have persistent locks,
-        // giving them natural precedence over new transactions.
-
-        // TODO: how should deferred transactions be handled in whiteflag? are they
-        //  already locked? if a transaction is cancelled, is it unlocked or is gas
-        //  object consumed anyway?
-
+        // Post-consensus validation and owned-object conflict resolution in a
+        // single pass: validates UserTransactionV1 transactions and resolves
+        // lock conflicts before reordering. Deferred txs from previous commits
+        // already have persistent locks, giving them natural precedence.
         if self.protocol_config.enable_white_flag_flow() {
             let (dropped, owned_object_locks) =
-                white_flag::resolve_owned_object_conflicts(self, &mut sequenced_transactions)?;
+                post_consensus_validation::validate_and_resolve_conflicts(
+                    authority_state,
+                    self,
+                    &mut sequenced_transactions,
+                )
+                .await?;
             output.set_owned_object_locks(owned_object_locks);
-            // TODO: add white_flag_dropped_transactions metric to AuthorityMetrics
-            //  authority_metrics.white_flag_dropped_transactions.inc_by(dropped.len() as
-            //  u64);
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
-                debug!("White flag flow dropped {} transactions", dropped.len());
-                for (digest, error) in dropped {
-                    self.dropped_tx_notify_read.notify(&digest, &error);
+                for (digest, error) in &dropped {
+                    self.dropped_tx_notify_read.notify(digest, error);
                 }
+                authority_metrics
+                    .consensus_handler_validation_dropped_transactions
+                    .inc_by(dropped.len() as u64);
             }
         }
 
@@ -3645,6 +3646,7 @@ impl AuthorityPerEpochStore {
         tx_reader: &dyn TransactionCacheRead,
         authority_metrics: &Arc<AuthorityMetrics>,
         skip_consensus_commit_prologue_in_test: bool,
+        authority_state: &AuthorityState,
     ) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
         self.process_consensus_transactions_and_commit_boundary(
             transactions,
@@ -3658,6 +3660,7 @@ impl AuthorityPerEpochStore {
                 skip_consensus_commit_prologue_in_test,
             ),
             authority_metrics,
+            authority_state,
         )
         .await
     }
@@ -4516,6 +4519,20 @@ impl AuthorityPerEpochStore {
             }) => {
                 if transaction.is_system_tx() {
                     warn!("UserTransactionV1 contains system transaction, ignoring");
+                    return Ok(ConsensusCertificateResult::Ignored);
+                }
+                if self.has_sent_end_of_publish(certificate_author)?
+                    && !previously_deferred_tx_digests.contains_key(transaction.digest())
+                {
+                    // A validator that has sent EndOfPublish must not inject new user
+                    // transactions. Previously-deferred transactions are excluded because
+                    // consensus may replay them and they should still be processed.
+                    warn!(
+                        "[Byzantine authority] Authority {:?} sent a new UserTransactionV1 \
+                         {:?} after it sent EndOfPublish message to consensus",
+                        certificate_author.concise(),
+                        transaction.digest()
+                    );
                     return Ok(ConsensusCertificateResult::Ignored);
                 }
                 // TODO: re-think the epoch-switching flow

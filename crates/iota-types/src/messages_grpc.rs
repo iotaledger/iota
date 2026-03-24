@@ -403,7 +403,7 @@ impl std::fmt::Debug for SubmitTransactionResult {
 /// Response from the TransactionDriver submit_transaction endpoint.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitTransactionsResponse {
-    pub results: Vec<SubmitTransactionResult>,
+    pub result: SubmitTransactionResult,
 }
 
 /// Request to wait for transaction effects from a validator.

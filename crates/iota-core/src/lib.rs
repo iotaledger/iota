@@ -32,6 +32,7 @@ pub mod module_cache_metrics;
 pub mod overload_monitor;
 mod par_index_live_object_set;
 pub(crate) mod post_consensus_tx_reorder;
+pub(crate) mod post_consensus_validation;
 pub mod quorum_driver;
 pub mod safe_client;
 mod scoring_decision;
@@ -51,7 +52,6 @@ mod transaction_outputs;
 pub mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
-pub(crate) mod white_flag;
 
 #[cfg(test)]
 #[path = "unit_tests/congestion_control_tests.rs"]
@@ -77,6 +77,7 @@ mod pay_iota_tests;
 #[cfg(test)]
 #[path = "unit_tests/shared_object_deletion_tests.rs"]
 mod shared_object_deletion_tests;
+pub mod signature_verifier;
 pub mod test_authority_clients;
 #[cfg(test)]
 #[path = "unit_tests/transfer_to_object_tests.rs"]
@@ -87,10 +88,6 @@ mod type_param_tests;
 #[cfg(test)]
 #[path = "unit_tests/unit_test_utils.rs"]
 mod unit_test_utils;
-#[cfg(test)]
-mod white_flag_tests;
-
-pub mod signature_verifier;
 
 pub mod runtime;
 mod transaction_signing_filter;
