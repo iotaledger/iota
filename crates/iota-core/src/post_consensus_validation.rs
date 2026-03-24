@@ -120,25 +120,12 @@ pub async fn validate_and_resolve_conflicts(
         let digest = *transaction.digest();
 
         // Check #1: Already executed — silent dedup.
-        match authority_state
+        if authority_state
             .get_transaction_cache_reader()
-            .try_is_tx_already_executed(&digest)
+            .try_is_tx_already_executed(&digest)?
         {
-            Ok(true) => {
-                keep[i] = false;
-                continue;
-            }
-            Ok(false) => {}
-            Err(e) => {
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "Failed to check executed status post-consensus, dropping transaction"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
-            }
+            keep[i] = false;
+            continue;
         }
 
         // Check #2: Structural validity.
@@ -212,44 +199,23 @@ pub async fn validate_and_resolve_conflicts(
                 break 'conflict_check;
             }
 
-            match epoch_store.tables() {
-                Ok(tables) => match tables.get_locked_transaction(obj_ref) {
-                    Ok(Some(locked_by)) => {
-                        debug!(
-                            ?digest,
-                            ?obj_ref,
-                            ?locked_by,
-                            "Transaction conflicts with persistent lock, dropping"
-                        );
-                        conflict = Some(IotaError::ObjectLockConflict {
-                            obj_ref: *obj_ref,
-                            pending_transaction: locked_by,
-                        });
-                        break 'conflict_check;
-                    }
-                    Ok(None) => {
-                        // No lock in DB — this input is free to be locked by
-                        // the current transaction.
-                    }
-                    Err(e) => {
-                        warn!(
-                            ?digest,
-                            ?obj_ref,
-                            error = ?e,
-                            "Failed to check persistent lock post-consensus, dropping"
-                        );
-                        conflict = Some(e);
-                        break 'conflict_check;
-                    }
-                },
-                Err(e) => {
-                    warn!(
+            match epoch_store.tables()?.get_locked_transaction(obj_ref)? {
+                Some(locked_by) => {
+                    debug!(
                         ?digest,
-                        error = ?e,
-                        "Failed to access epoch store tables post-consensus, dropping"
+                        ?obj_ref,
+                        ?locked_by,
+                        "Transaction conflicts with persistent lock, dropping"
                     );
-                    conflict = Some(e);
+                    conflict = Some(IotaError::ObjectLockConflict {
+                        obj_ref: *obj_ref,
+                        pending_transaction: locked_by,
+                    });
                     break 'conflict_check;
+                }
+                None => {
+                    // No lock in DB — this input is free to be locked by
+                    // the current transaction.
                 }
             }
         }
@@ -277,6 +243,9 @@ pub async fn validate_and_resolve_conflicts(
             .handle_transaction_validation_checks(&verified_tx, epoch_store)
             .await
         {
+            if e.is_storage_or_epoch_error() {
+                return Err(e);
+            }
             warn!(
                 ?digest,
                 error = ?e,
