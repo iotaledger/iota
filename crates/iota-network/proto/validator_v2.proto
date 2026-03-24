@@ -1,0 +1,35 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package iota.validator.v2;
+
+service ValidatorV2 {
+  // Submit transaction(s) and stream all status updates until finality
+  rpc SubmitTx(SubmitTxRequest) returns (stream TxStatus);
+
+  // Stream status updates for a previously submitted transaction
+  rpc GetTxStatus(TxDigest) returns (stream TxStatus);
+}
+
+// Wraps one or more transactions (BCS-encoded payloads)
+message SubmitTxRequest {
+  repeated bytes tx = 1; // Each entry is a BCS-serialized Transaction
+}
+
+// Digest identifying a transaction
+message TxDigest {
+  bytes digest = 1;
+}
+
+// Status update streamed back to the client
+message TxStatus {
+  TxDigest tx_digest = 1;
+  Status status = 2;
+}
+
+// Transaction lifecycle statuses
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  // ... statuses TBD (e.g., PENDING, SEQUENCED, EXECUTED, REJECTED, etc.)
+}

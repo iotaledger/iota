@@ -24,6 +24,7 @@ rand.workspace = true
 serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
+prost.workspace = true
 tonic.workspace = true
 tonic-prost.workspace = true
 tower.workspace = true
@@ -42,6 +43,7 @@ iota-types.workspace = true
 [build-dependencies]
 anemo-build.workspace = true
 tonic-build.workspace = true
+tonic-prost-build = "0.14"
 
 [dev-dependencies]
 # external dependencies
