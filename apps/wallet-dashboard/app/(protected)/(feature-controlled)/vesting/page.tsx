@@ -10,7 +10,7 @@ import {
     UnstakeDialog,
     SupplyIncreaseVestingOverview,
     StakeDialogView,
-    CollectSummary,
+    CollectSummaryDialog,
 } from '@/components';
 import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
@@ -62,7 +62,7 @@ import {
     useSignAndExecuteTransaction,
 } from '@iota/dapp-kit';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { Calendar, Close, StarHex, Warning } from '@iota/apps-ui-icons';
+import { Calendar, StarHex, Warning } from '@iota/apps-ui-icons';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
@@ -261,34 +261,6 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    if (showCollectSummary && collectTxDigest && collectTransaction) {
-        return (
-            <div className="flex w-full flex-col items-center justify-center gap-lg justify-self-center">
-                <div className="flex w-full flex-col gap-lg md:w-3/4">
-                    <Panel>
-                        <div className="flex items-center justify-between pr-lg pt-lg">
-                            <Title title="Collection Summary" size={TitleSize.Medium} />
-                            <Button
-                                size={ButtonSize.Small}
-                                type={ButtonType.Ghost}
-                                onClick={() => setShowCollectSummary(false)}
-                                icon={<Close />}
-                                testId="close-icon"
-                                aria-label="Close"
-                            />
-                        </div>
-                        <div className="px-lg py-lg">
-                            <CollectSummary
-                                transaction={collectTransaction}
-                                activeAddress={address}
-                            />
-                        </div>
-                    </Panel>
-                </div>
-            </div>
-        );
-    }
-
     const hasAvailableClaiming =
         !!supplyIncreaseVestingSchedule.availableClaiming &&
         supplyIncreaseVestingSchedule.availableClaiming !== 0n;
@@ -453,6 +425,14 @@ export default function VestingDashboardPage(): JSX.Element {
                         supplyIncreaseVestingSchedule.availableStaking,
                     )}
                 />
+                {collectTxDigest && collectTransaction && (
+                    <CollectSummaryDialog
+                        open={showCollectSummary}
+                        onClose={() => setShowCollectSummary(false)}
+                        transaction={collectTransaction}
+                        activeAddress={address}
+                    />
+                )}
             </>
         );
     }
