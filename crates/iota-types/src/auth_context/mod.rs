@@ -176,9 +176,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        base_types::ObjectID,
+        base_types::{ObjectID, TypeTag},
         transaction::{Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction},
-        type_input::{TypeInput, TypeName},
     };
 
     #[test]
@@ -192,7 +191,7 @@ mod tests {
                 .unwrap(),
                 module: "mod".to_string(),
                 function: "fun".to_string(),
-                type_arguments: vec![TypeInput::U8],
+                type_arguments: vec![TypeTag::U8],
                 arguments: vec![Argument::Gas],
             }))],
         };
@@ -204,16 +203,10 @@ mod tests {
 
         assert!(matches!(ctx.tx_inputs()[0], MoveCallArg::Pure(_)));
 
-        // Commands must have TypeName substituted for TypeInput.
         let MoveCommand::MoveCall(call) = &ctx.tx_commands()[0] else {
             panic!("expected MoveCall");
         };
-        assert_eq!(
-            call.type_arguments,
-            vec![TypeName {
-                name: "u8".to_string()
-            }]
-        );
+        assert_eq!(call.type_arguments, vec![TypeTag::U8]);
     }
 
     #[test]
