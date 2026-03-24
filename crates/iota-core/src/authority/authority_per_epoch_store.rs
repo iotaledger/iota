@@ -3158,10 +3158,8 @@ impl AuthorityPerEpochStore {
             congestion_control_parameters,
         );
 
-        let sequenced_non_randomness_transactions: Vec<_> = system_transactions
-            .into_iter()
-            .chain(sequenced_transactions)
-            .collect();
+        system_transactions.extend(sequenced_transactions);
+        let sequenced_non_randomness_transactions = system_transactions;
 
         let (
             verified_non_randomness_transactions,
@@ -3619,10 +3617,6 @@ impl AuthorityPerEpochStore {
         );
 
         let mut randomness_state_updated = false;
-        let mut verified_non_randomness_certificates =
-            VecDeque::with_capacity(non_randomness_transactions.len() + 1);
-        let mut verified_randomness_certificates =
-            VecDeque::with_capacity(randomness_transactions.len());
         let mut sequenced_non_randomness = Vec::new();
         let mut sequenced_randomness = Vec::new();
 
@@ -3733,13 +3727,13 @@ impl AuthorityPerEpochStore {
         // sort the sequenced transactions based on their start_time from the
         // sequencing result and add these to the verified_certificates.
         sequenced_non_randomness.sort_by_key(|(_, start_time)| *start_time);
-        for (tx, _) in sequenced_non_randomness {
-            verified_non_randomness_certificates.push_back(tx);
-        }
+        let mut verified_non_randomness_certificates: VecDeque<_> = sequenced_non_randomness
+            .into_iter()
+            .map(|(tx, _)| tx)
+            .collect();
         sequenced_randomness.sort_by_key(|(_, start_time)| *start_time);
-        for (tx, _) in sequenced_randomness {
-            verified_randomness_certificates.push_back(tx);
-        }
+        let verified_randomness_certificates: VecDeque<_> =
+            sequenced_randomness.into_iter().map(|(tx, _)| tx).collect();
         let commit_has_deferred_txns = !deferred_txns.is_empty();
         let mut total_deferred_txns = 0;
         {
