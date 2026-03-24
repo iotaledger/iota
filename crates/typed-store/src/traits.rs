@@ -8,13 +8,14 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::TypedStoreError;
 
+pub type DbIterator<'a, T> = Box<dyn Iterator<Item = Result<T, TypedStoreError>> + 'a>;
+
 pub trait Map<'a, K, V>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
 {
     type Error: Error;
-    type SafeIterator: Iterator<Item = Result<(K, V), TypedStoreError>>;
 
     /// Returns true if the map contains a value for the specified key.
     fn contains_key(&self, key: &K) -> Result<bool, Self::Error>;
@@ -51,17 +52,17 @@ where
     fn is_empty(&self) -> bool;
 
     /// Same as `iter` but performs status check.
-    fn safe_iter(&'a self) -> Self::SafeIterator;
+    fn safe_iter(&'a self) -> DbIterator<'a, (K, V)>;
 
     // Same as `iter_with_bounds` but performs status check.
     fn safe_iter_with_bounds(
         &'a self,
         lower_bound: Option<K>,
         upper_bound: Option<K>,
-    ) -> Self::SafeIterator;
+    ) -> DbIterator<'a, (K, V)>;
 
     // Same as `range_iter` but performs status check.
-    fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> Self::SafeIterator;
+    fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
 
     /// Returns a vector of values corresponding to the keys provided,
     /// non-atomically.

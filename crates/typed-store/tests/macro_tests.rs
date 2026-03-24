@@ -9,9 +9,9 @@ use std::{borrow::Borrow, collections::HashSet, fmt::Debug, sync::Mutex, time::D
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use typed_store::{
-    DBMapUtils,
+    DBMapUtils, be_fix_int_ser,
     metrics::SamplingInterval,
-    rocks::{DBMap, MetricConf, be_fix_int_ser, list_tables},
+    rocks::{DBMap, MetricConf, list_tables},
     traits::{Map, TableSummary, TypedStoreDebug},
 };
 
@@ -76,7 +76,7 @@ async fn macro_test() {
     for i in kv_range.clone() {
         let key = i.to_string();
         let value = i.to_string();
-        let k_buf = be_fix_int_ser::<String>(&key).unwrap();
+        let k_buf = be_fix_int_ser::<String>(&key);
         let value_buf = bcs::to_bytes::<String>(&value).unwrap();
         raw_key_bytes1 += k_buf.len();
         raw_value_bytes1 += value_buf.len();
@@ -93,7 +93,7 @@ async fn macro_test() {
     for i in kv_range.clone() {
         let key = i;
         let value = i.to_string();
-        let k_buf = be_fix_int_ser(key.borrow()).unwrap();
+        let k_buf = be_fix_int_ser(key.borrow());
         let value_buf = bcs::to_bytes::<String>(&value).unwrap();
         raw_key_bytes2 += k_buf.len();
         raw_value_bytes2 += value_buf.len();
