@@ -1299,6 +1299,8 @@ impl LiveObjectIndexer for RegulatedCoinBatchIndexer<'_> {
             self.batch
                 .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
         }
+        // If the batch size grows to greater that 128MB then write out to the DB so
+        // that the data we need to hold in memory doesn't grown unbounded.
         if self.batch.size_in_bytes() >= 1 << 27 {
             std::mem::replace(&mut self.batch, self.tables.regulated_coin.batch()).write()?;
         }
