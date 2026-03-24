@@ -29,8 +29,8 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
     balance::Supply,
     base_types::{
-        Identifier, IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, ObjectType,
-        SequenceNumber, StructTag, TransactionDigest, TypeTag, random_object_ref,
+        Identifier, IotaAddress, ObjectDigest, ObjectID, ObjectRef, ObjectType, SequenceNumber,
+        StructTag, TransactionDigest, TypeTag, random_object_ref,
     },
     committee::Committee,
     crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
@@ -337,7 +337,7 @@ impl RpcExampleProvider {
                     object_id,
                     version: SequenceNumber::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -381,7 +381,7 @@ impl RpcExampleProvider {
             object_id,
             version: SequenceNumber::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+            type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
             bcs: None,
             display: None,
         });
@@ -472,7 +472,7 @@ impl RpcExampleProvider {
                 object_id: ObjectID::new(self.rng.gen()),
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 owner: Some(Owner::Address(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
@@ -1203,7 +1203,7 @@ impl RpcExampleProvider {
                 IotaParsedData::try_from_object(
                     {
                         MoveObject::new_from_execution_with_limit(
-                            MoveObjectType::from(struct_tag.clone()),
+                            struct_tag.clone(),
                             SequenceNumber::from_u64(1),
                             Vec::new(),
                             5,
@@ -1225,9 +1225,11 @@ impl RpcExampleProvider {
             object_id: parent_object_id,
             version: SequenceNumber::from_u64(1),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(MoveObjectType::from(
-                parse_iota_struct_tag("0x9::test::TestField").unwrap(),
-            ))),
+            type_: Some(ObjectType::Struct(
+                parse_iota_struct_tag("0x9::test::TestField")
+                    .unwrap()
+                    .into(),
+            )),
             bcs: None,
             display: None,
         });
@@ -1273,7 +1275,7 @@ impl RpcExampleProvider {
                     object_id: ObjectID::new(self.rng.gen()),
                     version: SequenceNumber::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -1494,7 +1496,7 @@ impl RpcExampleProvider {
                 object_id,
                 version: SequenceNumber::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),
@@ -1514,7 +1516,7 @@ impl RpcExampleProvider {
                 object_id: object_id2,
                 version: version2,
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(MoveObjectType::gas_coin())),
+                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),

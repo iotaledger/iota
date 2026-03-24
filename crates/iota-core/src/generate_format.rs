@@ -9,8 +9,8 @@ use clap::*;
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
-        self, Identifier, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
-        StructTag, TransactionDigest, TransactionEffectsDigest, TypeTag,
+        self, Identifier, IotaAddress, ObjectDigest, ObjectID, StructTag, TransactionDigest,
+        TransactionEffectsDigest, TypeTag,
     },
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
@@ -82,7 +82,7 @@ fn get_registry() -> Result<Registry> {
 
     // Trace SDK Identifier, StructTag and TypeTag samples early - these use custom
     // serde that requires valid sample values to be provided before types
-    // containing them (like MoveObjectType_) are traced.
+    // containing them are traced.
     let sdk_identifier = iota_types::base_types::Identifier::from_static("sample_identifier");
     tracer.trace_value(&mut samples, &sdk_identifier).unwrap();
     let struct_tag = StructTag::new_gas_coin();
@@ -104,22 +104,41 @@ fn get_registry() -> Result<Registry> {
     let type_tag_struct = TypeTag::from(struct_tag.clone());
     tracer.trace_value(&mut samples, &type_tag_struct).unwrap();
 
-    // Also trace sample MoveObjectType_ values to capture all variants properly
-    // These contain the SDK's StructTag and TypeTag types
-    let move_obj_type_other = MoveObjectType_::Other(Box::new(struct_tag.clone()));
+    // MoveObject.type_ uses MoveObjectType which has custom serde.
+    // Trace all variants so the schema is complete:
+    // Other (variant 0) - any non-special struct tag
     tracer
-        .trace_value(&mut samples, &move_obj_type_other)
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new(
+                iota_sdk_types::Address::ZERO,
+                iota_sdk_types::Identifier::from_static("m"),
+                iota_sdk_types::Identifier::from_static("T"),
+                Vec::new(),
+            )),
+        )
         .unwrap();
-    let move_obj_type_coin = MoveObjectType_::Coin(type_tag_struct.clone());
+    // GasCoin (variant 1)
     tracer
-        .trace_value(&mut samples, &move_obj_type_coin)
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_gas_coin()),
+        )
         .unwrap();
-    let move_obj_type_staked = MoveObjectType_::StakedIota;
+    // StakedIota (variant 2)
     tracer
-        .trace_value(&mut samples, &move_obj_type_staked)
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_staked_iota()),
+        )
         .unwrap();
-    let move_obj_type = MoveObjectType::gas_coin();
-    tracer.trace_value(&mut samples, &move_obj_type).unwrap();
+    // Coin (variant 3) - non-IOTA coin
+    tracer
+        .trace_value(
+            &mut samples,
+            &iota_sdk_types::MoveObjectType::from(StructTag::new_coin(TypeTag::Bool)),
+        )
+        .unwrap();
 
     let m = ModuleId::new(
         AccountAddress::ZERO,

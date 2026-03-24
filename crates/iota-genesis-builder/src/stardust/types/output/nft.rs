@@ -258,7 +258,7 @@ impl NftExt for Nft {
         // Construct the Nft object.
         let move_nft_object = {
             MoveObject::new_from_execution(
-                Nft::tag().into(),
+                Nft::tag(),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -336,7 +336,7 @@ impl NftOutputExt for NftOutput {
         // Construct the Nft Output object.
         let move_nft_output_object = {
             MoveObject::new_from_execution(
-                NftOutput::tag(coin_type.to_type_tag()).into(),
+                NftOutput::tag(coin_type.to_type_tag()),
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,

@@ -16,7 +16,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{Identifier, IotaAddress, MoveObjectType, ObjectID, StructTag, TypeTag},
+    base_types::{Identifier, IotaAddress, ObjectID, StructTag, TypeTag},
     collection_types::VecMap,
     crypto::deterministic_random_account_key,
     digests::TransactionDigest,
@@ -64,7 +64,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
 
     let nft_move_object = {
         MoveObject::new_from_execution(
-            MoveObjectType::stardust_nft(),
+            Nft::tag(),
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),
             &ProtocolConfig::get_for_min_version(),

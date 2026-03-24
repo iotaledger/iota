@@ -608,7 +608,7 @@ impl TryInto<Object> for IotaObjectData {
         let data = match self.bcs {
             Some(IotaRawData::MoveObject(o)) => Data::Move({
                 MoveObject::new_from_execution(
-                    o.type_().clone().into(),
+                    o.type_().clone(),
                     o.version,
                     o.bcs_bytes,
                     &protocol_config,
@@ -1347,7 +1347,7 @@ impl IotaObjectDataFilter {
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
-                        && &s.module() == module)
+                        && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
