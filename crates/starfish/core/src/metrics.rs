@@ -245,6 +245,22 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) syncer_paused_by_fast_sync: IntCounterVec,
     pub(crate) uptime: Histogram,
+    #[expect(dead_code)]
+    pub(crate) faulty_blocks_provable_by_authority: IntCounterVec,
+    #[expect(dead_code)]
+    pub(crate) faulty_blocks_unprovable_by_authority: IntCounterVec,
+    #[expect(dead_code)]
+    pub(crate) uncached_equivocations_by_authority: IntCounterVec,
+    #[expect(dead_code)]
+    pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
+    #[expect(dead_code)]
+    pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) score_by_authority: IntGaugeVec,
+    #[expect(dead_code)]
+    pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
 }
 
 impl NodeMetrics {
@@ -1098,6 +1114,54 @@ impl NodeMetrics {
             transactions_synchronizer_inflight_requests: register_int_gauge_with_registry!(
                 "transaction_synchronizer_concurrent_requests",
                 "Number of concurrent transaction fetch requests",
+                registry,
+            ).unwrap(),
+            faulty_blocks_provable_by_authority: register_int_counter_vec_with_registry!(
+                "faulty_blocks_provable_by_authority",
+                "Number of provably faulty blocks per peer authority",
+                &["authority", "source", "error"],
+                registry,
+             ).unwrap(),
+            faulty_blocks_unprovable_by_authority: register_int_counter_vec_with_registry!(
+                "faulty_blocks_unprovable_by_authority",
+                "Number of unprovably faulty blocks per peer authority",
+                &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            uncached_equivocations_by_authority: register_int_counter_vec_with_registry!(
+                "uncached_equivocations_by_authority",
+                "Registers the number of equivocations per authority that were already evicted from cache.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            uncached_missing_proposals_by_authority: register_int_counter_vec_with_registry!(
+                "uncached_missing_proposals_by_authority",
+                "Registers the number of blocks that should be already evicted from cache but authority failed to send.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            equivocations_in_cache_by_authority: register_int_gauge_vec_with_registry!(
+                "equivocations_in_cache_by_authority",
+                "Registers the number of equivocations per authority stored on cache.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            missing_proposals_in_cache_by_authority: register_int_gauge_vec_with_registry!(
+                "missing_proposals_in_cache_by_authority",
+                "Registers the number of blocks on the cache that an authority failed to send.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            score_by_authority: register_int_gauge_vec_with_registry!(
+                "score_by_authority",
+                "Registers the authority score.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_counter_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Number of invalid misbehavior reports received from each authority",
+                &["authority"],
                 registry,
             ).unwrap(),
         }
