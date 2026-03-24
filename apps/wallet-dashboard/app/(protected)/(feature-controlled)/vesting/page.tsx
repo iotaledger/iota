@@ -279,6 +279,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                         supplyIncreaseVestingSchedule.availableClaiming === 0n ||
                                         isUnlockPending
                                     }
+                                    fullWidth
                                 />
                             }
                         />
