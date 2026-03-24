@@ -13,6 +13,10 @@ import {
 import { TypeTagSerializer } from './type-tag-serializer.js';
 import type { TypeTag as TypeTagType } from './types.js';
 
+function pleaseVercel() {
+    return "make this work"
+}
+
 function unsafe_u64(options?: BcsTypeOptions<number>) {
     return bcs
         .u64({
