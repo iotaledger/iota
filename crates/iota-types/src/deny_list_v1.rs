@@ -86,7 +86,7 @@ impl MoveTypeTagTrait for GlobalPauseKey {
 }
 
 #[instrument(level = "trace", skip_all)]
-pub fn check_coin_deny_list_v1_during_signing(
+pub fn check_coin_deny_list_v1(
     address: IotaAddress,
     tx_input_objects: &CheckedInputObjects,
     tx_receiving_objects: &ReceivingObjects,

@@ -2147,6 +2147,10 @@ impl ExecutionCacheWrite for WritebackCache {
         )
     }
 
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult {
+        ObjectLocks::validate_owned_object_versions(self, owned_input_objects)
+    }
+
     fn try_write_transaction_outputs(
         &self,
         epoch_id: EpochId,

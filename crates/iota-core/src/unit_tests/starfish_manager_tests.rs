@@ -174,6 +174,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
 
     let consensus_handler = ConsensusHandler::new(
         epoch_store.clone(),
+        state.clone(),
         checkpoint_service_for_testing(state.clone()),
         state.transaction_manager().clone(),
         state.get_object_cache_reader().clone(),
