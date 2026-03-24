@@ -221,7 +221,6 @@ export default function VestingDashboardPage(): JSX.Element {
                 onSuccess: (tx) => {
                     setCollectTxDigest(tx.digest);
                     setShowCollectSummary(true);
-                    handleOnSuccess(tx.digest);
                     ampli.timelockCollect();
                     toast.success('Collect transaction has been sent');
 
@@ -425,10 +424,13 @@ export default function VestingDashboardPage(): JSX.Element {
                         supplyIncreaseVestingSchedule.availableStaking,
                     )}
                 />
-                {collectTxDigest && collectTransaction && (
+                {collectTransaction && (
                     <CollectSummaryDialog
                         open={showCollectSummary}
-                        onClose={() => setShowCollectSummary(false)}
+                        onClose={() => {
+                            setShowCollectSummary(false);
+                            refreshStakeList();
+                        }}
                         transaction={collectTransaction}
                         activeAddress={address}
                     />

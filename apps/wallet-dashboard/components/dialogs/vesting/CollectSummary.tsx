@@ -13,7 +13,8 @@ interface CollectSummaryProps {
 
 interface SummaryItem {
     icon: React.ReactNode;
-    text: string;
+    title: string;
+    description: string;
 }
 
 export function CollectSummary({ transaction, activeAddress }: CollectSummaryProps) {
@@ -46,17 +47,6 @@ export function CollectSummary({ transaction, activeAddress }: CollectSummaryPro
             change.objectType.includes('::timelocked_staking::TimelockedStakedIota'),
     ).length;
 
-    // Count normal stakes created/modified
-    const stakesCreated = objectChanges.filter(
-        (change) =>
-            (change.type === 'created' || change.type === 'mutated') &&
-            change.objectType.includes('::staking_pool::StakedIota') &&
-            !change.objectType.includes('Timelocked'),
-    ).length;
-
-    const stakesMerged =
-        timelockStakesConverted > stakesCreated ? timelockStakesConverted - stakesCreated : 0;
-
     // Build description
     const collectedItems: string[] = [];
 
@@ -75,28 +65,22 @@ export function CollectSummary({ transaction, activeAddress }: CollectSummaryPro
             ? `You collected ${collectedItems.join(' and ')}`
             : 'Your collection was completed successfully';
 
-    // Build list items with detailed explanations
-    const items: SummaryItem[] = [];
+    const summaryItems: SummaryItem[] = [];
 
     if (timelocksUnlocked > 0) {
-        items.push({
+        summaryItems.push({
             icon: <LockUnlocked className="text-primary-40 h-4 w-4" />,
-            text: `${timelocksUnlocked} Timelock${timelocksUnlocked > 1 ? 's have' : ' has'} been unlocked. You received ${formattedReceived} ${receivedSymbol} directly to your wallet`,
+            title: `${timelocksUnlocked} Timelock${timelocksUnlocked > 1 ? 's' : ''} Unlocked`,
+            description: `${formattedReceived} ${receivedSymbol} added to your wallet`,
         });
     }
 
     if (timelockStakesConverted > 0) {
-        if (stakesMerged > 0) {
-            items.push({
-                icon: <Stake className="text-primary-40 h-4 w-4" />,
-                text: `${timelockStakesConverted} Timelock Stake${timelockStakesConverted > 1 ? 's have' : ' has'} been converted to regular Stakes. ${stakesMerged} ${stakesMerged > 1 ? 'were' : 'was'} automatically merged with your existing stakes to the same validator${stakesMerged > 1 ? 's' : ''}`,
-            });
-        } else {
-            items.push({
-                icon: <Stake className="text-primary-40 h-4 w-4" />,
-                text: `${timelockStakesConverted} Timelock Stake${timelockStakesConverted > 1 ? 's have' : ' has'} been converted to regular Stakes. ${timelockStakesConverted > 1 ? 'They are' : 'It is'} now actively earning rewards with your selected validator${timelockStakesConverted > 1 ? 's' : ''}`,
-            });
-        }
+        summaryItems.push({
+            icon: <Stake className="text-primary-40 h-4 w-4" />,
+            title: `${timelockStakesConverted} Timelock Restake${timelockStakesConverted > 1 ? 's' : ''}`,
+            description: `Converted to regular Stake${timelockStakesConverted > 1 ? 's' : ''} of the same validator`,
+        });
     }
 
     return (
@@ -108,19 +92,21 @@ export function CollectSummary({ transaction, activeAddress }: CollectSummaryPro
                 supportingText={collectedDescription}
                 icon={<CheckmarkFilled className="text-success" />}
             />
-            <p className="text-neutral-10 dark:text-neutral-92 px-xs text-body-sm">
-                Here&apos;s a breakdown of what happened with your vesting objects after you
-                collected them:
-            </p>
-            {items.length > 0 && (
+
+            {summaryItems.length > 0 && (
                 <div className="flex flex-col">
-                    {items.map((item, index) => (
-                        <ListItem key={index} hideBottomBorder={index === items.length - 1}>
+                    {summaryItems.map((item, index) => (
+                        <ListItem key={index} hideBottomBorder={index === summaryItems.length - 1}>
                             <div className="flex items-start gap-xs">
                                 <div className="mt-0.5">{item.icon}</div>
-                                <span className="text-neutral-40 dark:text-neutral-60 text-body-md">
-                                    {item.text}
-                                </span>
+                                <div className="flex flex-col gap-xxs">
+                                    <span className="text-neutral-10 dark:text-neutral-92 text-body-md font-semibold">
+                                        {item.title}
+                                    </span>
+                                    <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                        {item.description}
+                                    </span>
+                                </div>
                             </div>
                         </ListItem>
                     ))}
