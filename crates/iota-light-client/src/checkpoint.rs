@@ -322,6 +322,11 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
                 .try_into()?;
                 write_checkpoint_summary(config, &summary)?;
             }
+        } else {
+            anyhow::bail!(
+                "No download source configured for missing checkpoint summaries. \
+                 Configure one of: archive_store_config, checkpoint_store_config, or grpc_url."
+            );
         }
     }
 
