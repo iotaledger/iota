@@ -133,7 +133,7 @@ async function buildESM(
 }
 
 async function buildTypes(config: string) {
-    execSync(`pnpm tsc --build ${config}`, {
+    execSync(`tsc --build ${config}`, {
         stdio: 'inherit',
         cwd: process.cwd(),
     });
