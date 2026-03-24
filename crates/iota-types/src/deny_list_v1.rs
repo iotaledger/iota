@@ -125,7 +125,7 @@ pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
     tx_input_objects: &CheckedInputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    auth_input_objects: &Option<CheckedInputObjects>,
+    auth_input_objects: &Vec<&CheckedInputObjects>,
     object_store: &dyn ObjectStore,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(
@@ -310,7 +310,7 @@ where
 fn input_object_coin_types_for_denylist_check(
     tx_input_objects: &CheckedInputObjects,
     tx_receiving_objects: &ReceivingObjects,
-    auth_input_objects: &Option<CheckedInputObjects>,
+    auth_input_objects: &Vec<&CheckedInputObjects>,
 ) -> BTreeSet<String> {
     let all_objects = tx_input_objects
         .inner()
@@ -318,10 +318,8 @@ fn input_object_coin_types_for_denylist_check(
         .chain(tx_receiving_objects.iter_objects())
         .chain(
             auth_input_objects
-                .as_ref()
-                .map(|auth_input_objects| auth_input_objects.inner().iter_objects())
-                .into_iter()
-                .flatten(),
+                .iter()
+                .flat_map(|auth_input_objects| auth_input_objects.inner().iter_objects()),
         );
     all_objects
         .filter_map(|obj| {

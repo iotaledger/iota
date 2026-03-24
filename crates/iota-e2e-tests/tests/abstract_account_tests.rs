@@ -19,11 +19,13 @@ use fastcrypto::{
     encoding::{Encoding, Hex},
     traits::Authenticator,
 };
+use iota_core::authority_client::AuthorityAPI;
 use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::Intent;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
@@ -31,8 +33,9 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
     effects::{TransactionEffects, TransactionEffectsAPI},
+    error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, MoveLocation},
-    messages_grpc::HandleCertificateRequestV1,
+    messages_grpc::{HandleCertificateRequestV1, HandleTransactionResponse},
     move_authenticator::MoveAuthenticator,
     move_package,
     object::Owner,
@@ -891,6 +894,299 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     test_env.execute_and_check_tx_correctness(tx2).await
 }
 
+// ----------------------------------------------------------
+// --- Protocol version 22 / 23 sponsor auth tests --------
+// ----------------------------------------------------------
+
+/// Protocol version 22 (enable_move_authentication_for_sponsor = false):
+/// A sponsored TX where both sender (AA) and sponsor (AA) each carry a
+/// MoveAuthenticator must be rejected because having more than one
+/// MoveAuthenticator is not supported on that version.
+#[sim_test]
+async fn test_two_move_authenticators_rejected_on_protocol_v22() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Disable sponsor move auth to simulate protocol version 22 behavior.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_move_authentication_for_sponsor_for_testing(false);
+        config
+    });
+
+    // Build the test environment and create the sender AA.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = sender_aa_ref.0.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.0.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must be rejected: >1 MoveAuthenticator is not allowed in v22.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(msg)
+            } if msg == "SenderSignedData with more than one MoveAuthenticator is not supported"
+        ),
+        "Expected Unsupported error for >1 MoveAuthenticator in v22, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// Protocol version 22 (enable_move_authentication_for_sponsor = false):
+/// A sponsored TX where the sender is a regular account but the sponsor carries
+/// a MoveAuthenticator must be rejected because MoveAuthenticator is only
+/// allowed for the sender on that version.
+#[sim_test]
+async fn test_sponsor_only_move_auth_rejected_on_protocol_v22() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Disable sponsor move auth to simulate protocol version 22 behavior.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_move_authentication_for_sponsor_for_testing(false);
+        config
+    });
+
+    // Build the test environment; the AA here will be the *sponsor*, not the
+    // sender.
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sponsor_aa_ref = test_env.aa_ref.unwrap();
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.0.into();
+
+    // The sender is a regular IOTA account from the keystore.
+    let sender = test_env
+        .test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .first()
+        .cloned()
+        .unwrap();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a sponsored PTB: sender = regular account, sponsor = AA.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder.transfer_iota(sender, None);
+    let pt = builder.finish();
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender signs with a regular key; sponsor provides a MoveAuthenticator.
+    let sender_sig = GenericSignature::Signature(
+        test_env
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?,
+    );
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_sig, sponsor_aa_sig]);
+
+    // The TX must be rejected: the single MoveAuthenticator belongs to the
+    // sponsor, not the sender, which is not allowed in v22.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(
+            &err,
+            IotaError::UserInput {
+                error: UserInputError::Unsupported(msg)
+            } if msg == "SenderSignedData can have MoveAuthenticator only for the sender"
+        ),
+        "Expected Unsupported error for sponsor-only MoveAuthenticator in v22, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// Protocol version 23 (enable_move_authentication_for_sponsor = true):
+/// A sponsored TX where one MoveAuthenticator is for a third AA (neither
+/// sender nor sponsor) must be rejected.
+#[sim_test]
+async fn test_wrong_signer_move_auth_rejected_on_protocol_v23() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA (v23 is the default).
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = sender_aa_ref.0.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.0.into();
+
+    // Create a third AA that is unrelated to this transaction.
+    let unrelated_aa_ref = test_env.create_extra_abstract_account().await?;
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+
+    // Sender provides a valid MoveAuthenticator; sponsor provides one for an
+    // unrelated AA instead of its own.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let unrelated_aa_sig =
+        test_env.create_move_authenticator_for_free_access_for_ref(unrelated_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, unrelated_aa_sig]);
+
+    // The TX must be rejected: the sponsor's signature is absent.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::SignerSignatureAbsent { .. }),
+        "Expected SignerSignatureAbsent for wrong signer MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
+/// Protocol version 23 (enable_move_authentication_for_sponsor = true):
+/// A sponsored TX where both the sender (AA) and the sponsor (AA) carry a
+/// MoveAuthenticator must succeed.
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_on_protocol_v23() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA (v23 is the default).
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = sender_aa_ref.0.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.0.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must succeed with both AA sender and AA sponsor on v23.
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// Protocol version 23 (enable_move_authentication_for_sponsor = true):
+/// A sponsored TX where both the sender (AA) and the sponsor (AA) carry a
+/// MoveAuthenticator must succeed, but the sponsor authenticator fails.
+#[sim_test]
+async fn test_aa_sender_and_aa_sponsor_when_sponsor_aa_fails_on_protocol_v23()
+-> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build the test environment and create the sender AA (v23 is the default).
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let sender_aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = sender_aa_ref.0.into();
+
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env.create_extra_abstract_account().await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.0.into();
+
+    // Fund the sponsor AA so it can provide gas.
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let sponsor_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), sponsor_addr)
+        .await;
+
+    // Build a simple sponsored PTB: sender = AA, sponsor = AA.
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
+        .await?;
+    let tx_digest = tx_data.digest().into_inner();
+
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    // But the sponsor's signature is for ed25519 authentication, which does not
+    // match the sponsor AA's actual free access authenticator.
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_for_ed25519_for_ref(sponsor_aa_ref, &tx_digest)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
+
+    // The TX must be rejected: the sponsor's signature is incorrect.
+    let err = test_env.handle_tx(tx).await.unwrap_err();
+
+    assert!(
+        matches!(&err, IotaError::MoveAuthenticatorExecutionFailure { .. }),
+        "Expected MoveAuthenticatorExecutionFailure for wrong sponsor MoveAuthenticator, got: {err:?}"
+    );
+
+    Ok(())
+}
+
 // ---------------------------------------------------
 // --- Test Environment for Abstract Account tests ---
 // ---------------------------------------------------
@@ -1268,30 +1564,11 @@ impl TestEnvironment {
         &self,
         tx_digest: &[u8; 32],
     ) -> anyhow::Result<GenericSignature> {
-        let (Some(owner), Some(aa_ref)) = (self.owner, self.aa_ref) else {
+        let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_ref.0,
-            initial_shared_version: aa_ref.1,
-            mutable: false,
-        });
-        // Sign the tx data with the owner key
-        let hex_encoded_signature: String = Hex::encode(
-            self.test_cluster
-                .wallet
-                .config()
-                .keystore()
-                .sign_hashed(&owner, tx_digest)?,
-        )
-        .chars()
-        .skip(2) // flag prefix length
-        .take(Ed25519Signature::LENGTH * 2)
-        .collect();
-        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
-        Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], self_call_arg),
-        ))
+
+        self.create_move_authenticator_for_ed25519_for_ref(aa_ref, tx_digest)
     }
 
     // Create the MoveAuthenticator for the free access authenticator:
@@ -1304,14 +1581,7 @@ impl TestEnvironment {
             anyhow::bail!("Abstract account not created yet");
         };
 
-        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_ref.0,
-            initial_shared_version: aa_ref.1,
-            mutable: false,
-        });
-        Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_v1(vec![], vec![], self_call_arg),
-        ))
+        self.create_move_authenticator_for_free_access_for_ref(aa_ref)
     }
 
     // -----------------------------------------------
@@ -1534,6 +1804,69 @@ impl TestEnvironment {
     // --- Utilities ---------------------------------
     // -----------------------------------------------
 
+    /// Creates an extra AA (not stored in `aa_ref`) and returns its object ref.
+    /// This requires if it is necessary to create more AAs in a test.
+    async fn create_extra_abstract_account(&self) -> anyhow::Result<ObjectRef> {
+        let effects = self.create_abstract_account().await?;
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
+    /// Create a free-access MoveAuthenticator for an explicit object reference
+    /// (not necessarily the stored `aa_ref`).
+    fn create_move_authenticator_for_free_access_for_ref(
+        &self,
+        aa_obj_ref: ObjectRef,
+    ) -> anyhow::Result<GenericSignature> {
+        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: aa_obj_ref.0,
+            initial_shared_version: aa_obj_ref.1,
+            mutable: false,
+        });
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(vec![], vec![], self_call_arg),
+        ))
+    }
+
+    // Create the MoveAuthenticator for the Ed25519 signature authenticator for an
+    // explicit object reference(not necessarily the stored `aa_ref`):
+    // public fun authenticate_ed25519(
+    //    self: &AbstractAccount,
+    //    signature: vector<u8>,
+    //    _: &AuthContext,
+    //    ctx: &TxContext,
+    fn create_move_authenticator_for_ed25519_for_ref(
+        &self,
+        aa_obj_ref: ObjectRef,
+        tx_digest: &[u8; 32],
+    ) -> anyhow::Result<GenericSignature> {
+        let Some(owner) = self.owner else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: aa_obj_ref.0,
+            initial_shared_version: aa_obj_ref.1,
+            mutable: false,
+        });
+        // Sign the tx data with the owner key
+        let hex_encoded_signature: String = Hex::encode(
+            self.test_cluster
+                .wallet
+                .config()
+                .keystore()
+                .sign_hashed(&owner, tx_digest)?,
+        )
+        .chars()
+        .skip(2) // flag prefix length
+        .take(Ed25519Signature::LENGTH * 2)
+        .collect();
+        let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], self_call_arg),
+        ))
+    }
+
     async fn execute_and_check_tx_correctness(&self, tx: Transaction) -> anyhow::Result<()> {
         let transaction_response = self.test_cluster.execute_transaction(tx).await;
 
@@ -1548,6 +1881,18 @@ impl TestEnvironment {
         assert!(confirmed_local_execution.unwrap());
         assert!(errors.is_empty());
         Ok(())
+    }
+
+    async fn handle_tx(&self, tx: Transaction) -> Result<HandleTransactionResponse, IotaError> {
+        let aggregator = self.test_cluster.authority_aggregator();
+        aggregator
+            .authority_clients
+            .values()
+            .next()
+            .unwrap()
+            .authority_client()
+            .handle_transaction(tx, Some(SocketAddr::new([127, 0, 0, 1].into(), 0)))
+            .await
     }
 }
 

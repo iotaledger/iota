@@ -235,13 +235,15 @@ mod checked {
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
-        authenticator_input_objects: InputObjects,
+        authenticator_input_objects: Vec<InputObjects>,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, CheckedInputObjects)> {
+    ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
         // Check Move authenticator inputs first
-        check_move_authenticator_objects(&authenticator_input_objects)?;
+        authenticator_input_objects
+            .iter()
+            .try_for_each(|objects| check_move_authenticator_objects(objects))?;
 
         // Check certificate inputs next
         let transaction = cert.data().transaction_data();
@@ -255,12 +257,16 @@ mod checked {
             true,
         )?;
 
+        let mut input_objects_union = tx_input_objects.into_checked();
+
         // Create checked a union of input objects
-        let authenticator_input_objects = authenticator_input_objects.into_checked();
-        let input_objects_union = checked_input_objects_union(
-            tx_input_objects.into_checked(),
-            &authenticator_input_objects,
-        )?;
+        let authenticator_input_objects = authenticator_input_objects
+            .into_iter()
+            .map(|objects| objects.into_checked())
+            .collect::<Vec<_>>();
+        for objects in authenticator_input_objects.iter() {
+            input_objects_union = checked_input_objects_union(input_objects_union, objects)?;
+        }
 
         Ok((gas_status, authenticator_input_objects, input_objects_union))
     }
