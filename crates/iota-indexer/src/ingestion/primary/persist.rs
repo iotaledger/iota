@@ -155,7 +155,6 @@ impl PrimaryWriter {
         let packages_batch = packages_batch.into_iter().flatten().collect::<Vec<_>>();
         let checkpoint_num = checkpoint_batch.len();
         let tx_count = tx_batch.len();
-        let max_checkpoint_seq = committer_watermark.max_committed_cp;
 
         {
             let _step_1_guard = self
@@ -181,7 +180,7 @@ impl PrimaryWriter {
                         .persist_tx_global_order(tx_global_order_batch.clone())
                         .await?;
                     self.state
-                        .persist_checkpoint_objects(object_changes_batch, max_checkpoint_seq)
+                        .persist_checkpoint_objects(object_changes_batch)
                         .await
                 }),
             ];

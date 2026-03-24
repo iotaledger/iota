@@ -485,11 +485,8 @@ impl OptimisticTransactionExecutor {
     ) -> Result<OptimisticTransaction, IndexerError> {
         let (optimistic_tx, indexed_displays, object_changes) = tx_data_to_commit;
 
-        self.store.persist_objects_in_existing_transaction(
-            conn,
-            vec![object_changes],
-            None,
-        )?;
+        self.store
+            .persist_objects_in_existing_transaction(conn, vec![object_changes])?;
         self.store.persist_displays_in_existing_transaction(
             conn,
             indexed_displays.values().collect::<Vec<_>>(),
@@ -537,11 +534,7 @@ impl<'a> TransactionExtractor<'a> {
             .iter()
             .map(|o| {
                 let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(
-                    0, // checkpoint sequence number, ignored in further processing
-                    o.clone(),
-                    df_kind,
-                )
+                IndexedObject::from_object(None, o.clone(), df_kind)
             })
             .collect::<Vec<_>>();
 

@@ -117,7 +117,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
-        finalized_in_cp: Option<i64>,
     ) -> Result<(), IndexerError>;
 
     /// Update the upper bound of the watermarks for the given tables.
@@ -142,7 +141,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
-        max_checkpoint_seq: u64,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_global_order(

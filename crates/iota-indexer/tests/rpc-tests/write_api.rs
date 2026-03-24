@@ -401,10 +401,20 @@ fn optimistic_objects_are_finalized() {
             .unwrap();
         assert_transaction_success(&res);
 
-        // All objects should be finalized in the DB, whether they were indexed
-        // via the optimistic or checkpoint path. Objects are finalized when
-        // `finalized_in_cp IS NULL` (optimistic/already finalized) or when
-        // the checkpoint they belong to has been indexed.
+        // Objects changed by this transaction should be finalized in the DB.
+        // Finalized means `finalized_in_cp IS NULL` (optimistic/already finalized)
+        // or the checkpoint has been indexed.
+        let changed_object_ids: Vec<Vec<u8>> = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Created { object_id, .. }
+                | ObjectChange::Mutated { object_id, .. } => Some(object_id.to_vec()),
+                _ => None,
+            })
+            .collect();
         let max_cp: i64 = store
             .get_latest_checkpoint_sequence_number()
             .await
@@ -413,6 +423,7 @@ fn optimistic_objects_are_finalized() {
         let non_finalized_count: i64 = (|| -> Result<_, IndexerError> {
             read_only_blocking!(&store.blocking_cp(), |conn| {
                 objects::table
+                    .filter(objects::object_id.eq_any(&changed_object_ids))
                     .filter(
                         objects::finalized_in_cp
                             .is_not_null()

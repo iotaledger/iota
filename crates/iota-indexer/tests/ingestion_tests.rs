@@ -74,7 +74,7 @@ mod ingestion_tests {
             .map(|_| CheckpointObjectChanges::random())
             .collect();
         pg_store
-            .persist_checkpoint_objects(checkpoint_objects, 0)
+            .persist_checkpoint_objects(checkpoint_objects)
             .await?;
         Ok(())
     }

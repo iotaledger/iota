@@ -312,11 +312,7 @@ impl PgIndexerStore {
         Ok(())
     }
 
-    fn persist_changed_objects(
-        &self,
-        objects: Vec<LiveObject>,
-        finalized_in_cp: i64,
-    ) -> Result<(), IndexerError> {
+    fn persist_changed_objects(&self, objects: Vec<LiveObject>) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_chunks
@@ -353,7 +349,7 @@ impl PgIndexerStore {
                 u.coin_type,
                 u.coin_balance,
                 u.df_kind,
-                $15
+                u.finalized_in_cp
             FROM UNNEST(
                 $1::BYTEA[],
                 $2::BIGINT[],
@@ -368,8 +364,9 @@ impl PgIndexerStore {
                 $11::TEXT[],
                 $12::BIGINT[],
                 $13::SMALLINT[],
-                $14::BYTEA[]
-            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest)
+                $14::BYTEA[],
+                $15::BIGINT[]
+            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest, finalized_in_cp)
             LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
             WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = -1
             ON CONFLICT (object_id) DO UPDATE
@@ -414,7 +411,7 @@ impl PgIndexerStore {
             .bind::<Array<Nullable<BigInt>>, _>(objects.coin_balances)
             .bind::<Array<Nullable<SmallInt>>, _>(objects.df_kinds)
             .bind::<Array<Bytea>, _>(tx_digests)
-            .bind::<BigInt, _>(finalized_in_cp);
+            .bind::<Array<Nullable<BigInt>>, _>(objects.finalized_in_cps);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -1854,7 +1851,6 @@ impl IndexerStore for PgIndexerStore {
         &self,
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
-        finalized_in_cp: Option<i64>,
     ) -> Result<(), IndexerError> {
         if object_changes.is_empty() {
             return Ok(());
@@ -1863,11 +1859,7 @@ impl IndexerStore for PgIndexerStore {
         let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
         let object_mutations = indexed_mutations
             .into_iter()
-            .map(|o| {
-                let mut stored = StoredObject::from(o);
-                stored.finalized_in_cp = finalized_in_cp;
-                stored
-            })
+            .map(StoredObject::from)
             .collect::<Vec<_>>();
         let object_deletions = indexed_deletions
             .into_iter()
@@ -1894,13 +1886,13 @@ impl IndexerStore for PgIndexerStore {
         let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
         let objects_snapshot = indexed_mutations
             .into_iter()
-            .map(StoredObjectSnapshot::from)
+            .map(StoredObjectSnapshot::try_from)
             .chain(
                 indexed_deletions
                     .into_iter()
-                    .map(StoredObjectSnapshot::from),
+                    .map(|o| Ok(StoredObjectSnapshot::from(o))),
             )
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         let len = objects_snapshot.len();
         let chunks = chunk!(objects_snapshot, self.config.parallel_objects_chunk_size);
         let futures = chunks
@@ -1940,7 +1932,7 @@ impl IndexerStore for PgIndexerStore {
         if object_changes.is_empty() {
             return Ok(());
         }
-        let objects = make_objects_history_to_commit(object_changes);
+        let objects = make_objects_history_to_commit(object_changes)?;
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_history
@@ -2316,7 +2308,6 @@ impl IndexerStore for PgIndexerStore {
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
-        max_checkpoint_seq: u64,
     ) -> Result<(), IndexerError> {
         if objects.is_empty() {
             return Ok(());
@@ -2332,12 +2323,11 @@ impl IndexerStore for PgIndexerStore {
         let mutation_len = mutations.len();
         let deletion_len = deletions.len();
 
-        let finalized_in_cp = max_checkpoint_seq as i64;
         let mutation_chunks = chunk!(mutations, self.config.parallel_objects_chunk_size);
         let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
-        let mutation_futures = mutation_chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| this.persist_changed_objects(c, finalized_in_cp))
-        });
+        let mutation_futures = mutation_chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
         let deletion_futures = deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
@@ -2478,7 +2468,7 @@ impl IndexerStore for PgIndexerStore {
 
 fn make_objects_history_to_commit(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<StoredHistoryObject> {
+) -> Result<Vec<StoredHistoryObject>, IndexerError> {
     let deleted_objects: Vec<StoredHistoryObject> = tx_object_changes
         .clone()
         .into_iter()
@@ -2488,9 +2478,9 @@ fn make_objects_history_to_commit(
     let mutated_objects: Vec<StoredHistoryObject> = tx_object_changes
         .into_iter()
         .flat_map(|changes| changes.changed_objects)
-        .map(|o| o.into())
-        .collect();
-    deleted_objects.into_iter().chain(mutated_objects).collect()
+        .map(StoredHistoryObject::try_from)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(deleted_objects.into_iter().chain(mutated_objects).collect())
 }
 
 /// Partitions object changes into deletions and mutations.

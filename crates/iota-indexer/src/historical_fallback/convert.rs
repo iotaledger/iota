@@ -46,10 +46,7 @@ pub(crate) type HistoricalFallbackCheckpoint = (CertifiedCheckpointSummary, Chec
 impl From<HistoricalFallbackObject> for StoredObject {
     fn from(object: HistoricalFallbackObject) -> Self {
         let df_kind = extract_df_kind(&object);
-        // StoredObject::from implementation does not require a checkpoint sequence
-        // number, in this regard it is safe to hardcode the checkpoint sequence number
-        // to 0.
-        let indexed = IndexedObject::from_object(0, object, df_kind);
+        let indexed = IndexedObject::from_object(None, object, df_kind);
         StoredObject::from(indexed)
     }
 }
