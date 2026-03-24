@@ -2,32 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// This test exists to make sure that the feature gating for all the code under
-/// `tracing` remains fully connected such that if and only if we enable the
-/// feature here, the `tracing` feature gets enabled anywhere.
-///
-/// If this test fails, check for the following.
-///
-/// Any crate that has code decorated with #[cfg(feature = "tracing")] needs to
-/// have a feature declared in its Cargo.toml named `tracing`. If moving /
-/// refactoring code with this decorator from a crate to a different crate, it
-/// is likely needed to copy over some of the feature declaration defined in the
-/// original crate. Also ensure we do not include the feature in any dependency
-/// of the dependencies section so that the feature won't get partially enabled
-/// as default.
-///
-/// Each crate defines its own version of the feature with the same name. We can
-/// think of these features as a tree structure where the root is defined here
-/// in this crate. Enabling the feature here should continue to transitively
-/// enable all the other features in the other crates, and the specific list of
-/// other crates' features that any given crate enables should include all
-/// features defined in all the other crates that the decorated code in the
-/// current crate depends on.
-///
-/// Note this crate will always have the feature enabled in testing due to the
-/// addition of `iota = { path = ".", features = ["tracing"] }` to our
-/// dev-dependencies.
-#[cfg(feature = "tracing")]
+/// This test verifies that the `tracing` feature on `move-vm-profiler` is
+/// enabled (via dev-dependencies). If it fails, check that
+/// `iota-replay = { path = ".", features = ["tracing"] }` is present
+/// in the dev-dependencies of this crate.
 #[test]
 fn test_macro_shows_feature_enabled() {
     move_vm_profiler::tracing_feature_disabled! {
@@ -35,7 +13,6 @@ fn test_macro_shows_feature_enabled() {
     }
 }
 
-#[cfg(feature = "tracing")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_profiler() {
     use std::fs;
@@ -51,7 +28,7 @@ async fn test_profiler() {
     // HINT: if the test is flaky, update this tx_digest to a more recent one.
     // Just pick a random transaction from a recent checkpoint, involving shared
     // objects, or simply run "update_profiler_tx.sh" script.
-    let tx_digest = "BcFmu9hsBqr8VHtzDUCB7CUNNtn28QxmXjuZZjTGY7yg".to_string();
+    let tx_digest = "BKUBrYxQsatsPFj9z9fNFaChYkLX6rCFoSpPxnVh7ESr".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
         tx_digest,
