@@ -32,6 +32,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build
         run: pnpm iota-docs build
+      - name: Typecheck docs TypeScript examples
+        run: |
+          pnpm --filter @iota/iota-sdk build
+          pnpm --filter @iota/kiosk build
+          pnpm --filter @iota/dapp-kit build
+          pnpm --filter @iota/docs-ts-sdk-examples typecheck
 
   build-cancel:
     needs: [build]

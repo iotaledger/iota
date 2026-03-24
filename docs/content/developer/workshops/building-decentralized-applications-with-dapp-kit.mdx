@@ -223,28 +223,7 @@ Make sure to replace `<packageId>` and `<voucherShopObject>` with actual object 
 
 Add the following variables in the `networkConfig.ts`:
 
-```typescript
-import { getFullnodeUrl } from "@iota/iota-sdk/client";
-import { createNetworkConfig } from "@iota/dapp-kit";
-
-const { networkConfig, useNetworkVariable } = createNetworkConfig({
-  devnet: {
-    url: getFullnodeUrl("devnet"),
-    variables: {
-      packageId: "",
-      voucherShopObject: ""
-    }
-  },
-  testnet: {
-    url: getFullnodeUrl("testnet"),
-    variables: {
-      packageId: "",
-      voucherShopObject: ""
-    }
-  }
-});
-
-export { useNetworkVariable, networkConfig };
+```typescript file=<rootDir>/docs/examples/typescript/src/workshops/dapp-kit/network-config.ts
 ```
 
 **One-Click Wallet Connection**

@@ -19,28 +19,7 @@ You can pass any additional `useQuery` options as the third argument. You can re
 [useQuery documentation](https://tanstack.com/query/latest/docs/react/guides/queries) for more
 details on the full set of options available.
 
-```tsx
-import { useIotaClientQuery } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { data, isPending, isError, error, refetch } = useIotaClientQuery(
-        'getOwnedObjects',
-        { owner: '0x123' },
-        {
-            gcTime: 10000,
-        },
-    );
-
-    if (isPending) {
-        return <div>Loading...</div>;
-    }
-
-    if (isError) {
-        return <div>Error: {error.message}</div>;
-    }
-
-    return <pre>{JSON.stringify(data, null, 2)}</pre>;
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/use-iota-client-query.tsx
 ```
 
 ## useIotaClientQueries
@@ -55,47 +34,7 @@ The `queries` value is an array of query option objects identical to the `useIot
 The `combine` parameter is optional. Use this parameter to combine the results of the queries into a
 single value. The result is structurally shared to be as referentially stable as possible.
 
-```tsx
-import { useIotaClientQueries } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { data, isPending, isError } = useIotaClientQueries({
-        queries: [
-            {
-                method: 'getAllBalances',
-                params: {
-                    owner: '0x123',
-                },
-            },
-            {
-                method: 'queryTransactionBlocks',
-                params: {
-                    filter: {
-                        FromAddress: '0x123',
-                    },
-                },
-            },
-        ],
-        combine: (result) => {
-            return {
-                data: result.map((res) => res.data),
-                isSuccess: result.every((res) => res.isSuccess),
-                isPending: result.some((res) => res.isPending),
-                isError: result.some((res) => res.isError),
-            };
-        },
-    });
-
-    if (isPending) {
-        return <div>Loading...</div>;
-    }
-
-    if (isError) {
-        return <div>Fetching Error</div>;
-    }
-
-    return <pre>{JSON.stringify(data, null, 2)}</pre>;
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/use-iota-client-queries.tsx
 ```
 
 ## useIotaClientInfiniteQuery
@@ -104,25 +43,7 @@ For RPC methods that support pagination, dApp Kit also implements a `useIotaClie
 hook. For more details check out the
 [`useInfiniteQuery` documentation](https://tanstack.com/query/latest/docs/react/guides/infinite-queries).
 
-```tsx
-import { useIotaClientInfiniteQuery } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { data, isPending, isError, error, isFetching, fetchNextPage, hasNextPage } =
-        useIotaClientInfiniteQuery('getOwnedObjects', {
-            owner: '0x123',
-        });
-
-    if (isPending) {
-        return <div>Loading...</div>;
-    }
-
-    if (isError) {
-        return <div>Error: {error.message}</div>;
-    }
-
-    return <pre>{JSON.stringify(data, null, 2)}</pre>;
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/use-iota-client-infinite-query.tsx
 ```
 
 ## useIotaClientMutation
@@ -131,22 +52,5 @@ For RPC methods that mutate state, dApp Kit implements a `useIotaClientMutation`
 with any RPC method to imperatively call the RPC method. For more details, check out the
 [`useMutation` documentation](https://tanstack.com/query/latest/docs/react/guides/mutations).
 
-```tsx
-import { useIotaClientMutation } from '@iota/dapp-kit';
-
-function MyComponent() {
-    const { mutate } = useIotaClientMutation('dryRunTransactionBlock');
-
-    return (
-        <Button
-            onClick={() => {
-                mutate({
-                    transaction: tx,
-                });
-            }}
-        >
-            Dry run transaction
-        </Button>
-    );
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/use-iota-client-mutation.tsx
 ```

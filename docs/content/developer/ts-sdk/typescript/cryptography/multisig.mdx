@@ -20,33 +20,7 @@ contain `publicKey` and `weight`(u8) values. If the combined weight of valid sig
 transaction is equal to or greater than the threshold value, then the IOTA network considers the
 transdaction valid.
 
-```typescript
-import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
-
-const kp1 = new Ed25519Keypair();
-const kp2 = new Ed25519Keypair();
-const kp3 = new Ed25519Keypair();
-
-const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-    threshold: 2,
-    publicKeys: [
-        {
-            publicKey: kp1.getPublicKey(),
-            weight: 1,
-        },
-        {
-            publicKey: kp2.getPublicKey(),
-            weight: 1,
-        },
-        {
-            publicKey: kp3.getPublicKey(),
-            weight: 2,
-        },
-    ],
-});
-
-const multisigAddress = multiSigPublicKey.toIotaAddress();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/cryptography/multisig-create.ts
 ```
 
 The `multiSigPublicKey` in the preceding code enables you to verify that signatures have a combined
@@ -59,16 +33,7 @@ To sign a message or transaction for a MultiSig address, you must collect signat
 individual key pairs, and then combine them into a signature using the `MultiSigPublicKey` class for
 the address.
 
-```typescript
-// This example uses the same imports, key pairs, and multiSigPublicKey from the previous example
-const message = new TextEncoder().encode('hello world');
-
-const signature1 = (await kp1.signPersonalMessage(message)).signature;
-const signature2 = (await kp2.signPersonalMessage(message)).signature;
-
-const combinedSignature = multiSigPublicKey.combinePartialSignatures([signature1, signature2]);
-
-const isValid = await multiSigPublicKey.verifyPersonalMessage(message, combinedSignature);
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/cryptography/multisig-combine.ts
 ```
 
 ## Creating a MultiSigSigner
@@ -81,32 +46,7 @@ A `MultiSigSigner` is created by providing the underlying Signers to the `getSig
 `MultiSigPublicKey`. You can provide a subset of the Signers that make up the public key, so long as
 their combined weight is equal to or greater than the threshold.
 
-```typescript
-import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
-
-const kp1 = new Ed25519Keypair();
-const kp2 = new Ed25519Keypair();
-
-const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-    threshold: 1,
-    publicKeys: [
-        {
-            publicKey: kp1.getPublicKey(),
-            weight: 1,
-        },
-        {
-            publicKey: kp2.getPublicKey(),
-            weight: 1,
-        },
-    ],
-});
-
-const signer = multiSigPublicKey.getSigner(kp1);
-
-const message = new TextEncoder().encode('hello world');
-const { signature } = await signer.signPersonalMessage(message);
-const isValid = await multiSigPublicKey.verifyPersonalMessage(message, signature);
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/cryptography/multisig-signer.ts
 ```
 
 ## Multisig with zkLogin
@@ -117,42 +57,7 @@ other keys that come with a public key, you define a public identifier for zkLog
 For example, the following example creates a 1-out-of-2 multisig with a single key and a zkLogin
 public identifier:
 
-```typescript
-// a single Ed25519 keypair and its public key.
-const kp1 = new Ed25519Keypair();
-const pkSingle = kp1.getPublicKey();
-
-// compute the address seed based on user salt and jwt token values.
-const decodedJWT = decodeJwt('a valid jwt token here');
-const userSalt = BigInt('123'); // a valid user salt
-const addressSeed = genAddressSeed(userSalt, 'sub', decodedJwt.sub, decodedJwt.aud).toString();
-
-// a zkLogin public identifier derived from an address seed and an iss string.
-let pkZklogin = toZkLoginPublicIdentifier(addressSeed, decodedJwt.iss);
-
-// derive multisig address from multisig public key defined by the single key and zkLogin public
-// identifier with weight and threshold.
-const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-    threshold: 1,
-    publicKeys: [
-        { publicKey: pkSingle, weight: 1 },
-        { publicKey: pkZklogin, weight: 1 },
-    ],
-});
-
-// this is the sender of any transactions from this multisig account.
-const multisigAddress = multiSigPublicKey.toIotaAddress();
-
-// create a regular zklogin signature from the zkproof and ephemeral signature for zkLogin.
-// see zklogin-integration.mdx for more details.
-const zkLoginSig = getZkLoginSignature({
-    inputs: zkLoginInputs,
-    maxEpoch: '2',
-    userSignature: fromBase64(ephemeralSig),
-});
-
-// a valid multisig with just the zklogin signature.
-const multisig = multiSigPublicKey.combinePartialSignatures([zkLoginSig]);
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/cryptography/multisig-zklogin.ts
 ```
 
 ### Benefits and Design for zkLogin in Multisig

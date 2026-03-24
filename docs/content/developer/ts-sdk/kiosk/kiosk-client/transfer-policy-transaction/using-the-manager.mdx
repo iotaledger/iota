@@ -18,10 +18,7 @@ After setting up the manager, you can withdraw profits from the specified transf
 
 `amount` is optional. Leave empty to withdraw all profits.
 
-```typescript
-// ... tp transaction is initialized and policy is set.
-// Withdraw 10 IOTA from the policy. Leave last parameter empty to withdraw all profits.
-tpTx.withdraw('address_to_transfer_coin', 10_000_000_000);
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/withdraw.ts
 ```
 
 ### Add/Remove rules
@@ -41,15 +38,12 @@ You can add the royalty rule like the following example.
 Use `minAmount` to set a minimum amount per transaction, so that the royalty paid is
 **MAX(percentage, min_amount)**. Use 0 for no minimum amount.
 
-```typescript
-// ... tp transaction is initialized and policy is set.
-tpTx.addRoyaltyRule(percentageToBasisPoints(30), 1_000_000_000);
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/add-royalty.ts
 ```
 
 You can remove the rule by calling:
 
-```typescript
-tpTx.removeRoyaltyRule();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/remove-royalty.ts
 ```
 
 #### Kiosk lock rule
@@ -58,15 +52,12 @@ tpTx.removeRoyaltyRule();
 
 You can add the kiosk lock rule like the following example.
 
-```typescript
-// ... tp transaction is initialized and policy is set.
-tpTx.addLockRule();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/add-lock-rule.ts
 ```
 
 You can remove the rule by calling:
 
-```typescript
-tpTx.removeLockRule();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/remove-lock-rule.ts
 ```
 
 #### Personal kiosk rule
@@ -75,15 +66,12 @@ tpTx.removeLockRule();
 
 You can add the kiosk lock rule like the following example.
 
-```typescript
-// ... tp transaction is initialized and policy is set.
-tpTx.addPersonalKioskRule();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/add-personal-kiosk-rule.ts
 ```
 
 You can remove the rule by calling:
 
-```typescript
-tpTx.removePersonalKioskRule();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/remove-personal-kiosk-rule.ts
 ```
 
 #### Floor price rule
@@ -92,15 +80,12 @@ tpTx.removePersonalKioskRule();
 
 You can add the floor price rule like the following example:
 
-```typescript
-// ... tp transaction is initialized and policy is set.
-tpTx.addFloorPriceRule(10_000_000_000); // sets 10 IOTA as the floor price.
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/add-floor-price.ts
 ```
 
 You can remove the rule by calling:
 
-```typescript
-tpTx.removeFloorPriceRule();
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/remove-floor-price.ts
 ```
 
 #### Updating rules
@@ -110,7 +95,5 @@ settings.
 
 Example:
 
-```typescript
-// ... tp transaction is initialized and policy is set.
-tpTx.removeRoyaltyRule().addRoyaltyRule(percentageToBasisPoints(20), 1_000_000_000);
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/kiosk/transfer-policy/update-royalty.ts
 ```

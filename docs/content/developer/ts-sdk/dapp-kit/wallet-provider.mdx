@@ -8,16 +8,7 @@ teams:
 Use `WalletProvider` to set up the necessary context for your React app. Use it at the root of your
 app, so that you can use any of the dApp Kit wallet components underneath it.
 
-```tsx
-import { WalletProvider } from '@iota/dapp-kit';
-
-function App() {
-    return (
-        <WalletProvider>
-            <YourApp />
-        </WalletProvider>
-    );
-}
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/dapp-kit/wallet-provider-basic.tsx
 ```
 
 The `WalletProvider` manages all wallet state for you, and makes the current wallet state available

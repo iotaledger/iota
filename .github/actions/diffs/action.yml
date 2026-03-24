@@ -95,6 +95,7 @@ runs:
           isDoc:
             - "docs/content/**"
             - "docs/site/**"
+            - "docs/examples/typescript/**"
             - ".github/workflows/_docs_lint.yml"
             - ".github/workflows/_docusaurus.yml"
           isMoveExampleUsedByOthers:

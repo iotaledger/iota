@@ -17,21 +17,7 @@ To establish a connection to a network, import `IotaClient` from `@iota/iota-sdk
 relevant URL to the `url` parameter. The following example establishes a connection to Testnet and
 requests IOTA from that network's faucet.
 
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-
-// use getFullnodeUrl to define Devnet RPC location
-const rpcUrl = getFullnodeUrl('devnet');
-
-// create a client connected to devnet
-const client = new IotaClient({ url: rpcUrl });
-
-// get coins owned by an address
-// replace <OWNER_ADDRESS> with actual address in the form of 0x123...
-await client.getCoins({
-    owner: '<OWNER_ADDRESS>',
-});
-```
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/connect.ts
 
 The `getFullnodeUrl` helper in the previous code provides the URL for the specified network, useful
 during development. In a production application, however, you should use the Mainnet RPC
@@ -53,14 +39,7 @@ You can use `IotaClient` to call any RPC method the node you're connecting to ex
 methods are built into `IotaClient`, but you can use `call` to leverage any methods available in the
 RPC.
 
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-
-const client = new IotaClient({ url: getFullnodeUrl('devnet') });
-
-// asynchronously call iotax_getCommitteeInfo
-const committeeInfo = await client.call('iotax_getCommitteeInfo', []);
-```
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/call-rpc.ts
 
 For a full list of available RPC methods, see the
 [RPC documentation](../../references/iota-api/).
@@ -70,26 +49,7 @@ For a full list of available RPC methods, see the
 
 In addition to calling RPC methods, you can use `IotaClient` to subscribe to network events:
 
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-
-const client = new IotaClient({
-    url: getFullnodeUrl('testnet'),
-});
-
-// naming the function unsubscribe may seem counterintuitive here, but you call it later to unsubscribe from the event
-const unsubscribe = await client.subscribeEvent({
-    filter: {
-        Sender: '<SENDER_ADDRESS>',
-    },
-    onMessage(event) {
-        // handle subscription notification message here. This function is called once per subscription message.
-    },
-});
-
-// later, to unsubscribe
-await unsubscribe();
-```
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/subscribe-events.ts
 
 <DeprecatedMethodsNote/>
 
@@ -100,42 +60,13 @@ Node.js, you may need to provide your own implementation of the `WebSocket` API 
 IotaClient. You can either use a global polyfill for the WebSocket class, or pass a compatible
 WebSocket implementation into IotaHTTPTransport (eg, using the `ws` package)
 
-```typescript
-import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
-import { WebSocket } from 'ws';
-
-new IotaClient({
-    transport: new IotaHTTPTransport({
-        url: getFullnodeUrl('testnet'),
-        // The typescript definitions may not match perfectly, casting to never avoids these minor incompatibilities
-        WebSocketConstructor: WebSocket as never,
-    }),
-});
-```
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/nodejs-websocket.ts
 
 ## Subscribing to transactions with IotaClient
 
 Similar to subscribing to events, the `IotaClient` also supports subscribing to transactions:
 
-```typescript
-import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-
-const client = new IotaClient({
-    url: getFullnodeUrl('testnet'),
-});
-
-const unsubscribe = await client.subscribeTransaction({
-    filter: {
-        FromAddress: '<IOTA_ADDRESS>',
-    },
-    onMessage(event) {
-        // This function is called once per transaction.
-    },
-});
-
-// later, to unsubscribe:
-await unsubscribe();
-```
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/subscribe-transactions.ts
 
 <DeprecatedMethodsNote/>
 
@@ -146,24 +77,7 @@ The `IotaClient` uses a `Transport` class to manage connections to the RPC node.
 You can construct a custom transport instance if you need to pass any custom options, such as
 headers or timeout values.
 
-```typescript
-import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
-
-const client = new IotaClient({
-    transport: new IotaHTTPTransport({
-        url: 'https://my-custom-node.com/rpc',
-        websocket: {
-            reconnectTimeout: 1000,
-            url: 'https://my-custom-node.com/websockets',
-        },
-        rpc: {
-            headers: {
-                'x-custom-header': 'custom value',
-            },
-        },
-    }),
-});
-```
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/custom-transport.ts
 
 ## Pagination
 
@@ -180,18 +94,7 @@ change the order in which the results are returned.
 You can pass the `nextCursor` to the `cursor` option of the RPC method to retrieve the next page,
 along with a `limit` to specify the page size:
 
-```ts
-const page1 = await client.getCheckpoints({
-    limit: 10,
-});
-
-const page2 =
-    page1.hasNextPage &&
-    client.getCheckpoints({
-        cursor: page1.nextCursor,
-        limit: 10,
-    });
-```
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/pagination.ts
 
 ## Methods
 
@@ -200,22 +103,7 @@ with Transactions.
 
 ### `executeTransactionBlock`
 
-```tsx
-const tx = new Transaction();
-
-// add transaction data to tx...
-
-const { bytes, signature } = tx.sign({ client, signer: keypair });
-
-const result = await client.executeTransactionBlock({
-    transactionBlock: bytes,
-    signature,
-    requestType: 'WaitForLocalExecution',
-    options: {
-        showEffects: true,
-    },
-});
-```
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/execute-transaction.ts
 
 #### Arguments
 
@@ -234,19 +122,7 @@ const result = await client.executeTransactionBlock({
 
 ### `signAndExecuteTransaction`
 
-```tsx
-const tx = new Transaction();
-// add transaction data to tx
-
-const result = await client.signAndExecuteTransaction({
-    transaction: tx,
-    signer: keypair,
-    requestType: 'WaitForLocalExecution',
-    options: {
-        showEffects: true,
-    },
-});
-```
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/sign-and-execute.ts
 
 #### Arguments
 
@@ -270,21 +146,7 @@ Wait for a transaction result to be available over the API. This can be used in 
 `executeTransactionBlock` to wait for the transaction to be available via the API. This currently
 polls the `getTransactionBlock` API to check for the transaction.
 
-```tsx
-const tx = new Transaction();
-
-const result = await client.signAndExecuteTransaction({
-    transaction: tx,
-    signer: keypair,
-});
-
-const transaction = await client.waitForTransaction({
-    digest: result.digest,
-    options: {
-        showEffects: true,
-    },
-});
-```
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/client/wait-for-transaction.ts
 
 #### Arguments
 

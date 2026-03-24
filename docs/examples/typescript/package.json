@@ -1,8 +1,9 @@
 {
-  "name": "typescript",
+  "name": "@iota/docs-ts-sdk-examples",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "address-unlock-condition": "ts-node src/stardust/address-unlock-condition.ts",
     "alias-migration": "ts-node src/stardust/alias-migration.ts",
     "alias-output-claim": "ts-node src/stardust/alias-output-claim.ts",
@@ -25,6 +26,21 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "@iota/iota-sdk": "file:../../../sdk/typescript"
+    "@apollo/client": "^3.11.0",
+    "@iota/bcs": "file:../../../sdk/bcs",
+    "@iota/iota-sdk": "file:../../../sdk/typescript",
+    "@iota/kiosk": "file:../../../sdk/kiosk",
+    "@iota/dapp-kit": "file:../../../sdk/dapp-kit",
+    "@tanstack/react-query": "^5.50.1",
+    "ws": "^8.18.0",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/tmp": "^0.2.6",
+    "@types/ws": "^8.5.13",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
   }
 }

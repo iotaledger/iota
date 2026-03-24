@@ -10,54 +10,24 @@ teams:
 This example starts by constructing a transaction to send IOTA. To construct transactions, import the
 `Transaction` class and construct it:
 
-```tsx
-import { Transaction } from '@iota/iota-sdk/transactions';
-
-const tx = new Transaction();
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/create-tx.ts
 ```
 
 You can then add transactions to the transaction .
 
-```tsx
-// create a new coin with balance 100, based on the coins used as gas payment
-// you can define any balance here
-const [coin] = tx.splitCoins(tx.gas, [100]);
-
-// transfer the split coin to a specific address
-tx.transferObjects([coin], '0xSomeIotaAddress');
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/split-transfer.ts
 ```
 
 You can attach multiple transactions of the same type to a transaction, as well. For example, to get
 a list of transfers and iterate over them to transfer coins to each of them:
 
-```tsx
-interface Transfer {
-    to: string;
-    amount: number;
-}
-
-// procure a list of some IOTA transfers to make
-const transfers: Transfer[] = getTransfers();
-
-const tx = new Transaction();
-
-// first, split the gas coin into multiple coins
-const coins = tx.splitCoins(
-    tx.gas,
-    transfers.map((transfer) => transfer.amount),
-);
-
-// next, create a transfer transaction for each coin
-transfers.forEach((transfer, index) => {
-    tx.transferObjects([coins[index]], transfer.to);
-});
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/multi-transfer.ts
 ```
 
 After you have the transaction defined, you can directly execute it with a signer using
 `signAndExecuteTransaction`.
 
-```tsx
-client.signAndExecuteTransaction({ signer: keypair, transaction: tx });
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/execute.ts
 ```
 
 ## Observing the results of a transaction
@@ -79,9 +49,7 @@ depend on the RPC node having indexed the effects of the transaction, which may 
 immediately after a transaction has been executed. To ensure that effects of a transaction are
 represented in future RPC calls, you can use the `waitForTransaction` method on the client:
 
-```typescript
-const result = await client.signAndExecuteTransaction({ signer: keypair, transaction: tx });
-await client.waitForTransaction({ digest: result.digest });
+```typescript file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/wait-for-tx.ts
 ```
 
 Once `waitForTransaction` resolves, any future RPC calls will be guaranteed to reflect the effects
@@ -123,11 +91,7 @@ For specific transaction arguments (`amounts` in `splitCoins`, and `address` in 
 the expected type is known ahead of time, and you can directly pass raw javascript values when
 calling the transaction method. appropriate Move type automatically.
 
-```ts
-// the amount to split off the gas coin is provided as a pure javascript number
-const [coin] = tx.splitCoins(tx.gas, [100]);
-// the address for the transfer is provided as a pure javascript string
-tx.transferObjects([coin], '0xSomeIotaAddress');
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/js-values.ts
 ```
 
 #### Pure values
@@ -140,41 +104,13 @@ When providing inputs that are not on chain objects, the values must be serializ
 `tx.pure` can be called as a function that accepts a SerializedBcs object, or as a namespace that
 contains functions for each of the supported types.
 
-```ts
-const [coin] = tx.splitCoins(tx.gas, [tx.pure.u64(100)]);
-const [coin] = tx.splitCoins(tx.gas, [tx.pure(bcs.U64.serialize(100))]);
-tx.transferObjects([coin], tx.pure.address('0xSomeIotaAddress'));
-tx.transferObjects([coin], tx.pure(bcs.Address.serialize('0xSomeIotaAddress')));
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/pure-values.ts
 ```
 
-To pass `vector` or `option` types, you you can pass use the corresponding methods on `tx.pure`, use
-tx.pure as a function with a type argument, or serialize the value before passing it to tx.pure
-using the bcs sdk:
+To pass `vector` or `option` types, you can use the corresponding methods on `tx.pure`, or
+serialize the value before passing it to `tx.pure` using the bcs sdk:
 
-```ts
-import { bcs } from '@iota/iota-sdk/bcs';
-
-tx.moveCall({
-    target: '0x2::foo::bar',
-    arguments: [
-        // using vector and option methods
-        tx.pure.vector('u8', [1, 2, 3]),
-        tx.pure.option('u8', 1),
-        tx.pure.option('u8', null),
-
-        // Using pure with type arguments
-        tx.pure('vector<u8>', [1, 2, 3]),
-        tx.pure('option<u8>', 1),
-        tx.pure('option<u8>', null),
-        tx.pure('vector<option<u8>>', [1, null, 2]),
-
-        // Using bcs.serialize
-        tx.pure(bcs.vector(bcs.U8).serialize([1, 2, 3])),
-        tx.pure(bcs.option(bcs.U8).serialize(1)),
-        tx.pure(bcs.option(bcs.U8).serialize(null)),
-        tx.pure(bcs.vector(bcs.option(bcs.U8)).serialize([1, null, 2])),
-    ],
-});
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/vector-option.ts
 ```
 
 #### Object references
@@ -185,25 +121,7 @@ be done by calling `tx.object` with the object id. Transaction arguments that on
 For methods like `moveCall` that accept both objects and other types, you must explicitly call
 `tx.object` to convert the id to an object reference.
 
-```ts
-// Object IDs can be passed to some methods like (transferObjects) directly
-tx.transferObjects(['0xSomeObject'], 'OxSomeAddress');
-// tx.object can be used anywhere an object is accepted
-tx.transferObjects([tx.object('0xSomeObject')], 'OxSomeAddress');
-
-tx.moveCall({
-    target: '0x2::nft::mint',
-    // object IDs must be wrapped in moveCall arguments
-    arguments: [tx.object('0xSomeObject')],
-});
-
-// tx.object automatically converts the object ID to receiving transaction arguments if the moveCall expects it
-tx.moveCall({
-    target: '0xSomeAddress::example::receive_object',
-    // 0xSomeAddress::example::receive_object expects a receiving argument and has a Move definition that looks like this:
-    // public fun receive_object<T: key>(parent_object: &mut ParentObjectType, receiving_object: Receiving<ChildObjectType>) { ... }
-    arguments: [tx.object('0xParentObjectID'), tx.object('0xReceivingObjectID')],
-});
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/object-refs.ts
 ```
 
 When building a transaction, IOTA expects all objects to be fully resolved, including the object
@@ -213,15 +131,7 @@ reference when building a transaction. If the object reference is used as a rece
 This greatly simplifies building transactions, but requires additional RPC calls. You can optimize
 this process by providing a fully resolved object reference instead:
 
-```ts
-// for owned or immutable objects
-tx.object(Inputs.ObjectRef({ digest, objectId, version }));
-
-// for shared objects
-tx.object(Inputs.SharedObjectRef({ objectId, initialSharedVersion, mutable }));
-
-// for receiving objects
-tx.object(Inputs.ReceivingRef({ digest, objectId, version }));
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/resolved-refs.ts
 ```
 
 ##### Object helpers
@@ -229,17 +139,7 @@ tx.object(Inputs.ReceivingRef({ digest, objectId, version }));
 There are a handful of specific object types that can be referenced through helper methods on
 tx.object:
 
-```ts
-tx.object.system(),
-tx.object.clock(),
-tx.object.random(),
-tx.object.denyList(),
-
-tx.object.option({
-	type: '0x123::example::Thing',
-	// value can be an Object ID, or any other object reference, or null for `none`
-	value: '0x456',
-}),
+```ts file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/object-helpers.ts
 ```
 
 #### Transaction results
@@ -247,24 +147,13 @@ tx.object.option({
 You can also use the result of a transaction as an argument in a subsequent transactions. Each
 transaction method on the transaction builder returns a reference to the transaction result.
 
-```tsx
-// split a coin object off of the gas object
-const [coin] = tx.splitCoins(tx.gas, [100]);
-// transfer the resulting coin object
-tx.transferObjects([coin], address);
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/tx-results.ts
 ```
 
 When a transaction returns multiple results, you can access the result at a specific index either
 using destructuring, or array indexes.
 
-```tsx
-// destructuring (preferred, as it gives you logical local names)
-const [nft1, nft2] = tx.moveCall({ target: '0x2::nft::mint_many' });
-tx.transferObjects([nft1, nft2], address);
-
-// array indexes
-const mintMany = tx.moveCall({ target: '0x2::nft::mint_many' });
-tx.transferObjects([mintMany[0], mintMany[1]], address);
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/destructure-results.ts
 ```
 
 ## Get transaction bytes
@@ -276,19 +165,12 @@ If you need the transaction bytes, instead of signing or executing the transacti
 `sender` field is populated. This is normally done by the signer before signing the transaction, but
 will not be done automatically if you’re building the transaction bytes yourself.
 
-```tsx
-const tx = new Transaction();
-
-// ... add some transactions...
-
-await tx.build({ client });
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/build-tx.ts
 ```
 
 In most cases, building requires your IotaClient to fully resolve input values.
 
 If you have transaction bytes, you can also convert them back into a `Transaction` class:
 
-```tsx
-const bytes = getTransactionBytesFromSomewhere();
-const tx = Transaction.from(bytes);
+```tsx file=<rootDir>/docs/examples/typescript/src/ts-sdk/typescript/transaction-building/basics/from-bytes.ts
 ```

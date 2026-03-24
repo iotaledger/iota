@@ -108,11 +108,7 @@ To use an IOTA Kiosk, you must create one and have the `KioskOwnerCap` that matc
 
 ### Create an IOTA Kiosk Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-tx.moveCall({
-    target: '0x2::kiosk::default'
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/create-kiosk.ts
 ```
 
 ### Create an IOTA Kiosk Using the IOTA CLI
@@ -131,20 +127,7 @@ Kiosk is designed to be shared. If you choose a different storage model, such as
 
 ### Create an IOTA Kiosk With Advanced Options Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-let sender = "0x...";
-
-let [kiosk, kioskOwnerCap] = tx.moveCall({
-    target: '0x2::kiosk::new'
-});
-
-tx.transferObjects([ kioskOwnerCap ], sender);
-tx.moveCall({
-    target: '0x2::transfer::public_share_object',
-    arguments: [ kiosk ],
-    typeArguments: ['0x2::kiosk::Kiosk']
-})
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/create-kiosk-advanced.ts
 ```
 
 ### Create an IOTA Kiosk With Advanced Options Using a PTB in the IOTA CLI
@@ -173,18 +156,7 @@ To place an item to the Kiosk, the owner needs to call the `iota::kiosk::place` 
 
 ### Place an Item Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-
-let itemArg = tx.object('<ID>');
-let kioskArg = tx.object('<ID>');
-let kioskOwnerCapArg = tx.object('<ID>');
-
-tx.moveCall({
-    target: '0x2::kiosk::place',
-    arguments: [ kioskArg, kioskOwnerCapArg, itemArg ],
-    typeArguments: [ '<ITEM_TYPE>' ]
-})
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/place-item.ts
 ```
 
 ### Place an Item Using the IOTA CLI
@@ -206,18 +178,7 @@ To take an item from a kiosk you must be the kiosk owner. As the owner, call the
 
 ### Take an Item From a Kiosk Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-
-let itemId = tx.pure.id('<ITEM_ID>');
-let kioskArg = tx.object('<ID>');
-let kioskOwnerCapArg = tx.object('<ID>');
-
-let item = tx.moveCall({
-    target: '0x2::kiosk::take',
-    arguments: [ kioskArg, kioskOwnerCapArg, itemId ],
-    typeArguments: [ '<ITEM_TYPE>' ]
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/take-item.ts
 ```
 
 ### Take an Item from a Kiosk Using the IOTA CLI
@@ -254,19 +215,7 @@ When you use the `lock` function, similar to using the `place` function, you spe
 
 ### Lock an Item Using Programmable Transaction Blocks
 
-```typescript
-const tx = new Transaction();
-
-let kioskArg = tx.object('<ID>');
-let kioskOwnerCapArg = tx.object('<ID>');
-let itemArg = tx.object('<ID>');
-let transferPolicyArg = tx.object('<ID>');
-
-tx.moveCall({
-    target: '0x2::kiosk::lock',
-    arguments: [ kioskArg, kioskOwnerCapArg, transferPolicyArg, itemArg ],
-    typeArguments: [ '<ITEM_TYPE>' ]
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/lock-item.ts
 ```
 
 ### Lock an Item Using the IOTA CLI
@@ -296,20 +245,7 @@ When you list an item, IOTA emits a `kiosk::ItemListed` event that  contains the
 
 ### List an Item Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
-let itemId = tx.pure.id('<ID>');
-let itemType = 'ITEM_TYPE';
-let priceArg = tx.pure.u64('<price>'); // in NANOS (1 IOTA = 10^9 NANOS)
-
-tx.moveCall({
-    target: '0x2::kiosk::list',
-    arguments: [ kioskArg, capArg, itemId, priceArg ],
-    typeArguments: [ itemType ]
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/list-item.ts
 ```
 
 ### List an Item Using the IOTA CLI
@@ -333,18 +269,7 @@ When you delist an item, IOTA emits a `kiosk::ItemDelisted` event that contains 
 
 ### Delist an Item Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
-let itemId = tx.pure.id('<ID>');
-let itemType = 'ITEM_TYPE';
-
-tx.moveCall({
-    target: '0x2::kiosk::delist',
-    arguments: [ kioskArg, capArg, itemId ],
-    typeArguments: [ itemType ]
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/delist-item.ts
 ```
 
 ### Delist an Item Using the IOTA CLI
@@ -437,29 +362,7 @@ You can use the PTB-friendly `kiosk::borrow_val` function. It allows you to take
 
 ### Mutable Borrow with `borrow_val` Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-
-let itemType = 'ITEM_TYPE';
-let itemId = tx.pure.id('<ITEM_ID>');
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
-
-let [item, promise] = tx.moveCall({
-    target: '0x2::kiosk::borrow_val',
-    arguments: [ kioskArg, capArg, itemId ],
-    typeArguments: [ itemType ],
-});
-
-// Freely mutate or reference the `item`.
-// Any calls are available as long as they take a reference.
-// `return_val` must be explicitly called.
-
-tx.moveCall({
-    target: '0x2::kiosk::return_val',
-    arguments: [ kioskArg, item, promise ],
-    typeArguments: [ itemType ],
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/borrow-val.ts
 ```
 
 ## Withdraw Proceeds from a Completed Sale
@@ -468,30 +371,7 @@ When someone purchases an item, IOTA stores the proceeds from the sale in the Ki
 
 ### Withdraw Proceeds Using Programmable Transaction Blocks
 
-```typescript
-let tx = new Transaction();
-let kioskArg = tx.object('<ID>');
-let capArg = tx.object('<ID>');
-
-// because the function uses an Option<u64> argument,
-// constructing is a bit more complex
-let amountArg = tx.moveCall({
-    target: '0x1::option::some',
-    arguments: [ tx.pure.u64('<amount>') ],
-    typeArguments: [ 'u64' ],
-});
-
-// alternatively
-let withdrawAllArg = tx.moveCall({
-    target: '0x1::option::none',
-    typeArguments: [ 'u64' ],
-});
-
-let coin = tx.moveCall({
-    target: '0x2::kiosk::withdraw',
-    arguments: [ kioskArg, capArg, amountArg ],
-    typeArguments: [ 'u64' ],
-});
+```typescript file=<rootDir>/docs/examples/typescript/src/standards/kiosk/withdraw.ts
 ```
 
 ### Withdraw Proceeds Using the IOTA CLI

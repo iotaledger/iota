@@ -48,14 +48,5 @@ plus the following pre-defined schemes:
 All the upper-cased values are `BcsType` instances, and can be used directly to parse and serialize
 data.
 
-```typescript
-import { bcs } from '@iota/iota-sdk/bcs';
-
-bcs.U8.serialize(1);
-bcs.Address.serialize('0x1');
-bcs.TypeTag.serialize({
-    vector: {
-        u8: true,
-    },
-});
+```typescript file=../../../../examples/typescript/src/ts-sdk/typescript/bcs/bcs-serialize.ts
 ```
