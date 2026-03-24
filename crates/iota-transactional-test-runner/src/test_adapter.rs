@@ -470,6 +470,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             upgradeable,
             dependencies,
             gas_price,
+            dry_run,
         } = extra;
 
         fill_metadata(&mut modules);
@@ -508,6 +509,34 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
         // we are assuming that all packages depend on Move Stdlib and IOTA Framework,
         // so these don't have to be provided explicitly as parameters
         dependencies.extend([MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]);
+
+        if dry_run {
+            let sender_acc = self.get_sender(sender.clone());
+            let sender_address = sender_acc.address;
+
+            let mut builder = ProgrammableTransactionBuilder::new();
+            if upgradeable {
+                let cap = builder.publish_upgradeable(modules_bytes, dependencies);
+                builder.transfer_arg(sender_address, cap);
+            } else {
+                builder.publish_immutable(modules_bytes, dependencies);
+            };
+            let pt = builder.finish();
+            let payments = self.get_payments(sender_acc, vec![]);
+
+            let transaction = TransactionData::new_programmable(
+                sender_acc.address,
+                payments.clone(),
+                pt,
+                gas_budget,
+                gas_price,
+            );
+            let summary = self.dry_run(transaction).await?;
+            let output = self.object_summary_output(&summary, /* summarize */ false);
+
+            // do not pass back any modules for storage
+            return Ok((output, vec![]));
+        }
 
         let data = |sender, gas| {
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -997,7 +1026,10 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         .insert(package, before_upgrade);
                 }
                 let (warnings_opt, output, data, modules) = result?;
-                store_modules(self, syntax, data, modules);
+                // skip storing modules if this is a dry run
+                if !dry_run {
+                    store_modules(self, syntax, data, modules);
+                }
                 Ok(merge_output(warnings_opt, output))
             }
             IotaSubcommand::StagePackage(StagePackageCommand {
@@ -1608,7 +1640,7 @@ impl IotaTestAdapter {
 
         let pt = builder.finish();
 
-        let summary = if dry_run {
+        if dry_run {
             let transaction = TransactionData::new_programmable(
                 self.get_sender(Some(sender)).address,
                 vec![],
@@ -1616,14 +1648,15 @@ impl IotaTestAdapter {
                 gas_budget,
                 gas_price,
             );
-            self.dry_run(transaction).await?
-        } else {
-            let data = |sender, gas| {
-                TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-            };
-            let transaction = self.sign_txn(Some(sender), data);
-            self.execute_txn(transaction).await?
-        };
+            let summary = self.dry_run(transaction).await?;
+            return Ok(self.object_summary_output(&summary, false));
+        }
+
+        let data =
+            |sender, gas| TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price);
+        let transaction = self.sign_txn(Some(sender), data);
+        let summary = self.execute_txn(transaction).await?;
+
         let created_package = summary
             .created
             .iter()
