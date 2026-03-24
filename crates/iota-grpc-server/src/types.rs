@@ -646,10 +646,13 @@ impl GrpcReader {
                                             .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
                                         let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
-                                        let event_size = grpc_event.encoded_len();
+                                        let event_encoded_len = grpc_event.encoded_len();
+                                        let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
 
                                         // Check if adding this event would exceed limit
-                                        if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
+                                        // (batch content + wrapper overhead for CheckpointData oneof)
+                                        let candidate_size = events_batch_size + event_size;
+                                        if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !events_batch.is_empty() {
                                             // Yield current event batch
                                             yield Ok(grpc_ledger_service::CheckpointData::default()
                                                 .with_events(grpc_event::Events::default().with_events(events_batch)));
@@ -684,10 +687,13 @@ impl GrpcReader {
                                     &tx_mask,
                                 )
                                 .map_err(|e| e.with_context("failed to merge transaction"))?;
-                                let tx_size = executed_tx.encoded_len();
+                                let tx_encoded_len = executed_tx.encoded_len();
+                                let tx_size = tx_encoded_len + crate::utils::repeated_field_item_overhead(tx_encoded_len);
 
                                 // Check if adding this tx would exceed limit
-                                if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
+                                // (batch content + wrapper overhead for CheckpointData oneof)
+                                let candidate_size = current_batch_size + tx_size;
+                                if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
                                     yield Ok(grpc_ledger_service::CheckpointData::default()
                                         .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));

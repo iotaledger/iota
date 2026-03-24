@@ -23,6 +23,7 @@ use iota_types::{
     },
     storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
 };
+use prost::Message;
 use tokio_stream::StreamExt;
 
 struct MockRestStateReader {
@@ -119,12 +120,9 @@ fn mock_checkpoint_data_with_sender(
     }
 }
 
-fn mock_large_checkpoint_data(sequence_number: u64) -> CheckpointData {
-    let summary = mock_summary(sequence_number);
-
-    // Create many dummy transactions to exceed the message size limit when chunked
-    // Each transaction will be roughly 1KB when serialized, so we need about 5000
-    // transactions to exceed 4MB when serialized
+fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
+    // Create many dummy transactions to exceed the message size limit when chunked.
+    // Each transaction is roughly 500-1000 bytes when serialized as protobuf.
     let num_transactions = 50000;
     let mut transactions = Vec::with_capacity(num_transactions);
 
@@ -145,6 +143,13 @@ fn mock_large_checkpoint_data(sequence_number: u64) -> CheckpointData {
             output_objects: vec![], // Empty for simplicity
         });
     }
+
+    transactions
+}
+
+fn mock_large_checkpoint_data(sequence_number: u64) -> CheckpointData {
+    let summary = mock_summary(sequence_number);
+    let transactions = build_large_checkpoint_transactions();
 
     CheckpointData {
         checkpoint_summary: summary,
@@ -1222,4 +1227,246 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .shutdown()
         .await
         .expect("Failed to shutdown server");
+}
+
+/// A minimal GrpcStateReader that stores pre-built checkpoint transactions
+/// and directly returns them via stream_checkpoint_transactions.
+/// This avoids the ReadStore blanket impl issue with dyn RestStateReader.
+struct ChunkingTestStateReader {
+    summary: CertifiedCheckpointSummary,
+    contents: CheckpointContents,
+    transactions: Vec<CheckpointTransaction>,
+}
+
+impl iota_grpc_server::GrpcStateReader for ChunkingTestStateReader {
+    fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
+        Ok(iota_types::digests::ChainIdentifier::default())
+    }
+    fn get_latest_checkpoint_sequence_number(&self) -> anyhow::Result<Option<u64>> {
+        Ok(Some(0))
+    }
+    fn get_checkpoint_summary(
+        &self,
+        _seq: u64,
+    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
+        Ok(Some(self.summary.clone()))
+    }
+    fn get_checkpoint_sequence_number_by_digest(
+        &self,
+        _digest: &iota_types::digests::CheckpointDigest,
+    ) -> anyhow::Result<Option<u64>> {
+        unimplemented!()
+    }
+    fn get_checkpoint_data(&self, _seq: u64) -> anyhow::Result<Option<CheckpointData>> {
+        unimplemented!()
+    }
+    fn get_checkpoint_summary_and_contents(
+        &self,
+        _seq: u64,
+    ) -> anyhow::Result<Option<(CertifiedCheckpointSummary, CheckpointContents)>> {
+        Ok(Some((self.summary.clone(), self.contents.clone())))
+    }
+    fn stream_checkpoint_transactions(
+        &self,
+        _checkpoint_contents: CheckpointContents,
+    ) -> std::pin::Pin<
+        Box<dyn futures::Stream<Item = anyhow::Result<CheckpointTransaction>> + Send + '_>,
+    > {
+        let transactions = self.transactions.clone();
+        Box::pin(async_stream::stream! {
+            for tx in transactions {
+                yield Ok(tx);
+            }
+        })
+    }
+    fn get_epoch_last_checkpoint(
+        &self,
+        _epoch: u64,
+    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
+        Ok(None)
+    }
+    fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
+        Ok(0)
+    }
+    fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64> {
+        Ok(0)
+    }
+    fn get_object(
+        &self,
+        _object_id: &ObjectID,
+    ) -> anyhow::Result<Option<iota_types::object::Object>> {
+        Ok(None)
+    }
+    fn get_object_by_key(
+        &self,
+        _object_id: &ObjectID,
+        _version: iota_types::base_types::SequenceNumber,
+    ) -> anyhow::Result<Option<iota_types::object::Object>> {
+        Ok(None)
+    }
+    fn get_committee(
+        &self,
+        _epoch: u64,
+    ) -> anyhow::Result<Option<std::sync::Arc<iota_types::committee::Committee>>> {
+        Ok(None)
+    }
+    fn get_system_state(&self) -> anyhow::Result<iota_types::iota_system_state::IotaSystemState> {
+        unimplemented!()
+    }
+    fn get_epoch_info(
+        &self,
+        _epoch: u64,
+    ) -> anyhow::Result<Option<iota_types::storage::EpochInfo>> {
+        Ok(None)
+    }
+    fn get_type_layout(
+        &self,
+        _type_tag: &iota_types::TypeTag,
+    ) -> anyhow::Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
+        Ok(None)
+    }
+    fn get_transaction(
+        &self,
+        _digest: &iota_types::digests::TransactionDigest,
+    ) -> anyhow::Result<Option<std::sync::Arc<iota_types::transaction::VerifiedTransaction>>> {
+        Ok(None)
+    }
+    fn get_transaction_effects(
+        &self,
+        _digest: &iota_types::digests::TransactionDigest,
+    ) -> anyhow::Result<Option<iota_types::effects::TransactionEffects>> {
+        Ok(None)
+    }
+    fn get_transaction_events(
+        &self,
+        _digest: &iota_types::digests::TransactionDigest,
+    ) -> anyhow::Result<Option<iota_types::effects::TransactionEvents>> {
+        Ok(None)
+    }
+    fn get_transaction_checkpoint(
+        &self,
+        _digest: &iota_types::digests::TransactionDigest,
+    ) -> anyhow::Result<Option<u64>> {
+        Ok(None)
+    }
+}
+
+/// Helper: collect all CheckpointData messages from a stream, returning
+/// (all_messages, tx_batch_messages_with_encoded_len).
+async fn collect_checkpoint_stream(
+    reader: &GrpcReader,
+    max_message_size: u32,
+) -> (
+    Vec<iota_grpc_types::v0::ledger_service::CheckpointData>,
+    Vec<usize>,
+) {
+    use iota_grpc_types::{field::FieldMaskTree, v0::ledger_service::checkpoint_data};
+
+    let stream = reader.get_checkpoint_data(
+        0,
+        FieldMaskTree::new_wildcard(),
+        Some(FieldMaskTree::new_wildcard()),
+        None,
+        max_message_size,
+        None,
+        None,
+    );
+
+    let mut stream = Box::pin(stream);
+    let mut all_messages = Vec::new();
+    let mut tx_batch_sizes = Vec::new();
+
+    while let Some(result) = StreamExt::next(&mut stream).await {
+        let msg: iota_grpc_types::v0::ledger_service::CheckpointData =
+            result.expect("stream should not error");
+        if matches!(
+            msg.payload,
+            Some(checkpoint_data::Payload::ExecutedTransactions(_))
+        ) {
+            tx_batch_sizes.push(msg.encoded_len());
+        }
+        all_messages.push(msg);
+    }
+
+    (all_messages, tx_batch_sizes)
+}
+
+/// Build a small set of transactions for the chunking boundary test.
+/// Uses fewer transactions than `build_large_checkpoint_transactions` so the
+/// test runs fast while still exercising the boundary precisely.
+fn build_small_checkpoint_transactions(count: usize) -> Vec<CheckpointTransaction> {
+    let mut transactions = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (sender, key): (_, AccountKeyPair) = get_key_pair();
+        let gas = random_object_ref();
+        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&key);
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        transactions.push(CheckpointTransaction {
+            transaction,
+            effects,
+            events: None,
+            input_objects: vec![],
+            output_objects: vec![],
+        });
+    }
+    transactions
+}
+
+#[tokio::test]
+async fn test_chunked_checkpoint_message_sizes_within_limit() {
+    // Use a small number of transactions so the test is fast.
+    let transactions = build_small_checkpoint_transactions(20);
+    let summary = mock_summary(0);
+    let contents = MOCK_CHECKPOINT_CONTENTS.clone();
+
+    let state_reader = Arc::new(ChunkingTestStateReader {
+        summary,
+        contents,
+        transactions,
+    });
+    let reader = GrpcReader::new(state_reader, Some("test".to_string()));
+
+    // --- Pass 1: unlimited size to measure the single-batch encoded size ---
+    let (_, tx_sizes_unlimited) = collect_checkpoint_stream(&reader, u32::MAX).await;
+    assert_eq!(
+        tx_sizes_unlimited.len(),
+        1,
+        "With unlimited size all transactions should fit in a single batch"
+    );
+    let exact_batch_size = tx_sizes_unlimited[0];
+
+    // --- Pass 2: set limit to exactly the measured batch size ---
+    // All transactions must still fit in a single batch.
+    let (_, tx_sizes_exact) = collect_checkpoint_stream(&reader, exact_batch_size as u32).await;
+    assert_eq!(
+        tx_sizes_exact.len(),
+        1,
+        "At exact limit ({exact_batch_size}) all transactions should still fit in one batch"
+    );
+    assert_eq!(
+        tx_sizes_exact[0], exact_batch_size,
+        "Batch encoded_len should match the measured size"
+    );
+
+    // --- Pass 3: set limit to one byte less → must split ---
+    let tight_limit = (exact_batch_size - 1) as u32;
+    let (all_messages, tx_sizes_split) = collect_checkpoint_stream(&reader, tight_limit).await;
+    assert!(
+        tx_sizes_split.len() > 1,
+        "At limit {tight_limit} (exact-1) transactions must be split into multiple batches, \
+         got {} batch(es)",
+        tx_sizes_split.len()
+    );
+
+    // Every single message (checkpoint, tx batches, end marker) must be within the
+    // limit.
+    for (i, msg) in all_messages.iter().enumerate() {
+        let size = msg.encoded_len();
+        assert!(
+            size <= tight_limit as usize,
+            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
+        );
+    }
 }
