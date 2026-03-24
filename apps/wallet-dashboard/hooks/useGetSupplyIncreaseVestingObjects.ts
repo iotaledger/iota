@@ -29,7 +29,7 @@ import {
     useGetDelegatedStake,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useIotaClient } from '@iota/dapp-kit';
 
 const REDUCTION_STEP_SIZE = 5;
@@ -214,29 +214,26 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     ]);
 
     // Dry run the transaction to check for errors
+    const dryRunKey = useMemo(() => {
+        const objectIds = supplyIncreaseVestingUnlockedObjectIds.join(',');
+        const stakeIds = supplyIncreaseVestingUnlockedStakeObjectData
+            .map((s) => s.objectId)
+            .join(',');
+        return `${objectIds}|${stakeIds}`;
+    }, [supplyIncreaseVestingUnlockedObjectIds, supplyIncreaseVestingUnlockedStakeObjectData]);
+
     const [isUnlockError, setIsUnlockError] = useState(false);
     const [unlockError, setUnlockError] = useState<Error | null>(null);
     const [isUnlockPending, setIsUnlockPending] = useState(false);
-    const lastDryRunTxRef = useRef<string | null>(null);
 
     useEffect(() => {
+        let isTransactionAborted = false;
+
         async function dryRunTransaction() {
             if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
                 setIsUnlockError(false);
                 setUnlockError(null);
                 setIsUnlockPending(false);
-                lastDryRunTxRef.current = null;
-                return;
-            }
-
-            // Create a unique key for this transaction configuration
-            const txKey = JSON.stringify({
-                objectIds: supplyIncreaseVestingUnlockedObjectIds,
-                stakeIds: supplyIncreaseVestingUnlockedStakeObjectData.map((s) => s.objectId),
-            });
-
-            // Skip if we already did a dry run for this exact transaction
-            if (lastDryRunTxRef.current === txKey) {
                 return;
             }
 
@@ -245,28 +242,27 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
                 const txBytes = await unlockAllSupplyIncreaseVesting.transactionBlock.build({
                     client: iotaClient,
                 });
-                await iotaClient.dryRunTransactionBlock({
-                    transactionBlock: txBytes,
-                });
-                setIsUnlockError(false);
-                setUnlockError(null);
-                lastDryRunTxRef.current = txKey;
+                await iotaClient.dryRunTransactionBlock({ transactionBlock: txBytes });
+                if (!isTransactionAborted) {
+                    setIsUnlockError(false);
+                    setUnlockError(null);
+                }
             } catch (error) {
-                setIsUnlockError(true);
-                setUnlockError(error as Error);
-                lastDryRunTxRef.current = txKey;
+                if (!isTransactionAborted) {
+                    setIsUnlockError(true);
+                    setUnlockError(error as Error);
+                }
             } finally {
-                setIsUnlockPending(false);
+                if (!isTransactionAborted) setIsUnlockPending(false);
             }
         }
 
         dryRunTransaction();
-    }, [
-        unlockAllSupplyIncreaseVesting,
-        iotaClient,
-        supplyIncreaseVestingUnlockedObjectIds,
-        supplyIncreaseVestingUnlockedStakeObjectData,
-    ]);
+        return () => {
+            isTransactionAborted = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dryRunKey, iotaClient]);
 
     const isSupplyIncreaseVestingScheduleEmpty =
         !supplyIncreaseVestingSchedule.totalVested &&
