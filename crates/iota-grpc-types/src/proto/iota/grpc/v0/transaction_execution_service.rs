@@ -13,6 +13,11 @@ use crate::proto::TryFromProtoError;
 
 impl ExecuteTransactionResponse {
     /// Get the executed transaction.
+    ///
+    /// `ExecuteTransactionResponse` is *transparent* — the read mask paths
+    /// apply directly to
+    /// [`ExecutedTransaction`](crate::v0::transaction::ExecutedTransaction)
+    /// fields (e.g. `"effects"`, not `"executed_transaction.effects"`).
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
@@ -28,7 +33,10 @@ impl ExecuteTransactionResponse {
 impl ExecutionError {
     /// Deserialize the execution error kind from BCS.
     ///
-    /// Requires `bcs_kind` in the read_mask.
+    /// **Read mask:** `"execution_result.execution_error.bcs_kind"` (see
+    /// [`EXECUTION_ERROR_BCS_KIND`]).
+    ///
+    /// [`EXECUTION_ERROR_BCS_KIND`]: crate::read_masks::EXECUTION_ERROR_BCS_KIND
     pub fn error_kind(&self) -> Result<iota_sdk_types::ExecutionError, TryFromProtoError> {
         self.bcs_kind
             .as_ref()
@@ -41,7 +49,10 @@ impl ExecutionError {
 
     /// Get the error source (human-readable description).
     ///
-    /// Requires `source` in the read_mask.
+    /// **Read mask:** `"execution_result.execution_error.source"` (see
+    /// [`EXECUTION_ERROR_SOURCE`]).
+    ///
+    /// [`EXECUTION_ERROR_SOURCE`]: crate::read_masks::EXECUTION_ERROR_SOURCE
     pub fn error_source(&self) -> Result<String, TryFromProtoError> {
         self.source
             .clone()
@@ -50,7 +61,10 @@ impl ExecutionError {
 
     /// Get the index of the command that caused the error.
     ///
-    /// Requires `command_index` in the read_mask.
+    /// **Read mask:** `"execution_result.execution_error.command_index"` (see
+    /// [`EXECUTION_ERROR_COMMAND_INDEX`]).
+    ///
+    /// [`EXECUTION_ERROR_COMMAND_INDEX`]: crate::read_masks::EXECUTION_ERROR_COMMAND_INDEX
     pub fn error_command_index(&self) -> Result<u64, TryFromProtoError> {
         self.command_index
             .ok_or_else(|| TryFromProtoError::missing(Self::COMMAND_INDEX_FIELD.name))
@@ -63,7 +77,15 @@ impl ExecutionError {
 impl SimulateTransactionResponse {
     /// Get the simulated executed transaction.
     ///
-    /// Requires `executed_transaction` in the read_mask.
+    /// Returns the
+    /// [`ExecutedTransaction`](crate::v0::transaction::ExecutedTransaction)
+    /// with sub-fields populated according to the read mask. Use paths like
+    /// `"executed_transaction.effects"` to request specific sub-fields.
+    ///
+    /// **Read mask:** `"executed_transaction"` (see
+    /// [`SIMULATE_RESPONSE_EXECUTED_TRANSACTION`]).
+    ///
+    /// [`SIMULATE_RESPONSE_EXECUTED_TRANSACTION`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTED_TRANSACTION
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
@@ -72,9 +94,12 @@ impl SimulateTransactionResponse {
             .ok_or_else(|| TryFromProtoError::missing(Self::EXECUTED_TRANSACTION_FIELD.name))
     }
 
-    /// Get the suggested gas price.
+    /// Get the suggested gas price (in NANOS).
     ///
-    /// Requires `suggested_gas_price` in the read_mask.
+    /// **Read mask:** `"suggested_gas_price"` (see
+    /// [`SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE`]).
+    ///
+    /// [`SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE`]: crate::read_masks::SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE
     pub fn gas_price_suggested(&self) -> Result<u64, TryFromProtoError> {
         self.suggested_gas_price
             .ok_or_else(|| TryFromProtoError::missing(Self::SUGGESTED_GAS_PRICE_FIELD.name))
@@ -83,7 +108,10 @@ impl SimulateTransactionResponse {
     /// Get the execution result (command results on success, execution error on
     /// failure).
     ///
-    /// Requires `execution_result` in the read_mask.
+    /// **Read mask:** `"execution_result"` (see
+    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    ///
+    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
     pub fn execution_result(
         &self,
     ) -> Result<
@@ -97,6 +125,11 @@ impl SimulateTransactionResponse {
 
     /// Returns `Some` if the simulation succeeded with command results, `None`
     /// otherwise.
+    ///
+    /// **Read mask:** `"execution_result"` (see
+    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    ///
+    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
     pub fn command_results(&self) -> Option<&crate::v0::command::CommandResults> {
         match &self.execution_result {
             Some(crate::v0::transaction_execution_service::simulate_transaction_response::ExecutionResult::CommandResults(r)) => Some(r),
@@ -106,6 +139,11 @@ impl SimulateTransactionResponse {
 
     /// Returns `Some` if the simulation failed with an execution error, `None`
     /// otherwise.
+    ///
+    /// **Read mask:** `"execution_result"` (see
+    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    ///
+    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
     pub fn execution_error(
         &self,
     ) -> Option<&crate::v0::transaction_execution_service::ExecutionError> {
