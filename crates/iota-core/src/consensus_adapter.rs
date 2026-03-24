@@ -593,6 +593,11 @@ impl ConsensusAdapter {
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
 
+    /// Returns the number of transactions currently in-flight in consensus.
+    pub fn num_inflight_transactions(&self) -> u64 {
+        self.num_inflight_transactions.load(Ordering::Relaxed)
+    }
+
     /// Performs weakly consistent checks on internal buffers to quickly
     /// discard transactions if we are overloaded
     pub fn check_limits(&self) -> bool {
