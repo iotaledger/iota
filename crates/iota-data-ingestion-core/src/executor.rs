@@ -545,10 +545,10 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 /// async fn main() {
 ///     let (executor, _) = setup_single_workflow(
 ///         CustomWorker,
-///         "http://127.0.0.1:9000/api/v1".to_string(), // fullnode REST API
-///         0,                                          // initial checkpoint number.
-///         5,                                          // concurrency.
-///         None,                                       // extra reader options.
+///         "http://127.0.0.1:50051".to_string(), // fullnode gRPC API
+///         0,                                    // initial checkpoint number.
+///         5,                                    // concurrency.
+///         None,                                 // extra reader options.
 ///     )
 ///     .await
 ///     .unwrap();

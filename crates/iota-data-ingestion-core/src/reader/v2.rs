@@ -36,12 +36,12 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
-        fetch::{LocalRead, ReadSource, fetch_from_object_store},
+        fetch::{
+            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
+        },
         v1::{DataLimiter, ReaderOptions},
     },
 };
-
-const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
 
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
@@ -55,7 +55,9 @@ pub enum RemoteUrl {
     /// checkpoint data streaming through gRPC.
     ///
     /// # Example
-    /// - gRPC URL: `http://127.0.0.1:50051`
+    /// ```text
+    /// "http://127.0.0.1:50051"
+    /// ```
     Fullnode(String),
     /// A hybrid source combining historical object store and optional live
     /// object store.
@@ -108,7 +110,6 @@ impl RemoteStore {
                             .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES))
                     })
                     .await?;
-                info!("using gRPC as checkpoint stream");
                 RemoteStore::Fullnode(grpc_client)
             }
             RemoteUrl::HybridHistoricalStore {
@@ -343,7 +344,7 @@ impl CheckpointReaderActor {
             .transpose()?
             .flatten()
         {
-            let checkpoint: CheckpointData = grpc_checkpoint.checkpoint_data()?.try_into()?;
+            let checkpoint = grpc_checkpoint.checkpoint_data()?.try_into()?;
             let size = bcs::serialized_size(&checkpoint)?;
             self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
                 .await?;

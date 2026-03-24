@@ -26,6 +26,8 @@ use crate::{
 
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
+pub(crate) const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
+
 /// Managing and processing checkpoint files in a directory.
 pub(crate) trait LocalRead {
     /// Path is used as the source for reading checkpoint files.
@@ -210,7 +212,7 @@ pub async fn fetch_from_full_node(
     let checkpoint: CheckpointData = client
         .get_checkpoint_by_sequence_number(
             checkpoint_number,
-            Some("checkpoint,transactions"),
+            Some(iota_grpc_client::CHECKPOINT_DATA_READ_MASK),
             None,
             None,
         )

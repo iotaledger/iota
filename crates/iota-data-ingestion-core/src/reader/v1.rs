@@ -11,7 +11,8 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
+use iota_grpc_client::Client as GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
@@ -25,14 +26,15 @@ use tokio::{
     },
     time::timeout,
 };
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     reader::fetch::{
-        CheckpointResult, LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store,
+        CheckpointResult, GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource,
+        fetch_from_full_node, fetch_from_object_store,
     },
 };
 
@@ -108,13 +110,9 @@ impl Default for ReaderOptions {
 }
 
 /// Remote checkpoint store backends.
-///
-/// NOTE: Standalone fullnode (gRPC) mode is only available in the v2 reader
-/// (`CheckpointReader` in `reader/v2.rs`). The v1 reader supports object stores
-/// and a hybrid mode (gRPC fullnode + object store fallback) using
-/// pipe-delimited URLs: `"grpc_url|object_store_url"`.
 enum RemoteStore {
     ObjectStore(Box<dyn ObjectStore>),
+    Fullnode(Box<iota_grpc_client::Client>),
     Hybrid(Box<dyn ObjectStore>, Box<iota_grpc_client::Client>),
 }
 
@@ -127,6 +125,7 @@ impl CheckpointReader {
             RemoteStore::ObjectStore(store) => {
                 fetch_from_object_store(store, checkpoint_number).await
             }
+            RemoteStore::Fullnode(client) => fetch_from_full_node(client, checkpoint_number).await,
             RemoteStore::Hybrid(store, client) => {
                 match fetch_from_full_node(client, checkpoint_number).await {
                     Ok(result) => Ok(result),
@@ -177,23 +176,42 @@ impl CheckpointReader {
 
         spawn_monitored_task!(async move {
             let store = if let Some((fn_url, remote_url)) = url.split_once('|') {
-                let fn_url = fn_url.to_string();
                 let object_store = create_remote_store_client(
                     remote_url.to_string(),
                     remote_store_options,
                     timeout_secs,
                 )
                 .expect("failed to create remote store client");
-                let client = iota_grpc_client::Client::connect(&fn_url)
+
+                let grpc_client = iota_grpc_client::Client::connect(fn_url)
                     .await
                     .expect("failed to connect to gRPC fullnode");
-                RemoteStore::Hybrid(object_store, Box::new(client))
+
+                RemoteStore::Hybrid(object_store, Box::new(grpc_client))
             } else {
-                let object_store =
-                    create_remote_store_client(url, remote_store_options, timeout_secs)
-                        .expect("failed to create remote store client");
-                RemoteStore::ObjectStore(object_store)
+                let grpc_client = GrpcClient::connect(url.clone())
+                    .and_then(|grpc_client| async {
+                        // check if we can make gRPC request to client
+                        grpc_client.get_health(None).await?;
+                        Ok(grpc_client
+                            .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES))
+                    })
+                    .await;
+
+                match grpc_client {
+                    Ok(grpc_client) => RemoteStore::Fullnode(Box::new(grpc_client)),
+                    Err(err) => {
+                        warn!(
+                            "failed to connect to gRPC fullnode, falling back to object store: {err:?}"
+                        );
+                        let object_store =
+                            create_remote_store_client(url, remote_store_options, timeout_secs)
+                                .expect("failed to create remote store client");
+                        RemoteStore::ObjectStore(object_store)
+                    }
+                }
             };
+
             let mut checkpoint_stream = (start_checkpoint..u64::MAX)
                 .map(|checkpoint_number| Self::remote_fetch_checkpoint(&store, checkpoint_number))
                 .pipe(futures::stream::iter)
