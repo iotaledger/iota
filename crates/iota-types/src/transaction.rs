@@ -425,7 +425,7 @@ pub enum Command {
     Publish(Vec<Vec<u8>>, Vec<ObjectID>),
     /// `forall T: Vec<T> -> vector<T>`
     /// Given n-values of the same type, it constructs a vector. For non objects
-    /// or an empty vector, the type input must be specified.
+    /// or an empty vector, the type tag must be specified.
     MakeMoveVec(Option<TypeTag>, Vec<Argument>),
     /// Upgrades a Move package
     /// Takes (in order):
