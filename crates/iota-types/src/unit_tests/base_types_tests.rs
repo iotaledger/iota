@@ -17,7 +17,7 @@ use move_binary_format::file_format;
 
 use super::*;
 use crate::{
-    base_types::{MoveObjectType, TypeTag},
+    base_types::TypeTag,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         IotaSignature, Signature, SignatureScheme,
@@ -414,31 +414,26 @@ fn test_address_backwards_compatibility() {
     );
 }
 
-// tests translating into and out of a MoveObjectType from a StructTag
+// tests StructTag constructor and checker consistency
 #[test]
 fn move_object_type_consistency() {
-    // Tests consistency properties for the relationship between a StructTag and a
-    // MoveObjectType
-    fn assert_consistent(tag: &StructTag) -> MoveObjectType {
-        let ty: MoveObjectType = tag.clone().into();
-        // check into/out of the tag works
-        assert!(ty.is(tag));
-        let ty_as_tag: StructTag = ty.clone().into();
-        assert_eq!(&ty_as_tag, tag);
+    // Tests consistency properties for StructTag constructors and type checkers
+    fn assert_consistent(tag: &StructTag) -> StructTag {
+        let ty = tag.clone();
         // test same type information
         assert_eq!(ty.address(), tag.address());
-        assert_eq!(&ty.module(), tag.module());
-        assert_eq!(&ty.name(), tag.name());
-        assert_eq!(&ty.type_params(), &tag.type_params());
+        assert_eq!(ty.module(), tag.module());
+        assert_eq!(ty.name(), tag.name());
+        assert_eq!(ty.type_params(), tag.type_params());
         // sanity check special cases
         assert!(!ty.is_gas_coin() || ty.is_coin());
-        assert!(!ty.is_timelocked_balance() || ty.is_timelock());
+        assert!(!ty.is_timelocked_balance() || ty.is_time_lock());
         let cases = [
             ty.is_coin(),
             ty.is_staked_iota(),
             ty.is_coin_metadata(),
             ty.is_dynamic_field(),
-            ty.is_timelock(),
+            ty.is_time_lock(),
             ty.is_timelocked_staked_iota(),
         ];
         assert!(cases.into_iter().map(|is_ty| is_ty as u8).sum::<u8>() <= 1);
@@ -459,17 +454,15 @@ fn move_object_type_consistency() {
         TypeTag::U64,
     ));
     assert!(ty.is_dynamic_field());
-    let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_balance(
-        StructTag::new_gas(),
-    )));
-    assert_eq!(ty, MoveObjectType::timelocked_iota_balance());
-    assert!(ty.is_timelock());
+    let ty = assert_consistent(&StructTag::new_timelocked_gas_balance());
+    assert_eq!(ty, StructTag::new_timelocked_gas_balance());
+    assert!(ty.is_time_lock());
     assert!(ty.is_timelocked_balance());
     let ty = assert_consistent(&StructTag::new_time_lock(StructTag::new_gas_coin()));
-    assert!(ty.is_timelock());
+    assert!(ty.is_time_lock());
     assert!(!ty.is_timelocked_balance());
     let ty = assert_consistent(&StructTag::new_timelocked_staked_iota());
-    assert_eq!(ty, MoveObjectType::timelocked_staked_iota());
+    assert_eq!(ty, StructTag::new_timelocked_staked_iota());
     assert!(ty.is_timelocked_staked_iota());
     assert_consistent(&StructTag::new_uid());
     assert_consistent(&StructTag::new_id());

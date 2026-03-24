@@ -121,7 +121,7 @@ impl TryFrom<ObjectData> for crate::object::Data {
 
 fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
     MoveStruct {
-        type_: move_object_type_to_sdk(obj.type_),
+        type_: obj.type_,
         version: obj.version,
         contents: obj.contents,
     }
@@ -129,23 +129,10 @@ fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
 
 fn sdk_object_to_move(obj: MoveStruct) -> crate::object::MoveObject {
     crate::object::MoveObject {
-        type_: sdk_object_type_to_move(&obj.type_),
+        type_: obj.type_,
         version: obj.version,
         contents: obj.contents,
     }
-}
-
-pub fn move_object_type_to_sdk(type_: crate::base_types::MoveObjectType) -> StructTag {
-    StructTag::new(
-        type_.address(),
-        type_.module(),
-        type_.name(),
-        type_.type_params(),
-    )
-}
-
-fn sdk_object_type_to_move(type_: &StructTag) -> crate::base_types::MoveObjectType {
-    crate::base_types::MoveObjectType::from(type_)
 }
 
 impl TryFrom<crate::transaction::TransactionData> for TransactionV1 {

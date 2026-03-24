@@ -2952,11 +2952,11 @@ async fn test_invalid_authenticator_state_parameter() {
         // type_args
         vec![],
         gas_ref,
-        vec![CallArg::Shared(SharedObjectRef {
-            object_id: ObjectID::AUTHENTICATOR_STATE,
-            initial_shared_version: SequenceNumber::INITIAL_SHARED_VERSION,
-            mutable: true,
-        })],
+        vec![CallArg::Shared(iota_sdk_types::SharedObjectReference::new(
+            ObjectID::AUTHENTICATOR_STATE,
+            iota_sdk_types::Version::INITIAL_SHARED_VERSION,
+            true,
+        ))],
         TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
     )
@@ -3132,7 +3132,7 @@ async fn test_genesis_iota_system_state_object() {
     let move_object = wrapper.data.try_as_move().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is(&StructTag::new_iota_system_state()));
+    assert!(move_object.type_().is_iota_system_state());
     let iota_system_state = authority_state
         .get_iota_system_state_object_for_testing()
         .unwrap();

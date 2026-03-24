@@ -83,7 +83,7 @@ impl From<IndexedObject> for StoredObjectSnapshot {
         } = o;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_maybe()
+            .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unsafe())
@@ -189,7 +189,7 @@ impl StoredHistoryObject {
         };
 
         let move_type_layout = package_resolver
-            .type_layout(move_object.type_().clone().into())
+            .type_layout(move_object.type_tag())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
@@ -244,7 +244,7 @@ impl From<IndexedObject> for StoredHistoryObject {
         } = o;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_maybe()
+            .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unsafe())
@@ -333,7 +333,7 @@ impl From<IndexedObject> for StoredObject {
         } = o;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_maybe()
+            .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unsafe())
@@ -389,7 +389,7 @@ impl StoredObject {
         };
 
         let move_type_layout = package_resolver
-            .type_layout(move_object.type_().clone().into())
+            .type_layout(move_object.type_tag())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
@@ -652,15 +652,8 @@ mod tests {
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
         let data = Data::Move(
-            {
-                MoveObject::new_from_execution_with_limit(
-                    object_type.into(),
-                    1.into(),
-                    contents,
-                    256,
-                )
-            }
-            .unwrap(),
+            MoveObject::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
+                .unwrap(),
         );
 
         let owner = IotaAddress::STD;
