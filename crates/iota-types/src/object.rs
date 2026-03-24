@@ -10,8 +10,8 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{MoveObjectType, StructTag, TypeTag};
 pub use iota_sdk_types::{MoveStruct as MoveObject, Owner};
+use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
@@ -21,8 +21,8 @@ use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor}
 use crate::{
     balance::Balance,
     base_types::{
-        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef,
-        SequenceNumber, TransactionDigest,
+        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, SequenceNumber,
+        TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
     crypto::{default_hash, deterministic_random_account_key},
@@ -50,13 +50,13 @@ pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
 pub trait MoveObjectExt: Sized {
     fn new_from_execution(
-        type_: MoveObjectType,
+        tag: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError>;
     fn new_from_execution_with_limit(
-        type_: MoveObjectType,
+        tag: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         max_move_object_size: u64,
@@ -87,26 +87,26 @@ pub trait MoveObjectExt: Sized {
 }
 
 impl MoveObjectExt for MoveObject {
-    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+    /// Creates a new Move object of type `tag` with BCS encoded bytes in
     /// `contents`.
     fn new_from_execution(
-        type_: StructTag,
+        tag: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError> {
         Self::new_from_execution_with_limit(
-            type_,
+            tag,
             version,
             contents,
             protocol_config.max_move_object_size(),
         )
     }
 
-    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+    /// Creates a new Move object of type `tag` with BCS encoded bytes in
     /// `contents`. It allows to set a `max_move_object_size` for that.
     fn new_from_execution_with_limit(
-        type_: StructTag,
+        tag: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         max_move_object_size: u64,
@@ -120,7 +120,7 @@ impl MoveObjectExt for MoveObject {
             ));
         }
         Ok(Self {
-            type_: type_.into(),
+            type_: tag.into(),
             version,
             contents,
         })
@@ -142,7 +142,7 @@ impl MoveObjectExt for MoveObject {
         // unwrap safe because coins are always smaller tha the max object size
 
         Self::new_from_execution_with_limit(
-            MoveObjectType::coin(coin_type),
+            StructTag::new_coin(coin_type),
             version,
             Coin::new(id, value).to_bcs_bytes(),
             256,
@@ -256,7 +256,7 @@ impl MoveObjectExt for MoveObject {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(&self.type_().clone())?;
+            let layout = layout_resolver.get_annotated_layout(self.type_())?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
