@@ -34,8 +34,7 @@ use iota_types::{
         HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
         HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
         HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitCertificateResponse, SubmitTransactionResult,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
+        ObjectInfoResponse, SubmitCertificateResponse, SubmitTransactionResult, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
@@ -1271,8 +1270,12 @@ impl ValidatorService {
 
     async fn handle_submit_transactions_impl(
         &self,
-        request: tonic::Request<SubmitTransactionsRequest>,
-    ) -> WrappedServiceResponse<SubmitTransactionsResponse> {
+        request: tonic::Request<iota_types::messages_grpc::RawSubmitTransactionsRequest>,
+    ) -> WrappedServiceResponse<iota_types::messages_grpc::RawSubmitTransactionsResponse> {
+        use iota_types::messages_grpc::{
+            RawSubmitTransactionResult, RawSubmitTransactionsResponse,
+        };
+
         let Self {
             state,
             consensus_adapter,
@@ -1296,28 +1299,39 @@ impl ValidatorService {
             .into()
         );
 
-        let request = request.into_inner();
+        let raw_request = request.into_inner();
 
         // Handle ping (empty request → empty response).
-        if request.is_ping() {
+        if raw_request.transactions.is_empty() {
             return Ok((
-                tonic::Response::new(SubmitTransactionsResponse { results: vec![] }),
+                tonic::Response::new(RawSubmitTransactionsResponse { results: vec![] }),
                 Weight::zero(),
             ));
         }
 
-        let transactions = request.transactions;
-        let tx_count = transactions.len();
+        let tx_count = raw_request.transactions.len();
 
         // Pre-allocate a results vector aligned 1:1 with the input transactions.
         let mut results: Vec<Option<SubmitTransactionResult>> = vec![None; tx_count];
 
-        // Per-tx validity and overload checks. Failures are stored per-tx
-        // rather than aborting the whole batch, so valid transactions can
-        // still proceed.
+        // Deserialize, validate, and check overload in a single pass.
+        // Per-tx failures (BCS, validity, overload) are stored per-tx rather
+        // than aborting the whole batch, so valid transactions can still proceed.
         let mut valid_transactions: Vec<(usize, Transaction)> = Vec::with_capacity(tx_count);
 
-        for (idx, tx) in transactions.into_iter().enumerate() {
+        for (idx, tx_bytes) in raw_request.transactions.iter().enumerate() {
+            let tx: Transaction = match bcs::from_bytes(tx_bytes) {
+                Ok(tx) => tx,
+                Err(e) => {
+                    results[idx] = Some(SubmitTransactionResult::Rejected {
+                        error: IotaError::TransactionSerialization {
+                            error: e.to_string(),
+                        },
+                    });
+                    continue;
+                }
+            };
+
             if let Err(e) = tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch()) {
                 results[idx] = Some(SubmitTransactionResult::Rejected { error: e });
                 continue;
@@ -1360,13 +1374,16 @@ impl ValidatorService {
             );
         }
 
-        let results = results
+        // Convert each native result to its Raw protobuf representation.
+        let results: Vec<RawSubmitTransactionResult> = results
             .into_iter()
             .map(|r| r.expect("every transaction slot must be filled"))
-            .collect::<Vec<_>>();
+            .map(|r| r.try_into())
+            .collect::<Result<Vec<_>, IotaError>>()
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
         Ok((
-            tonic::Response::new(SubmitTransactionsResponse { results }),
+            tonic::Response::new(RawSubmitTransactionsResponse { results }),
             Weight::one(),
         ))
     }
@@ -1481,28 +1498,51 @@ impl ValidatorService {
 
     async fn handle_wait_for_effects_impl(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
-    ) -> WrappedServiceResponse<iota_types::messages_grpc::WaitForEffectsResponse> {
-        use iota_types::messages_grpc::WaitForEffectsResponse;
+        request: tonic::Request<iota_types::messages_grpc::RawWaitForEffectsRequest>,
+    ) -> WrappedServiceResponse<iota_types::messages_grpc::RawWaitForEffectsResponse> {
+        use iota_types::messages_grpc::{
+            RawWaitForEffectResponse, RawWaitForEffectsResponse, WaitForEffectRequest,
+        };
 
-        let batch_request = request.into_inner();
+        let raw_request = request.into_inner();
 
         // Handle ping (empty request → empty response).
-        if batch_request.is_ping() {
+        if raw_request.requests.is_empty() {
             return Ok((
-                tonic::Response::new(WaitForEffectsResponse { results: vec![] }),
+                tonic::Response::new(RawWaitForEffectsResponse { results: vec![] }),
                 Weight::one(),
             ));
         }
 
-        let futures = batch_request
-            .requests
+        // Deserialize each item's fields lazily and construct native requests.
+        let mut native_requests = Vec::with_capacity(raw_request.requests.len());
+        for raw_item in &raw_request.requests {
+            let transaction_digest =
+                bcs::from_bytes(&raw_item.transaction_digest).map_err(|e| {
+                    tonic::Status::invalid_argument(format!(
+                        "Failed to deserialize transaction_digest: {e}"
+                    ))
+                })?;
+            native_requests.push(WaitForEffectRequest {
+                transaction_digest,
+                include_details: raw_item.include_details,
+            });
+        }
+
+        let futures = native_requests
             .into_iter()
             .map(|req| self.handle_wait_for_effect_impl(req));
-        let results = join_all(futures).await;
+        let native_results = join_all(futures).await;
+
+        // Convert each native result to its Raw protobuf representation.
+        let results: Vec<RawWaitForEffectResponse> = native_results
+            .into_iter()
+            .map(|r| r.try_into())
+            .collect::<Result<Vec<_>, IotaError>>()
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
         Ok((
-            tonic::Response::new(WaitForEffectsResponse { results }),
+            tonic::Response::new(RawWaitForEffectsResponse { results }),
             Weight::one(),
         ))
     }
@@ -1600,8 +1640,8 @@ impl ValidatorService {
 
     async fn handle_validator_health_impl(
         &self,
-        _request: tonic::Request<iota_types::messages_grpc::ValidatorHealthRequest>,
-    ) -> WrappedServiceResponse<iota_types::messages_grpc::ValidatorHealthResponse> {
+        _request: tonic::Request<iota_types::messages_grpc::RawValidatorHealthRequest>,
+    ) -> WrappedServiceResponse<iota_types::messages_grpc::RawValidatorHealthResponse> {
         use iota_types::messages_grpc::ValidatorHealthResponse;
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
@@ -1613,20 +1653,20 @@ impl ValidatorService {
             .map(|(seq, _)| seq)
             .unwrap_or(0);
 
-        Ok((
-            tonic::Response::new(ValidatorHealthResponse {
-                num_inflight_execution_transactions: self
-                    .state
-                    .transaction_manager()
-                    .inflight_queue_len()
-                    as u64,
-                num_inflight_consensus_transactions: self
-                    .consensus_adapter
-                    .num_inflight_transactions(),
-                last_locally_built_checkpoint,
-            }),
-            Weight::zero(),
-        ))
+        let typed_response = ValidatorHealthResponse {
+            num_inflight_execution_transactions: self
+                .state
+                .transaction_manager()
+                .inflight_queue_len() as u64,
+            num_inflight_consensus_transactions: self.consensus_adapter.num_inflight_transactions(),
+            last_locally_built_checkpoint,
+        };
+
+        let raw_response = typed_response
+            .try_into()
+            .map_err(|e: IotaError| tonic::Status::internal(e.to_string()))?;
+
+        Ok((tonic::Response::new(raw_response), Weight::zero()))
     }
 }
 
@@ -1776,8 +1816,11 @@ impl Validator for ValidatorService {
 
     async fn handle_submit_transactions(
         &self,
-        request: tonic::Request<SubmitTransactionsRequest>,
-    ) -> Result<tonic::Response<SubmitTransactionsResponse>, tonic::Status> {
+        request: tonic::Request<iota_types::messages_grpc::RawSubmitTransactionsRequest>,
+    ) -> Result<
+        tonic::Response<iota_types::messages_grpc::RawSubmitTransactionsResponse>,
+        tonic::Status,
+    > {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
             handle_with_decoration!(validator_service, handle_submit_transactions_impl, request)
@@ -1788,8 +1831,8 @@ impl Validator for ValidatorService {
 
     async fn handle_wait_for_effects(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
-    ) -> Result<tonic::Response<iota_types::messages_grpc::WaitForEffectsResponse>, tonic::Status>
+        request: tonic::Request<iota_types::messages_grpc::RawWaitForEffectsRequest>,
+    ) -> Result<tonic::Response<iota_types::messages_grpc::RawWaitForEffectsResponse>, tonic::Status>
     {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
@@ -1801,8 +1844,8 @@ impl Validator for ValidatorService {
 
     async fn handle_validator_health(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::ValidatorHealthRequest>,
-    ) -> Result<tonic::Response<iota_types::messages_grpc::ValidatorHealthResponse>, tonic::Status>
+        request: tonic::Request<iota_types::messages_grpc::RawValidatorHealthRequest>,
+    ) -> Result<tonic::Response<iota_types::messages_grpc::RawValidatorHealthResponse>, tonic::Status>
     {
         handle_with_decoration!(self, handle_validator_health_impl, request)
     }
