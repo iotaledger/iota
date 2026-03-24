@@ -69,7 +69,7 @@ use iota_types::{
         AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
         default_hash,
     },
-    deny_list_v1::check_coin_deny_list_v1_during_signing,
+    deny_list_v1::check_coin_deny_list_v1,
     digests::{ChainIdentifier, Digest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
@@ -301,6 +301,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
     pub consensus_handler_cancelled_transactions: IntCounter,
+    pub consensus_handler_validation_dropped_transactions: IntCounter,
     pub consensus_handler_max_object_costs: IntGaugeVec,
     pub consensus_committed_subdags: IntCounterVec,
     pub consensus_committed_messages: IntGaugeVec,
@@ -699,6 +700,11 @@ impl AuthorityMetrics {
                 "Number of transactions cancelled by consensus handler",
                 registry,
             ).unwrap(),
+            consensus_handler_validation_dropped_transactions: register_int_counter_with_registry!(
+                "consensus_handler_validation_dropped_transactions",
+                "Number of UserTransactionV1 transactions dropped by post-consensus validation",
+                registry,
+            ).unwrap(),
             consensus_handler_max_object_costs: register_int_gauge_vec_with_registry!(
                 "consensus_handler_max_congestion_control_object_costs",
                 "Max object costs for congestion control in the current consensus commit",
@@ -875,18 +881,15 @@ impl AuthorityState {
         self.checkpoint_store.get_epoch_state_commitments(epoch)
     }
 
-    /// This is a private method and should be kept that way. It doesn't check
-    /// whether the provided transaction is a system transaction, and hence
-    /// can only be called internally.
+    /// Runs deny list, input object validation, gas checks, coin deny list, and
+    /// MoveAuthenticator checks. Returns the owned object refs for optional
+    /// version validation. Does NOT acquire locks or sign the transaction.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
-    async fn handle_transaction_impl(
+    pub(crate) async fn handle_transaction_validation_checks(
         &self,
-        transaction: VerifiedTransaction,
+        transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<VerifiedSignedTransaction> {
-        // Ensure that validator cannot reconfigure while we are signing the tx
-        let _execution_lock = self.execution_lock_for_signing()?;
-
+    ) -> IotaResult<Vec<ObjectRef>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
@@ -897,7 +900,7 @@ impl AuthorityState {
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             tx_data,
             transaction.tx_signatures(),
             &transaction.input_objects()?,
@@ -911,14 +914,14 @@ impl AuthorityState {
         // call if there is a sender `MoveAuthenticator` signature present in the
         // transaction.
         let (tx_input_objects, tx_receiving_objects, auth_input_objects, account_object) =
-            self.read_objects_for_signing(&transaction, epoch)?;
+            self.read_objects_for_validation(transaction, epoch)?;
 
         // Get the sender `MoveAuthenticator`, if any.
         // Only one `MoveAuthenticator` signature is possible, since it is not
         // implemented for the sponsor at the moment.
         let move_authenticator = transaction.sender_move_authenticator();
 
-        // Check the inputs for signing.
+        // Check the inputs for validation.
         // If there is a sender `MoveAuthenticator` signature, its input objects and the
         // account object are also checked and must be provided.
         // It is also checked if there is enough gas to execute the transaction and its
@@ -928,7 +931,7 @@ impl AuthorityState {
             tx_checked_input_objects,
             auth_checked_input_objects,
             authenticator_function_ref,
-        ) = self.check_transaction_inputs_for_signing(
+        ) = self.check_transaction_inputs_for_validation(
             protocol_config,
             reference_gas_price,
             tx_data,
@@ -939,7 +942,7 @@ impl AuthorityState {
             account_object,
         )?;
 
-        check_coin_deny_list_v1_during_signing(
+        check_coin_deny_list_v1(
             tx_data.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
@@ -986,8 +989,25 @@ impl AuthorityState {
             }
         }
 
-        let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
+        Ok(tx_checked_input_objects.inner().filter_owned_objects())
+    }
 
+    /// This is a private method and should be kept that way. It doesn't check
+    /// whether the provided transaction is a system transaction, and hence
+    /// can only be called internally.
+    async fn handle_transaction_impl(
+        &self,
+        transaction: VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<VerifiedSignedTransaction> {
+        // Ensure that validator cannot reconfigure while we are signing the tx
+        let _execution_lock = self.execution_lock_for_signing()?;
+
+        let owned_objects = self
+            .handle_transaction_validation_checks(&transaction, epoch_store)
+            .await?;
+
+        let epoch = epoch_store.epoch();
         let signed_transaction =
             VerifiedSignedTransaction::new(epoch, transaction, self.name, &*self.secret);
 
@@ -1864,7 +1884,7 @@ impl AuthorityState {
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -2067,7 +2087,7 @@ impl AuthorityState {
 
         // Since we need to simulate a validator signing the transaction, the first step
         // is to check if some transaction elements are denied.
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -2252,7 +2272,7 @@ impl AuthorityState {
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
-        iota_transaction_checks::deny::check_transaction_for_signing(
+        iota_transaction_checks::deny::check_transaction_for_validation(
             &transaction,
             &[],
             &input_object_kinds,
@@ -5459,7 +5479,7 @@ impl AuthorityState {
         }
     }
 
-    fn read_objects_for_signing(
+    fn read_objects_for_validation(
         &self,
         transaction: &VerifiedTransaction,
         epoch: u64,
@@ -5488,7 +5508,7 @@ impl AuthorityState {
             })
     }
 
-    fn check_transaction_inputs_for_signing(
+    fn check_transaction_inputs_for_validation(
         &self,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -5534,7 +5554,7 @@ impl AuthorityState {
 
             // Check the MoveAuthenticator input objects.
             let auth_checked_input_objects =
-                iota_transaction_checks::check_move_authenticator_input_for_signing(
+                iota_transaction_checks::check_move_authenticator_input_for_validation(
                     auth_input_objects,
                 )?;
 
