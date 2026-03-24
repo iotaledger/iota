@@ -10,9 +10,6 @@ tags:
   - swift
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 # Create an Address from a Mnemonic
 
 This how-to demonstrates how to derive a cryptographic key pair and an IOTA address from a BIP-39 mnemonic phrase for each of the three supported signature schemes: Ed25519, Secp256k1, and Secp256r1.
@@ -286,31 +283,8 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 </TabItem>
 </Tabs>
 
-## Expected Output
-
-```
-Ed25519
----
-Private Key: iotaprivkey1...
-Public Key: <base64-encoded-public-key>
-Public Key With Flag: <base64-encoded-flagged-public-key>
-Address: 0x<64-character-hex-address>
-
-Secp256k1
----
-Private Key: iotaprivkey1...
-Public Key: <base64-encoded-public-key>
-Public Key With Flag: <base64-encoded-flagged-public-key>
-Address: 0x<64-character-hex-address>
-
-Secp256r1
----
-Private Key: iotaprivkey1...
-Public Key: <base64-encoded-public-key>
-Public Key With Flag: <base64-encoded-flagged-public-key>
-Address: 0x<64-character-hex-address>
-```
-
 :::tip
+
 Each scheme produces a **different** address from the same mnemonic. For a deeper explanation of why, see [Address Derivation in IOTA](../../explanations/address-derivation).
+
 :::
