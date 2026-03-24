@@ -37,7 +37,9 @@ pub const UPGRADE_DATA_STRUCT_NAME: &IdentStr = ident_str!("UpgradeData");
 // ---------------------------------------------------------------------------
 
 /// Mirrors [`crate::transaction::ProgrammableMoveCall`] for use in
-/// [`MoveCommand`].
+/// [`MoveCommand`], substituting [`TypeTag`] for a string in the type arguments
+/// so that the type matches the BCS layout expected by the Move-side
+/// `ptb_command::ProgrammableMoveCall`.
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoveProgrammableMoveCall {
