@@ -456,29 +456,6 @@ export default function VestingDashboardPage(): JSX.Element {
         <>
             <div className="flex w-full flex-col items-center justify-center gap-lg justify-self-center">
                 <div className="flex w-full flex-col gap-lg md:w-3/4">
-                    {showCollectSummary && collectTxDigest && collectTransaction && (
-                        <Panel>
-                            <div className="flex items-center justify-between px-lg pt-lg">
-                                <Title title="Collection Summary" size={TitleSize.Small} />
-                                <Button
-                                    size={ButtonSize.Small}
-                                    type={ButtonType.Ghost}
-                                    onClick={() => setShowCollectSummary(false)}
-                                    icon={<Close />}
-                                    testId="close-icon"
-                                    aria-label="Close"
-                                    text=""
-                                />
-                            </div>
-                            <div className="px-lg pb-lg">
-                                <CollectSummary
-                                    transaction={collectTransaction}
-                                    activeAddress={address}
-                                />
-                            </div>
-                        </Panel>
-                    )}
-
                     <Panel>
                         <Title title="Vesting" size={TitleSize.Medium} />
                         <div className="flex flex-col gap-md p-lg pt-sm">
