@@ -380,8 +380,7 @@ pub enum SubmitTransactionResult {
     /// The transaction has already been executed (finalized).
     Executed {
         effects_digest: TransactionEffectsDigest,
-        /// Response should always include details for executed transactions.
-        details: Option<Box<ExecutedData>>,
+        details: Box<ExecutedData>,
     },
     /// The transaction was rejected.
     Rejected { error: IotaError },

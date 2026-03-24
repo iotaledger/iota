@@ -651,12 +651,8 @@ async fn test_submit_transaction_already_executed() {
     assert!(result.is_ok(), "Expected Ok for already-executed tx");
     let response = result.unwrap().0.into_inner();
     match response.result {
-        SubmitTransactionResult::Executed {
-            effects_digest,
-            details,
-        } => {
+        SubmitTransactionResult::Executed { effects_digest, .. } => {
             assert_eq!(effects_digest, *effects.digest());
-            assert!(details.is_some(), "Expected details to be populated");
         }
         other => panic!("Expected Executed result, got {other:?}"),
     }
