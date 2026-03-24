@@ -34,6 +34,8 @@ const ANTI_BOT_CONFIG = {
 // Sessions with only this automatic event (no real user interaction) are treated as bots.
 const BOT_EVENT_COUNT_THRESHOLD = 1;
 
+const SPECIAL_EVENT_TYPE_SET = new Set<string>(Object.values(SpecialEventType));
+
 let isBotCleared = false;
 let trackedEventCount = 0;
 
@@ -79,7 +81,7 @@ export async function initAmplitude() {
         type: 'enrichment' as const,
         setup: async () => {},
         execute: async (event) => {
-            if (!Object.values(SpecialEventType).includes(event.event_type as SpecialEventType)) {
+            if (!SPECIAL_EVENT_TYPE_SET.has(event.event_type)) {
                 trackedEventCount++;
             }
             return event;
