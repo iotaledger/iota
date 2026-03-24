@@ -811,37 +811,27 @@ impl RestIndexStore {
         let package_version_ready = Arc::new(AtomicBool::new(pkg_done));
         let regulated_coin_ready = Arc::new(AtomicBool::new(reg_done));
 
-        if !pkg_done {
+        if !pkg_done || !reg_done {
             let tables_clone = Arc::clone(&tables);
             let auth_clone = Arc::clone(&authority_store);
-            let flag = Arc::clone(&package_version_ready);
+            let pkg_flag = Arc::clone(&package_version_ready);
+            let reg_flag = Arc::clone(&regulated_coin_ready);
             tokio::spawn(async move {
                 match tokio::task::spawn_blocking(move || {
-                    backfill_package_version(&tables_clone, &auth_clone, &flag);
+                    backfill_new_tables(
+                        &tables_clone,
+                        &auth_clone,
+                        !pkg_done,
+                        &pkg_flag,
+                        !reg_done,
+                        &reg_flag,
+                    );
                 })
                 .await
                 {
                     Ok(()) => {}
                     Err(e) => {
-                        tracing::error!("package_version backfill task panicked: {e}");
-                    }
-                }
-            });
-        }
-
-        if !reg_done {
-            let tables_clone = Arc::clone(&tables);
-            let auth_clone = Arc::clone(&authority_store);
-            let flag = Arc::clone(&regulated_coin_ready);
-            tokio::spawn(async move {
-                match tokio::task::spawn_blocking(move || {
-                    backfill_regulated_coin(&tables_clone, &auth_clone, &flag);
-                })
-                .await
-                {
-                    Ok(()) => {}
-                    Err(e) => {
-                        tracing::error!("regulated_coin backfill task panicked: {e}");
+                        tracing::error!("background backfill task panicked: {e}");
                     }
                 }
             });
@@ -1210,31 +1200,47 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
 // backfill is not repeated on the next restart.
 // ---------------------------------------------------------------------------
 
-struct PackageVersionBackfillIndexer<'a> {
+/// Combined backfill indexer that populates both `package_version` and
+/// `regulated_coin` tables in a single pass over the live object set.
+struct BackfillIndexer<'a> {
     tables: &'a IndexStoreTables,
+    backfill_package_version: bool,
+    backfill_regulated_coin: bool,
 }
 
-struct PackageVersionBatchIndexer<'a> {
+struct BackfillBatchIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
+    backfill_package_version: bool,
+    backfill_regulated_coin: bool,
 }
 
-impl<'a> ParMakeLiveObjectIndexer for PackageVersionBackfillIndexer<'a> {
-    type ObjectIndexer = PackageVersionBatchIndexer<'a>;
+impl<'a> ParMakeLiveObjectIndexer for BackfillIndexer<'a> {
+    type ObjectIndexer = BackfillBatchIndexer<'a>;
 
     fn make_live_object_indexer(&self) -> Self::ObjectIndexer {
-        PackageVersionBatchIndexer {
+        BackfillBatchIndexer {
             batch: self.tables.package_version.batch(),
             tables: self.tables,
+            backfill_package_version: self.backfill_package_version,
+            backfill_regulated_coin: self.backfill_regulated_coin,
         }
     }
 }
 
-impl LiveObjectIndexer for PackageVersionBatchIndexer<'_> {
+impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
     fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
-        if let Some((key, info)) = try_create_package_version_info(&object) {
-            self.batch
-                .insert_batch(&self.tables.package_version, [(key, info)])?;
+        if self.backfill_package_version {
+            if let Some((key, info)) = try_create_package_version_info(&object) {
+                self.batch
+                    .insert_batch(&self.tables.package_version, [(key, info)])?;
+            }
+        }
+        if self.backfill_regulated_coin {
+            if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
+                self.batch
+                    .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
+            }
         }
         // If the batch size grows to greater that 128MB then write out to the DB so
         // that the data we need to hold in memory doesn't grown unbounded.
@@ -1250,89 +1256,53 @@ impl LiveObjectIndexer for PackageVersionBatchIndexer<'_> {
     }
 }
 
-fn backfill_package_version(
+/// Run a single pass over the live object set, populating whichever of the
+/// `package_version` / `regulated_coin` tables still need backfilling.
+fn backfill_new_tables(
     tables: &IndexStoreTables,
     authority_store: &AuthorityStore,
-    flag: &AtomicBool,
+    backfill_package_version: bool,
+    pkg_flag: &AtomicBool,
+    backfill_regulated_coin: bool,
+    reg_flag: &AtomicBool,
 ) {
-    info!("Starting package_version backfill");
-    let indexer = PackageVersionBackfillIndexer { tables };
+    info!(
+        "Starting background backfill (package_version={backfill_package_version}, \
+         regulated_coin={backfill_regulated_coin})"
+    );
+
+    let indexer = BackfillIndexer {
+        tables,
+        backfill_package_version,
+        backfill_regulated_coin,
+    };
+
     match crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer) {
         Ok(()) => {
-            if let Err(e) = tables
-                .watermark
-                .insert(&Watermark::PackageVersionBackfilled, &0u64)
-            {
-                tracing::error!("Failed to write PackageVersionBackfilled watermark: {e}");
-                return;
+            if backfill_package_version {
+                if let Err(e) = tables
+                    .watermark
+                    .insert(&Watermark::PackageVersionBackfilled, &0u64)
+                {
+                    tracing::error!("Failed to write PackageVersionBackfilled watermark: {e}");
+                    return;
+                }
+                pkg_flag.store(true, Ordering::Release);
+                info!("package_version backfill complete");
             }
-            flag.store(true, Ordering::Release);
-            info!("package_version backfill complete");
-        }
-        Err(e) => tracing::error!("package_version backfill failed: {e}"),
-    }
-}
-
-struct RegulatedCoinBackfillIndexer<'a> {
-    tables: &'a IndexStoreTables,
-}
-
-struct RegulatedCoinBatchIndexer<'a> {
-    tables: &'a IndexStoreTables,
-    batch: typed_store::rocks::DBBatch,
-}
-
-impl<'a> ParMakeLiveObjectIndexer for RegulatedCoinBackfillIndexer<'a> {
-    type ObjectIndexer = RegulatedCoinBatchIndexer<'a>;
-
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer {
-        RegulatedCoinBatchIndexer {
-            batch: self.tables.regulated_coin.batch(),
-            tables: self.tables,
-        }
-    }
-}
-
-impl LiveObjectIndexer for RegulatedCoinBatchIndexer<'_> {
-    fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
-        if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
-            self.batch
-                .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
-        }
-        // If the batch size grows to greater that 128MB then write out to the DB so
-        // that the data we need to hold in memory doesn't grown unbounded.
-        if self.batch.size_in_bytes() >= 1 << 27 {
-            std::mem::replace(&mut self.batch, self.tables.regulated_coin.batch()).write()?;
-        }
-        Ok(())
-    }
-
-    fn finish(self) -> Result<(), StorageError> {
-        self.batch.write()?;
-        Ok(())
-    }
-}
-
-fn backfill_regulated_coin(
-    tables: &IndexStoreTables,
-    authority_store: &AuthorityStore,
-    flag: &AtomicBool,
-) {
-    info!("Starting regulated_coin backfill");
-    let indexer = RegulatedCoinBackfillIndexer { tables };
-    match crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer) {
-        Ok(()) => {
-            if let Err(e) = tables
-                .watermark
-                .insert(&Watermark::RegulatedCoinBackfilled, &0u64)
-            {
-                tracing::error!("Failed to write RegulatedCoinBackfilled watermark: {e}");
-                return;
+            if backfill_regulated_coin {
+                if let Err(e) = tables
+                    .watermark
+                    .insert(&Watermark::RegulatedCoinBackfilled, &0u64)
+                {
+                    tracing::error!("Failed to write RegulatedCoinBackfilled watermark: {e}");
+                    return;
+                }
+                reg_flag.store(true, Ordering::Release);
+                info!("regulated_coin backfill complete");
             }
-            flag.store(true, Ordering::Release);
-            info!("regulated_coin backfill complete");
         }
-        Err(e) => tracing::error!("regulated_coin backfill failed: {e}"),
+        Err(e) => tracing::error!("background backfill failed: {e}"),
     }
 }
 
