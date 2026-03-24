@@ -173,7 +173,7 @@ pub async fn sync_checkpoint_list_to_latest_from_graphql(
 
     // Download the last synced checkpoint from the node
     let client = IotaClientBuilder::default()
-        .build(config.rpc_url.as_str())
+        .build(config.grpc_url.as_str())
         .await?;
     let read_api = client.read_api();
 
@@ -298,7 +298,7 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
         } else {
             info!("Downloading missing summaries from full node via gRPC.");
 
-            let client = iota_grpc_client::Client::connect(config.rpc_url.as_str())
+            let client = iota_grpc_client::Client::connect(config.grpc_url.as_str())
                 .await
                 .context("Failed to connect to gRPC server")?;
 
@@ -560,7 +560,7 @@ mod tests {
     fn create_test_config() -> (Config, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
-            rpc_url: "http://localhost:9000".parse().unwrap(),
+            grpc_url: "http://localhost:9000".parse().unwrap(),
             graphql_url: None,
             checkpoints_dir: temp_dir.path().to_path_buf(),
             sync_before_check: false,

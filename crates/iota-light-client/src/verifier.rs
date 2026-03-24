@@ -61,7 +61,7 @@ pub fn extract_verified_effects_and_events(
 pub async fn get_verified_object(config: &Config, object_id: ObjectID) -> Result<Object> {
     let iota_client = Arc::new(
         IotaClientBuilder::default()
-            .build(config.rpc_url.as_str())
+            .build(config.grpc_url.as_str())
             .await?,
     );
 
@@ -98,7 +98,7 @@ pub async fn get_verified_effects_and_events(
     transaction_digest: TransactionDigest,
 ) -> Result<(TransactionEffects, Option<TransactionEvents>)> {
     let iota_client = IotaClientBuilder::default()
-        .build(config.rpc_url.as_str())
+        .build(config.grpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
 
@@ -123,11 +123,16 @@ pub async fn get_verified_effects_and_events(
             .context("Cannot get full checkpoint")?
     } else {
         // use gRPC API (for custom networks)
-        let client = iota_grpc_client::Client::connect(config.rpc_url.as_str())
+        let client = iota_grpc_client::Client::connect(config.grpc_url.as_str())
             .await
             .context("Failed to connect to gRPC server")?;
         client
-            .get_checkpoint_by_sequence_number(seq, Some("checkpoint,transactions"), None, None)
+            .get_checkpoint_by_sequence_number(
+                seq,
+                Some(iota_grpc_client::CHECKPOINT_DATA_READ_MASK),
+                None,
+                None,
+            )
             .await
             .context(format!("gRPC call failed for checkpoint {seq}"))?
             .into_inner()
@@ -192,7 +197,7 @@ pub async fn get_verified_checkpoint(
     object_id: ObjectID,
 ) -> Result<CheckpointSequenceNumber> {
     let iota_client = IotaClientBuilder::default()
-        .build(config.rpc_url.as_str())
+        .build(config.grpc_url.as_str())
         .await?;
     let read_api = iota_client.read_api();
     let object_json = read_api
