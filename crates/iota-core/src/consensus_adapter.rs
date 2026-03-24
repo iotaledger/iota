@@ -1001,13 +1001,14 @@ impl ConsensusAdapter {
     ) -> ProcessedMethod {
         let notifications = FuturesUnordered::new();
         for transaction_key in transaction_keys {
-            let transaction_digests = if let SequencedConsensusTransactionKey::External(
-                ConsensusTransactionKey::Certificate(digest),
-            ) = transaction_key
-            {
-                vec![digest]
-            } else {
-                vec![]
+            let transaction_digests = match transaction_key {
+                SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::Certificate(digest),
+                )
+                | SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::UserTransaction(digest),
+                ) => vec![digest],
+                _ => vec![],
             };
 
             let checkpoint_synced_future = if let SequencedConsensusTransactionKey::External(
