@@ -1,0 +1,3 @@
+[package]
+name = "struct_fields_limit_exceeded"
+edition = "2024.beta"
