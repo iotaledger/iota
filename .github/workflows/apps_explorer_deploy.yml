@@ -32,9 +32,18 @@ jobs:
           fi
 
           case "$DEPLOY_TYPE" in
-            staging)    ENVIRONMENT="Staging – explorer";    APPS_BACKEND_SECRET="STAGING_APPS_BACKEND" ;;
-            rc)         ENVIRONMENT="RC – explorer";         APPS_BACKEND_SECRET="RC_APPS_BACKEND" ;;
-            production) ENVIRONMENT="Production – explorer"; APPS_BACKEND_SECRET="PROD_APPS_BACKEND" ;;
+            staging)
+              ENVIRONMENT="Staging – explorer"
+              APPS_BACKEND_SECRET="STAGING_APPS_BACKEND"
+              ;;
+            rc)
+              ENVIRONMENT="RC – explorer"
+              APPS_BACKEND_SECRET="RC_APPS_BACKEND"
+              ;;
+            production)
+              ENVIRONMENT="Production – explorer"
+              APPS_BACKEND_SECRET="PROD_APPS_BACKEND"
+              ;;
           esac
 
           echo "deploy_type=$DEPLOY_TYPE" >> "$GITHUB_OUTPUT"
