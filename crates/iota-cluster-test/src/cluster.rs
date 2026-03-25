@@ -174,7 +174,8 @@ impl Cluster for LocalNewCluster {
 
         let mut cluster_builder = TestClusterBuilder::new()
             .enable_fullnode_events()
-            .with_data_ingestion_dir(data_ingestion_path.clone());
+            .with_data_ingestion_dir(data_ingestion_path.clone())
+            .with_fullnode_enable_grpc_api(true);
 
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
@@ -248,7 +249,7 @@ impl Cluster for LocalNewCluster {
                 // reset the existing db
                 true,
                 None,
-                fullnode_url.clone(),
+                test_cluster.grpc_url(),
                 IndexerTypeConfig::writer_mode(None, None),
                 Some(data_ingestion_path.clone()),
             )
@@ -259,7 +260,7 @@ impl Cluster for LocalNewCluster {
                 pg_address,
                 false,
                 None,
-                fullnode_url.clone(),
+                test_cluster.grpc_url(),
                 IndexerTypeConfig::reader_mode(indexer_address.to_string()),
                 Some(data_ingestion_path),
             )
@@ -280,7 +281,7 @@ impl Cluster for LocalNewCluster {
 
             start_graphql_server_with_fn_rpc(
                 graphql_connection_config.clone(),
-                Some(fullnode_url.clone()),
+                Some(test_cluster.grpc_url()),
                 // resolves to default cancellation_token
                 None,
                 // resolves to default service config
