@@ -2156,7 +2156,7 @@ pub enum IotaCommand {
     MergeCoins(IotaArgument, Vec<IotaArgument>),
     /// Publishes a Move package. It takes the package bytes and a list of the
     /// package's transitive dependencies to link against on-chain.
-    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
+    Publish(Vec<ObjectID>),
     /// Upgrades a Move package
     Upgrade(Vec<ObjectID>, ObjectID, IotaArgument),
     /// `forall T: Vec<T> -> vector<T>`
@@ -2197,7 +2197,7 @@ impl Display for IotaCommand {
                 write_sep(f, coins, ",")?;
                 write!(f, ")")
             }
-            Self::Publish(_modules, deps) => {
+            Self::Publish(deps) => {
                 write!(f, "Publish(<modules>,")?;
                 write_sep(f, deps, ",")?;
                 write!(f, ")")
@@ -2234,9 +2234,9 @@ impl From<Command> for IotaCommand {
                 coins_to_merge.into_iter().map(IotaArgument::from).collect(),
             ),
             Command::Publish(Publish {
-                modules,
+                modules: _,
                 dependencies,
-            }) => IotaCommand::Publish(modules, dependencies),
+            }) => IotaCommand::Publish(dependencies),
             Command::MakeMoveVector(MakeMoveVector { type_, elements }) => {
                 IotaCommand::MakeMoveVec(
                     type_.map(|tag| tag.to_string()),

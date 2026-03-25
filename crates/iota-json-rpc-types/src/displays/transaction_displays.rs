@@ -118,7 +118,7 @@ impl Display for Pretty<'_, IotaCommand> {
                 write!(f, "\n └")
             }
 
-            IotaCommand::Publish(_modules, deps) => {
+            IotaCommand::Publish(deps) => {
                 write!(f, "Publish:\n ┌\n │ Dependencies: \n │   ")?;
                 write_sep(f, deps, "\n │   ")?;
                 write!(f, "\n └")
