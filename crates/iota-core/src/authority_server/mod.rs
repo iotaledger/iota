@@ -6,144 +6,39 @@ mod validator;
 mod validator_peer;
 mod validator_v2;
 
+#[cfg(test)]
+mod test_server;
+
 use std::{
-    io,
     net::{IpAddr, SocketAddr},
     sync::Arc,
     time::SystemTime,
 };
 
-use anyhow::Result;
-use fastcrypto::traits::KeyPair;
-use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use iota_network::{
-    api::ValidatorServer,
     tonic,
     tonic::metadata::{Ascii, MetadataValue},
 };
-use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
     error::*,
-    multiaddr::Multiaddr,
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
 };
 use prometheus::{
     Histogram, IntCounter, IntCounterVec, Registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
 };
+#[cfg(test)]
+pub use test_server::{AuthorityServer, AuthorityServerHandle};
 use tonic::transport::server::TcpConnectInfo;
-use tracing::{error, info};
+use tracing::error;
 
 use crate::{
     authority::AuthorityState,
-    checkpoints::CheckpointStore,
-    consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-    },
-    mysticeti_adapter::LazyMysticetiClient,
+    consensus_adapter::ConsensusAdapter,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
     },
 };
-
-/// A handle to the authority server.
-pub struct AuthorityServerHandle {
-    server_handle: iota_network_stack::server::Server,
-}
-
-impl AuthorityServerHandle {
-    /// Waits for the server to complete.
-    pub async fn join(self) -> Result<(), io::Error> {
-        self.server_handle.handle().wait_for_shutdown().await;
-        Ok(())
-    }
-
-    /// Kills the server.
-    pub async fn kill(self) -> Result<(), io::Error> {
-        self.server_handle.handle().shutdown().await;
-        Ok(())
-    }
-
-    /// Returns the address of the server.
-    pub fn address(&self) -> &Multiaddr {
-        self.server_handle.local_addr()
-    }
-}
-
-/// An authority server that is used for testing.
-pub struct AuthorityServer {
-    address: Multiaddr,
-    pub state: Arc<AuthorityState>,
-    consensus_adapter: Arc<ConsensusAdapter>,
-    pub metrics: Arc<ValidatorServiceMetrics>,
-}
-
-impl AuthorityServer {
-    /// Creates a new `AuthorityServer` for testing with a consensus adapter.
-    pub fn new_for_test_with_consensus_adapter(
-        state: Arc<AuthorityState>,
-        consensus_adapter: Arc<ConsensusAdapter>,
-    ) -> Self {
-        let address = new_local_tcp_address_for_testing();
-        let metrics = Arc::new(ValidatorServiceMetrics::new_for_tests());
-
-        Self {
-            address,
-            state,
-            consensus_adapter,
-            metrics,
-        }
-    }
-
-    /// Creates a new `AuthorityServer` for testing.
-    pub fn new_for_test(state: Arc<AuthorityState>) -> Self {
-        let consensus_adapter = Arc::new(ConsensusAdapter::new(
-            Arc::new(LazyMysticetiClient::new()),
-            CheckpointStore::new_for_tests(),
-            state.name,
-            Arc::new(ConnectionMonitorStatusForTests {}),
-            100_000,
-            100_000,
-            None,
-            None,
-            ConsensusAdapterMetrics::new_test(),
-        ));
-        Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
-    }
-
-    /// Spawns the server.
-    pub async fn spawn_for_test(self) -> Result<AuthorityServerHandle, io::Error> {
-        let address = self.address.clone();
-        self.spawn_with_bind_address_for_test(address).await
-    }
-
-    /// Spawns the server with a bind address.
-    pub async fn spawn_with_bind_address_for_test(
-        self,
-        address: Multiaddr,
-    ) -> Result<AuthorityServerHandle, io::Error> {
-        let tls_config = iota_tls::create_rustls_server_config(
-            self.state.config.network_key_pair().copy().private(),
-            IOTA_TLS_SERVER_NAME.to_string(),
-        );
-        let server = iota_network_stack::config::Config::new()
-            .server_builder()
-            .add_service(ValidatorServer::new(ValidatorService::new_for_tests(
-                self.state,
-                self.consensus_adapter,
-                self.metrics,
-            )))
-            .bind(&address, Some(tls_config))
-            .await
-            .unwrap();
-        let local_addr = server.local_addr().to_owned();
-        info!("Listening to traffic on {local_addr}");
-        let handle = AuthorityServerHandle {
-            server_handle: server,
-        };
-        Ok(handle)
-    }
-}
 
 /// Metrics for the validator service.
 pub struct ValidatorServiceMetrics {

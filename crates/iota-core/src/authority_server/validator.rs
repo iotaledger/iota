@@ -688,8 +688,8 @@ impl ValidatorService {
             }
             .into()
         );
-        // Validate if cert can be executed
-        // Fullnode does not serve handle_certificate call.
+        // Validate if the capability notification can be handled.
+        // Fullnode does not serve capability notification requests.
         fp_ensure!(
             !self.state.is_fullnode(&epoch_store),
             IotaError::FullNodeCantHandleAuthorityCapabilities.into()

@@ -40,7 +40,7 @@ use crate::{
         authority_tests::{init_state_with_ids_and_object_basics, init_state_with_object_id},
         test_authority_builder::TestAuthorityBuilder,
     },
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     authority_server::{AuthorityServer, ValidatorServiceMetrics, make_tonic_request_for_testing},
     checkpoints::CheckpointStore,
     consensus_adapter::{
