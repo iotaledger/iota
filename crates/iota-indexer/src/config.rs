@@ -6,7 +6,6 @@ use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
-use iota_data_ingestion_core::reader::v2::RemoteUrl;
 use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
 use serde::{Deserialize, Serialize};
@@ -177,44 +176,20 @@ pub struct IngestionSources {
     #[arg(long)]
     pub data_ingestion_path: Option<PathBuf>,
 
-    /// Ingest checkpoints from the given remote store URL.
-    /// The fullnode may not retain historical data if pruning is enabled,
-    /// so this source is only reliable for recent checkpoints. For complete
-    /// data coverage from genesis, use --historical-url instead.
-    #[arg(long, conflicts_with_all = ["historical_url", "live_url"])]
+    /// Primary remote checkpoint source. This flag accepts either a fullnode gRPC URL (e.g. http://0.0.0.0:50051) or an
+    /// S3-compatible object store URL hosting batched checkpoint files (e.g. https://checkpoints.mainnet.iota.cafe/ingestion/historical).
+    /// When pointing to an object store, this provides complete checkpoint
+    /// coverage from genesis. When pointing to a fullnode, checkpoint
+    /// availability depends on the node's pruning configuration.
+    #[arg(long)]
     pub remote_store_url: Option<Url>,
 
-    /// Ingest checkpoints from the historical object store for bulk checkpoint
-    /// ingestion. Contains batched checkpoint files covering complete data
-    /// from genesis to near the network tip. This is the primary source for
-    /// syncing checkpoint data.
-    #[arg(long, conflicts_with = "remote_store_url")]
-    pub historical_url: Option<Url>,
-
-    /// Ingest checkpoints from the live object store for real-time checkpoint
-    /// streaming. Serves individual checkpoint files for the current epoch
-    /// only. When configured alongside the historical URL, the system
-    /// falls back to the live store for checkpoints not yet available
-    /// in the historical batches.
-    #[arg(long, requires = "historical_url", conflicts_with = "remote_store_url")]
-    pub live_url: Option<Url>,
-}
-
-impl IngestionSources {
-    /// Returns the [`RemoteUrl`] to use for checkpoint ingestion, based on the
-    /// provided arguments by the user.
-    pub fn remote_url(&self) -> Option<RemoteUrl> {
-        if let Some(ref url) = self.remote_store_url {
-            return Some(RemoteUrl::Fullnode(url.to_string()));
-        }
-
-        self.historical_url
-            .as_ref()
-            .map(|historical| RemoteUrl::HybridHistoricalStore {
-                historical_url: historical.to_string(),
-                live_url: self.live_url.as_ref().map(ToString::to_string),
-            })
-    }
+    /// Optional S3-compatible object store URL serving current epoch
+    /// checkpoints for low-latency ingestion at the network tip (e.g. https://checkpoints.mainnet.iota.cafe/ingestion/live).
+    /// Use alongside `--remote-store-url` pointing to a historical store for
+    /// complete coverage with minimal latency.
+    #[arg(long, requires = "remote_store_url")]
+    pub current_epoch_store_url: Option<Url>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -692,8 +667,7 @@ pub mod deprecated {
                             remote_store_url: old_conf.remote_store_url.map(|url| {
                                 url.parse().expect("remote store url should be correct")
                             }),
-                            historical_url: None,
-                            live_url: None,
+                            current_epoch_store_url: None,
                         },
                         checkpoint_download_queue_size: download_queue_size,
                         checkpoint_download_timeout: ingestion_reader_timeout_secs,
@@ -791,29 +765,16 @@ mod test {
         ])
         .unwrap();
 
-        // we cannot provide both, they are mutually exclusive
+        // current-epoch-store-url can be provided if remote-store-url is also provided
         parse_args::<IngestionSources>([
             "--remote-store-url=http://example.com",
-            "--historical-url=http://example.com",
-        ])
-        .unwrap_err();
-
-        // we cannot provide both, they are mutually exclusive
-        parse_args::<IngestionSources>([
-            "--remote-store-url=http://example.com",
-            "--live-url=http://example.com",
-        ])
-        .unwrap_err();
-
-        // live-url can be provided if historical-url is also provided
-        parse_args::<IngestionSources>([
-            "--historical-url=http://example.com",
-            "--live-url=http://example.com",
+            "--current-epoch-store-url=http://example.com",
         ])
         .unwrap();
 
-        // live-url can't be provided if historical-url is not provided
-        parse_args::<IngestionSources>(["--live-url=http://example.com"]).unwrap_err();
+        // current-epoch-store-url can't be provided if remote-store-url is not provided
+        parse_args::<IngestionSources>(["--current-epoch-store-url=http://example.com"])
+            .unwrap_err();
 
         // At least one must be present
         parse_args::<IngestionSources>([]).unwrap_err();

@@ -26,6 +26,7 @@ futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true
+object_store.workspace = true
 prometheus.workspace = true
 rand = { workspace = true, optional = true }
 reqwest.workspace = true
