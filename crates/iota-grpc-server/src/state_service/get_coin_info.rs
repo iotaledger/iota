@@ -41,8 +41,7 @@ pub(crate) fn get_coin_info(
             .with_reason(ErrorReason::FieldInvalid)
     })?;
 
-    let (coin_info, regulated_available) =
-        reader.get_coin_v2_info(&core_coin_type)?;
+    let (coin_info, regulated_available) = reader.get_coin_v2_info(&core_coin_type)?;
     let coin_info = coin_info.ok_or_else(|| {
         RpcError::new(
             tonic::Code::NotFound,
