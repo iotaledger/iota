@@ -51,17 +51,13 @@ pub(crate) fn require_object_id(
         })
 }
 
-/// Validate and clamp a limit parameter.
+/// Validate an optional limit parameter.
 ///
-/// - `None` → returns `default`
-/// - `Some(0)` → clamped to `1` (zero is treated as "unset" in proto3)
-/// - `Some(n)` where `n > max` → clamped to `max`
-pub(crate) fn validate_limit(limit: Option<u32>, default: usize, max: usize) -> usize {
-    assert!(
-        default <= max,
-        "default ({default}) must not exceed max ({max})"
-    );
-    limit.map(|l| (l as usize).clamp(1, max)).unwrap_or(default)
+/// - `None` → `None` (no limit — return all items)
+/// - `Some(0)` → `None` (no limit — return all items)
+/// - `Some(n)` → `Some(n)`
+pub(crate) fn validate_limit(limit: Option<u32>) -> Option<usize> {
+    limit.and_then(|l| if l == 0 { None } else { Some(l as usize) })
 }
 
 /// Validate and extract a required `Address` proto field as an internal

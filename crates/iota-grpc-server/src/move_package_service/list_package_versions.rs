@@ -16,13 +16,6 @@ use crate::{
     validation::{collect_iter, object_id_proto, require_object_id, validate_limit},
 };
 
-/// Default limit for package version listing.
-/// Higher than other list endpoints (50) because packages typically have far
-/// fewer versions than an owner has objects or an object has dynamic fields.
-const DEFAULT_LIMIT: usize = 1000;
-/// Maximum limit for package version listing (same rationale as DEFAULT_LIMIT).
-const MAX_LIMIT: usize = 10000;
-
 #[tracing::instrument(skip(reader))]
 pub(crate) fn list_package_versions(
     reader: Arc<GrpcReader>,
@@ -34,7 +27,7 @@ pub(crate) fn list_package_versions(
     }: ListPackageVersionsRequest,
 ) -> Result<impl Stream<Item = ListPackageVersionsStreamResult> + Send, RpcError> {
     let pkg_id = require_object_id(&package_id, "package_id")?;
-    let limit = validate_limit(limit, DEFAULT_LIMIT, MAX_LIMIT);
+    let limit = validate_limit(limit);
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
     // Fetch the current package to validate it exists and is a package.
@@ -70,11 +63,10 @@ pub(crate) fn list_package_versions(
         }
     };
 
-    // Streaming handles pagination; limit cap is applied for safety.
     let items = collect_iter(
         reader
             .package_versions_iter(original_package_id)?
-            .take(limit),
+            .take(limit.unwrap_or(usize::MAX)),
     )?;
 
     if items.is_empty() {

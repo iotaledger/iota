@@ -23,11 +23,6 @@ use crate::{
     validation::{collect_iter, require_address, validate_limit, validate_read_mask},
 };
 
-/// Default limit for owned object listing
-const DEFAULT_LIMIT: usize = 50;
-/// Maximum limit for owned object listing
-const MAX_LIMIT: usize = 1000;
-
 #[tracing::instrument(skip(reader))]
 pub(crate) fn list_owned_objects(
     reader: Arc<GrpcReader>,
@@ -56,18 +51,13 @@ pub(crate) fn list_owned_objects(
         })
         .transpose()?;
 
-    let limit = validate_limit(limit, DEFAULT_LIMIT, MAX_LIMIT);
+    let limit = validate_limit(limit);
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
-    // Streaming handles pagination; limit cap is applied for safety.
-    //
-    // Note: each item requires an individual `get_object` call below (N+1 pattern).
-    // Acceptable for now given the limit cap, but consider batch fetching if perf
-    // becomes a concern.
     let items = collect_iter(
         reader
             .account_owned_objects_info_iter_v2(owner_address, None, type_filter)?
-            .take(limit),
+            .take(limit.unwrap_or(usize::MAX)),
     )?;
 
     // Fetch and merge objects. Skip any object that is no longer found

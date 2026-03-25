@@ -24,11 +24,6 @@ use crate::{
     validation::{collect_iter, require_object_id, validate_limit, validate_read_mask},
 };
 
-/// Default limit for dynamic field listing
-const DEFAULT_LIMIT: usize = 50;
-/// Maximum limit for dynamic field listing
-const MAX_LIMIT: usize = 1000;
-
 /// Check whether the read mask requests any field that requires loading the
 /// actual field object from storage (as opposed to index-only fields).
 fn should_load_field(mask: &FieldMaskTree) -> bool {
@@ -166,13 +161,16 @@ pub(crate) fn list_dynamic_fields(
 ) -> Result<impl Stream<Item = ListDynamicFieldsStreamResult> + Send, RpcError> {
     let parent_id = require_object_id(&parent, "parent")?;
     let read_mask = validate_read_mask::<DynamicField>(read_mask, LIST_DYNAMIC_FIELDS_READ_MASK)?;
-    let limit = validate_limit(limit, DEFAULT_LIMIT, MAX_LIMIT);
+    let limit = validate_limit(limit);
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
     let load_field = should_load_field(&read_mask);
 
-    // Streaming handles pagination; limit cap is applied for safety.
-    let items = collect_iter(reader.dynamic_field_iter(parent_id, None)?.take(limit))?;
+    let items = collect_iter(
+        reader
+            .dynamic_field_iter(parent_id, None)?
+            .take(limit.unwrap_or(usize::MAX)),
+    )?;
 
     // Pre-merge all items before streaming to avoid error handling in the stream
     let merged: Vec<_> = items
