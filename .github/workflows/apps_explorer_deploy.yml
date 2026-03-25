@@ -94,6 +94,6 @@ jobs:
             vercel build --token="$TOKEN"
             DEPLOYMENT_URL=$(vercel deploy --prebuilt --token="$TOKEN")
             if [ "$DEPLOY_TYPE" = "rc" ]; then
-              vercel alias set "$DEPLOYMENT_URL" rebased-explorer-rc-iota1.vercel.app --token="$TOKEN"
+              vercel alias set "$DEPLOYMENT_URL" explorer-rc-iota1.vercel.app --token="$TOKEN"
             fi
           fi
