@@ -297,6 +297,21 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     fn get_transaction_checkpoint(&self, digest: &TransactionDigest)
     -> anyhow::Result<Option<u64>>;
 
+    /// Iterate over objects owned by an account address, optionally filtered by
+    /// type. When `object_type` is `Some`, only objects matching that type are
+    /// returned (type params are ignored if the filter has none).
+    ///
+    /// **Cursor contract (raw):** bounds are *inclusive*. When `cursor` is
+    /// `Some`, the iterator starts at (and includes) the cursor item.
+    /// Prefer using the `GrpcReader` wrapper methods which automatically
+    /// skip the cursor item.
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<ObjectID>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>>;
+
     /// Iterate over dynamic fields of a parent object.
     ///
     /// **Cursor contract (raw):** bounds are *inclusive*. When `cursor` is
@@ -309,32 +324,11 @@ pub trait GrpcStateReader: Send + Sync + 'static {
         cursor: Option<ObjectID>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>>;
 
-    /// Iterate over objects owned by an account address, optionally filtered by
-    /// type. When `object_type` is `Some`, only objects matching that type are
-    /// returned (type params are ignored if the filter has none).
-    ///
-    /// **Cursor contract (raw):** bounds are *inclusive*. When `cursor` is
-    /// `Some`, the iterator starts at (and includes) the cursor item.
-    /// Prefer using the `GrpcReader` wrapper methods which automatically
-    /// skip the cursor item.
-    fn account_owned_objects_info_iter(
-        &self,
-        owner: iota_types::base_types::IotaAddress,
-        cursor: Option<ObjectID>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>>;
-
     /// Get coin info (metadata and treasury object IDs) for a coin type.
     fn get_coin_info(
         &self,
         coin_type: &move_core_types::language_storage::StructTag,
     ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>>;
-
-    /// Returns `true` once the `package_version` backfill has completed.
-    /// Default implementation returns `true` (e.g. simulacrum).
-    fn is_package_version_index_ready(&self) -> bool {
-        true
-    }
 
     /// Get unified coin info from the `coin_v2` table.
     fn get_coin_v2_info(
@@ -342,27 +336,29 @@ pub trait GrpcStateReader: Send + Sync + 'static {
         coin_type: &move_core_types::language_storage::StructTag,
     ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>>;
 
-    /// Returns `true` once the `coin_v2` backfill has completed.
-    fn is_coin_v2_index_ready(&self) -> bool {
-        true
-    }
+    /// Iterate over all versions of a package by its original package ID.
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>>;
 
     /// Returns `true` once the `owner_v2` backfill has completed.
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
     fn is_owner_v2_index_ready(&self) -> bool {
         true
     }
 
-    /// Iterate over all versions of a package by its original package ID.
-    ///
-    /// **Cursor contract (raw):** bounds are *inclusive*. When `cursor` is
-    /// `Some`, the iterator starts at (and includes) the cursor item.
-    /// Prefer using the `GrpcReader` wrapper methods which automatically
-    /// skip the cursor item.
-    fn package_versions_iter(
-        &self,
-        original_package_id: ObjectID,
-        cursor: Option<u64>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>>;
+    /// Returns `true` once the `coin_v2` backfill has completed.
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_coin_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `package_version` backfill has completed.
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_package_version_index_ready(&self) -> bool {
+        true
+    }
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
@@ -556,6 +552,17 @@ impl GrpcStateReader for RestStateReaderAdapter {
         }
     }
 
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<ObjectID>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes.account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+    }
+
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -563,17 +570,6 @@ impl GrpcStateReader for RestStateReaderAdapter {
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
         let indexes = self.require_indexes()?;
         let iter = indexes.dynamic_field_iter(parent, cursor)?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
-    }
-
-    fn account_owned_objects_info_iter(
-        &self,
-        owner: iota_types::base_types::IotaAddress,
-        cursor: Option<ObjectID>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
-        let indexes = self.require_indexes()?;
-        let iter = indexes.account_owned_objects_info_iter(owner, cursor, object_type)?;
         Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
@@ -585,12 +581,6 @@ impl GrpcStateReader for RestStateReaderAdapter {
         indexes.get_coin_info(coin_type).map_err(Into::into)
     }
 
-    fn is_package_version_index_ready(&self) -> bool {
-        self.inner
-            .indexes()
-            .is_none_or(|i| i.is_package_version_index_ready())
-    }
-
     fn get_coin_v2_info(
         &self,
         coin_type: &move_core_types::language_storage::StructTag,
@@ -599,10 +589,15 @@ impl GrpcStateReader for RestStateReaderAdapter {
         indexes.get_coin_v2_info(coin_type).map_err(Into::into)
     }
 
-    fn is_coin_v2_index_ready(&self) -> bool {
-        self.inner
-            .indexes()
-            .is_none_or(|i| i.is_coin_v2_index_ready())
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes
+            .package_versions_iter(original_package_id)?
+            .map(|r| r.map_err(Into::into));
+        Ok(Box::new(iter))
     }
 
     fn is_owner_v2_index_ready(&self) -> bool {
@@ -611,16 +606,16 @@ impl GrpcStateReader for RestStateReaderAdapter {
             .is_none_or(|i| i.is_owner_v2_index_ready())
     }
 
-    fn package_versions_iter(
-        &self,
-        original_package_id: ObjectID,
-        cursor: Option<u64>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>> {
-        let indexes = self.require_indexes()?;
-        let iter = indexes
-            .package_versions_iter(original_package_id, cursor)?
-            .map(|r| r.map_err(Into::into));
-        Ok(Box::new(iter))
+    fn is_coin_v2_index_ready(&self) -> bool {
+        self.inner
+            .indexes()
+            .is_none_or(|i| i.is_coin_v2_index_ready())
+    }
+
+    fn is_package_version_index_ready(&self) -> bool {
+        self.inner
+            .indexes()
+            .is_none_or(|i| i.is_package_version_index_ready())
     }
 }
 
@@ -1004,6 +999,23 @@ impl GrpcReader {
         self.state_reader.get_type_layout(type_tag)
     }
 
+    /// Iterate over objects owned by an account address.
+    ///
+    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
+    /// so callers get items *after* the cursor (exclusive lower bound).
+    pub fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<ObjectID>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
+        let skip = usize::from(cursor.is_some());
+        let iter =
+            self.state_reader
+                .account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
+        Ok(Box::new(iter.skip(skip)))
+    }
+
     /// Iterate over dynamic fields of a parent object.
     ///
     /// When `cursor` is `Some`, the cursor item itself is automatically skipped
@@ -1016,30 +1028,6 @@ impl GrpcReader {
         let skip = usize::from(cursor.is_some());
         let iter = self.state_reader.dynamic_field_iter(parent, cursor)?;
         Ok(Box::new(iter.skip(skip)))
-    }
-
-    /// Iterate over objects owned by an account address.
-    ///
-    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
-    /// so callers get items *after* the cursor (exclusive lower bound).
-    pub fn account_owned_objects_info_iter(
-        &self,
-        owner: iota_types::base_types::IotaAddress,
-        cursor: Option<ObjectID>,
-        object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
-        let skip = usize::from(cursor.is_some());
-        let iter = self
-            .state_reader
-            .account_owned_objects_info_iter(owner, cursor, object_type)?;
-        Ok(Box::new(iter.skip(skip)))
-    }
-
-    pub fn get_coin_info(
-        &self,
-        coin_type: &move_core_types::language_storage::StructTag,
-    ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>> {
-        self.state_reader.get_coin_info(coin_type)
     }
 
     /// Get unified coin info from the `coin_v2` table.
@@ -1076,15 +1064,11 @@ impl GrpcReader {
 
     /// Iterate over all versions of a package by its original package ID.
     ///
-    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
-    /// so callers get items *after* the cursor (exclusive lower bound).
-    ///
     /// Returns `Err(IndexBackfillInProgressError)` when the backfill has not
     /// yet completed so callers receive a retryable `Unavailable` gRPC status.
     pub fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
-        cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
         if !self.state_reader.is_package_version_index_ready() {
             return Err(crate::error::IndexBackfillInProgressError {
@@ -1092,12 +1076,11 @@ impl GrpcReader {
             }
             .into());
         }
-        let skip = usize::from(cursor.is_some());
         let iter = self
             .state_reader
-            .package_versions_iter(original_package_id, cursor)
+            .package_versions_iter(original_package_id)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        Ok(Box::new(iter.skip(skip)))
+        Ok(Box::new(iter))
     }
 
     /// Generic stream implementation for checkpoints

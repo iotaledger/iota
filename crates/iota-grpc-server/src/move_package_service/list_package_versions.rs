@@ -73,7 +73,7 @@ pub(crate) fn list_package_versions(
     // Streaming handles pagination; limit cap is applied for safety.
     let items = collect_iter(
         reader
-            .package_versions_iter(original_package_id, None)?
+            .package_versions_iter(original_package_id)?
             .take(limit),
     )?;
 

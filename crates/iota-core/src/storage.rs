@@ -562,12 +562,56 @@ impl RestIndexes for RestIndexStore {
             .map_err(StorageError::custom)
     }
 
-    // used in both "grpc-server" and "rest-api"
     /// **Performance note:** When `object_type` is `Some`, the filter is
     /// applied as a post-filter on the iterator — it scans **all** objects
     /// owned by `owner` (starting from `cursor`) and checks each one's type.
     /// This is O(N) in the total number of owned objects, not O(result-set).
+    // only used in "rest-api"
     fn account_owned_objects_info_iter(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<ObjectID>,
+        object_type: Option<StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>
+    {
+        let iter = self
+            .owner_iter(owner, cursor)?
+            .map(|result| {
+                result.map(
+                    |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
+                        AccountOwnedObjectInfo {
+                            owner,
+                            object_id,
+                            version,
+                            type_,
+                        }
+                    },
+                )
+            })
+            .filter(move |result| match (&object_type, result) {
+                (None, _) => true,
+                (_, Err(_)) => true,
+                (Some(filter), Ok(info)) => {
+                    let obj_type: StructTag = info.type_.clone().into();
+                    if filter.type_params.is_empty() {
+                        obj_type.address == filter.address
+                            && obj_type.module == filter.module
+                            && obj_type.name == filter.name
+                    } else {
+                        obj_type == *filter
+                    }
+                }
+            });
+
+        Ok(Box::new(iter) as _)
+    }
+
+    /// **Performance note:** When `object_type` is `Some`, the filter is
+    /// applied as a post-filter on the iterator — it scans **all** objects
+    /// owned by `owner` (starting from `cursor`) and checks each one's type.
+    /// This is O(N) in the total number of owned objects, not O(result-set).
+    // only used in "grpc-server"
+    fn account_owned_objects_info_iter_v2(
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
@@ -621,7 +665,7 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
-    // used in both "grpc-server" and "rest-api"
+    // only used in "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
@@ -640,11 +684,6 @@ impl RestIndexes for RestIndexStore {
     }
 
     // only used in "grpc-server"
-    fn is_package_version_index_ready(&self) -> bool {
-        self.is_package_version_index_ready()
-    }
-
-    // only used in "grpc-server"
     fn get_coin_v2_info(
         &self,
         coin_type: &StructTag,
@@ -655,24 +694,31 @@ impl RestIndexes for RestIndexStore {
     }
 
     // only used in "grpc-server"
-    fn is_coin_v2_index_ready(&self) -> bool {
-        self.is_coin_v2_index_ready()
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
+    > {
+        let iter = self.package_versions_iter(original_package_id)?;
+        Ok(Box::new(iter) as _)
     }
 
     // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
     fn is_owner_v2_index_ready(&self) -> bool {
         self.is_owner_v2_index_ready()
     }
 
     // only used in "grpc-server"
-    fn package_versions_iter(
-        &self,
-        original_package_id: ObjectID,
-        cursor: Option<u64>,
-    ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
-    > {
-        let iter = self.package_versions_iter(original_package_id, cursor)?;
-        Ok(Box::new(iter) as _)
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_coin_v2_index_ready(&self) -> bool {
+        self.is_coin_v2_index_ready()
+    }
+
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_package_version_index_ready(&self) -> bool {
+        self.is_package_version_index_ready()
     }
 }

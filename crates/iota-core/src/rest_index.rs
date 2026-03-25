@@ -379,6 +379,8 @@ struct IndexStoreTables {
     ///
     /// Only contains entries for epochs which have yet to be pruned from the
     /// main database.
+    // TODO: add checkpoint summary of last checkpoint (end_of_epoch_transaction?
+    // epoch_commitments?)
     epochs: DBMap<EpochId, EpochInfo>,
 
     /// An index of extra metadata for Transactions.
@@ -391,15 +393,27 @@ struct IndexStoreTables {
     ///
     /// Allows an efficient iterator to list all objects currently owned by a
     /// specific user account.
-    /// REST-API only
+    // REST-API only
     // TODO: Remove once REST-API server is deprecated — gRPC uses owner_v2.
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
+
+    /// An index of object ownership.
+    ///
+    /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
+    /// Allows an efficient iterator to list all objects currently owned by a
+    /// specific user account, optionally filted by type.
+    ///
+    /// Full `StructTag` stored in value for collision filtering & API
+    /// responses. Bounded by the live object set (one entry per
+    /// address-owned object).
+    // gRPC-server only
+    owner_v2: DBMap<OwnerIndexKeyV2, OwnerIndexInfoV2>,
 
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
     /// a particular ObjectID.
-    /// REST-API and gRPC
+    // REST-API and gRPC
     // TODO: Replace DynamicFieldIndexInfo with () once the REST-API server is
     // deprecated — gRPC only needs the key.
     dynamic_field: DBMap<DynamicFieldKey, DynamicFieldIndexInfo>,
@@ -407,9 +421,14 @@ struct IndexStoreTables {
     /// An index of Coin Types
     ///
     /// Allows looking up information related to published Coins, like the
-    /// ObjectID of its coorisponding CoinMetadata.
-    /// REST-API only
+    /// ObjectID of its corresponding CoinMetadata.
+    // REST-API only
     coin: DBMap<CoinIndexKey, CoinIndexInfo>,
+
+    /// Same key as `coin`, extended value with regulated coin metadata.
+    /// Bounded by the live object set (one entry per coin type).
+    // gRPC-server only
+    coin_v2: DBMap<CoinIndexKey, CoinIndexInfoV2>,
 
     /// An index of Package versions.
     ///
@@ -419,20 +438,6 @@ struct IndexStoreTables {
     /// Bounded by the live object set (one entry per package version).
     /// gRPC-server only
     package_version: DBMap<PackageVersionKey, PackageVersionInfo>,
-
-    /// Unified coin index merging `coin` + `regulated_coin` into a single
-    /// table. Same key as `coin`, extended value with regulated coin metadata.
-    /// Bounded by the live object set (one entry per coin type).
-    /// gRPC-server only
-    coin_v2: DBMap<CoinIndexKey, CoinIndexInfoV2>,
-
-    /// Hash-based owner index for gRPC `ListOwnedObjects`.
-    ///
-    /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
-    /// Full `StructTag` stored in value for collision filtering & API
-    /// responses. Bounded by the live object set (one entry per
-    /// address-owned object). gRPC-server only
-    owner_v2: DBMap<OwnerIndexKeyV2, OwnerIndexInfoV2>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
     // - are prune-able and have corresponding logic in the `prune` function
@@ -932,7 +937,7 @@ impl IndexStoreTables {
         self.transactions.get(digest)
     }
 
-    // used in both "grpc-server" and "rest-api"
+    // only used in "rest-api"
     fn owner_iter(
         &self,
         owner: IotaAddress,
@@ -946,67 +951,6 @@ impl IndexStoreTables {
         Ok(self
             .owner
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
-    }
-
-    // used in both "grpc-server" and "rest-api"
-    fn dynamic_field_iter(
-        &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
-    ) -> Result<
-        impl Iterator<Item = Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>> + '_,
-        TypedStoreError,
-    > {
-        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectID::ZERO));
-        let upper_bound = DynamicFieldKey::new(parent, ObjectID::MAX);
-        let iter = self
-            .dynamic_field
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound));
-        Ok(iter)
-    }
-
-    // used in both "grpc-server" and "rest-api"
-    fn get_coin_info(
-        &self,
-        coin_type: &StructTag,
-    ) -> Result<Option<CoinIndexInfo>, TypedStoreError> {
-        let key = CoinIndexKey {
-            coin_type: coin_type.to_owned(),
-        };
-        self.coin.get(&key)
-    }
-
-    // only used in "grpc-server"
-    // Note: bounds are inclusive (same as `owner_iter` / `dynamic_field_iter`).
-    // Callers must `.skip(1)` when a cursor is provided to avoid re-returning
-    // the cursor item.
-    fn package_versions_iter(
-        &self,
-        original_package_id: ObjectID,
-        cursor: Option<u64>,
-    ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        let lower_bound = PackageVersionKey {
-            original_package_id,
-            version: cursor.unwrap_or(0),
-        };
-        let upper_bound = PackageVersionKey {
-            original_package_id,
-            version: u64::MAX,
-        };
-        Ok(self
-            .package_version
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
-    }
-
-    // only used in "grpc-server"
-    fn get_coin_v2_info(
-        &self,
-        coin_type: &StructTag,
-    ) -> Result<Option<CoinIndexInfoV2>, TypedStoreError> {
-        let key = CoinIndexKey {
-            coin_type: coin_type.to_owned(),
-        };
-        self.coin_v2.get(&key)
     }
 
     // only used in "grpc-server"
@@ -1037,6 +981,64 @@ impl IndexStoreTables {
                 // Propagate DB errors to the caller rather than silently dropping them.
                 Err(_) => true,
             }))
+    }
+
+    // used in both "grpc-server" and "rest-api"
+    fn dynamic_field_iter(
+        &self,
+        parent: ObjectID,
+        cursor: Option<ObjectID>,
+    ) -> Result<
+        impl Iterator<Item = Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>> + '_,
+        TypedStoreError,
+    > {
+        let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectID::ZERO));
+        let upper_bound = DynamicFieldKey::new(parent, ObjectID::MAX);
+        let iter = self
+            .dynamic_field
+            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound));
+        Ok(iter)
+    }
+
+    // only used in "rest-api"
+    fn get_coin_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> Result<Option<CoinIndexInfo>, TypedStoreError> {
+        let key = CoinIndexKey {
+            coin_type: coin_type.to_owned(),
+        };
+        self.coin.get(&key)
+    }
+
+    // only used in "grpc-server"
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> Result<Option<CoinIndexInfoV2>, TypedStoreError> {
+        let key = CoinIndexKey {
+            coin_type: coin_type.to_owned(),
+        };
+        self.coin_v2.get(&key)
+    }
+
+    // only used in "grpc-server"
+    // Note: bounds are inclusive (same as `owner_iter` / `dynamic_field_iter`).
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+    ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
+        let lower_bound = PackageVersionKey {
+            original_package_id,
+            version: 0,
+        };
+        let upper_bound = PackageVersionKey {
+            original_package_id,
+            version: u64::MAX,
+        };
+        Ok(self
+            .package_version
+            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound)))
     }
 }
 
@@ -1250,7 +1252,7 @@ impl RestIndexStore {
         self.tables.get_transaction_info(digest)
     }
 
-    // used in both "grpc-server" and "rest-api"
+    // only used in "rest-api"
     pub fn owner_iter(
         &self,
         owner: IotaAddress,
@@ -1260,6 +1262,19 @@ impl RestIndexStore {
         TypedStoreError,
     > {
         self.tables.owner_iter(owner, cursor)
+    }
+
+    // only used in "grpc-server"
+    pub fn owner_v2_iter(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<OwnerIndexKeyV2>,
+        type_filter: OwnerV2TypeFilter,
+    ) -> Result<
+        impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
+        TypedStoreError,
+    > {
+        self.tables.owner_v2_iter(owner, cursor, type_filter)
     }
 
     // used in both "grpc-server" and "rest-api"
@@ -1283,21 +1298,6 @@ impl RestIndexStore {
     }
 
     // only used in "grpc-server"
-    pub fn package_versions_iter(
-        &self,
-        original_package_id: ObjectID,
-        cursor: Option<u64>,
-    ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        self.tables
-            .package_versions_iter(original_package_id, cursor)
-    }
-
-    // only used in "grpc-server"
-    pub fn is_package_version_index_ready(&self) -> bool {
-        self.package_version_ready.load(Ordering::Acquire)
-    }
-
-    // only used in "grpc-server"
     pub fn get_coin_v2_info(
         &self,
         coin_type: &StructTag,
@@ -1306,28 +1306,29 @@ impl RestIndexStore {
     }
 
     // only used in "grpc-server"
+    pub fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+    ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
+        self.tables.package_versions_iter(original_package_id)
+    }
+
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
     pub fn is_coin_v2_index_ready(&self) -> bool {
         self.coin_v2_ready.load(Ordering::Acquire)
     }
 
     // only used in "grpc-server"
-    // TODO: Expose through `RestIndexes` and `GrpcStateReader` traits when
-    // the `ListOwnedObjects` gRPC endpoint is implemented.
-    pub fn owner_v2_iter(
-        &self,
-        owner: IotaAddress,
-        cursor: Option<OwnerIndexKeyV2>,
-        type_filter: OwnerV2TypeFilter,
-    ) -> Result<
-        impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
-        TypedStoreError,
-    > {
-        self.tables.owner_v2_iter(owner, cursor, type_filter)
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    pub fn is_owner_v2_index_ready(&self) -> bool {
+        self.owner_v2_ready.load(Ordering::Acquire)
     }
 
     // only used in "grpc-server"
-    pub fn is_owner_v2_index_ready(&self) -> bool {
-        self.owner_v2_ready.load(Ordering::Acquire)
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    pub fn is_package_version_index_ready(&self) -> bool {
+        self.package_version_ready.load(Ordering::Acquire)
     }
 }
 

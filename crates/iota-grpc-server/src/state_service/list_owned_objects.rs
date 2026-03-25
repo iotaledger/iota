@@ -66,7 +66,7 @@ pub(crate) fn list_owned_objects(
     // becomes a concern.
     let items = collect_iter(
         reader
-            .account_owned_objects_info_iter(owner_address, None, type_filter)?
+            .account_owned_objects_info_iter_v2(owner_address, None, type_filter)?
             .take(limit),
     )?;
 
