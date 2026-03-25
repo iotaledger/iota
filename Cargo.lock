@@ -5710,7 +5710,6 @@ dependencies = [
  "iota-execution",
  "iota-faucet",
  "iota-genesis-builder",
- "iota-graphql-rpc-client",
  "iota-json",
  "iota-json-rpc-types",
  "iota-keys",

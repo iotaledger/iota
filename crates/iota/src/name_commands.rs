@@ -4,7 +4,7 @@
 use std::{
     mem::take,
     str::FromStr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 
 use anyhow::{bail, ensure};
