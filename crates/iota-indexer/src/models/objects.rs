@@ -86,7 +86,7 @@ impl From<IndexedObject> for StoredObjectSnapshot {
             .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
+            Some(object.get_coin_value_unchecked())
         } else {
             None
         };
@@ -247,7 +247,7 @@ impl From<IndexedObject> for StoredHistoryObject {
             .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
+            Some(object.get_coin_value_unchecked())
         } else {
             None
         };
@@ -336,7 +336,7 @@ impl From<IndexedObject> for StoredObject {
             .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
+            Some(object.get_coin_value_unchecked())
         } else {
             None
         };

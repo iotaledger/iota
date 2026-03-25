@@ -237,7 +237,7 @@ impl MoveObjectExt for MoveObject {
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
         if let Some(type_tag) = self.type_.coin_type_opt() {
-            let balance = self.get_coin_value_unsafe();
+            let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
             } else {
@@ -610,8 +610,8 @@ impl ObjectInner {
     /// Useful for reading the coin without deserializing the object into a Move
     /// value It is the caller's responsibility to check that `self` is a
     /// coin--this function may panic or do something unexpected otherwise.
-    pub fn get_coin_value_unsafe(&self) -> u64 {
-        self.data.try_as_move().unwrap().get_coin_value_unsafe()
+    pub fn get_coin_value_unchecked(&self) -> u64 {
+        self.data.try_as_move().unwrap().get_coin_value_unchecked()
     }
 
     /// Approximate size of the object in bytes. This is used for gas metering.
@@ -1015,10 +1015,10 @@ mod tests {
     }
 
     #[test]
-    fn test_get_coin_value_unsafe() {
+    fn test_get_coin_value_unchecked() {
         fn test_for_value(v: u64) {
             let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
-            assert_eq!(g.get_coin_value_unsafe(), v);
+            assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
         }
 
@@ -1036,11 +1036,11 @@ mod tests {
     }
 
     #[test]
-    fn test_set_coin_value_unsafe() {
+    fn test_set_coin_value_unchecked() {
         fn test_for_value(v: u64) {
             let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
-            g.set_coin_value_unsafe(v);
-            assert_eq!(g.get_coin_value_unsafe(), v);
+            g.set_coin_value_unchecked(v);
+            assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
             assert_eq!(g.version(), OBJECT_START_VERSION);
             assert_eq!(g.contents().len(), 40);

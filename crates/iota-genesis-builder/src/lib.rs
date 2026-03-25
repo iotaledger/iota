@@ -1603,7 +1603,7 @@ pub fn generate_genesis_system_object(
             .data
             .try_as_move_mut()
             .unwrap()
-            .set_clock_timestamp_ms_unsafe(genesis_chain_parameters.chain_start_timestamp_ms);
+            .set_clock_timestamp_ms_unchecked(genesis_chain_parameters.chain_start_timestamp_ms);
     }
 
     store.finish(written);

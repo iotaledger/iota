@@ -154,7 +154,7 @@ pub mod checked {
                             "Provided non-gas coin object as input for gas!",
                         ));
                     }
-                    Ok(move_obj.get_coin_value_unsafe())
+                    Ok(move_obj.get_coin_value_unchecked())
                 })
                 .collect::<Result<Vec<u64>, ExecutionError>>()
                 // transaction and certificate input checks must have insured that all gas coins
@@ -195,7 +195,7 @@ pub mod checked {
                         self.tx_digest
                     )
                 })
-                .set_coin_value_unsafe(new_balance);
+                .set_coin_value_unchecked(new_balance);
             temporary_store.mutate_input_object(primary_gas_object);
         }
 

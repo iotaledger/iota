@@ -79,7 +79,7 @@ fn generate_random_gas_data(
     assert_eq!(
         gas_objects
             .iter()
-            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unsafe())
+            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unchecked())
             .sum::<u64>(),
         total_gas_balance
     );
