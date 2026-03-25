@@ -32,7 +32,7 @@ use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
     rocks::{DBMap, MetricConf},
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use crate::{

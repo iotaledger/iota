@@ -15,7 +15,6 @@ use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
     rocks::{DBMap, MetricConf},
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 const STORE: &str = "RocksDB";

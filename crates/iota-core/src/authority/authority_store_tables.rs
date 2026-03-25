@@ -21,7 +21,7 @@ use typed_store::{
         read_size_from_env,
     },
     rocksdb::compaction_filter::Decision,
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use super::*;

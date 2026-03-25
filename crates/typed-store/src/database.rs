@@ -25,6 +25,7 @@ use crate::{
     rocks::{
         RocksDB,
         errors::{typed_store_err_from_bcs_err, typed_store_err_from_rocks_err},
+        options::ReadWriteOptions,
         rocks_cf, rocks_util,
         safe_iter::{SafeIter, SafeRevIter},
     },
@@ -504,42 +505,6 @@ impl<K, V> DBMap<K, V> {
     /// Reopens an open database as a typed map operating under a specific
     /// column family. if no column family is passed, the default column
     /// family is used.
-    ///
-    /// ```
-    /// use core::fmt::Error;
-    /// use std::sync::Arc;
-    ///
-    /// use prometheus::Registry;
-    /// use tempfile::tempdir;
-    /// use typed_store::{metrics::DBMetrics, rocks::*};
-    /// #[tokio::main]
-    /// async fn main() -> Result<(), Error> {
-    ///     /// Open the DB with all needed column families first.
-    ///     let rocks = open_cf(
-    ///         tempdir().unwrap(),
-    ///         None,
-    ///         MetricConf::default(),
-    ///         &["First_CF", "Second_CF"],
-    ///     )
-    ///     .unwrap();
-    ///     /// Attach the column families to specific maps.
-    ///     let db_cf_1 = DBMap::<u32, u32>::reopen(
-    ///         &rocks,
-    ///         Some("First_CF"),
-    ///         &ReadWriteOptions::default(),
-    ///         false,
-    ///     )
-    ///     .expect("Failed to open storage");
-    ///     let db_cf_2 = DBMap::<u32, u32>::reopen(
-    ///         &rocks,
-    ///         Some("Second_CF"),
-    ///         &ReadWriteOptions::default(),
-    ///         false,
-    ///     )
-    ///     .expect("Failed to open storage");
-    ///     Ok(())
-    /// }
-    /// ```
     #[instrument(level = "debug", skip(db), err)]
     pub fn reopen(
         db: &Arc<Database>,
@@ -793,11 +758,14 @@ impl<K, V> DBMap<K, V> {
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Error> {
-///     let rocks = open_cf(
+///     let rocks = open_cf_opts(
 ///         tempfile::tempdir().unwrap(),
 ///         None,
 ///         MetricConf::default(),
-///         &["First_CF", "Second_CF"],
+///         &[
+///             ("First_CF", rocksdb::Options::default()),
+///             ("Second_CF", rocksdb::Options::default()),
+///         ],
 ///     )
 ///     .unwrap();
 ///
@@ -1328,31 +1296,5 @@ where
     #[instrument(level = "trace", skip_all, err)]
     fn try_catch_up_with_primary(&self) -> Result<(), Self::Error> {
         self.db.try_catch_up_with_primary()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ReadWriteOptions {
-    pub ignore_range_deletions: bool,
-}
-
-impl ReadWriteOptions {
-    pub fn readopts(&self) -> ReadOptions {
-        let mut readopts = ReadOptions::default();
-        readopts.set_ignore_range_deletions(self.ignore_range_deletions);
-        readopts
-    }
-
-    pub fn set_ignore_range_deletions(mut self, ignore: bool) -> Self {
-        self.ignore_range_deletions = ignore;
-        self
-    }
-}
-
-impl Default for ReadWriteOptions {
-    fn default() -> Self {
-        Self {
-            ignore_range_deletions: true,
-        }
     }
 }

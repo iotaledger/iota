@@ -49,7 +49,7 @@ use typed_store::{
         read_size_from_env,
     },
     rocksdb::compaction_filter::Decision,
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;

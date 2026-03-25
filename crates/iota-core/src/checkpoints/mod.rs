@@ -61,7 +61,6 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
     rocks::{DBMap, MetricConf},
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 pub use crate::checkpoints::{

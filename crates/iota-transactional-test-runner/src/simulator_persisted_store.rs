@@ -34,7 +34,6 @@ use typed_store::{
     DBMapUtils, Map,
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 use super::SimulatorStore;

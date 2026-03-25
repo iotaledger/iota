@@ -82,7 +82,6 @@ use typed_store::{
         read_size_from_env,
     },
     rocksdb::Options,
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 use super::{
