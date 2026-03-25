@@ -1197,16 +1197,14 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         test_server_and_client_setup(std::iter::empty(), |_| {}, Some(mock), None).await;
 
     // Streaming from checkpoint 0 should fail because it's below
-    // lowest_available_checkpoint. The error surfaces as a stream item
-    // since the pruning check happens during historical fetch.
-    let mut stream = client
+    // lowest_available_checkpoint. The error surfaces at the RPC level
+    // since the pruning check happens before the stream is created.
+    let result = client
         .stream_checkpoints(Some(0), Some(10), None, None, None)
-        .await
-        .expect("stream should open successfully");
+        .await;
 
-    let first_item = stream.body_mut().next().await;
-    match first_item {
-        Some(Err(iota_grpc_client::Error::Grpc(status))) => {
+    match result {
+        Err(iota_grpc_client::Error::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status
@@ -1216,9 +1214,8 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
                 status.message()
             );
         }
-        Some(Err(e)) => panic!("Expected Grpc error, got: {e:?}"),
-        Some(Ok(_)) => panic!("Expected error for pruned start checkpoint"),
-        None => panic!("Stream ended without any items"),
+        Err(e) => panic!("Expected Grpc error, got: {e:?}"),
+        Ok(_) => panic!("Expected error for pruned start checkpoint"),
     }
 
     server_handle

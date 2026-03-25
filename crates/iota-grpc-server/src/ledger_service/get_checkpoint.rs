@@ -378,6 +378,23 @@ pub(crate) fn stream_checkpoint_data(
         events_mask.is_some()
     );
 
+    // Check if the requested checkpoint has been pruned
+    if let Some(start) = start_sequence_number {
+        let lowest_available = service
+            .reader
+            .get_lowest_available_checkpoint()
+            .map_err(|e| {
+                Status::internal(format!("failed to get lowest available checkpoint: {e}"))
+            })?;
+        if start < lowest_available {
+            return Err(Status::not_found(format!(
+                "Requested checkpoint {} is below the lowest available checkpoint {}",
+                start, lowest_available
+            ))
+            .into());
+        }
+    }
+
     // Convert proto filters to internal filters and validate complexity
     let (transaction_filter, event_filter) =
         convert_and_validate_filters(req.transactions_filter, req.events_filter)?;
