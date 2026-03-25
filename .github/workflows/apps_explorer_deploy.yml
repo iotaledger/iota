@@ -76,13 +76,28 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
-      - name: Pull Vercel Env variables (network configs)
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Copy the .env file
-        run: cp ./.vercel/.env.production.local ./sdk/.env
-      - name: Build Explorer
-        run: pnpm explorer build
-      - name: Build Vercel Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Pull Vercel Env variables and deploy
+        run: |
+          DEPLOY_TYPE="${{ needs.resolve-deploy-type.outputs.deploy_type }}"
+          TOKEN="${{ secrets.VERCEL_TOKEN }}"
+
+          case "$DEPLOY_TYPE" in
+            production) VERCEL_ENV="production" ;;
+            staging)    VERCEL_ENV="staging" ;;
+            rc)         VERCEL_ENV="preview" ;;
+          esac
+
+          vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
+          cp "./.vercel/.env.${VERCEL_ENV}.local" ./sdk/.env
+          pnpm explorer build
+
+          if [ "$DEPLOY_TYPE" = "production" ]; then
+            vercel build --prod --token="$TOKEN"
+            vercel deploy --prod --prebuilt --token="$TOKEN"
+          else
+            vercel build --token="$TOKEN"
+            DEPLOYMENT_URL=$(vercel deploy --prebuilt --token="$TOKEN")
+            if [ "$DEPLOY_TYPE" = "rc" ]; then
+              vercel alias set "$DEPLOYMENT_URL" rebased-explorer-rc-iota1.vercel.app --token="$TOKEN"
+            fi
+          fi
