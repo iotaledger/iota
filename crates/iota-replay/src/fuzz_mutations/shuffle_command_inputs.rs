@@ -27,9 +27,8 @@ impl ShuffleCommandInputs {
             | Command::TransferObjects(TransferObjects { objects: args, .. }) => {
                 args.shuffle(&mut self.rng);
             }
-            Command::MoveCall(ref mut pt) => pt.arguments.shuffle(&mut self.rng),
-            Command::Publish(_) => (),
-            Command::Upgrade(_) => (),
+            Command::MoveCall(ref mut cmd) => cmd.arguments.shuffle(&mut self.rng),
+            Command::Publish(_) | Command::Upgrade(_) => (),
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }

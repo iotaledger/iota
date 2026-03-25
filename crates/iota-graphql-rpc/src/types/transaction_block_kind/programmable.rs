@@ -9,9 +9,8 @@ use async_graphql::{
 use iota_json_rpc_types::IotaArgument;
 use iota_types::transaction::{
     Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
-    MakeMoveVector, MergeCoins, ProgrammableMoveCall as NativeMoveCallTransaction,
-    ProgrammableTransaction as NativeProgrammableTransactionBlock, Publish, SharedObjectRef,
-    SplitCoins, TransferObjects, Upgrade,
+    ProgrammableMoveCall as NativeMoveCallTransaction,
+    ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectRef,
 };
 
 use crate::{
@@ -369,56 +368,59 @@ impl ProgrammableTransaction {
         use NativeProgrammableTransaction as N;
         use ProgrammableTransaction as P;
         match pt {
-            N::MoveCall(call) => P::MoveCall(MoveCallTransaction {
-                native: call,
+            N::MoveCall(cmd) => P::MoveCall(MoveCallTransaction {
+                native: cmd,
                 checkpoint_viewed_at,
             }),
-            N::TransferObjects(TransferObjects { objects, address }) => {
-                P::TransferObjects(TransferObjectsTransaction {
-                    inputs: objects.into_iter().map(TransactionArgument::from).collect(),
-                    address: address.into(),
-                })
-            }
-            N::SplitCoins(SplitCoins { coin, amounts }) => P::SplitCoins(SplitCoinsTransaction {
-                coin: coin.into(),
-                amounts: amounts.into_iter().map(TransactionArgument::from).collect(),
+            N::TransferObjects(cmd) => P::TransferObjects(TransferObjectsTransaction {
+                inputs: cmd
+                    .objects
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+                address: cmd.address.into(),
             }),
-            N::MergeCoins(MergeCoins {
-                coin,
-                coins_to_merge,
-            }) => P::MergeCoins(MergeCoinsTransaction {
-                coin: coin.into(),
-                coins: coins_to_merge
+            N::SplitCoins(cmd) => P::SplitCoins(SplitCoinsTransaction {
+                coin: cmd.coin.into(),
+                amounts: cmd
+                    .amounts
                     .into_iter()
                     .map(TransactionArgument::from)
                     .collect(),
             }),
-            N::Publish(Publish {
-                modules,
-                dependencies,
-            }) => P::Publish(PublishTransaction {
-                modules: modules.into_iter().map(Base64::from).collect(),
-                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
+            N::MergeCoins(cmd) => P::MergeCoins(MergeCoinsTransaction {
+                coin: cmd.coin.into(),
+                coins: cmd
+                    .coins_to_merge
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
             }),
-            N::MakeMoveVector(MakeMoveVector { type_, elements }) => {
-                P::MakeMoveVec(MakeMoveVecTransaction {
-                    type_: type_.map(Into::into),
-                    elements: elements
-                        .into_iter()
-                        .map(TransactionArgument::from)
-                        .collect(),
-                })
-            }
-            N::Upgrade(Upgrade {
-                modules,
-                dependencies,
-                package,
-                ticket,
-            }) => P::Upgrade(UpgradeTransaction {
-                modules: modules.into_iter().map(Base64::from).collect(),
-                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-                current_package: package.into(),
-                upgrade_ticket: ticket.into(),
+            N::Publish(cmd) => P::Publish(PublishTransaction {
+                modules: cmd.modules.into_iter().map(Base64::from).collect(),
+                dependencies: cmd
+                    .dependencies
+                    .into_iter()
+                    .map(IotaAddress::from)
+                    .collect(),
+            }),
+            N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
+                type_: cmd.type_.map(Into::into),
+                elements: cmd
+                    .elements
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+            }),
+            N::Upgrade(cmd) => P::Upgrade(UpgradeTransaction {
+                modules: cmd.modules.into_iter().map(Base64::from).collect(),
+                dependencies: cmd
+                    .dependencies
+                    .into_iter()
+                    .map(IotaAddress::from)
+                    .collect(),
+                current_package: cmd.package.into(),
+                upgrade_ticket: cmd.ticket.into(),
             }),
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
