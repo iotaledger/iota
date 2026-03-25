@@ -46,7 +46,7 @@ pub struct ListOwnedObjectsRequest {
     #[prost(uint32, optional, tag = "2")]
     pub limit: ::core::option::Option<u32>,
     /// Mask specifying which fields to read.
-    /// If no mask is specified, defaults to `object_id,version,object_type`.
+    /// If no mask is specified, defaults to `reference,bcs`.
     #[prost(message, optional, tag = "3")]
     pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
     /// Optional type filter to limit the types of objects listed.
@@ -75,7 +75,7 @@ pub struct ListOwnedObjectsResponse {
     #[prost(bool, tag = "2")]
     pub has_next: bool,
 }
-/// Request message for `NodeService.GetCoinInfo`.
+/// Request message for `StateService.GetCoinInfo`.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetCoinInfoRequest {
@@ -83,7 +83,7 @@ pub struct GetCoinInfoRequest {
     #[prost(string, optional, tag = "1")]
     pub coin_type: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// Response message for `NodeService.GetCoinInfo`.
+/// Response message for `StateService.GetCoinInfo`.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GetCoinInfoResponse {

@@ -37,17 +37,25 @@ mod _accessor_impls {
         }
     }
     impl super::PackageVersion {
-        /// Sets `package_id` with the provided value.
-        pub fn with_package_id<T: Into<super::super::types::ObjectId>>(
+        /// Sets `original_id` with the provided value.
+        pub fn with_original_id<T: Into<super::super::types::ObjectId>>(
             mut self,
             field: T,
         ) -> Self {
-            self.package_id = Some(field.into());
+            self.original_id = Some(field.into());
             self
         }
         /// Sets `version` with the provided value.
         pub fn with_version(mut self, field: u64) -> Self {
             self.version = Some(field);
+            self
+        }
+        /// Sets `storage_id` with the provided value.
+        pub fn with_storage_id<T: Into<super::super::types::ObjectId>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.storage_id = Some(field.into());
             self
         }
     }

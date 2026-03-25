@@ -20,14 +20,21 @@ pub struct DynamicField {
     /// The dynamic field's "name"
     #[prost(message, optional, tag = "5")]
     pub name: ::core::option::Option<super::bcs::BcsData>,
-    /// The dynamic field's "value"
+    /// The dynamic field's "value".
+    ///
+    /// For regular dynamic fields this contains the BCS-encoded value whose type
+    /// is given by `value_type`. For dynamic *object* fields this contains the
+    /// BCS-encoded ObjectID of the child object; use `child_object` to access the
+    /// full object.
     #[prost(message, optional, tag = "6")]
     pub value: ::core::option::Option<super::bcs::BcsData>,
     /// The type of the dynamic field "value".
     ///
-    /// If this is a dynamic object field then this is the type of the object
-    /// itself (which is a child of this field), otherwise this is the type of the
-    /// value of this field.
+    /// For regular dynamic fields this is the Move type of the value stored
+    /// in the `value` field. For dynamic *object* fields this is the Move type
+    /// of the child object itself (e.g. `0x2::coin::Coin<0x2::iota::IOTA>`),
+    /// not `0x2::object::ID` — clients should use `child_object` rather than
+    /// BCS-decoding `value` with this type.
     #[prost(string, optional, tag = "7")]
     pub value_type: ::core::option::Option<::prost::alloc::string::String>,
     /// The ObjectId of the child object when a child is a dynamic

@@ -330,23 +330,25 @@ pub trait GrpcStateReader: Send + Sync + 'static {
         coin_type: &move_core_types::language_storage::StructTag,
     ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>>;
 
-    /// Get the ObjectID of the `RegulatedCoinMetadata<T>` object for a coin
-    /// type, if one exists.  Returns `Ok(None)` when there is no regulated
-    /// metadata or when the backfill index has not yet completed.
-    fn get_regulated_coin_info(
-        &self,
-        coin_type: &move_core_types::language_storage::StructTag,
-    ) -> anyhow::Result<Option<ObjectID>>;
-
     /// Returns `true` once the `package_version` backfill has completed.
     /// Default implementation returns `true` (e.g. simulacrum).
     fn is_package_version_index_ready(&self) -> bool {
         true
     }
 
-    /// Returns `true` once the `regulated_coin` backfill has completed.
-    /// Default implementation returns `true` (e.g. simulacrum).
-    fn is_regulated_coin_index_ready(&self) -> bool {
+    /// Get unified coin info from the `coin_v2` table.
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>>;
+
+    /// Returns `true` once the `coin_v2` backfill has completed.
+    fn is_coin_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `owner_v2` backfill has completed.
+    fn is_owner_v2_index_ready(&self) -> bool {
         true
     }
 
@@ -583,26 +585,30 @@ impl GrpcStateReader for RestStateReaderAdapter {
         indexes.get_coin_info(coin_type).map_err(Into::into)
     }
 
-    fn get_regulated_coin_info(
-        &self,
-        coin_type: &move_core_types::language_storage::StructTag,
-    ) -> anyhow::Result<Option<ObjectID>> {
-        let indexes = self.require_indexes()?;
-        indexes
-            .get_regulated_coin_info(coin_type)
-            .map_err(Into::into)
-    }
-
     fn is_package_version_index_ready(&self) -> bool {
         self.inner
             .indexes()
             .is_none_or(|i| i.is_package_version_index_ready())
     }
 
-    fn is_regulated_coin_index_ready(&self) -> bool {
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>> {
+        let indexes = self.require_indexes()?;
+        indexes.get_coin_v2_info(coin_type).map_err(Into::into)
+    }
+
+    fn is_coin_v2_index_ready(&self) -> bool {
         self.inner
             .indexes()
-            .is_none_or(|i| i.is_regulated_coin_index_ready())
+            .is_none_or(|i| i.is_coin_v2_index_ready())
+    }
+
+    fn is_owner_v2_index_ready(&self) -> bool {
+        self.inner
+            .indexes()
+            .is_none_or(|i| i.is_owner_v2_index_ready())
     }
 
     fn package_versions_iter(
@@ -1036,23 +1042,36 @@ impl GrpcReader {
         self.state_reader.get_coin_info(coin_type)
     }
 
-    /// Get the `RegulatedCoinMetadata<T>` object ID for a coin type.
+    /// Get unified coin info from the `coin_v2` table.
     ///
-    /// Returns `Err(IndexBackfillInProgressError)` when the backfill has not
-    /// yet completed so callers receive a retryable `Unavailable` gRPC status.
-    pub fn get_regulated_coin_info(
+    /// When the `coin_v2` backfill has not yet completed, falls back to the
+    /// legacy `coin` table and returns `regulated_available = false` so
+    /// callers know that `regulated_coin_metadata_object_id` is absent due
+    /// to the backfill rather than the coin being unregulated.
+    pub fn get_coin_v2_info(
         &self,
         coin_type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<ObjectID>, crate::error::RpcError> {
-        if !self.state_reader.is_regulated_coin_index_ready() {
-            return Err(crate::error::IndexBackfillInProgressError {
-                index_name: "regulated_coin",
-            }
-            .into());
+    ) -> Result<(Option<iota_types::storage::CoinInfoV2>, bool), crate::error::RpcError> {
+        if self.state_reader.is_coin_v2_index_ready() {
+            let info = self
+                .state_reader
+                .get_coin_v2_info(coin_type)
+                .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
+            Ok((info, true))
+        } else {
+            // Fallback: coin_v2 backfill in progress — serve base coin info
+            // from the legacy table; regulated metadata is unavailable.
+            let info = self
+                .state_reader
+                .get_coin_info(coin_type)
+                .map_err(|e| crate::error::RpcError::internal().with_context(e))?
+                .map(|ci| iota_types::storage::CoinInfoV2 {
+                    coin_metadata_object_id: ci.coin_metadata_object_id,
+                    treasury_object_id: ci.treasury_object_id,
+                    regulated_coin_metadata_object_id: None,
+                });
+            Ok((info, false))
         }
-        self.state_reader
-            .get_regulated_coin_info(coin_type)
-            .map_err(|e| crate::error::RpcError::internal().with_context(e))
     }
 
     /// Iterate over all versions of a package by its original package ID.

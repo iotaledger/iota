@@ -29,16 +29,19 @@ pub struct ListPackageVersionsResponse {
     #[prost(bool, tag = "2")]
     pub has_next: bool,
 }
-/// A simplified representation of a package version
+/// A simplified representation of a package version.
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PackageVersion {
-    /// The storage ID of this package version
+    /// The original (immutable) package ID shared across all versions
     #[prost(message, optional, tag = "1")]
-    pub package_id: ::core::option::Option<super::types::ObjectId>,
+    pub original_id: ::core::option::Option<super::types::ObjectId>,
     /// The version number
     #[prost(uint64, optional, tag = "2")]
     pub version: ::core::option::Option<u64>,
+    /// The storage ID of this specific package version
+    #[prost(message, optional, tag = "3")]
+    pub storage_id: ::core::option::Option<super::types::ObjectId>,
 }
 /// Generated client implementations.
 pub mod move_package_service_client {

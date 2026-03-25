@@ -30,16 +30,20 @@ async fn list_package_versions_framework_package() {
         "Framework package should have at least 1 version, got {total_versions}"
     );
 
-    // Each version should have a package_id and version number
+    // Each version should have original_id, storage_id and version number
     for response in &responses {
         for version in &response.versions {
             assert!(
-                version.package_id.is_some(),
-                "Each version should have a package_id"
+                version.original_id.is_some(),
+                "Each version should have an original_id"
             );
             assert!(
                 version.version.is_some(),
                 "Each version should have a version number"
+            );
+            assert!(
+                version.storage_id.is_some(),
+                "Each version should have a storage_id"
             );
         }
     }

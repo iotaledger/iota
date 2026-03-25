@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
+    hash::Hasher,
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -52,7 +53,7 @@ use crate::{
 /// NOTE: Adding a *new* table does NOT require a version bump.  New tables
 /// start empty and are populated by a background backfill task tracked via
 /// dedicated `Watermark` variants (`PackageVersionBackfilled`,
-/// `RegulatedCoinBackfilled`, …).  While the backfill runs, affected
+/// `CoinV2Backfilled`, `OwnerV2Backfilled`).  While the backfill runs, affected
 /// endpoints return `Code::Unavailable` with a `RetryInfo` hint.
 const CURRENT_DB_VERSION: u64 = 1;
 
@@ -69,8 +70,10 @@ pub enum Watermark {
     Pruned,
     /// Written once the `package_version` table backfill has completed.
     PackageVersionBackfilled,
-    /// Written once the `regulated_coin` table backfill has completed.
-    RegulatedCoinBackfilled,
+    /// Written once the `coin_v2` table backfill has completed.
+    CoinV2Backfilled,
+    /// Written once the `owner_v2` table backfill has completed.
+    OwnerV2Backfilled,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -121,6 +124,229 @@ impl CoinIndexInfo {
     }
 }
 
+/// Extended coin index value that absorbs `regulated_coin` into a single table.
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct CoinIndexInfoV2 {
+    pub coin_metadata_object_id: Option<ObjectID>,
+    pub treasury_object_id: Option<ObjectID>,
+    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+}
+
+impl From<CoinIndexInfo> for CoinIndexInfoV2 {
+    fn from(info: CoinIndexInfo) -> Self {
+        Self {
+            coin_metadata_object_id: info.coin_metadata_object_id,
+            treasury_object_id: info.treasury_object_id,
+            regulated_coin_metadata_object_id: None,
+        }
+    }
+}
+
+impl From<CoinIndexInfoV2> for iota_types::storage::CoinInfoV2 {
+    fn from(info: CoinIndexInfoV2) -> Self {
+        Self {
+            coin_metadata_object_id: info.coin_metadata_object_id,
+            treasury_object_id: info.treasury_object_id,
+            regulated_coin_metadata_object_id: info.regulated_coin_metadata_object_id,
+        }
+    }
+}
+
+impl CoinIndexInfoV2 {
+    fn merge(&mut self, other: Self) {
+        self.coin_metadata_object_id = self
+            .coin_metadata_object_id
+            .or(other.coin_metadata_object_id);
+        self.treasury_object_id = self.treasury_object_id.or(other.treasury_object_id);
+        self.regulated_coin_metadata_object_id = self
+            .regulated_coin_metadata_object_id
+            .or(other.regulated_coin_metadata_object_id);
+    }
+}
+
+/// Insert-or-merge a `CoinIndexInfoV2` into an in-memory HashMap.
+fn merge_coin_into_v2(
+    index: &mut HashMap<CoinIndexKey, CoinIndexInfoV2>,
+    key: CoinIndexKey,
+    v2: CoinIndexInfoV2,
+) {
+    use std::collections::hash_map::Entry;
+    match index.entry(key) {
+        Entry::Occupied(mut o) => o.get_mut().merge(v2),
+        Entry::Vacant(v) => {
+            v.insert(v2);
+        }
+    }
+}
+
+/// Read-modify-write a `CoinIndexInfoV2` entry in the `coin_v2` DB table.
+///
+/// Reads the current value (if any), applies `mutate`, and stages the result
+/// into `batch`.  Used for incremental indexing where the full value is built
+/// across multiple objects (e.g. `CoinMetadata` + `RegulatedCoinMetadata`).
+fn read_merge_write_coin_v2(
+    table: &DBMap<CoinIndexKey, CoinIndexInfoV2>,
+    batch: &mut typed_store::rocks::DBBatch,
+    key: CoinIndexKey,
+    mutate: impl FnOnce(&mut CoinIndexInfoV2),
+) -> Result<(), StorageError> {
+    let mut v2 = table.get(&key).ok().flatten().unwrap_or_default();
+    mutate(&mut v2);
+    batch.insert_batch(table, [(key, v2)])?;
+    Ok(())
+}
+
+/// Hash-based owner index key with fixed-size layout for correct RocksDB
+/// byte-order iteration.
+///
+/// ## Sort order (bincode big-endian serialization)
+///
+/// Keys are ordered by `(owner, object_type_identifier, object_type_params,
+/// inverted_balance, object_id)`.
+///
+/// `inverted_balance` is `None` for non-coin objects and `Some(!balance)` for
+/// coins.  When serialized, `None` sorts before `Some(...)`, so **non-coin
+/// objects sort before coins** within the same `(owner, type_id, type_params)`
+/// group.  Among coins, `!balance` inverts the natural order so that **higher
+/// balances sort first** (richest first).
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct OwnerIndexKeyV2 {
+    pub owner: IotaAddress,
+    pub object_type_identifier: u64,
+    pub object_type_params: u64,
+    pub inverted_balance: Option<u64>,
+    pub object_id: ObjectID,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OwnerIndexInfoV2 {
+    pub object_type: StructTag,
+    pub version: SequenceNumber,
+}
+
+/// Type filter for `owner_v2_iter`.
+///
+/// - `None` — all objects for the owner.
+/// - `BaseType` — all objects whose `address::module::name` matches (e.g. all
+///   `Coin<*>`). Post-filters hash collisions via `tag`.
+/// - `ExactType` — only objects of the exact `StructTag` (e.g. `Coin<IOTA>`).
+///   Post-filters hash collisions via `tag`.
+#[derive(Clone)]
+pub enum OwnerV2TypeFilter {
+    None,
+    BaseType {
+        id_hash: u64,
+        tag: StructTag,
+    },
+    ExactType {
+        id_hash: u64,
+        params_hash: u64,
+        tag: StructTag,
+    },
+}
+
+impl OwnerV2TypeFilter {
+    /// Filter for all objects matching `address::module::name` (any type
+    /// params).
+    pub fn base_type(tag: &StructTag) -> Self {
+        Self::BaseType {
+            id_hash: hash_type_identifier(tag),
+            tag: tag.clone(),
+        }
+    }
+
+    /// Filter for objects matching the exact `StructTag` (including type
+    /// params).
+    pub fn exact_type(tag: &StructTag) -> Self {
+        Self::ExactType {
+            id_hash: hash_type_identifier(tag),
+            params_hash: hash_type_params(tag),
+            tag: tag.clone(),
+        }
+    }
+}
+
+fn hash_type_identifier(tag: &StructTag) -> u64 {
+    let mut hasher = twox_hash::XxHash64::with_seed(0);
+    hasher.write(tag.address.as_ref());
+    hasher.write(tag.module.as_bytes());
+    hasher.write(tag.name.as_bytes());
+    hasher.finish()
+}
+
+fn hash_type_params(tag: &StructTag) -> u64 {
+    let mut hasher = twox_hash::XxHash64::with_seed(1);
+    let bytes = bcs::to_bytes(&tag.type_params).expect("type_params serialization cannot fail");
+    hasher.write(&bytes);
+    hasher.finish()
+}
+
+/// Compute inclusive lower and upper `OwnerIndexKeyV2` bounds for a
+/// `safe_iter_with_bounds` range scan, narrowed by `type_filter`.
+fn owner_v2_bounds(
+    owner: IotaAddress,
+    filter: &OwnerV2TypeFilter,
+) -> (OwnerIndexKeyV2, OwnerIndexKeyV2) {
+    let (id_lo, id_hi, params_lo, params_hi) = match filter {
+        OwnerV2TypeFilter::None => (0, u64::MAX, 0, u64::MAX),
+        OwnerV2TypeFilter::BaseType { id_hash, .. } => (*id_hash, *id_hash, 0, u64::MAX),
+        OwnerV2TypeFilter::ExactType {
+            id_hash,
+            params_hash,
+            ..
+        } => (*id_hash, *id_hash, *params_hash, *params_hash),
+    };
+    let lo = OwnerIndexKeyV2 {
+        owner,
+        object_type_identifier: id_lo,
+        object_type_params: params_lo,
+        inverted_balance: None,
+        object_id: ObjectID::ZERO,
+    };
+    let hi = OwnerIndexKeyV2 {
+        owner,
+        object_type_identifier: id_hi,
+        object_type_params: params_hi,
+        inverted_balance: Some(u64::MAX),
+        object_id: ObjectID::MAX,
+    };
+    (lo, hi)
+}
+
+/// Build an `OwnerIndexKeyV2` for an address-owned object.
+fn make_owner_v2_key(
+    owner: IotaAddress,
+    object: &Object,
+) -> Option<(OwnerIndexKeyV2, OwnerIndexInfoV2)> {
+    let struct_tag: StructTag = object.type_()?.clone().into();
+    let id_hash = hash_type_identifier(&struct_tag);
+    let params_hash = hash_type_params(&struct_tag);
+
+    // For coins, extract the balance for inverted sorting (richest first).
+    let inverted_balance = if object.is_coin() {
+        let balance = object
+            .as_coin_maybe()
+            .map(|c| c.balance.value())
+            .unwrap_or(0);
+        Some(!balance)
+    } else {
+        None
+    };
+
+    let key = OwnerIndexKeyV2 {
+        owner,
+        object_type_identifier: id_hash,
+        object_type_params: params_hash,
+        inverted_balance,
+        object_id: object.id(),
+    };
+    let info = OwnerIndexInfoV2 {
+        object_type: struct_tag,
+        version: object.version(),
+    };
+    Some((key, info))
+}
+
 /// RocksDB tables for the RestIndexStore
 ///
 /// Anytime a new table is added, or and existing one has it's schema changed,
@@ -166,13 +392,16 @@ struct IndexStoreTables {
     /// Allows an efficient iterator to list all objects currently owned by a
     /// specific user account.
     /// REST-API only
+    // TODO: Remove once REST-API server is deprecated — gRPC uses owner_v2.
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
     /// a particular ObjectID.
-    /// REST-API only
+    /// REST-API and gRPC
+    // TODO: Replace DynamicFieldIndexInfo with () once the REST-API server is
+    // deprecated — gRPC only needs the key.
     dynamic_field: DBMap<DynamicFieldKey, DynamicFieldIndexInfo>,
 
     /// An index of Coin Types
@@ -191,14 +420,19 @@ struct IndexStoreTables {
     /// gRPC-server only
     package_version: DBMap<PackageVersionKey, PackageVersionInfo>,
 
-    /// An index of RegulatedCoinMetadata objects by coin type.
-    ///
-    /// Maps coin type to the ObjectID of the `RegulatedCoinMetadata<T>` object.
-    /// Bounded by the live object set (at most one entry per regulated coin).
-    /// Kept separate from the `coin` table so adding this index does not
-    /// require a DB version bump.
+    /// Unified coin index merging `coin` + `regulated_coin` into a single
+    /// table. Same key as `coin`, extended value with regulated coin metadata.
+    /// Bounded by the live object set (one entry per coin type).
     /// gRPC-server only
-    regulated_coin: DBMap<CoinIndexKey, ObjectID>,
+    coin_v2: DBMap<CoinIndexKey, CoinIndexInfoV2>,
+
+    /// Hash-based owner index for gRPC `ListOwnedObjects`.
+    ///
+    /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
+    /// Full `StructTag` stored in value for collision filtering & API
+    /// responses. Bounded by the live object set (one entry per
+    /// address-owned object). gRPC-server only
+    owner_v2: DBMap<OwnerIndexKeyV2, OwnerIndexInfoV2>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
     // - are prune-able and have corresponding logic in the `prune` function
@@ -270,10 +504,12 @@ impl IndexStoreTables {
         self.initialize_current_epoch(authority_store, checkpoint_store)?;
 
         let coin_index = Mutex::new(HashMap::new());
+        let coin_v2_index = Mutex::new(HashMap::new());
 
         let make_live_object_indexer = RestParLiveObjectSetIndexer {
             tables: self,
             coin_index: &coin_index,
+            coin_v2_index: &coin_v2_index,
             epoch_store,
             package_store,
         };
@@ -284,6 +520,8 @@ impl IndexStoreTables {
         )?;
 
         self.coin.multi_insert(coin_index.into_inner().unwrap())?;
+        self.coin_v2
+            .multi_insert(coin_v2_index.into_inner().unwrap())?;
 
         self.watermark.insert(
             &Watermark::Indexed,
@@ -294,8 +532,9 @@ impl IndexStoreTables {
         // them via par_index_live_object_set, so no background backfill needed.
         self.watermark
             .insert(&Watermark::PackageVersionBackfilled, &0u64)?;
+        self.watermark.insert(&Watermark::CoinV2Backfilled, &0u64)?;
         self.watermark
-            .insert(&Watermark::RegulatedCoinBackfilled, &0u64)?;
+            .insert(&Watermark::OwnerV2Backfilled, &0u64)?;
 
         self.meta.insert(
             &(),
@@ -550,6 +789,7 @@ impl IndexStoreTables {
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
         let mut coin_index: HashMap<CoinIndexKey, CoinIndexInfo> = HashMap::new();
+        let mut coin_v2_index: HashMap<CoinIndexKey, CoinIndexInfoV2> = HashMap::new();
 
         for tx in &checkpoint.transactions {
             // determine changes from removed objects
@@ -558,6 +798,11 @@ impl IndexStoreTables {
                     Owner::AddressOwner(address) => {
                         let owner_key = OwnerIndexKey::new(*address, removed_object.id());
                         batch.delete_batch(&self.owner, [owner_key])?;
+
+                        // owner_v2: delete old entry
+                        if let Some((v2_key, _)) = make_owner_v2_key(*address, removed_object) {
+                            batch.delete_batch(&self.owner_v2, [v2_key])?;
+                        }
                     }
                     Owner::ObjectOwner(object_id) => {
                         batch.delete_batch(
@@ -576,6 +821,11 @@ impl IndexStoreTables {
                         Owner::AddressOwner(address) => {
                             let owner_key = OwnerIndexKey::new(*address, old_object.id());
                             batch.delete_batch(&self.owner, [owner_key])?;
+
+                            // owner_v2: delete old entry
+                            if let Some((v2_key, _)) = make_owner_v2_key(*address, old_object) {
+                                batch.delete_batch(&self.owner_v2, [v2_key])?;
+                            }
                         }
 
                         Owner::ObjectOwner(object_id) => {
@@ -596,6 +846,11 @@ impl IndexStoreTables {
                         let owner_key = OwnerIndexKey::new(*owner, object.id());
                         let owner_info = OwnerIndexInfo::new(object);
                         batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
+
+                        // owner_v2 index
+                        if let Some((v2_key, v2_info)) = make_owner_v2_key(*owner, object) {
+                            batch.insert_batch(&self.owner_v2, [(v2_key, v2_info)])?;
+                        }
                     }
                     Owner::ObjectOwner(parent) => {
                         if let Some(field_info) = try_create_dynamic_field_info(object, resolver)? {
@@ -617,10 +872,14 @@ impl IndexStoreTables {
             for (key, value) in tx.created_objects().flat_map(try_create_coin_index_info) {
                 use std::collections::hash_map::Entry;
 
+                merge_coin_into_v2(
+                    &mut coin_v2_index,
+                    key.clone(),
+                    CoinIndexInfoV2::from(value.clone()),
+                );
+
                 match coin_index.entry(key) {
-                    Entry::Occupied(mut o) => {
-                        o.get_mut().merge(value);
-                    }
+                    Entry::Occupied(mut o) => o.get_mut().merge(value),
                     Entry::Vacant(v) => {
                         v.insert(value);
                     }
@@ -629,25 +888,33 @@ impl IndexStoreTables {
         }
 
         batch.insert_batch(&self.coin, coin_index)?;
+        batch.insert_batch(&self.coin_v2, coin_v2_index)?;
 
-        // package version + regulated coin indexing
+        // package version + regulated coin → coin_v2 indexing
         // Both use created_objects(): packages and RegulatedCoinMetadata objects are
         // always created, never mutated in-place, so changed_objects() would only add
         // noise from unrelated object mutations.
         let mut package_version_index: Vec<(PackageVersionKey, PackageVersionInfo)> = Vec::new();
-        let mut regulated_coin_index: Vec<(CoinIndexKey, ObjectID)> = Vec::new();
+        let mut regulated_coin_v2_keys: Vec<(CoinIndexKey, ObjectID)> = Vec::new();
         for tx in &checkpoint.transactions {
             for object in tx.created_objects() {
                 if let Some((key, info)) = try_create_package_version_info(object) {
                     package_version_index.push((key, info));
                 }
                 if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
-                    regulated_coin_index.push((key, object_id));
+                    regulated_coin_v2_keys.push((key, object_id));
                 }
             }
         }
         batch.insert_batch(&self.package_version, package_version_index)?;
-        batch.insert_batch(&self.regulated_coin, regulated_coin_index)?;
+        // Merge regulated coin entries into coin_v2.
+        // These are rare (at most one per regulated coin type per checkpoint),
+        // so read-modify-write is acceptable.
+        for (key, object_id) in regulated_coin_v2_keys {
+            read_merge_write_coin_v2(&self.coin_v2, batch, key, |v2| {
+                v2.regulated_coin_metadata_object_id = Some(object_id);
+            })?;
+        }
 
         Ok(())
     }
@@ -732,14 +999,44 @@ impl IndexStoreTables {
     }
 
     // only used in "grpc-server"
-    fn get_regulated_coin_info(
+    fn get_coin_v2_info(
         &self,
         coin_type: &StructTag,
-    ) -> Result<Option<ObjectID>, TypedStoreError> {
+    ) -> Result<Option<CoinIndexInfoV2>, TypedStoreError> {
         let key = CoinIndexKey {
             coin_type: coin_type.to_owned(),
         };
-        self.regulated_coin.get(&key)
+        self.coin_v2.get(&key)
+    }
+
+    // only used in "grpc-server"
+    fn owner_v2_iter(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<OwnerIndexKeyV2>,
+        type_filter: OwnerV2TypeFilter,
+    ) -> Result<
+        impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
+        TypedStoreError,
+    > {
+        let (lo, hi) = owner_v2_bounds(owner, &type_filter);
+        let lower_bound = cursor.unwrap_or(lo);
+        Ok(self
+            .owner_v2
+            .safe_iter_with_bounds(Some(lower_bound), Some(hi))
+            .filter(move |result| match result {
+                Ok((_, info)) => match &type_filter {
+                    OwnerV2TypeFilter::None => true,
+                    OwnerV2TypeFilter::BaseType { tag, .. } => {
+                        info.object_type.address == tag.address
+                            && info.object_type.module == tag.module
+                            && info.object_type.name == tag.name
+                    }
+                    OwnerV2TypeFilter::ExactType { tag, .. } => info.object_type == *tag,
+                },
+                // Propagate DB errors to the caller rather than silently dropping them.
+                Err(_) => true,
+            }))
     }
 }
 
@@ -748,8 +1045,10 @@ pub struct RestIndexStore {
     pending_updates: Mutex<BTreeMap<u64, typed_store::rocks::DBBatch>>,
     /// Set to `true` once the `package_version` table backfill completes.
     package_version_ready: Arc<AtomicBool>,
-    /// Set to `true` once the `regulated_coin` table backfill completes.
-    regulated_coin_ready: Arc<AtomicBool>,
+    /// Set to `true` once the `coin_v2` table backfill completes.
+    coin_v2_ready: Arc<AtomicBool>,
+    /// Set to `true` once the `owner_v2` table backfill completes.
+    owner_v2_ready: Arc<AtomicBool>,
 }
 
 impl RestIndexStore {
@@ -801,30 +1100,51 @@ impl RestIndexStore {
             .ok()
             .flatten()
             .is_some();
-        let reg_done = tables
+        let coin_v2_done = tables
             .watermark
-            .get(&Watermark::RegulatedCoinBackfilled)
+            .get(&Watermark::CoinV2Backfilled)
+            .ok()
+            .flatten()
+            .is_some();
+        let owner_v2_done = tables
+            .watermark
+            .get(&Watermark::OwnerV2Backfilled)
             .ok()
             .flatten()
             .is_some();
 
         let package_version_ready = Arc::new(AtomicBool::new(pkg_done));
-        let regulated_coin_ready = Arc::new(AtomicBool::new(reg_done));
+        let coin_v2_ready = Arc::new(AtomicBool::new(coin_v2_done));
+        let owner_v2_ready = Arc::new(AtomicBool::new(owner_v2_done));
 
-        if !pkg_done || !reg_done {
+        if !pkg_done || !coin_v2_done || !owner_v2_done {
             let tables_clone = Arc::clone(&tables);
             let auth_clone = Arc::clone(&authority_store);
             let pkg_flag = Arc::clone(&package_version_ready);
-            let reg_flag = Arc::clone(&regulated_coin_ready);
+            let coin_v2_flag = Arc::clone(&coin_v2_ready);
+            let owner_v2_flag = Arc::clone(&owner_v2_ready);
             tokio::spawn(async move {
                 match tokio::task::spawn_blocking(move || {
                     backfill_new_tables(
                         &tables_clone,
                         &auth_clone,
-                        !pkg_done,
-                        &pkg_flag,
-                        !reg_done,
-                        &reg_flag,
+                        &[
+                            BackfillTask {
+                                needed: !pkg_done,
+                                done_flag: &pkg_flag,
+                                watermark: Watermark::PackageVersionBackfilled,
+                            },
+                            BackfillTask {
+                                needed: !coin_v2_done,
+                                done_flag: &coin_v2_flag,
+                                watermark: Watermark::CoinV2Backfilled,
+                            },
+                            BackfillTask {
+                                needed: !owner_v2_done,
+                                done_flag: &owner_v2_flag,
+                                watermark: Watermark::OwnerV2Backfilled,
+                            },
+                        ],
                     );
                 })
                 .await
@@ -841,7 +1161,8 @@ impl RestIndexStore {
             tables,
             pending_updates: Default::default(),
             package_version_ready,
-            regulated_coin_ready,
+            coin_v2_ready,
+            owner_v2_ready,
         }
     }
 
@@ -851,11 +1172,12 @@ impl RestIndexStore {
         Self {
             tables,
             pending_updates: Default::default(),
-            // new_without_init is used in tests / tooling — mark both tables
+            // new_without_init is used in tests / tooling — mark all tables
             // as ready so callers don't get spurious "backfill in progress"
             // errors.
             package_version_ready: Arc::new(AtomicBool::new(true)),
-            regulated_coin_ready: Arc::new(AtomicBool::new(true)),
+            coin_v2_ready: Arc::new(AtomicBool::new(true)),
+            owner_v2_ready: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -971,21 +1293,41 @@ impl RestIndexStore {
     }
 
     // only used in "grpc-server"
-    pub fn get_regulated_coin_info(
-        &self,
-        coin_type: &StructTag,
-    ) -> Result<Option<ObjectID>, TypedStoreError> {
-        self.tables.get_regulated_coin_info(coin_type)
-    }
-
-    // only used in "grpc-server"
     pub fn is_package_version_index_ready(&self) -> bool {
         self.package_version_ready.load(Ordering::Acquire)
     }
 
     // only used in "grpc-server"
-    pub fn is_regulated_coin_index_ready(&self) -> bool {
-        self.regulated_coin_ready.load(Ordering::Acquire)
+    pub fn get_coin_v2_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> Result<Option<CoinIndexInfoV2>, TypedStoreError> {
+        self.tables.get_coin_v2_info(coin_type)
+    }
+
+    // only used in "grpc-server"
+    pub fn is_coin_v2_index_ready(&self) -> bool {
+        self.coin_v2_ready.load(Ordering::Acquire)
+    }
+
+    // only used in "grpc-server"
+    // TODO: Expose through `RestIndexes` and `GrpcStateReader` traits when
+    // the `ListOwnedObjects` gRPC endpoint is implemented.
+    pub fn owner_v2_iter(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<OwnerIndexKeyV2>,
+        type_filter: OwnerV2TypeFilter,
+    ) -> Result<
+        impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
+        TypedStoreError,
+    > {
+        self.tables.owner_v2_iter(owner, cursor, type_filter)
+    }
+
+    // only used in "grpc-server"
+    pub fn is_owner_v2_index_ready(&self) -> bool {
+        self.owner_v2_ready.load(Ordering::Acquire)
     }
 }
 
@@ -1061,8 +1403,7 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
 }
 
 /// Returns `(CoinIndexKey, regulated_coin_metadata_object_id)` if `object` is
-/// a `RegulatedCoinMetadata<T>`.  Used to populate the separate
-/// `regulated_coin` table.
+/// a `RegulatedCoinMetadata<T>`.  Used to populate the `coin_v2` table.
 fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectID)> {
     use move_core_types::language_storage::TypeTag;
 
@@ -1097,6 +1438,7 @@ fn try_create_package_version_info(
 struct RestParLiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+    coin_v2_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfoV2>>,
     epoch_store: &'a AuthorityPerEpochStore,
     package_store: &'a Arc<dyn BackingPackageStore + Send + Sync>,
 }
@@ -1105,6 +1447,7 @@ struct RestLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
+    coin_v2_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfoV2>>,
     resolver: Box<dyn LayoutResolver + 'a>,
 }
 
@@ -1116,6 +1459,7 @@ impl<'a> ParMakeLiveObjectIndexer for RestParLiveObjectSetIndexer<'a> {
             tables: self.tables,
             batch: self.tables.owner.batch(),
             coin_index: self.coin_index,
+            coin_v2_index: self.coin_v2_index,
             resolver: self
                 .epoch_store
                 .executor()
@@ -1127,12 +1471,18 @@ impl<'a> ParMakeLiveObjectIndexer for RestParLiveObjectSetIndexer<'a> {
 impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
     fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
         match object.owner {
-            // Owner Index
+            // Owner Index (legacy REST + new owner_v2 for gRPC)
             Owner::AddressOwner(owner) => {
                 let owner_key = OwnerIndexKey::new(owner, object.id());
                 let owner_info = OwnerIndexInfo::new(&object);
                 self.batch
                     .insert_batch(&self.tables.owner, [(owner_key, owner_info)])?;
+
+                // owner_v2 index
+                if let Some((v2_key, v2_info)) = make_owner_v2_key(owner, &object) {
+                    self.batch
+                        .insert_batch(&self.tables.owner_v2, [(v2_key, v2_info)])?;
+                }
             }
 
             // Dynamic Field Index
@@ -1154,10 +1504,14 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
         if let Some((key, value)) = try_create_coin_index_info(&object) {
             use std::collections::hash_map::Entry;
 
+            merge_coin_into_v2(
+                &mut self.coin_v2_index.lock().unwrap(),
+                key.clone(),
+                CoinIndexInfoV2::from(value.clone()),
+            );
+
             match self.coin_index.lock().unwrap().entry(key) {
-                Entry::Occupied(mut o) => {
-                    o.get_mut().merge(value);
-                }
+                Entry::Occupied(mut o) => o.get_mut().merge(value),
                 Entry::Vacant(v) => {
                     v.insert(value);
                 }
@@ -1170,10 +1524,16 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
                 .insert_batch(&self.tables.package_version, [(key, info)])?;
         }
 
-        // Regulated coin index (separate table to avoid bumping DB version)
+        // Regulated coin index (coin_v2 only)
         if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
-            self.batch
-                .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
+            merge_coin_into_v2(
+                &mut self.coin_v2_index.lock().unwrap(),
+                key,
+                CoinIndexInfoV2 {
+                    regulated_coin_metadata_object_id: Some(object_id),
+                    ..Default::default()
+                },
+            );
         }
 
         // If the batch size grows to greater that 128MB then write out to the DB so
@@ -1200,19 +1560,28 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
 // backfill is not repeated on the next restart.
 // ---------------------------------------------------------------------------
 
-/// Combined backfill indexer that populates both `package_version` and
-/// `regulated_coin` tables in a single pass over the live object set.
+/// Combined backfill indexer that populates `package_version`, `coin_v2`,
+/// and `owner_v2` tables in a single pass over the live object set.
+///
+/// `coin_v2` entries are accumulated in a shared `Mutex<HashMap>` (like the
+/// full-init path) to avoid lost-update races when parallel workers encounter
+/// `CoinMetadata` and `TreasuryCap` for the same coin type in different
+/// ObjectID ranges.
 struct BackfillIndexer<'a> {
     tables: &'a IndexStoreTables,
+    coin_v2_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfoV2>>,
     backfill_package_version: bool,
-    backfill_regulated_coin: bool,
+    backfill_coin_v2: bool,
+    backfill_owner_v2: bool,
 }
 
 struct BackfillBatchIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
+    coin_v2_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfoV2>>,
     backfill_package_version: bool,
-    backfill_regulated_coin: bool,
+    backfill_coin_v2: bool,
+    backfill_owner_v2: bool,
 }
 
 impl<'a> ParMakeLiveObjectIndexer for BackfillIndexer<'a> {
@@ -1222,8 +1591,10 @@ impl<'a> ParMakeLiveObjectIndexer for BackfillIndexer<'a> {
         BackfillBatchIndexer {
             batch: self.tables.package_version.batch(),
             tables: self.tables,
+            coin_v2_index: self.coin_v2_index,
             backfill_package_version: self.backfill_package_version,
-            backfill_regulated_coin: self.backfill_regulated_coin,
+            backfill_coin_v2: self.backfill_coin_v2,
+            backfill_owner_v2: self.backfill_owner_v2,
         }
     }
 }
@@ -1236,10 +1607,31 @@ impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
                     .insert_batch(&self.tables.package_version, [(key, info)])?;
             }
         }
-        if self.backfill_regulated_coin {
+        if self.backfill_coin_v2 {
+            if let Some((key, value)) = try_create_coin_index_info(&object) {
+                merge_coin_into_v2(
+                    &mut self.coin_v2_index.lock().unwrap(),
+                    key,
+                    CoinIndexInfoV2::from(value),
+                );
+            }
             if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
-                self.batch
-                    .insert_batch(&self.tables.regulated_coin, [(key, object_id)])?;
+                merge_coin_into_v2(
+                    &mut self.coin_v2_index.lock().unwrap(),
+                    key,
+                    CoinIndexInfoV2 {
+                        regulated_coin_metadata_object_id: Some(object_id),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
+        if self.backfill_owner_v2 {
+            if let Owner::AddressOwner(owner) = object.owner {
+                if let Some((key, info)) = make_owner_v2_key(owner, &object) {
+                    self.batch
+                        .insert_batch(&self.tables.owner_v2, [(key, info)])?;
+                }
             }
         }
         // If the batch size grows to greater that 128MB then write out to the DB so
@@ -1256,50 +1648,72 @@ impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
     }
 }
 
+/// Describes a single backfill-only table that needs populating.
+struct BackfillTask<'a> {
+    needed: bool,
+    done_flag: &'a AtomicBool,
+    watermark: Watermark,
+}
+
 /// Run a single pass over the live object set, populating whichever of the
-/// `package_version` / `regulated_coin` tables still need backfilling.
+/// backfill-only tables still need populating.
 fn backfill_new_tables(
     tables: &IndexStoreTables,
     authority_store: &AuthorityStore,
-    backfill_package_version: bool,
-    pkg_flag: &AtomicBool,
-    backfill_regulated_coin: bool,
-    reg_flag: &AtomicBool,
+    tasks: &[BackfillTask<'_>],
 ) {
+    let (mut backfill_package_version, mut backfill_coin_v2, mut backfill_owner_v2) =
+        (false, false, false);
+    for task in tasks {
+        if !task.needed {
+            continue;
+        }
+        match task.watermark {
+            Watermark::PackageVersionBackfilled => backfill_package_version = true,
+            Watermark::CoinV2Backfilled => backfill_coin_v2 = true,
+            Watermark::OwnerV2Backfilled => backfill_owner_v2 = true,
+            _ => {}
+        }
+    }
+
     info!(
         "Starting background backfill (package_version={backfill_package_version}, \
-         regulated_coin={backfill_regulated_coin})"
+         coin_v2={backfill_coin_v2}, owner_v2={backfill_owner_v2})"
     );
+
+    let coin_v2_index = Mutex::new(HashMap::new());
 
     let indexer = BackfillIndexer {
         tables,
+        coin_v2_index: &coin_v2_index,
         backfill_package_version,
-        backfill_regulated_coin,
+        backfill_coin_v2,
+        backfill_owner_v2,
     };
 
     match crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer) {
         Ok(()) => {
-            if backfill_package_version {
+            // Flush coin_v2 entries accumulated in memory to the DB.
+            if backfill_coin_v2 {
                 if let Err(e) = tables
-                    .watermark
-                    .insert(&Watermark::PackageVersionBackfilled, &0u64)
+                    .coin_v2
+                    .multi_insert(coin_v2_index.into_inner().unwrap())
                 {
-                    tracing::error!("Failed to write PackageVersionBackfilled watermark: {e}");
+                    tracing::error!("Failed to flush coin_v2 index: {e}");
                     return;
                 }
-                pkg_flag.store(true, Ordering::Release);
-                info!("package_version backfill complete");
             }
-            if backfill_regulated_coin {
-                if let Err(e) = tables
-                    .watermark
-                    .insert(&Watermark::RegulatedCoinBackfilled, &0u64)
-                {
-                    tracing::error!("Failed to write RegulatedCoinBackfilled watermark: {e}");
+
+            for task in tasks {
+                if !task.needed {
+                    continue;
+                }
+                if let Err(e) = tables.watermark.insert(&task.watermark, &0u64) {
+                    tracing::error!("Failed to write {:?} watermark: {e}", task.watermark);
                     return;
                 }
-                reg_flag.store(true, Ordering::Release);
-                info!("regulated_coin backfill complete");
+                task.done_flag.store(true, Ordering::Release);
+                info!("{:?} backfill complete", task.watermark);
             }
         }
         Err(e) => tracing::error!("background backfill failed: {e}"),

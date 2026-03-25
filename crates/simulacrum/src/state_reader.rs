@@ -313,11 +313,11 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         Ok(None)
     }
 
-    fn get_regulated_coin_info(
+    fn get_coin_v2_info(
         &self,
         _coin_type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<iota_types::base_types::ObjectID>> {
-        // Simulacrum does not have index support for regulated coin info
+    ) -> Result<Option<iota_types::storage::CoinInfoV2>> {
+        // Simulacrum does not have index support for coin_v2 info
         Ok(None)
     }
 

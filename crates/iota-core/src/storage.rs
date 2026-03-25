@@ -15,8 +15,9 @@ use iota_types::{
     },
     object::Object,
     storage::{
-        AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestIndexes, RestStateReader, TransactionInfo, WriteStore,
+        AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIndexInfo, DynamicFieldKey,
+        ObjectKey, ObjectStore, ReadStore, RestIndexes, RestStateReader, TransactionInfo,
+        WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -639,22 +640,28 @@ impl RestIndexes for RestIndexStore {
     }
 
     // only used in "grpc-server"
-    fn get_regulated_coin_info(
-        &self,
-        coin_type: &StructTag,
-    ) -> iota_types::storage::error::Result<Option<iota_types::base_types::ObjectID>> {
-        self.get_regulated_coin_info(coin_type)
-            .map_err(StorageError::custom)
-    }
-
-    // only used in "grpc-server"
     fn is_package_version_index_ready(&self) -> bool {
         self.is_package_version_index_ready()
     }
 
     // only used in "grpc-server"
-    fn is_regulated_coin_index_ready(&self) -> bool {
-        self.is_regulated_coin_index_ready()
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<CoinInfoV2>> {
+        self.get_coin_v2_info(coin_type)?
+            .map(CoinInfoV2::from)
+            .pipe(Ok)
+    }
+
+    // only used in "grpc-server"
+    fn is_coin_v2_index_ready(&self) -> bool {
+        self.is_coin_v2_index_ready()
+    }
+
+    // only used in "grpc-server"
+    fn is_owner_v2_index_ready(&self) -> bool {
+        self.is_owner_v2_index_ready()
     }
 
     // only used in "grpc-server"

@@ -132,9 +132,9 @@ mod _field_impls {
         }
     }
     impl PackageVersion {
-        pub const PACKAGE_ID_FIELD: &'static MessageField = &MessageField {
-            name: "package_id",
-            json_name: "packageId",
+        pub const ORIGINAL_ID_FIELD: &'static MessageField = &MessageField {
+            name: "original_id",
+            json_name: "originalId",
             number: 1i32,
             is_optional: true,
             is_map: false,
@@ -148,11 +148,20 @@ mod _field_impls {
             is_map: false,
             message_fields: None,
         };
+        pub const STORAGE_ID_FIELD: &'static MessageField = &MessageField {
+            name: "storage_id",
+            json_name: "storageId",
+            number: 3i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: Some(ObjectId::FIELDS),
+        };
     }
     impl MessageFields for PackageVersion {
         const FIELDS: &'static [&'static MessageField] = &[
-            Self::PACKAGE_ID_FIELD,
+            Self::ORIGINAL_ID_FIELD,
             Self::VERSION_FIELD,
+            Self::STORAGE_ID_FIELD,
         ];
     }
     impl PackageVersion {
@@ -175,13 +184,17 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn package_id(mut self) -> ObjectIdFieldPathBuilder {
-            self.path.push(PackageVersion::PACKAGE_ID_FIELD.name);
+        pub fn original_id(mut self) -> ObjectIdFieldPathBuilder {
+            self.path.push(PackageVersion::ORIGINAL_ID_FIELD.name);
             ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
         pub fn version(mut self) -> String {
             self.path.push(PackageVersion::VERSION_FIELD.name);
             self.finish()
+        }
+        pub fn storage_id(mut self) -> ObjectIdFieldPathBuilder {
+            self.path.push(PackageVersion::STORAGE_ID_FIELD.name);
+            ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
     }
 }

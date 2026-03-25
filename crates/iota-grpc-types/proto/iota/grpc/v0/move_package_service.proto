@@ -39,12 +39,14 @@ message ListPackageVersionsResponse {
   bool has_next = 2;
 }
 
-// A simplified representation of a package version
+// A simplified representation of a package version.
 message PackageVersion {
   option (iota.grpc.message_accessors) = "with";
 
-  // The storage ID of this package version
-  optional iota.grpc.v0.types.ObjectId package_id = 1;
+  // The original (immutable) package ID shared across all versions
+  optional iota.grpc.v0.types.ObjectId original_id = 1;
   // The version number
   optional uint64 version = 2;
+  // The storage ID of this specific package version
+  optional iota.grpc.v0.types.ObjectId storage_id = 3;
 }

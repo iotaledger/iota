@@ -87,8 +87,9 @@ pub(crate) fn list_package_versions(
         .into_iter()
         .map(|(key, info)| {
             let version = PackageVersion::default()
-                .with_package_id(object_id_proto(&info.storage_id))
-                .with_version(key.version);
+                .with_original_id(object_id_proto(&key.original_package_id))
+                .with_version(key.version)
+                .with_storage_id(object_id_proto(&info.storage_id));
             let size = version.encoded_len();
             (version, size)
         })

@@ -891,16 +891,6 @@ pub trait RestIndexes: Send + Sync {
     // used in both "grpc-server" and "rest-api"
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 
-    /// Returns the ObjectID of the `RegulatedCoinMetadata<T>` object for the
-    /// given coin type, if one exists.
-    ///
-    /// This is kept in a separate table from `get_coin_info` so that adding it
-    /// does not require a DB version bump (new table, no serialization change
-    /// to existing tables).  Returns `Ok(None)` when no such object exists or
-    /// when the backfill index has not yet completed.
-    // only used in "grpc-server"
-    fn get_regulated_coin_info(&self, coin_type: &StructTag) -> Result<Option<ObjectID>>;
-
     /// Returns `true` once the `package_version` backfill has completed and the
     /// index is ready to serve queries.  Defaults to `true` so that
     /// implementations without a backfill concept (e.g. simulacrum) are
@@ -910,9 +900,20 @@ pub trait RestIndexes: Send + Sync {
         true
     }
 
-    /// Returns `true` once the `regulated_coin` backfill has completed.
+    /// Returns unified coin info from the `coin_v2` table (merges
+    /// `coin` + `regulated_coin`).
     // only used in "grpc-server"
-    fn is_regulated_coin_index_ready(&self) -> bool {
+    fn get_coin_v2_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
+
+    /// Returns `true` once the `coin_v2` backfill has completed.
+    // only used in "grpc-server"
+    fn is_coin_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `owner_v2` backfill has completed.
+    // only used in "grpc-server"
+    fn is_owner_v2_index_ready(&self) -> bool {
         true
     }
 
@@ -977,6 +978,15 @@ pub struct DynamicFieldIndexInfo {
 pub struct CoinInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
+}
+
+/// Extended coin info from the `coin_v2` table — merges `coin` +
+/// `regulated_coin` into a single lookup.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct CoinInfoV2 {
+    pub coin_metadata_object_id: Option<ObjectID>,
+    pub treasury_object_id: Option<ObjectID>,
+    pub regulated_coin_metadata_object_id: Option<ObjectID>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
