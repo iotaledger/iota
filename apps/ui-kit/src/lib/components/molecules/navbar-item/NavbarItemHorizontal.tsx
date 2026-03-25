@@ -23,6 +23,7 @@ export function NavbarItemHorizontal({
     hasBadge,
     onClick,
     isDisabled = false,
+    ...ariaProps
 }: Omit<NavbarItemProps, 'type'>): React.JSX.Element {
     const fillClasses = isSelected ? SELECTED_ICON : UNSELECTED_ICON;
     const paddingClasses = text ? PADDING_WITH_TEXT : PADDING_WITHOUT_TEXT;
@@ -40,9 +41,11 @@ export function NavbarItemHorizontal({
     return (
         <div
             onClick={handleClick}
+            role="button"
             className={cx(
                 'inline-flex cursor-pointer flex-col items-center justify-center space-y-1',
             )}
+            {...ariaProps}
         >
             <div
                 className={cx(

@@ -7,13 +7,15 @@ import ImportAWallet from '_assets/images/onboarding/import-a-wallet.png';
 import ImportAWalletDark from '_assets/images/onboarding/import-a-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
 import { AccountsFormType, PageTemplate } from '_components';
-import { useAppSelector, useCreateAccountsMutation } from '_hooks';
+import { useAppSelector, useCreateAccountsMutation, useAccounts } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Key, Passkey, Firefly } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
 import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
 import clsx from 'clsx';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export function ImportExistingWallet() {
     const { theme } = useTheme();
@@ -28,6 +30,7 @@ export function ImportExistingWallet() {
     const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
     const network = useAppSelector(({ app }) => app.network);
     const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
+    const { data: accounts } = useAccounts();
 
     const profileOptions = [
         {
@@ -65,17 +68,25 @@ export function ImportExistingWallet() {
     const handleCardAction = async (
         actionType: (typeof profileOptions | typeof legacyOptions)[number]['actionType'],
     ) => {
+        const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[actionType];
+
+        if (ampliData) {
+            ampli.accountCreationStarted({
+                accountType: ampliData.accountType,
+                accountOrigin: ampliData.accountOrigin,
+                isFirstAccount: isFirstAccount(accounts),
+                sourceFlow,
+            });
+        }
+
         switch (actionType) {
             case AccountsFormType.ImportMnemonic:
-                ampli.clickedImportPassphrase({ sourceFlow });
                 navigate('/accounts/import-passphrase');
                 break;
             case AccountsFormType.ImportPrivateKey:
-                ampli.clickedImportPrivateKey({ sourceFlow });
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.ImportPasskey:
-                ampli.clickedCreatePasskey({ sourceFlow });
                 const url = '/accounts/import-passkey';
                 if (isPopupOrSidePanel) {
                     openInNewTab(url);
@@ -85,7 +96,6 @@ export function ImportExistingWallet() {
                 }
                 break;
             case AccountsFormType.ImportSeed:
-                ampli.clickedImportSeed({ sourceFlow });
                 navigate('/accounts/import-seed');
                 break;
             default:

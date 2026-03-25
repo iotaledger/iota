@@ -83,6 +83,7 @@ export function Address({
                 <ButtonUnstyled
                     onClick={handleCopyClick}
                     className="opacity-0 group-hover:opacity-100"
+                    aria-label="Copy to clipboard"
                 >
                     <Copy />
                 </ButtonUnstyled>
@@ -91,6 +92,7 @@ export function Address({
                 <ButtonUnstyled
                     onClick={handleOpenClick}
                     className="opacity-0 group-hover:opacity-100"
+                    aria-label="Open in new tab"
                 >
                     <ArrowTopRight />
                 </ButtonUnstyled>

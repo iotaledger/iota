@@ -9,16 +9,17 @@ import { BcsReader } from './reader.js';
 import { ulebEncode } from './uleb.js';
 import type { BcsWriterOptions } from './writer.js';
 import { BcsWriter } from './writer.js';
+import type { EnumInputShape, EnumOutputShape, JoinString } from './types.js';
 
-export interface BcsTypeOptions<T, Input = T> {
-    name?: string;
+export interface BcsTypeOptions<T, Input = T, Name extends string = string> {
+    name?: Name;
     validate?: (value: Input) => void;
 }
 
-export class BcsType<T, Input = T> {
+export class BcsType<T, Input = T, const Name extends string = string> {
     $inferType!: T;
     $inferInput!: Input;
-    name: string;
+    name: Name;
     read: (reader: BcsReader) => T;
     serializedSize: (value: Input, options?: BcsWriterOptions) => number | null;
     validate: (value: Input) => void;
@@ -27,13 +28,13 @@ export class BcsType<T, Input = T> {
 
     constructor(
         options: {
-            name: string;
+            name: Name;
             read: (reader: BcsReader) => T;
             write: (value: Input, writer: BcsWriter) => void;
             serialize?: (value: Input, options?: BcsWriterOptions) => Uint8Array;
             serializedSize?: (value: Input) => number | null;
             validate?: (value: Input) => void;
-        } & BcsTypeOptions<T, Input>,
+        } & BcsTypeOptions<T, Input, Name>,
     ) {
         this.name = options.name;
         this.read = options.read;
@@ -80,7 +81,7 @@ export class BcsType<T, Input = T> {
         return this.parse(fromBase64(b64));
     }
 
-    transform<T2 = T, Input2 = Input>({
+    transform<T2 = T, Input2 = Input, NewName extends string = Name>({
         name,
         input,
         output,
@@ -88,9 +89,9 @@ export class BcsType<T, Input = T> {
     }: {
         input?: (val: Input2) => Input;
         output?: (value: T) => T2;
-    } & BcsTypeOptions<T2, Input2>) {
-        return new BcsType<T2, Input2>({
-            name: name ?? this.name,
+    } & BcsTypeOptions<T2, Input2, NewName>) {
+        return new BcsType<T2, Input2, NewName>({
+            name: (name ?? this.name) as NewName,
             read: (reader) => (output ? output(this.read(reader)) : (this.read(reader) as never)),
             write: (value, writer) => this.#write(input ? input(value) : (value as never), writer),
             serializedSize: (value) => this.serializedSize(input ? input(value) : (value as never)),
@@ -145,33 +146,33 @@ export class SerializedBcs<T, Input = T> {
     }
 }
 
-export function fixedSizeBcsType<T, Input = T>({
+export function fixedSizeBcsType<T, Input = T, const Name extends string = string>({
     size,
     ...options
 }: {
-    name: string;
+    name: Name;
     size: number;
     read: (reader: BcsReader) => T;
     write: (value: Input, writer: BcsWriter) => void;
-} & BcsTypeOptions<T, Input>) {
-    return new BcsType<T, Input>({
+} & BcsTypeOptions<T, Input, Name>) {
+    return new BcsType<T, Input, Name>({
         ...options,
         serializedSize: () => size,
     });
 }
 
-export function uIntBcsType({
+export function uIntBcsType<const Name extends string = string>({
     readMethod,
     writeMethod,
     ...options
 }: {
-    name: string;
+    name: Name;
     size: number;
     readMethod: `read${8 | 16 | 32}`;
     writeMethod: `write${8 | 16 | 32}`;
     maxValue: number;
-} & BcsTypeOptions<number, number>) {
-    return fixedSizeBcsType<number>({
+} & BcsTypeOptions<number, number, Name>) {
+    return fixedSizeBcsType<number, number, Name>({
         ...options,
         read: (reader) => reader[readMethod](),
         write: (value, writer) => writer[writeMethod](value),
@@ -186,18 +187,18 @@ export function uIntBcsType({
     });
 }
 
-export function bigUIntBcsType({
+export function bigUIntBcsType<const Name extends string = string>({
     readMethod,
     writeMethod,
     ...options
 }: {
-    name: string;
+    name: Name;
     size: number;
     readMethod: `read${64 | 128 | 256}`;
     writeMethod: `write${64 | 128 | 256}`;
     maxValue: bigint;
 } & BcsTypeOptions<string, string | number | bigint>) {
-    return fixedSizeBcsType<string, string | number | bigint>({
+    return fixedSizeBcsType<string, string | number | bigint, Name>({
         ...options,
         read: (reader) => reader[readMethod](),
         write: (value, writer) => writer[writeMethod](BigInt(value)),
@@ -213,15 +214,15 @@ export function bigUIntBcsType({
     });
 }
 
-export function dynamicSizeBcsType<T, Input = T>({
+export function dynamicSizeBcsType<T, Input = T, const Name extends string = string>({
     serialize,
     ...options
 }: {
-    name: string;
+    name: Name;
     read: (reader: BcsReader) => T;
     serialize: (value: Input, options?: BcsWriterOptions) => Uint8Array;
-} & BcsTypeOptions<T, Input>) {
-    const type = new BcsType<T, Input>({
+} & BcsTypeOptions<T, Input, Name>) {
+    const type = new BcsType<T, Input, Name>({
         ...options,
         serialize,
         write: (value, writer) => {
@@ -293,4 +294,243 @@ export function lazyBcsType<T, Input>(cb: () => BcsType<T, Input>) {
         write: (value, writer) => getType().write(value, writer),
         serialize: (value, options) => getType().serialize(value, options).toBytes(),
     });
+}
+
+export interface BcsStructOptions<
+    T extends Record<string, BcsType<any>>,
+    Name extends string = string,
+> extends Omit<
+        BcsTypeOptions<
+            {
+                [K in keyof T]: T[K] extends BcsType<infer U, any> ? U : never;
+            },
+            {
+                [K in keyof T]: T[K] extends BcsType<any, infer U> ? U : never;
+            },
+            Name
+        >,
+        'name'
+    > {
+    name: Name;
+    fields: T;
+}
+
+export class BcsStruct<
+    T extends Record<string, BcsType<any>>,
+    const Name extends string = string,
+> extends BcsType<
+    {
+        [K in keyof T]: T[K] extends BcsType<infer U, any> ? U : never;
+    },
+    {
+        [K in keyof T]: T[K] extends BcsType<any, infer U> ? U : never;
+    },
+    Name
+> {
+    constructor({ name, fields, ...options }: BcsStructOptions<T, Name>) {
+        const canonicalOrder = Object.entries(fields);
+
+        super({
+            name,
+            serializedSize: (values) => {
+                let total = 0;
+                for (const [field, type] of canonicalOrder) {
+                    const size = type.serializedSize(values[field]);
+                    if (size == null) {
+                        return null;
+                    }
+
+                    total += size;
+                }
+
+                return total;
+            },
+            read: (reader) => {
+                const result: Record<string, unknown> = {};
+                for (const [field, type] of canonicalOrder) {
+                    result[field] = type.read(reader);
+                }
+
+                return result as never;
+            },
+            write: (value, writer) => {
+                for (const [field, type] of canonicalOrder) {
+                    type.write(value[field], writer);
+                }
+            },
+            ...options,
+            validate: (value) => {
+                options?.validate?.(value);
+                if (typeof value !== 'object' || value == null) {
+                    throw new TypeError(`Expected object, found ${typeof value}`);
+                }
+            },
+        });
+    }
+}
+
+export interface BcsEnumOptions<
+    T extends Record<string, BcsType<any> | null>,
+    Name extends string = string,
+> extends Omit<
+        BcsTypeOptions<
+            EnumOutputShape<{
+                [K in keyof T]: T[K] extends BcsType<infer U, any, any> ? U : true;
+            }>,
+            EnumInputShape<{
+                [K in keyof T]: T[K] extends BcsType<any, infer U, any>
+                    ? U
+                    : boolean | object | null;
+            }>,
+            Name
+        >,
+        'name'
+    > {
+    name: Name;
+    fields: T;
+}
+
+export class BcsEnum<
+    T extends Record<string, BcsType<any> | null>,
+    const Name extends string = string,
+> extends BcsType<
+    EnumOutputShape<{
+        [K in keyof T]: T[K] extends BcsType<infer U, any> ? U : true;
+    }>,
+    EnumInputShape<{
+        [K in keyof T]: T[K] extends BcsType<any, infer U, any> ? U : boolean | object | null;
+    }>,
+    Name
+> {
+    constructor({ fields, ...options }: BcsEnumOptions<T, Name>) {
+        const canonicalOrder = Object.entries(fields as object);
+        super({
+            read: (reader) => {
+                const index = reader.readULEB();
+
+                const enumEntry = canonicalOrder[index];
+                if (!enumEntry) {
+                    throw new TypeError(`Unknown value ${index} for enum ${options.name}`);
+                }
+
+                const [kind, type] = enumEntry;
+
+                return {
+                    [kind]: type?.read(reader) ?? true,
+                    $kind: kind,
+                } as never;
+            },
+            write: (value, writer) => {
+                const [name, val] = Object.entries(value).filter(([name]) =>
+                    Object.hasOwn(fields, name),
+                )[0];
+
+                for (let i = 0; i < canonicalOrder.length; i++) {
+                    const [optionName, optionType] = canonicalOrder[i];
+                    if (optionName === name) {
+                        writer.writeULEB(i);
+                        optionType?.write(val, writer);
+                        return;
+                    }
+                }
+            },
+            ...options,
+            validate: (value) => {
+                options?.validate?.(value);
+                if (typeof value !== 'object' || value == null) {
+                    throw new TypeError(`Expected object, found ${typeof value}`);
+                }
+
+                const keys = Object.keys(value).filter(
+                    (k) => value[k] !== undefined && Object.hasOwn(fields, k),
+                );
+
+                if (keys.length !== 1) {
+                    throw new TypeError(
+                        `Expected object with one key, but found ${keys.length} for type ${options.name}}`,
+                    );
+                }
+
+                const [variant] = keys;
+
+                if (!Object.hasOwn(fields, variant)) {
+                    throw new TypeError(`Invalid enum variant ${variant}`);
+                }
+            },
+        });
+    }
+}
+
+export interface BcsTupleOptions<T extends readonly BcsType<any>[], Name extends string>
+    extends Omit<
+        BcsTypeOptions<
+            {
+                -readonly [K in keyof T]: T[K] extends BcsType<infer T, any> ? T : never;
+            },
+            {
+                [K in keyof T]: T[K] extends BcsType<any, infer T> ? T : never;
+            },
+            Name
+        >,
+        'name'
+    > {
+    name?: Name;
+    fields: T;
+}
+
+export class BcsTuple<
+    const T extends readonly BcsType<any>[],
+    const Name extends
+        string = `(${JoinString<{ [K in keyof T]: T[K] extends BcsType<any, any, infer T> ? T : never }, ', '>})`,
+> extends BcsType<
+    {
+        -readonly [K in keyof T]: T[K] extends BcsType<infer T, any> ? T : never;
+    },
+    {
+        [K in keyof T]: T[K] extends BcsType<any, infer T> ? T : never;
+    },
+    Name
+> {
+    constructor({ fields, name, ...options }: BcsTupleOptions<T, Name>) {
+        super({
+            name: name ?? (`(${fields.map((t) => t.name).join(', ')})` as never),
+            serializedSize: (values) => {
+                let total = 0;
+                for (let i = 0; i < fields.length; i++) {
+                    const size = fields[i].serializedSize(values[i]);
+                    if (size == null) {
+                        return null;
+                    }
+
+                    total += size;
+                }
+
+                return total;
+            },
+            read: (reader) => {
+                const result: unknown[] = [];
+                for (const field of fields) {
+                    result.push(field.read(reader));
+                }
+                return result as never;
+            },
+            write: (value, writer) => {
+                for (let i = 0; i < fields.length; i++) {
+                    fields[i].write(value[i], writer);
+                }
+            },
+            ...options,
+            validate: (value) => {
+                options?.validate?.(value);
+                if (!Array.isArray(value)) {
+                    throw new TypeError(`Expected array, found ${typeof value}`);
+                }
+                if (value.length !== fields.length) {
+                    throw new TypeError(
+                        `Expected array of length ${fields.length}, found ${value.length}`,
+                    );
+                }
+            },
+        });
+    }
 }

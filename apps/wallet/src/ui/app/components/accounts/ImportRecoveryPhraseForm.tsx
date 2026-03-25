@@ -130,7 +130,7 @@ export function ImportRecoveryPhraseForm({
                     }))}
                     size={SelectSize.Small}
                 />
-                <div className="grid grid-cols-2 gap-2 overflow-auto pb-md">
+                <div className="grid grid-cols-2 gap-2 overflow-auto pb-md" data-amp-mask>
                     {recoveryPhrase.map((_, index) => {
                         const recoveryPhraseId = `recoveryPhrase.${index}` as const;
                         return (

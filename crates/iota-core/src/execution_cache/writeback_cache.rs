@@ -48,20 +48,20 @@
 //! The above design is used for both objects and markers.
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     hash::Hash,
     sync::{Arc, atomic::AtomicU64},
 };
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use futures::{FutureExt, future::BoxFuture};
-use iota_common::sync::notify_read::NotifyRead;
+use iota_common::{random_util::randomize_cache_capacity_in_tests, sync::notify_read::NotifyRead};
 use iota_config::WritebackCacheConfig;
 use iota_macros::fail_point;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -72,14 +72,14 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
-use moka::sync::Cache as MokaCache;
+use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 use prometheus::Registry;
 use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
 
 use super::{
-    CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
+    Batch, CheckpointCache, ExecutionCacheAPI, ExecutionCacheCommit, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
     TransactionCacheRead,
     cache_types::{CacheResult, CachedVersionMap, IsNewer, MonotonicCache, Ticket},
@@ -177,6 +177,13 @@ impl LatestObjectCacheEntry {
             LatestObjectCacheEntry::NonExistent => None,
         }
     }
+
+    fn is_alive(&self) -> bool {
+        match self {
+            LatestObjectCacheEntry::Object(_, entry) => !entry.is_tombstone(),
+            LatestObjectCacheEntry::NonExistent => false,
+        }
+    }
 }
 
 impl IsNewer for LatestObjectCacheEntry {
@@ -222,12 +229,7 @@ struct UncommittedData {
 
     transaction_effects: DashMap<TransactionEffectsDigest, TransactionEffects>,
 
-    // Because TransactionEvents are not unique to the transaction that created them, we must
-    // reference count them in order to know when we can remove them from the cache. For now
-    // we track all referrers explicitly, but we can use a ref count when we are confident in
-    // the correctness of the code.
-    transaction_events:
-        DashMap<TransactionEventsDigest, (BTreeSet<TransactionDigest>, TransactionEvents)>,
+    transaction_events: DashMap<TransactionDigest, TransactionEvents>,
 
     executed_effects_digests: DashMap<TransactionDigest, TransactionEffectsDigest>,
 
@@ -242,12 +244,12 @@ struct UncommittedData {
 impl UncommittedData {
     fn new() -> Self {
         Self {
-            objects: DashMap::new(),
-            markers: DashMap::new(),
-            transaction_effects: DashMap::new(),
-            executed_effects_digests: DashMap::new(),
-            pending_transaction_writes: DashMap::new(),
-            transaction_events: DashMap::new(),
+            objects: DashMap::with_shard_amount(2048),
+            markers: DashMap::with_shard_amount(2048),
+            transaction_effects: DashMap::with_shard_amount(2048),
+            executed_effects_digests: DashMap::with_shard_amount(2048),
+            pending_transaction_writes: DashMap::with_shard_amount(2048),
+            transaction_events: DashMap::with_shard_amount(2048),
             total_transaction_inserts: AtomicU64::new(0),
             total_transaction_commits: AtomicU64::new(0),
         }
@@ -330,8 +332,7 @@ struct CachedCommittedData {
     transaction_effects:
         MonotonicCache<TransactionEffectsDigest, PointCacheItem<Arc<TransactionEffects>>>,
 
-    transaction_events:
-        MonotonicCache<TransactionEventsDigest, PointCacheItem<Arc<TransactionEvents>>>,
+    transaction_events: MonotonicCache<TransactionDigest, PointCacheItem<Arc<TransactionEvents>>>,
 
     executed_effects_digests:
         MonotonicCache<TransactionDigest, PointCacheItem<TransactionEffectsDigest>>,
@@ -343,25 +344,41 @@ struct CachedCommittedData {
 
 impl CachedCommittedData {
     fn new(config: &WritebackCacheConfig) -> Self {
-        let object_cache = MokaCache::builder()
-            .max_capacity(config.object_cache_size())
+        let object_cache = MokaCache::builder(8)
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.object_cache_size(),
+            ))
             .build();
-        let marker_cache = MokaCache::builder()
-            .max_capacity(config.marker_cache_size())
+        let marker_cache = MokaCache::builder(8)
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.marker_cache_size(),
+            ))
             .build();
 
-        let transactions = MonotonicCache::new(config.transaction_cache_size());
-        let transaction_effects = MonotonicCache::new(config.effect_cache_size());
-        let transaction_events = MonotonicCache::new(config.events_cache_size());
-        let executed_effects_digests = MonotonicCache::new(config.executed_effect_cache_size());
+        let transactions = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.transaction_cache_size(),
+        ));
+        let transaction_effects = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.effect_cache_size(),
+        ));
+        let transaction_events = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.events_cache_size(),
+        ));
+        let executed_effects_digests = MonotonicCache::new(randomize_cache_capacity_in_tests(
+            config.executed_effect_cache_size(),
+        ));
 
-        let transaction_objects = MokaCache::builder()
-            .max_capacity(config.transaction_objects_cache_size())
+        let transaction_objects = MokaCache::builder(8)
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.transaction_objects_cache_size(),
+            ))
             .build();
 
         Self {
             object_cache,
-            object_by_id_cache: MonotonicCache::new(config.object_by_id_cache_size()),
+            object_by_id_cache: MonotonicCache::new(randomize_cache_capacity_in_tests(
+                config.object_by_id_cache_size(),
+            )),
             marker_cache,
             transactions,
             transaction_effects,
@@ -471,8 +488,10 @@ impl WritebackCache {
         metrics: Arc<ExecutionCacheMetrics>,
         backpressure_manager: Arc<BackpressureManager>,
     ) -> Self {
-        let packages = MokaCache::builder()
-            .max_capacity(config.package_cache_size())
+        let packages = MokaCache::builder(8)
+            .max_capacity(randomize_cache_capacity_in_tests(
+                config.package_cache_size(),
+            ))
             .build();
         Self {
             dirty: UncommittedData::new(),
@@ -797,21 +816,32 @@ impl WritebackCache {
         id: &ObjectID,
     ) -> IotaResult<Option<Object>> {
         let ticket = self.cached.object_by_id_cache.get_ticket_for_read(id);
-        match self.get_object_by_id_cache_only(request_type, id) {
-            CacheResult::Hit((_, object)) => Ok(Some(object)),
+        match self.get_object_entry_by_id_cache_only(request_type, id) {
+            CacheResult::Hit((_, object)) => match object {
+                ObjectEntry::Object(object) => Ok(Some(object)),
+                ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(None),
+            },
             CacheResult::NegativeHit => Ok(None),
             CacheResult::Miss => {
-                let obj = self.store.try_get_object(id)?;
-                if let Some(obj) = &obj {
-                    self.cache_latest_object_by_id(
-                        id,
-                        LatestObjectCacheEntry::Object(obj.version(), obj.clone().into()),
-                        ticket,
-                    );
-                } else {
-                    self.cache_object_not_found(id, ticket);
+                let obj = self.store.get_latest_object_or_tombstone(*id);
+                match obj {
+                    Ok(Some((key, obj))) => {
+                        self.cache_latest_object_by_id(
+                            id,
+                            LatestObjectCacheEntry::Object(key.1, obj.clone().into()),
+                            ticket,
+                        );
+                        match obj {
+                            ObjectOrTombstone::Object(object) => Ok(Some(object)),
+                            ObjectOrTombstone::Tombstone(_) => Ok(None),
+                        }
+                    }
+                    Ok(None) => {
+                        self.cache_object_not_found(id, ticket);
+                        Ok(None)
+                    }
+                    Err(e) => Err(format!("failed to get latest object or tomebstone: {e}").into()),
                 }
-                Ok(obj)
             }
         }
     }
@@ -899,19 +929,12 @@ impl WritebackCache {
 
         // note: if events.data.is_empty(), then there are no events for this
         // transaction. We store it anyway to avoid special cases in
-        // commint_transaction_outputs, and translate an empty events structure
+        // commit_transaction_outputs, and translate an empty events structure
         // to None when reading.
         self.metrics.record_cache_write("transaction_events");
-        match self.dirty.transaction_events.entry(events.digest()) {
-            DashMapEntry::Occupied(mut occupied) => {
-                occupied.get_mut().0.insert(tx_digest);
-            }
-            DashMapEntry::Vacant(entry) => {
-                let mut txns = BTreeSet::new();
-                txns.insert(tx_digest);
-                entry.insert((txns, events.clone()));
-            }
-        }
+        self.dirty
+            .transaction_events
+            .insert(tx_digest, events.clone());
 
         self.metrics.record_cache_write("executed_effects_digests");
         self.dirty
@@ -941,16 +964,8 @@ impl WritebackCache {
         Ok(())
     }
 
-    // Commits dirty data for the given TransactionDigest to the db.
-    #[instrument(level = "debug", skip_all)]
-    fn commit_transaction_outputs(
-        &self,
-        epoch: EpochId,
-        digests: &[TransactionDigest],
-    ) -> IotaResult {
-        fail_point!("writeback-cache-commit");
-        trace!(?digests);
-
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
+        let _metrics_guard = iota_metrics::monitored_scope("WritebackCache::build_db_batch");
         let mut all_outputs = Vec::with_capacity(digests.len());
         for tx in digests {
             let Some(outputs) = self
@@ -972,11 +987,33 @@ impl WritebackCache {
             all_outputs.push(outputs);
         }
 
+        let batch = self
+            .store
+            .build_db_batch(epoch, &all_outputs)
+            .expect("db error");
+        (all_outputs, batch)
+    }
+
+    // Commits dirty data for the given TransactionDigest to the db.
+    #[instrument(level = "debug", skip_all)]
+    fn commit_transaction_outputs(
+        &self,
+        epoch: EpochId,
+        (all_outputs, db_batch): Batch,
+        digests: &[TransactionDigest],
+    ) -> IotaResult {
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs");
+        fail_point!("writeback-cache-commit");
+        trace!(?digests);
+
         // Flush writes to disk before removing anything from dirty set. otherwise,
         // a cache eviction could cause a value to disappear briefly, even if we insert
         // to the cache before removing from the dirty set.
-        self.store.write_transaction_outputs(epoch, &all_outputs)?;
+        db_batch.write().expect("db error");
 
+        let _metrics_guard =
+            iota_metrics::monitored_scope("WritebackCache::commit_transaction_outputs::flush");
         for outputs in all_outputs.iter() {
             let tx_digest = outputs.transaction.digest();
             assert!(
@@ -1050,7 +1087,6 @@ impl WritebackCache {
         } = outputs;
 
         let effects_digest = effects.digest();
-        let events_digest = events.digest();
 
         // Update cache before removing from self.dirty to avoid
         // unnecessary cache misses
@@ -1081,7 +1117,7 @@ impl WritebackCache {
         self.cached
             .transaction_events
             .insert(
-                &events_digest,
+                &tx_digest,
                 PointCacheItem::Some(events.clone().into()),
                 Ticket::Write,
             )
@@ -1092,18 +1128,10 @@ impl WritebackCache {
             .remove(&effects_digest)
             .expect("effects must exist");
 
-        match self.dirty.transaction_events.entry(events.digest()) {
-            DashMapEntry::Occupied(mut occupied) => {
-                let txns = &mut occupied.get_mut().0;
-                assert!(txns.remove(&tx_digest), "transaction must exist");
-                if txns.is_empty() {
-                    occupied.remove();
-                }
-            }
-            DashMapEntry::Vacant(_) => {
-                panic!("events must exist");
-            }
-        }
+        self.dirty
+            .transaction_events
+            .remove(&tx_digest)
+            .expect("events must exist");
 
         self.dirty
             .executed_effects_digests
@@ -1290,12 +1318,17 @@ impl WritebackCache {
 impl ExecutionCacheAPI for WritebackCache {}
 
 impl ExecutionCacheCommit for WritebackCache {
+    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch {
+        self.build_db_batch(epoch, digests)
+    }
+
     fn try_commit_transaction_outputs(
         &self,
         epoch: EpochId,
+        batch: Batch,
         digests: &[TransactionDigest],
     ) -> IotaResult {
-        WritebackCache::commit_transaction_outputs(self, epoch, digests)
+        WritebackCache::commit_transaction_outputs(self, epoch, batch, digests)
     }
 
     fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
@@ -1533,7 +1566,8 @@ impl ObjectCacheRead for WritebackCache {
         // if we have the latest version cached, and it is within the bound, we are done
         self.metrics
             .record_cache_request("object_lt_or_eq_version", "object_by_id");
-        if let Some(latest) = self.cached.object_by_id_cache.get(&object_id) {
+        let latest_cache_entry = self.cached.object_by_id_cache.get(&object_id);
+        if let Some(latest) = &latest_cache_entry {
             let latest = latest.lock();
             match &*latest {
                 LatestObjectCacheEntry::Object(latest_version, object) => {
@@ -1642,12 +1676,19 @@ impl ObjectCacheRead for WritebackCache {
                         self.record_db_get("object_lt_or_eq_version_scan")
                             .find_object_lt_or_eq_version(object_id, version_bound)
                     }
+
+                // no object found in dirty set or db, object does not exist
+                // When this is called from a read api (i.e. not the execution
+                // path) it is possible that the object has been
+                // deleted and pruned. In this case, there would
+                // be no entry at all on disk, but we may have a tombstone in
+                // the cache
+                } else if let Some(latest_cache_entry) = latest_cache_entry {
+                    // If there is a latest cache entry, it had better not be a live object!
+                    assert!(!latest_cache_entry.lock().is_alive());
+                    Ok(None)
                 } else {
-                    // no object found in dirty set or db, object does not exist
-                    // When this is called from a read api (i.e. not the execution path) it is
-                    // possible that the object has been deleted and pruned. In this case,
-                    // there would be no entry at all on disk, but we may have a tombstone in the
-                    // cache
+                    // If there is no latest cache entry, we can insert one.
                     let highest = cached_entry.and_then(|c| c.get_highest());
                     assert!(highest.is_none() || highest.unwrap().1.is_tombstone());
                     self.cache_object_not_found(
@@ -1990,7 +2031,7 @@ impl TransactionCacheRead for WritebackCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         fn map_events(events: TransactionEvents) -> Option<TransactionEvents> {
             if events.data.is_empty() {
@@ -2000,7 +2041,7 @@ impl TransactionCacheRead for WritebackCache {
             }
         }
 
-        let digests_and_tickets: Vec<_> = event_digests
+        let digests_and_tickets: Vec<_> = tx_digests
             .iter()
             .map(|d| (*d, self.cached.transaction_events.get_ticket_for_read(d)))
             .collect();
@@ -2009,12 +2050,7 @@ impl TransactionCacheRead for WritebackCache {
             |(digest, _)| {
                 self.metrics
                     .record_cache_request("transaction_events", "uncommitted");
-                if let Some(events) = self
-                    .dirty
-                    .transaction_events
-                    .get(digest)
-                    .map(|e| e.1.clone())
-                {
+                if let Some(events) = self.dirty.transaction_events.get(digest).map(|e| e.clone()) {
                     self.metrics
                         .record_cache_hit("transaction_events", "uncommitted");
 

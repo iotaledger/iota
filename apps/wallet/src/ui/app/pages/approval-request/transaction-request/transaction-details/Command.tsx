@@ -106,7 +106,7 @@ export function Command({ command }: CommandProps) {
     const [[type, data]] = Object.entries(command);
     return (
         <Collapsible hideBorder defaultOpen title={command.$kind} titleSize={TitleSize.Small}>
-            <div className="flex flex-col gap-y-sm px-md">
+            <div className="flex flex-col gap-y-sm px-md" data-amp-mask>
                 <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                     {type === 'MoveCall' ? (
                         <ErrorBoundary>

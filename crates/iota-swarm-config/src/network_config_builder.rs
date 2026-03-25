@@ -17,7 +17,6 @@ use iota_config::{
     node::AuthorityOverloadConfig,
 };
 use iota_genesis_builder::genesis_build_effects::GenesisBuildEffects;
-use iota_macros::nondeterministic;
 use iota_protocol_config::Chain;
 use iota_types::{
     base_types::{AuthorityName, IotaAddress},
@@ -131,7 +130,7 @@ impl ConfigBuilder {
     }
 
     pub fn new_with_temp_dir() -> Self {
-        Self::new(nondeterministic!(tempfile::tempdir().unwrap()).keep())
+        Self::new(iota_common::tempdir().unwrap().keep())
     }
 }
 

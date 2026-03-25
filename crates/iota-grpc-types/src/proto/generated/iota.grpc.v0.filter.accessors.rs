@@ -42,6 +42,73 @@ mod _accessor_impls {
             self
         }
     }
+    impl super::CommandFilter {
+        /// Sets `move_call` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_move_call<T: Into<super::MoveCallCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(super::command_filter::Filter::MoveCall(field.into()));
+            self
+        }
+        /// Sets `transfer_objects` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_transfer_objects<T: Into<super::TransferObjectsCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(
+                super::command_filter::Filter::TransferObjects(field.into()),
+            );
+            self
+        }
+        /// Sets `split_coins` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_split_coins<T: Into<super::SplitCoinsCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(super::command_filter::Filter::SplitCoins(field.into()));
+            self
+        }
+        /// Sets `merge_coins` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_merge_coins<T: Into<super::MergeCoinsCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(super::command_filter::Filter::MergeCoins(field.into()));
+            self
+        }
+        /// Sets `publish` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_publish<T: Into<super::PublishCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(super::command_filter::Filter::Publish(field.into()));
+            self
+        }
+        /// Sets `make_move_vec` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_make_move_vec<T: Into<super::MakeMoveVecCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(super::command_filter::Filter::MakeMoveVec(field.into()));
+            self
+        }
+        /// Sets `upgrade` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_upgrade<T: Into<super::UpgradeCommandFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(super::command_filter::Filter::Upgrade(field.into()));
+            self
+        }
+    }
     impl super::EventFilter {
         /// Sets `all` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
@@ -101,7 +168,14 @@ mod _accessor_impls {
             self
         }
     }
-    impl super::MoveCallFilter {
+    impl super::ExecutionStatusFilter {
+        /// Sets `success` with the provided value.
+        pub fn with_success(mut self, field: bool) -> Self {
+            self.success = field;
+            self
+        }
+    }
+    impl super::MoveCallCommandFilter {
         /// Sets `package_id` with the provided value.
         pub fn with_package_id<T: Into<super::super::types::Address>>(
             mut self,
@@ -212,6 +286,17 @@ mod _accessor_impls {
             );
             self
         }
+        /// Sets `execution_status` with the provided value.
+        /// If any other oneof field in the same oneof is set, it will be cleared.
+        pub fn with_execution_status<T: Into<super::ExecutionStatusFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.filter = Some(
+                super::transaction_filter::Filter::ExecutionStatus(field.into()),
+            );
+            self
+        }
         /// Sets `sender` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_sender<T: Into<super::AddressFilter>>(mut self, field: T) -> Self {
@@ -237,15 +322,10 @@ mod _accessor_impls {
             );
             self
         }
-        /// Sets `move_call` with the provided value.
+        /// Sets `command` with the provided value.
         /// If any other oneof field in the same oneof is set, it will be cleared.
-        pub fn with_move_call<T: Into<super::MoveCallFilter>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.filter = Some(
-                super::transaction_filter::Filter::MoveCall(field.into()),
-            );
+        pub fn with_command<T: Into<super::CommandFilter>>(mut self, field: T) -> Self {
+            self.filter = Some(super::transaction_filter::Filter::Command(field.into()));
             self
         }
         /// Sets `event` with the provided value.
@@ -259,6 +339,16 @@ mod _accessor_impls {
         /// Sets `kinds` with the provided value.
         pub fn with_kinds(mut self, field: Vec<i32>) -> Self {
             self.kinds = field;
+            self
+        }
+    }
+    impl super::UpgradeCommandFilter {
+        /// Sets `package_id` with the provided value.
+        pub fn with_package_id<T: Into<super::super::types::Address>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.package_id = Some(field.into());
             self
         }
     }
