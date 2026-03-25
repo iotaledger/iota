@@ -1773,7 +1773,8 @@ impl ValidatorService {
                 num_inflight_execution_transactions: self
                     .state
                     .transaction_manager()
-                    .inflight_queue_len() as u64,
+                    .inflight_queue_len()
+                    as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter
                     .num_inflight_transactions(),

@@ -4378,7 +4378,7 @@ impl AuthorityPerEpochStore {
                         certificate_author.concise(),
                         transaction.digest()
                     );
-                    return Ok(ConsensusCertificateResult::Ignored);
+                    return Ok(ConsensusTransactionResult::Ignored);
                 }
                 // TODO: re-think the epoch-switching flow
                 if !self
