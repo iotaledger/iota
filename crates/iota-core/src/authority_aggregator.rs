@@ -545,7 +545,6 @@ impl<A> Clone for AuthorityAggregator<A> {
     }
 }
 
-
 impl<A> AuthorityAggregator<A> {
     /// Create a new `AuthorityAggregator`.
     pub fn new(
@@ -648,8 +647,7 @@ impl<A> AuthorityAggregator<A> {
     }
 
     /// Gets the cloned authority client for the given name.
-    pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
-    {
+    pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>> {
         self.authority_clients[name].clone()
     }
 
@@ -664,7 +662,10 @@ impl<A> AuthorityAggregator<A> {
     }
 
     /// Get the cloned authority clients.
-    pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>> where A: Clone {
+    pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>>
+    where
+        A: Clone,
+    {
         (*self.authority_clients)
             .clone()
             .into_iter()

@@ -332,15 +332,17 @@ where
             )
             .await;
 
+        let feedback_builder = OperationFeedback::builder(
+            name,
+            auth_agg.get_display_name(&name),
+            OperationType::Consensus,
+        )
+        .ping(is_ping);
         if result.is_ok() {
+            let latency = start_time.elapsed();
             self.client_monitor
-                .record_interaction_result(OperationFeedback {
-                    authority_name: name,
-                    display_name: auth_agg.get_display_name(&name),
-                    operation: OperationType::Consensus,
-                    ping: is_ping,
-                    result: Ok(start_time.elapsed()),
-                });
+                .record_interaction_result(feedback_builder.ok_now(latency));
+            // TODO: should there be a branch for errors as well?
         }
         result
     }

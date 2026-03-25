@@ -163,6 +163,9 @@ impl EffectsCertifier {
         // or all targets have been attempted.
         loop {
             let display_name = authority_aggregator.get_display_name(&current_target);
+            let feedback_builder =
+                OperationFeedback::builder(current_target, display_name, OperationType::Effects)
+                    .ping(ping_type);
             match full_effects_result {
                 Ok((effects_digest, executed_data)) => {
                     if effects_digest != certified_digest {
@@ -174,23 +177,12 @@ impl EffectsCertifier {
                         );
                         // This validator is byzantine, record the error and try to get full effects
                         // from another validator.
-                        client_monitor.record_interaction_result(OperationFeedback {
-                            authority_name: current_target,
-                            display_name,
-                            operation: OperationType::Effects,
-                            ping: ping_type,
-                            result: Err(()),
-                        });
+                        client_monitor.record_interaction_result(feedback_builder.err_now());
                     } else {
                         if let Some(start_time) = full_effects_start_time {
                             let latency = start_time.elapsed();
-                            client_monitor.record_interaction_result(OperationFeedback {
-                                authority_name: current_target,
-                                display_name,
-                                operation: OperationType::Effects,
-                                ping: ping_type,
-                                result: Ok(latency),
-                            });
+                            client_monitor
+                                .record_interaction_result(feedback_builder.ok_now(latency));
                         }
                         return Ok(
                             self.get_quorum_transaction_response(effects_digest, *executed_data)
@@ -199,13 +191,7 @@ impl EffectsCertifier {
                 }
                 Err(e) => {
                     tracing::debug!(?current_target, "Failed to get full effects: {e}");
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: current_target,
-                        display_name,
-                        operation: OperationType::Effects,
-                        ping: ping_type,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.err_now());
                     // This emits an error when retrier gathers enough (f+1) non-retriable effects
                     // errors, but the error should not happen after effects
                     // certification unless there are software bugs
@@ -436,13 +422,12 @@ impl EffectsCertifier {
                 {
                     Ok(result) => (name, result),
                     Err(_) => {
-                        client_monitor.record_interaction_result(OperationFeedback {
-                            authority_name: name,
-                            display_name,
-                            operation: OperationType::Effects,
-                            ping: ping_type,
-                            result: Err(()),
-                        });
+                        // TODO: shouldn't Ok response be also recorded?
+                        let feedback =
+                            OperationFeedback::builder(name, display_name, OperationType::Effects)
+                                .ping(ping_type)
+                                .err_now();
+                        client_monitor.record_interaction_result(feedback);
                         (name, Err(IotaError::Timeout))
                     }
                 }
@@ -692,26 +677,17 @@ impl EffectsCertifier {
             let result = client
                 .get_tx_status(request.clone(), options.forwarded_client_addr)
                 .await;
+            let feedback_builder =
+                OperationFeedback::builder(name, display_name.clone(), OperationType::Effects)
+                    .ping(is_ping);
             match result {
                 Ok(response) => {
                     let latency = effects_start.elapsed();
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: name,
-                        display_name: display_name.clone(),
-                        operation: OperationType::Effects,
-                        ping: is_ping,
-                        result: Ok(latency),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.ok_now(latency));
                     return Ok(response);
                 }
                 Err(e) => {
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: name,
-                        display_name: display_name.clone(),
-                        operation: OperationType::Effects,
-                        ping: is_ping,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.err_now());
                     if !matches!(e, IotaError::Rpc(_, _)) {
                         return Err(e);
                     }

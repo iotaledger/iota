@@ -258,7 +258,8 @@ impl ClientObservedStats {
     }
 
     /// Calculate a simpler selection score (EWMA + reliability penalty only,
-    /// no confidence penalty) for use in `select_shuffled_preferred_validators`.
+    /// no confidence penalty) for use in
+    /// `select_shuffled_preferred_validators`.
     ///
     /// This keeps the selection ordering stable and proportional to actual
     /// observed latency once a validator has any data at all.

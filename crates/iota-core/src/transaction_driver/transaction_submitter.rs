@@ -196,6 +196,9 @@ impl TransactionSubmitter {
     where
         A: AuthorityAPI + Send + Sync + 'static,
     {
+        let feedback_builder =
+            &OperationFeedback::builder(validator, display_name, OperationType::Submit)
+                .ping(request.transactions.is_empty());
         let submit_start = Instant::now();
         let is_ping = transaction.is_none();
 
@@ -208,24 +211,12 @@ impl TransactionSubmitter {
         )
         .await
         .map_err(|_| {
-            client_monitor.record_interaction_result(OperationFeedback {
-                authority_name: validator,
-                display_name: display_name.clone(),
-                operation: OperationType::Submit,
-                ping: is_ping,
-                result: Err(()),
-            });
+            client_monitor.record_interaction_result(feedback_builder.clone().err_now());
             TransactionRequestError::TimedOutSubmittingTransaction
         })?
         .map_err(|error| {
             if is_validator_error(error.categorize()) {
-                client_monitor.record_interaction_result(OperationFeedback {
-                    authority_name: validator,
-                    display_name: display_name.clone(),
-                    operation: OperationType::Submit,
-                    ping: is_ping,
-                    result: Err(()),
-                });
+                client_monitor.record_interaction_result(feedback_builder.clone().err_now());
             }
             TransactionRequestError::RejectedAtValidator(error)
         })?;
@@ -244,13 +235,7 @@ impl TransactionSubmitter {
             TxStatusUpdate::Rejected { error } => {
                 let err = error.clone();
                 if is_validator_error(err.categorize()) {
-                    client_monitor.record_interaction_result(OperationFeedback {
-                        authority_name: validator,
-                        display_name,
-                        operation: OperationType::Submit,
-                        ping: is_ping,
-                        result: Err(()),
-                    });
+                    client_monitor.record_interaction_result(feedback_builder.clone().err_now());
                 }
                 return Err(TransactionRequestError::RejectedAtValidator(err));
             }
@@ -261,13 +246,7 @@ impl TransactionSubmitter {
         }
 
         let latency = submit_start.elapsed();
-        client_monitor.record_interaction_result(OperationFeedback {
-            authority_name: validator,
-            display_name,
-            operation: OperationType::Submit,
-            ping: is_ping,
-            result: Ok(latency),
-        });
+        client_monitor.record_interaction_result(feedback_builder.clone().ok_now(latency));
         Ok(result)
     }
 }

@@ -45,10 +45,7 @@ async fn test_transactions_succeed_with_one_validator_stopped() {
 
     // Warm up: execute one transaction while all validators are healthy.
     let tx = make_transfer_iota_transaction(&cluster.wallet, None, None).await;
-    cluster
-        .wallet
-        .execute_transaction_must_succeed(tx)
-        .await;
+    cluster.wallet.execute_transaction_must_succeed(tx).await;
 
     // Stop one validator — we still have 3/4 = 2f+1 validators.
     cluster.stop_node(&validator_pubkeys[0]);
@@ -127,11 +124,10 @@ async fn test_transactions_fail_when_quorum_is_lost() {
     cluster.stop_node(&validator_pubkeys[1]);
 
     let tx = make_transfer_iota_transaction(&cluster.wallet, None, None).await;
-    let result =
-        tokio::time::timeout(Duration::from_secs(10), async {
-            cluster.wallet.execute_transaction_must_succeed(tx).await
-        })
-        .await;
+    let result = tokio::time::timeout(Duration::from_secs(10), async {
+        cluster.wallet.execute_transaction_must_succeed(tx).await
+    })
+    .await;
 
     assert!(
         result.is_err(),
@@ -151,15 +147,15 @@ async fn test_transactions_fail_when_quorum_is_lost() {
 mod scoring_tests {
     use iota_core::{
         authority_client::NetworkAuthorityClient,
-        transaction_orchestrator::TransactionOrchestrator,
-        validator_client_monitor::OperationType,
+        transaction_orchestrator::TransactionOrchestrator, validator_client_monitor::OperationType,
     };
     use iota_protocol_config::ProtocolConfig;
     use iota_types::base_types::AuthorityName;
 
     use super::*;
 
-    /// Enable the white-flag flow so `TransactionDriver` is active on fullnodes.
+    /// Enable the white-flag flow so `TransactionDriver` is active on
+    /// fullnodes.
     fn enable_white_flag() -> iota_protocol_config::OverrideGuard {
         ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_enable_white_flag_flow_for_testing(true);
@@ -213,9 +209,10 @@ mod scoring_tests {
         // At least one validator must have a `Consensus` latency entry in the
         // stats (the one that processed our transactions).
         let stats = monitor.client_stats_for_test();
-        let has_consensus_obs = stats.validator_stats.values().any(|v| {
-            v.average_latencies.contains_key(&OperationType::Consensus)
-        });
+        let has_consensus_obs = stats
+            .validator_stats
+            .values()
+            .any(|v| v.average_latencies.contains_key(&OperationType::Consensus));
         assert!(
             has_consensus_obs,
             "after executing transactions at least one validator should have Consensus latency data"
@@ -314,7 +311,11 @@ mod scoring_tests {
             monitor.select_shuffled_preferred_validators(&committee, 0.02);
 
         // The stopped validator's reliability should have degraded.
-        if let Some(v_stats) = monitor.client_stats_for_test().validator_stats.get(&stopped) {
+        if let Some(v_stats) = monitor
+            .client_stats_for_test()
+            .validator_stats
+            .get(&stopped)
+        {
             assert!(
                 v_stats.reliability.get() < 1.0,
                 "stopped validator reliability should have dropped; got {}",
@@ -381,7 +382,8 @@ mod scoring_tests {
         monitor.force_update_cached_latencies(&auth_agg);
 
         let reliability_after_failures = {
-            monitor.client_stats_for_test()
+            monitor
+                .client_stats_for_test()
                 .validator_stats
                 .get(&stopped)
                 .map(|v| v.reliability.get())
@@ -410,7 +412,8 @@ mod scoring_tests {
         }
 
         let reliability_after_recovery = {
-            monitor.client_stats_for_test()
+            monitor
+                .client_stats_for_test()
                 .validator_stats
                 .get(&stopped)
                 .map(|v| v.reliability.get())

@@ -45,7 +45,8 @@ pub struct ValidatorClientMonitorConfig {
     #[serde(default = "default_latency_ewma_alpha")]
     pub latency_ewma_alpha: f64,
 
-    /// Weight for the confidence / UCB penalty applied to low-observation validators.
+    /// Weight for the confidence / UCB penalty applied to low-observation
+    /// validators.
     ///
     /// Validators with fewer than `WARMUP_OBS` (= 10) real-transaction
     /// observations receive an additional score penalty proportional to

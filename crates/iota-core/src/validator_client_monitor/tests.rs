@@ -625,7 +625,11 @@ mod scoring_gap_tests {
         let validator = create_test_validator_names(1)[0];
 
         // window=2: init(1.0) + failure(0.0) → reliability = 0.5.
-        stats.record_interaction_result(make_feedback(validator, OperationType::Consensus, Err(())));
+        stats.record_interaction_result(make_feedback(
+            validator,
+            OperationType::Consensus,
+            Err(()),
+        ));
         // Set Consensus latency to 100 ms.
         stats.record_interaction_result(make_feedback(
             validator,
@@ -644,7 +648,11 @@ mod scoring_gap_tests {
             "reliability should be ~0.5; got {reliability}"
         );
         // penalty = 10s × 0.5 × 2.0 = 10s; 100ms + 10s = 10.1s → capped at 10s.
-        assert_eq!(adjusted, Duration::from_secs(10), "adjusted latency should be capped at MAX_LATENCY");
+        assert_eq!(
+            adjusted,
+            Duration::from_secs(10),
+            "adjusted latency should be capped at MAX_LATENCY"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -751,7 +759,11 @@ mod scoring_gap_tests {
         monitor.force_update_cached_latencies(&auth_agg);
         // Both in preferred group at this point.
         let baseline = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-        assert_eq!(baseline.len(), 2, "sanity: both in preferred group after warm-up");
+        assert_eq!(
+            baseline.len(),
+            2,
+            "sanity: both in preferred group after warm-up"
+        );
 
         // v0 starts failing — do NOT refresh the cache.
         for _ in 0..5 {
@@ -771,7 +783,7 @@ mod scoring_gap_tests {
         let preferred_contains_v0 = selected
             .iter()
             .position(|&v| v == v0)
-            .map(|pos| pos == 0)  // v0 is at position 0 iff it is in the preferred prefix
+            .map(|pos| pos == 0) // v0 is at position 0 iff it is in the preferred prefix
             .unwrap_or(false);
 
         assert!(
@@ -914,9 +926,8 @@ mod overload_tests {
             Ok(Duration::from_millis(2000)),
         ));
 
-        let avg = stats.validator_stats[&validator]
-            .average_latencies[&OperationType::Consensus]
-            .get();
+        let avg =
+            stats.validator_stats[&validator].average_latencies[&OperationType::Consensus].get();
 
         // EWMA (α=0.5) would yield 1025 ms.
         // Uniform window gives ≈ 99 ms → FAILS this assertion.
@@ -968,9 +979,8 @@ mod overload_tests {
             ));
         }
 
-        let avg = stats.validator_stats[&validator]
-            .average_latencies[&OperationType::Consensus]
-            .get();
+        let avg =
+            stats.validator_stats[&validator].average_latencies[&OperationType::Consensus].get();
 
         // EWMA (α=0.5) reaches 293 ms after 3 fast observations.
         // Uniform window gives 1415 ms → FAILS this assertion.
@@ -1012,9 +1022,8 @@ mod overload_tests {
             ));
         }
 
-        let avg = stats.validator_stats[&validator]
-            .average_latencies[&OperationType::Consensus]
-            .get();
+        let avg =
+            stats.validator_stats[&validator].average_latencies[&OperationType::Consensus].get();
 
         // EWMA (α=0.5) reaches ≈ 800 ms, tracking the recent degradation.
         // Uniform average = 550 ms → FAILS this assertion.
@@ -1068,7 +1077,11 @@ mod overload_tests {
 
         // Sanity: both in preferred group at baseline.
         let baseline = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-        assert_eq!(baseline.len(), 2, "sanity: both in preferred group at baseline");
+        assert_eq!(
+            baseline.len(),
+            2,
+            "sanity: both in preferred group at baseline"
+        );
 
         // v0 experiences 3 overload observations (2000 ms).
         for _ in 0..3 {
@@ -1234,10 +1247,8 @@ mod health_check_integration_tests {
             let (committee, _keypairs) =
                 Committee::new_simple_test_committee_of_size(committee_size);
             let names: Vec<_> = committee.names().cloned().collect();
-            let clients_map: std::collections::BTreeMap<_, _> = names
-                .into_iter()
-                .zip(clients_vec.clone())
-                .collect();
+            let clients_map: std::collections::BTreeMap<_, _> =
+                names.into_iter().zip(clients_vec.clone()).collect();
             // Serialise construction to avoid racing on DBMetrics singleton init.
             let _guard = crate::validator_client_monitor::tests::AUTH_AGG_CREATE_LOCK
                 .lock()
@@ -1328,8 +1339,14 @@ mod health_check_integration_tests {
         let committee = auth_agg.committee.clone();
         let selected = monitor.select_shuffled_preferred_validators(&committee, 0.02);
 
-        assert_eq!(selected[0], fast_validator, "fast validator should rank first");
-        assert_eq!(selected[1], slow_validator, "slow validator should rank last");
+        assert_eq!(
+            selected[0], fast_validator,
+            "fast validator should rank first"
+        );
+        assert_eq!(
+            selected[1], slow_validator,
+            "slow validator should rank last"
+        );
     }
 
     // -----------------------------------------------------------------------

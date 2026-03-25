@@ -105,6 +105,8 @@ where
                 let monitor = self.clone();
 
                 tasks.spawn(async move {
+                    let feedback_builder =
+                        OperationFeedback::builder(name, display_name, OperationType::HealthCheck);
                     let start = Instant::now();
                     match timeout(
                         timeout_duration,
@@ -114,31 +116,10 @@ where
                     {
                         Ok(Ok(_response)) => {
                             let latency = start.elapsed();
-                            monitor.record_interaction_result(OperationFeedback {
-                                authority_name: name,
-                                display_name: display_name.clone(),
-                                operation: OperationType::HealthCheck,
-                                ping: false,
-                                result: Ok(latency),
-                            });
+                            monitor.record_interaction_result(feedback_builder.ok_now(latency));
                         }
-                        Ok(Err(_)) => {
-                            monitor.record_interaction_result(OperationFeedback {
-                                authority_name: name,
-                                display_name: display_name.clone(),
-                                operation: OperationType::HealthCheck,
-                                ping: false,
-                                result: Err(()),
-                            });
-                        }
-                        Err(_) => {
-                            monitor.record_interaction_result(OperationFeedback {
-                                authority_name: name,
-                                display_name,
-                                operation: OperationType::HealthCheck,
-                                ping: false,
-                                result: Err(()),
-                            });
+                        Ok(Err(_)) | Err(_) => {
+                            monitor.record_interaction_result(feedback_builder.err_now());
                         }
                     }
                 });
