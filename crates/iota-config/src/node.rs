@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
@@ -207,9 +206,6 @@ pub struct NodeConfig {
 
     #[serde(default = "default_jwk_fetch_interval_seconds")]
     pub jwk_fetch_interval_seconds: u64,
-
-    #[serde(default = "default_zklogin_oauth_providers")]
-    pub zklogin_oauth_providers: BTreeMap<Chain, BTreeSet<String>>,
 
     /// Configuration for defining thresholds and settings
     /// for managing system overload conditions in a node.
@@ -641,38 +637,6 @@ fn default_cache_size() -> u64 {
 
 fn default_jwk_fetch_interval_seconds() -> u64 {
     3600
-}
-
-pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
-    let mut map = BTreeMap::new();
-
-    // providers that are available on devnet only.
-    let experimental_providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Kakao".to_string(),
-        "Apple".to_string(),
-        "Slack".to_string(),
-        "TestIssuer".to_string(),
-        "Microsoft".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-
-    // providers that are available for mainnet and testnet.
-    let providers = BTreeSet::from([
-        "Google".to_string(),
-        "Facebook".to_string(),
-        "Twitch".to_string(),
-        "Apple".to_string(),
-        "KarrierOne".to_string(),
-        "Credenza3".to_string(),
-    ]);
-    map.insert(Chain::Mainnet, providers.clone());
-    map.insert(Chain::Testnet, providers);
-    map.insert(Chain::Unknown, experimental_providers);
-    map
 }
 
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use fastcrypto::{
     encoding::{Base64, Encoding},
@@ -35,7 +35,6 @@ use crate::{
     object::Object,
     passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator},
     signature::GenericSignature,
-    signature_verification::VerifiedDigestCache,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
 };
 
@@ -249,7 +248,6 @@ async fn test_passkey_authenticator() {
         response.sender,
         0,
         &Default::default(),
-        Arc::new(VerifiedDigestCache::new_empty()),
     );
     assert!(res.is_ok());
 }
@@ -366,7 +364,6 @@ async fn test_real_passkey_output() {
         address,
         0,
         &Default::default(),
-        Arc::new(VerifiedDigestCache::new_empty()),
     );
     assert!(res.is_ok());
 }

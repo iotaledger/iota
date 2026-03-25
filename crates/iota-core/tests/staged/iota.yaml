@@ -909,9 +909,7 @@ PublicKey:
             CONTENT: U8
             SIZE: 33
     3:
-      ZkLogin:
-        NEWTYPE:
-          TYPENAME: ZkLoginPublicIdentifier
+      ZkLogin: UNIT
 RandomnessRound:
   NEWTYPESTRUCT: U64
 RandomnessStateUpdate:
@@ -1170,9 +1168,6 @@ UpgradeInfo:
     - upgraded_version:
         TYPENAME: SequenceNumber
 ZkLoginAuthenticatorAsBytes:
-  NEWTYPESTRUCT:
-    SEQ: U8
-ZkLoginPublicIdentifier:
   NEWTYPESTRUCT:
     SEQ: U8
 "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":

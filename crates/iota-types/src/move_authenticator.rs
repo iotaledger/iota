@@ -4,7 +4,6 @@
 use std::{
     collections::HashSet,
     hash::{Hash, Hasher},
-    sync::Arc,
 };
 
 use enum_dispatch::enum_dispatch;
@@ -19,10 +18,9 @@ use crate::{
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::EpochId,
     crypto::{SignatureScheme, default_hash},
-    digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
+    digests::{MoveAuthenticatorDigest, ObjectDigest},
     error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
-    signature_verification::VerifiedDigestCache,
     transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
     type_input::TypeInput,
 };
@@ -143,13 +141,11 @@ impl AuthenticatorTrait for MoveAuthenticator {
         value: &IntentMessage<T>,
         author: IotaAddress,
         aux_verify_data: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.inner
-            .verify_claims(value, author, aux_verify_data, zklogin_inputs_cache)
+        self.inner.verify_claims(value, author, aux_verify_data)
     }
 }
 
@@ -491,7 +487,6 @@ impl AuthenticatorTrait for MoveAuthenticatorV1 {
         _value: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

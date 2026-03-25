@@ -5,11 +5,10 @@
 #[cfg(msim)]
 use std::sync::atomic::Ordering;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     fmt,
     future::Future,
     path::PathBuf,
-    str::FromStr,
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -199,13 +198,7 @@ mod simulator {
         _authority: AuthorityName,
         _provider: &OIDCProvider,
     ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        use fastcrypto_zkp::bn254::zk_login::parse_jwks;
-        // Just load a default Twitch jwk for testing.
-        parse_jwks(
-            iota_types::zk_login_util::DEFAULT_JWK_BYTES,
-            &OIDCProvider::Twitch,
-        )
-        .map_err(|_| IotaError::JWKRetrieval)
+        Ok(vec![])
     }
 
     thread_local! {
@@ -325,13 +318,8 @@ impl IotaNode {
     ) {
         let epoch = epoch_store.epoch();
 
-        let supported_providers = config
-            .zklogin_oauth_providers
-            .get(&epoch_store.get_chain_identifier().chain())
-            .unwrap_or(&BTreeSet::new())
-            .iter()
-            .map(|s| OIDCProvider::from_str(s).expect("Invalid provider string"))
-            .collect::<Vec<_>>();
+        // zkLogin has been removed; no OAuth providers to fetch JWKs for.
+        let supported_providers: Vec<OIDCProvider> = Vec::new();
 
         let fetch_interval = Duration::from_secs(config.jwk_fetch_interval_seconds);
 

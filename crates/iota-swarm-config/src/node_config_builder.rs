@@ -17,7 +17,6 @@ use iota_config::{
         ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
         default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
-        default_zklogin_oauth_providers,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
@@ -242,7 +241,6 @@ impl ValidatorConfigBuilder {
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
                 .unwrap_or(3600),
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
             execution_cache: self.execution_cache_type.unwrap_or_default(),
             execution_cache_config: self.execution_cache_config.unwrap_or_default(),
@@ -595,7 +593,6 @@ impl FullnodeConfigBuilder {
             transaction_kv_store_write_config: Default::default(),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
-            zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: Default::default(),
             run_with_range: self.run_with_range,
             jsonrpc_server_type: None,

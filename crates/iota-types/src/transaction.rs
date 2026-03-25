@@ -8,7 +8,6 @@ use std::{
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
     iter::{self, once},
-    sync::Arc,
 };
 
 use anyhow::bail;
@@ -41,9 +40,7 @@ use crate::{
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
         IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
     },
-    digests::{
-        CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
-    },
+    digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     event::Event,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
@@ -53,7 +50,7 @@ use crate::{
     object::{MoveObject, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
-    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
+    signature_verification::verify_sender_signed_data_message_signatures,
     type_input::TypeInput,
 };
 
@@ -2481,10 +2478,6 @@ impl SenderSignedData {
         &self.inner().tx_signatures
     }
 
-    pub fn has_zklogin_sig(&self) -> bool {
-        self.tx_signatures().iter().any(|sig| sig.is_zklogin())
-    }
-
     pub fn has_upgraded_multisig(&self) -> bool {
         self.tx_signatures()
             .iter()
@@ -2518,13 +2511,11 @@ impl SenderSignedData {
         for sig in &self.inner().tx_signatures {
             match sig {
                 GenericSignature::ZkLoginAuthenticator(_) => {
-                    if !config.zklogin_auth() {
-                        return Err(IotaError::UserInput {
-                            error: UserInputError::Unsupported(
-                                "zklogin is not enabled on this network".to_string(),
-                            ),
-                        });
-                    }
+                    return Err(IotaError::UserInput {
+                        error: UserInputError::Unsupported(
+                            "zklogin is not enabled on this network".to_string(),
+                        ),
+                    });
                 }
                 GenericSignature::PasskeyAuthenticator(_) => {
                     if !config.passkey_auth() {
@@ -3109,12 +3100,7 @@ impl Transaction {
         current_epoch: EpochId,
         verify_params: &VerifyParams,
     ) -> IotaResult {
-        verify_sender_signed_data_message_signatures(
-            self.data(),
-            current_epoch,
-            verify_params,
-            Arc::new(VerifiedDigestCache::new_empty()),
-        )
+        verify_sender_signed_data_message_signatures(self.data(), current_epoch, verify_params)
     }
 
     pub fn try_into_verified_for_testing(
@@ -3137,7 +3123,6 @@ impl SignedTransaction {
             self.data(),
             committee.epoch(),
             verify_params,
-            Arc::new(VerifiedDigestCache::new_empty()),
         )?;
 
         self.auth_sig().verify_secure(
@@ -3178,13 +3163,11 @@ impl CertifiedTransaction {
         &self,
         committee: &Committee,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult {
         verify_sender_signed_data_message_signatures(
             self.data(),
             committee.epoch(),
             verify_params,
-            zklogin_inputs_cache,
         )?;
         self.auth_sig().verify_secure(
             self.data(),
@@ -3198,11 +3181,7 @@ impl CertifiedTransaction {
         committee: &Committee,
         verify_params: &VerifyParams,
     ) -> IotaResult<VerifiedCertificate> {
-        self.verify_signatures_authenticated(
-            committee,
-            verify_params,
-            Arc::new(VerifiedDigestCache::new_empty()),
-        )?;
+        self.verify_signatures_authenticated(committee, verify_params)?;
         Ok(VerifiedCertificate::new_from_verified(self))
     }
 

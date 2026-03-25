@@ -13,10 +13,7 @@ use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
-use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId},
-    zk_login_api::ZkLoginEnv,
-};
+use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use futures::{
     FutureExt, StreamExt,
     future::{Either, join_all, select},
@@ -1066,12 +1063,6 @@ impl AuthorityPerEpochStore {
             expensive_safety_check_config,
         );
 
-        let zklogin_env = match chain.1 {
-            // Testnet and mainnet are treated the same since it is permanent.
-            Chain::Mainnet | Chain::Testnet => ZkLoginEnv::Prod,
-            _ => ZkLoginEnv::Test,
-        };
-
         // Get all active validators and filter out committee members to get
         // non-committee validators
         let non_committee_validators: BTreeSet<AuthorityName> = epoch_start_configuration
@@ -1086,10 +1077,7 @@ impl AuthorityPerEpochStore {
             committee.clone(),
             non_committee_validators,
             signature_verifier_metrics,
-            zklogin_env,
-            protocol_config.accept_zklogin_in_multisig(),
             protocol_config.accept_passkey_in_multisig(),
-            protocol_config.zklogin_max_epoch_upper_bound_delta(),
             protocol_config.additional_multisig_checks(),
         );
 

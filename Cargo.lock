@@ -6576,7 +6576,6 @@ dependencies = [
  "downcast",
  "expect-test",
  "fastcrypto",
- "fastcrypto-zkp",
  "futures",
  "hex",
  "http 1.4.0",

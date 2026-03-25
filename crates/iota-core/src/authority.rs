@@ -314,8 +314,6 @@ pub struct AuthorityMetrics {
     /// bytecode verifier metrics for tracking timeouts
     pub bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
 
-    /// Count of zklogin signatures
-    pub zklogin_sig_count: IntCounter,
     /// Count of multisig signatures
     pub multisig_sig_count: IntCounter,
 
@@ -730,15 +728,9 @@ impl AuthorityMetrics {
             ).unwrap(),
             limits_metrics: Arc::new(LimitsMetrics::new(registry)),
             bytecode_verifier_metrics: Arc::new(BytecodeVerifierMetrics::new(registry)),
-            zklogin_sig_count: register_int_counter_with_registry!(
-                "zklogin_sig_count",
-                "Count of zkLogin signatures",
-                registry,
-            )
-            .unwrap(),
             multisig_sig_count: register_int_counter_with_registry!(
                 "multisig_sig_count",
-                "Count of zkLogin signatures",
+                "Count of multisig signatures",
                 registry,
             )
             .unwrap(),
@@ -1591,10 +1583,8 @@ impl AuthorityState {
         input_object_count: usize,
         shared_object_count: usize,
     ) {
-        // count signature by scheme, for zklogin and multisig
-        if certificate.has_zklogin_sig() {
-            self.metrics.zklogin_sig_count.inc();
-        } else if certificate.has_upgraded_multisig() {
+        // count signature by scheme, for multisig
+        if certificate.has_upgraded_multisig() {
             self.metrics.multisig_sig_count.inc();
         }
 

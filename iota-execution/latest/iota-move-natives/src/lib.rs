@@ -690,14 +690,10 @@ impl NativesCostTable {
                     .into(),
             },
             check_zklogin_id_cost_params: CheckZkloginIdCostParams {
-                check_zklogin_id_cost_base: protocol_config
-                    .check_zklogin_id_cost_base_as_option()
-                    .map(Into::into),
+                check_zklogin_id_cost_base: None,
             },
             check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
-                check_zklogin_issuer_cost_base: protocol_config
-                    .check_zklogin_issuer_cost_base_as_option()
-                    .map(Into::into),
+                check_zklogin_issuer_cost_base: None,
             },
             poseidon_bn254_cost_params: PoseidonBN254CostParams {
                 poseidon_bn254_cost_base: protocol_config

@@ -1353,12 +1353,15 @@ impl ProtocolConfig {
     }
 
     pub fn enable_jwk_consensus_updates(&self) -> bool {
-        self.feature_flags.enable_jwk_consensus_updates
+        // Deprecated: JWK consensus updates are no longer supported after ZkLogin
+        // removal.
+        false
     }
 
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
-        self.enable_jwk_consensus_updates()
+        // Deprecated: authenticator state is no longer created in genesis.
+        false
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -2827,15 +2830,8 @@ impl ProtocolConfig {
 // `_for_testing`. Non-feature_flags should already have test setters defined
 // through macros.
 impl ProtocolConfig {
-    pub fn set_zklogin_auth_for_testing(&mut self, val: bool) {
-        self.feature_flags.zklogin_auth = val
-    }
     pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_jwk_consensus_updates = val
-    }
-
-    pub fn set_accept_zklogin_in_multisig_for_testing(&mut self, val: bool) {
-        self.feature_flags.accept_zklogin_in_multisig = val
     }
 
     pub fn set_per_object_congestion_control_mode_for_testing(
@@ -2851,10 +2847,6 @@ impl ProtocolConfig {
 
     pub fn set_consensus_network_for_testing(&mut self, val: ConsensusNetwork) {
         self.feature_flags.consensus_network = val;
-    }
-
-    pub fn set_zklogin_max_epoch_upper_bound_delta_for_testing(&mut self, val: Option<u64>) {
-        self.feature_flags.zklogin_max_epoch_upper_bound_delta = val
     }
 
     pub fn set_passkey_auth_for_testing(&mut self, val: bool) {

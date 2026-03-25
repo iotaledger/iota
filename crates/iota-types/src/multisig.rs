@@ -5,7 +5,6 @@
 use std::{
     hash::{Hash, Hasher},
     str::FromStr,
-    sync::Arc,
 };
 
 pub use enum_dispatch::enum_dispatch;
@@ -27,12 +26,9 @@ use serde_with::serde_as;
 use crate::{
     base_types::{EpochId, IotaAddress},
     crypto::{CompressedSignature, DefaultHash, PublicKey, SignatureScheme},
-    digests::ZKLoginInputsDigest,
     error::IotaError,
     passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    signature_verification::VerifiedDigestCache,
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 
 #[cfg(test)]
@@ -85,14 +81,10 @@ impl Hash for MultiSig {
 impl AuthenticatorTrait for MultiSig {
     fn verify_user_authenticator_epoch(
         &self,
-        epoch_id: EpochId,
-        max_epoch_upper_bound_delta: Option<u64>,
+        _epoch_id: EpochId,
+        _max_epoch_upper_bound_delta: Option<u64>,
     ) -> Result<(), IotaError> {
-        // If there is any zkLogin signatures, filter and check epoch for each.
-        // TODO: call this on all sigs to avoid future lapses
-        self.get_zklogin_sigs()?.iter().try_for_each(|s| {
-            s.verify_user_authenticator_epoch(epoch_id, max_epoch_upper_bound_delta)
-        })
+        Ok(())
     }
 
     fn verify_claims<T>(
@@ -100,7 +92,6 @@ impl AuthenticatorTrait for MultiSig {
         value: &IntentMessage<T>,
         multisig_address: IotaAddress,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> Result<(), IotaError>
     where
         T: Serialize,
@@ -114,12 +105,6 @@ impl AuthenticatorTrait for MultiSig {
         if IotaAddress::from(&self.multisig_pk) != multisig_address {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid address derived from pks".to_string(),
-            });
-        }
-
-        if !self.get_zklogin_sigs()?.is_empty() && !verify_params.accept_zklogin_in_multisig {
-            return Err(IotaError::InvalidSignature {
-                error: "zkLogin sig not supported inside multisig".to_string(),
             });
         }
 
@@ -221,34 +206,10 @@ impl AuthenticatorTrait for MultiSig {
                         })?,
                     )
                 }
-                CompressedSignature::ZkLogin(z) => {
-                    if verify_params.additional_multisig_checks
-                        && !matches!(
-                            subsig_pubkey.scheme(),
-                            SignatureScheme::ZkLoginAuthenticator
-                        )
-                    {
-                        return Err(IotaError::InvalidSignature {
-                            error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
-                                subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
-                            ),
-                        });
-                    }
-                    let authenticator = ZkLoginAuthenticator::from_bytes(&z.0).map_err(|_| {
-                        IotaError::InvalidSignature {
-                            error: "Invalid zklogin authenticator bytes".to_string(),
-                        }
-                    })?;
-                    authenticator
-                        .verify_claims(
-                            value,
-                            IotaAddress::from(subsig_pubkey),
-                            verify_params,
-                            zklogin_inputs_cache.clone(),
-                        )
-                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+                CompressedSignature::ZkLogin(_) => {
+                    return Err(IotaError::InvalidSignature {
+                        error: "zkLogin sig not supported".to_string(),
+                    });
                 }
                 CompressedSignature::Passkey(bytes) => {
                     let authenticator =
@@ -258,12 +219,7 @@ impl AuthenticatorTrait for MultiSig {
                             }
                         })?;
                     authenticator
-                        .verify_claims(
-                            value,
-                            IotaAddress::from(subsig_pubkey),
-                            verify_params,
-                            zklogin_inputs_cache.clone(),
-                        )
+                        .verify_claims(value, IotaAddress::from(subsig_pubkey), verify_params)
                         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
                 }
                 CompressedSignature::Move(_move_authenticator_as_bytes) => {
@@ -392,25 +348,6 @@ impl MultiSig {
 
     pub fn get_sigs(&self) -> &[CompressedSignature] {
         &self.sigs
-    }
-
-    pub fn get_zklogin_sigs(&self) -> Result<Vec<ZkLoginAuthenticator>, IotaError> {
-        let authenticator_as_bytes: Vec<_> = self
-            .sigs
-            .iter()
-            .filter_map(|s| match s {
-                CompressedSignature::ZkLogin(z) => Some(z),
-                _ => None,
-            })
-            .collect();
-        authenticator_as_bytes
-            .iter()
-            .map(|z| {
-                ZkLoginAuthenticator::from_bytes(&z.0).map_err(|_| IotaError::InvalidSignature {
-                    error: "Invalid zklogin authenticator bytes".to_string(),
-                })
-            })
-            .collect()
     }
 
     pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {

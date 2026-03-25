@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{hash::Hash, sync::Arc};
+use std::hash::Hash;
 
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
@@ -12,11 +12,6 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use fastcrypto_zkp::bn254::{
-    zk_login::{JWK, JwkId},
-    zk_login_api::ZkLoginEnv,
-};
-use im::hashmap::HashMap as ImHashMap;
 use iota_sdk_types::crypto::IntentMessage;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -29,40 +24,22 @@ use crate::{
         CompressedSignature, IotaSignature, PasskeyAuthenticatorAsBytes, PublicKey, Signature,
         SignatureScheme, ZkLoginAuthenticatorAsBytes,
     },
-    digests::ZKLoginInputsDigest,
     error::{IotaError, IotaResult},
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorInner, MoveAuthenticatorV1},
     multisig::MultiSig,
     passkey_authenticator::PasskeyAuthenticator,
-    signature_verification::VerifiedDigestCache,
     zk_login_authenticator::ZkLoginAuthenticator,
 };
 #[derive(Default, Debug, Clone)]
 pub struct VerifyParams {
-    // map from JwkId (iss, kid) => JWK
-    pub oidc_provider_jwks: ImHashMap<JwkId, JWK>,
-    pub zk_login_env: ZkLoginEnv,
-    pub accept_zklogin_in_multisig: bool,
     pub accept_passkey_in_multisig: bool,
-    pub zklogin_max_epoch_upper_bound_delta: Option<u64>,
     pub additional_multisig_checks: bool,
 }
 
 impl VerifyParams {
-    pub fn new(
-        oidc_provider_jwks: ImHashMap<JwkId, JWK>,
-        zk_login_env: ZkLoginEnv,
-        accept_zklogin_in_multisig: bool,
-        accept_passkey_in_multisig: bool,
-        zklogin_max_epoch_upper_bound_delta: Option<u64>,
-        additional_multisig_checks: bool,
-    ) -> Self {
+    pub fn new(accept_passkey_in_multisig: bool, additional_multisig_checks: bool) -> Self {
         Self {
-            oidc_provider_jwks,
-            zk_login_env,
-            accept_zklogin_in_multisig,
             accept_passkey_in_multisig,
-            zklogin_max_epoch_upper_bound_delta,
             additional_multisig_checks,
         }
     }
@@ -82,7 +59,6 @@ pub trait AuthenticatorTrait {
         value: &IntentMessage<T>,
         author: IotaAddress,
         aux_verify_data: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize;
@@ -104,9 +80,6 @@ pub enum GenericSignature {
 }
 
 impl GenericSignature {
-    pub fn is_zklogin(&self) -> bool {
-        matches!(self, GenericSignature::ZkLoginAuthenticator(_))
-    }
     pub fn is_passkey(&self) -> bool {
         matches!(self, GenericSignature::PasskeyAuthenticator(_))
     }
@@ -125,16 +98,12 @@ impl GenericSignature {
         author: IotaAddress,
         epoch: EpochId,
         verify_params: &VerifyParams,
-        zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
-        self.verify_user_authenticator_epoch(
-            epoch,
-            verify_params.zklogin_max_epoch_upper_bound_delta,
-        )?;
-        self.verify_claims(value, author, verify_params, zklogin_inputs_cache)
+        self.verify_user_authenticator_epoch(epoch, None)?;
+        self.verify_claims(value, author, verify_params)
     }
 
     /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig
@@ -219,7 +188,9 @@ impl GenericSignature {
                     }),
                 }
             }
-            GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
+            GenericSignature::ZkLoginAuthenticator(_) => Err(IotaError::UnsupportedFeature {
+                error: "zkLogin is not supported".to_string(),
+            }),
             GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
             GenericSignature::MoveAuthenticator(_) => Err(IotaError::UnsupportedFeature {
                 error: "Unsupported in MoveAuthenticator".to_string(),
@@ -327,7 +298,6 @@ impl AuthenticatorTrait for Signature {
         value: &IntentMessage<T>,
         author: IotaAddress,
         _aux_verify_data: &VerifyParams,
-        _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,

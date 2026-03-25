@@ -6,7 +6,6 @@
 use std::{fs::File, io::Write, str::FromStr};
 
 use clap::*;
-use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use iota_types::{
     base_types::{
@@ -16,8 +15,7 @@ use iota_types::{
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
         AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
-        KeypairTraits, PublicKey, Signature, Signer, ZkLoginPublicIdentifier, get_key_pair,
-        get_key_pair_from_rng,
+        KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
     effects::{
         IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEvents,
@@ -45,7 +43,6 @@ use iota_types::{
         SenderSignedData, TransactionData, TransactionExpiration, TransactionKind,
     },
     type_input::{StructInput, TypeInput},
-    utils::DEFAULT_ADDRESS_SEED,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -118,17 +115,9 @@ fn get_registry() -> Result<Registry> {
         IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
     let kp3: IotaKeyPair =
         IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let pk_zklogin = PublicKey::ZkLogin(
-        ZkLoginPublicIdentifier::new(
-            &OIDCProvider::Twitch.get_config().iss,
-            &Bn254FrElement::from_str(DEFAULT_ADDRESS_SEED).unwrap(),
-        )
-        .unwrap(),
-    );
-
     let multisig_pk = MultiSigPublicKey::new(
-        vec![kp1.public(), kp2.public(), kp3.public(), pk_zklogin],
-        vec![1, 1, 1, 1],
+        vec![kp1.public(), kp2.public(), kp3.public()],
+        vec![1, 1, 1],
         2,
     )
     .unwrap();

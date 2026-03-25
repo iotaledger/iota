@@ -38,7 +38,6 @@ use fastcrypto::{
         Secp256r1SignatureAsBytes,
     },
 };
-use fastcrypto_zkp::{bn254::zk_login::ZkLoginInputs, zk_login_utils::Bn254FrElement};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use rand::{
     SeedableRng,
@@ -291,34 +290,19 @@ pub enum PublicKey {
     Ed25519(Ed25519PublicKeyAsBytes),
     Secp256k1(Secp256k1PublicKeyAsBytes),
     Secp256r1(Secp256r1PublicKeyAsBytes),
-    ZkLogin(ZkLoginPublicIdentifier),
+    #[deprecated(note = "zkLogin is no longer supported")]
+    ZkLogin,
     Passkey(Secp256r1PublicKeyAsBytes),
 }
 
-/// A wrapper struct to retrofit in [enum PublicKey] for zkLogin.
-/// Useful to construct [struct MultiSigPublicKey].
-#[derive(Clone, Debug, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
-pub struct ZkLoginPublicIdentifier(#[schemars(with = "Base64")] pub Vec<u8>);
-
-impl ZkLoginPublicIdentifier {
-    /// Consists of iss_bytes_len || iss_bytes || padded_32_byte_address_seed.
-    pub fn new(iss: &str, address_seed: &Bn254FrElement) -> IotaResult<Self> {
-        let mut bytes = Vec::new();
-        let iss_bytes = iss.as_bytes();
-        bytes.extend([iss_bytes.len() as u8]);
-        bytes.extend(iss_bytes);
-        bytes.extend(address_seed.padded());
-
-        Ok(Self(bytes))
-    }
-}
 impl AsRef<[u8]> for PublicKey {
     fn as_ref(&self) -> &[u8] {
         match self {
             PublicKey::Ed25519(pk) => &pk.0,
             PublicKey::Secp256k1(pk) => &pk.0,
             PublicKey::Secp256r1(pk) => &pk.0,
-            PublicKey::ZkLogin(z) => &z.0,
+            #[allow(deprecated)]
+            PublicKey::ZkLogin => &[],
             PublicKey::Passkey(pk) => &pk.0,
         }
     }
@@ -397,16 +381,10 @@ impl PublicKey {
             PublicKey::Ed25519(_) => Ed25519IotaSignature::SCHEME,
             PublicKey::Secp256k1(_) => Secp256k1IotaSignature::SCHEME,
             PublicKey::Secp256r1(_) => Secp256r1IotaSignature::SCHEME,
-            PublicKey::ZkLogin(_) => SignatureScheme::ZkLoginAuthenticator,
+            #[allow(deprecated)]
+            PublicKey::ZkLogin => SignatureScheme::ZkLoginAuthenticator,
             PublicKey::Passkey(_) => SignatureScheme::PasskeyAuthenticator,
         }
-    }
-
-    pub fn from_zklogin_inputs(inputs: &ZkLoginInputs) -> IotaResult<Self> {
-        Ok(PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
-            inputs.get_iss(),
-            inputs.get_address_seed(),
-        )?))
     }
 }
 
@@ -1016,7 +994,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         &self,
         value: &IntentMessage<T>,
         author: IotaAddress,
-        scheme: SignatureScheme,
+        _scheme: SignatureScheme,
     ) -> Result<(), IotaError>
     where
         T: Serialize,
@@ -1026,17 +1004,11 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         let digest = hasher.finalize().digest;
 
         let (sig, pk) = &self.get_verification_inputs()?;
-        match scheme {
-            SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does
-            // not derive address from pubkey.
-            _ => {
-                let address = IotaAddress::from(pk);
-                if author != address {
-                    return Err(IotaError::IncorrectSigner {
-                        error: format!("Incorrect signer, expected {author:?}, got {address:?}"),
-                    });
-                }
-            }
+        let address = IotaAddress::from(pk);
+        if author != address {
+            return Err(IotaError::IncorrectSigner {
+                error: format!("Incorrect signer, expected {author:?}, got {address:?}"),
+            });
         }
 
         pk.verify(&digest, sig)
