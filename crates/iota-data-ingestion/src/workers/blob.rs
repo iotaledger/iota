@@ -10,7 +10,7 @@ use bytes::Bytes;
 use futures::{StreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::Client;
+use iota_grpc_client::Client;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,
@@ -39,7 +39,6 @@ pub struct BlobTaskConfig {
     pub object_store_config: ObjectStoreConfig,
     #[serde(deserialize_with = "deserialize_chunk")]
     pub checkpoint_chunk_size_mb: u64,
-    pub node_rest_api_url: String,
 }
 
 fn deserialize_chunk<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -55,7 +54,7 @@ where
 
 pub struct BlobWorker {
     remote_store: Arc<DynObjectStore>,
-    rest_client: Client,
+    grpc_client: Client,
     checkpoint_chunk_size_mb: u64,
     current_epoch: Arc<Mutex<EpochId>>,
 }
@@ -63,14 +62,14 @@ pub struct BlobWorker {
 impl BlobWorker {
     pub fn new(
         config: BlobTaskConfig,
-        rest_client: Client,
+        grpc_client: Client,
         current_epoch: EpochId,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             checkpoint_chunk_size_mb: config.checkpoint_chunk_size_mb,
             remote_store: config.object_store_config.make()?,
             current_epoch: Arc::new(Mutex::new(current_epoch)),
-            rest_client,
+            grpc_client,
         })
     }
 
@@ -195,12 +194,10 @@ impl Worker for BlobWorker {
         {
             let mut current_epoch = self.current_epoch.lock().await;
             if epoch > *current_epoch {
-                let delete_start = common::epoch_first_checkpoint_sequence_number(
-                    &self.rest_client,
-                    *current_epoch,
-                )
-                .await?;
-                self.reset_remote_store(delete_start..chk_seq_num).await?;
+                let (_, epoch_first_checkpoint_seq_num) =
+                    common::epoch_info(&self.grpc_client, Some(*current_epoch)).await?;
+                self.reset_remote_store(epoch_first_checkpoint_seq_num..chk_seq_num)
+                    .await?;
                 // we update the epoch once we made sure that reset was successful.
                 *current_epoch = epoch;
             }
