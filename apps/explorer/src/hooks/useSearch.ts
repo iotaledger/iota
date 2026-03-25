@@ -163,14 +163,14 @@ const getResultsForAddress = async (
 
     const fromOrTo = await client.queryTransactionBlocks({
         filter: { FromOrToAddress: { addr: normalized } },
-        limit: 1,
+        limit: 2,
     });
 
     // Note: we need to query owned objects separately
     // because genesis addresses might not be involved in any transaction yet.
     let ownedObjects = [];
     if (!fromOrTo.data?.length) {
-        const response = await client.getOwnedObjects({ owner: normalized, limit: 1 });
+        const response = await client.getOwnedObjects({ owner: normalized, limit: 2 });
         ownedObjects = response.data;
     }
 
@@ -191,13 +191,13 @@ async function addressHasActivity(client: IotaClient, address: string): Promise<
     try {
         const fromOrTo = await client.queryTransactionBlocks({
             filter: { FromOrToAddress: { addr: normalized } },
-            limit: 1,
+            limit: 2,
         });
         if (fromOrTo?.data?.length > 0) return true;
 
         const ownedObjects = await client.getOwnedObjects({
             owner: normalized,
-            limit: 1,
+            limit: 2,
         });
         if (ownedObjects.data.length > 0) return true;
 
