@@ -65,7 +65,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
     function handleShowAsset() {
         showAsset(objectId);
 
-        ampli.clickedShowAsset({
+        ampli.shownCollectible({
             collectibleType: type!,
         });
 
@@ -76,7 +76,7 @@ export function HiddenAsset(item: HiddenAssetProps) {
                     destination="Visual Assets"
                     onUndo={() => {
                         hideAsset(objectId);
-                        ampli.clickedHideAsset({
+                        ampli.hidCollectible({
                             collectibleType: type!,
                         });
                     }}

@@ -13,7 +13,7 @@ export function useLogoutMutation() {
     return useMutation({
         mutationKey: ['logout', 'clear wallet'],
         mutationFn: async () => {
-            await ampli.walletReset();
+            await ampli.resetWallet();
             await ampli.flush();
             ampli.client.reset();
             queryClient.cancelQueries();
