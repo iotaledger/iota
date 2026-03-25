@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const iotaSDK = [
@@ -24,7 +24,7 @@ const iotaSDK = [
             slug: 'developer/iota-sdk/explanations',
         },
         items: [
-            'developer/iota-sdk/explanations/place-holder',
+            'developer/iota-sdk/explanations/address-derivation',
         ],
     },
     {
@@ -44,6 +44,7 @@ const iotaSDK = [
                 },
                 items: [
                     'developer/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
+                    'developer/iota-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
                 ],
             },
         ],
