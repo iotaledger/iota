@@ -1138,3 +1138,65 @@ async fn test_filter_checkpoints_streaming() {
         .await
         .expect("Failed to shutdown server");
 }
+
+/// Verify the gRPC server accepts gRPC-Web requests over HTTP/1.1.
+///
+/// Sends a raw HTTP/1.1 POST with `content-type: application/grpc-web` to a
+/// registered gRPC method. The `GrpcWebLayer` translates this into a native
+/// gRPC call. We assert the server responds with HTTP 200 and a grpc-web
+/// content-type (the actual gRPC status is in trailers).
+#[tokio::test]
+async fn test_grpc_web_request_accepted() {
+    let (server_handle, _client, _) = test_server_and_client_setup(0..=0, |_| {}, None, None).await;
+    let addr = server_handle.address();
+
+    // Minimal gRPC-Web frame: 1-byte compression flag + 4-byte big-endian
+    // length + protobuf payload.  An empty payload is a valid
+    // GetCheckpointRequest (all fields default).
+    let mut body = Vec::new();
+    body.push(0u8); // no compression
+    body.extend_from_slice(&0u32.to_be_bytes()); // zero-length message
+
+    let http_client = reqwest::Client::builder()
+        .http1_only()
+        .build()
+        .expect("failed to build reqwest client");
+
+    let resp = http_client
+        .post(format!(
+            "http://{addr}/iota.ledger.v0.LedgerService/GetCheckpoint"
+        ))
+        .header("content-type", "application/grpc-web")
+        .header("x-grpc-web", "1")
+        .body(body)
+        .send()
+        .await
+        .expect("HTTP request failed");
+
+    // The layer should accept the request (HTTP 200) with a grpc-web
+    // content-type. The gRPC application status may be an error (e.g.
+    // NotFound) carried in trailers — what matters is the layer didn't
+    // reject the request outright (415 / 404).
+    assert_eq!(
+        resp.status(),
+        200,
+        "expected HTTP 200 from gRPC-Web layer, got {}",
+        resp.status()
+    );
+
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .expect("missing content-type")
+        .to_str()
+        .unwrap();
+    assert!(
+        ct.contains("grpc-web"),
+        "expected grpc-web content-type, got {ct}"
+    );
+
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}

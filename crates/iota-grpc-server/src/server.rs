@@ -152,7 +152,7 @@ pub async fn start_grpc_server(
     // Build the server builder with TLS and optional metrics layer.
     // Server::layer() changes the builder's generic type parameter, so we use
     // a macro to avoid duplicating the service registration and spawn logic.
-    let mut server_builder = Server::builder();
+    let mut server_builder = Server::builder().accept_http1(true);
 
     // Configure TLS if enabled
     if let Some(tls_config) = config.tls_config() {
@@ -177,9 +177,14 @@ pub async fn start_grpc_server(
             .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
     }
 
-    // Add services and spawn the server, optionally wrapping with metrics layer
+    // Add services and spawn the server, optionally wrapping with metrics layer.
+    // The GrpcWebLayer enables gRPC-Web support (HTTP/1.1-based gRPC for
+    // browser clients). It must be applied as an outer layer so it can
+    // translate between gRPC-Web and native gRPC framing.
     let server_handle = if let Some(metrics) = metrics {
-        let mut layered_builder = server_builder.layer(GrpcMetricsLayer::new(Arc::new(metrics)));
+        let mut layered_builder = server_builder
+            .layer(tonic_web::GrpcWebLayer::new())
+            .layer(GrpcMetricsLayer::new(Arc::new(metrics)));
         build_and_spawn!(
             layered_builder,
             ledger_service,
@@ -190,8 +195,9 @@ pub async fn start_grpc_server(
             shutdown_token
         )
     } else {
+        let mut layered_builder = server_builder.layer(tonic_web::GrpcWebLayer::new());
         build_and_spawn!(
-            server_builder,
+            layered_builder,
             ledger_service,
             tx_service,
             config,
