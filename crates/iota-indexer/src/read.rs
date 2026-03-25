@@ -1078,10 +1078,11 @@ impl IndexerReader {
             .join(", ");
 
         let query = format!(
-            "SELECT COUNT(*) as count FROM objects \
+            "WITH max_chk AS (SELECT COALESCE(MAX(sequence_number), -1) AS max_sn FROM checkpoints) \
+             SELECT COUNT(*) as count FROM objects \
              WHERE (object_id, object_version) IN (VALUES {}) \
              AND (finalized_in_cp IS NULL \
-                  OR finalized_in_cp <= (SELECT COALESCE(MAX(sequence_number), -1) FROM checkpoints))",
+                  OR finalized_in_cp <= (SELECT max_sn FROM max_chk))",
             values_clause
         );
 
