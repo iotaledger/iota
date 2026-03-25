@@ -26,7 +26,7 @@ pub enum OperationType {
 }
 
 impl OperationType {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             OperationType::Submit => "submit",
             OperationType::Effects => "effects",

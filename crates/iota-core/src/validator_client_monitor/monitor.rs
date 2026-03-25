@@ -158,33 +158,7 @@ impl<A> ValidatorClientMonitor<A> {
 
     /// Record client-observed interaction result with a validator.
     pub fn record_interaction_result(&self, feedback: OperationFeedback) {
-        let operation_str = match feedback.operation {
-            OperationType::Submit => "submit",
-            OperationType::Effects => "effects",
-            OperationType::HealthCheck => "health_check",
-            OperationType::Consensus => "consensus",
-        };
-        let ping_label = feedback.ping.to_string();
-        let operation_str = operation_str.to_string();
-        match feedback.result {
-            Ok(latency) => {
-                self.metrics
-                    .observed_latency
-                    .with_label_values(&[&feedback.display_name, &operation_str, &ping_label])
-                    .observe(latency.as_secs_f64());
-                self.metrics
-                    .operation_success
-                    .with_label_values(&[&feedback.display_name, &operation_str, &ping_label])
-                    .inc();
-            }
-            Err(()) => {
-                self.metrics
-                    .operation_failure
-                    .with_label_values(&[&feedback.display_name, &operation_str, &ping_label])
-                    .inc();
-            }
-        }
-
+        self.metrics.record_interaction_result(&feedback);
         let mut client_stats = self.client_stats.write();
         client_stats.record_interaction_result(feedback);
     }
