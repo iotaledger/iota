@@ -41,8 +41,8 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     // bytes.
     let commands = vec![iota_types::transaction::Command::new_move_call(
         ObjectID::FRAMEWORK,
-        Identifier::from_static("_"),
-        Identifier::from_static("timestamp_ms"),
+        Identifier::new_unchecked("_"),
+        Identifier::new_unchecked("timestamp_ms"),
         vec![],
         vec![iota_types::transaction::Argument::Input(0)],
     )];
