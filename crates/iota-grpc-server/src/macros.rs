@@ -34,7 +34,7 @@ macro_rules! create_batching_stream {
         async_stream::try_stream! {
             let mut requests_iter = $requests_iter;
             let mut current_batch = Vec::new();
-            let mut current_size: usize = 0;
+            let mut current_size = 0;
             let mut has_yielded = false;
 
             loop {
