@@ -1,11 +1,14 @@
 ---
 title: Prepare and Send IOTA
-description: Learn how to build, inspect, and dry-run an IOTA transfer transaction using the Transaction Builder across Rust, Go, Python, Kotlin, and Swift.
+description: 'How to build, inspect, and dry-run an IOTA transfer transaction before submission.'
+tags:
+  - how-to
+  - rust-sdk
 ---
 
 # Prepare and Send IOTA
 
-This guide shows you how to build an IOTA transfer transaction using the `Transaction Builder`, dry-run it to verify correctness, and inspect the signing digest and transaction bytes before submission.
+This how-to demonstrates how to build, inspect, and dry-run an IOTA transfer transaction before submission.
 
 ## Prerequisites
 
@@ -97,7 +100,7 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ### 3. Build the Transaction
 
-Create a `TransactionBuilder`, attach the client for gas estimation, and add a `sendIota` command with the amount in nanos.
+Set the transfer amount in nanos (1 IOTA = 1,000,000,000 nanos) and build the transaction with the sender, recipient, and amount.
 
 <Tabs groupId="language">
   <TabItem value="rust" label="Rust" default>
@@ -228,10 +231,6 @@ Signing Digest: <hex-digest>
 Txn Bytes: <base64-encoded-transaction>
 Send IOTA dry run was successful!
 ```
-
-:::tip
-The amount is denominated in **nanos**. `5000000000` nanos = 5 IOTA. To convert, divide by `1_000_000_000`.
-:::
 
 ## Full Example
 

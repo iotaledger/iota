@@ -1,11 +1,14 @@
 ---
 title: Query Transactions by Function
-description: Learn how to query transactions filtered by a Move function call using the GraphQL client across Rust, Go, Python, Kotlin, and Swift.
+description: 'How to query transactions filtered by a Move function call using the GraphQL client.'
+tags:
+  - how-to
+  - rust-sdk
 ---
 
 # Query Transactions by Function
 
-This guide shows you how to query transactions filtered by a specific [Move](../../../iota-101/move-overview/move-overview.mdx) function call using the IOTA SDK's [GraphQL client](/developer/references/iota-graphql).
+This how-to demonstrates how to query transactions filtered by a specific Move function call using the IOTA SDK's [GraphQL client](/developer/references/iota-graphql).
 
 ## Prerequisites
 
@@ -145,8 +148,8 @@ Digest: <base58-transaction-digest>
 ...
 ```
 
-:::tip
-The function filter uses the fully-qualified Move function identifier in the format `<package>::<module>::<function>`. You can filter by any on-chain function, not just system functions.
+:::note
+The function identifier format is `<package>::<module>::<function>`.
 :::
 
 ## Full Example

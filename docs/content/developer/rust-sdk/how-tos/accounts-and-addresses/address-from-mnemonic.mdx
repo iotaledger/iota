@@ -1,6 +1,9 @@
 ---
 title: Create an Address from a Mnemonic
-description: Learn how to derive an IOTA address from a BIP-39 mnemonic using Ed25519, Secp256k1, and Secp256r1 signature schemes across Rust, Go, Python, Kotlin, and Swift.
+description: 'How to derive an IOTA address from a BIP-39 mnemonic using Ed25519, Secp256k1, and Secp256r1 signature schemes.'
+tags:
+  - how-to
+  - rust-sdk
 ---
 
 # Create an Address from a Mnemonic
@@ -60,7 +63,7 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ### 2. Derive an Ed25519 Key Pair and Address
 
-Derive a private key, public key, and address using the [Ed25519](/developer/cryptography/transaction-auth/keys-addresses) scheme with the default derivation path.
+Derive a private key, public key, and address using the [Ed25519](/developer/cryptography/transaction-auth/keys-addresses) scheme.
 
 <Tabs groupId="language">
   <TabItem value="rust" label="Rust" default>
@@ -102,7 +105,7 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ### 3. Derive a Secp256k1 Key Pair and Address
 
-Derive a key pair using the [Secp256k1](/developer/cryptography/transaction-auth/keys-addresses) scheme with an account index and optional password.
+Derive a key pair using the [Secp256k1](/developer/cryptography/transaction-auth/keys-addresses) scheme.
 
 <Tabs groupId="language">
   <TabItem value="rust" label="Rust" default>
@@ -144,7 +147,7 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ### 4. Derive a Secp256r1 Key Pair and Address
 
-Derive a key pair using the [Secp256r1](/developer/cryptography/transaction-auth/keys-addresses) scheme with a custom derivation path.
+Derive a key pair using the [Secp256r1](/developer/cryptography/transaction-auth/keys-addresses) scheme.
 
 <Tabs groupId="language">
   <TabItem value="rust" label="Rust" default>
@@ -209,8 +212,8 @@ Public Key With Flag: <base64-encoded-flagged-public-key>
 Address: 0x<64-character-hex-address>
 ```
 
-:::tip
-All three schemes derive **different** addresses from the same mnemonic. This is expected — each scheme uses a different cryptographic curve and derivation path.
+:::note
+All three schemes derive **different** addresses from the same mnemonic. See [Keys and Addresses](/developer/cryptography/transaction-auth/keys-addresses) for details on each scheme.
 :::
 
 ## Full Example
