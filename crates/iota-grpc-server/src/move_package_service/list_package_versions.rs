@@ -75,22 +75,17 @@ pub(crate) fn list_package_versions(
         )));
     }
 
-    let versions: Vec<_> = items
-        .into_iter()
-        .map(|(key, info)| {
+    Ok(crate::create_batching_stream!(
+        items.into_iter(),
+        (key, info),
+        {
             let version = PackageVersion::default()
                 .with_original_id(object_id_proto(&key.original_package_id))
                 .with_version(key.version)
                 .with_storage_id(object_id_proto(&info.storage_id));
             let size = version.encoded_len();
             (version, size)
-        })
-        .collect();
-
-    Ok(crate::create_batching_stream!(
-        versions.into_iter(),
-        (version, size),
-        { (version, size) },
+        },
         max_message_size,
         ListPackageVersionsResponse,
         versions,

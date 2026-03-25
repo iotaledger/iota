@@ -172,10 +172,10 @@ pub(crate) fn list_dynamic_fields(
             .take(limit.unwrap_or(usize::MAX)),
     )?;
 
-    // Pre-merge all items before streaming to avoid error handling in the stream
-    let merged: Vec<_> = items
-        .into_iter()
-        .map(|(key, info)| {
+    Ok(crate::create_batching_stream!(
+        items.into_iter(),
+        (key, info),
+        {
             let field_id = key.field_id;
             let mut df = DynamicField::merge_from((key, info), &read_mask)
                 .map_err(|e| e.with_context("failed to merge dynamic field"))?;
@@ -194,14 +194,8 @@ pub(crate) fn list_dynamic_fields(
             }
 
             let size = df.encoded_len();
-            Ok((df, size))
-        })
-        .collect::<Result<Vec<_>, RpcError>>()?;
-
-    Ok(crate::create_batching_stream!(
-        merged.into_iter(),
-        (df, size),
-        { (df, size) },
+            (df, size)
+        },
         max_message_size,
         ListDynamicFieldsResponse,
         dynamic_fields,

@@ -60,11 +60,10 @@ pub(crate) fn list_owned_objects(
             .take(limit.unwrap_or(usize::MAX)),
     )?;
 
-    // Fetch and merge objects. Skip any object that is no longer found
-    // (e.g. transferred or deleted between the index scan and the fetch).
-    let objects: Vec<(Object, usize)> = items
-        .into_iter()
-        .filter_map(|info| {
+    Ok(crate::create_batching_stream!(
+        items.into_iter(),
+        info,
+        {
             let object = match reader.get_object_by_key(&info.object_id, info.version) {
                 Ok(Some(obj)) => obj,
                 Ok(None) => {
@@ -73,23 +72,17 @@ pub(crate) fn list_owned_objects(
                         info.object_id,
                         info.version,
                     );
-                    return None;
+                    // Skip any object that is no longer found (e.g. transferred or deleted between
+                    // the index scan and the fetch).
+                    continue;
                 }
-                Err(e) => return Some(Err(RpcError::from(e))),
+                Err(e) => Err(RpcError::from(e))?,
             };
             let merged = Object::merge_from(object, &read_mask)
-                .map_err(|e| e.with_context("failed to merge object"));
-            Some(merged.map(|m| {
-                let size = m.encoded_len();
-                (m, size)
-            }))
-        })
-        .collect::<Result<Vec<_>, RpcError>>()?;
-
-    Ok(crate::create_batching_stream!(
-        objects.into_iter(),
-        (object, size),
-        { (object, size) },
+                .map_err(|e| e.with_context("failed to merge object"))?;
+            let size = merged.encoded_len();
+            (merged, size)
+        },
         max_message_size,
         ListOwnedObjectsResponse,
         objects,
