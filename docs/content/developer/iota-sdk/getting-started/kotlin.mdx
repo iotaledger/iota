@@ -22,12 +22,8 @@ Before using the Kotlin bindings, ensure you have:
 ### Gradle
 Add the IOTA SDK dependency to your `build.gradle.kts` file:
 
-```kotlin
-dependencies {
-    implementation("org.iota:iota-sdk:0.0.1-alpha.4")
-    implementation("net.java.dev.jna:jna:5.13.0@aar")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-}
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/build.gradle.kts#L20-L24
 ```
 
 ### Maven
@@ -84,19 +80,8 @@ The following example demonstrates how to initialize a client and retrieve the C
 
 Create a new file and paste the following code:
 
-```kotlin
-import iota_sdk.GraphQlClient
-import kotlinx.coroutines.runBlocking
-
-fun main() = runBlocking {
-    // 1. Create a client connected to Devnet
-    val client = GraphQlClient.newDevnet()
-
-    // 2. Query the chain ID
-    val chainId = client.chainId()
-    
-    println("Successfully connected! Chain ID: $chainId")
-}
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/ChainId.kt#L1-l16
 ```
 
 ## 2. Run the code

@@ -19,8 +19,8 @@ Before using the Go bindings, ensure you have:
 
 Add the IOTA SDK to your Go project using `go get`:
 
-```bash
-go get github.com/iotaledger/iota-sdk-go
+```bash reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/README.md?plain=1#L10
 ```
 
 The package automatically includes pre-built native libraries for most modern operating systems (Windows, macOS, and Linux).
@@ -30,8 +30,8 @@ The package automatically includes pre-built native libraries for most modern op
 
 The `iota-sdk-go` package includes precompiled native libraries for common platforms such as Windows, macOS, and Linux. In most cases, installing the package with:
 
-```bash
-go get github.com/iotaledger/iota-sdk-go
+```bash reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/README.md?plain=1#L10
 ```
 
 will download a compatible binary automatically.
@@ -59,30 +59,8 @@ The following example demonstrates how to connect to the IOTA Devnet and retriev
 
 Create a new file named `main.go` and paste the following code:
 
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/iotaledger/iota-sdk-go/iota_sdk"
-)
-
-func main() {
-	// 1. Create a GraphQL client connected to devnet
-	client := iota_sdk.GraphQlClientNewDevnet()
-
-	// 2. Query the chain ID
-	chainID, err := client.ChainId()
-	
-	// Check for SDK-specific FFI errors
-	if err.(*iota_sdk.SdkFfiError) != nil {
-		log.Fatalf("Failed to get chain ID: %v", err)
-	}
-	
-	fmt.Printf("Successfully connected! Chain ID: %s\n", chainID)
-}
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/chain_id/main.go#L4-L21
 ```
 
 ## 2. Run the code

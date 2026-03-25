@@ -60,22 +60,8 @@ The following example demonstrates how to connect to the IOTA Devnet and retriev
 
 Create a new file named `main.py` and paste the following code:
 
-```python
-from iota_sdk import *
-
-import asyncio
-
-async def main():
-    # 1. Create a client connected to Devnet
-    client = GraphQlClient.new_devnet()
-
-    # 2. Query the chain ID
-    chain_id = await client.chain_id()
-
-    print("Chain ID:", chain_id)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/chain_id.py#L1-L17
 ```
 
 ## 2. Run the code

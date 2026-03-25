@@ -62,18 +62,8 @@ The following example demonstrates how to initialize a client and retrieve the *
 ### 1. Implementation
 You can use the following code snippet in your `main.swift` or within an `async` task in your app:
 
-```swift
-import IotaSDK
-
-@main
-struct ChainIdExample {
-    static func main() async throws {
-        let client = GraphQlClient.newDevnet()
-
-        let chainId = try await client.chainId()
-        print("Chain ID:", chainId)
-    }
-}
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/ChainId.swift#L1-L14
 ```
 
 :::important App Sandbox & Permissions

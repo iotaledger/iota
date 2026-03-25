@@ -82,18 +82,8 @@ Install the SDK as mentioned above and also add `tokio` as a dependency for asyn
 
 Replace the contents of `src/main.rs` with the following:
 
-```rust
-use iota_sdk::graphql_client::{Client, error::Result};
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let client = Client::new_testnet();
-
-    let chain_id = client.chain_id().await?;
-    println!("Chain ID: {chain_id}");
-
-    Ok(())
-}
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/chain_id.rs#L1-L14
 ```
 
 ### 4. Run the code
