@@ -48,7 +48,12 @@ pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
-pub trait MoveObjectExt: Sized {
+mod move_object_ext_private {
+    pub trait Sealed {}
+    impl Sealed for iota_sdk_types::MoveStruct {}
+}
+
+pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
     fn new_from_execution(
         tag: StructTag,
         version: SequenceNumber,
