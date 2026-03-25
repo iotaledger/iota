@@ -15,5 +15,5 @@ rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
 rustflags = ["-C", "link-arg=/STACK:8000000"]
 
 [target.x86_64-pc-windows-msvc.pq]
-rustc-link-search = ["C:\\Program Files\\PostgreSQL\\16\\lib"]
+rustc-link-search = ["C:\\Program Files\\PostgreSQL\\15\\lib"]
 rustc-link-lib = ["libpq"]

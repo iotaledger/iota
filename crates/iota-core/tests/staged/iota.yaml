@@ -646,7 +646,7 @@ Intent:
   STRUCT:
     - scope: U8
     - version: U8
-    - appId: U8
+    - app_id: U8
 IntentMessage:
   STRUCT:
     - intent:
