@@ -2073,10 +2073,10 @@ impl IotaProgrammableTransactionBlock {
         for command in commands.iter() {
             match command {
                 Command::MoveCall(c) => {
-                    let id = ModuleId::new(
-                        AccountAddress::new(c.package.into_bytes()),
-                        move_core_types::identifier::Identifier::new(c.module.as_str()).unwrap(),
-                    );
+                    let module = unsafe {
+                        move_core_types::identifier::Identifier::new_unchecked(c.module.as_str())
+                    };
+                    let id = ModuleId::new(AccountAddress::new(c.package.into_bytes()), module);
                     let Some(types) = get_signature_types(id, &c.function, module_cache) else {
                         return result_types;
                     };
@@ -2156,7 +2156,7 @@ pub enum IotaCommand {
     MergeCoins(IotaArgument, Vec<IotaArgument>),
     /// Publishes a Move package. It takes the package bytes and a list of the
     /// package's transitive dependencies to link against on-chain.
-    Publish(Vec<ObjectID>),
+    Publish(Vec<Vec<u8>>, Vec<ObjectID>),
     /// Upgrades a Move package
     Upgrade(Vec<ObjectID>, ObjectID, IotaArgument),
     /// `forall T: Vec<T> -> vector<T>`
@@ -2197,7 +2197,7 @@ impl Display for IotaCommand {
                 write_sep(f, coins, ",")?;
                 write!(f, ")")
             }
-            Self::Publish(deps) => {
+            Self::Publish(_modules, deps) => {
                 write!(f, "Publish(<modules>,")?;
                 write_sep(f, deps, ",")?;
                 write!(f, ")")
@@ -2234,9 +2234,9 @@ impl From<Command> for IotaCommand {
                 coins_to_merge.into_iter().map(IotaArgument::from).collect(),
             ),
             Command::Publish(Publish {
-                modules: _,
-                dependencies, // TODO why no modules?
-            }) => IotaCommand::Publish(dependencies),
+                modules,
+                dependencies,
+            }) => IotaCommand::Publish(modules, dependencies),
             Command::MakeMoveVector(MakeMoveVector { type_, elements }) => {
                 IotaCommand::MakeMoveVec(
                     type_.map(|tag| tag.to_string()),

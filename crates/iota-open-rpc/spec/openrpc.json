@@ -9564,9 +9564,27 @@
             "properties": {
               "Publish": {
                 "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ObjectId"
-                }
+                "items": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "format": "uint8",
+                        "minimum": 0.0
+                      }
+                    }
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ObjectId"
+                    }
+                  }
+                ],
+                "maxItems": 2,
+                "minItems": 2
               }
             },
             "additionalProperties": false

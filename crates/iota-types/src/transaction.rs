@@ -456,7 +456,7 @@ impl MoveCallExt for ProgrammableMoveCall {
             fp_ensure!(
                 Identifier::is_valid(&self.function),
                 UserInputError::InvalidIdentifier {
-                    error: self.module.to_string()
+                    error: self.function.to_string()
                 }
             );
         }

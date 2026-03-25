@@ -6,6 +6,7 @@ use iota_json_rpc_api::WriteApiClient;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::Identifier;
 use iota_types::{
     base_types::ObjectID,
     transaction::{CallArg, ProgrammableTransaction, TransactionKind},
@@ -40,8 +41,8 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     // bytes.
     let commands = vec![iota_types::transaction::Command::new_move_call(
         ObjectID::FRAMEWORK,
-        "_".into(),
-        "timestamp_ms".into(),
+        Identifier::from_static("_"),
+        Identifier::from_static("timestamp_ms"),
         vec![],
         vec![iota_types::transaction::Argument::Input(0)],
     )];
