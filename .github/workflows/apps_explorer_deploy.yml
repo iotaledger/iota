@@ -81,6 +81,8 @@ jobs:
             rc)         VERCEL_ENV="preview" ;;
           esac
 
+          echo "Deploy type: ${DEPLOY_TYPE}, Vercel environment: ${VERCEL_ENV}"
+
           vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
           cp "./.vercel/.env.${VERCEL_ENV}.local" ./sdk/.env
           pnpm explorer build
