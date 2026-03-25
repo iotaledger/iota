@@ -880,15 +880,6 @@ SplitCoins:
     - amounts:
         SEQ:
           TYPENAME: Argument
-StructInput:
-  STRUCT:
-    - address:
-        TYPENAME: Address
-    - module: STR
-    - name: STR
-    - type_args:
-        SEQ:
-          TYPENAME: TypeInput
 StructTag:
   STRUCT:
     - address:
