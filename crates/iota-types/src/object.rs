@@ -135,7 +135,7 @@ impl MoveObjectExt for MoveObject {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
-            StructTag::new_gas_coin().into(),
+            StructTag::new_gas_coin(),
             version,
             GasCoin::new(id, value).to_bcs_bytes(),
             256,
@@ -144,7 +144,7 @@ impl MoveObjectExt for MoveObject {
     }
 
     fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
-        // unwrap safe because coins are always smaller tha the max object size
+        // unwrap safe because coins are always smaller the the max object size
 
         Self::new_from_execution_with_limit(
             StructTag::new_coin(coin_type),
@@ -189,15 +189,6 @@ impl MoveObjectExt for MoveObject {
         self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
     }
 
-    // /// Contents of the object that are specific to its type--i.e., not its ID
-    // /// and version, which all objects have For example if the object was
-    // /// declared as `struct S has key { id: ID, f1: u64, f2: bool },
-    // /// this returns the slice containing `f1` and `f2`.
-    // #[cfg(test)]
-    // pub fn type_specific_contents(&self) -> &[u8] {
-    //     &self.contents[ID_END_INDEX..]
-    // }
-
     fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
         resolver: &impl GetModule,
@@ -231,14 +222,6 @@ impl MoveObjectExt for MoveObject {
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
         Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
     }
-
-    // /// Convert `self` to the JSON representation dictated by `layout`.
-    // pub fn to_move_struct_with_resolver(
-    //     &self,
-    //     resolver: &impl GetModule,
-    // ) -> Result<MoveStruct, IotaError> {
-    //     self.to_move_struct(&self.get_layout(resolver)?)
-    // }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
     /// purposes
