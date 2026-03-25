@@ -105,14 +105,17 @@ export function useGetCategorizedOwnedObjects(
     } = useGetKioskContents(address);
 
     const { iotaNamesClient } = useIotaNamesClient();
-    const packageId = iotaNamesClient?.getPackage('packageId', 'v1');
-    const nameTypes = useMemo(
-        () =>
-            packageId
-                ? [getNameRegistrationType(packageId), getSubnameRegistrationType(packageId)]
-                : [],
-        [packageId],
-    );
+
+    const nameTypes = useMemo(() => {
+        try {
+            const packageId = iotaNamesClient?.getPackage('packageId', 'v1');
+            if (!packageId) return [];
+            return [getNameRegistrationType(packageId), getSubnameRegistrationType(packageId)];
+        } catch {
+            // IOTA Names packages are not available on all networks (e.g. localnet)
+            return [];
+        }
+    }, [iotaNamesClient]);
 
     const allFetchedObjects = useMemo(() => {
         if (!ownedObjectsQuery.data?.pages) return [];
