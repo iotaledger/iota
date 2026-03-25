@@ -29,6 +29,7 @@ struct MockRestStateReader {
     chain_identifier: iota_types::digests::ChainIdentifier,
     checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
     large_checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
+    lowest_available_checkpoint: u64,
 }
 impl MockRestStateReader {
     fn new_from_iter<I: Iterator<Item = u64>>(iter: I) -> Self {
@@ -36,7 +37,13 @@ impl MockRestStateReader {
             chain_identifier: iota_types::digests::ChainIdentifier::default(),
             checkpoints: Arc::new(Mutex::new(iter.collect())),
             large_checkpoints: Arc::new(Mutex::new(HashSet::new())),
+            lowest_available_checkpoint: 0,
         }
+    }
+
+    fn with_lowest_available_checkpoint(mut self, lowest: u64) -> Self {
+        self.lowest_available_checkpoint = lowest;
+        self
     }
 
     /// Mark a checkpoint sequence number as using large data
@@ -237,7 +244,7 @@ impl iota_types::storage::ReadStore for MockRestStateReader {
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<u64> {
-        Ok(0)
+        Ok(self.lowest_available_checkpoint)
     }
 
     fn get_lowest_available_checkpoint(&self) -> u64 {
@@ -1132,6 +1139,84 @@ async fn test_filter_checkpoints_streaming() {
     .expect("waiting for stream timed out");
     // Only checkpoint 7 should be received (all others were filtered out)
     assert_eq!(results, vec![7]);
+
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}
+
+#[tokio::test]
+async fn test_get_checkpoint_pruned_returns_not_found() {
+    // Set up mock with checkpoints 0..=10 but lowest_available_checkpoint = 5
+    let mock =
+        Arc::new(MockRestStateReader::new_from_iter(0..=10).with_lowest_available_checkpoint(5));
+
+    let (server_handle, client, _) =
+        test_server_and_client_setup(std::iter::empty(), |_| {}, Some(mock), None).await;
+
+    // Requesting checkpoint 0 (genesis, still in DB) should fail because it's below
+    // lowest_available_checkpoint
+    let result = client
+        .get_checkpoint_by_sequence_number(0, None, None, None)
+        .await;
+    assert!(result.is_err(), "Expected error for pruned checkpoint");
+    match result.unwrap_err() {
+        iota_grpc_client::Error::Grpc(status) => {
+            assert_eq!(status.code(), tonic::Code::NotFound);
+            assert!(
+                status
+                    .message()
+                    .contains("below the lowest available checkpoint"),
+                "Error message should mention lowest available checkpoint: {}",
+                status.message()
+            );
+        }
+        e => panic!("Expected Grpc error, got: {e:?}"),
+    }
+
+    // Requesting checkpoint 5 (at lowest_available) should succeed
+    let result = client
+        .get_checkpoint_by_sequence_number(5, None, None, None)
+        .await;
+    assert!(result.is_ok(), "Checkpoint at lowest_available should work");
+
+    server_handle
+        .shutdown()
+        .await
+        .expect("Failed to shutdown server");
+}
+
+#[tokio::test]
+async fn test_stream_checkpoint_pruned_start_returns_not_found() {
+    // Set up mock with checkpoints 0..=10 but lowest_available_checkpoint = 5
+    let mock =
+        Arc::new(MockRestStateReader::new_from_iter(0..=10).with_lowest_available_checkpoint(5));
+
+    let (server_handle, client, _) =
+        test_server_and_client_setup(std::iter::empty(), |_| {}, Some(mock), None).await;
+
+    // Streaming from checkpoint 0 should fail because it's below
+    // lowest_available_checkpoint. The error surfaces at the RPC level
+    // since the pruning check happens before the stream is created.
+    let result = client
+        .stream_checkpoints(Some(0), Some(10), None, None, None)
+        .await;
+
+    match result {
+        Err(iota_grpc_client::Error::Grpc(status)) => {
+            assert_eq!(status.code(), tonic::Code::NotFound);
+            assert!(
+                status
+                    .message()
+                    .contains("below the lowest available checkpoint"),
+                "Error message should mention lowest available checkpoint: {}",
+                status.message()
+            );
+        }
+        Err(e) => panic!("Expected Grpc error, got: {e:?}"),
+        Ok(_) => panic!("Expected error for pruned start checkpoint"),
+    }
 
     server_handle
         .shutdown()
