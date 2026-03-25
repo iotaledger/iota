@@ -68,6 +68,10 @@ export type LoadOptions =
     | LoadOptionsWithApiKey
     | LoadOptionsWithClientInstance;
 
+export interface ChangedThemeProperties {
+    theme: string;
+}
+
 export interface ClickedCollectibleCardProperties {
     collectibleType?: string;
     objectId?: string;
@@ -92,10 +96,6 @@ export interface CopiedElementProperties {
     type: string;
 }
 
-export interface OpenedExternalLinkProperties {
-    type: string;
-}
-
 export interface MigrationProperties {
     /**
      * | Rule | Value |
@@ -110,6 +110,10 @@ export interface MigrationProperties {
      * | Type | number |
      */
     nftOutputObjects?: number;
+}
+
+export interface OpenedExternalLinkProperties {
+    type: string;
 }
 
 export interface SelectedValidatorProperties {
@@ -158,10 +162,6 @@ export interface SwitchedNetworkProperties {
     toNetwork?: string;
 }
 
-export interface ChangedThemeProperties {
-    theme: string;
-}
-
 export interface TimelockStakeProperties {
     /**
      * | Rule | Value |
@@ -199,6 +199,14 @@ export interface UnstakedIotaProperties {
     validatorName?: string;
 }
 
+export class ChangedTheme implements BaseEvent {
+    event_type = 'changed theme';
+
+    constructor(public event_properties: ChangedThemeProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class ClickedCollectibleCard implements BaseEvent {
     event_type = 'clicked collectible card';
 
@@ -231,18 +239,18 @@ export class CopiedElement implements BaseEvent {
     }
 }
 
-export class OpenedExternalLink implements BaseEvent {
-    event_type = 'opened external link';
-
-    constructor(public event_properties: OpenedExternalLinkProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
 export class Migration implements BaseEvent {
     event_type = 'migration';
 
     constructor(public event_properties?: MigrationProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class OpenedExternalLink implements BaseEvent {
+    event_type = 'opened external link';
+
+    constructor(public event_properties: OpenedExternalLinkProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -283,14 +291,6 @@ export class SwitchedNetwork implements BaseEvent {
     event_type = 'switched network';
 
     constructor(public event_properties?: SwitchedNetworkProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ChangedTheme implements BaseEvent {
-    event_type = 'changed theme';
-
-    constructor(public event_properties: ChangedThemeProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -363,7 +363,7 @@ export class Ampli {
     this.disabled = options.disabled ?? false;
 
     if (this.amplitude) {
-      console.warn('WARNING: Ampli is already initialized. Ampli.load() should be called once at application startup.');
+      console.warn('WARNING: Ampli is already intialized. Ampli.load() should be called once at application startup.');
       return getVoidPromiseResult();
     }
 
@@ -438,6 +438,23 @@ export class Ampli {
   }
 
   /**
+   * changed theme
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/changed%20theme)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. theme)
+   * @param options Amplitude event options.
+   */
+  changedTheme(
+    properties: ChangedThemeProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ChangedTheme(properties), options);
+  }
+
+  /**
    * clicked collectible card
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/clicked%20collectible%20card)
@@ -506,23 +523,6 @@ export class Ampli {
   }
 
   /**
-   * opened external link
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/opened%20external%20link)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. type)
-   * @param options Amplitude event options.
-   */
-  openedExternalLink(
-    properties: OpenedExternalLinkProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new OpenedExternalLink(properties), options);
-  }
-
-  /**
    * migration
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/migration)
@@ -537,6 +537,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new Migration(properties), options);
+  }
+
+  /**
+   * opened external link
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/opened%20external%20link)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. type)
+   * @param options Amplitude event options.
+   */
+  openedExternalLink(
+    properties: OpenedExternalLinkProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new OpenedExternalLink(properties), options);
   }
 
   /**
@@ -563,7 +580,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. coinType)
+   * @param properties The event's properties (e.g. amount)
    * @param options Amplitude event options.
    */
   sentCoins(
@@ -625,23 +642,6 @@ export class Ampli {
   }
 
   /**
-   * changed theme
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/changed%20theme)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. theme)
-   * @param options Amplitude event options.
-   */
-  changedTheme(
-    properties: ChangedThemeProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ChangedTheme(properties), options);
-  }
-
-  /**
    * timelock collect
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/timelock%20collect)
@@ -697,7 +697,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. stakedAmount)
+   * @param properties The event's properties (e.g. rewards)
    * @param options Amplitude event options.
    */
   unstakedIota(
