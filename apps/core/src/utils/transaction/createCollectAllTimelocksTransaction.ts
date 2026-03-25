@@ -72,13 +72,12 @@ export function createCollectAllTimelocksTransaction({
     >();
 
     for (const stakedObject of timelockedStakedObjects) {
-        const poolKey = extractPoolKey(stakedObject);
-
         const [unlockedStakedIota] = ptb.moveCall({
             target: `0x3::timelocked_staking::unlock_with_clock`,
             arguments: [ptb.object(stakedObject.objectId), ptb.object(IOTA_CLOCK_OBJECT_ID)],
         });
 
+        const poolKey = extractPoolKey(stakedObject);
         if (poolKey) {
             if (!stakedIotaByKey.has(poolKey)) {
                 stakedIotaByKey.set(poolKey, []);
@@ -93,12 +92,25 @@ export function createCollectAllTimelocksTransaction({
         const existingStake = findExistingStakeForKey(existingStakedObjects, poolKey);
 
         if (existingStake) {
-            joinStakesWithExisting(ptb, existingStake.objectId, stakedIotaObjects);
+            // Join all unlocked stakes into the existing regular stake
+            for (const stake of stakedIotaObjects) {
+                ptb.moveCall({
+                    target: `0x3::staking_pool::join_staked_iota`,
+                    arguments: [ptb.object(existingStake.objectId), stake],
+                });
+            }
         } else if (stakedIotaObjects.length === 1) {
             ptb.transferObjects([stakedIotaObjects[0]], ptb.pure.address(address));
         } else {
-            const mergedStake = joinMultipleStakes(ptb, stakedIotaObjects);
-            ptb.transferObjects([mergedStake], ptb.pure.address(address));
+            // Join all into the first one, then transfer
+            const [first, ...rest] = stakedIotaObjects;
+            for (const stake of rest) {
+                ptb.moveCall({
+                    target: `0x3::staking_pool::join_staked_iota`,
+                    arguments: [first, stake],
+                });
+            }
+            ptb.transferObjects([first], ptb.pure.address(address));
         }
     }
 
@@ -125,32 +137,4 @@ function findExistingStakeForKey(
     return existingStakes.find(
         (s) => `${s.content.fields.pool_id}:${s.content.fields.stake_activation_epoch}` === poolKey,
     );
-}
-
-function joinStakesWithExisting(
-    ptb: Transaction,
-    existingStakeId: string,
-    stakes: { $kind: 'NestedResult'; NestedResult: [number, number] }[],
-): void {
-    const existingStakeObj = ptb.object(existingStakeId);
-    for (const stake of stakes) {
-        ptb.moveCall({
-            target: `0x3::staking_pool::join_staked_iota`,
-            arguments: [existingStakeObj, stake],
-        });
-    }
-}
-
-function joinMultipleStakes(
-    ptb: Transaction,
-    stakes: { $kind: 'NestedResult'; NestedResult: [number, number] }[],
-): { $kind: 'NestedResult'; NestedResult: [number, number] } {
-    const [firstStake, ...restStakes] = stakes;
-    for (const stake of restStakes) {
-        ptb.moveCall({
-            target: `0x3::staking_pool::join_staked_iota`,
-            arguments: [firstStake, stake],
-        });
-    }
-    return firstStake;
 }
