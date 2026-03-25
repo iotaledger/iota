@@ -176,8 +176,8 @@ pub struct IngestionSources {
     #[arg(long)]
     pub data_ingestion_path: Option<PathBuf>,
 
-    /// Primary remote checkpoint source. This flag accepts either a fullnode gRPC URL (e.g. http://0.0.0.0:50051) or an
-    /// S3-compatible object store URL hosting batched checkpoint files (e.g. https://checkpoints.mainnet.iota.cafe/ingestion/historical).
+    /// Primary remote checkpoint source. This flag accepts either a fullnode gRPC URL (e.g. `http://0.0.0.0:50051`) or an
+    /// S3-compatible object store URL hosting batched checkpoint files (e.g. `https://checkpoints.mainnet.iota.cafe/ingestion/historical`).
     /// When pointing to an object store, this provides complete checkpoint
     /// coverage from genesis. When pointing to a fullnode, checkpoint
     /// availability depends on the node's pruning configuration.
@@ -185,7 +185,7 @@ pub struct IngestionSources {
     pub remote_store_url: Option<Url>,
 
     /// Optional S3-compatible object store URL serving current epoch
-    /// checkpoints for low-latency ingestion at the network tip (e.g. https://checkpoints.mainnet.iota.cafe/ingestion/live).
+    /// checkpoints for low-latency ingestion at the network tip (e.g. `https://checkpoints.mainnet.iota.cafe/ingestion/live`).
     /// Use alongside `--remote-store-url` pointing to a historical store for
     /// complete coverage with minimal latency.
     #[arg(long, requires = "remote_store_url")]
