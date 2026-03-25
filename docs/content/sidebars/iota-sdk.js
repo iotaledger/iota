@@ -45,17 +45,20 @@ const iotaSDK = [
                 items: [
                     'developer/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
                     'developer/iota-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
-                    'developer/rust-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
-                    'developer/rust-sdk/how-tos/accounts-and-addresses/coin-balance',
+                    'developer/iota-sdk/how-tos/accounts-and-addresses/coin-balance',
                 ],
             },
             {
                 type: 'category',
                 label: 'Transactions',
+                link: {
+                    type: 'generated-index',
+                    slug: 'developer/iota-sdk/how-tos/transactions',
+                },
                 items: [
-                    'developer/rust-sdk/how-tos/transactions/prepare-send-iota',
-                    'developer/rust-sdk/how-tos/transactions/sign-send-iota',
-                    'developer/rust-sdk/how-tos/transactions/transactions-with-function',
+                    'developer/iota-sdk/how-tos/transactions/prepare-send-iota',
+                    'developer/iota-sdk/how-tos/transactions/sign-send-iota',
+                    'developer/iota-sdk/how-tos/transactions/transactions-with-function',
                 ],
             },
         ],
