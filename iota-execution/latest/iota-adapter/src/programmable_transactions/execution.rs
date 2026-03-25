@@ -341,9 +341,8 @@ mod checked {
             }) => {
                 let arguments = context.splat_args(0, arguments)?;
 
-                // TODO
-                // let module = to_identifier(context, module)?;
-                // let function = to_identifier(context, function)?;
+                let module = validate_identifier(context, module.as_str())?;
+                let function = validate_identifier(context, function.as_str())?;
 
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
@@ -1739,23 +1738,22 @@ mod checked {
         Ok(())
     }
 
-    // TODO
-    // fn to_identifier(
-    //     context: &mut ExecutionContext<'_, '_, '_>,
-    //     ident: String,
-    // ) -> Result<Identifier, ExecutionError> {
-    //     if context.protocol_config.validate_identifier_inputs() {
-    //         Identifier::new(ident).map_err(|e| {
-    //             ExecutionError::new_with_source(
-    //                 ExecutionErrorKind::VmInvariantViolation,
-    //                 e.to_string(),
-    //             )
-    //         })
-    //     } else {
-    //         // SAFETY: Preserving existing behaviour for identifier
-    // deserialization.         Ok(Identifier::new_unchecked(&ident))
-    //     }
-    // }
+    fn validate_identifier(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        ident: &str,
+    ) -> Result<Identifier, ExecutionError> {
+        if context.protocol_config.validate_identifier_inputs() {
+            Identifier::new(ident).map_err(|e| {
+                ExecutionError::new_with_source(
+                    ExecutionErrorKind::VmInvariantViolation,
+                    e.to_string(),
+                )
+            })
+        } else {
+            // SAFETY: Preserving existing behaviour for identifier deserialization.
+            Ok(Identifier::new_unchecked(&ident))
+        }
+    }
 
     fn get_datatype_ident(s: &CachedDatatype) -> (&AccountAddress, &IdentStr, &IdentStr) {
         let module_id = &s.defining_id;
