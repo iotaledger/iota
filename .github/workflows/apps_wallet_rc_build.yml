@@ -11,7 +11,7 @@ on:
 env:
   DEFAULT_NETWORK: ${{ secrets.WALLET_RC_DEFAULT_NETWORK }}
   IOTA_NETWORKS: ${{ secrets.WALLET_RC_IOTA_NETWORKS }}
-  APPS_BACKEND: ${{ secrets.WALLET_RC_APPS_BACKEND }}
+  APPS_BACKEND: ${{ secrets.RC_APPS_BACKEND }}
   RC_VERSION: "${{ github.event.inputs.rc_version }}"
 
 jobs:
