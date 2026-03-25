@@ -33,7 +33,10 @@ use crate::{
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::ExecutionCacheTraitPointers,
-    rest_index::{CoinIndexInfo, OwnerIndexInfo, OwnerIndexKey, RestIndexStore},
+    rest_index::{
+        CoinIndexInfo, OwnerIndexInfo, OwnerIndexInfoV2, OwnerIndexKey, OwnerIndexKeyV2,
+        OwnerV2TypeFilter, RestIndexStore,
+    },
 };
 
 #[derive(Clone)]
@@ -606,46 +609,37 @@ impl RestIndexes for RestIndexStore {
         Ok(Box::new(iter) as _)
     }
 
-    /// **Performance note:** When `object_type` is `Some`, the filter is
-    /// applied as a post-filter on the iterator — it scans **all** objects
-    /// owned by `owner` (starting from `cursor`) and checks each one's type.
-    /// This is O(N) in the total number of owned objects, not O(result-set).
+    /// Uses the `owner_v2` table which supports hash-based type narrowing.
+    /// When `object_type` is `Some`, the iterator only scans the hash
+    /// bucket for that type rather than all owned objects.
     // only used in "grpc-server"
     fn account_owned_objects_info_iter_v2(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>
     {
-        let iter = self
-            .owner_iter(owner, cursor)?
-            .map(|result| {
-                result.map(
-                    |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
-                        AccountOwnedObjectInfo {
-                            owner,
-                            object_id,
-                            version,
-                            type_,
-                        }
+        let type_filter = OwnerV2TypeFilter::from_struct_tag(object_type.as_ref());
+        let iter = self.owner_v2_iter(owner, type_filter)?.map(|result| {
+            result.map(
+                |(
+                    OwnerIndexKeyV2 {
+                        owner, object_id, ..
                     },
-                )
-            })
-            .filter(move |result| match (&object_type, result) {
-                (None, _) => true,
-                (_, Err(_)) => true,
-                (Some(filter), Ok(info)) => {
-                    let obj_type: StructTag = info.type_.clone().into();
-                    if filter.type_params.is_empty() {
-                        obj_type.address == filter.address
-                            && obj_type.module == filter.module
-                            && obj_type.name == filter.name
-                    } else {
-                        obj_type == *filter
+                    OwnerIndexInfoV2 {
+                        object_type,
+                        version,
+                    },
+                )| {
+                    AccountOwnedObjectInfo {
+                        owner,
+                        object_id,
+                        version,
+                        type_: object_type.into(),
                     }
-                }
-            });
+                },
+            )
+        });
 
         Ok(Box::new(iter) as _)
     }

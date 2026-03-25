@@ -246,22 +246,27 @@ pub enum OwnerV2TypeFilter {
 }
 
 impl OwnerV2TypeFilter {
-    /// Filter for all objects matching `address::module::name` (any type
-    /// params).
-    pub fn base_type(tag: &StructTag) -> Self {
-        Self::BaseType {
-            id_hash: hash_type_identifier(tag),
-            tag: tag.clone(),
-        }
-    }
-
-    /// Filter for objects matching the exact `StructTag` (including type
-    /// params).
-    pub fn exact_type(tag: &StructTag) -> Self {
-        Self::ExactType {
-            id_hash: hash_type_identifier(tag),
-            params_hash: hash_type_params(tag),
-            tag: tag.clone(),
+    /// Construct an `OwnerV2TypeFilter` from an optional `StructTag` filter.
+    ///
+    /// If `None`, returns `OwnerV2TypeFilter::None`.  If `Some(tag)` with no
+    /// type params, returns `OwnerV2TypeFilter::BaseType`.  If `Some(tag)`
+    /// with type params, returns `OwnerV2TypeFilter::ExactType`.
+    pub fn from_struct_tag(tag: Option<&StructTag>) -> Self {
+        if let Some(tag) = tag {
+            if tag.type_params.is_empty() {
+                Self::BaseType {
+                    id_hash: hash_type_identifier(tag),
+                    tag: tag.clone(),
+                }
+            } else {
+                Self::ExactType {
+                    id_hash: hash_type_identifier(tag),
+                    params_hash: hash_type_params(tag),
+                    tag: tag.clone(),
+                }
+            }
+        } else {
+            Self::None
         }
     }
 }
@@ -287,7 +292,7 @@ fn owner_v2_bounds(
     owner: IotaAddress,
     filter: &OwnerV2TypeFilter,
 ) -> (OwnerIndexKeyV2, OwnerIndexKeyV2) {
-    let (id_lo, id_hi, params_lo, params_hi) = match filter {
+    let (lower_bound_id, upper_bound_id, lower_bound_params, upper_bound_params) = match filter {
         OwnerV2TypeFilter::None => (0, u64::MAX, 0, u64::MAX),
         OwnerV2TypeFilter::BaseType { id_hash, .. } => (*id_hash, *id_hash, 0, u64::MAX),
         OwnerV2TypeFilter::ExactType {
@@ -296,21 +301,21 @@ fn owner_v2_bounds(
             ..
         } => (*id_hash, *id_hash, *params_hash, *params_hash),
     };
-    let lo = OwnerIndexKeyV2 {
+    let lower_bound = OwnerIndexKeyV2 {
         owner,
-        object_type_identifier: id_lo,
-        object_type_params: params_lo,
+        object_type_identifier: lower_bound_id,
+        object_type_params: lower_bound_params,
         inverted_balance: None,
         object_id: ObjectID::ZERO,
     };
-    let hi = OwnerIndexKeyV2 {
+    let upper_bound = OwnerIndexKeyV2 {
         owner,
-        object_type_identifier: id_hi,
-        object_type_params: params_hi,
+        object_type_identifier: upper_bound_id,
+        object_type_params: upper_bound_params,
         inverted_balance: Some(u64::MAX),
         object_id: ObjectID::MAX,
     };
-    (lo, hi)
+    (lower_bound, upper_bound)
 }
 
 /// Build an `OwnerIndexKeyV2` for an address-owned object.
@@ -957,18 +962,18 @@ impl IndexStoreTables {
     fn owner_v2_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<OwnerIndexKeyV2>,
         type_filter: OwnerV2TypeFilter,
     ) -> Result<
         impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
         TypedStoreError,
     > {
-        let (lo, hi) = owner_v2_bounds(owner, &type_filter);
-        let lower_bound = cursor.unwrap_or(lo);
+        let (lower_bound, upper_bound) = owner_v2_bounds(owner, &type_filter);
         Ok(self
             .owner_v2
-            .safe_iter_with_bounds(Some(lower_bound), Some(hi))
+            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
             .filter(move |result| match result {
+                // Post-filter out hash collisions based on the full `StructTag` stored in the
+                // value.
                 Ok((_, info)) => match &type_filter {
                     OwnerV2TypeFilter::None => true,
                     OwnerV2TypeFilter::BaseType { tag, .. } => {
@@ -978,7 +983,7 @@ impl IndexStoreTables {
                     }
                     OwnerV2TypeFilter::ExactType { tag, .. } => info.object_type == *tag,
                 },
-                // Propagate DB errors to the caller rather than silently dropping them.
+                // Don't filter out DB errors — let them pass through to the caller.
                 Err(_) => true,
             }))
     }
@@ -1268,13 +1273,12 @@ impl RestIndexStore {
     pub fn owner_v2_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<OwnerIndexKeyV2>,
         type_filter: OwnerV2TypeFilter,
     ) -> Result<
         impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
         TypedStoreError,
     > {
-        self.tables.owner_v2_iter(owner, cursor, type_filter)
+        self.tables.owner_v2_iter(owner, type_filter)
     }
 
     // used in both "grpc-server" and "rest-api"

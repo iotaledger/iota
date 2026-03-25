@@ -286,10 +286,19 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         }))
     }
 
-    fn account_owned_objects_info_iter_v2(
+    fn account_owned_objects_info_iter(
         &self,
         _owner: iota_types::base_types::IotaAddress,
         _cursor: Option<ObjectID>,
+        _object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectIterItem> + '_>> {
+        // Simulacrum does not have index support for owned objects
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
         _object_type: Option<move_core_types::language_storage::StructTag>,
     ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectIterItem> + '_>> {
         // Simulacrum does not have index support for owned objects

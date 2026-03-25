@@ -297,18 +297,24 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     fn get_transaction_checkpoint(&self, digest: &TransactionDigest)
     -> anyhow::Result<Option<u64>>;
 
-    /// Iterate over objects owned by an account address, optionally filtered by
-    /// type. When `object_type` is `Some`, only objects matching that type are
-    /// returned (type params are ignored if the filter has none).
+    /// Iterate over objects owned by an account address using the legacy
+    /// `owner` (v1) table, optionally filtered by type.
     ///
-    /// **Cursor contract (raw):** bounds are *inclusive*. When `cursor` is
-    /// `Some`, the iterator starts at (and includes) the cursor item.
-    /// Prefer using the `GrpcReader` wrapper methods which automatically
-    /// skip the cursor item.
-    fn account_owned_objects_info_iter_v2(
+    /// Used as a fallback when the `owner_v2` backfill is still in progress.
+    ///
+    /// **Cursor contract (raw):** bounds are *inclusive*.
+    fn account_owned_objects_info_iter(
         &self,
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<ObjectID>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>>;
+
+    /// Iterate over objects owned by an account address using the `owner_v2`
+    /// table, optionally filtered by type.
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
         object_type: Option<move_core_types::language_storage::StructTag>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>>;
 
@@ -552,14 +558,24 @@ impl GrpcStateReader for RestStateReaderAdapter {
         }
     }
 
-    fn account_owned_objects_info_iter_v2(
+    fn account_owned_objects_info_iter(
         &self,
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<ObjectID>,
         object_type: Option<move_core_types::language_storage::StructTag>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
         let indexes = self.require_indexes()?;
-        let iter = indexes.account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
+        let iter = indexes.account_owned_objects_info_iter(owner, cursor, object_type)?;
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+    }
+
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes.account_owned_objects_info_iter_v2(owner, object_type)?;
         Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
@@ -1001,19 +1017,22 @@ impl GrpcReader {
 
     /// Iterate over objects owned by an account address.
     ///
-    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
-    /// so callers get items *after* the cursor (exclusive lower bound).
+    /// When the `owner_v2` backfill has not yet completed, falls back to the
+    /// legacy `owner` table.
     pub fn account_owned_objects_info_iter_v2(
         &self,
         owner: iota_types::base_types::IotaAddress,
-        cursor: Option<ObjectID>,
         object_type: Option<move_core_types::language_storage::StructTag>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
-        let skip = usize::from(cursor.is_some());
-        let iter =
+        let iter = if self.state_reader.is_owner_v2_index_ready() {
             self.state_reader
-                .account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
-        Ok(Box::new(iter.skip(skip)))
+                .account_owned_objects_info_iter_v2(owner, object_type)?
+        } else {
+            // Fallback: owner_v2 backfill in progress — use legacy owner table.
+            self.state_reader
+                .account_owned_objects_info_iter(owner, None, object_type)?
+        };
+        Ok(Box::new(iter))
     }
 
     /// Iterate over dynamic fields of a parent object.

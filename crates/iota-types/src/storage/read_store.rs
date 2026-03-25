@@ -877,16 +877,10 @@ pub trait RestIndexes: Send + Sync {
 
     /// Returns an iterator over objects owned by `owner`, optionally filtered
     /// by `object_type`.
-    ///
-    /// The `cursor` bound is **inclusive**: if `Some(id)` is provided, the
-    /// iterator starts *at* that object ID. Callers that wish to paginate past
-    /// a previously-seen cursor must `.skip(1)` on the returned iterator to
-    /// avoid re-returning the cursor item.
     // only used in "grpc-server"
     fn account_owned_objects_info_iter_v2(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
         object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
 
