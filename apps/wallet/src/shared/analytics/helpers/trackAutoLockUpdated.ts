@@ -14,7 +14,7 @@ export function trackAutoLockUpdated(autoLock: AutoLockData) {
     const minutes = autoLockDataToMinutes(autoLock);
     const lockTimeSeconds = autoLock.enabled && minutes !== null ? Math.round(minutes * 60) : 0;
 
-    ampli.updatedAutoLock({
+    ampli.autoLockUpdated({
         autoLock: autoLock.enabled,
         lockTimeSeconds,
     });

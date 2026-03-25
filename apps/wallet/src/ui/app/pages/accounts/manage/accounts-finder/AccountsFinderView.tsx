@@ -150,7 +150,7 @@ export function AccountsFinderView(): JSX.Element {
     async function runAccountsFinder() {
         try {
             setSearchPhase(SearchPhase.Ongoing);
-            ampli.usedBalanceFinder({
+            ampli.balanceFinderUsed({
                 accountType: getAmplitudeAccountType(accountSource),
             });
             const numberOfAccountsCreated = await find();

@@ -89,7 +89,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
     const isTransactionSuccess = executionStatus === 'success' && !error;
 
     const handleTransactionClick = () => {
-        ampli.openedTransaction({
+        ampli.transactionOpened({
             transactionType: transactionAction,
             success: isTransactionSuccess,
         });

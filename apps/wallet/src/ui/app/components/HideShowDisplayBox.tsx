@@ -28,7 +28,7 @@ export function HideShowDisplayBox({
         const textToCopy = Array.isArray(value) ? value.join(' ') : value;
         try {
             await navigator.clipboard.writeText(textToCopy);
-            ampli.copiedElement({
+            ampli.elementCopied({
                 type: eventType,
             });
             toast(copiedMessage || 'Copied');

@@ -87,7 +87,7 @@ export function MenuList() {
 
         if (!isSidePanelVisible) {
             // Track before the mutation: SidePanel.close() destroys this window, so we must flush before it runs
-            ampli.changedSidePanel({ enabled: false });
+            ampli.sidePanelChanged({ enabled: false });
             await ampli.flush();
         }
 
@@ -100,21 +100,21 @@ export function MenuList() {
 
         if (isSidePanelVisible) {
             // Track after the mutation: the popup is still alive, so it's safe to flush before closing
-            ampli.changedSidePanel({ enabled: true });
+            ampli.sidePanelChanged({ enabled: true });
             await ampli.flush();
             window.close();
         }
     }
 
     function onSupportClick() {
-        ampli.openedExternalLink({
+        ampli.externalLinkOpened({
             type: 'discord support',
         });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
-        ampli.openedExternalLink({ type: 'faqs documentation' });
+        ampli.externalLinkOpened({ type: 'faqs documentation' });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
