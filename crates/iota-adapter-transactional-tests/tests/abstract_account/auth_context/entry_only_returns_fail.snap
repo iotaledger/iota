@@ -1,0 +1,43 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 6 tasks
+
+init:
+A: object(0,0)
+
+task 1, line 11:
+//# publish-dependencies --paths crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move
+Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
+created: object(2,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 13-41:
+//# publish --sender A --dependencies simple_abstract_account
+created: object(3,0), object(3,1)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 12806000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 3, line 43:
+//# init-abstract-account --sender A --package-metadata object(3,1) --inputs "entry_only" "authenticate" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
+events: Event { package_id: simple_abstract_account, transaction_module: Identifier("abstract_account"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: simple_abstract_account, module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [91, 16, 4, 162, 15, 179, 94, 114, 167, 210, 50, 119, 185, 230, 253, 56, 113, 40, 49, 247, 41, 38, 104, 116, 223, 37, 173, 20, 217, 53, 142, 90, 5, 146, 124, 179, 144, 226, 198, 162, 251, 199, 100, 167, 27, 236, 236, 0, 155, 16, 3, 80, 233, 238, 30, 89, 251, 194, 157, 26, 11, 128, 113, 52, 10, 101, 110, 116, 114, 121, 95, 111, 110, 108, 121, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
+created: object(4,0), object(4,1), object(4,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6832400,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 4, lines 45-48:
+//# view-object 4,2
+Owner: Shared( 3 )
+Version: 3
+Contents: simple_abstract_account::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(4,2),
+        },
+    },
+}
+
+task 5, lines 49-50:
+//# abstract --account immshared(4,2)
+Error: Failed to execute the Move authenticator, reason: "ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: object(3,0), name: Identifier(\"entry_only\") }, function: 1, instruction: 40, function_name: Some(\"authenticate\") }, 2), source: Some(VMError { major_status: ABORTED, sub_status: Some(2), message: Some(\"object(3,0)::entry_only::authenticate at offset 40\"), exec_state: None, location: Module(ModuleId { address: object(3,0), name: Identifier(\"entry_only\") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 40)] }), command: Some(0) } }".

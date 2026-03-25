@@ -142,6 +142,20 @@ public fun mutable(arg: &ImmOrOwnedObjectArg): bool {
     arg.mutable
 }
 
+/// Returns `Some(mutable)` when the argument is an object input
+/// (`ImmOrOwnedObject` or `SharedObject`); `None` for `Pure` and `Receiving`.
+///
+/// Use this to enforce "no mutable object inputs" across all object kinds,
+/// not just `ImmOrOwned` (shared objects also carry a `mutable` flag that
+/// reflects whether the transaction requested write access).
+public fun is_mutable_object(arg: &EnrichedCallArg): Option<bool> {
+    match (arg) {
+        EnrichedCallArg::ImmOrOwnedObject(obj) => option::some(obj.mutable),
+        EnrichedCallArg::SharedObject(obj) => option::some(obj.mutable),
+        _ => option::none(),
+    }
+}
+
 /// Returns the `type_name` when the input is a `Pure` variant;
 /// `option::none()` for object inputs.
 public fun pure_type_name(arg: &EnrichedCallArg): Option<TypeName> {

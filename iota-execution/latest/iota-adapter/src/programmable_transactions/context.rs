@@ -1741,6 +1741,55 @@ mod checked {
         }
     }
 
+    // Like `type_to_type_tag`, but substitutes type parameters with the provided
+    // concrete type tags.  Returns `None` if the type contains a type parameter
+    // that is out of bounds with respect to `type_tags`, or if any other type
+    // is unresolvable.
+    pub fn type_to_type_tag_with_subst(
+        vm: &MoveVM,
+        ty: &Type,
+        type_tags: &[TypeTag],
+    ) -> Option<TypeTag> {
+        match ty {
+            // Strip references — they never appear in TypeTag.
+            Type::Reference(inner) | Type::MutableReference(inner) => {
+                type_to_type_tag_with_subst(vm, inner.as_ref(), type_tags)
+            }
+
+            // Direct type parameter: look up the concrete type provided at the call site.
+            Type::TyParam(i) => type_tags.get(*i as usize).cloned(),
+
+            // A vector whose element type may itself be a type parameter.
+            Type::Vector(inner) => {
+                let inner_tag = type_to_type_tag_with_subst(vm, inner.as_ref(), type_tags)?;
+                Some(TypeTag::Vector(Box::new(inner_tag)))
+            }
+
+            // A generic struct instantiation like `Coin<T>`.  The CachedTypeIndex identifies
+            // the struct in the VM's global datatype cache; the Vec<Type> are its type
+            // arguments, which may themselves be TyParam.
+            Type::DatatypeInstantiation(inner) => {
+                let (idx, ty_args) = inner.as_ref();
+                // Resolve the base struct name from the VM's datatype cache.
+                let cached = vm.get_runtime().get_type(*idx)?;
+                // Recursively substitute each type argument.
+                let subst_args = ty_args
+                    .iter()
+                    .map(|t| type_to_type_tag_with_subst(vm, t, type_tags))
+                    .collect::<Option<Vec<_>>>()?;
+                Some(TypeTag::Struct(Box::new(StructTag {
+                    address: *cached.defining_id.address(),
+                    module: cached.defining_id.name().to_owned(),
+                    name: cached.name.clone(),
+                    type_params: subst_args,
+                })))
+            }
+
+            // No open type params — delegate to the VM's existing conversion.
+            other => vm.get_runtime().get_type_tag(other).ok(),
+        }
+    }
+
     /// Loads a function from the VM and returns the loaded function
     /// instantiation, whether it is marked `entry` in the compiled bytecode,
     /// and the list of return-type tags.
@@ -1800,7 +1849,7 @@ mod checked {
         let returns = loaded_fn
             .return_
             .iter()
-            .map(|ty| type_to_type_tag(vm, ty))
+            .map(|ty| type_to_type_tag_with_subst(vm, ty, type_tags))
             .collect();
 
         Ok((loaded_fn, is_entry, returns))

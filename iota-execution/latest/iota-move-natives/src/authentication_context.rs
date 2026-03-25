@@ -5,6 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
 use iota_types::{
+    TypeTag,
     auth_context::{
         AuthContext, MoveCallArg, MoveCommand, MoveEnrichedCallArg, MoveEnrichedCommand,
         MoveEnrichedProgrammableMoveCall, MoveImmOrOwnedObjectArg, MoveObjectArg,
@@ -344,9 +345,7 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> MoveEnrichedCallAr
     match arg {
         MoveCallArg::Pure(bytes) => MoveEnrichedCallArg::Pure {
             value: bytes.clone(),
-            type_name: TypeName {
-                name: String::new(),
-            },
+            type_name: (&TypeTag::Vector(Box::new(TypeTag::U8))).into(),
         },
         MoveCallArg::Object(MoveObjectArg::ImmOrOwnedObject((id, version, digest))) => {
             MoveEnrichedCallArg::ImmOrOwnedObject(MoveImmOrOwnedObjectArg {
@@ -354,6 +353,7 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> MoveEnrichedCallAr
                 version: *version,
                 digest: *digest,
                 mutable: false,
+                // TODO: resolve the type name or have it Option.
                 type_name: TypeName {
                     name: String::new(),
                 },
@@ -368,6 +368,7 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> MoveEnrichedCallAr
             initial_shared_version: *initial_shared_version,
             mutable: *mutable,
             digest: ObjectDigest::MIN,
+            // TODO: resolve the type name or have it Option.
             type_name: TypeName {
                 name: String::new(),
             },
@@ -378,6 +379,7 @@ fn enriched_call_arg_from_move_call_arg(arg: &MoveCallArg) -> MoveEnrichedCallAr
                 version: *version,
                 digest: *digest,
                 mutable: false,
+                // TODO: resolve the type name or have it Option.
                 type_name: TypeName {
                     name: String::new(),
                 },

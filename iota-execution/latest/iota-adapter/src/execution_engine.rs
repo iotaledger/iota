@@ -2107,41 +2107,129 @@ mod checked {
         }
     }
 
-    /// Builds enriched inputs and commands for [`AuthContext`] from a PTB.
+    /// Maps each argument of a built-in PTB command to its expected pure-input
+    /// type.
     ///
-    /// Uses the Move VM to resolve function types (`is_entry`, return types,
-    /// and parameter types for pure-arg type names and object mutability).
+    /// Built-in commands are native protocol operations (not Move functions),
+    /// so the Move VM has no type information for them. Their parameter types
+    /// come from two sources:
     ///
-    /// Returns an error if a required object is missing from
-    /// `authenticator_input_objects` (invariant violation) or if the type of
-    /// a pure input cannot be determined.
+    /// - **Protocol constants** — fixed by the IOTA protocol spec:
+    ///   `TransferObjects(_, recipient)` → `Some(address)` `SplitCoins(_,
+    ///   amounts)`        → `Some(u64)` per amount
+    ///
+    /// - **PTB-supplied type annotation** — provided explicitly by the sender:
+    ///   `MakeMoveVec(Some<T>, items)`   → `Some(T)` per item
+    ///   `MakeMoveVec(None, items)`      → `None` per item (type unknown)
+    ///
+    /// Returns `None` when the type cannot be determined; the argument will
+    /// receive an empty-name sentinel in the enriched output.
+    fn pure_param_types_for_cmd(cmd: &Command) -> Vec<(&Argument, Option<TypeTag>)> {
+        match cmd {
+            Command::TransferObjects(_, recipient) => vec![(recipient, Some(TypeTag::Address))],
+            Command::SplitCoins(_, amounts) => {
+                amounts.iter().map(|a| (a, Some(TypeTag::U64))).collect()
+            }
+            Command::MakeMoveVec(ty_input_opt, args) => {
+                let tag = ty_input_opt.as_ref().and_then(|ty| ty.as_type_tag().ok());
+                args.iter().map(|a| (a, tag.clone())).collect()
+            }
+            _ => vec![],
+        }
+    }
+
+    /// Stores the inferred type for a single pure `Argument::Input(i)` in the
+    /// index.  Silently ignores non-`Input` arguments (`Result`, `GasCoin`),
+    /// which never correspond to a PTB input slot.
+    fn set_pure_input_type(
+        input_type_names: &mut HashMap<u16, TypeName>,
+        arg: &Argument,
+        tag: &TypeTag,
+    ) {
+        if let Argument::Input(i) = arg {
+            input_type_names
+                .entry(*i)
+                .or_insert_with(|| TypeName::from(tag));
+        }
+    }
+
+    /// Populates `input_type_names` with the expected type of every pure
+    /// `Input(i)` argument referenced by a built-in PTB command.
+    fn index_pure_inputs_for_builtin(cmd: &Command, input_type_names: &mut HashMap<u16, TypeName>) {
+        for (arg, tag_opt) in pure_param_types_for_cmd(cmd) {
+            if let Some(tag) = tag_opt {
+                set_pure_input_type(input_type_names, arg, &tag);
+            }
+        }
+    }
+
+    /// Produces the typed, enriched view of `ptb` that is passed to the
+    /// authenticator function as [`AuthContext`].
+    ///
+    /// The authenticator is a Move function that runs during transaction
+    /// signing. It receives a typed description of the PTB so it can inspect
+    /// what the transaction intends to do — which functions are called, with
+    /// what arguments, and which objects are mutated.  This function builds
+    /// that description from the raw PTB.
+    ///
+    /// Two outputs are produced:
+    /// - `Vec<MoveEnrichedCallArg>` — one entry per `ptb.inputs`, each
+    ///   annotated with its Move type name (pure inputs) or full object
+    ///   metadata (object inputs).
+    /// - `Vec<MoveEnrichedCommand>` — one entry per `ptb.commands`, each
+    ///   annotated with `is_entry`, return type names, and argument types.
+    ///
+    /// Returns an error if a required object cannot be found in
+    /// `authenticator_input_objects`.
     fn create_enriched_auth_context_components(
         ptb: &ProgrammableTransaction,
         vm: &MoveVM,
         state_view: &dyn ExecutionState,
         authenticator_input_objects: &InputObjects,
     ) -> Result<(Vec<MoveEnrichedCallArg>, Vec<MoveEnrichedCommand>), ExecutionError> {
-        // Build an ID-keyed map for O(1) object lookup inside this function.
         let objects: HashMap<ObjectID, &Object> = authenticator_input_objects
             .iter_objects()
             .map(|o| (o.id(), o))
             .collect();
 
-        // Per-input metadata indexed by `Argument::Input` index.
+        // Per-input metadata tables, keyed by `Argument::Input` index.
+        // Populated during the command loop below and consumed in Pass 2.
+        //
+        //   input_type_names[i]  — the Move TypeName of pure Input(i),
+        //                          derived from the function signature or
+        //                          from the built-in command's protocol type.
+        //   input_is_mutable[i]  — true when object Input(i) is passed as
+        //                          `&mut` in at least one MoveCall.
         let mut input_type_names: HashMap<u16, TypeName> = HashMap::new();
         let mut input_is_mutable: HashMap<u16, bool> = HashMap::new();
 
-        // Single pass over commands: build enriched commands AND collect
-        // per-input type metadata.  Merging what was previously "pass 1"
-        // (MoveCall metadata) and "pass 3" (command enrichment) into one
-        // iteration avoids a second scan of the command list.
+        // Command loop (Pass 1).
+        //
+        // Walk every PTB command once to:
+        //   a) Build its enriched representation (`MoveEnrichedCommand`).
+        //   b) Collect per-input metadata into `input_type_names` and
+        //      `input_is_mutable` for use in Pass 2.
+        //
+        // For `MoveCall`: the Move VM loads the function signature, giving us
+        // concrete parameter types for every argument.  Generic type params
+        // (e.g. `TyParam(0)`) are substituted with the call-site type
+        // arguments via `type_to_type_tag_with_subst`.
+        //
+        // For built-in commands (`TransferObjects`, `SplitCoins`, etc.): the
+        // VM has no knowledge of them (they are not Move functions). Types
+        // are inferred from protocol constants or from PTB-supplied type
+        // annotations via `index_pure_inputs_for_builtin`.
         let mut enriched_commands = Vec::with_capacity(ptb.commands.len());
         for cmd in ptb.commands.iter() {
             let Command::MoveCall(call) = cmd else {
+                index_pure_inputs_for_builtin(cmd, &mut input_type_names);
                 enriched_commands.push(enrich_non_move_call_command(cmd));
                 continue;
             };
 
+            // Resolve the `TypeInput` type arguments to concrete `TypeTag`s
+            // so they can be used both to load the function from the VM and to
+            // substitute open type parameters in parameter/return types.
             let type_tags = call
                 .type_arguments
                 .iter()
@@ -2157,6 +2245,8 @@ mod checked {
                     )
                 })?;
 
+            // Ask the VM to load the function: gives us `parameters`,
+            // `return_` types, and whether the function is `entry`.
             let (loaded_fn, is_entry, return_tags) =
                 programmable_transactions::context::load_function_instantiation_and_is_entry(
                     vm,
@@ -2176,7 +2266,7 @@ mod checked {
                     )
                 })?;
 
-            // Map argument positions to per-input type info.
+            // Zip call arguments with their parameter types.
             for (j, arg) in call.arguments.iter().enumerate() {
                 let Argument::Input(i) = arg else { continue };
                 let i = *i;
@@ -2187,17 +2277,25 @@ mod checked {
 
                 match ptb.inputs.get(i as usize) {
                     Some(CallArg::Pure(_)) => {
+                        // Derive the TypeName for this pure input from the
+                        // corresponding function parameter type.  Generic
+                        // parameters (TyParam) are replaced with the concrete
+                        // type arguments supplied at this call site.
                         if let std::collections::hash_map::Entry::Vacant(e) =
                             input_type_names.entry(i)
                         {
                             if let Some(type_tag) =
-                                programmable_transactions::context::type_to_type_tag(vm, param_ty)
+                                programmable_transactions::context::type_to_type_tag_with_subst(
+                                    vm, param_ty, &type_tags,
+                                )
                             {
                                 e.insert(TypeName::from(&type_tag));
                             }
                         }
                     }
                     Some(CallArg::Object(_)) => {
+                        // Track whether this object input is passed mutably.
+                        // Pass 2 can set the correct flag in the enriched arg.
                         let entry = input_is_mutable.entry(i).or_insert(false);
                         if matches!(param_ty, Type::MutableReference(_)) {
                             *entry = true;
@@ -2209,17 +2307,24 @@ mod checked {
 
             let returns = return_tags
                 .iter()
-                .filter_map(|tag| {
-                    // TODO: when `tag` is `None` the return type is a type parameter
-                    // (e.g. `fun foo<T>(): T`). We need to substitute the concrete
-                    // type by looking up the corresponding entry in `type_tags`.
-                    tag.as_ref().map(TypeName::from)
-                })
+                .filter_map(|tag| tag.as_ref().map(TypeName::from))
                 .collect();
             enriched_commands.push(enrich_move_call_command(call, is_entry, returns));
         }
 
-        // Pass 2: build enriched inputs.
+        // Pass 2 — inputs loop.
+        //
+        // Build the enriched representation for each PTB input using the
+        // metadata collected above.
+        //
+        // Pure inputs: annotated with the TypeName from `input_type_names`.
+        // If no type was inferred (input is unused, or used only by a
+        // built-in command with an unknown element type such as
+        // `MakeMoveVec(None, ...)`), the TypeName is left empty as a sentinel
+        // that the authenticator can detect via `type_name.name.is_empty()`.
+        //
+        // Object inputs: resolved from `authenticator_input_objects` and
+        // annotated with their on-chain type, version, and mutable flag.
         let enriched_inputs = ptb
             .inputs
             .iter()
@@ -2228,18 +2333,18 @@ mod checked {
                 let idx = i as u16;
                 match arg {
                     CallArg::Pure(bytes) => {
-                        let type_name = input_type_names.remove(&idx).ok_or_else(|| {
-                            ExecutionError::new_with_source(
-                                ExecutionErrorKind::VMInvariantViolation,
-                                format!("No type information for pure input at index {idx}"),
-                            )
-                        })?;
+                        let type_name = input_type_names
+                            .remove(&idx)
+                            .unwrap_or_else(|| (&TypeTag::Vector(Box::new(TypeTag::U8))).into());
                         Ok(MoveEnrichedCallArg::Pure {
                             value: bytes.clone(),
                             type_name,
                         })
                     }
                     CallArg::Object(obj_arg) => {
+                        // TODO: after process certificate refactoring we should reconsider how to
+                        // handle this case when the object is not found in the auth input objects,
+                        // but can present in the PTB inputs.
                         let object = objects.get(&obj_arg.id()).copied().ok_or_else(|| {
                             ExecutionError::new_with_source(
                                 ExecutionErrorKind::VMInvariantViolation,

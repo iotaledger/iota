@@ -1834,6 +1834,9 @@ as_imm_or_owned_object
 mutable
 	public fun
 	0x2::enriched_call_arg
+is_mutable_object
+	public fun
+	0x2::enriched_call_arg
 pure_type_name
 	public fun
 	0x2::enriched_call_arg
