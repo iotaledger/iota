@@ -22,6 +22,17 @@ Add the IOTA SDK to your Go project using `go get`:
 go get github.com/iotaledger/iota-sdk-go
 ```
 
+The package automatically includes pre-built native libraries for most modern operating systems (Windows, macOS, and Linux).
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+The `iota-sdk-go` package includes precompiled native libraries for common platforms such as Windows, macOS, and Linux. In most cases, installing the package with:
+
+```bash
+go get github.com/iotaledger/iota-sdk-go
+```
+
 will download a compatible binary automatically.
 
 However, if a prebuilt binary is not available for your operating system or CPU architecture, you may need to build the SDK from source. In this case, a Rust toolchain is required.
