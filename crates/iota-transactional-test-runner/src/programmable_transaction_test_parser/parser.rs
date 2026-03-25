@@ -410,8 +410,8 @@ impl ParsedMoveCall {
 
         Ok(ProgrammableMoveCall {
             package: ObjectID::new(package.into_bytes()),
-            module: Identifier::new_unchecked(module.as_str()),
-            function: Identifier::new_unchecked(function.as_str()),
+            module,
+            function,
             type_arguments,
             arguments,
         })
