@@ -24,7 +24,7 @@ use tokio::{
         mpsc::{self, error::TryRecvError},
         oneshot,
     },
-    time::timeout,
+    time::{sleep, timeout},
 };
 use tracing::{debug, error, info, warn};
 
@@ -189,20 +189,43 @@ impl CheckpointReader {
 
                 RemoteStore::Hybrid(object_store, Box::new(grpc_client))
             } else {
-                let grpc_client = GrpcClient::connect(url.clone())
-                    .and_then(|grpc_client| async {
-                        // check if we can make gRPC request to client
-                        grpc_client.get_health(None).await?;
-                        Ok(grpc_client
-                            .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES))
-                    })
-                    .await;
+                let mut backoff = backoff::ExponentialBackoff {
+                    max_elapsed_time: Some(Duration::from_secs(timeout_secs)),
+                    initial_interval: Duration::from_millis(500),
+                    current_interval: Duration::from_millis(500),
+                    multiplier: 2.0,
+                    ..Default::default()
+                };
 
-                match grpc_client {
+                let grpc_result = loop {
+                    match GrpcClient::connect(url.clone())
+                        .and_then(|grpc_client| async {
+                            grpc_client.get_health(None).await?;
+                            Ok(grpc_client.with_max_decoding_message_size(
+                                GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES,
+                            ))
+                        })
+                        .await
+                    {
+                        Ok(client) => break Ok(client),
+                        Err(e) => match backoff.next_backoff() {
+                            Some(duration) => {
+                                info!(
+                                    "gRPC connection to fullnode not ready, retrying in {}ms: {e}",
+                                    duration.as_millis()
+                                );
+                                sleep(duration).await;
+                            }
+                            None => break Err(e),
+                        },
+                    }
+                };
+
+                match grpc_result {
                     Ok(grpc_client) => RemoteStore::Fullnode(Box::new(grpc_client)),
                     Err(err) => {
                         warn!(
-                            "failed to connect to gRPC fullnode, falling back to object store: {err:?}"
+                            "failed to connect to gRPC fullnode after retries, falling back to object store: {err:?}"
                         );
                         let object_store =
                             create_remote_store_client(url, remote_store_options, timeout_secs)
