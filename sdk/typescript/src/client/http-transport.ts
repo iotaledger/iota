@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { PACKAGE_VERSION, TARGETED_RPC_VERSION } from '../version.js';
 import { JsonRpcError, IotaHTTPStatusError } from './errors.js';
 import type { WebsocketClientOptions } from './rpc-websocket-client.js';
 import { WebsocketClient } from './rpc-websocket-client.js';
@@ -11,6 +10,15 @@ import { WebsocketClient } from './rpc-websocket-client.js';
  * An object defining headers to be passed to the RPC server
  */
 export type HttpHeaders = { [header: string]: string };
+
+/**
+ * A function that can inspect and modify RPC requests before they are executed.
+ * Useful for monitoring, tracing, and error handling.
+ */
+export type RequestInspector = <T>(
+    input: IotaTransportRequestOptions,
+    executeRequest: () => Promise<T>,
+) => Promise<T>;
 
 export interface IotaHTTPTransportOptions {
     fetch?: typeof fetch;
@@ -23,6 +31,7 @@ export interface IotaHTTPTransportOptions {
     websocket?: WebsocketClientOptions & {
         url?: string;
     };
+    inspector?: RequestInspector;
 }
 
 export interface IotaTransportRequestOptions {
@@ -93,39 +102,43 @@ export class IotaHTTPTransport implements IotaTransport {
     async request<T>(input: IotaTransportRequestOptions): Promise<T> {
         this.#requestId += 1;
 
-        const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
-            method: 'POST',
-            signal: input.signal,
-            headers: {
-                'Content-Type': 'application/json',
-                'Client-Sdk-Type': 'typescript',
-                'Client-Sdk-Version': PACKAGE_VERSION,
-                'Client-Target-Api-Version': TARGETED_RPC_VERSION,
-                ...this.#options.rpc?.headers,
-            },
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: this.#requestId,
-                method: input.method,
-                params: input.params,
-            }),
-        });
+        const executeRequest = async () => {
+            const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
+                method: 'POST',
+                signal: input.signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Client-Sdk-Type': 'typescript',
+                    ...this.#options.rpc?.headers,
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: this.#requestId,
+                    method: input.method,
+                    params: input.params,
+                }),
+            });
 
-        if (!res.ok) {
-            throw new IotaHTTPStatusError(
-                `Unexpected status code: ${res.status}`,
-                res.status,
-                res.statusText,
-            );
-        }
+            if (!res.ok) {
+                throw new IotaHTTPStatusError(
+                    `Unexpected status code: ${res.status}`,
+                    res.status,
+                    res.statusText,
+                );
+            }
 
-        const data = await res.json();
+            const data = await res.json();
 
-        if ('error' in data && data.error != null) {
-            throw new JsonRpcError(data.error.message, data.error.code);
-        }
+            if ('error' in data && data.error != null) {
+                throw new JsonRpcError(data.error.message, data.error.code);
+            }
 
-        return data.result;
+            return data.result;
+        };
+
+        return this.#options.inspector
+            ? this.#options.inspector(input, executeRequest)
+            : executeRequest();
     }
 
     async subscribe<T>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {

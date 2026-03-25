@@ -67,7 +67,7 @@ pnpm wallet test
 Start validators locally:
 
 ```bash
-cargo run --bin iota start --force-regenesis --with-faucet
+cargo run --bin iota-localnet start --force-regenesis --with-faucet
 ```
 
 In a separate terminal, you can now run the end-to-end tests:

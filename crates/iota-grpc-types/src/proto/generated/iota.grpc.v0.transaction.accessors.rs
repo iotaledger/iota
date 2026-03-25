@@ -68,12 +68,12 @@ mod _accessor_impls {
         }
     }
     impl super::ExecutedTransactions {
-        /// Sets `transactions` with the provided value.
-        pub fn with_transactions(
+        /// Sets `executed_transactions` with the provided value.
+        pub fn with_executed_transactions(
             mut self,
             field: Vec<super::ExecutedTransaction>,
         ) -> Self {
-            self.transactions = field;
+            self.executed_transactions = field;
             self
         }
     }

@@ -4,7 +4,10 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use iota_data_ingestion_core::{IndexerExecutor, ReaderOptions, WorkerPool};
+use iota_data_ingestion_core::{
+    IndexerExecutor, ReaderOptions, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
+};
 use iota_metrics::get_metrics;
 use tokio::{
     task::JoinHandle,
@@ -151,15 +154,13 @@ impl SnapshotPipeline {
             info!("Starting snapshot writer");
             let mut persist_task_handle =
                 Self::spawn_writer_task(self.writer.clone(), self.receiver, self.cancel.clone());
-            let dummy_ingestion_path = tempfile::tempdir().unwrap().keep();
             let mut executor_handle = if let Some(executor) = self.executor {
                 info!("Starting snapshot executor");
-                tokio::spawn(executor.run(
-                    dummy_ingestion_path,
-                    remote_store_url,
-                    vec![],
+                tokio::spawn(executor.run_with_config(CheckpointReaderConfig {
                     reader_options,
-                ))
+                    ingestion_path: None, // internally it creates a tempdir.
+                    remote_store_url: remote_store_url.map(RemoteUrl::Fullnode),
+                }))
             } else {
                 info!("Using shared executor - skipping creation of snapshot executor");
                 // Create a dummy executor handle that only completes when cancelled

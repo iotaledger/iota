@@ -913,7 +913,7 @@ pub async fn make_analytics_processor(
 
 pub fn join_paths(base: Option<Path>, child: &Path) -> Path {
     base.map(|p| {
-        let mut out_path = p.clone();
+        let mut out_path = p;
         for part in child.parts() {
             out_path = out_path.child(part)
         }

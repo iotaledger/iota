@@ -13,9 +13,9 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_types::{execution::ExecutionResult, iota_sdk_types_conversions::type_tag_core_to_sdk};
+use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
 
-use crate::{GrpcReader, merge::Merge, utils::render_json};
+use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 
 /// Source for building ExecutedTransaction using the Merge trait
 pub struct TransactionReadSource<'a> {
@@ -32,11 +32,13 @@ pub struct TransactionReadSource<'a> {
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         // Set transaction if requested
         if let Some(tx_mask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
             self.transaction = Some(grpc_tx::Transaction::merge_from(source, &tx_mask)?);
@@ -96,17 +98,22 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if !mask.contains(Self::DIGEST_FIELD.name) && !mask.contains(Self::BCS_FIELD.name) {
             // No need to convert if no field is requested
             return Ok(());
         }
 
-        let transaction = source.transaction.as_ref().ok_or("missing transaction")?;
+        let transaction = source
+            .transaction
+            .as_ref()
+            .ok_or_else(|| RpcError::internal().with_context("missing transaction"))?;
 
         // Set digest if requested
         if mask.contains(Self::DIGEST_FIELD.name) {
@@ -123,11 +130,13 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::Transaction {
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEffects {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         let Some(effects) = source.effects.as_ref() else {
             return Ok(());
         };
@@ -137,14 +146,18 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEffects {
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let Some(events) = source.events.as_ref() else {
-            return Ok(());
-        };
+    ) -> Result<(), Self::Error> {
+        // Use unwrap_or_default so that when no events were emitted we still
+        // compute a real digest (hash of the empty list) and populate an empty
+        // events vec — to distinguish between "no events" and "events
+        // not requested in the mask".
+        let events = source.events.clone().unwrap_or_default();
 
         Self::merge(self, events.clone(), mask)?;
 
@@ -177,18 +190,19 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEvents {
 // UserSignatures
 //
 impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &TransactionReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(signatures_mask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            if let Some(signatures) = source.signatures.as_ref() {
-                self.signatures = signatures
-                    .iter()
-                    .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), &signatures_mask))
-                    .collect::<Result<Vec<_>, _>>()?;
-            }
+    ) -> Result<(), Self::Error> {
+        // Use mask directly — UserSignatures is a transparent wrapper
+        if let Some(signatures) = source.signatures.as_ref() {
+            self.signatures = signatures
+                .iter()
+                .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), mask))
+                .collect::<Result<Vec<_>, _>>()?;
         }
 
         Ok(())
@@ -199,30 +213,32 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
 pub struct CommandResultsReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub execution_results: Vec<ExecutionResult>,
+    pub execution_results: Vec<iota_types::execution::ExecutionResult>,
 }
 
 impl Merge<&CommandResultsReadSource<'_>> for CommandResults {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &CommandResultsReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(results_mask) = mask.subtree(Self::RESULTS_FIELD.name) {
-            self.results = source
-                .execution_results
-                .iter()
-                .map(|(mutable_reference_outputs, return_values)| {
-                    let result_source = CommandResultReadSource {
-                        reader: &source.reader,
-                        config: source.config,
-                        mutable_reference_outputs,
-                        return_values,
-                    };
-                    CommandResult::merge_from(&result_source, &results_mask)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+    ) -> Result<(), Self::Error> {
+        // Use mask directly — CommandResults is a transparent wrapper
+        self.results = source
+            .execution_results
+            .iter()
+            .map(|(mutable_reference_outputs, return_values)| {
+                let result_source = CommandResultReadSource {
+                    reader: &source.reader,
+                    config: source.config,
+                    mutable_reference_outputs,
+                    return_values,
+                };
+                CommandResult::merge_from(&result_source, mask)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(())
     }
 }
@@ -240,11 +256,13 @@ struct CommandResultReadSource<'a> {
 }
 
 impl Merge<&CommandResultReadSource<'_>> for CommandResult {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &CommandResultReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if let Some(mutated_mask) = mask.subtree(Self::MUTATED_BY_REF_FIELD.name) {
             let outputs_source = CommandOutputsReadSource {
                 reader: source.reader,
@@ -289,27 +307,29 @@ struct CommandOutputsReadSource<'a> {
 }
 
 impl Merge<&CommandOutputsReadSource<'_>> for CommandOutputs {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &CommandOutputsReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(outputs_mask) = mask.subtree(Self::OUTPUTS_FIELD.name) {
-            self.outputs = source
-                .outputs
-                .iter()
-                .map(|(arg, bcs_bytes, ty)| {
-                    let output_source = CommandOutputReadSource {
-                        reader: source.reader,
-                        config: source.config,
-                        arg: *arg,
-                        bcs_bytes,
-                        ty,
-                    };
-                    CommandOutput::merge_from(&output_source, &outputs_mask)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-        }
+    ) -> Result<(), Self::Error> {
+        // Use mask directly — CommandOutputs is a transparent wrapper
+        self.outputs = source
+            .outputs
+            .iter()
+            .map(|(arg, bcs_bytes, ty)| {
+                let output_source = CommandOutputReadSource {
+                    reader: source.reader,
+                    config: source.config,
+                    arg: *arg,
+                    bcs_bytes,
+                    ty,
+                };
+                CommandOutput::merge_from(&output_source, mask)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
         Ok(())
     }
 }
@@ -324,17 +344,21 @@ struct CommandOutputReadSource<'a> {
 }
 
 impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
+    type Error = RpcError;
+
     fn merge(
         &mut self,
         source: &CommandOutputReadSource<'_>,
         mask: &FieldMaskTree,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Self::Error> {
         if mask.contains(Self::ARGUMENT_FIELD.name) {
             self.argument = source
                 .arg
-                .map(|arg| -> Result<_, Box<dyn std::error::Error>> {
+                .map(|arg| -> Result<_, RpcError> {
                     let sdk_arg: iota_sdk_types::Argument = arg.into();
-                    sdk_arg.try_into().map_err(Into::into)
+                    sdk_arg
+                        .try_into()
+                        .map_err(|e| RpcError::from(e).with_context("failed to merge argument"))
                 })
                 .transpose()?;
         }
@@ -342,7 +366,7 @@ impl Merge<&CommandOutputReadSource<'_>> for CommandOutput {
         if mask.contains(Self::TYPE_TAG_FIELD.name) {
             self.type_tag = Some({
                 let sdk_type_tag = type_tag_core_to_sdk(source.ty.clone())
-                    .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+                    .map_err(|e| RpcError::from(e).with_context("failed to convert type tag"))?;
                 (&sdk_type_tag).into()
             });
         }

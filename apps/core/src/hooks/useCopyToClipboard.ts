@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback } from 'react';
+import { toast } from '../components/toaster';
 
-export function useCopyToClipboard(onSuccessCallback?: () => void) {
+export function useCopyToClipboard(onSuccessCallback?: () => void, successMessage?: string) {
     return useCallback(
         async (text: string) => {
             if (!navigator?.clipboard) {
@@ -13,6 +14,7 @@ export function useCopyToClipboard(onSuccessCallback?: () => void) {
 
             try {
                 await navigator.clipboard.writeText(text);
+                toast(successMessage || 'Copied to clipboard');
                 if (onSuccessCallback) {
                     onSuccessCallback();
                 }
@@ -21,6 +23,6 @@ export function useCopyToClipboard(onSuccessCallback?: () => void) {
                 return false;
             }
         },
-        [onSuccessCallback],
+        [successMessage, onSuccessCallback],
     );
 }

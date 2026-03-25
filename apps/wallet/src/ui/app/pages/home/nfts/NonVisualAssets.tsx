@@ -17,7 +17,7 @@ export function NonVisualAssets({ items }: NonVisualAssetsProps) {
     return (
         <div className="flex w-full flex-1 flex-col items-center gap-4">
             {items?.length ? (
-                <div className="flex w-full flex-col">
+                <div className="flex w-full flex-col" data-amp-mask>
                     {items.map((item) => {
                         const { address, module, name } = parseStructTag(item.type!);
                         return (
