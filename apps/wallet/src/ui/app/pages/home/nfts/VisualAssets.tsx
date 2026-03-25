@@ -42,7 +42,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                     destination="Hidden Assets"
                     onUndo={() => {
                         showAsset(object.objectId);
-                        ampli.shownCollectible({
+                        ampli.clickedShowAsset({
                             collectibleType: object.type!,
                         });
                     }}

@@ -72,15 +72,6 @@ export interface IdentifyProperties {
     network?: string;
 }
 
-export interface AccountDeletedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    accountType?: string;
-}
-
 export interface AddedAccountsProperties {
     accountOrigin?: string;
     /**
@@ -148,6 +139,24 @@ export interface ClickedCreateNewAccountProperties {
     sourceFlow?: string;
 }
 
+export interface ClickedHideAssetProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    collectibleType?: string;
+}
+
+export interface ClickedShowAssetProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    collectibleType?: string;
+}
+
 export interface ClickedStakeIotaProperties {
     isCurrentlyStaking?: boolean;
     /**
@@ -182,6 +191,15 @@ export interface CopiedElementProperties {
      * | Enum Values | private, public |
      */
     visibility?: 'private' | 'public';
+}
+
+export interface DeletedAccountProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
 }
 
 export interface DisconnectedApplicationProperties {
@@ -220,7 +238,7 @@ export interface OpenedApplicationProperties {
     applicationName?: string;
 }
 
-export interface OpenedExternalLinkProperties {
+export interface OpenedLinkProperties {
     type?: string;
     value?: string;
     /**
@@ -319,15 +337,6 @@ export interface SentCoinsProperties {
 }
 
 export interface SentCollectibleProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    collectibleType?: string;
-}
-
-export interface ShownCollectibleProperties {
     /**
      * | Rule | Value |
      * |---|---|
@@ -445,14 +454,6 @@ export class Identify implements BaseEvent {
     }
 }
 
-export class AccountDeleted implements BaseEvent {
-    event_type = 'account deleted';
-
-    constructor(public event_properties?: AccountDeletedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
 export class AddedAccounts implements BaseEvent {
     event_type = 'added accounts';
 
@@ -501,6 +502,22 @@ export class ClickedCreateNewAccount implements BaseEvent {
     }
 }
 
+export class ClickedHideAsset implements BaseEvent {
+    event_type = 'clicked hide asset';
+
+    constructor(public event_properties?: ClickedHideAssetProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ClickedShowAsset implements BaseEvent {
+    event_type = 'clicked show asset';
+
+    constructor(public event_properties?: ClickedShowAssetProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class ClickedStakeIota implements BaseEvent {
     event_type = 'clicked stake IOTA';
 
@@ -521,6 +538,14 @@ export class CopiedElement implements BaseEvent {
     event_type = 'copied element';
 
     constructor(public event_properties?: CopiedElementProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class DeletedAccount implements BaseEvent {
+    event_type = 'deleted account';
+
+    constructor(public event_properties?: DeletedAccountProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -549,10 +574,10 @@ export class OpenedApplication implements BaseEvent {
     }
 }
 
-export class OpenedExternalLink implements BaseEvent {
-    event_type = 'opened external link';
+export class OpenedLink implements BaseEvent {
+    event_type = 'opened link';
 
-    constructor(public event_properties?: OpenedExternalLinkProperties) {
+    constructor(public event_properties?: OpenedLinkProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -625,14 +650,6 @@ export class SentCollectible implements BaseEvent {
     event_type = 'sent collectible';
 
     constructor(public event_properties?: SentCollectibleProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ShownCollectible implements BaseEvent {
-    event_type = 'shown collectible';
-
-    constructor(public event_properties?: ShownCollectibleProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -728,7 +745,7 @@ export class Ampli {
     this.disabled = options.disabled ?? false;
 
     if (this.amplitude) {
-      console.warn('WARNING: Ampli is already initialized. Ampli.load() should be called once at application startup.');
+      console.warn('WARNING: Ampli is already intialized. Ampli.load() should be called once at application startup.');
       return getVoidPromiseResult();
     }
 
@@ -808,23 +825,6 @@ export class Ampli {
     }
 
     return this.amplitude!.track(event, undefined, options);
-  }
-
-  /**
-   * account deleted
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20deleted)
-   *
-   * Fires when the user clicks on the “Delete” option on one of his accounts.
-   *
-   * @param properties The event's properties (e.g. accountType)
-   * @param options Amplitude event options.
-   */
-  accountDeleted(
-    properties?: AccountDeletedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new AccountDeleted(properties), options);
   }
 
   /**
@@ -930,6 +930,40 @@ export class Ampli {
   }
 
   /**
+   * clicked hide asset
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20hide%20asset)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. collectibleType)
+   * @param options Amplitude event options.
+   */
+  clickedHideAsset(
+    properties?: ClickedHideAssetProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedHideAsset(properties), options);
+  }
+
+  /**
+   * clicked show asset
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20show%20asset)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. collectibleType)
+   * @param options Amplitude event options.
+   */
+  clickedShowAsset(
+    properties?: ClickedShowAssetProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedShowAsset(properties), options);
+  }
+
+  /**
    * clicked stake IOTA
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20stake%20IOTA)
@@ -978,6 +1012,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new CopiedElement(properties), options);
+  }
+
+  /**
+   * deleted account
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/deleted%20account)
+   *
+   * Fires when the user clicks on the “Delete” option on one of his accounts.
+   *
+   * @param properties The event's properties (e.g. accountType)
+   * @param options Amplitude event options.
+   */
+  deletedAccount(
+    properties?: DeletedAccountProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new DeletedAccount(properties), options);
   }
 
   /**
@@ -1032,20 +1083,20 @@ export class Ampli {
   }
 
   /**
-   * opened external link
+   * opened link
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20external%20link)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20link)
    *
    * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. type)
    * @param options Amplitude event options.
    */
-  openedExternalLink(
-    properties?: OpenedExternalLinkProperties,
+  openedLink(
+    properties?: OpenedLinkProperties,
     options?: EventOptions,
   ) {
-    return this.track(new OpenedExternalLink(properties), options);
+    return this.track(new OpenedLink(properties), options);
   }
 
   /**
@@ -1212,23 +1263,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new SentCollectible(properties), options);
-  }
-
-  /**
-   * shown collectible
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/shown%20collectible)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. collectibleType)
-   * @param options Amplitude event options.
-   */
-  shownCollectible(
-    properties?: ShownCollectibleProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ShownCollectible(properties), options);
   }
 
   /**
