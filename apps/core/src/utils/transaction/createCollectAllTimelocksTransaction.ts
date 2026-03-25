@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { IOTA_TYPE_ARG, IOTA_FRAMEWORK_ADDRESS, IOTA_CLOCK_OBJECT_ID } from '@iota/iota-sdk/utils';
+import {
+    IOTA_TYPE_ARG,
+    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_CLOCK_OBJECT_ID,
+    IOTA_SYSTEM_ADDRESS,
+} from '@iota/iota-sdk/utils';
 
 // Timelocked stake: fields.staked_iota.fields.{pool_id, stake_activation_epoch}
 export interface TimelockedStakeObjectInput {
@@ -73,7 +78,7 @@ export function createCollectAllTimelocksTransaction({
 
     for (const stakedObject of timelockedStakedObjects) {
         const [unlockedStakedIota] = ptb.moveCall({
-            target: `0x3::timelocked_staking::unlock_with_clock`,
+            target: `${IOTA_SYSTEM_ADDRESS}::timelocked_staking::unlock_with_clock`,
             arguments: [ptb.object(stakedObject.objectId), ptb.object(IOTA_CLOCK_OBJECT_ID)],
         });
 
@@ -95,7 +100,7 @@ export function createCollectAllTimelocksTransaction({
             // Join all unlocked stakes into the existing regular stake
             for (const stake of stakedIotaObjects) {
                 ptb.moveCall({
-                    target: `0x3::staking_pool::join_staked_iota`,
+                    target: `${IOTA_SYSTEM_ADDRESS}::staking_pool::join_staked_iota`,
                     arguments: [ptb.object(existingStake.objectId), stake],
                 });
             }
@@ -106,7 +111,7 @@ export function createCollectAllTimelocksTransaction({
             const [first, ...rest] = stakedIotaObjects;
             for (const stake of rest) {
                 ptb.moveCall({
-                    target: `0x3::staking_pool::join_staked_iota`,
+                    target: `${IOTA_SYSTEM_ADDRESS}::staking_pool::join_staked_iota`,
                     arguments: [first, stake],
                 });
             }

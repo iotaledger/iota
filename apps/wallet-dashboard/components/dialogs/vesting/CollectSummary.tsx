@@ -4,6 +4,7 @@
 import { useFormatCoin } from '@iota/core';
 import { CheckmarkFilled, LockUnlocked, Stake } from '@iota/apps-ui-icons';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, ListItem } from '@iota/apps-ui-kit';
 
 interface CollectSummaryProps {
@@ -28,7 +29,7 @@ export function CollectSummary({ transaction, activeAddress }: CollectSummaryPro
     });
 
     const iotaReceived = userBalanceChanges
-        .filter((change) => change.coinType === '0x2::iota::IOTA' && BigInt(change.amount) > 0n)
+        .filter((change) => change.coinType === IOTA_TYPE_ARG && BigInt(change.amount) > 0n)
         .reduce((sum, change) => sum + BigInt(change.amount), 0n);
 
     const [formattedReceived, receivedSymbol] = useFormatCoin({ balance: iotaReceived });
