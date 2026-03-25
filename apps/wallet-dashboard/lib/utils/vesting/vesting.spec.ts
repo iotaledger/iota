@@ -209,8 +209,15 @@ describe('vesting overview', () => {
 
         expect(vestingOverview.totalStaked).toEqual(totalStaked);
 
-        // In this scenario there are no objects to stake or claim because they are all staked
-        expect(vestingOverview.availableClaiming).toEqual(0n);
+        // Staked objects with expired timelocks are available for collecting (claiming)
+        const unlockedStakedAmount = extendedTimelockedStakedObjects.reduce(
+            (acc, current) =>
+                Number(current.expirationTimestampMs) <= Date.now()
+                    ? acc + BigInt(current.principal)
+                    : acc,
+            0n,
+        );
+        expect(vestingOverview.availableClaiming).toEqual(unlockedStakedAmount);
         expect(vestingOverview.availableStaking).toEqual(0n);
     });
 
@@ -257,11 +264,19 @@ describe('vesting overview', () => {
         expect(vestingOverview.totalStaked).toEqual(totalStaked);
 
         const timelockObjects = mixedObjects.filter(isTimelockedObject);
-        const availableClaiming = timelockObjects.reduce(
+        const unlockedStakedAmount = extendedTimelockedStakedObjects.reduce(
             (acc, current) =>
-                current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
+                Number(current.expirationTimestampMs) <= Date.now()
+                    ? acc + BigInt(current.principal)
+                    : acc,
             0n,
         );
+        const availableClaiming =
+            timelockObjects.reduce(
+                (acc, current) =>
+                    current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
+                0n,
+            ) + unlockedStakedAmount;
         const availableStaking = timelockObjects.reduce(
             (acc, current) =>
                 current.expirationTimestampMs > Date.now() ? acc + current.locked.value : acc,
