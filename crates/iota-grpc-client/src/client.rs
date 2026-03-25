@@ -8,7 +8,7 @@ use iota_grpc_types::v0::{
     ledger_service::ledger_service_client::LedgerServiceClient,
     transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient,
 };
-use tonic::{codec::CompressionEncoding, transport::channel::ClientTlsConfig};
+use tonic::codec::CompressionEncoding;
 
 use crate::{api::Result, interceptors::HeadersInterceptor};
 
@@ -45,10 +45,30 @@ impl Client {
 
         let mut endpoint = tonic::transport::Endpoint::from(uri.clone());
         if uri.scheme() == Some(&http::uri::Scheme::HTTPS) {
-            endpoint = endpoint
-                .tls_config(ClientTlsConfig::new().with_enabled_roots())
-                .map_err(Into::into)
-                .map_err(tonic::Status::from_error)?;
+            #[cfg(not(feature = "tls-ring"))]
+            return Err(tonic::Status::failed_precondition(
+                "the `tls-ring` feature must be enabled for HTTPS",
+            )
+            .into());
+
+            #[cfg(not(any(feature = "tls-native-roots", feature = "tls-webpki-roots")))]
+            return Err(tonic::Status::failed_precondition(
+                "the `tls-native-roots` or `tls-webpki-roots` feature must be enabled for HTTPS",
+            )
+            .into());
+
+            #[cfg(all(
+                feature = "tls-ring",
+                any(feature = "tls-native-roots", feature = "tls-webpki-roots")
+            ))]
+            {
+                endpoint = endpoint
+                    .tls_config(
+                        tonic::transport::channel::ClientTlsConfig::new().with_enabled_roots(),
+                    )
+                    .map_err(Into::into)
+                    .map_err(tonic::Status::from_error)?;
+            }
         }
 
         let channel = endpoint
