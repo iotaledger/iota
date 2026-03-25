@@ -1,8 +1,6 @@
 name: Deploy Explorer
 
 on:
-  push:
-    branches: [develop]
   workflow_dispatch:
     inputs:
       deploy_type:
@@ -25,11 +23,7 @@ jobs:
       - name: Resolve deploy type
         id: resolve
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            DEPLOY_TYPE="staging"
-          else
-            DEPLOY_TYPE="${{ inputs.deploy_type }}"
-          fi
+          DEPLOY_TYPE="${{ inputs.deploy_type }}"
 
           case "$DEPLOY_TYPE" in
             staging)
