@@ -14,7 +14,6 @@ use tap::Pipe;
 pub mod accept;
 mod accounts;
 mod checkpoints;
-pub mod client;
 mod coins;
 mod committee;
 pub mod content_type;
@@ -31,7 +30,6 @@ mod system;
 pub mod transactions;
 pub mod types;
 
-pub use client::Client;
 pub use error::{RestError, Result};
 pub use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
 pub use metrics::RestMetrics;

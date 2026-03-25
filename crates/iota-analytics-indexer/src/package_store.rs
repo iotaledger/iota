@@ -5,10 +5,10 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
+use iota_grpc_client::Client;
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
-use iota_rest_api::Client;
 use iota_types::{base_types::ObjectID, object::Object};
 use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
@@ -72,10 +72,10 @@ pub struct LocalDBPackageStore {
 }
 
 impl LocalDBPackageStore {
-    pub fn new(path: &Path, rest_url: &str) -> Self {
+    pub fn new(path: &Path, client: Client) -> Self {
         Self {
             package_store_tables: PackageStoreTables::new(path),
-            fallback_client: Client::new(rest_url),
+            fallback_client: client,
         }
     }
 
@@ -96,11 +96,25 @@ impl LocalDBPackageStore {
         {
             object
         } else {
-            let object = self
+            let object_id = ObjectID::from(id);
+            fn grpc_err(e: impl std::error::Error + Send + Sync + 'static) -> PackageResolverError {
+                PackageResolverError::Store {
+                    store: "gRPC",
+                    source: Arc::new(e),
+                }
+            }
+            let objects = self
                 .fallback_client
-                .get_object(ObjectID::from(id))
+                .get_objects(&[(object_id.into(), None)], Some("bcs"))
                 .await
-                .map_err(|_| PackageResolverError::PackageNotFound(id))?;
+                .map_err(grpc_err)?
+                .into_inner();
+            let proto_obj = objects
+                .into_iter()
+                .next()
+                .ok_or(PackageResolverError::PackageNotFound(id))?;
+            let sdk_obj = proto_obj.object().map_err(grpc_err)?;
+            let object: Object = sdk_obj.try_into().map_err(grpc_err)?;
             self.update(&object)?;
             object
         };
