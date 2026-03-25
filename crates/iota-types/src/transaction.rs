@@ -408,6 +408,7 @@ pub struct ProgrammableTransaction {
 pub trait MoveCallExt {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn is_input_arg_used(&self, arg: u16) -> bool;
 }
 
 impl MoveCallExt for ProgrammableMoveCall {
@@ -461,11 +462,19 @@ impl MoveCallExt for ProgrammableMoveCall {
         }
         Ok(())
     }
+
+    fn is_input_arg_used(&self, arg: u16) -> bool {
+        self.arguments
+            .iter()
+            .any(|a| matches!(a, Argument::Input(inp) if *inp == arg))
+    }
 }
 
 pub trait CommandExt {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>>;
+    fn is_input_arg_used(&self, input_arg: u16) -> bool;
 }
 
 impl CommandExt for Command {
@@ -571,7 +580,50 @@ impl CommandExt for Command {
             }
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
+
         Ok(())
+    }
+
+    fn non_system_packages_to_be_published(&self) -> Option<&Vec<Vec<u8>>> {
+        match self {
+            Command::Publish(cmd) => Some(&cmd.modules),
+            Command::Upgrade(cmd) => Some(&cmd.modules),
+            Command::MoveCall(_)
+            | Command::TransferObjects(_)
+            | Command::SplitCoins(_)
+            | Command::MergeCoins(_)
+            | Command::MakeMoveVector(_) => None,
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+        }
+    }
+
+    fn is_input_arg_used(&self, input_arg: u16) -> bool {
+        match self {
+            Command::MoveCall(c) => c.is_input_arg_used(input_arg),
+            Command::TransferObjects(TransferObjects {
+                objects: args,
+                address: arg,
+            })
+            | Command::MergeCoins(MergeCoins {
+                coins_to_merge: args,
+                coin: arg,
+            })
+            | Command::SplitCoins(SplitCoins {
+                amounts: args,
+                coin: arg,
+            }) => args
+                .iter()
+                .chain(iter::once(arg))
+                .any(|arg| matches!(arg, Argument::Input(input) if *input == input_arg)),
+            Command::MakeMoveVector(MakeMoveVector { elements, .. }) => elements
+                .iter()
+                .any(|arg| matches!(arg, Argument::Input(input) if *input == input_arg)),
+            Command::Upgrade(Upgrade { ticket, .. }) => {
+                matches!(ticket, Argument::Input(input) if *input == input_arg)
+            }
+            Command::Publish(_) => false,
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
+        }
     }
 }
 
