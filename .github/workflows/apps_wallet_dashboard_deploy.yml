@@ -69,25 +69,29 @@ jobs:
         env:
           TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          case "${{ needs.resolve-deploy-type.outputs.deploy_type }}" in
+          DEPLOY_TYPE="${{ needs.resolve-deploy-type.outputs.deploy_type }}"
+
+          case "$DEPLOY_TYPE" in
             production) VERCEL_ENV="production" ;;
             staging) VERCEL_ENV="staging" ;;
             rc) VERCEL_ENV="preview" ;;
           esac
+
+          echo "Deploy type: ${DEPLOY_TYPE}, Vercel environment: ${VERCEL_ENV}"
 
           vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
           cp ./.vercel/.env.${VERCEL_ENV}.local ./sdk/.env
 
           pnpm wallet-dashboard build
 
-          if [ "${{ needs.resolve-deploy-type.outputs.deploy_type }}" = "production" ]; then
+          if [ "$DEPLOY_TYPE" = "production" ]; then
             vercel build --prod --token="$TOKEN"
             vercel deploy --prod --prebuilt --token="$TOKEN"
           else
             vercel build --token="$TOKEN"
             DEPLOY_URL=$(vercel deploy --prebuilt --token="$TOKEN")
 
-            if [ "${{ needs.resolve-deploy-type.outputs.deploy_type }}" = "rc" ]; then
+            if [ "$DEPLOY_TYPE" = "rc" ]; then
               vercel alias "$DEPLOY_URL" rebased-wallet-dashboard-rc-iota1.vercel.app --token="$TOKEN"
             fi
           fi
