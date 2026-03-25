@@ -105,6 +105,7 @@ export default function VestingDashboardPage(): JSX.Element {
         isUnlockError,
         unlockError,
         userType,
+        inactiveValidatorUnlockedStakes,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -331,6 +332,15 @@ export default function VestingDashboardPage(): JSX.Element {
                                         icon={<Warning />}
                                     />
                                 ) : null}
+                                {inactiveValidatorUnlockedStakes.length > 0 && (
+                                    <InfoBox
+                                        title="Inactive validator"
+                                        supportingText="Some timelocked stakes cannot be collected because their validator is no longer active. Please unstake them first."
+                                        style={InfoBoxStyle.Elevated}
+                                        type={InfoBoxType.Warning}
+                                        icon={<Warning />}
+                                    />
+                                )}
                                 {supplyIncreaseVestingPortfolio && (
                                     <VestingScheduleDialog
                                         open={isVestingScheduleDialogOpen}

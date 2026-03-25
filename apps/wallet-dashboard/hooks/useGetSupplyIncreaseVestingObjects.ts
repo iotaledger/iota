@@ -27,6 +27,7 @@ import {
     formatDelegatedTimelockedStake,
     createCollectAllTimelocksTransaction,
     useGetDelegatedStake,
+    useIsActiveValidator,
 } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useEffect, useState, useMemo } from 'react';
@@ -56,6 +57,7 @@ interface SupplyIncreaseVestingObject {
     isUnlockError: boolean;
     unlockError: Error | null;
     userType: SupplyIncreaseUserType | undefined;
+    inactiveValidatorUnlockedStakes: ExtendedDelegatedTimelockedStake[];
 }
 
 export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncreaseVestingObject {
@@ -134,6 +136,8 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
     const iotaClient = useIotaClient();
 
+    const { isActiveValidator } = useIsActiveValidator();
+
     // Get unlocked timelocked staked objects (only for Staker users)
     const supplyIncreaseVestingUnlockedStakes = useMemo(() => {
         if (!timelockedStakedObjects || !clockTimestampMs) return [];
@@ -143,8 +147,20 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
         return formatDelegatedTimelockedStake(timelockedStakedObjects)
             .filter(isSupplyIncreaseVestingObject)
-            .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs));
-    }, [timelockedStakedObjects, clockTimestampMs, userType]);
+            .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs))
+            .filter((stake) => isActiveValidator(stake.validatorAddress)); // skip inactive validators
+    }, [timelockedStakedObjects, clockTimestampMs, userType, isActiveValidator]);
+
+    // Unlocked stakes whose validator is inactive — cannot be collected, must be unstaked first
+    const inactiveValidatorUnlockedStakes = useMemo(() => {
+        if (!timelockedStakedObjects || !clockTimestampMs) return [];
+        if (userType !== SupplyIncreaseUserType.Staker) return [];
+
+        return formatDelegatedTimelockedStake(timelockedStakedObjects)
+            .filter(isSupplyIncreaseVestingObject)
+            .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs))
+            .filter((stake) => !isActiveValidator(stake.validatorAddress));
+    }, [timelockedStakedObjects, clockTimestampMs, userType, isActiveValidator]);
 
     // Get all timelocked staked object IDs from delegations
     const supplyIncreaseVestingUnlockedStakeObjectData = useMemo(() => {
@@ -307,5 +323,6 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         isUnlockError,
         unlockError,
         userType,
+        inactiveValidatorUnlockedStakes,
     };
 }
