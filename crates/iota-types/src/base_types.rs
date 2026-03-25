@@ -16,6 +16,7 @@ use fastcrypto::{
     hash::HashFunction,
     traits::AllowedRng,
 };
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
