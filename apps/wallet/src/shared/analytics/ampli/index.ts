@@ -577,6 +577,10 @@ export class RenamedAccount implements BaseEvent {
     event_type = 'renamed account';
 }
 
+export class ResetWallet implements BaseEvent {
+    event_type = 'reset wallet';
+}
+
 export class RespondedToConnectionRequest implements BaseEvent {
     event_type = 'responded to connection request';
 
@@ -1091,6 +1095,21 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new RenamedAccount(), options);
+  }
+
+  /**
+   * reset wallet
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/reset%20wallet)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  resetWallet(
+    options?: EventOptions,
+  ) {
+    return this.track(new ResetWallet(), options);
   }
 
   /**
