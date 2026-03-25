@@ -14,15 +14,17 @@
 // typed-store
 pub use rocksdb;
 
-pub mod traits;
-pub use traits::Map;
 pub mod database;
+pub mod traits;
+pub use traits::{DbIterator, Map};
 pub mod memstore;
 pub mod metrics;
 pub mod rocks;
 pub mod test_db;
+mod util;
 pub use metrics::DBMetrics;
 pub use typed_store_error::TypedStoreError;
+pub use util::be_fix_int_ser;
 
 pub type StoreError = typed_store_error::TypedStoreError;
 

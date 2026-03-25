@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod errors;
+pub(crate) mod rocks_util;
 pub(crate) mod safe_iter;
 
 use std::{
@@ -629,11 +630,6 @@ impl DBMapTableConfigMap {
     pub fn to_map(&self) -> BTreeMap<String, DBOptions> {
         self.0.clone()
     }
-}
-
-pub enum RocksDBAccessType {
-    Primary,
-    Secondary(Option<PathBuf>),
 }
 
 // Drops a database if there is no other handle to it, with retries and timeout.

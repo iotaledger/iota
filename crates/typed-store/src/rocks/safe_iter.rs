@@ -6,19 +6,16 @@ use std::{marker::PhantomData, sync::Arc};
 
 use bincode::Options;
 use prometheus::{Histogram, HistogramTimer};
-use rocksdb::Direction;
+use rocksdb::{DBWithThreadMode, Direction, MultiThreaded};
 use serde::de::DeserializeOwned;
 use typed_store_error::TypedStoreError;
 
-use crate::{
-    database::RawIter,
-    metrics::{DBMetrics, RocksDBPerfContext},
-};
+use crate::metrics::{DBMetrics, RocksDBPerfContext};
 
 /// An iterator over all key-value pairs in a data map.
 pub struct SafeIter<'a, K, V> {
     cf_name: String,
-    db_iter: RawIter<'a>,
+    db_iter: rocksdb::DBRawIteratorWithThreadMode<'a, DBWithThreadMode<MultiThreaded>>,
     _phantom: PhantomData<(K, V)>,
     direction: Direction,
     is_initialized: bool,
@@ -34,7 +31,7 @@ pub struct SafeIter<'a, K, V> {
 impl<'a, K: DeserializeOwned, V: DeserializeOwned> SafeIter<'a, K, V> {
     pub(crate) fn new(
         cf_name: String,
-        db_iter: RawIter<'a>,
+        db_iter: rocksdb::DBRawIteratorWithThreadMode<'a, DBWithThreadMode<MultiThreaded>>,
         _timer: Option<HistogramTimer>,
         _perf_ctx: Option<RocksDBPerfContext>,
         bytes_scanned: Option<Histogram>,

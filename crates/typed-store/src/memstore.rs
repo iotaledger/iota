@@ -3,9 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, Bound, HashMap},
     sync::{Arc, RwLock},
 };
+
+use bincode::Options;
+use serde::de::DeserializeOwned;
+use typed_store_error::TypedStoreError;
 
 type InMemoryStoreInternal = Arc<RwLock<HashMap<String, BTreeMap<Vec<u8>, Vec<u8>>>>>;
 
@@ -100,5 +104,42 @@ impl InMemoryDB {
 
     pub fn drop_cf(&self, name: &str) {
         self.data.write().expect("can't write data").remove(name);
+    }
+
+    pub fn iterator<K, V>(
+        &self,
+        cf_name: &str,
+        lower_bound: Option<Vec<u8>>,
+        upper_bound: Option<Vec<u8>>,
+        reverse: bool,
+    ) -> Box<dyn Iterator<Item = Result<(K, V), TypedStoreError>> + '_>
+    where
+        K: DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        let config = bincode::DefaultOptions::new()
+            .with_big_endian()
+            .with_fixint_encoding();
+        let lower_bound = lower_bound.map(Bound::Included).unwrap_or(Bound::Unbounded);
+        let upper_bound = upper_bound.map(Bound::Excluded).unwrap_or(Bound::Unbounded);
+
+        let data = self.data.read().expect("can't read data");
+        let mut section: Vec<_> = data
+            .get(cf_name)
+            .unwrap_or(&BTreeMap::new())
+            .range((lower_bound, upper_bound))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        if reverse {
+            section.reverse();
+        }
+        Box::new(section.into_iter().map(move |(raw_key, raw_value)| {
+            let key = config
+                .deserialize(&raw_key)
+                .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
+            let value = bcs::from_bytes(&raw_value)
+                .map_err(|e| TypedStoreError::Serialization(e.to_string()))?;
+            Ok((key, value))
+        }))
     }
 }
