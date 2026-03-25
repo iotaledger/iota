@@ -1,10 +1,14 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const iotaSDK = [
     {
         type: 'category',
         label: 'Getting Started',
+        link: {
+            type: 'generated-index',
+            slug: 'developer/iota-sdk/getting-started',
+        },
         items: [
             'developer/iota-sdk/getting-started/rust',
             'developer/iota-sdk/getting-started/go',
@@ -14,20 +18,33 @@ const iotaSDK = [
     },
     {
         type: 'category',
-        label: 'Explantations',
+        label: 'Explanations',
+        link: {
+            type: 'generated-index',
+            slug: 'developer/iota-sdk/explanations',
+        },
         items: [
-            'developer/iota-sdk/explanations/place-holder',
+            'developer/iota-sdk/explanations/address-derivation',
         ],
     },
     {
         type: 'category',
         label: 'How To',
+        link: {
+            type: 'generated-index',
+            slug: 'developer/iota-sdk/how-tos',
+        },
         items: [
             {
                 type: 'category',
                 label: 'Accounts and Addresses',
+                link: {
+                    type: 'generated-index',
+                    slug: 'developer/iota-sdk/how-tos/accounts-and-addresses',
+                },
                 items: [
                     'developer/iota-sdk/how-tos/accounts-and-addresses/create-mnemonic',
+                    'developer/iota-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
                     'developer/rust-sdk/how-tos/accounts-and-addresses/address-from-mnemonic',
                     'developer/rust-sdk/how-tos/accounts-and-addresses/coin-balance',
                 ],
@@ -46,6 +63,10 @@ const iotaSDK = [
     {
         type: 'category',
         label: 'API Reference',
+        link: {
+            type: 'generated-index',
+            slug: 'developer/iota-sdk/references',
+        },
         items: [
             'developer/iota-sdk/references/place-holder',
         ],
