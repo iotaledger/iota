@@ -37,11 +37,21 @@ impl TryFrom<&CheckpointSummary> for iota_sdk_types::CheckpointSummary {
 
 impl CheckpointSummary {
     /// Get the digest of this checkpoint summary.
+    ///
+    /// **Read mask:** `"checkpoint.summary.digest"` (see
+    /// [`CHECKPOINT_SUMMARY_DIGEST`]).
+    ///
+    /// [`CHECKPOINT_SUMMARY_DIGEST`]: crate::read_masks::CHECKPOINT_SUMMARY_DIGEST
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         get_inner_field!(self.digest, Self::DIGEST_FIELD, try_into)
     }
 
-    /// Deserialize checkpoint summary.
+    /// Deserialize the checkpoint summary from BCS.
+    ///
+    /// **Read mask:** `"checkpoint.summary.bcs"` (see
+    /// [`CHECKPOINT_SUMMARY_BCS`]).
+    ///
+    /// [`CHECKPOINT_SUMMARY_BCS`]: crate::read_masks::CHECKPOINT_SUMMARY_BCS
     pub fn summary(&self) -> Result<iota_sdk_types::CheckpointSummary, TryFromProtoError> {
         self.try_into()
     }
@@ -67,11 +77,21 @@ impl TryFrom<&CheckpointContents> for iota_sdk_types::CheckpointContents {
 
 impl CheckpointContents {
     /// Get the digest of this checkpoint contents.
+    ///
+    /// **Read mask:** `"checkpoint.contents.digest"` (see
+    /// [`CHECKPOINT_CONTENTS_DIGEST`]).
+    ///
+    /// [`CHECKPOINT_CONTENTS_DIGEST`]: crate::read_masks::CHECKPOINT_CONTENTS_DIGEST
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         get_inner_field!(self.digest, Self::DIGEST_FIELD, try_into)
     }
 
-    /// Deserialize checkpoint contents.
+    /// Deserialize the checkpoint contents from BCS.
+    ///
+    /// **Read mask:** `"checkpoint.contents.bcs"` (see
+    /// [`CHECKPOINT_CONTENTS_BCS`]).
+    ///
+    /// [`CHECKPOINT_CONTENTS_BCS`]: crate::read_masks::CHECKPOINT_CONTENTS_BCS
     pub fn contents(&self) -> Result<iota_sdk_types::CheckpointContents, TryFromProtoError> {
         self.try_into()
     }

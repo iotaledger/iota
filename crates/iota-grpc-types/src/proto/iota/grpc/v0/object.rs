@@ -86,12 +86,24 @@ impl TryFrom<&Objects> for Vec<iota_sdk_types::Object> {
 
 // Convenience methods for Object (delegate to TryFrom)
 impl Object {
-    /// Get the object reference.
+    /// Get the object reference (object_id, version, digest).
+    ///
+    /// **Read mask:** `"reference"` (see [`OBJECT_REFERENCE`]).
+    /// For objects nested in transactions, prefix accordingly
+    /// (e.g. `"input_objects.reference"`, `"output_objects.reference"`).
+    ///
+    /// [`OBJECT_REFERENCE`]: crate::read_masks::OBJECT_REFERENCE
     pub fn object_reference(&self) -> Result<iota_sdk_types::ObjectReference, TryFromProtoError> {
         self.try_into()
     }
 
-    /// Deserialize the object from BCS.
+    /// Deserialize the full object from BCS.
+    ///
+    /// **Read mask:** `"bcs"` (see [`OBJECT_BCS`]).
+    /// For objects nested in transactions, prefix accordingly
+    /// (e.g. `"input_objects.bcs"`, `"output_objects.bcs"`).
+    ///
+    /// [`OBJECT_BCS`]: crate::read_masks::OBJECT_BCS
     pub fn object(&self) -> Result<iota_sdk_types::Object, TryFromProtoError> {
         self.try_into()
     }

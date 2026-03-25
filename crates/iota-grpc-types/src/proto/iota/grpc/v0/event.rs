@@ -32,23 +32,32 @@ impl TryFrom<&Event> for iota_sdk_types::Event {
 
 // Convenience methods for Event (delegate to TryFrom)
 impl Event {
-    /// Deserialize the event from BCS.
+    /// Deserialize the full event from BCS.
     ///
-    /// Requires `bcs` in the read_mask.
+    /// **Read mask:** `bcs` relative to this event (see [`EVENT_BCS`]).
+    /// Full path depends on context — e.g. `"events.bcs"` for checkpoint
+    /// top-level events, `"events.events.bcs"` for transaction events.
+    ///
+    /// [`EVENT_BCS`]: crate::read_masks::EVENT_BCS
     pub fn event(&self) -> Result<iota_sdk_types::Event, TryFromProtoError> {
         self.try_into()
     }
 
     /// Get the package ID of the Move module that emitted this event.
     ///
-    /// Requires `package_id` in the read_mask.
+    /// **Read mask:** `package_id` relative to this event (see
+    /// [`EVENT_PACKAGE_ID`]).
+    ///
+    /// [`EVENT_PACKAGE_ID`]: crate::read_masks::EVENT_PACKAGE_ID
     pub fn package_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
         get_inner_field!(self.package_id, Self::PACKAGE_ID_FIELD, try_into)
     }
 
     /// Get the module name of the Move module that emitted this event.
     ///
-    /// Requires `module` in the read_mask.
+    /// **Read mask:** `module` relative to this event (see [`EVENT_MODULE`]).
+    ///
+    /// [`EVENT_MODULE`]: crate::read_masks::EVENT_MODULE
     pub fn module_name(&self) -> Result<iota_sdk_types::Identifier, TryFromProtoError> {
         self.module
             .as_deref()
@@ -61,14 +70,19 @@ impl Event {
 
     /// Get the sender address of the transaction that emitted this event.
     ///
-    /// Requires `sender` in the read_mask.
+    /// **Read mask:** `sender` relative to this event (see [`EVENT_SENDER`]).
+    ///
+    /// [`EVENT_SENDER`]: crate::read_masks::EVENT_SENDER
     pub fn sender(&self) -> Result<iota_sdk_types::Address, TryFromProtoError> {
         get_inner_field!(self.sender, Self::SENDER_FIELD, try_into)
     }
 
     /// Get the type of the event emitted.
     ///
-    /// Requires `event_type` in the read_mask.
+    /// **Read mask:** `event_type` relative to this event (see
+    /// [`EVENT_TYPE`]).
+    ///
+    /// [`EVENT_TYPE`]: crate::read_masks::EVENT_TYPE
     pub fn type_name(&self) -> Result<iota_sdk_types::StructTag, TryFromProtoError> {
         self.event_type
             .as_deref()
@@ -84,7 +98,10 @@ impl Event {
     /// This is the serialized event data without the metadata (package, module,
     /// sender, type).
     ///
-    /// Requires `bcs_contents` in the read_mask.
+    /// **Read mask:** `bcs_contents` relative to this event (see
+    /// [`EVENT_BCS_CONTENTS`]).
+    ///
+    /// [`EVENT_BCS_CONTENTS`]: crate::read_masks::EVENT_BCS_CONTENTS
     pub fn bcs_contents(&self) -> Result<&[u8], TryFromProtoError> {
         self.bcs_contents
             .as_ref()
@@ -94,7 +111,10 @@ impl Event {
 
     /// Get the JSON contents of the event.
     ///
-    /// Requires `json_contents` in the read_mask.
+    /// **Read mask:** `json_contents` relative to this event (see
+    /// [`EVENT_JSON_CONTENTS`]).
+    ///
+    /// [`EVENT_JSON_CONTENTS`]: crate::read_masks::EVENT_JSON_CONTENTS
     pub fn json_contents(&self) -> Result<serde_json::Value, TryFromProtoError> {
         self.json_contents
             .as_ref()

@@ -41,14 +41,20 @@ impl TryFrom<&TransactionEffects> for iota_sdk_types::Digest {
 impl TransactionEffects {
     /// Get the effects digest.
     ///
-    /// Requires `digest` in the read_mask.
+    /// **Read mask:** `effects.digest` relative to the parent
+    /// `ExecutedTransaction` (see [`TRANSACTION_EFFECTS_DIGEST`]).
+    ///
+    /// [`TRANSACTION_EFFECTS_DIGEST`]: crate::read_masks::TRANSACTION_EFFECTS_DIGEST
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize effects from BCS.
     ///
-    /// Requires `bcs` in the read_mask.
+    /// **Read mask:** `effects.bcs` relative to the parent
+    /// `ExecutedTransaction` (see [`TRANSACTION_EFFECTS_BCS`]).
+    ///
+    /// [`TRANSACTION_EFFECTS_BCS`]: crate::read_masks::TRANSACTION_EFFECTS_BCS
     pub fn effects(&self) -> Result<iota_sdk_types::TransactionEffects, TryFromProtoError> {
         self.try_into()
     }
@@ -108,14 +114,20 @@ impl TryFrom<&TransactionEvents> for iota_sdk_types::Digest {
 impl TransactionEvents {
     /// Get the events digest.
     ///
-    /// Requires `digest` in the read_mask.
+    /// **Read mask:** `events.digest` relative to the parent
+    /// `ExecutedTransaction` (see [`TRANSACTION_EVENTS_DIGEST`]).
+    ///
+    /// [`TRANSACTION_EVENTS_DIGEST`]: crate::read_masks::TRANSACTION_EVENTS_DIGEST
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize all events from BCS.
     ///
-    /// Requires `events.bcs` in the read_mask.
+    /// **Read mask:** `events.events.bcs` relative to the parent
+    /// `ExecutedTransaction` (see [`TRANSACTION_EVENTS_BCS`]).
+    ///
+    /// [`TRANSACTION_EVENTS_BCS`]: crate::read_masks::TRANSACTION_EVENTS_BCS
     pub fn events(&self) -> Result<iota_sdk_types::TransactionEvents, TryFromProtoError> {
         self.try_into()
     }
@@ -128,7 +140,15 @@ impl TransactionEvents {
 impl ExecutedTransaction {
     /// Get the transaction.
     ///
-    /// Requires `transaction` in the read_mask.
+    /// Returns the proto [`Transaction`] which provides:
+    /// - [`Transaction::digest()`] — the transaction digest
+    /// - [`Transaction::transaction()`] — the deserialized SDK `Transaction`
+    ///
+    /// **Read mask:** `"transaction"` (see
+    /// [`EXECUTED_TRANSACTION_TRANSACTION`]). For checkpoint context use
+    /// `"transactions.transaction"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_TRANSACTION`]: crate::read_masks::EXECUTED_TRANSACTION_TRANSACTION
     pub fn transaction(&self) -> Result<&super::transaction::Transaction, TryFromProtoError> {
         self.transaction
             .as_ref()
@@ -137,7 +157,10 @@ impl ExecutedTransaction {
 
     /// Get the user signatures.
     ///
-    /// Requires `signatures` in the read_mask.
+    /// **Read mask:** `"signatures"` (see [`EXECUTED_TRANSACTION_SIGNATURES`]).
+    /// For checkpoint context use `"transactions.signatures"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_SIGNATURES`]: crate::read_masks::EXECUTED_TRANSACTION_SIGNATURES
     pub fn signatures(&self) -> Result<&super::signatures::UserSignatures, TryFromProtoError> {
         self.signatures
             .as_ref()
@@ -146,7 +169,15 @@ impl ExecutedTransaction {
 
     /// Get the transaction effects.
     ///
-    /// Requires `effects` in the read_mask.
+    /// Returns the proto [`TransactionEffects`] which provides:
+    /// - [`TransactionEffects::digest()`] — the effects digest
+    /// - [`TransactionEffects::effects()`] — the deserialized SDK
+    ///   `TransactionEffects`
+    ///
+    /// **Read mask:** `"effects"` (see [`EXECUTED_TRANSACTION_EFFECTS`]).
+    /// For checkpoint context use `"transactions.effects"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_EFFECTS`]: crate::read_masks::EXECUTED_TRANSACTION_EFFECTS
     pub fn effects(&self) -> Result<&super::transaction::TransactionEffects, TryFromProtoError> {
         self.effects
             .as_ref()
@@ -155,7 +186,15 @@ impl ExecutedTransaction {
 
     /// Get the transaction events.
     ///
-    /// Requires `events` in the read_mask.
+    /// Returns the proto [`TransactionEvents`] which provides:
+    /// - [`TransactionEvents::digest()`] — the events digest
+    /// - [`TransactionEvents::events()`] — the deserialized SDK
+    ///   `TransactionEvents`
+    ///
+    /// **Read mask:** `"events"` (see [`EXECUTED_TRANSACTION_EVENTS`]).
+    /// For checkpoint context use `"transactions.events"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_EVENTS`]: crate::read_masks::EXECUTED_TRANSACTION_EVENTS
     pub fn events(&self) -> Result<&super::transaction::TransactionEvents, TryFromProtoError> {
         self.events
             .as_ref()
@@ -171,7 +210,10 @@ impl ExecutedTransaction {
 
     /// Get checkpoint sequence number.
     ///
-    /// Requires `checkpoint` in the read_mask.
+    /// **Read mask:** `"checkpoint"` (see [`EXECUTED_TRANSACTION_CHECKPOINT`]).
+    /// For checkpoint context use `"transactions.checkpoint"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_CHECKPOINT`]: crate::read_masks::EXECUTED_TRANSACTION_CHECKPOINT
     pub fn checkpoint_sequence_number(
         &self,
     ) -> Result<iota_sdk_types::CheckpointSequenceNumber, TryFromProtoError> {
@@ -181,7 +223,10 @@ impl ExecutedTransaction {
 
     /// Get timestamp in milliseconds.
     ///
-    /// Requires `timestamp` in the read_mask.
+    /// **Read mask:** `"timestamp"` (see [`EXECUTED_TRANSACTION_TIMESTAMP`]).
+    /// For checkpoint context use `"transactions.timestamp"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_TIMESTAMP`]: crate::read_masks::EXECUTED_TRANSACTION_TIMESTAMP
     pub fn timestamp_ms(&self) -> Result<iota_sdk_types::CheckpointTimestamp, TryFromProtoError> {
         let ts = self
             .timestamp
@@ -191,7 +236,14 @@ impl ExecutedTransaction {
 
     /// Get input objects.
     ///
-    /// Requires `input_objects` in the read_mask.
+    /// Returns proto [`Objects`](super::object::Objects) containing the
+    /// transaction's input objects. Call `.object()` on each to deserialize.
+    ///
+    /// **Read mask:** `"input_objects"` (see
+    /// [`EXECUTED_TRANSACTION_INPUT_OBJECTS`]).
+    /// For checkpoint context use `"transactions.input_objects"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_INPUT_OBJECTS`]: crate::read_masks::EXECUTED_TRANSACTION_INPUT_OBJECTS
     pub fn input_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
         self.input_objects
             .as_ref()
@@ -200,7 +252,14 @@ impl ExecutedTransaction {
 
     /// Get output objects.
     ///
-    /// Requires `output_objects` in the read_mask.
+    /// Returns proto [`Objects`](super::object::Objects) containing the
+    /// transaction's output objects. Call `.object()` on each to deserialize.
+    ///
+    /// **Read mask:** `"output_objects"` (see
+    /// [`EXECUTED_TRANSACTION_OUTPUT_OBJECTS`]).
+    /// For checkpoint context use `"transactions.output_objects"`.
+    ///
+    /// [`EXECUTED_TRANSACTION_OUTPUT_OBJECTS`]: crate::read_masks::EXECUTED_TRANSACTION_OUTPUT_OBJECTS
     pub fn output_objects(&self) -> Result<&super::object::Objects, TryFromProtoError> {
         self.output_objects
             .as_ref()
@@ -278,14 +337,20 @@ impl TryFrom<&Transaction> for iota_sdk_types::Digest {
 impl Transaction {
     /// Get the transaction digest.
     ///
-    /// Requires `digest` in the read_mask.
+    /// **Read mask:** `transaction.digest` relative to the parent
+    /// `ExecutedTransaction` (see [`TRANSACTION_DIGEST`]).
+    ///
+    /// [`TRANSACTION_DIGEST`]: crate::read_masks::TRANSACTION_DIGEST
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
         self.try_into()
     }
 
     /// Deserialize the transaction from BCS.
     ///
-    /// Requires `bcs` in the read_mask.
+    /// **Read mask:** `transaction.bcs` relative to the parent
+    /// `ExecutedTransaction` (see [`TRANSACTION_BCS`]).
+    ///
+    /// [`TRANSACTION_BCS`]: crate::read_masks::TRANSACTION_BCS
     pub fn transaction(&self) -> Result<iota_sdk_types::Transaction, TryFromProtoError> {
         self.try_into()
     }
