@@ -92,6 +92,6 @@ jobs:
             DEPLOY_URL=$(vercel deploy --prebuilt --token="$TOKEN")
 
             if [ "$DEPLOY_TYPE" = "rc" ]; then
-              vercel alias "$DEPLOY_URL" rebased-wallet-dashboard-rc-iota1.vercel.app --token="$TOKEN"
+              vercel alias "$DEPLOY_URL" wallet-dashboard-rc-iota1.vercel.app --token="$TOKEN"
             fi
           fi
