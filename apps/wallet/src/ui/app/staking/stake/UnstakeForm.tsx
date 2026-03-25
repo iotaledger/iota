@@ -81,6 +81,16 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
     const [rewards, rewardSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalIota] = useFormatCoin({ balance: BigInt(iotaEarned || 0) + totalTokenBalance });
     const [tokenBalanceFormatted] = useFormatCoin({ balance: totalTokenBalance });
+    const [tokenBalanceFormattedPlain] = useFormatCoin({
+        balance: totalTokenBalance,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+    const [rewardsFormattedPlain] = useFormatCoin({
+        balance: iotaEarned,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const {
         data: unstakeData,
@@ -139,9 +149,9 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
             },
             onSuccess: () => {
                 ampli.iotaUnstaked({
-                    stakedAmount: Number(tokenBalanceFormatted),
+                    stakedAmount: Number(tokenBalanceFormattedPlain),
                     validatorAddress: validatorAddress!,
-                    rewards: Number(rewards),
+                    rewards: Number(rewardsFormattedPlain),
                     validatorName,
                 });
             },

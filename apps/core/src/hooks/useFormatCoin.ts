@@ -118,6 +118,7 @@ interface FormatCoinOptions {
     coinType?: string;
     format?: CoinFormat;
     showSign?: boolean;
+    useGroupSeparator?: boolean;
 }
 // TODO #1: This handles undefined values to make it easier to integrate with
 // the reset of the app as it is today, but it really shouldn't in a perfect world.
@@ -126,6 +127,7 @@ export function useFormatCoin({
     coinType = IOTA_TYPE_ARG,
     format = CoinFormat.Rounded,
     showSign = false,
+    useGroupSeparator = true,
 }: FormatCoinOptions): FormattedCoin {
     const fallbackSymbol = useMemo(
         () => (coinType ? (getCoinSymbol(coinType) ?? '') : ''),
@@ -139,8 +141,8 @@ export function useFormatCoin({
 
         if (!isFetched) return '...';
 
-        return formatBalance(balance, data?.decimals ?? 0, format, showSign);
-    }, [data?.decimals, isFetched, balance, format]);
+        return formatBalance(balance, data?.decimals ?? 0, format, showSign, { useGroupSeparator });
+    }, [data?.decimals, isFetched, balance, format, useGroupSeparator]);
 
     return [formatted, isFetched ? data?.symbol || fallbackSymbol : '', queryResult];
 }

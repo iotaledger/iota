@@ -1108,11 +1108,11 @@ impl ValidatorService {
         wrapped_response: WrappedServiceResponse<T>,
     ) -> Result<tonic::Response<T>, tonic::Status> {
         let (error, spam_weight, unwrapped_response) = match wrapped_response {
-            Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
+            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
             Err(status) => (
                 Some(IotaError::from(status.clone())),
                 Weight::zero(),
-                Err(status.clone()),
+                Err(status),
             ),
         };
 
@@ -1121,7 +1121,7 @@ impl ValidatorService {
                 direct: client,
                 through_fullnode: None,
                 error_info: error.map(|e| {
-                    let error_type = String::from(e.clone().as_ref());
+                    let error_type = String::from(e.as_ref());
                     let error_weight = normalize(e);
                     (error_weight, error_type)
                 }),

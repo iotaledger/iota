@@ -160,7 +160,7 @@ impl FromStr for MoveFunctionName {
         Ok(Self {
             package,
             module: module.name().to_string(),
-            function: name.to_string(),
+            function: name,
         })
     }
 }
@@ -497,7 +497,7 @@ impl From<MoveValue> for IotaMoveValue {
                 tag: _,
                 fields,
             }) => IotaMoveValue::Variant(IotaMoveVariant {
-                type_: type_.clone(),
+                type_,
                 variant: variant_name.to_string(),
                 fields: fields
                     .into_iter()
