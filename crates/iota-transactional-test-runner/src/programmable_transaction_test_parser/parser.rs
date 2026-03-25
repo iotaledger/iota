@@ -9,7 +9,6 @@ use iota_types::{
     base_types::ObjectID,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     transaction::{Argument, Command, ProgrammableMoveCall},
-    type_input::TypeInput,
 };
 use move_core_types::{
     account_address::AccountAddress,
@@ -409,7 +408,6 @@ impl ParsedMoveCall {
             .map(|t| {
                 t.into_type_tag(address_mapping)
                     .map(|tt| type_tag_core_to_sdk(&tt))
-                    .map(TypeInput::from)
             })
             .collect::<Result<_>>()?;
         Ok(ProgrammableMoveCall {
