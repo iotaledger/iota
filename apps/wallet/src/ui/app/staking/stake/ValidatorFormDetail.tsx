@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { EFFECTIVE_COMMISSION_TOOLTIP, formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
+import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
+    formatPercentageDisplay,
+    useGetStakingValidatorDetails,
+} from '@iota/core';
 import { useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '_hooks';
 import {
