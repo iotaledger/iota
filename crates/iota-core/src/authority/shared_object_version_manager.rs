@@ -5,21 +5,21 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_types::{
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{
-        ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
+        transaction_non_shared_input_object_keys, transaction_receiving_object_keys, ObjectKey,
     },
     transaction::{SenderSignedData, SharedInputObject, TransactionKey},
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use tracing::trace;
 
 use crate::{
     authority::{
-        AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusCertificateReason,
+        authority_per_epoch_store::CancelConsensusTransactionReason, AuthorityPerEpochStore,
     },
     execution_cache::ObjectCacheRead,
 };
@@ -40,7 +40,7 @@ impl SharedObjVerManager {
         epoch_store: &AuthorityPerEpochStore,
         cache_reader: &dyn ObjectCacheRead,
         certificates: impl Iterator<Item = &'a VerifiedExecutableTransaction> + Clone,
-        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
     ) -> IotaResult<ConsensusSharedObjVerAssignment> {
         let mut shared_input_next_versions = get_or_init_versions(
             certificates.clone().map(|cert| cert.data()),
@@ -109,7 +109,7 @@ impl SharedObjVerManager {
     pub fn assign_versions_for_certificate(
         cert: &VerifiedExecutableTransaction,
         shared_input_next_versions: &mut HashMap<ObjectID, SequenceNumber>,
-        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusCertificateReason>,
+        cancelled_txns: &BTreeMap<TransactionDigest, CancelConsensusTransactionReason>,
         enable_gas_price_feedback: bool,
     ) -> Vec<(ObjectID, SequenceNumber)> {
         let tx_digest = cert.digest();
@@ -117,7 +117,7 @@ impl SharedObjVerManager {
         // Check if the transaction is cancelled due to congestion.
         let cancellation_info = cancelled_txns.get(tx_digest);
         let congested_objects_info: Option<HashSet<_>> =
-            if let Some(CancelConsensusCertificateReason::CongestionOnObjects {
+            if let Some(CancelConsensusTransactionReason::CongestionOnObjects {
                 congested_objects,
                 suggested_gas_price: _,
             }) = &cancellation_info
@@ -145,7 +145,7 @@ impl SharedObjVerManager {
             // any shared objects.
             for SharedInputObject { id, .. } in shared_input_objects.iter() {
                 let assigned_version = match cancellation_info {
-                    Some(CancelConsensusCertificateReason::CongestionOnObjects {
+                    Some(CancelConsensusTransactionReason::CongestionOnObjects {
                         congested_objects: _,
                         suggested_gas_price,
                     }) => {
@@ -172,7 +172,7 @@ impl SharedObjVerManager {
                             SequenceNumber::CANCELLED_READ
                         }
                     }
-                    Some(CancelConsensusCertificateReason::DkgFailed) => {
+                    Some(CancelConsensusTransactionReason::DkgFailed) => {
                         if id == &IOTA_RANDOMNESS_STATE_OBJECT_ID {
                             SequenceNumber::RANDOMNESS_UNAVAILABLE
                         } else {
@@ -262,7 +262,6 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
@@ -273,10 +272,12 @@ mod tests {
         object::{Object, Owner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{ObjectArg, SenderSignedData, VerifiedTransaction},
+        IOTA_RANDOMNESS_STATE_OBJECT_ID,
     };
 
     use super::*;
     use crate::authority::{
+        authority_per_epoch_store::CancelConsensusTransactionReason,
         epoch_start_configuration::EpochStartConfigTrait,
         shared_object_version_manager::{ConsensusSharedObjVerAssignment, SharedObjVerManager},
         test_authority_builder::TestAuthorityBuilder,
@@ -509,24 +510,24 @@ mod tests {
 
         // Cancel transactions 2 and 4 due to congestion.
         let suggested_gas_price = 1_000;
-        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> = [
+        let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [
             (
                 *certs[1].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects {
+                CancelConsensusTransactionReason::CongestionOnObjects {
                     congested_objects: vec![id1],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
                 *certs[3].digest(),
-                CancelConsensusCertificateReason::CongestionOnObjects {
+                CancelConsensusTransactionReason::CongestionOnObjects {
                     congested_objects: vec![id2],
                     suggested_gas_price: Some(suggested_gas_price),
                 },
             ),
             (
                 *certs[4].digest(),
-                CancelConsensusCertificateReason::DkgFailed,
+                CancelConsensusTransactionReason::DkgFailed,
             ),
         ]
         .into_iter()
