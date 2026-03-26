@@ -1,95 +1,37 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
+mod common;
 use std::{
     collections::HashSet,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
-use iota_config::{local_ip_utils, node::GrpcApiConfig};
+use common::MockGrpcStateReader;
+use iota_config::node::GrpcApiConfig;
 use iota_grpc_client::{CheckpointStreamItem, Client};
-use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
+use iota_grpc_server::GrpcServerHandle;
+use iota_grpc_types::v0::{filter, ledger_service::checkpoint_data};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, random_object_ref},
-    committee::EpochId,
-    crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
-    effects::TestEffectsBuilder,
+    base_types::{IotaAddress, random_object_ref},
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::{TestEffectsBuilder, TransactionEvents},
+    event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, VerifiedCheckpoint,
-    },
-    storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
+    messages_checkpoint::CheckpointSequenceNumber,
 };
+use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
+use prost::Message;
 use tokio_stream::StreamExt;
 
-struct MockRestStateReader {
-    chain_identifier: iota_types::digests::ChainIdentifier,
-    checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-    large_checkpoints: Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
-    lowest_available_checkpoint: u64,
-}
-impl MockRestStateReader {
-    fn new_from_iter<I: Iterator<Item = u64>>(iter: I) -> Self {
-        Self {
-            chain_identifier: iota_types::digests::ChainIdentifier::default(),
-            checkpoints: Arc::new(Mutex::new(iter.collect())),
-            large_checkpoints: Arc::new(Mutex::new(HashSet::new())),
-            lowest_available_checkpoint: 0,
-        }
-    }
-
-    fn with_lowest_available_checkpoint(mut self, lowest: u64) -> Self {
-        self.lowest_available_checkpoint = lowest;
-        self
-    }
-
-    /// Mark a checkpoint sequence number as using large data
-    fn mark_checkpoint_as_large(&self, seq: CheckpointSequenceNumber) {
-        self.large_checkpoints.lock().unwrap().insert(seq);
-    }
-
-    /// Check if a checkpoint should use large data
-    fn is_large_checkpoint(&self, seq: CheckpointSequenceNumber) -> bool {
-        self.large_checkpoints.lock().unwrap().contains(&seq)
-    }
-}
-
-static MOCK_CHECKPOINT_CONTENTS: LazyLock<CheckpointContents> =
-    LazyLock::new(|| CheckpointContents::new_with_digests_only_for_tests(vec![]));
-
-fn mock_checkpoint_summary(sequence_number: u64) -> CheckpointSummary {
-    CheckpointSummary {
-        epoch: 0,
-        sequence_number,
-        network_total_transactions: 0,
-        content_digest: *MOCK_CHECKPOINT_CONTENTS.digest(),
-        previous_digest: None,
-        epoch_rolling_gas_cost_summary: Default::default(),
-        timestamp_ms: 0,
-        checkpoint_commitments: vec![],
-        end_of_epoch_data: None,
-        version_specific_data: vec![],
-    }
-}
-
-fn mock_summary(sequence_number: u64) -> CertifiedCheckpointSummary {
-    let summary = mock_checkpoint_summary(sequence_number);
-    let sig = AuthorityStrongQuorumSignInfo {
-        epoch: 0,
-        signature: Default::default(),
-        signers_map: Default::default(),
-    };
-    CertifiedCheckpointSummary::new_from_data_and_sig(summary, sig)
-}
-
 fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
-    let summary = mock_summary(sequence_number);
     CheckpointData {
-        checkpoint_summary: summary,
-        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
+        checkpoint_summary: common::mock_summary(
+            sequence_number,
+            &common::EMPTY_CHECKPOINT_CONTENTS,
+        ),
+        checkpoint_contents: common::EMPTY_CHECKPOINT_CONTENTS.clone(),
         transactions: vec![],
     }
 }
@@ -100,15 +42,17 @@ fn mock_checkpoint_data_with_sender(
     sender: IotaAddress,
     key: &AccountKeyPair,
 ) -> CheckpointData {
-    let summary = mock_summary(sequence_number);
     let gas = random_object_ref();
     let transaction = TestTransactionBuilder::new(sender, gas, 1000)
         .transfer(random_object_ref(), sender)
         .build_and_sign(key);
     let effects = TestEffectsBuilder::new(transaction.data()).build();
     CheckpointData {
-        checkpoint_summary: summary,
-        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
+        checkpoint_summary: common::mock_summary(
+            sequence_number,
+            &common::EMPTY_CHECKPOINT_CONTENTS,
+        ),
+        checkpoint_contents: common::EMPTY_CHECKPOINT_CONTENTS.clone(),
         transactions: vec![CheckpointTransaction {
             transaction,
             effects,
@@ -119,16 +63,13 @@ fn mock_checkpoint_data_with_sender(
     }
 }
 
-fn mock_large_checkpoint_data(sequence_number: u64) -> CheckpointData {
-    let summary = mock_summary(sequence_number);
-
-    // Create many dummy transactions to exceed the message size limit when chunked
-    // Each transaction will be roughly 1KB when serialized, so we need about 5000
-    // transactions to exceed 4MB when serialized
+fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
+    // Create many dummy transactions to exceed the message size limit when chunked.
+    // Each transaction is roughly 500-1000 bytes when serialized as protobuf.
     let num_transactions = 50000;
     let mut transactions = Vec::with_capacity(num_transactions);
 
-    for _i in 0..num_transactions {
+    for _ in 0..num_transactions {
         let (sender, key): (_, AccountKeyPair) = get_key_pair();
         let gas = random_object_ref();
         let transaction = TestTransactionBuilder::new(sender, gas, 1000)
@@ -146,331 +87,10 @@ fn mock_large_checkpoint_data(sequence_number: u64) -> CheckpointData {
         });
     }
 
-    CheckpointData {
-        checkpoint_summary: summary,
-        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
-        transactions,
-    }
+    transactions
 }
 
-// Minimal empty trait impls to satisfy RestStateReader supertraits
-impl iota_types::storage::ObjectStore for MockRestStateReader {
-    fn try_get_object(
-        &self,
-        _id: &ObjectID,
-    ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
-        unimplemented!()
-    }
-
-    fn try_get_object_by_key(
-        &self,
-        _id: &ObjectID,
-        _version: iota_types::base_types::SequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<iota_types::object::Object>> {
-        unimplemented!()
-    }
-
-    fn get_object(&self, id: &ObjectID) -> Option<iota_types::object::Object> {
-        self.try_get_object(id).expect("storage access failed")
-    }
-
-    fn get_object_by_key(
-        &self,
-        id: &ObjectID,
-        version: iota_types::base_types::SequenceNumber,
-    ) -> Option<iota_types::object::Object> {
-        self.try_get_object_by_key(id, version)
-            .expect("storage access failed")
-    }
-}
-
-impl iota_types::storage::ReadStore for MockRestStateReader {
-    fn try_get_committee(
-        &self,
-        _epoch: EpochId,
-    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<iota_types::committee::Committee>>>
-    {
-        unimplemented!()
-    }
-
-    fn get_committee(
-        &self,
-        epoch: EpochId,
-    ) -> Option<std::sync::Arc<iota_types::committee::Committee>> {
-        self.try_get_committee(epoch)
-            .expect("storage access failed")
-    }
-
-    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        // Return the checkpoint with the highest sequence number
-        let guard = self.checkpoints.lock().unwrap();
-        if let Some(max_seq) = guard.iter().max().cloned() {
-            Ok(VerifiedCheckpoint::new_unchecked(mock_summary(max_seq)))
-        } else {
-            // Use the missing error constructor
-            Err(iota_types::storage::error::Error::missing(
-                "No checkpoints available",
-            ))
-        }
-    }
-
-    fn try_get_highest_verified_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        unimplemented!()
-    }
-
-    fn get_highest_verified_checkpoint(&self) -> VerifiedCheckpoint {
-        self.try_get_highest_verified_checkpoint()
-            .expect("storage access failed")
-    }
-
-    fn try_get_highest_synced_checkpoint(
-        &self,
-    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
-        let guard = self.checkpoints.lock().unwrap();
-        if let Some(max_seq) = guard.iter().max().cloned() {
-            Ok(VerifiedCheckpoint::new_unchecked(mock_summary(max_seq)))
-        } else {
-            Err(iota_types::storage::error::Error::custom(
-                "No checkpoints available",
-            ))
-        }
-    }
-
-    fn get_highest_synced_checkpoint(&self) -> VerifiedCheckpoint {
-        self.try_get_highest_synced_checkpoint()
-            .expect("storage access failed")
-    }
-
-    fn try_get_lowest_available_checkpoint(&self) -> iota_types::storage::error::Result<u64> {
-        Ok(self.lowest_available_checkpoint)
-    }
-
-    fn get_lowest_available_checkpoint(&self) -> u64 {
-        self.try_get_lowest_available_checkpoint()
-            .expect("storage access failed")
-    }
-
-    fn try_get_checkpoint_by_digest(
-        &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointDigest,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        unimplemented!()
-    }
-
-    fn get_checkpoint_by_digest(
-        &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
-    ) -> Option<VerifiedCheckpoint> {
-        self.try_get_checkpoint_by_digest(digest)
-            .expect("storage access failed")
-    }
-
-    fn try_get_checkpoint_by_sequence_number(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
-        let guard = self.checkpoints.lock().unwrap();
-        if seq == u64::MAX {
-            // Return the highest checkpoint
-            if let Some(max_seq) = guard.iter().max().cloned() {
-                return Ok(Some(VerifiedCheckpoint::new_unchecked(mock_summary(
-                    max_seq,
-                ))));
-            } else {
-                return Ok(None);
-            }
-        }
-        Ok(guard
-            .get(&seq)
-            .map(|_| VerifiedCheckpoint::new_unchecked(mock_summary(seq))))
-    }
-
-    fn get_checkpoint_by_sequence_number(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> Option<VerifiedCheckpoint> {
-        self.try_get_checkpoint_by_sequence_number(seq)
-            .expect("storage access failed")
-    }
-
-    fn try_get_checkpoint_contents_by_digest(
-        &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
-        unimplemented!()
-    }
-
-    fn get_checkpoint_contents_by_digest(
-        &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> Option<CheckpointContents> {
-        self.try_get_checkpoint_contents_by_digest(digest)
-            .expect("storage access failed")
-    }
-
-    fn try_get_checkpoint_contents_by_sequence_number(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
-        let guard = self.checkpoints.lock().unwrap();
-        Ok(guard.get(&seq).map(|_| MOCK_CHECKPOINT_CONTENTS.clone()))
-    }
-
-    fn get_checkpoint_contents_by_sequence_number(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> Option<CheckpointContents> {
-        self.try_get_checkpoint_contents_by_sequence_number(seq)
-            .expect("storage access failed")
-    }
-
-    fn try_get_transaction(
-        &self,
-        _digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<
-            std::sync::Arc<
-                iota_types::message_envelope::VerifiedEnvelope<
-                    iota_types::transaction::SenderSignedData,
-                    iota_types::crypto::EmptySignInfo,
-                >,
-            >,
-        >,
-    > {
-        unimplemented!()
-    }
-
-    fn get_transaction(
-        &self,
-        digest: &iota_types::digests::TransactionDigest,
-    ) -> Option<
-        std::sync::Arc<
-            iota_types::message_envelope::VerifiedEnvelope<
-                iota_types::transaction::SenderSignedData,
-                iota_types::crypto::EmptySignInfo,
-            >,
-        >,
-    > {
-        self.try_get_transaction(digest)
-            .expect("storage access failed")
-    }
-
-    fn try_get_transaction_effects(
-        &self,
-        _digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEffects>> {
-        unimplemented!()
-    }
-
-    fn get_transaction_effects(
-        &self,
-        digest: &iota_types::digests::TransactionDigest,
-    ) -> Option<iota_types::effects::TransactionEffects> {
-        self.try_get_transaction_effects(digest)
-            .expect("storage access failed")
-    }
-
-    fn try_get_events(
-        &self,
-        _digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
-        unimplemented!()
-    }
-
-    fn get_events(
-        &self,
-        digest: &iota_types::digests::TransactionDigest,
-    ) -> Option<iota_types::effects::TransactionEvents> {
-        self.try_get_events(digest).expect("storage access failed")
-    }
-
-    fn try_get_full_checkpoint_contents_by_sequence_number(
-        &self,
-        _seq: CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
-        unimplemented!()
-    }
-
-    fn get_full_checkpoint_contents_by_sequence_number(
-        &self,
-        seq: CheckpointSequenceNumber,
-    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
-        self.try_get_full_checkpoint_contents_by_sequence_number(seq)
-            .expect("storage access failed")
-    }
-
-    fn try_get_full_checkpoint_contents(
-        &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
-    > {
-        unimplemented!()
-    }
-
-    fn get_full_checkpoint_contents(
-        &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> Option<iota_types::messages_checkpoint::FullCheckpointContents> {
-        self.try_get_full_checkpoint_contents(digest)
-            .expect("storage access failed")
-    }
-
-    fn get_checkpoint_data(
-        &self,
-        checkpoint: VerifiedCheckpoint,
-        checkpoint_contents: CheckpointContents,
-    ) -> CheckpointData {
-        let seq = checkpoint.sequence_number;
-
-        // If this is a large checkpoint, return the large mock data
-        if self.is_large_checkpoint(seq) {
-            return mock_large_checkpoint_data(seq);
-        }
-
-        // Otherwise return the regular mock data
-        CheckpointData {
-            checkpoint_summary: checkpoint.into_inner(),
-            checkpoint_contents,
-            transactions: vec![], // Empty transactions for mock
-        }
-    }
-}
-
-impl RestStateReader for MockRestStateReader {
-    fn get_lowest_available_checkpoint_objects(&self) -> StorageResult<CheckpointSequenceNumber> {
-        Ok(0)
-    }
-
-    fn get_chain_identifier(&self) -> StorageResult<iota_types::digests::ChainIdentifier> {
-        Ok(self.chain_identifier)
-    }
-
-    fn get_epoch_last_checkpoint(
-        &self,
-        _: EpochId,
-    ) -> StorageResult<Option<iota_types::messages_checkpoint::VerifiedCheckpoint>> {
-        unimplemented!()
-    }
-
-    fn indexes(&self) -> Option<&dyn RestIndexes> {
-        None
-    }
-
-    fn get_struct_layout(
-        &self,
-        _: &move_core_types::language_storage::StructTag,
-    ) -> iota_types::storage::error::Result<Option<move_core_types::annotated_value::MoveTypeLayout>>
-    {
-        Ok(None)
-    }
-}
-
-/// Helper to set up test server with specific large checkpoints
+/// Helper to set up test server with specific large checkpoints.
 async fn test_server_and_client_setup_with_large_checkpoints<
     I: Iterator<Item = u64>,
     L: Iterator<Item = u64>,
@@ -484,7 +104,9 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     Client,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
-    let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
+    let mut mock = MockGrpcStateReader::new_from_iter(checkpoint_range);
+    mock.large_checkpoint_transactions = build_large_checkpoint_transactions();
+    let mock = Arc::new(mock);
 
     // Mark specified checkpoints as large
     for seq in large_checkpoints {
@@ -500,45 +122,23 @@ async fn test_server_and_client_setup_with_large_checkpoints<
     .await
 }
 
+/// Set up a test server and high-level `Client` with a set of available
+/// checkpoint sequence numbers.
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     checkpoint_range: I,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
-    mock_state_reader: Option<Arc<MockRestStateReader>>,
+    mock_state_reader: Option<Arc<MockGrpcStateReader>>,
     client_max_message_size_bytes: Option<u32>,
 ) -> (
     GrpcServerHandle,
     Client,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
-    let mock = mock_state_reader.unwrap_or(Arc::new(MockRestStateReader::new_from_iter(
-        checkpoint_range,
-    )));
+    let mock = mock_state_reader
+        .unwrap_or_else(|| Arc::new(MockGrpcStateReader::new_from_iter(checkpoint_range)));
     let checkpoints = mock.checkpoints.clone();
-    let cancellation_token = tokio_util::sync::CancellationToken::new();
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
-        mock,
-        Some("test".to_string()),
-    ));
 
-    let localhost = local_ip_utils::localhost_for_testing();
-    let grpc_port = local_ip_utils::get_available_port(&localhost);
-
-    let mut config = GrpcApiConfig {
-        address: format!("{localhost}:{grpc_port}").parse().unwrap(),
-        ..GrpcApiConfig::default()
-    };
-    config_customizer(&mut config);
-
-    let server_handle = start_grpc_server(
-        grpc_reader,
-        None, // No transaction executor for this test
-        config,
-        cancellation_token,
-        iota_types::digests::ChainIdentifier::default(),
-        None, // No metrics for this test
-    )
-    .await
-    .expect("Failed to start gRPC server");
+    let (server_handle, _) = common::start_test_server(mock, config_customizer).await;
 
     let server_addr = server_handle.address();
     let mut client = Client::connect(&format!("http://{server_addr}"))
@@ -546,7 +146,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
         .expect("Failed to connect to gRPC server");
 
     if let Some(max_size) = client_max_message_size_bytes {
-        client = client.with_max_decoding_message_size(max_size as usize);
+        client = client.with_max_decoding_message_size(usize::try_from(max_size).unwrap());
     }
 
     (server_handle, client, checkpoints)
@@ -986,8 +586,6 @@ async fn test_chunked_checkpoint_streaming() {
 
 #[tokio::test]
 async fn test_filter_checkpoints_validation() {
-    use iota_grpc_types::v0::filter;
-
     let (server_handle, client, _) = test_server_and_client_setup(0..=5, |_| {}, None, None).await;
 
     // filter_checkpoints=true with no filters should fail
@@ -1150,7 +748,7 @@ async fn test_filter_checkpoints_streaming() {
 async fn test_get_checkpoint_pruned_returns_not_found() {
     // Set up mock with checkpoints 0..=10 but lowest_available_checkpoint = 5
     let mock =
-        Arc::new(MockRestStateReader::new_from_iter(0..=10).with_lowest_available_checkpoint(5));
+        Arc::new(MockGrpcStateReader::new_from_iter(0..=10).with_lowest_available_checkpoint(5));
 
     let (server_handle, client, _) =
         test_server_and_client_setup(std::iter::empty(), |_| {}, Some(mock), None).await;
@@ -1191,7 +789,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
 async fn test_stream_checkpoint_pruned_start_returns_not_found() {
     // Set up mock with checkpoints 0..=10 but lowest_available_checkpoint = 5
     let mock =
-        Arc::new(MockRestStateReader::new_from_iter(0..=10).with_lowest_available_checkpoint(5));
+        Arc::new(MockGrpcStateReader::new_from_iter(0..=10).with_lowest_available_checkpoint(5));
 
     let (server_handle, client, _) =
         test_server_and_client_setup(std::iter::empty(), |_| {}, Some(mock), None).await;
@@ -1222,4 +820,264 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .shutdown()
         .await
         .expect("Failed to shutdown server");
+}
+
+/// Build checkpoint transactions, each optionally carrying `events_per_tx`
+/// events.
+fn build_checkpoint_transactions_with_events(
+    count: usize,
+    events_per_tx: usize,
+) -> Vec<CheckpointTransaction> {
+    let mut transactions = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (sender, key): (_, AccountKeyPair) = get_key_pair();
+        let gas = random_object_ref();
+        let transaction = TestTransactionBuilder::new(sender, gas, 1000)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&key);
+        let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let events = if events_per_tx > 0 {
+            let mut data = Vec::with_capacity(events_per_tx);
+            for _ in 0..events_per_tx {
+                data.push(Event::new(
+                    &AccountAddress::ZERO,
+                    ident_str!("test_module"),
+                    sender,
+                    StructTag {
+                        address: AccountAddress::ZERO,
+                        module: ident_str!("test_module").into(),
+                        name: ident_str!("TestEvent").into(),
+                        type_params: vec![],
+                    },
+                    vec![0u8; 64], // 64 bytes of dummy content
+                ));
+            }
+            Some(TransactionEvents { data })
+        } else {
+            None
+        };
+        transactions.push(CheckpointTransaction {
+            transaction,
+            effects,
+            events,
+            input_objects: vec![],
+            output_objects: vec![],
+        });
+    }
+    transactions
+}
+
+/// Collect all CheckpointData messages from a tonic streaming response,
+/// partitioning payload sizes by type.
+async fn collect_checkpoint_data_stream(
+    mut stream: tonic::codec::Streaming<iota_grpc_types::v0::ledger_service::CheckpointData>,
+) -> (
+    Vec<iota_grpc_types::v0::ledger_service::CheckpointData>,
+    Vec<usize>,
+    Vec<usize>,
+) {
+    let mut all_messages = Vec::new();
+    let mut tx_batch_sizes = Vec::new();
+    let mut event_batch_sizes = Vec::new();
+
+    while let Some(msg) = stream.message().await.expect("stream should not error") {
+        match &msg.payload {
+            Some(checkpoint_data::Payload::ExecutedTransactions(_)) => {
+                tx_batch_sizes.push(msg.encoded_len());
+            }
+            Some(checkpoint_data::Payload::Events(_)) => {
+                event_batch_sizes.push(msg.encoded_len());
+            }
+            _ => {}
+        }
+        all_messages.push(msg);
+    }
+
+    (all_messages, tx_batch_sizes, event_batch_sizes)
+}
+
+/// Issue a `GetCheckpointData` request via the raw tonic client.
+async fn get_checkpoint_data_raw(
+    client: &mut iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient<
+        tonic::transport::Channel,
+    >,
+    read_mask: &str,
+    max_message_size: u32,
+) -> tonic::codec::Streaming<iota_grpc_types::v0::ledger_service::CheckpointData> {
+    use iota_grpc_types::{field::FieldMaskUtil, v0::ledger_service::GetCheckpointDataRequest};
+
+    let req = GetCheckpointDataRequest::default()
+        .with_sequence_number(0)
+        .with_read_mask(prost_types::FieldMask::from_str(read_mask))
+        .with_max_message_size_bytes(max_message_size);
+
+    client
+        .get_checkpoint_data(req)
+        .await
+        .expect("get_checkpoint_data should succeed")
+        .into_inner()
+}
+
+#[tokio::test]
+async fn test_chunked_checkpoint_message_sizes_within_limit() {
+    // 10 000 transactions → total payload exceeds the 4 MB minimum message size
+    // enforced by the server, which enables the splitting test.
+    let transactions = build_checkpoint_transactions_with_events(10_000, 0);
+    let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
+    let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
+
+    let state_reader = Arc::new(MockGrpcStateReader {
+        summary: Some(summary),
+        contents: Some(contents),
+        checkpoint_transactions: transactions,
+        ..Default::default()
+    });
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        // Server max = 128 MB so the unlimited pass fits in one batch.
+        config.max_message_size_bytes = 128 * 1024 * 1024;
+    })
+    .await;
+    let addr = server_handle.address();
+
+    // Use the raw tonic client instead of the high-level Client so we can
+    // inspect individual streamed CheckpointData messages and verify their
+    // sizes. The high-level client reassembles them into a single response.
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client =
+        iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient::new(
+            channel,
+        )
+        .max_decoding_message_size(128 * 1024 * 1024);
+
+    let read_mask = "checkpoint.summary,transactions";
+
+    // --- Pass 1: unlimited (128 MB) → measure single-batch encoded size ---
+    let stream = get_checkpoint_data_raw(&mut client, read_mask, 128 * 1024 * 1024).await;
+    let (_, tx_sizes_unlimited, _) = collect_checkpoint_data_stream(stream).await;
+    assert_eq!(
+        tx_sizes_unlimited.len(),
+        1,
+        "With 128 MB limit all transactions should fit in a single batch"
+    );
+    let exact_batch_size = u32::try_from(tx_sizes_unlimited[0]).unwrap();
+    assert!(
+        exact_batch_size >= 4 * 1024 * 1024,
+        "Test prerequisite: single batch ({exact_batch_size}) must be >= 4 MB \
+         so the server does not clamp the limit"
+    );
+
+    // --- Pass 2: exact limit → should still fit in one batch ---
+    let stream = get_checkpoint_data_raw(&mut client, read_mask, exact_batch_size).await;
+    let (_, tx_sizes_exact, _) = collect_checkpoint_data_stream(stream).await;
+    assert_eq!(
+        tx_sizes_exact.len(),
+        1,
+        "At exact limit ({exact_batch_size}) all transactions should still fit in one batch"
+    );
+
+    // --- Pass 3: exact - 1 → must split ---
+    let tight_limit = exact_batch_size - 1;
+    let stream = get_checkpoint_data_raw(&mut client, read_mask, tight_limit).await;
+    let (all_messages, tx_sizes_split, _) = collect_checkpoint_data_stream(stream).await;
+    assert!(
+        tx_sizes_split.len() > 1,
+        "At limit {tight_limit} (exact-1) transactions must be split, got {} batch(es)",
+        tx_sizes_split.len()
+    );
+
+    // Every message must be within the limit.
+    for (i, msg) in all_messages.iter().enumerate() {
+        let size = msg.encoded_len();
+        assert!(
+            size <= usize::try_from(tight_limit).unwrap(),
+            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
+        );
+    }
+
+    server_handle.shutdown().await.expect("shutdown");
+}
+
+#[tokio::test]
+async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
+    // 2 000 transactions × 5 events each → total event payload exceeds 4 MB.
+    let transactions = build_checkpoint_transactions_with_events(2_000, 5);
+    let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
+    let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
+
+    let state_reader = Arc::new(MockGrpcStateReader {
+        summary: Some(summary),
+        contents: Some(contents),
+        checkpoint_transactions: transactions,
+        ..Default::default()
+    });
+    let (server_handle, _) = common::start_test_server(state_reader, |config| {
+        config.max_message_size_bytes = 128 * 1024 * 1024;
+    })
+    .await;
+    let addr = server_handle.address();
+
+    // Use the raw tonic client instead of the high-level Client so we can
+    // inspect individual streamed CheckpointData messages and verify their
+    // sizes. The high-level client reassembles them into a single response.
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect()
+        .await
+        .expect("connect");
+    let mut client =
+        iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient::new(
+            channel,
+        )
+        .max_decoding_message_size(128 * 1024 * 1024);
+
+    let read_mask = "checkpoint.summary,events";
+
+    // --- Pass 1: unlimited (128 MB) → measure single-batch encoded size ---
+    let stream = get_checkpoint_data_raw(&mut client, read_mask, 128 * 1024 * 1024).await;
+    let (_, _, event_sizes_unlimited) = collect_checkpoint_data_stream(stream).await;
+    assert_eq!(
+        event_sizes_unlimited.len(),
+        1,
+        "With 128 MB limit all events should fit in a single batch"
+    );
+    let exact_batch_size = u32::try_from(event_sizes_unlimited[0]).unwrap();
+    assert!(
+        exact_batch_size >= 4 * 1024 * 1024,
+        "Test prerequisite: single batch ({exact_batch_size}) must be >= 4 MB \
+         so the server does not clamp the limit"
+    );
+
+    // --- Pass 2: exact limit → should still fit in one batch ---
+    let stream = get_checkpoint_data_raw(&mut client, read_mask, exact_batch_size).await;
+    let (_, _, event_sizes_exact) = collect_checkpoint_data_stream(stream).await;
+    assert_eq!(
+        event_sizes_exact.len(),
+        1,
+        "At exact limit ({exact_batch_size}) all events should still fit in one batch"
+    );
+
+    // --- Pass 3: exact - 1 → must split ---
+    let tight_limit = exact_batch_size - 1;
+    let stream = get_checkpoint_data_raw(&mut client, read_mask, tight_limit).await;
+    let (all_messages, _, event_sizes_split) = collect_checkpoint_data_stream(stream).await;
+    assert!(
+        event_sizes_split.len() > 1,
+        "At limit {tight_limit} (exact-1) events must be split, got {} batch(es)",
+        event_sizes_split.len()
+    );
+
+    // Every message must be within the limit.
+    for (i, msg) in all_messages.iter().enumerate() {
+        let size = msg.encoded_len();
+        assert!(
+            size <= usize::try_from(tight_limit).unwrap(),
+            "Message {i} has encoded_len {size} which exceeds limit {tight_limit}"
+        );
+    }
+
+    server_handle.shutdown().await.expect("shutdown");
 }
