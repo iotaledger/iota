@@ -59,7 +59,7 @@
         "react-resizable-panels": "^0.0.39",
         "react-router-dom": "^6.30.3",
         "throttle-debounce": "^5.0.0",
-        "zod": "^3.21.4"
+        "zod": "^3.25.76"
     },
     "devDependencies": {
         "@amplitude/ampli": "^1.36.2",
