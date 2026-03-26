@@ -39,6 +39,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,
+    transaction::Publish,
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use move_binary_format::{

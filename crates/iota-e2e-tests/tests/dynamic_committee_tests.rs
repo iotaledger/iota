@@ -23,7 +23,7 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction, SplitCoins},
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};

@@ -22,7 +22,7 @@ mod utils;
 
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{Argument, Command, TransactionData},
+    transaction::{Argument, Command, SplitCoins, TransactionData, TransferObjects},
 };
 use utils::{setup_for_write, sign_and_execute_transaction};
 

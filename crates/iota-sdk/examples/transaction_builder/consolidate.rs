@@ -15,7 +15,7 @@ use iota_sdk::{
     types::{
         base_types::ObjectRef,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{Argument, CallArg, Command, TransactionData, TransactionKind},
+        transaction::{Argument, CallArg, Command, MergeCoins, TransactionData, TransactionKind},
     },
 };
 use utils::{setup_for_write, sign_and_execute_transaction};

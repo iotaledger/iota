@@ -158,7 +158,6 @@ mod checked {
                         "input checker ensures if elements are empty, there is a type specified"
                     );
                 };
-
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
                         context.convert_type_argument_error(0, e)
