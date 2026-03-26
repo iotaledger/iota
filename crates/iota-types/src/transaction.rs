@@ -3226,7 +3226,7 @@ impl TransactionKey {
     }
 }
 
-// TODO
+// TODO https://github.com/iotaledger/iota/issues/10960
 pub fn write_sep<T: core::fmt::Display>(
     f: &mut core::fmt::Formatter<'_>,
     items: impl IntoIterator<Item = T>,
