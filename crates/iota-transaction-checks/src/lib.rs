@@ -243,7 +243,7 @@ mod checked {
         // Check Move authenticator inputs first
         authenticator_input_objects
             .iter()
-            .try_for_each(|objects| check_move_authenticator_objects(objects))?;
+            .try_for_each(check_move_authenticator_objects)?;
 
         // Check certificate inputs next
         let transaction = cert.data().transaction_data();

@@ -5448,6 +5448,7 @@ impl AuthorityState {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn read_objects_for_signing(
         &self,
         transaction: &VerifiedTransaction,
@@ -5471,6 +5472,7 @@ impl AuthorityState {
             })
     }
 
+    #[allow(clippy::type_complexity)]
     fn check_transaction_inputs_for_signing(
         &self,
         protocol_config: &ProtocolConfig,
