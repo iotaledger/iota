@@ -111,6 +111,10 @@ export default function VestingDashboardPage(): JSX.Element {
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
         groupTimelockedStakedObjects(supplyIncreaseVestingStakedMapped || []);
 
+    const inactiveValidatorAddresses = new Set(
+        inactiveValidatorUnlockedStakes.map((s) => s.validatorAddress),
+    );
+
     const { data: collectTransaction } = useGetTransactionWithSummary(
         collectTxDigest ?? '',
         address,
@@ -285,7 +289,8 @@ export default function VestingDashboardPage(): JSX.Element {
                                     disabled={
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
                                         supplyIncreaseVestingSchedule.availableClaiming === 0n ||
-                                        isUnlockPending
+                                        isUnlockPending ||
+                                        inactiveValidatorUnlockedStakes.length > 0
                                     }
                                     fullWidth
                                 />
@@ -332,15 +337,6 @@ export default function VestingDashboardPage(): JSX.Element {
                                         icon={<Warning />}
                                     />
                                 ) : null}
-                                {inactiveValidatorUnlockedStakes.length > 0 && (
-                                    <InfoBox
-                                        title="Inactive validator"
-                                        supportingText="Some timelocked stakes cannot be collected because their validator is no longer active. Please unstake them first."
-                                        style={InfoBoxStyle.Elevated}
-                                        type={InfoBoxType.Warning}
-                                        icon={<Warning />}
-                                    />
-                                )}
                                 {supplyIncreaseVestingPortfolio && (
                                     <VestingScheduleDialog
                                         open={isVestingScheduleDialogOpen}
@@ -360,6 +356,15 @@ export default function VestingDashboardPage(): JSX.Element {
                                 <Title title="Staked Vesting" />
 
                                 <div className="flex flex-col gap-y-md px-lg py-sm">
+                                    {inactiveValidatorUnlockedStakes.length > 0 && (
+                                        <InfoBox
+                                            title="Inactive validator"
+                                            supportingText="Some timelocked stakes cannot be collected because their validator is no longer active. Please unstake them first."
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Warning}
+                                            icon={<Warning />}
+                                        />
+                                    )}
                                     <div className="flex flex-row gap-x-md">
                                         <DisplayStats
                                             label="Your stake"
@@ -406,6 +411,9 @@ export default function VestingDashboardPage(): JSX.Element {
                                                             }
                                                             handleUnstake={handleUnstake}
                                                             currentEpoch={Number(system.epoch)}
+                                                            showUnstakeButton={inactiveValidatorAddresses.has(
+                                                                timelockedStakedObject.validatorAddress,
+                                                            )}
                                                         />
                                                     );
                                                 },
