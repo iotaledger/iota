@@ -5440,32 +5440,42 @@ impl AuthorityState {
                 // epoch change locally, but 2f+1 nodes already concluded the
                 // epoch.
                 //
-                // This lock is essentially a barrier for
+                // This lock is essentially a barrier (in the certificate mode only) for
                 // `epoch_store.pending_consensus_certificates` table we are reading on the line
                 // after this block
                 epoch_store.close_user_certs(state);
             }
             // lock is dropped here
         }
-        let pending_certificates = epoch_store.pending_consensus_certificates();
-        info!(
-            "Reverting {} locally executed transactions that was not included in the epoch: {:?}",
-            pending_certificates.len(),
-            pending_certificates,
-        );
-        for digest in pending_certificates {
-            if epoch_store.is_transaction_executed_in_checkpoint(&digest)? {
-                info!(
-                    "Not reverting pending consensus transaction {:?} - it was included in checkpoint",
-                    digest
-                );
-                continue;
+
+        // In the certificate-less mode, the list of pending consensus certificates is
+        // always empty, so the reverting below is only for the certificate mode.
+        if !epoch_store.protocol_config().enable_white_flag_flow() {
+            let pending_certificates = epoch_store.pending_consensus_certificates();
+            info!(
+                "Reverting {} locally executed transactions that was not included in the epoch: \
+                    {:?}",
+                pending_certificates.len(),
+                pending_certificates,
+            );
+            for digest in pending_certificates {
+                if epoch_store.is_transaction_executed_in_checkpoint(&digest)? {
+                    info!(
+                        "Not reverting pending consensus transaction {:?} - it was included in \
+                            checkpoint",
+                        digest
+                    );
+                    continue;
+                }
+                info!("Reverting {:?} at the end of epoch", digest);
+                epoch_store.revert_executed_transaction(&digest)?;
+                self.get_reconfig_api().try_revert_state_update(&digest)?;
             }
-            info!("Reverting {:?} at the end of epoch", digest);
-            epoch_store.revert_executed_transaction(&digest)?;
-            self.get_reconfig_api().try_revert_state_update(&digest)?;
+            info!("All uncommitted local transactions reverted");
+        } else {
+            info!("Certificate-less mode: skipping revert of uncommitted epoch transactions");
         }
-        info!("All uncommitted local transactions reverted");
+
         Ok(())
     }
 

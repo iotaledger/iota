@@ -331,10 +331,19 @@ impl ConsensusAdapter {
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
+        let is_pending_consensus_certificates_empty =
+            if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In the certificate-less mode, the list of pending consensus
+                // certificates is always empty.
+                true
+            } else {
+                epoch_store.pending_consensus_certificates_empty()
+            };
+
         if epoch_store
             .get_reconfig_state_read_lock_guard()
             .is_reject_user_certs()
-            && epoch_store.pending_consensus_certificates_empty()
+            && is_pending_consensus_certificates_empty
         {
             // If `recovered` does not contain `EndOfPublish` yet, we need to insert it.
             if !recovered
@@ -584,12 +593,8 @@ impl ConsensusAdapter {
             }
         }
 
-        // TODO: Pending transaction tracking for UserTransactionV1 at epoch boundaries
-        // requires different semantics than certificates (no 2f+1 guarantee).
-        // For now, UserTransactionV1 is fire-and-forget - if consensus doesn't accept
-        // it immediately, it's dropped. No WAL, no retry, no epoch boundary handling.
-        // This will be designed and implemented separately.
         epoch_store.insert_pending_consensus_transactions(transactions, lock)?;
+
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
 
@@ -842,28 +847,49 @@ impl ConsensusAdapter {
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || matches!(
-                transactions[0].kind,
-                ConsensusTransactionKind::CertifiedTransaction(_)
-                    | ConsensusTransactionKind::UserTransactionV1(_)
-            );
+            || if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In the certificate-less mode, `UserTransactionV1` kind corresponds
+                // to user transactions.
+                matches!(
+                    transactions[0].kind,
+                    ConsensusTransactionKind::UserTransactionV1(_)
+                )
+            } else {
+                // In the certificate mode, `CertifiedTransaction` kind corresponds
+                // to user transactions.
+                matches!(
+                    transactions[0].kind,
+                    ConsensusTransactionKind::CertifiedTransaction(_)
+                )
+            };
         let send_end_of_publish = if is_user_tx {
-            // If we are in RejectUserCerts state and we just drained the list we need to
-            // send EndOfPublish to signal other validators that we are not submitting more
-            // certificates to the epoch. Note that there could be a race
-            // condition here where we enter this check in RejectAllCerts state.
-            // In that case we don't need to send EndOfPublish because condition to enter
-            // RejectAllCerts is when 2f+1 other validators already sequenced their
-            // EndOfPublish message. Also note that we could sent multiple
-            // EndOfPublish due to that multiple tasks can enter here with
-            // pending_count == 0. This doesn't affect correctness.
+            // If we are in `RejectUserCerts` state, we need to send `EndOfPublish` to
+            // signal other validators that we are not submitting more user
+            // transactions in the epoch. Note that there could be a race condition
+            // here where we enter this check in `RejectAllCerts` state. In that case
+            // we don't need to send `EndOfPublish` because the condition to enter
+            // `RejectAllCerts` is when 2f+1 other validators already sequenced their
+            // `EndOfPublish` message. Also note that we could send multiple
+            // `EndOfPublish` messages because multiple tasks can enter here
+            // concurrently. This doesn't affect correctness.
             if epoch_store
                 .get_reconfig_state_read_lock_guard()
                 .is_reject_user_certs()
             {
-                let pending_count = epoch_store.pending_consensus_certificates_count();
-                debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
-                pending_count == 0 // send end of epoch if empty
+                if epoch_store.protocol_config().enable_white_flag_flow() {
+                    // In the certificate-less mode, there are no pending consensus
+                    // certificates, so `EndOfPublish` is always sent immediately.
+                    debug!(epoch=?epoch_store.epoch(), "Sending EndOfPublish in certificate-less mode");
+
+                    true
+                } else {
+                    // In certificate mode, `EndOfPublish` is sent only once the list
+                    // of pending consensus certificates is drained.
+                    let pending_count = epoch_store.pending_consensus_certificates_count();
+                    debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
+
+                    pending_count == 0 // send end of epoch if no pending certificates
+                }
             } else {
                 false
             }
@@ -964,13 +990,14 @@ impl ConsensusAdapter {
     ) -> ProcessedMethod {
         let notifications = FuturesUnordered::new();
         for transaction_key in transaction_keys {
-            let transaction_digests = if let SequencedConsensusTransactionKey::External(
-                ConsensusTransactionKey::Certificate(digest),
-            ) = transaction_key
-            {
-                vec![digest]
-            } else {
-                vec![]
+            let transaction_digests = match transaction_key {
+                SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::Certificate(digest),
+                )
+                | SequencedConsensusTransactionKey::External(
+                    ConsensusTransactionKey::UserTransaction(digest),
+                ) => vec![digest],
+                _ => vec![],
             };
 
             let checkpoint_synced_future = if let SequencedConsensusTransactionKey::External(
@@ -1092,10 +1119,11 @@ pub fn get_position_in_list(
 }
 
 impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
-    /// This method is called externally to begin reconfiguration
-    /// It transition reconfig state to reject new certificates from user
-    /// ConsensusAdapter will send EndOfPublish message once pending certificate
-    /// queue is drained.
+    /// This method is called externally to begin reconfiguration.
+    /// It transitions the reconfig state to reject new user transactions.
+    /// `ConsensusAdapter` will send `EndOfPublish` once all pending
+    /// transactions are drained (in the certificate mode) or immediately
+    /// (in the certificate-less mode).
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
             let reconfig_guard = epoch_store.get_reconfig_state_write_lock_guard();
@@ -1103,13 +1131,28 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 // Allow caller to call this method multiple times
                 return;
             }
-            let pending_count = epoch_store.pending_consensus_certificates_count();
-            debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
-            let send_end_of_publish = pending_count == 0;
+
+            let send_end_of_publish = if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In certificate-less mode, there are no pending consensus
+                // certificates, so `EndOfPublish` is always sent immediately.
+                debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");
+
+                true
+            } else {
+                // In certificate mode, `EndOfPublish` is sent only once the list
+                // of pending consensus certificates is drained.
+                let pending_count = epoch_store.pending_consensus_certificates_count();
+                debug!(epoch=?epoch_store.epoch(), ?pending_count, "Trying to close epoch");
+
+                pending_count == 0 // send end of epoch if no pending certificates
+            };
+
             epoch_store.close_user_certs(reconfig_guard);
+
             send_end_of_publish
             // reconfig_guard lock is dropped here.
         };
+
         if send_end_of_publish {
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             if let Err(err) = self.submit(
