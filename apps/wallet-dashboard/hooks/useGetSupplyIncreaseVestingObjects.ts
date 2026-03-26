@@ -151,7 +151,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
             .filter((stake) => isActiveValidator(stake.validatorAddress)); // skip inactive validators
     }, [timelockedStakedObjects, clockTimestampMs, userType, isActiveValidator]);
 
-    // Unlocked stakes whose validator is inactive — cannot be collected, must be unstaked first
+    // Unlocked stakes whose validator is inactive, cannot be collected, must be unstaked first
     const inactiveValidatorUnlockedStakes = useMemo(() => {
         if (!timelockedStakedObjects || !clockTimestampMs) return [];
         if (userType !== SupplyIncreaseUserType.Staker) return [];

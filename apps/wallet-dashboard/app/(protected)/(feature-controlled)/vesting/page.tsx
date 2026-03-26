@@ -112,7 +112,7 @@ export default function VestingDashboardPage(): JSX.Element {
         groupTimelockedStakedObjects(supplyIncreaseVestingStakedMapped || []);
 
     const inactiveValidatorAddresses = new Set(
-        inactiveValidatorUnlockedStakes.map((s) => s.validatorAddress),
+        inactiveValidatorUnlockedStakes.map((stake) => stake.validatorAddress),
     );
 
     const { data: collectTransaction } = useGetTransactionWithSummary(
