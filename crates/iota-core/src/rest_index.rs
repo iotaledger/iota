@@ -1699,13 +1699,29 @@ fn backfill_new_tables(
     match crate::par_index_live_object_set::par_index_live_object_set(authority_store, &indexer) {
         Ok(()) => {
             // Flush coin_v2 entries accumulated in memory to the DB.
+            //
+            // Use per-key read-merge-write instead of `multi_insert` to
+            // avoid clobbering concurrent incremental writes.  While the
+            // backfill was scanning the live object set, the incremental
+            // checkpoint indexer may have written
+            // `regulated_coin_metadata_object_id` (or other fields) for
+            // the same coin type.  A plain `multi_insert` would overwrite
+            // those with the backfill's snapshot (which lacks the new
+            // data).  Merging preserves whichever fields are already
+            // present in the DB.
+            //
+            // Each key is read-merged-written individually so that the
+            // TOCTOU window is per-key (microseconds) rather than across
+            // the entire flush.
             if backfill_coin_v2 {
-                if let Err(e) = tables
-                    .coin_v2
-                    .multi_insert(coin_v2_index.into_inner().unwrap())
-                {
-                    tracing::error!("Failed to flush coin_v2 index: {e}");
-                    return;
+                for (key, backfill_value) in coin_v2_index.into_inner().unwrap() {
+                    let mut existing =
+                        tables.coin_v2.get(&key).ok().flatten().unwrap_or_default();
+                    existing.merge(backfill_value);
+                    if let Err(e) = tables.coin_v2.insert(&key, &existing) {
+                        tracing::error!("Failed to flush coin_v2 entry: {e}");
+                        return;
+                    }
                 }
             }
 
