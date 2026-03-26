@@ -8,22 +8,28 @@ include!("../../../generated/iota.grpc.v0.transaction_execution_service.accessor
 
 use crate::proto::TryFromProtoError;
 
-// ExecuteTransactionResponse
+// ExecuteTransactionResult
 //
 
-impl ExecuteTransactionResponse {
-    /// Get the executed transaction.
+impl ExecuteTransactionResult {
+    /// Get the executed transaction from the result, if it succeeded.
     ///
-    /// `ExecuteTransactionResponse` is *transparent* — the read mask paths
-    /// apply directly to
+    /// The read mask paths in the request apply directly to
     /// [`ExecutedTransaction`](crate::v0::transaction::ExecutedTransaction)
     /// fields (e.g. `"effects"`, not `"executed_transaction.effects"`).
-    pub fn executed_transaction(
-        &self,
-    ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
-        self.executed_transaction
-            .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(Self::EXECUTED_TRANSACTION_FIELD.name))
+    pub fn executed_transaction(&self) -> Option<&crate::v0::transaction::ExecutedTransaction> {
+        match &self.result {
+            Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => Some(tx),
+            _ => None,
+        }
+    }
+
+    /// Get the error from the result, if execution failed.
+    pub fn error(&self) -> Option<&crate::google::rpc::Status> {
+        match &self.result {
+            Some(execute_transaction_result::Result::Error(e)) => Some(e),
+            _ => None,
+        }
     }
 }
 
@@ -71,10 +77,10 @@ impl ExecutionError {
     }
 }
 
-// SimulateTransactionResponse
+// SimulatedTransaction
 //
 
-impl SimulateTransactionResponse {
+impl SimulatedTransaction {
     /// Get the simulated executed transaction.
     ///
     /// Returns the
@@ -83,9 +89,9 @@ impl SimulateTransactionResponse {
     /// `"executed_transaction.effects"` to request specific sub-fields.
     ///
     /// **Read mask:** `"executed_transaction"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTED_TRANSACTION`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTED_TRANSACTION`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTED_TRANSACTION`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTED_TRANSACTION
+    /// [`SIMULATED_TRANSACTION_EXECUTED_TRANSACTION`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTED_TRANSACTION
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
@@ -97,9 +103,9 @@ impl SimulateTransactionResponse {
     /// Get the suggested gas price (in NANOS).
     ///
     /// **Read mask:** `"suggested_gas_price"` (see
-    /// [`SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE`]).
+    /// [`SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE`]).
     ///
-    /// [`SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE`]: crate::read_masks::SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE
+    /// [`SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE`]: crate::read_masks::SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE
     pub fn gas_price_suggested(&self) -> Result<u64, TryFromProtoError> {
         self.suggested_gas_price
             .ok_or_else(|| TryFromProtoError::missing(Self::SUGGESTED_GAS_PRICE_FIELD.name))
@@ -109,13 +115,13 @@ impl SimulateTransactionResponse {
     /// failure).
     ///
     /// **Read mask:** `"execution_result"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTION_RESULT
     pub fn execution_result(
         &self,
     ) -> Result<
-        &crate::v0::transaction_execution_service::simulate_transaction_response::ExecutionResult,
+        &crate::v0::transaction_execution_service::simulated_transaction::ExecutionResult,
         TryFromProtoError,
     > {
         self.execution_result
@@ -127,12 +133,12 @@ impl SimulateTransactionResponse {
     /// otherwise.
     ///
     /// **Read mask:** `"execution_result"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTION_RESULT
     pub fn command_results(&self) -> Option<&crate::v0::command::CommandResults> {
         match &self.execution_result {
-            Some(crate::v0::transaction_execution_service::simulate_transaction_response::ExecutionResult::CommandResults(r)) => Some(r),
+            Some(crate::v0::transaction_execution_service::simulated_transaction::ExecutionResult::CommandResults(r)) => Some(r),
             _ => None,
         }
     }
@@ -141,14 +147,35 @@ impl SimulateTransactionResponse {
     /// otherwise.
     ///
     /// **Read mask:** `"execution_result"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTION_RESULT
     pub fn execution_error(
         &self,
     ) -> Option<&crate::v0::transaction_execution_service::ExecutionError> {
         match &self.execution_result {
-            Some(crate::v0::transaction_execution_service::simulate_transaction_response::ExecutionResult::ExecutionError(e)) => Some(e),
+            Some(crate::v0::transaction_execution_service::simulated_transaction::ExecutionResult::ExecutionError(e)) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+// SimulateTransactionResult
+//
+
+impl SimulateTransactionResult {
+    /// Get the simulated transaction from the result, if it succeeded.
+    pub fn simulated_transaction(&self) -> Option<&SimulatedTransaction> {
+        match &self.result {
+            Some(simulate_transaction_result::Result::SimulatedTransaction(tx)) => Some(tx),
+            _ => None,
+        }
+    }
+
+    /// Get the error from the result, if simulation failed.
+    pub fn error(&self) -> Option<&crate::google::rpc::Status> {
+        match &self.result {
+            Some(simulate_transaction_result::Result::Error(e)) => Some(e),
             _ => None,
         }
     }

@@ -211,6 +211,7 @@ mod _field_impls {
             Self::INPUT_FIELD,
             Self::RESULT_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["kind"];
     }
     impl Argument {
         pub fn path_builder() -> ArgumentFieldPathBuilder {

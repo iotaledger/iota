@@ -4,13 +4,14 @@
 
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    read_masks::EXECUTE_TRANSACTION_READ_MASK,
+    read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
     v0::{
         bcs::BcsData,
         signatures::{UserSignature, UserSignatures},
-        transaction::Transaction as ProtoTransaction,
+        transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
         transaction_execution_service::{
-            ExecuteTransactionRequest, ExecuteTransactionResponse,
+            ExecuteTransactionItem, ExecuteTransactionsRequest, ExecuteTransactionsResponse,
+            execute_transaction_result,
             transaction_execution_service_client::TransactionExecutionServiceClient,
         },
     },
@@ -19,21 +20,34 @@ use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use prost_types::FieldMask;
 
+use super::build_item;
 use crate::utils::{assert_field_presence, comma_separated_field_mask_to_paths, setup_grpc_test};
+
+/// Extract the `ExecutedTransaction` from the first result in the response.
+fn first_executed_transaction(response: &ExecuteTransactionsResponse) -> &ExecutedTransaction {
+    let result = response
+        .transaction_results
+        .first()
+        .expect("response should have at least one result");
+    match &result.result {
+        Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => tx,
+        Some(execute_transaction_result::Result::Error(e)) => {
+            panic!("expected executed transaction, got error: {:?}", e)
+        }
+        _ => panic!("expected executed transaction, got None"),
+    }
+}
 
 async fn assert_execute_transaction_request(
     exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
-    transaction: ProtoTransaction,
-    signatures: UserSignatures,
+    item: ExecuteTransactionItem,
     read_mask: Option<FieldMask>,
     expected_fields: &[&str],
     scenario: &str,
-) -> ExecuteTransactionResponse {
+) -> ExecuteTransactionsResponse {
     let response = exec_client
-        .execute_transaction({
-            let mut req = ExecuteTransactionRequest::default()
-                .with_transaction(transaction)
-                .with_signatures(signatures);
+        .execute_transactions({
+            let mut req = ExecuteTransactionsRequest::default().with_transactions(vec![item]);
             if let Some(mask) = read_mask {
                 req = req.with_read_mask(mask);
             }
@@ -43,7 +57,10 @@ async fn assert_execute_transaction_request(
         .unwrap()
         .into_inner();
 
-    assert_field_presence(&response, expected_fields, &[], scenario);
+    let executed_tx = first_executed_transaction(&response);
+    // Read mask paths apply directly to ExecutedTransaction fields
+    // (e.g. "effects", not "executed_transaction.effects").
+    assert_field_presence(executed_tx, expected_fields, &[], scenario);
     response
 }
 
@@ -56,9 +73,8 @@ async fn execute_transaction_readmask_scenarios() {
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
 
-    // ExecuteTransactionResponse is field_mask_transparent, so paths are relative
-    // to the inner ExecutedTransaction (e.g. "effects", not
-    // "executed_transaction.effects").
+    // Read mask paths are relative to ExecutedTransaction
+    // (e.g. "effects", not "executed_transaction.effects").
     type TestCase<'a> = (&'a str, Option<FieldMask>, Vec<&'a str>);
     let test_cases: Vec<TestCase> = vec![
         (
@@ -66,7 +82,7 @@ async fn execute_transaction_readmask_scenarios() {
             None,
             // Bare paths with nested checkers (effects, events) auto-recurse into
             // all their sub-fields; "transaction.digest" is specific (bcs absent).
-            comma_separated_field_mask_to_paths(EXECUTE_TRANSACTION_READ_MASK),
+            comma_separated_field_mask_to_paths(EXECUTE_TRANSACTIONS_READ_MASK),
         ),
         (
             "empty readmask",
@@ -109,72 +125,46 @@ async fn execute_transaction_readmask_scenarios() {
             make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount))
                 .await;
 
-        let transaction = ProtoTransaction::default()
-            .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction_data()).unwrap()));
+        let item = build_item(&txn);
 
-        let signatures = UserSignatures::default().with_signatures(
-            txn.tx_signatures()
-                .iter()
-                .map(|s| {
-                    UserSignature::default()
-                        .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
-                })
-                .collect(),
-        );
-
-        assert_execute_transaction_request(
-            &mut exec_client,
-            transaction,
-            signatures,
-            mask,
-            &expected_paths,
-            scenario,
-        )
-        .await;
+        assert_execute_transaction_request(&mut exec_client, item, mask, &expected_paths, scenario)
+            .await;
     }
 }
 
 #[sim_test]
 async fn execute_transaction_invalid_bcs() {
-    let (test_cluster, client) = setup_grpc_test(None, None).await;
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
-    let amount = 9;
-
-    // Create a valid transaction to get real signatures
-    let txn =
-        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
-
-    // Create transaction with invalid BCS data
+    // Create item with invalid BCS data
     let transaction = ProtoTransaction::default().with_bcs(
         BcsData::default().with_data(vec![0xff, 0xff, 0xff]), // Invalid BCS
     );
+    let signatures = UserSignatures::default().with_signatures(vec![
+        UserSignature::default().with_bcs(BcsData::default().with_data(vec![0x00; 64])),
+    ]);
+    let item = ExecuteTransactionItem::default()
+        .with_transaction(transaction)
+        .with_signatures(signatures);
 
-    // Use valid signatures from the real transaction
-    let signatures = UserSignatures::default().with_signatures(
-        txn.tx_signatures()
-            .iter()
-            .map(|s| {
-                UserSignature::default()
-                    .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
-            })
-            .collect(),
-    );
+    // With batch semantics, per-item errors are returned in the result
+    let response = exec_client
+        .execute_transactions(ExecuteTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
 
-    // Request should fail with invalid BCS
-    let result = exec_client
-        .execute_transaction(
-            ExecuteTransactionRequest::default()
-                .with_transaction(transaction)
-                .with_signatures(signatures),
-        )
-        .await;
-
-    assert!(
-        result.is_err(),
-        "Expected error for invalid BCS data, but got success"
+    let result = response.transaction_results.first().unwrap();
+    let error = result
+        .error()
+        .expect("Expected per-item error for invalid BCS data");
+    assert_eq!(
+        error.code,
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument error code for invalid BCS, got code {}",
+        error.code
     );
 }
 
@@ -199,23 +189,78 @@ async fn execute_transaction_invalid_signatures() {
             BcsData::default().with_data(vec![0x00; 64]), // Invalid signature
         )]);
 
-    // Request should fail with invalid signatures
-    let result = exec_client
-        .execute_transaction(
-            ExecuteTransactionRequest::default()
-                .with_transaction(transaction)
-                .with_signatures(signatures),
-        )
-        .await;
+    let item = ExecuteTransactionItem::default()
+        .with_transaction(transaction)
+        .with_signatures(signatures);
 
-    assert!(
-        result.is_err(),
-        "Expected error for invalid signatures, but got success"
+    // With batch semantics, per-item errors are returned in the result
+    let response = exec_client
+        .execute_transactions(ExecuteTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let result = response.transaction_results.first().unwrap();
+    let error = result
+        .error()
+        .expect("Expected per-item error for invalid signatures");
+    assert_eq!(
+        error.code,
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument error code for invalid signatures, got code {}",
+        error.code
+    );
+}
+
+#[sim_test]
+async fn execute_transaction_missing_transaction_field() {
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    // Item with signatures but no transaction field should produce a per-item error
+    let signatures = UserSignatures::default().with_signatures(vec![
+        UserSignature::default().with_bcs(BcsData::default().with_data(vec![0x00; 64])),
+    ]);
+    let item = ExecuteTransactionItem::default().with_signatures(signatures);
+
+    let response = exec_client
+        .execute_transactions(ExecuteTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let result = response.transaction_results.first().unwrap();
+    let error = result
+        .error()
+        .expect("Expected per-item error for missing transaction field");
+    assert_eq!(
+        error.code,
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument error code for missing transaction, got code {}",
+        error.code
     );
 }
 
 #[sim_test]
 async fn execute_transaction_empty_request() {
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    // Empty transactions list should fail at the top level
+    let result = exec_client
+        .execute_transactions(ExecuteTransactionsRequest::default())
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Expected error for empty transactions list, but got success"
+    );
+}
+
+#[sim_test]
+async fn execute_transaction_batch() {
     let (test_cluster, client) = setup_grpc_test(None, None).await;
 
     let mut exec_client = client.execution_service_client();
@@ -223,28 +268,134 @@ async fn execute_transaction_empty_request() {
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
 
-    // Create a valid transaction to get real signatures
-    let txn =
+    // Create two valid transactions
+    let txn1 =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+    let txn2 =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
 
-    // Use valid signatures from the real transaction
-    let signatures = UserSignatures::default().with_signatures(
-        txn.tx_signatures()
-            .iter()
-            .map(|s| {
-                UserSignature::default()
-                    .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
-            })
-            .collect(),
+    let items = vec![build_item(&txn1), build_item(&txn2)];
+
+    let response = exec_client
+        .execute_transactions(ExecuteTransactionsRequest::default().with_transactions(items))
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(
+        response.transaction_results.len(),
+        2,
+        "Expected 2 results for batch of 2 transactions"
     );
 
-    // Test missing transaction with valid signatures
+    // Both should succeed and match the input ordering
+    let expected_digests: Vec<_> = [&txn1, &txn2]
+        .iter()
+        .map(|t| t.digest().into_inner())
+        .collect();
+    for (i, result) in response.transaction_results.iter().enumerate() {
+        let executed = result.executed_transaction().unwrap_or_else(|| {
+            panic!(
+                "Expected success for transaction {i}, got: {:?}",
+                result.result
+            )
+        });
+        let tx = executed
+            .transaction()
+            .expect("executed transaction should have a transaction");
+        let digest = tx
+            .digest
+            .as_ref()
+            .expect("transaction should have a digest");
+        assert_eq!(
+            digest.digest.as_ref(),
+            expected_digests[i].as_slice(),
+            "Transaction {i} digest mismatch — results may be out of order"
+        );
+    }
+}
+
+#[sim_test]
+async fn execute_transaction_batch_partial_failure() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    // First item: valid transaction
+    let txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+    let valid_item = build_item(&txn);
+
+    // Second item: invalid BCS
+    let invalid_item = ExecuteTransactionItem::default()
+        .with_transaction(
+            ProtoTransaction::default()
+                .with_bcs(BcsData::default().with_data(vec![0xff, 0xff, 0xff])),
+        )
+        .with_signatures(UserSignatures::default().with_signatures(vec![
+            UserSignature::default().with_bcs(BcsData::default().with_data(vec![0x00; 64])),
+        ]));
+
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default().with_transactions(vec![valid_item, invalid_item]),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(response.transaction_results.len(), 2);
+
+    // First should succeed
+    assert!(
+        response.transaction_results[0]
+            .executed_transaction()
+            .is_some(),
+        "Expected success for first transaction, got: {:?}",
+        response.transaction_results[0].result
+    );
+
+    // Second should fail with InvalidArgument
+    let error = response.transaction_results[1]
+        .error()
+        .expect("Expected error for second transaction with invalid BCS");
+    assert_eq!(
+        error.code,
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument for invalid BCS, got code {}",
+        error.code
+    );
+}
+
+#[sim_test]
+async fn execute_transaction_batch_size_exceeded() {
+    let (_test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    // Send more items than the configured max batch size.
+    // The batch size check runs before any per-item validation, so the items
+    // don't need to be valid transactions.
+    let max_batch =
+        iota_config::node::GrpcApiConfig::default().max_execute_transaction_batch_size as usize;
+    let items = vec![ExecuteTransactionItem::default(); max_batch + 1];
+
     let result = exec_client
-        .execute_transaction(ExecuteTransactionRequest::default().with_signatures(signatures))
+        .execute_transactions(ExecuteTransactionsRequest::default().with_transactions(items))
         .await;
 
     assert!(
         result.is_err(),
-        "Expected error for missing transaction, but got success"
+        "Expected top-level error for oversized batch"
+    );
+    let status = result.unwrap_err();
+    assert_eq!(
+        status.code(),
+        tonic::Code::InvalidArgument,
+        "Expected InvalidArgument, got {:?}",
+        status.code()
     );
 }

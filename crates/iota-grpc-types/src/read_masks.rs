@@ -25,9 +25,9 @@
 //!
 //! | Endpoint | Prefix |
 //! |---|---|
-//! | `get_transactions` / `execute_transaction` | *(none — direct)* |
+//! | `get_transactions` / `execute_transactions` | *(none — direct)* |
 //! | Checkpoint queries | `transactions.` |
-//! | `simulate_transaction` | `executed_transaction.` |
+//! | `simulate_transactions` | `executed_transaction.` |
 //!
 //! The `EXECUTED_TRANSACTION_*` constants use the **direct** (unprefixed)
 //! paths. For checkpoint or simulate contexts, prepend the appropriate prefix.
@@ -75,11 +75,11 @@ pub const GET_OBJECTS_READ_MASK: &str = field_mask!("reference", "bcs");
 /// Default read mask for `get_checkpoint` / `stream_checkpoints`.
 pub const GET_CHECKPOINT_READ_MASK: &str = field_mask!("checkpoint.summary");
 
-/// Default read mask for `execute_transaction`.
+/// Default read mask for `execute_transactions`.
 ///
-/// `ExecuteTransactionResponse` is transparent, so these paths apply directly
-/// to `ExecutedTransaction` fields.
-pub const EXECUTE_TRANSACTION_READ_MASK: &str = field_mask!(
+/// These paths apply to each `ExecutedTransaction` within the
+/// `transaction_results` of the response.
+pub const EXECUTE_TRANSACTIONS_READ_MASK: &str = field_mask!(
     "transaction.digest",
     "effects",
     "events",
@@ -87,8 +87,8 @@ pub const EXECUTE_TRANSACTION_READ_MASK: &str = field_mask!(
     "output_objects",
 );
 
-/// Default read mask for `simulate_transaction`.
-pub const SIMULATE_TRANSACTION_READ_MASK: &str = field_mask!(
+/// Default read mask for `simulate_transactions`.
+pub const SIMULATE_TRANSACTIONS_READ_MASK: &str = field_mask!(
     "executed_transaction.transaction",
     "executed_transaction.effects",
     "executed_transaction.events",
@@ -182,8 +182,8 @@ pub const CHECKPOINT_CONTENTS_BCS: &str = "checkpoint.contents.bcs";
 // ExecutedTransaction — per-method field constants
 //
 // Direct (unprefixed) paths, usable with get_transactions and
-// execute_transaction. For checkpoint context prefix with "transactions.",
-// for simulate_transaction prefix with "executed_transaction.".
+// execute_transactions. For checkpoint context prefix with "transactions.",
+// for simulate_transactions prefix with "executed_transaction.".
 // ---------------------------------------------------------------------------
 
 /// Read mask for
@@ -321,29 +321,29 @@ pub const OBJECT_REFERENCE: &str = "reference";
 pub const OBJECT_BCS: &str = "bcs";
 
 // ---------------------------------------------------------------------------
-// SimulateTransactionResponse — per-method field constants
+// SimulatedTransaction — per-method field constants
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`SimulateTransactionResponse::executed_transaction()`](crate::v0::transaction_execution_service::SimulateTransactionResponse::executed_transaction).
+/// [`SimulatedTransaction::executed_transaction()`](crate::v0::transaction_execution_service::SimulatedTransaction::executed_transaction).
 ///
 /// Includes all ExecutedTransaction sub-fields. To request specific
 /// sub-fields, use paths like `"executed_transaction.effects"`.
-pub const SIMULATE_RESPONSE_EXECUTED_TRANSACTION: &str = "executed_transaction";
+pub const SIMULATED_TRANSACTION_EXECUTED_TRANSACTION: &str = "executed_transaction";
 
 /// Read mask for
-/// [`SimulateTransactionResponse::gas_price_suggested()`](crate::v0::transaction_execution_service::SimulateTransactionResponse::gas_price_suggested).
-pub const SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE: &str = "suggested_gas_price";
+/// [`SimulatedTransaction::gas_price_suggested()`](crate::v0::transaction_execution_service::SimulatedTransaction::gas_price_suggested).
+pub const SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE: &str = "suggested_gas_price";
 
 /// Read mask for
-/// [`SimulateTransactionResponse::execution_result()`](crate::v0::transaction_execution_service::SimulateTransactionResponse::execution_result),
-/// [`SimulateTransactionResponse::command_results()`](crate::v0::transaction_execution_service::SimulateTransactionResponse::command_results),
+/// [`SimulatedTransaction::execution_result()`](crate::v0::transaction_execution_service::SimulatedTransaction::execution_result),
+/// [`SimulatedTransaction::command_results()`](crate::v0::transaction_execution_service::SimulatedTransaction::command_results),
 /// and
-/// [`SimulateTransactionResponse::execution_error()`](crate::v0::transaction_execution_service::SimulateTransactionResponse::execution_error).
-pub const SIMULATE_RESPONSE_EXECUTION_RESULT: &str = "execution_result";
+/// [`SimulatedTransaction::execution_error()`](crate::v0::transaction_execution_service::SimulatedTransaction::execution_error).
+pub const SIMULATED_TRANSACTION_EXECUTION_RESULT: &str = "execution_result";
 
 // ---------------------------------------------------------------------------
-// ExecutionError — sub-field constants (relative to simulate_transaction)
+// ExecutionError — sub-field constants (relative to simulate_transactions)
 // ---------------------------------------------------------------------------
 
 /// Read mask for

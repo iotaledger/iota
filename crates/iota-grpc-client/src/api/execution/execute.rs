@@ -6,14 +6,14 @@
 use iota_grpc_types::v0::{
     signatures::{UserSignature as ProtoUserSignature, UserSignatures},
     transaction::ExecutedTransaction,
-    transaction_execution_service::ExecuteTransactionRequest,
+    transaction_execution_service::{ExecuteTransactionItem, ExecuteTransactionsRequest},
 };
 use iota_sdk_types::SignedTransaction;
 
 use crate::{
     Client,
     api::{
-        EXECUTE_TRANSACTION_READ_MASK, Error, MetadataEnvelope, Result, TryFromProtoError,
+        EXECUTE_TRANSACTIONS_READ_MASK, Error, MetadataEnvelope, ProtoResult, Result,
         build_proto_transaction, field_mask_with_default,
     },
 };
@@ -34,7 +34,7 @@ impl Client {
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`EXECUTE_TRANSACTION_READ_MASK`] which
+    /// returns. If `None`, uses [`EXECUTE_TRANSACTIONS_READ_MASK`] which
     /// includes effects, events, and input/output objects.
     ///
     /// ## Transaction Fields
@@ -112,38 +112,91 @@ impl Client {
         signed_transaction: SignedTransaction,
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<ExecutedTransaction>> {
-        // Build proto transaction directly from SDK types
-        let tx_digest = signed_transaction.transaction.digest();
-        let proto_transaction =
-            build_proto_transaction(&signed_transaction.transaction, tx_digest)?;
+        self.execute_transactions(vec![signed_transaction], read_mask)
+            .await?
+            .try_map(|results| {
+                results
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| Error::Protocol("empty transaction_results".into()))?
+            })
+    }
 
-        // Convert signatures to proto format
-        let proto_signatures = UserSignatures::default().with_signatures(
-            signed_transaction
-                .signatures
-                .into_iter()
-                .map(|sig| {
-                    ProtoUserSignature::try_from(sig).map_err(|e| Error::Signature(e.to_string()))
-                })
-                .collect::<Result<Vec<_>>>()?,
-        );
+    /// Execute a batch of signed transactions.
+    ///
+    /// Transactions are executed sequentially on the server. Each transaction
+    /// is independent — failure of one does not abort the rest.
+    ///
+    /// Returns a `Vec<Result<ExecutedTransaction>>` in the same order as the
+    /// input. Each element is either the successfully executed transaction or
+    /// the per-item error returned by the server.
+    ///
+    /// # Available Read Mask Fields
+    ///
+    /// The optional `read_mask` parameter controls which fields the server
+    /// returns for each `ExecutedTransaction`. If `None`, uses
+    /// [`EXECUTE_TRANSACTIONS_READ_MASK`] which includes effects, events, and
+    /// input/output objects.
+    ///
+    /// See [`execute_transaction`](Self::execute_transaction) for the full list
+    /// of supported read mask fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::EmptyRequest`] if `transactions` is empty.
+    /// Returns a transport-level [`Error::Grpc`] if the entire RPC fails
+    /// (e.g. batch size exceeded).
+    pub async fn execute_transactions(
+        &self,
+        transactions: Vec<SignedTransaction>,
+        read_mask: Option<&str>,
+    ) -> Result<MetadataEnvelope<Vec<Result<ExecutedTransaction>>>> {
+        if transactions.is_empty() {
+            return Err(Error::EmptyRequest);
+        }
 
-        let request = ExecuteTransactionRequest::default()
-            .with_transaction(proto_transaction)
-            .with_signatures(proto_signatures)
+        let items = transactions
+            .into_iter()
+            .map(build_execute_item)
+            .collect::<Result<Vec<_>>>()?;
+
+        let request = ExecuteTransactionsRequest::default()
+            .with_transactions(items)
             .with_read_mask(field_mask_with_default(
                 read_mask,
-                EXECUTE_TRANSACTION_READ_MASK,
+                EXECUTE_TRANSACTIONS_READ_MASK,
             ));
 
         let response = self
             .execution_service_client()
-            .execute_transaction(request)
+            .execute_transactions(request)
             .await?;
 
         MetadataEnvelope::from(response).try_map(|r| {
-            r.executed_transaction
-                .ok_or_else(|| TryFromProtoError::missing("executed_transaction").into())
+            Ok(r.transaction_results
+                .into_iter()
+                .map(ProtoResult::into_result)
+                .collect())
         })
     }
+}
+
+/// Convert a `SignedTransaction` into a proto `ExecuteTransactionItem`.
+fn build_execute_item(signed_transaction: SignedTransaction) -> Result<ExecuteTransactionItem> {
+    let tx_digest = signed_transaction.transaction.digest();
+    let proto_transaction = build_proto_transaction(&signed_transaction.transaction, tx_digest)?;
+
+    let proto_signatures = UserSignatures::default().with_signatures(
+        signed_transaction
+            .signatures
+            .into_iter()
+            .map(|sig| {
+                ProtoUserSignature::try_from(sig).map_err(|e| Error::Signature(e.to_string()))
+            })
+            .collect::<Result<Vec<_>>>()?,
+    );
+
+    Ok(ExecuteTransactionItem::default()
+        .with_transaction(proto_transaction)
+        .with_signatures(proto_signatures))
 }

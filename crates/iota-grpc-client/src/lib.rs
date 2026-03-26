@@ -36,6 +36,7 @@
 pub mod api;
 
 // Re-export all read mask constants (per-method fields)
+pub use api::execution::simulate::SimulateTransactionInput;
 pub use api::{
     // CheckpointResponse per-method masks
     CHECKPOINT_CONTENTS_BCS,
@@ -73,10 +74,10 @@ pub use api::{
     // Object per-method masks
     OBJECT_BCS,
     OBJECT_REFERENCE,
-    // SimulateTransactionResponse per-method masks
-    SIMULATE_RESPONSE_EXECUTED_TRANSACTION,
-    SIMULATE_RESPONSE_EXECUTION_RESULT,
-    SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE,
+    // SimulatedTransaction per-method masks
+    SIMULATED_TRANSACTION_EXECUTED_TRANSACTION,
+    SIMULATED_TRANSACTION_EXECUTION_RESULT,
+    SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE,
     // Transaction / Effects / Events sub-fields
     TRANSACTION_BCS,
     TRANSACTION_DIGEST,
@@ -92,13 +93,13 @@ pub use api::{
 // Re-export all read mask constants (endpoint defaults)
 pub use api::{
     // Endpoint defaults
-    EXECUTE_TRANSACTION_READ_MASK,
+    EXECUTE_TRANSACTIONS_READ_MASK,
     GET_CHECKPOINT_READ_MASK,
     GET_EPOCH_READ_MASK,
     GET_OBJECTS_READ_MASK,
     GET_SERVICE_INFO_READ_MASK,
     GET_TRANSACTIONS_READ_MASK,
-    SIMULATE_TRANSACTION_READ_MASK,
+    SIMULATE_TRANSACTIONS_READ_MASK,
 };
 
 mod client;
