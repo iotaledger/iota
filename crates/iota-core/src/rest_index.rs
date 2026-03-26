@@ -384,8 +384,7 @@ struct IndexStoreTables {
     ///
     /// Only contains entries for epochs which have yet to be pruned from the
     /// main database.
-    // TODO: add checkpoint summary of last checkpoint (end_of_epoch_transaction?
-    // epoch_commitments?)
+    // TODO: https://github.com/iotaledger/iota/issues/10957
     epochs: DBMap<EpochId, EpochInfo>,
 
     /// An index of extra metadata for Transactions.
@@ -1715,8 +1714,7 @@ fn backfill_new_tables(
             // the entire flush.
             if backfill_coin_v2 {
                 for (key, backfill_value) in coin_v2_index.into_inner().unwrap() {
-                    let mut existing =
-                        tables.coin_v2.get(&key).ok().flatten().unwrap_or_default();
+                    let mut existing = tables.coin_v2.get(&key).ok().flatten().unwrap_or_default();
                     existing.merge(backfill_value);
                     if let Err(e) = tables.coin_v2.insert(&key, &existing) {
                         tracing::error!("Failed to flush coin_v2 entry: {e}");
