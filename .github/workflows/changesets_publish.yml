@@ -18,7 +18,6 @@ env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
   APPS_BACKEND: ${{ secrets.CHANGESETS_APPS_BACKEND }}
-  NPM_TOKEN: ""
 
 permissions:
   id-token: write
