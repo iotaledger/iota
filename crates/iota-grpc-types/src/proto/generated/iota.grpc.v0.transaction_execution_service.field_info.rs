@@ -27,7 +27,7 @@ mod _field_impls {
     use crate::v0::transaction::Transaction;
     #[allow(unused_imports)]
     use crate::v0::transaction::TransactionFieldPathBuilder;
-    impl ExecuteTransactionRequest {
+    impl ExecuteTransactionItem {
         pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
             name: "transaction",
             json_name: "transaction",
@@ -44,31 +44,22 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(UserSignature::FIELDS),
         };
-        pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "read_mask",
-            json_name: "readMask",
-            number: 3i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: None,
-        };
     }
-    impl MessageFields for ExecuteTransactionRequest {
+    impl MessageFields for ExecuteTransactionItem {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
             Self::SIGNATURES_FIELD,
-            Self::READ_MASK_FIELD,
         ];
     }
-    impl ExecuteTransactionRequest {
-        pub fn path_builder() -> ExecuteTransactionRequestFieldPathBuilder {
-            ExecuteTransactionRequestFieldPathBuilder::new()
+    impl ExecuteTransactionItem {
+        pub fn path_builder() -> ExecuteTransactionItemFieldPathBuilder {
+            ExecuteTransactionItemFieldPathBuilder::new()
         }
     }
-    pub struct ExecuteTransactionRequestFieldPathBuilder {
+    pub struct ExecuteTransactionItemFieldPathBuilder {
         path: Vec<&'static str>,
     }
-    impl ExecuteTransactionRequestFieldPathBuilder {
+    impl ExecuteTransactionItemFieldPathBuilder {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self { path: Default::default() }
@@ -81,42 +72,104 @@ mod _field_impls {
             self.path.join(".")
         }
         pub fn transaction(mut self) -> TransactionFieldPathBuilder {
-            self.path.push(ExecuteTransactionRequest::TRANSACTION_FIELD.name);
+            self.path.push(ExecuteTransactionItem::TRANSACTION_FIELD.name);
             TransactionFieldPathBuilder::new_with_base(self.path)
         }
         pub fn signatures(mut self) -> UserSignatureFieldPathBuilder {
-            self.path.push(ExecuteTransactionRequest::SIGNATURES_FIELD.name);
+            self.path.push(ExecuteTransactionItem::SIGNATURES_FIELD.name);
             UserSignatureFieldPathBuilder::new_with_base(self.path)
         }
+    }
+    impl ExecuteTransactionsRequest {
+        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
+            name: "transactions",
+            json_name: "transactions",
+            number: 1i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(ExecuteTransactionItem::FIELDS),
+        };
+        pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
+            name: "read_mask",
+            json_name: "readMask",
+            number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl MessageFields for ExecuteTransactionsRequest {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::TRANSACTIONS_FIELD,
+            Self::READ_MASK_FIELD,
+        ];
+    }
+    impl ExecuteTransactionsRequest {
+        pub fn path_builder() -> ExecuteTransactionsRequestFieldPathBuilder {
+            ExecuteTransactionsRequestFieldPathBuilder::new()
+        }
+    }
+    pub struct ExecuteTransactionsRequestFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl ExecuteTransactionsRequestFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn transactions(mut self) -> ExecuteTransactionItemFieldPathBuilder {
+            self.path.push(ExecuteTransactionsRequest::TRANSACTIONS_FIELD.name);
+            ExecuteTransactionItemFieldPathBuilder::new_with_base(self.path)
+        }
         pub fn read_mask(mut self) -> String {
-            self.path.push(ExecuteTransactionRequest::READ_MASK_FIELD.name);
+            self.path.push(ExecuteTransactionsRequest::READ_MASK_FIELD.name);
             self.finish()
         }
     }
-    impl ExecuteTransactionResponse {
+    impl ExecuteTransactionResult {
         pub const EXECUTED_TRANSACTION_FIELD: &'static MessageField = &MessageField {
             name: "executed_transaction",
             json_name: "executedTransaction",
             number: 1i32,
-            is_optional: true,
+            is_optional: false,
             is_map: false,
             message_fields: Some(ExecutedTransaction::FIELDS),
         };
+        pub const ERROR_FIELD: &'static MessageField = &MessageField {
+            name: "error",
+            json_name: "error",
+            number: 2i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: None,
+        };
     }
-    impl MessageFields for ExecuteTransactionResponse {
+    impl ExecuteTransactionResult {
+        pub const RESULT_ONEOF: &'static str = "result";
+    }
+    impl MessageFields for ExecuteTransactionResult {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::EXECUTED_TRANSACTION_FIELD,
+            Self::ERROR_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["result"];
     }
-    impl ExecuteTransactionResponse {
-        pub fn path_builder() -> ExecuteTransactionResponseFieldPathBuilder {
-            ExecuteTransactionResponseFieldPathBuilder::new()
+    impl ExecuteTransactionResult {
+        pub fn path_builder() -> ExecuteTransactionResultFieldPathBuilder {
+            ExecuteTransactionResultFieldPathBuilder::new()
         }
     }
-    pub struct ExecuteTransactionResponseFieldPathBuilder {
+    pub struct ExecuteTransactionResultFieldPathBuilder {
         path: Vec<&'static str>,
     }
-    impl ExecuteTransactionResponseFieldPathBuilder {
+    impl ExecuteTransactionResultFieldPathBuilder {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self { path: Default::default() }
@@ -129,11 +182,57 @@ mod _field_impls {
             self.path.join(".")
         }
         pub fn executed_transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(ExecuteTransactionResponse::EXECUTED_TRANSACTION_FIELD.name);
+            self.path.push(ExecuteTransactionResult::EXECUTED_TRANSACTION_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
+        pub fn error(mut self) -> String {
+            self.path.push(ExecuteTransactionResult::ERROR_FIELD.name);
+            self.finish()
+        }
     }
-    impl SimulateTransactionRequest {
+    impl ExecuteTransactionsResponse {
+        pub const TRANSACTION_RESULTS_FIELD: &'static MessageField = &MessageField {
+            name: "transaction_results",
+            json_name: "transactionResults",
+            number: 1i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(ExecuteTransactionResult::FIELDS),
+        };
+    }
+    impl MessageFields for ExecuteTransactionsResponse {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::TRANSACTION_RESULTS_FIELD,
+        ];
+    }
+    impl ExecuteTransactionsResponse {
+        pub fn path_builder() -> ExecuteTransactionsResponseFieldPathBuilder {
+            ExecuteTransactionsResponseFieldPathBuilder::new()
+        }
+    }
+    pub struct ExecuteTransactionsResponseFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl ExecuteTransactionsResponseFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn transaction_results(
+            mut self,
+        ) -> ExecuteTransactionResultFieldPathBuilder {
+            self.path.push(ExecuteTransactionsResponse::TRANSACTION_RESULTS_FIELD.name);
+            ExecuteTransactionResultFieldPathBuilder::new_with_base(self.path)
+        }
+    }
+    impl SimulateTransactionItem {
         pub const TRANSACTION_FIELD: &'static MessageField = &MessageField {
             name: "transaction",
             json_name: "transaction",
@@ -158,32 +257,23 @@ mod _field_impls {
             is_map: false,
             message_fields: None,
         };
-        pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
-            name: "read_mask",
-            json_name: "readMask",
-            number: 4i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: None,
-        };
     }
-    impl MessageFields for SimulateTransactionRequest {
+    impl MessageFields for SimulateTransactionItem {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
             Self::TX_CHECKS_FIELD,
             Self::ESTIMATE_GAS_BUDGET_FIELD,
-            Self::READ_MASK_FIELD,
         ];
     }
-    impl SimulateTransactionRequest {
-        pub fn path_builder() -> SimulateTransactionRequestFieldPathBuilder {
-            SimulateTransactionRequestFieldPathBuilder::new()
+    impl SimulateTransactionItem {
+        pub fn path_builder() -> SimulateTransactionItemFieldPathBuilder {
+            SimulateTransactionItemFieldPathBuilder::new()
         }
     }
-    pub struct SimulateTransactionRequestFieldPathBuilder {
+    pub struct SimulateTransactionItemFieldPathBuilder {
         path: Vec<&'static str>,
     }
-    impl SimulateTransactionRequestFieldPathBuilder {
+    impl SimulateTransactionItemFieldPathBuilder {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self { path: Default::default() }
@@ -196,19 +286,68 @@ mod _field_impls {
             self.path.join(".")
         }
         pub fn transaction(mut self) -> TransactionFieldPathBuilder {
-            self.path.push(SimulateTransactionRequest::TRANSACTION_FIELD.name);
+            self.path.push(SimulateTransactionItem::TRANSACTION_FIELD.name);
             TransactionFieldPathBuilder::new_with_base(self.path)
         }
         pub fn tx_checks(mut self) -> String {
-            self.path.push(SimulateTransactionRequest::TX_CHECKS_FIELD.name);
+            self.path.push(SimulateTransactionItem::TX_CHECKS_FIELD.name);
             self.finish()
         }
         pub fn estimate_gas_budget(mut self) -> String {
-            self.path.push(SimulateTransactionRequest::ESTIMATE_GAS_BUDGET_FIELD.name);
+            self.path.push(SimulateTransactionItem::ESTIMATE_GAS_BUDGET_FIELD.name);
             self.finish()
         }
+    }
+    impl SimulateTransactionsRequest {
+        pub const TRANSACTIONS_FIELD: &'static MessageField = &MessageField {
+            name: "transactions",
+            json_name: "transactions",
+            number: 1i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(SimulateTransactionItem::FIELDS),
+        };
+        pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
+            name: "read_mask",
+            json_name: "readMask",
+            number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl MessageFields for SimulateTransactionsRequest {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::TRANSACTIONS_FIELD,
+            Self::READ_MASK_FIELD,
+        ];
+    }
+    impl SimulateTransactionsRequest {
+        pub fn path_builder() -> SimulateTransactionsRequestFieldPathBuilder {
+            SimulateTransactionsRequestFieldPathBuilder::new()
+        }
+    }
+    pub struct SimulateTransactionsRequestFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl SimulateTransactionsRequestFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn transactions(mut self) -> SimulateTransactionItemFieldPathBuilder {
+            self.path.push(SimulateTransactionsRequest::TRANSACTIONS_FIELD.name);
+            SimulateTransactionItemFieldPathBuilder::new_with_base(self.path)
+        }
         pub fn read_mask(mut self) -> String {
-            self.path.push(SimulateTransactionRequest::READ_MASK_FIELD.name);
+            self.path.push(SimulateTransactionsRequest::READ_MASK_FIELD.name);
             self.finish()
         }
     }
@@ -278,7 +417,7 @@ mod _field_impls {
             self.finish()
         }
     }
-    impl SimulateTransactionResponse {
+    impl SimulatedTransaction {
         pub const EXECUTED_TRANSACTION_FIELD: &'static MessageField = &MessageField {
             name: "executed_transaction",
             json_name: "executedTransaction",
@@ -312,26 +451,27 @@ mod _field_impls {
             message_fields: Some(ExecutionError::FIELDS),
         };
     }
-    impl SimulateTransactionResponse {
+    impl SimulatedTransaction {
         pub const EXECUTION_RESULT_ONEOF: &'static str = "execution_result";
     }
-    impl MessageFields for SimulateTransactionResponse {
+    impl MessageFields for SimulatedTransaction {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::EXECUTED_TRANSACTION_FIELD,
             Self::SUGGESTED_GAS_PRICE_FIELD,
             Self::COMMAND_RESULTS_FIELD,
             Self::EXECUTION_ERROR_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["execution_result"];
     }
-    impl SimulateTransactionResponse {
-        pub fn path_builder() -> SimulateTransactionResponseFieldPathBuilder {
-            SimulateTransactionResponseFieldPathBuilder::new()
+    impl SimulatedTransaction {
+        pub fn path_builder() -> SimulatedTransactionFieldPathBuilder {
+            SimulatedTransactionFieldPathBuilder::new()
         }
     }
-    pub struct SimulateTransactionResponseFieldPathBuilder {
+    pub struct SimulatedTransactionFieldPathBuilder {
         path: Vec<&'static str>,
     }
-    impl SimulateTransactionResponseFieldPathBuilder {
+    impl SimulatedTransactionFieldPathBuilder {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self { path: Default::default() }
@@ -344,20 +484,119 @@ mod _field_impls {
             self.path.join(".")
         }
         pub fn executed_transaction(mut self) -> ExecutedTransactionFieldPathBuilder {
-            self.path.push(SimulateTransactionResponse::EXECUTED_TRANSACTION_FIELD.name);
+            self.path.push(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name);
             ExecutedTransactionFieldPathBuilder::new_with_base(self.path)
         }
         pub fn suggested_gas_price(mut self) -> String {
-            self.path.push(SimulateTransactionResponse::SUGGESTED_GAS_PRICE_FIELD.name);
+            self.path.push(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name);
             self.finish()
         }
         pub fn command_results(mut self) -> CommandResultFieldPathBuilder {
-            self.path.push(SimulateTransactionResponse::COMMAND_RESULTS_FIELD.name);
+            self.path.push(SimulatedTransaction::COMMAND_RESULTS_FIELD.name);
             CommandResultFieldPathBuilder::new_with_base(self.path)
         }
         pub fn execution_error(mut self) -> ExecutionErrorFieldPathBuilder {
-            self.path.push(SimulateTransactionResponse::EXECUTION_ERROR_FIELD.name);
+            self.path.push(SimulatedTransaction::EXECUTION_ERROR_FIELD.name);
             ExecutionErrorFieldPathBuilder::new_with_base(self.path)
+        }
+    }
+    impl SimulateTransactionResult {
+        pub const SIMULATED_TRANSACTION_FIELD: &'static MessageField = &MessageField {
+            name: "simulated_transaction",
+            json_name: "simulatedTransaction",
+            number: 1i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(SimulatedTransaction::FIELDS),
+        };
+        pub const ERROR_FIELD: &'static MessageField = &MessageField {
+            name: "error",
+            json_name: "error",
+            number: 2i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl SimulateTransactionResult {
+        pub const RESULT_ONEOF: &'static str = "result";
+    }
+    impl MessageFields for SimulateTransactionResult {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::SIMULATED_TRANSACTION_FIELD,
+            Self::ERROR_FIELD,
+        ];
+        const ONEOFS: &'static [&'static str] = &["result"];
+    }
+    impl SimulateTransactionResult {
+        pub fn path_builder() -> SimulateTransactionResultFieldPathBuilder {
+            SimulateTransactionResultFieldPathBuilder::new()
+        }
+    }
+    pub struct SimulateTransactionResultFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl SimulateTransactionResultFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn simulated_transaction(mut self) -> SimulatedTransactionFieldPathBuilder {
+            self.path.push(SimulateTransactionResult::SIMULATED_TRANSACTION_FIELD.name);
+            SimulatedTransactionFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn error(mut self) -> String {
+            self.path.push(SimulateTransactionResult::ERROR_FIELD.name);
+            self.finish()
+        }
+    }
+    impl SimulateTransactionsResponse {
+        pub const TRANSACTION_RESULTS_FIELD: &'static MessageField = &MessageField {
+            name: "transaction_results",
+            json_name: "transactionResults",
+            number: 1i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: Some(SimulateTransactionResult::FIELDS),
+        };
+    }
+    impl MessageFields for SimulateTransactionsResponse {
+        const FIELDS: &'static [&'static MessageField] = &[
+            Self::TRANSACTION_RESULTS_FIELD,
+        ];
+    }
+    impl SimulateTransactionsResponse {
+        pub fn path_builder() -> SimulateTransactionsResponseFieldPathBuilder {
+            SimulateTransactionsResponseFieldPathBuilder::new()
+        }
+    }
+    pub struct SimulateTransactionsResponseFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl SimulateTransactionsResponseFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn transaction_results(
+            mut self,
+        ) -> SimulateTransactionResultFieldPathBuilder {
+            self.path.push(SimulateTransactionsResponse::TRANSACTION_RESULTS_FIELD.name);
+            SimulateTransactionResultFieldPathBuilder::new_with_base(self.path)
         }
     }
 }

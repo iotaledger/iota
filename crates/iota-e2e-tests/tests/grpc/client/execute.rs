@@ -153,11 +153,20 @@ async fn execute_transaction_invalid_signature() {
 
     let result = client.execute_transaction(signed_tx, None).await;
 
-    // Transaction with invalid signature should be rejected
-    assert!(
-        matches!(result, Err(Error::Grpc(_)) | Err(Error::Signature(_))),
-        "Expected Grpc or Signature error, got: {result:?}"
-    );
+    // With batch semantics, per-item validation errors come back as Error::Server
+    let err = result.expect_err("Expected error for invalid signature");
+    match &err {
+        Error::Server(status) => {
+            assert_eq!(
+                status.code,
+                tonic::Code::InvalidArgument as i32,
+                "Expected InvalidArgument, got code {}: {}",
+                status.code,
+                status.message
+            );
+        }
+        other => panic!("Expected Server error for invalid signature, got: {other:?}"),
+    }
 }
 
 #[sim_test]

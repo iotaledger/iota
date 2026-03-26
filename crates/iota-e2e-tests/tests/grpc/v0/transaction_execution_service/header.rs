@@ -5,15 +5,17 @@ use iota_grpc_types::{
     headers,
     v0::{
         bcs::BcsData,
-        signatures::{UserSignature, UserSignatures},
         transaction::Transaction as ProtoTransaction,
-        transaction_execution_service::{ExecuteTransactionRequest, SimulateTransactionRequest},
+        transaction_execution_service::{
+            ExecuteTransactionsRequest, SimulateTransactionItem, SimulateTransactionsRequest,
+        },
     },
 };
 use iota_macros::sim_test;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::transaction::TransactionData;
 
+use super::build_item;
 use crate::{
     utils::setup_grpc_test_with_builder,
     v0::header::{parse_u64_header, verify_iota_headers},
@@ -29,7 +31,7 @@ async fn test_response_headers() {
     let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
     let amount = 9;
 
-    // Test execute_transaction
+    // Test execute_transactions
     {
         test_cluster.wait_for_epoch(Some(2)).await;
 
@@ -37,37 +39,24 @@ async fn test_response_headers() {
             make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount))
                 .await;
 
-        let transaction = ProtoTransaction::default()
-            .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction_data()).unwrap()));
-
-        let signatures = UserSignatures::default().with_signatures(
-            txn.tx_signatures()
-                .iter()
-                .map(|s| {
-                    UserSignature::default()
-                        .with_bcs(BcsData::default().with_data(bcs::to_bytes(s).unwrap()))
-                })
-                .collect(),
-        );
+        let item = build_item(&txn);
 
         let response = exec_client
-            .execute_transaction(
-                ExecuteTransactionRequest::default()
-                    .with_transaction(transaction)
-                    .with_signatures(signatures),
+            .execute_transactions(
+                ExecuteTransactionsRequest::default().with_transactions(vec![item]),
             )
             .await
             .unwrap();
 
         let metadata = response.metadata();
-        verify_iota_headers(metadata, "execute_transaction");
+        verify_iota_headers(metadata, "execute_transactions");
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
         assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
-    // Test simulate_transaction
+    // Test simulate_transactions
     {
         test_cluster.wait_for_epoch(Some(3)).await;
 
@@ -90,16 +79,18 @@ async fn test_response_headers() {
         let transaction = ProtoTransaction::default()
             .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
 
-        let request = SimulateTransactionRequest::default()
+        let item = SimulateTransactionItem::default()
             .with_transaction(transaction)
             .with_tx_checks(vec![])
             .with_estimate_gas_budget(true);
 
+        let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
+
         // Simulate the transaction
-        let response = exec_client.simulate_transaction(request).await.unwrap();
+        let response = exec_client.simulate_transactions(request).await.unwrap();
 
         let metadata = response.metadata();
-        verify_iota_headers(metadata, "simulate_transaction");
+        verify_iota_headers(metadata, "simulate_transactions");
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);

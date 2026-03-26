@@ -329,6 +329,7 @@ mod _field_impls {
             Self::MOVE_EVENT_PACKAGE_AND_MODULE_FIELD,
             Self::MOVE_EVENT_TYPE_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["filter"];
     }
     impl EventFilter {
         pub fn path_builder() -> EventFilterFieldPathBuilder {
@@ -873,6 +874,7 @@ mod _field_impls {
             Self::MAKE_MOVE_VEC_FIELD,
             Self::UPGRADE_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["filter"];
     }
     impl CommandFilter {
         pub fn path_builder() -> CommandFilterFieldPathBuilder {
@@ -1061,6 +1063,7 @@ mod _field_impls {
             Self::COMMAND_FIELD,
             Self::EVENT_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["filter"];
     }
     impl TransactionFilter {
         pub fn path_builder() -> TransactionFilterFieldPathBuilder {

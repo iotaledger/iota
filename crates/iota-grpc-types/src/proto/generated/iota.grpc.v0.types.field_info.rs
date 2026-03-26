@@ -332,6 +332,7 @@ mod _field_impls {
             Self::VECTOR_TAG_FIELD,
             Self::STRUCT_TAG_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["type_tag"];
     }
     impl TypeTag {
         pub fn path_builder() -> TypeTagFieldPathBuilder {

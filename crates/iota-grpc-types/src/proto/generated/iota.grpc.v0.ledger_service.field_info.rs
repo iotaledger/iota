@@ -569,6 +569,7 @@ mod _field_impls {
             Self::OBJECT_FIELD,
             Self::ERROR_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["result"];
     }
     impl ObjectResult {
         pub fn path_builder() -> ObjectResultFieldPathBuilder {
@@ -820,6 +821,7 @@ mod _field_impls {
             Self::EXECUTED_TRANSACTION_FIELD,
             Self::ERROR_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["result"];
     }
     impl TransactionResult {
         pub fn path_builder() -> TransactionResultFieldPathBuilder {
@@ -974,6 +976,7 @@ mod _field_impls {
             Self::EVENTS_FILTER_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["checkpoint_id"];
     }
     impl GetCheckpointRequest {
         pub fn path_builder() -> GetCheckpointRequestFieldPathBuilder {
@@ -1208,6 +1211,7 @@ mod _field_impls {
             Self::PROGRESS_FIELD,
             Self::END_MARKER_FIELD,
         ];
+        const ONEOFS: &'static [&'static str] = &["payload"];
     }
     impl CheckpointData {
         pub fn path_builder() -> CheckpointDataFieldPathBuilder {

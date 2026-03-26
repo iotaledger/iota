@@ -608,13 +608,63 @@ fn generate_message_fields_impl(message: &DescriptorProto) -> TokenStream {
         field_refs.extend(generate_field_reference(field));
     }
 
+    // Collect real (non-synthetic) oneof names for the ONEOFS constant.
+    let real_oneof_names = get_real_oneof_names(message);
+
+    let oneofs_impl = if real_oneof_names.is_empty() {
+        TokenStream::new()
+    } else {
+        let names = real_oneof_names.iter().map(|name| {
+            quote! { #name, }
+        });
+        quote! {
+            const ONEOFS: &'static [&'static str] = &[
+                #(#names)*
+            ];
+        }
+    };
+
     quote! {
         impl MessageFields for #message_ident {
             const FIELDS: &'static [&'static MessageField] = &[
                 #field_refs
             ];
+            #oneofs_impl
         }
     }
+}
+
+/// Returns the names of real (non-synthetic proto3-optional) oneofs in a
+/// message.
+fn get_real_oneof_names(message: &DescriptorProto) -> Vec<String> {
+    if message.oneof_decl.is_empty() {
+        return Vec::new();
+    }
+
+    let real_oneof_indices: HashSet<i32> = message
+        .field
+        .iter()
+        .filter_map(|field| {
+            if field.oneof_index.is_some() && !field.proto3_optional() {
+                field.oneof_index
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    message
+        .oneof_decl
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, oneof)| {
+            if real_oneof_indices.contains(&(idx as i32)) {
+                Some(oneof.name().to_string())
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn generate_field_constant(

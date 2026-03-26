@@ -7,6 +7,10 @@ use iota_grpc_types::v0::{
     bcs::BcsData,
     ledger_service::{ObjectResult, TransactionResult, object_result, transaction_result},
     transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
+    transaction_execution_service::{
+        ExecuteTransactionResult, SimulateTransactionResult, SimulatedTransaction,
+        execute_transaction_result, simulate_transaction_result,
+    },
 };
 pub use iota_grpc_types::{
     field::{FieldMask, FieldMaskUtil},
@@ -121,6 +125,36 @@ impl ProtoResult for TransactionResult {
             Some(transaction_result::Result::Error(e)) => Err(Error::Server(e)),
             None => Err(TryFromProtoError::missing("result").into()),
             Some(_) => Err(Error::Protocol("Unknown transaction result type".into())),
+        }
+    }
+}
+
+impl ProtoResult for ExecuteTransactionResult {
+    type Value = ExecutedTransaction;
+
+    fn into_result(self) -> Result<Self::Value> {
+        match self.result {
+            Some(execute_transaction_result::Result::ExecutedTransaction(tx)) => Ok(tx),
+            Some(execute_transaction_result::Result::Error(e)) => Err(Error::Server(e)),
+            None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::Protocol(
+                "Unknown execute transaction result type".into(),
+            )),
+        }
+    }
+}
+
+impl ProtoResult for SimulateTransactionResult {
+    type Value = SimulatedTransaction;
+
+    fn into_result(self) -> Result<Self::Value> {
+        match self.result {
+            Some(simulate_transaction_result::Result::SimulatedTransaction(tx)) => Ok(tx),
+            Some(simulate_transaction_result::Result::Error(e)) => Err(Error::Server(e)),
+            None => Err(TryFromProtoError::missing("result").into()),
+            Some(_) => Err(Error::Protocol(
+                "Unknown simulate transaction result type".into(),
+            )),
         }
     }
 }

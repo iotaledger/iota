@@ -4,18 +4,29 @@
 //! High-level API for transaction simulation.
 
 use iota_grpc_types::v0::transaction_execution_service::{
-    SimulateTransactionRequest, SimulateTransactionResponse,
-    simulate_transaction_request::TransactionCheckModes,
+    SimulateTransactionItem, SimulateTransactionsRequest, SimulatedTransaction,
+    simulate_transaction_item::TransactionCheckModes,
 };
 use iota_sdk_types::Transaction;
 
 use crate::{
     Client,
     api::{
-        MetadataEnvelope, Result, SIMULATE_TRANSACTION_READ_MASK, build_proto_transaction,
-        field_mask_with_default,
+        Error, MetadataEnvelope, ProtoResult, Result, SIMULATE_TRANSACTIONS_READ_MASK,
+        build_proto_transaction, field_mask_with_default,
     },
 };
+
+/// A single transaction with simulation options for use in batch simulation.
+pub struct SimulateTransactionInput {
+    /// The transaction to simulate.
+    pub transaction: Transaction,
+    /// Set to true for relaxed Move VM checks (useful for debugging and
+    /// development).
+    pub dev_inspect: bool,
+    /// Set to true to estimate the gas budget required.
+    pub estimate_gas_budget: bool,
+}
 
 impl Client {
     /// Simulate a transaction without executing it.
@@ -31,7 +42,7 @@ impl Client {
     /// - `estimate_gas_budget`: Set to true to estimate the gas budget required
     /// - `read_mask`: Optional field mask to control which fields are returned
     ///
-    /// Returns [`SimulateTransactionResponse`] which contains:
+    /// Returns [`SimulatedTransaction`] which contains:
     /// - `executed_transaction()` - Access to the simulated ExecutedTransaction
     /// - `command_results()` - Access to intermediate command execution results
     ///
@@ -47,7 +58,7 @@ impl Client {
     /// # Available Read Mask Fields
     ///
     /// The optional `read_mask` parameter controls which fields the server
-    /// returns. If `None`, uses [`SIMULATE_TRANSACTION_READ_MASK`] which
+    /// returns. If `None`, uses [`SIMULATE_TRANSACTIONS_READ_MASK`] which
     /// includes effects, events, and input/output objects.
     ///
     /// ## Transaction Fields
@@ -176,30 +187,95 @@ impl Client {
         dev_inspect: bool,
         estimate_gas_budget: bool,
         read_mask: Option<&str>,
-    ) -> Result<MetadataEnvelope<SimulateTransactionResponse>> {
-        // Build proto transaction directly from SDK types
-        let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
+    ) -> Result<MetadataEnvelope<SimulatedTransaction>> {
+        self.simulate_transactions(
+            vec![SimulateTransactionInput {
+                transaction,
+                dev_inspect,
+                estimate_gas_budget,
+            }],
+            read_mask,
+        )
+        .await?
+        .try_map(|results| {
+            results
+                .into_iter()
+                .next()
+                .ok_or_else(|| Error::Protocol("empty transaction_results".into()))?
+        })
+    }
 
-        let tx_checks = if dev_inspect {
-            vec![TransactionCheckModes::DisableVmChecks as i32]
-        } else {
-            vec![]
-        };
+    /// Simulate a batch of transactions without executing them.
+    ///
+    /// Transactions are simulated sequentially on the server. Each transaction
+    /// is independent — failure of one does not abort the rest.
+    ///
+    /// Returns a `Vec<Result<SimulatedTransaction>>` in the same order as the
+    /// input. Each element is either the successfully simulated transaction or
+    /// the per-item error returned by the server.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::EmptyRequest`] if `transactions` is empty.
+    /// Returns a transport-level [`Error::Grpc`] if the entire RPC fails
+    /// (e.g. batch size exceeded).
+    pub async fn simulate_transactions(
+        &self,
+        transactions: Vec<SimulateTransactionInput>,
+        read_mask: Option<&str>,
+    ) -> Result<MetadataEnvelope<Vec<Result<SimulatedTransaction>>>> {
+        if transactions.is_empty() {
+            return Err(Error::EmptyRequest);
+        }
 
-        let request = SimulateTransactionRequest::default()
-            .with_transaction(proto_transaction)
-            .with_tx_checks(tx_checks)
-            .with_estimate_gas_budget(estimate_gas_budget)
+        let items = transactions
+            .into_iter()
+            .map(|input| {
+                build_simulate_item(
+                    input.transaction,
+                    input.dev_inspect,
+                    input.estimate_gas_budget,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let request = SimulateTransactionsRequest::default()
+            .with_transactions(items)
             .with_read_mask(field_mask_with_default(
                 read_mask,
-                SIMULATE_TRANSACTION_READ_MASK,
+                SIMULATE_TRANSACTIONS_READ_MASK,
             ));
 
         let response = self
             .execution_service_client()
-            .simulate_transaction(request)
+            .simulate_transactions(request)
             .await?;
 
-        Ok(MetadataEnvelope::from(response))
+        MetadataEnvelope::from(response).try_map(|r| {
+            Ok(r.transaction_results
+                .into_iter()
+                .map(ProtoResult::into_result)
+                .collect())
+        })
     }
+}
+
+/// Convert a transaction and options into a proto `SimulateTransactionItem`.
+fn build_simulate_item(
+    transaction: Transaction,
+    dev_inspect: bool,
+    estimate_gas_budget: bool,
+) -> Result<SimulateTransactionItem> {
+    let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
+
+    let tx_checks = if dev_inspect {
+        vec![TransactionCheckModes::DisableVmChecks as i32]
+    } else {
+        vec![]
+    };
+
+    Ok(SimulateTransactionItem::default()
+        .with_transaction(proto_transaction)
+        .with_tx_checks(tx_checks)
+        .with_estimate_gas_budget(estimate_gas_budget))
 }
