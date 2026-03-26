@@ -43,6 +43,7 @@ feature_flags:
   metadata_in_module_bytes: true
   publish_package_metadata: true
   enable_move_authentication: true
+  enable_move_authentication_for_sponsor: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
   adjust_rewards_by_score: true
