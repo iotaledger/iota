@@ -1,7 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { AppsBackendClientOptions, FeatureDefinition, FeaturesResponse } from './types';
+import type {
+    AppsBackendClientOptions,
+    AppListItem,
+    AppsResponse,
+    CoinPriceResponse,
+    FeatureDefinition,
+    FeaturesResponse,
+    MonitorNetworkResponse,
+    ProductAnalyticsConfigResponse,
+} from './types';
 
 export class AppsBackendClient {
     private url: string;
@@ -62,6 +71,39 @@ export class AppsBackendClient {
 
     getSnapshot(): Record<string, FeatureDefinition> {
         return this.snapshot;
+    }
+
+    async getApps(network: string): Promise<AppsResponse> {
+        return this.request('api/features/apps', { network });
+    }
+
+    async getCoinPrice(coin: string): Promise<CoinPriceResponse> {
+        return this.request(`coin-price/${coin}`);
+    }
+
+    async getMonitorNetwork(project: string): Promise<MonitorNetworkResponse> {
+        return this.request('monitor-network', { project });
+    }
+
+    async getProductAnalyticsConfig(): Promise<ProductAnalyticsConfigResponse> {
+        return this.request('product-analytics');
+    }
+
+    async request<T>(
+        path: string,
+        queryParams?: Record<string, string>,
+        options?: RequestInit,
+    ): Promise<T> {
+        const base = `${this.url}/${path}`;
+        const url =
+            queryParams && Object.keys(queryParams).length > 0
+                ? `${base}?${new URLSearchParams(queryParams)}`
+                : base;
+        const res = await fetch(url, options);
+        if (!res.ok) {
+            throw new Error('Unexpected response');
+        }
+        return res.json();
     }
 
     private updateSnapshot(): void {

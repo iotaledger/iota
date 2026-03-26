@@ -4,9 +4,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useAppsBackend } from '@iota/core';
+import { useAppsBackendClient, type AppListItem } from '@iota/apps-backend-client';
 import { useQuery } from '@tanstack/react-query';
-import { type AppListItem } from './appList.types';
 import { getDefaultNetwork } from '@iota/iota-sdk/client';
 import { ExternalLink } from '@/components/ExternalLink';
 
@@ -34,18 +33,11 @@ const AppListItem = (props: AppListItem) => {
 };
 
 export const AppList = () => {
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
 
-    const { data, isLoading } = useQuery<{
-        status: number;
-        apps: AppListItem[];
-        dataUpdated: string;
-    }>({
+    const { data, isLoading } = useQuery({
         queryKey: ['apps'],
-        queryFn: () =>
-            request('api/features/apps', {
-                network: getDefaultNetwork(),
-            }),
+        queryFn: () => client.getApps(getDefaultNetwork()),
     });
 
     if (isLoading) {

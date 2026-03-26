@@ -22,6 +22,7 @@
 		"bcs": "turbo --filter ./sdk/bcs",
 		"isc-sdk": "turbo --filter ./sdk/isc-sdk",
 		"apps-backend": "turbo --filter apps-backend",
+		"apps-backend-client": "turbo --filter @iota/apps-backend-client",
 		"iota-docs": "turbo --filter iota-docs",
 		"examples": "turbo --filter ./sdk/examples",
 		"changeset-publish": "pnpm changeset publish",
