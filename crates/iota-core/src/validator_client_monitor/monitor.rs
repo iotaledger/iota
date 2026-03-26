@@ -84,10 +84,10 @@ where
 
             let authority_agg = self.authority_aggregator.load();
 
-            let current_validators: Vec<_> = authority_agg.committee.names().cloned().collect();
+            let current_validators = authority_agg.committee.names();
             self.client_stats
                 .write()
-                .retain_validators(&current_validators);
+                .retain_validators(current_validators);
 
             let mut tasks = JoinSet::new();
 

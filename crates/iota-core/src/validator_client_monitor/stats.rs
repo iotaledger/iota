@@ -300,9 +300,9 @@ impl ClientObservedStats {
     }
 
     /// Retain only the specified validators, removing any others.
-    pub(super) fn retain_validators(&mut self, current_validators: &[AuthorityName]) {
+    pub(super) fn retain_validators<'a>(&mut self, current_validators: impl Iterator<Item = &'a AuthorityName>) {
         let cur_len = self.validator_stats.len();
-        let validator_set: HashSet<_> = current_validators.iter().collect();
+        let validator_set: HashSet<_> = current_validators.collect();
         self.validator_stats
             .retain(|validator, _| validator_set.contains(validator));
         let removed_count = cur_len - self.validator_stats.len();
