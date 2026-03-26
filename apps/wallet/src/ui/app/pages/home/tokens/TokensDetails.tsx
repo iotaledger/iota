@@ -243,7 +243,7 @@ export function TokenDetails() {
                                     });
                                     toast('Address copied');
                                 }}
-                                onOpen={() => ampli.openedExternalLink({ type: 'address' })}
+                                onOpen={() => ampli.openedLink({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>

@@ -107,14 +107,14 @@ export function MenuList() {
     }
 
     function onSupportClick() {
-        ampli.openedExternalLink({
+        ampli.openedLink({
             type: 'discord support',
         });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
-        ampli.openedExternalLink({ type: 'faqs documentation' });
+        ampli.openedLink({ type: 'faqs documentation' });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 

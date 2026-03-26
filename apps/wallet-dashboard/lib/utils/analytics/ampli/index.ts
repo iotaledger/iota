@@ -97,7 +97,7 @@ export interface ConnectedWalletProperties {
 }
 
 export interface CopiedElementProperties {
-    type: string;
+    type?: string;
 }
 
 export interface MigrationProperties {
@@ -116,8 +116,15 @@ export interface MigrationProperties {
     nftOutputObjects?: number;
 }
 
-export interface OpenedExternalLinkProperties {
-    type: string;
+export interface OpenedLinkProperties {
+    type?: string;
+    value?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | private, public |
+     */
+    visibility?: 'private' | 'public';
 }
 
 export interface SelectedValidatorProperties {
@@ -246,7 +253,7 @@ export class ConnectedWallet implements BaseEvent {
 export class CopiedElement implements BaseEvent {
     event_type = 'copied element';
 
-    constructor(public event_properties: CopiedElementProperties) {
+    constructor(public event_properties?: CopiedElementProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -259,10 +266,10 @@ export class Migration implements BaseEvent {
     }
 }
 
-export class OpenedExternalLink implements BaseEvent {
-    event_type = 'opened external link';
+export class OpenedLink implements BaseEvent {
+    event_type = 'opened link';
 
-    constructor(public event_properties: OpenedExternalLinkProperties) {
+    constructor(public event_properties?: OpenedLinkProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -545,7 +552,7 @@ export class Ampli {
    * @param options Amplitude event options.
    */
   copiedElement(
-    properties: CopiedElementProperties,
+    properties?: CopiedElementProperties,
     options?: EventOptions,
   ) {
     return this.track(new CopiedElement(properties), options);
@@ -569,20 +576,20 @@ export class Ampli {
   }
 
   /**
-   * opened external link
+   * opened link
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/opened%20external%20link)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/opened%20link)
    *
    * Event has no description in tracking plan.
    *
    * @param properties The event's properties (e.g. type)
    * @param options Amplitude event options.
    */
-  openedExternalLink(
-    properties: OpenedExternalLinkProperties,
+  openedLink(
+    properties?: OpenedLinkProperties,
     options?: EventOptions,
   ) {
-    return this.track(new OpenedExternalLink(properties), options);
+    return this.track(new OpenedLink(properties), options);
   }
 
   /**

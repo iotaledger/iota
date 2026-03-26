@@ -5816,11 +5816,11 @@ dependencies = [
  "iota-analytics-indexer-derive",
  "iota-config",
  "iota-data-ingestion-core",
+ "iota-grpc-client",
  "iota-indexer",
  "iota-json-rpc-types",
  "iota-metrics",
  "iota-package-resolver",
- "iota-rest-api",
  "iota-storage",
  "iota-types",
  "move-core-types",
@@ -6295,7 +6295,6 @@ dependencies = [
  "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
- "iota-rest-api",
  "iota-sdk-types",
  "iota-storage",
  "iota-types",
@@ -6347,7 +6346,6 @@ dependencies = [
  "iota-network",
  "iota-node",
  "iota-protocol-config",
- "iota-rest-api",
  "iota-sdk",
  "iota-sdk-types",
  "iota-simulator",
@@ -6781,6 +6779,7 @@ dependencies = [
  "http-body-util",
  "hyper 1.8.1",
  "hyper-util",
+ "iota-tls",
  "pin-project-lite",
  "reqwest",
  "socket2 0.5.7",
@@ -6829,7 +6828,6 @@ dependencies = [
  "iota-open-rpc",
  "iota-package-resolver",
  "iota-protocol-config",
- "iota-rest-api",
  "iota-storage",
  "iota-swarm-config",
  "iota-test-transaction-builder",
@@ -7158,7 +7156,6 @@ dependencies = [
  "iota-graphql-rpc-client",
  "iota-json-rpc-types",
  "iota-package-resolver",
- "iota-rest-api",
  "iota-sdk",
  "iota-types",
  "move-core-types",
@@ -7771,7 +7768,6 @@ dependencies = [
  "move-binary-format",
  "openapiv3",
  "prometheus",
- "reqwest",
  "schemars",
  "serde",
  "serde_json",
@@ -7779,7 +7775,6 @@ dependencies = [
  "serde_yaml",
  "tap",
  "tokio",
- "url",
 ]
 
 [[package]]
@@ -7878,7 +7873,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=654ddd7608ef5662611ae13edfe8cf4fd3b25ba0#654ddd7608ef5662611ae13edfe8cf4fd3b25ba0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e19c78a1bee17e0bf85fcd5b16a2f080cef26274#e19c78a1bee17e0bf85fcd5b16a2f080cef26274"
 dependencies = [
  "bip32",
  "bip39",
@@ -7893,7 +7888,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=654ddd7608ef5662611ae13edfe8cf4fd3b25ba0#654ddd7608ef5662611ae13edfe8cf4fd3b25ba0"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e19c78a1bee17e0bf85fcd5b16a2f080cef26274#e19c78a1bee17e0bf85fcd5b16a2f080cef26274"
 dependencies = [
  "base64ct",
  "bcs",

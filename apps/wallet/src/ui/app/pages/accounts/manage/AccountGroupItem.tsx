@@ -58,7 +58,7 @@ export function AccountGroupItem({
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
-        ampli.openedExternalLink({ type: 'address' });
+        ampli.openedLink({ type: 'address' });
     }
 
     function handleRename() {
