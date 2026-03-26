@@ -920,20 +920,26 @@ impl ConsensusOutputQuarantine {
         };
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
-            .filter_map(|tx| {
-                if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+            .filter_map(|tx| match &tx.0.transaction {
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
                     kind: ConsensusTransactionKind::CertifiedTransaction(tx),
                     ..
-                }) = &tx.0.transaction
-                {
-                    Some(
-                        tx.shared_input_objects()
-                            .into_iter()
-                            .map(|obj| obj.object_id),
-                    )
-                } else {
-                    None
-                }
+                }) => Some(
+                    tx.shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
+                SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
+                    ..
+                }) => Some(
+                    tx.shared_input_objects()
+                        .into_iter()
+                        .map(|obj| obj.object_id)
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
             })
             .flatten()
             .collect();

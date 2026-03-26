@@ -1528,6 +1528,10 @@ impl ValidatorService {
             // all transactions are either accepted or rejected together.
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
             if !reconfiguration_lock.should_accept_user_certs() {
+                // NOTE: `handle_transaction` increments the same counter on the signing path.
+                // But since `handle_transaction` and `submit_transaction_impl` are mutually
+                // exclusive based on the `enable_white_flag_flow` protocol parameter,
+                // it is fine to use `num_rejected_tx_in_epoch_boundary` here.
                 metrics
                     .num_rejected_tx_in_epoch_boundary
                     .inc_by(transactions.len() as u64);
@@ -1797,7 +1801,8 @@ impl ValidatorService {
                 num_inflight_execution_transactions: self
                     .state
                     .transaction_manager()
-                    .inflight_queue_len() as u64,
+                    .inflight_queue_len()
+                    as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter
                     .num_inflight_transactions(),
