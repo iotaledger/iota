@@ -1,8 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::v0::state_service::ListDynamicFieldsRequest;
+use iota_grpc_types::{field::FieldMaskUtil, v0::state_service::ListDynamicFieldsRequest};
 use iota_macros::sim_test;
+use prost_types::FieldMask;
 
 use crate::{
     collect_streaming_responses,
@@ -77,5 +78,80 @@ async fn list_dynamic_fields_no_fields() {
     assert_eq!(
         total_fields, 0,
         "Clock object should have no dynamic fields"
+    );
+}
+
+#[sim_test]
+async fn list_dynamic_fields_with_readmask() {
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let mut state_client = client.state_service_client();
+
+    // Request only "kind" — other index-only fields (parent, field_id, etc.)
+    // should be absent.
+    let request = ListDynamicFieldsRequest::default()
+        .with_parent(object_id_from_hex("0x5"))
+        .with_read_mask(FieldMask::from_paths(["kind"]));
+
+    let responses = collect_streaming_responses!(
+        state_client,
+        list_dynamic_fields,
+        request,
+        "partial readmask"
+    );
+
+    let fields: Vec<_> = responses.iter().flat_map(|r| &r.dynamic_fields).collect();
+    assert!(!fields.is_empty(), "Should return fields with partial mask");
+
+    for field in &fields {
+        assert!(
+            field.kind.is_some(),
+            "kind should be populated when requested"
+        );
+        assert!(
+            field.parent.is_none(),
+            "parent should be absent when not in read mask"
+        );
+        assert!(
+            field.field_id.is_none(),
+            "field_id should be absent when not in read mask"
+        );
+    }
+}
+
+#[sim_test]
+async fn list_dynamic_fields_with_limit() {
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let mut state_client = client.state_service_client();
+
+    let request = ListDynamicFieldsRequest::default()
+        .with_parent(object_id_from_hex("0x5"))
+        .with_limit(1);
+
+    let responses =
+        collect_streaming_responses!(state_client, list_dynamic_fields, request, "with limit=1");
+
+    let total_fields: usize = responses.iter().map(|r| r.dynamic_fields.len()).sum();
+    assert_eq!(
+        total_fields, 1,
+        "Should return exactly 1 dynamic field, got {total_fields}"
+    );
+}
+
+#[sim_test]
+async fn list_dynamic_fields_invalid_readmask() {
+    let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let mut state_client = client.state_service_client();
+
+    // Invalid field path in read mask should return InvalidArgument
+    let request = ListDynamicFieldsRequest::default()
+        .with_parent(object_id_from_hex("0x5"))
+        .with_read_mask(FieldMask::from_paths(["nonexistent_field"]));
+
+    let result = state_client.list_dynamic_fields(request).await;
+
+    assert_tonic_error(
+        result,
+        tonic::Code::InvalidArgument,
+        "invalid read mask field",
     );
 }
