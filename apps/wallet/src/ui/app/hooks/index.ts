@@ -12,7 +12,7 @@ export * from './useCopyToClipboard';
 export * from './useExplorerLink';
 export * from './useTransactionData';
 export * from './useActiveAddress';
-export * from './useSetGrowthbookAttributes';
+export * from './useSetClientAttributes';
 export * from './useAccountByAddress';
 export * from './useAccountGroups';
 export * from './useAccountSources';

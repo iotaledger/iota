@@ -11,7 +11,7 @@ import {
     useShouldOpenInNewTab,
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,

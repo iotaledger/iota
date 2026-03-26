@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import { useFeatureIsOn } from '@iota/apps-backend-client';
 import { useAppsBackend, Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
