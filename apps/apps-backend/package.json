@@ -4,7 +4,7 @@
     "scripts": {
         "build": "nest build",
         "prettier:fix": "prettier --write \"src/**/*.ts\"",
-        "dev": "nest start --watch",
+        "dev": "NODE_ENV=development nest start --watch",
         "debug": "nest start --debug --watch",
         "preview": "pnpm run build && node dist/apps-backend/src/main",
         "lint": "eslint --max-warnings=0 \"{src,apps,libs,test}/**/*.ts\"",
