@@ -12,7 +12,11 @@ export class RestrictedController {
     @Post('/')
     @Header('Cache-Control', 'max-age=0, must-revalidate')
     checkRestrictions(@Res() res: Response) {
-        const deployType = this.configService.get<string>('DEPLOY_TYPE') ?? 'staging';
+        const deployType = this.configService.get<string>('DEPLOY_TYPE');
+
+        if (!deployType) {
+            throw new Error('DEPLOY_TYPE is not configured');
+        }
 
         const restrictedFlags: Record<string, boolean> = {
             staging: false,
