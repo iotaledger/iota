@@ -53,7 +53,6 @@ pub async fn resolve_remote_url(
 
     let mut backoff = ExponentialBackoff {
         max_elapsed_time: Some(timeout),
-        initial_interval: Duration::from_millis(500),
         multiplier: 2.0,
         ..Default::default()
     };
