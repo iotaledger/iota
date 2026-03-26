@@ -53,9 +53,6 @@ impl_field_presence_checker!(ExecutedTransaction {
     input_objects,
     output_objects,
 });
-// ExecuteTransactionsResponse is no longer transparent — it holds
-// `repeated ExecuteTransactionResult`.  Tests should extract the
-// ExecutedTransaction from the first result and assert against that.
 impl_field_presence_checker!(Input { index });
 impl_field_presence_checker!(Result {
     index,

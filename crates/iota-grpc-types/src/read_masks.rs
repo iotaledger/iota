@@ -329,18 +329,18 @@ pub const OBJECT_BCS: &str = "bcs";
 ///
 /// Includes all ExecutedTransaction sub-fields. To request specific
 /// sub-fields, use paths like `"executed_transaction.effects"`.
-pub const SIMULATE_RESPONSE_EXECUTED_TRANSACTION: &str = "executed_transaction";
+pub const SIMULATED_TRANSACTION_EXECUTED_TRANSACTION: &str = "executed_transaction";
 
 /// Read mask for
 /// [`SimulatedTransaction::gas_price_suggested()`](crate::v0::transaction_execution_service::SimulatedTransaction::gas_price_suggested).
-pub const SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE: &str = "suggested_gas_price";
+pub const SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE: &str = "suggested_gas_price";
 
 /// Read mask for
 /// [`SimulatedTransaction::execution_result()`](crate::v0::transaction_execution_service::SimulatedTransaction::execution_result),
 /// [`SimulatedTransaction::command_results()`](crate::v0::transaction_execution_service::SimulatedTransaction::command_results),
 /// and
 /// [`SimulatedTransaction::execution_error()`](crate::v0::transaction_execution_service::SimulatedTransaction::execution_error).
-pub const SIMULATE_RESPONSE_EXECUTION_RESULT: &str = "execution_result";
+pub const SIMULATED_TRANSACTION_EXECUTION_RESULT: &str = "execution_result";
 
 // ---------------------------------------------------------------------------
 // ExecutionError — sub-field constants (relative to simulate_transactions)

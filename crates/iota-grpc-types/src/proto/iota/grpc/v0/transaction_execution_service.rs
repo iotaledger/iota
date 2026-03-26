@@ -89,9 +89,9 @@ impl SimulatedTransaction {
     /// `"executed_transaction.effects"` to request specific sub-fields.
     ///
     /// **Read mask:** `"executed_transaction"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTED_TRANSACTION`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTED_TRANSACTION`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTED_TRANSACTION`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTED_TRANSACTION
+    /// [`SIMULATED_TRANSACTION_EXECUTED_TRANSACTION`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTED_TRANSACTION
     pub fn executed_transaction(
         &self,
     ) -> Result<&crate::v0::transaction::ExecutedTransaction, TryFromProtoError> {
@@ -103,9 +103,9 @@ impl SimulatedTransaction {
     /// Get the suggested gas price (in NANOS).
     ///
     /// **Read mask:** `"suggested_gas_price"` (see
-    /// [`SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE`]).
+    /// [`SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE`]).
     ///
-    /// [`SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE`]: crate::read_masks::SIMULATE_RESPONSE_SUGGESTED_GAS_PRICE
+    /// [`SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE`]: crate::read_masks::SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE
     pub fn gas_price_suggested(&self) -> Result<u64, TryFromProtoError> {
         self.suggested_gas_price
             .ok_or_else(|| TryFromProtoError::missing(Self::SUGGESTED_GAS_PRICE_FIELD.name))
@@ -115,9 +115,9 @@ impl SimulatedTransaction {
     /// failure).
     ///
     /// **Read mask:** `"execution_result"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTION_RESULT
     pub fn execution_result(
         &self,
     ) -> Result<
@@ -133,9 +133,9 @@ impl SimulatedTransaction {
     /// otherwise.
     ///
     /// **Read mask:** `"execution_result"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTION_RESULT
     pub fn command_results(&self) -> Option<&crate::v0::command::CommandResults> {
         match &self.execution_result {
             Some(crate::v0::transaction_execution_service::simulated_transaction::ExecutionResult::CommandResults(r)) => Some(r),
@@ -147,9 +147,9 @@ impl SimulatedTransaction {
     /// otherwise.
     ///
     /// **Read mask:** `"execution_result"` (see
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]).
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]).
     ///
-    /// [`SIMULATE_RESPONSE_EXECUTION_RESULT`]: crate::read_masks::SIMULATE_RESPONSE_EXECUTION_RESULT
+    /// [`SIMULATED_TRANSACTION_EXECUTION_RESULT`]: crate::read_masks::SIMULATED_TRANSACTION_EXECUTION_RESULT
     pub fn execution_error(
         &self,
     ) -> Option<&crate::v0::transaction_execution_service::ExecutionError> {
