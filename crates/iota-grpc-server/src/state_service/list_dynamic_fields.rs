@@ -53,7 +53,7 @@ fn load_dynamic_field(
     message: &mut DynamicField,
 ) -> Result<(), RpcError> {
     let Some(field_object) = reader.get_object(field_id).map_err(RpcError::from)? else {
-        tracing::warn!(
+        tracing::debug!(
             "dynamic field object {field_id} referenced by index but not found in object store"
         );
         return Ok(());

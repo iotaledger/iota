@@ -406,7 +406,7 @@ struct IndexStoreTables {
     ///
     /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
     /// Allows an efficient iterator to list all objects currently owned by a
-    /// specific user account, optionally filted by type.
+    /// specific user account, optionally filtered by type.
     ///
     /// Full `StructTag` stored in value for collision filtering & API
     /// responses. Bounded by the live object set (one entry per
