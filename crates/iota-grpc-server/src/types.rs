@@ -649,6 +649,15 @@ impl GrpcReader {
                                         let event_encoded_len = grpc_event.encoded_len();
                                         let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
 
+                                        // Check if a single event exceeds the message size limit
+                                        let event_total = event_size + crate::utils::checkpoint_data_wrapper_overhead(event_size);
+                                        if event_total > max_message_size_bytes {
+                                            yield Err(Status::invalid_argument(format!(
+                                                "Single event size ({event_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
+                                            )));
+                                            return;
+                                        }
+
                                         // Check if adding this event would exceed limit
                                         // (batch content + wrapper overhead for CheckpointData oneof)
                                         let candidate_size = events_batch_size + event_size;
@@ -689,6 +698,15 @@ impl GrpcReader {
                                 .map_err(|e| e.with_context("failed to merge transaction"))?;
                                 let tx_encoded_len = executed_tx.encoded_len();
                                 let tx_size = tx_encoded_len + crate::utils::repeated_field_item_overhead(tx_encoded_len);
+
+                                // Check if a single transaction exceeds the message size limit
+                                let tx_total = tx_size + crate::utils::checkpoint_data_wrapper_overhead(tx_size);
+                                if tx_total > max_message_size_bytes {
+                                    yield Err(Status::invalid_argument(format!(
+                                        "Single transaction size ({tx_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
+                                    )));
+                                    return;
+                                }
 
                                 // Check if adding this tx would exceed limit
                                 // (batch content + wrapper overhead for CheckpointData oneof)
