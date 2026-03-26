@@ -70,57 +70,7 @@ mod _accessor_impls {
             self
         }
     }
-    impl super::CheckpointDataStreamRequest {
-        /// Sets `start_sequence_number` with the provided value.
-        pub fn with_start_sequence_number(mut self, field: u64) -> Self {
-            self.start_sequence_number = Some(field);
-            self
-        }
-        /// Sets `end_sequence_number` with the provided value.
-        pub fn with_end_sequence_number(mut self, field: u64) -> Self {
-            self.end_sequence_number = Some(field);
-            self
-        }
-        /// Sets `read_mask` with the provided value.
-        pub fn with_read_mask<T: Into<::prost_types::FieldMask>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.read_mask = Some(field.into());
-            self
-        }
-        /// Sets `transactions_filter` with the provided value.
-        pub fn with_transactions_filter<
-            T: Into<super::super::filter::TransactionFilter>,
-        >(mut self, field: T) -> Self {
-            self.transactions_filter = Some(field.into());
-            self
-        }
-        /// Sets `events_filter` with the provided value.
-        pub fn with_events_filter<T: Into<super::super::filter::EventFilter>>(
-            mut self,
-            field: T,
-        ) -> Self {
-            self.events_filter = Some(field.into());
-            self
-        }
-        /// Sets `filter_checkpoints` with the provided value.
-        pub fn with_filter_checkpoints(mut self, field: bool) -> Self {
-            self.filter_checkpoints = Some(field);
-            self
-        }
-        /// Sets `progress_interval_ms` with the provided value.
-        pub fn with_progress_interval_ms(mut self, field: u32) -> Self {
-            self.progress_interval_ms = Some(field);
-            self
-        }
-        /// Sets `max_message_size_bytes` with the provided value.
-        pub fn with_max_message_size_bytes(mut self, field: u32) -> Self {
-            self.max_message_size_bytes = Some(field);
-            self
-        }
-    }
-    impl super::GetCheckpointDataRequest {
+    impl super::GetCheckpointRequest {
         /// Sets `read_mask` with the provided value.
         pub fn with_read_mask<T: Into<::prost_types::FieldMask>>(
             mut self,
@@ -153,7 +103,7 @@ mod _accessor_impls {
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_latest(mut self, field: bool) -> Self {
             self.checkpoint_id = Some(
-                super::get_checkpoint_data_request::CheckpointId::Latest(field),
+                super::get_checkpoint_request::CheckpointId::Latest(field),
             );
             self
         }
@@ -161,7 +111,7 @@ mod _accessor_impls {
         /// If any other oneof field in the same oneof is set, it will be cleared.
         pub fn with_sequence_number(mut self, field: u64) -> Self {
             self.checkpoint_id = Some(
-                super::get_checkpoint_data_request::CheckpointId::SequenceNumber(field),
+                super::get_checkpoint_request::CheckpointId::SequenceNumber(field),
             );
             self
         }
@@ -172,7 +122,7 @@ mod _accessor_impls {
             field: T,
         ) -> Self {
             self.checkpoint_id = Some(
-                super::get_checkpoint_data_request::CheckpointId::Digest(field.into()),
+                super::get_checkpoint_request::CheckpointId::Digest(field.into()),
             );
             self
         }
@@ -385,6 +335,56 @@ mod _accessor_impls {
             T: Into<super::super::super::super::super::google::rpc::Status>,
         >(mut self, field: T) -> Self {
             self.result = Some(super::object_result::Result::Error(field.into()));
+            self
+        }
+    }
+    impl super::StreamCheckpointsRequest {
+        /// Sets `start_sequence_number` with the provided value.
+        pub fn with_start_sequence_number(mut self, field: u64) -> Self {
+            self.start_sequence_number = Some(field);
+            self
+        }
+        /// Sets `end_sequence_number` with the provided value.
+        pub fn with_end_sequence_number(mut self, field: u64) -> Self {
+            self.end_sequence_number = Some(field);
+            self
+        }
+        /// Sets `read_mask` with the provided value.
+        pub fn with_read_mask<T: Into<::prost_types::FieldMask>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.read_mask = Some(field.into());
+            self
+        }
+        /// Sets `transactions_filter` with the provided value.
+        pub fn with_transactions_filter<
+            T: Into<super::super::filter::TransactionFilter>,
+        >(mut self, field: T) -> Self {
+            self.transactions_filter = Some(field.into());
+            self
+        }
+        /// Sets `events_filter` with the provided value.
+        pub fn with_events_filter<T: Into<super::super::filter::EventFilter>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.events_filter = Some(field.into());
+            self
+        }
+        /// Sets `filter_checkpoints` with the provided value.
+        pub fn with_filter_checkpoints(mut self, field: bool) -> Self {
+            self.filter_checkpoints = Some(field);
+            self
+        }
+        /// Sets `progress_interval_ms` with the provided value.
+        pub fn with_progress_interval_ms(mut self, field: u32) -> Self {
+            self.progress_interval_ms = Some(field);
+            self
+        }
+        /// Sets `max_message_size_bytes` with the provided value.
+        pub fn with_max_message_size_bytes(mut self, field: u32) -> Self {
+            self.max_message_size_bytes = Some(field);
             self
         }
     }

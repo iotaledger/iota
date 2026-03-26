@@ -173,7 +173,7 @@ pub struct GetTransactionsResponse {
 }
 #[non_exhaustive]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct GetCheckpointDataRequest {
+pub struct GetCheckpointRequest {
     /// Mask specifying which fields to read.
     /// If no mask is specified, defaults to `summary`.
     #[prost(message, optional, tag = "4")]
@@ -188,11 +188,11 @@ pub struct GetCheckpointDataRequest {
     /// If not specified, server uses default chunking threshold (4MB)
     #[prost(uint32, optional, tag = "7")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
-    #[prost(oneof = "get_checkpoint_data_request::CheckpointId", tags = "1, 2, 3")]
-    pub checkpoint_id: ::core::option::Option<get_checkpoint_data_request::CheckpointId>,
+    #[prost(oneof = "get_checkpoint_request::CheckpointId", tags = "1, 2, 3")]
+    pub checkpoint_id: ::core::option::Option<get_checkpoint_request::CheckpointId>,
 }
-/// Nested message and enum types in `GetCheckpointDataRequest`.
-pub mod get_checkpoint_data_request {
+/// Nested message and enum types in `GetCheckpointRequest`.
+pub mod get_checkpoint_request {
     #[non_exhaustive]
     #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum CheckpointId {
@@ -209,7 +209,7 @@ pub mod get_checkpoint_data_request {
 }
 #[non_exhaustive]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CheckpointDataStreamRequest {
+pub struct StreamCheckpointsRequest {
     /// if no start sequence number is provided, streaming starts from the latest checkpoint
     #[prost(uint64, optional, tag = "1")]
     pub start_sequence_number: ::core::option::Option<u64>,
@@ -505,9 +505,9 @@ pub mod ledger_service_client {
             self.inner.server_streaming(req, path, codec).await
         }
         /// Checkpoint operations
-        pub async fn get_checkpoint_data(
+        pub async fn get_checkpoint(
             &mut self,
-            request: impl tonic::IntoRequest<super::GetCheckpointDataRequest>,
+            request: impl tonic::IntoRequest<super::GetCheckpointRequest>,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::CheckpointData>>,
             tonic::Status,
@@ -522,21 +522,21 @@ pub mod ledger_service_client {
                 })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/iota.grpc.v0.ledger_service.LedgerService/GetCheckpointData",
+                "/iota.grpc.v0.ledger_service.LedgerService/GetCheckpoint",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "iota.grpc.v0.ledger_service.LedgerService",
-                        "GetCheckpointData",
+                        "GetCheckpoint",
                     ),
                 );
             self.inner.server_streaming(req, path, codec).await
         }
-        pub async fn stream_checkpoint_data(
+        pub async fn stream_checkpoints(
             &mut self,
-            request: impl tonic::IntoRequest<super::CheckpointDataStreamRequest>,
+            request: impl tonic::IntoRequest<super::StreamCheckpointsRequest>,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::CheckpointData>>,
             tonic::Status,
@@ -551,14 +551,14 @@ pub mod ledger_service_client {
                 })?;
             let codec = tonic_prost::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
-                "/iota.grpc.v0.ledger_service.LedgerService/StreamCheckpointData",
+                "/iota.grpc.v0.ledger_service.LedgerService/StreamCheckpoints",
             );
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(
                     GrpcMethod::new(
                         "iota.grpc.v0.ledger_service.LedgerService",
-                        "StreamCheckpointData",
+                        "StreamCheckpoints",
                     ),
                 );
             self.inner.server_streaming(req, path, codec).await
@@ -646,31 +646,31 @@ pub mod ledger_service_server {
             tonic::Response<Self::GetTransactionsStream>,
             tonic::Status,
         >;
-        /// Server streaming response type for the GetCheckpointData method.
-        type GetCheckpointDataStream: tonic::codegen::tokio_stream::Stream<
+        /// Server streaming response type for the GetCheckpoint method.
+        type GetCheckpointStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::CheckpointData, tonic::Status>,
             >
             + std::marker::Send
             + 'static;
         /// Checkpoint operations
-        async fn get_checkpoint_data(
+        async fn get_checkpoint(
             &self,
-            request: tonic::Request<super::GetCheckpointDataRequest>,
+            request: tonic::Request<super::GetCheckpointRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::GetCheckpointDataStream>,
+            tonic::Response<Self::GetCheckpointStream>,
             tonic::Status,
         >;
-        /// Server streaming response type for the StreamCheckpointData method.
-        type StreamCheckpointDataStream: tonic::codegen::tokio_stream::Stream<
+        /// Server streaming response type for the StreamCheckpoints method.
+        type StreamCheckpointsStream: tonic::codegen::tokio_stream::Stream<
                 Item = std::result::Result<super::CheckpointData, tonic::Status>,
             >
             + std::marker::Send
             + 'static;
-        async fn stream_checkpoint_data(
+        async fn stream_checkpoints(
             &self,
-            request: tonic::Request<super::CheckpointDataStreamRequest>,
+            request: tonic::Request<super::StreamCheckpointsRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::StreamCheckpointDataStream>,
+            tonic::Response<Self::StreamCheckpointsStream>,
             tonic::Status,
         >;
         async fn get_epoch(
@@ -942,28 +942,26 @@ pub mod ledger_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/iota.grpc.v0.ledger_service.LedgerService/GetCheckpointData" => {
+                "/iota.grpc.v0.ledger_service.LedgerService/GetCheckpoint" => {
                     #[allow(non_camel_case_types)]
-                    struct GetCheckpointDataSvc<T: LedgerService>(pub Arc<T>);
+                    struct GetCheckpointSvc<T: LedgerService>(pub Arc<T>);
                     impl<
                         T: LedgerService,
-                    > tonic::server::ServerStreamingService<
-                        super::GetCheckpointDataRequest,
-                    > for GetCheckpointDataSvc<T> {
+                    > tonic::server::ServerStreamingService<super::GetCheckpointRequest>
+                    for GetCheckpointSvc<T> {
                         type Response = super::CheckpointData;
-                        type ResponseStream = T::GetCheckpointDataStream;
+                        type ResponseStream = T::GetCheckpointStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::GetCheckpointDataRequest>,
+                            request: tonic::Request<super::GetCheckpointRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as LedgerService>::get_checkpoint_data(&inner, request)
-                                    .await
+                                <T as LedgerService>::get_checkpoint(&inner, request).await
                             };
                             Box::pin(fut)
                         }
@@ -974,7 +972,7 @@ pub mod ledger_service_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let method = GetCheckpointDataSvc(inner);
+                        let method = GetCheckpointSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
@@ -990,30 +988,27 @@ pub mod ledger_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/iota.grpc.v0.ledger_service.LedgerService/StreamCheckpointData" => {
+                "/iota.grpc.v0.ledger_service.LedgerService/StreamCheckpoints" => {
                     #[allow(non_camel_case_types)]
-                    struct StreamCheckpointDataSvc<T: LedgerService>(pub Arc<T>);
+                    struct StreamCheckpointsSvc<T: LedgerService>(pub Arc<T>);
                     impl<
                         T: LedgerService,
                     > tonic::server::ServerStreamingService<
-                        super::CheckpointDataStreamRequest,
-                    > for StreamCheckpointDataSvc<T> {
+                        super::StreamCheckpointsRequest,
+                    > for StreamCheckpointsSvc<T> {
                         type Response = super::CheckpointData;
-                        type ResponseStream = T::StreamCheckpointDataStream;
+                        type ResponseStream = T::StreamCheckpointsStream;
                         type Future = BoxFuture<
                             tonic::Response<Self::ResponseStream>,
                             tonic::Status,
                         >;
                         fn call(
                             &mut self,
-                            request: tonic::Request<super::CheckpointDataStreamRequest>,
+                            request: tonic::Request<super::StreamCheckpointsRequest>,
                         ) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
-                                <T as LedgerService>::stream_checkpoint_data(
-                                        &inner,
-                                        request,
-                                    )
+                                <T as LedgerService>::stream_checkpoints(&inner, request)
                                     .await
                             };
                             Box::pin(fut)
@@ -1025,7 +1020,7 @@ pub mod ledger_service_server {
                     let max_encoding_message_size = self.max_encoding_message_size;
                     let inner = self.inner.clone();
                     let fut = async move {
-                        let method = StreamCheckpointDataSvc(inner);
+                        let method = StreamCheckpointsSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

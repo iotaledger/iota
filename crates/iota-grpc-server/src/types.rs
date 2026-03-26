@@ -72,12 +72,11 @@ pub type GetObjectsStream = Pin<Box<dyn futures::Stream<Item = ObjectsStreamResu
 pub type GetTransactionsStream =
     Pin<Box<dyn futures::Stream<Item = TransactionsStreamResult> + Send>>;
 
-/// Server streaming response type for the GetCheckpointData method.
-pub type GetCheckpointDataStream =
-    Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
+/// Server streaming response type for the GetCheckpoint method.
+pub type GetCheckpointStream = Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
-/// Server streaming response type for the StreamCheckpointData method.
-pub type StreamCheckpointDataStream =
+/// Server streaming response type for the StreamCheckpoints method.
+pub type StreamCheckpointsStream =
     Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
 /// Wrapper that converts native CheckpointData to gRPC type before broadcasting

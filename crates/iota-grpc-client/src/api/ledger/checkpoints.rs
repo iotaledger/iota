@@ -86,8 +86,7 @@ use futures::{Stream, StreamExt};
 use iota_grpc_types::v0::{
     checkpoint, event, filter as grpc_filter,
     ledger_service::{
-        CheckpointDataStreamRequest, GetCheckpointDataRequest, checkpoint_data,
-        get_checkpoint_data_request,
+        GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data, get_checkpoint_request,
     },
     signatures::ValidatorAggregatedSignature as ProtoValidatorAggregatedSignature,
     transaction::ExecutedTransaction,
@@ -135,7 +134,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
-            get_checkpoint_data_request::CheckpointId::Latest(true),
+            get_checkpoint_request::CheckpointId::Latest(true),
             read_mask,
             transactions_filter,
             events_filter,
@@ -179,7 +178,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
-            get_checkpoint_data_request::CheckpointId::SequenceNumber(sequence_number),
+            get_checkpoint_request::CheckpointId::SequenceNumber(sequence_number),
             read_mask,
             transactions_filter,
             events_filter,
@@ -225,7 +224,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
-            get_checkpoint_data_request::CheckpointId::Digest(digest.into()),
+            get_checkpoint_request::CheckpointId::Digest(digest.into()),
             read_mask,
             transactions_filter,
             events_filter,
@@ -236,20 +235,20 @@ impl Client {
     /// Internal helper to fetch checkpoint by any ID type.
     async fn get_checkpoint_internal(
         &self,
-        checkpoint_id: get_checkpoint_data_request::CheckpointId,
+        checkpoint_id: get_checkpoint_request::CheckpointId,
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         let mut request = match checkpoint_id {
-            get_checkpoint_data_request::CheckpointId::Latest(val) => {
-                GetCheckpointDataRequest::default().with_latest(val)
+            get_checkpoint_request::CheckpointId::Latest(val) => {
+                GetCheckpointRequest::default().with_latest(val)
             }
-            get_checkpoint_data_request::CheckpointId::SequenceNumber(val) => {
-                GetCheckpointDataRequest::default().with_sequence_number(val)
+            get_checkpoint_request::CheckpointId::SequenceNumber(val) => {
+                GetCheckpointRequest::default().with_sequence_number(val)
             }
-            get_checkpoint_data_request::CheckpointId::Digest(val) => {
-                GetCheckpointDataRequest::default().with_digest(val)
+            get_checkpoint_request::CheckpointId::Digest(val) => {
+                GetCheckpointRequest::default().with_digest(val)
             }
             _ => {
                 return Err(Error::Protocol("Invalid checkpoint ID type".into()));
@@ -268,7 +267,7 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let response = client.get_checkpoint_data(request).await?;
+        let response = client.get_checkpoint(request).await?;
         let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         let reassembled = Self::reassemble_checkpoint_data_stream(stream);
@@ -469,7 +468,7 @@ impl Client {
         progress_interval_ms: Option<u32>,
     ) -> Result<MetadataEnvelope<Pin<Box<dyn Stream<Item = Result<CheckpointStreamItem>> + Send>>>>
     {
-        let mut request = CheckpointDataStreamRequest::default()
+        let mut request = StreamCheckpointsRequest::default()
             .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
 
         if let Some(start) = start_sequence_number {
@@ -495,7 +494,7 @@ impl Client {
         }
 
         let mut client = self.ledger_service_client();
-        let response = client.stream_checkpoint_data(request).await?;
+        let response = client.stream_checkpoints(request).await?;
         let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         Ok(MetadataEnvelope::new(
