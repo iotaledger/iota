@@ -5,7 +5,7 @@
 
 //! Deprecated: zkLogin is no longer supported.
 //! This module is retained solely for BCS/serde deserialization compatibility
-//! in [`GenericSignature`].
+//! in [`GenericSignature`](crate::signature::GenericSignature).
 
 use std::hash::{Hash, Hasher};
 
