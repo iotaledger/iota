@@ -1,10 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_network::{
-    api::{SubmitTxRequest, TxDigest, TxStatus, ValidatorV2},
-    tonic::{Request, Response, Status},
-};
+
+use iota_network::{api::{SubmitTxRequest, TxDigest, TxStatus, ValidatorV2}, tonic::{Request, Response, Status}};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::authority_server::ValidatorService;

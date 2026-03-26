@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
+use iota_network::api::{GetCheckpointRequest, ValidatorPeer};
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities};
 use iota_types::{
@@ -11,6 +12,7 @@ use iota_types::{
         AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, get_authority_key_pair,
     },
     error::IotaError,
+    messages_checkpoint::CheckpointResponse,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{
         LayoutGenerationOption, RawSubmitTransactionsRequest, RawSubmitTransactionsResponse,
@@ -940,6 +942,61 @@ async fn test_submit_transactions_different_gas_prices_accepted() {
             other => panic!("Expected Submitted for tx {i}, got {:?}", other),
         }
     }
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_get_checkpoint_happy_path() {
+    telemetry_subscribers::init_for_testing();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state,
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    // Request the genesis checkpoint (sequence 0, certified).
+    let proto_request = GetCheckpointRequest {
+        sequence_number: Some(0),
+        request_content: true,
+        certified: true,
+    };
+
+    let response = validator_service
+        .get_checkpoint(make_tonic_request_for_testing(proto_request))
+        .await
+        .expect("get_checkpoint should succeed for genesis checkpoint");
+
+    let proto_resp = response.into_inner();
+
+    // The genesis checkpoint must be present.
+    assert!(
+        proto_resp.checkpoint.is_some(),
+        "Expected checkpoint data in response"
+    );
+
+    // Verify the proto response can be converted back to the domain type.
+    let native: CheckpointResponse = proto_resp
+        .try_into()
+        .expect("proto → native conversion should succeed");
+    assert!(native.checkpoint.is_some());
+    assert!(native.contents.is_some());
 }
 
 /// A transaction whose serialized size exceeds `max_tx_size_bytes` (128 KiB)

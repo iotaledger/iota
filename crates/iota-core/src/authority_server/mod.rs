@@ -15,6 +15,7 @@ use std::{
     sync::Arc,
     time::SystemTime,
 };
+use tokio_stream::StreamExt;
 
 use iota_network::{
     tonic,
@@ -38,6 +39,10 @@ use crate::{
     },
 };
 type WrappedServiceResponse<T> = Result<(tonic::Response<T>, Weight), tonic::Status>;
+
+type StreamResponse<T> = std::pin::Pin<
+    Box<dyn tokio_stream::Stream<Item = Result<T, tonic::Status>> + Send>,
+>;
 
 /// The validator service.
 #[derive(Clone)]
@@ -93,7 +98,7 @@ impl ValidatorService {
         &self.state
     }
 
-    fn get_client_ip_addr<T>(
+    pub fn get_client_ip_addr<T>(
         &self,
         request: &tonic::Request<T>,
         source: &ClientIdSource,
@@ -227,6 +232,103 @@ impl ValidatorService {
             })
         }
         unwrapped_response
+    }
+
+    fn extract_client_ip_and_request<T, MappedT>(&self, request: tonic::Request<MappedT>) -> (T, Option<IpAddr>)
+    where MappedT: Into<T>
+    {
+        if self.client_id_source.is_none() {
+            (request.into_inner().into(), None)
+        } else {
+            let ip = self.get_client_ip_addr(&request, self.client_id_source.as_ref().unwrap());
+            (request.into_inner().into(), ip)
+        }
+    }
+
+    fn tally_traffic<T>(
+        &self,
+        client: Option<IpAddr>,
+        response: Result<(T, Weight), tonic::Status>,
+    ) -> Result<T, tonic::Status> {
+        let (error, spam_weight, unwrapped_response): (Option<IotaError>, Weight, Result<T, tonic::Status>) = match response {
+            Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
+            Err(status) => (
+                Some(IotaError::from(status.clone())),
+                Weight::zero(),
+                Err(status),
+            ),
+        };
+
+        if let Some(traffic_controller) = self.traffic_controller.clone() {
+            traffic_controller.tally(TrafficTally {
+                direct: client,
+                through_fullnode: None,
+                error_info: error.map(|e| {
+                    let error_type = String::from(e.clone().as_ref());
+                    let error_weight = normalize(e);
+                    (error_weight, error_type)
+                }),
+                spam_weight,
+                timestamp: SystemTime::now(),
+            })
+        }
+        unwrapped_response
+    }
+
+    /// Extracts the domain request from a proto request and checks traffic
+    /// control. Shared pre-processing for both unary and streaming handlers.
+    async fn pre_handle<ProtoReq, DomainReq>(
+        &self,
+        request: tonic::Request<ProtoReq>,
+    ) -> Result<(DomainReq, Option<IpAddr>), tonic::Status>
+    where
+        ProtoReq: Into<DomainReq>,
+    {
+        let (domain_req, ip) = self.extract_client_ip_and_request(request);
+        self.handle_traffic_req(ip).await?;
+        Ok((domain_req, ip))
+    }
+
+    /// Tallies traffic and converts a single domain response into a proto
+    /// tonic response.
+    fn post_handle_unary<DomainResp, ProtoResp>(
+        &self,
+        ip: Option<IpAddr>,
+        result: Result<(DomainResp, Weight), tonic::Status>,
+    ) -> Result<tonic::Response<ProtoResp>, tonic::Status>
+    where
+        DomainResp: TryInto<ProtoResp>,
+        DomainResp::Error: std::fmt::Display,
+    {
+        let value = self.tally_traffic(ip, result)?;
+        let proto = value
+            .try_into()
+            .map_err(|e| tonic::Status::internal(format!("response conversion failed: {e}")))?;
+        Ok(tonic::Response::new(proto))
+    }
+
+    /// Tallies traffic and maps each domain stream item into its proto
+    /// equivalent.
+    fn post_handle_stream<S, DomainItem, ProtoItem>(
+        &self,
+        ip: Option<IpAddr>,
+        result: Result<(S, Weight), tonic::Status>,
+    ) -> Result<tonic::Response<StreamResponse<ProtoItem>>, tonic::Status>
+    where
+        S: tokio_stream::Stream<Item = Result<DomainItem, tonic::Status>> + Send + 'static,
+        DomainItem: TryInto<ProtoItem> + 'static,
+        DomainItem::Error: std::fmt::Display,
+        ProtoItem: 'static,
+    {
+        let stream = self.tally_traffic(ip, result)?;
+        let mapped = stream.map(|item| {
+            item.and_then(|v| {
+                v.try_into().map_err(|e| {
+                    tonic::Status::internal(format!("stream item conversion failed: {e}"))
+                })
+            })
+        });
+        Ok(tonic::Response::new(Box::pin(mapped)))
     }
 }
 
