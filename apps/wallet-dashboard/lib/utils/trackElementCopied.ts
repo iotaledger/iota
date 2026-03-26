@@ -12,5 +12,5 @@ export type CopiedElementType =
     | 'digest';
 
 export function trackElementCopied(elementType: CopiedElementType): void {
-    ampli.elementCopied({ type: elementType });
+    ampli.copiedElement({ type: elementType });
 }

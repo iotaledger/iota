@@ -311,9 +311,6 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
         "std::fmt::Debug + serde::Serialize + for<'de> serde::de::Deserialize<'de>";
     let generics_bounds_token: proc_macro2::TokenStream = generics_bounds.parse().unwrap();
 
-    let config_struct_name_str = format!("{name}Configurator");
-    let config_struct_name: proc_macro2::TokenStream = config_struct_name_str.parse().unwrap();
-
     let intermediate_db_map_struct_name_str = format!("{name}IntermediateDBMapStructPrimary");
     let intermediate_db_map_struct_name: proc_macro2::TokenStream =
         intermediate_db_map_struct_name_str.parse().unwrap();
@@ -345,47 +342,6 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
 
     TokenStream::from(quote! {
 
-        // <----------- This section generates the configurator struct -------------->
-
-        /// Create config structs for configuring DBMap tables.
-        /// Only active (non-deprecated) tables are configurable.
-        pub struct #config_struct_name {
-            #(
-                pub #active_field_names : typed_store::rocks::DBOptions,
-            )*
-        }
-
-        impl #config_struct_name {
-            /// Initialize to defaults
-            pub fn init() -> Self {
-                Self {
-                    #(
-                        #active_field_names : typed_store::rocks::default_db_options(),
-                    )*
-                }
-            }
-
-            /// Build a config
-            pub fn build(&self) -> typed_store::rocks::DBMapTableConfigMap {
-                typed_store::rocks::DBMapTableConfigMap::new([
-                    #(
-                        (stringify!(#active_field_names).to_owned(), self.#active_field_names.clone()),
-                    )*
-                ].into_iter().collect())
-            }
-        }
-
-        impl <
-                #(
-                    #generics_names: #generics_bounds_token,
-                )*
-            > #name #generics {
-
-                pub fn configurator() -> #config_struct_name {
-                    #config_struct_name::init()
-                }
-        }
-
         // <----------- This section generates the core open logic for opening DBMaps -------------->
 
         /// Create an intermediate struct used to open the DBMap tables in primary mode
@@ -398,7 +354,6 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                     pub #deprecated_field_names : Option<DBMap #deprecated_inner_types>,
                 )*
         }
-
 
         impl <
                 #(
@@ -619,23 +574,6 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 }
             }
 
-            /// Count the keys in this table
-            /// Tables must be opened in read only mode using `open_tables_read_only`
-            pub fn count_keys(&self, table_name: &str) -> eyre::Result<usize> {
-                Ok(match table_name {
-                    #(
-                        stringify!(#active_field_names) => {
-                            typed_store::traits::Map::try_catch_up_with_primary(&self.#active_field_names)?;
-                            typed_store::traits::Map::safe_iter(&self.#active_field_names)
-                                .collect::<Result<Vec<_>, _>>()?
-                                .len()
-                        }
-                    )*
-
-                    _ => eyre::bail!("No such table name: {}", table_name),
-                })
-            }
-
             pub fn describe_tables() -> std::collections::BTreeMap<String, (String, String)> {
                 vec![#(
                     (stringify!(#active_field_names).to_owned(), (stringify!(#active_key_names).to_owned(), stringify!(#active_value_names).to_owned())),
@@ -650,37 +588,6 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                 )*
                 Ok(())
             }
-        }
-
-        impl <
-                #(
-                    #generics_names: #generics_bounds_token,
-                )*
-            > TypedStoreDebug for #secondary_db_map_struct_name #generics {
-                fn dump_table(
-                    &self,
-                    table_name: String,
-                    page_size: u16,
-                    page_number: usize,
-                ) -> eyre::Result<std::collections::BTreeMap<String, String>> {
-                    self.dump(table_name.as_str(), page_size, page_number)
-                }
-
-                fn primary_db_name(&self) -> String {
-                    stringify!(#name).to_owned()
-                }
-
-                fn describe_all_tables(&self) -> std::collections::BTreeMap<String, (String, String)> {
-                    Self::describe_tables()
-                }
-
-                fn count_table_keys(&self, table_name: String) -> eyre::Result<usize> {
-                    self.count_keys(table_name.as_str())
-                }
-
-                fn table_summary(&self, table_name: String) -> eyre::Result<TableSummary> {
-                    self.table_summary(table_name.as_str())
-                }
         }
     })
 }

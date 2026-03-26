@@ -15,7 +15,6 @@ itertools.workspace = true
 mime.workspace = true
 openapiv3 = { git = "https://github.com/bmwill/openapiv3.git", rev = "ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963" }
 prometheus.workspace = true
-reqwest.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -23,7 +22,6 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 tap.workspace = true
 tokio.workspace = true
-url.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true

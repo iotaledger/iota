@@ -49,7 +49,7 @@ export function AccountGroupItem({
     });
 
     async function handleCopySuccess() {
-        ampli.elementCopied({
+        ampli.copiedElement({
             type: 'address',
         });
         toast('Address copied');
@@ -58,7 +58,7 @@ export function AccountGroupItem({
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
-        ampli.externalLinkOpened({ type: 'address' });
+        ampli.openedLink({ type: 'address' });
     }
 
     function handleRename() {
@@ -68,7 +68,7 @@ export function AccountGroupItem({
     function handleExportKeys() {
         const accountType = account?.type;
         if (accountType) {
-            ampli.accountKeysExported({
+            ampli.exportedAccountKeys({
                 accountType: ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[accountType],
             });
         }
