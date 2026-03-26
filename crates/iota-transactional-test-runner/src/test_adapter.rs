@@ -2021,7 +2021,7 @@ impl IotaTestAdapter {
     // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectID) -> String {
         match &self.get_object(id, None).unwrap().data {
-            object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.type_())),
+            object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.object_type())),
             object::Data::Package(pkg) => pkg
                 .serialized_module_map()
                 .keys()

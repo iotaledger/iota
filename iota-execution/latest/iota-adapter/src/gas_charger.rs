@@ -16,7 +16,7 @@ pub mod checked {
         error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        object::Data,
+        object::{Data, MoveObjectExt},
     };
     use tracing::trace;
 
@@ -149,7 +149,7 @@ pub mod checked {
                             "Provided non-gas coin object as input for gas!",
                         ));
                     };
-                    if !move_obj.type_().is_gas_coin() {
+                    if !move_obj.object_type().is_gas_coin() {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
                         ));

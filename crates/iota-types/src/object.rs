@@ -89,6 +89,10 @@ pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
         &self,
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError>;
+    fn get_coin_value_unchecked(&self) -> u64;
+    fn set_coin_value_unchecked(&mut self, value: u64);
+    fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
+    fn object_size_for_gas_metering(&self) -> usize;
 }
 
 impl MoveObjectExt for MoveObject {
@@ -125,7 +129,7 @@ impl MoveObjectExt for MoveObject {
             ));
         }
         Ok(Self {
-            type_: tag.into(),
+            object_type: tag.into(),
             version,
             contents,
         })
@@ -220,7 +224,7 @@ impl MoveObjectExt for MoveObject {
     /// and the (transitive) dependencies of `self.type_` in order for this
     /// to succeed. Failure will result in an `ObjectSerializationError`
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
+        Self::get_struct_layout_from_struct_tag(self.object_type().clone().into(), resolver)
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
@@ -236,7 +240,7 @@ impl MoveObjectExt for MoveObject {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.type_.coin_type_opt() {
+        if let Some(type_tag) = self.object_type.coin_type_opt() {
             let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
@@ -244,7 +248,7 @@ impl MoveObjectExt for MoveObject {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(self.type_())?;
+            let layout = layout_resolver.get_annotated_layout(self.object_type())?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
@@ -254,6 +258,55 @@ impl MoveObjectExt for MoveObject {
 
             Ok(traversal.finish())
         }
+    }
+
+    /// Return the `value: u64` field of a `Coin<T>` type.
+    /// Useful for reading the coin without deserializing the object into a Move
+    /// value. It is the caller's responsibility to check that `self` is a coin.
+    /// This function may panic or do something unexpected otherwise.
+    fn get_coin_value_unchecked(&self) -> u64 {
+        debug_assert!(self.object_type.is_coin());
+        // 32 bytes for object ID, 8 for balance
+        debug_assert!(self.contents.len() == 40);
+
+        // unwrap safe because we checked that it is a coin
+        u64::from_le_bytes(<[u8; 8]>::try_from(&self.contents[ID_END_INDEX..]).unwrap())
+    }
+
+    /// Update the `value: u64` field of a `Coin<T>` type.
+    /// Useful for updating the coin without deserializing the object into a
+    /// Move value. It is the caller's responsibility to check that `self` is a
+    /// coin.
+    /// This function may panic or do something unexpected otherwise.
+    fn set_coin_value_unchecked(&mut self, value: u64) {
+        debug_assert!(self.object_type.is_coin());
+        // 32 bytes for object ID, 8 for balance
+        debug_assert!(self.contents.len() == 40);
+
+        self.contents.splice(ID_END_INDEX.., value.to_le_bytes());
+    }
+
+    /// Update the `timestamp_ms: u64` field of the `Clock` type.
+    ///
+    /// Panics if the object isn't a `Clock`.
+    fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64) {
+        assert!(self.is_clock());
+        // 32 bytes for object ID, 8 for timestamp
+        assert!(self.contents.len() == 40);
+
+        self.contents
+            .splice(ID_END_INDEX.., timestamp_ms.to_le_bytes());
+    }
+
+    /// Approximate size of the object in bytes. This is used for gas metering.
+    /// For the type tag field, we serialize it on the spot to get the accurate
+    /// size. This should not be very expensive since the type tag is
+    /// usually simple, and we only do this once per object being mutated.
+    fn object_size_for_gas_metering(&self) -> usize {
+        let serialized_type_tag_size =
+            bcs::serialized_size(&self.object_type).expect("Serializing type tag should not fail");
+        // + 8 for `version`
+        self.contents.len() + serialized_type_tag_size + 8
     }
 }
 
@@ -310,7 +363,7 @@ impl Data {
     pub fn type_(&self) -> Option<&MoveObjectType> {
         use Data::*;
         match self {
-            Move(m) => Some(m.type_()),
+            Move(m) => Some(m.object_type()),
             Package(_) => None,
         }
     }
@@ -318,7 +371,7 @@ impl Data {
     pub fn struct_tag(&self) -> Option<StructTag> {
         use Data::*;
         match self {
-            Move(m) => Some(m.type_().clone().into()),
+            Move(m) => Some(m.object_type().clone().into()),
             Package(_) => None,
         }
     }
@@ -565,7 +618,7 @@ impl ObjectInner {
 
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().is_coin()
+            move_object.object_type().is_coin()
         } else {
             false
         }
@@ -573,7 +626,7 @@ impl ObjectInner {
 
     pub fn is_gas_coin(&self) -> bool {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().is_gas_coin()
+            move_object.object_type().is_gas_coin()
         } else {
             false
         }
@@ -600,7 +653,7 @@ impl ObjectInner {
 
     pub fn coin_type_opt(&self) -> Option<&TypeTag> {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().coin_type_opt()
+            move_object.object_type().coin_type_opt()
         } else {
             None
         }
@@ -686,7 +739,7 @@ impl Object {
 
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -717,7 +770,7 @@ impl Object {
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
         });
@@ -732,7 +785,7 @@ impl Object {
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_treasury_cap(struct_tag).into(),
+            object_type: StructTag::new_treasury_cap(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
         });
@@ -747,7 +800,7 @@ impl Object {
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_coin_metadata(struct_tag).into(),
+            object_type: StructTag::new_coin_metadata(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
         });
@@ -762,7 +815,7 @@ impl Object {
 
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -786,7 +839,7 @@ impl Object {
         owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -978,7 +1031,7 @@ mod tests {
     use crate::{
         base_types::{IotaAddress, ObjectID, TransactionDigest},
         gas_coin::GasCoin,
-        object::{OBJECT_START_VERSION, Object, Owner},
+        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     };
 
     // Ensure that object digest computation and bcs serialized format are not

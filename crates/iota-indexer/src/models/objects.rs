@@ -196,7 +196,7 @@ impl StoredHistoryObject {
                     "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
                     object.id(),
                     object.version(),
-                    move_object.type_(),
+                    move_object.object_type(),
                 ))
             })?;
 
@@ -396,7 +396,7 @@ impl StoredObject {
                     "Failed to convert into object read for obj {}:{}, type: {}. Error: {e}",
                     object.id(),
                     object.version(),
-                    move_object.type_(),
+                    move_object.object_type(),
                 ))
             })?;
         let move_struct_layout = match move_type_layout {
@@ -435,7 +435,7 @@ impl StoredObject {
         let object: Object = bcs::from_bytes(&self.serialized_object).ok()?;
 
         let object = object.data.try_as_move()?;
-        let ty = object.type_();
+        let ty = object.object_type();
 
         if !ty.is_dynamic_field() {
             return None;

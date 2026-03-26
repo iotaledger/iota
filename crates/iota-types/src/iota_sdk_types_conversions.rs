@@ -26,7 +26,7 @@ use iota_sdk_types::{
     events::TransactionEvents,
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{GenesisObject, MoveStruct, Object, ObjectData},
+    object::{GenesisObject, Object, ObjectData},
     transaction::{
         GasPayment, GenesisTransaction, ProgrammableTransaction, RandomnessStateUpdate,
         SignedTransaction, Transaction, TransactionKind, TransactionV1,
@@ -99,7 +99,7 @@ impl TryFrom<crate::object::Data> for ObjectData {
 
     fn try_from(value: crate::object::Data) -> Result<Self, Self::Error> {
         match value {
-            crate::object::Data::Move(move_object) => Self::Struct(move_object_to_sdk(move_object)),
+            crate::object::Data::Move(move_object) => Self::Struct(move_object),
             crate::object::Data::Package(move_package) => Self::Package(move_package),
         }
         .pipe(Ok)
@@ -111,26 +111,10 @@ impl TryFrom<ObjectData> for crate::object::Data {
 
     fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
         match value {
-            ObjectData::Struct(move_object) => Self::Move(sdk_object_to_move(move_object)),
+            ObjectData::Struct(move_object) => Self::Move(move_object),
             ObjectData::Package(move_package) => Self::Package(move_package),
         }
         .pipe(Ok)
-    }
-}
-
-fn move_object_to_sdk(obj: crate::object::MoveObject) -> MoveStruct {
-    MoveStruct {
-        type_: obj.type_,
-        version: obj.version,
-        contents: obj.contents,
-    }
-}
-
-fn sdk_object_to_move(obj: MoveStruct) -> crate::object::MoveObject {
-    crate::object::MoveObject {
-        type_: obj.type_,
-        version: obj.version,
-        contents: obj.contents,
     }
 }
 

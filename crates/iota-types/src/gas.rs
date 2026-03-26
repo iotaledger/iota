@@ -16,7 +16,7 @@ pub mod checked {
         ObjectID,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
-        object::Object,
+        object::{MoveObjectExt, Object},
         transaction::ObjectReadResult,
     };
 
@@ -133,7 +133,7 @@ pub mod checked {
 
     pub fn get_gas_balance(gas_object: &Object) -> UserInputResult<u64> {
         if let Some(move_obj) = gas_object.data.try_as_move() {
-            if !move_obj.type_().is_gas_coin() {
+            if !move_obj.object_type().is_gas_coin() {
                 return Err(UserInputError::InvalidGasObject {
                     object_id: gas_object.id(),
                 });

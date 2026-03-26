@@ -182,7 +182,7 @@ impl ObjectHandler {
         } else {
             (None, None)
         };
-        let object_type = move_obj_opt.map(|o| o.type_().to_string());
+        let object_type = move_obj_opt.map(|o| o.object_type().to_string());
         let object_id = object.id();
         let entry = ObjectEntry {
             object_id: object_id.to_string(),

@@ -66,11 +66,11 @@ pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     // Skip if not a move object
     let move_object = o.data.try_as_move()?;
 
-    if !move_object.type_().is_dynamic_field() {
+    if !move_object.object_type().is_dynamic_field() {
         return None;
     }
 
-    let type_ = move_object.type_().clone();
+    let type_ = move_object.object_type().clone();
     let [name, _] = type_.type_params() else {
         return None;
     };

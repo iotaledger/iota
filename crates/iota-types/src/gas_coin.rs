@@ -101,10 +101,10 @@ mod checked {
         type Error = ExecutionError;
 
         fn try_from(value: &MoveObject) -> Result<GasCoin, ExecutionError> {
-            if !value.type_().is_gas_coin() {
+            if !value.object_type().is_gas_coin() {
                 return Err(ExecutionError::new_with_source(
                     ExecutionErrorKind::InvalidGasObject,
-                    format!("Gas object type is not a gas coin: {}", value.type_()),
+                    format!("Gas object type is not a gas coin: {}", value.object_type()),
                 ));
             }
             let gas_coin: GasCoin = bcs::from_bytes(value.contents()).map_err(|err| {
