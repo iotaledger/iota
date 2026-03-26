@@ -7,7 +7,7 @@ Lockfile {
             pinned: {},
             unpinned: {},
         },
-        dep_overrides: {},
+        dep_replacements: {},
     },
     published: {},
 }

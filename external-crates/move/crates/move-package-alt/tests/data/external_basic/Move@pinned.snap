@@ -1,11 +1,11 @@
 ---
-source: crates/move-package-alt/tests/pinning_tests.rs
+source: crates/move-package-alt/tests/test_runner.rs
 ---
 {
   "mock": {
     "local": "for_default"
   },
-  "overrides": {
+  "replacements": {
     "mainnet": {
       "mock": {
         "local": "for_mainnet"
