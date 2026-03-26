@@ -45,5 +45,4 @@ export interface FeatureResult<T> {
     value: T | null;
     on: boolean;
     off: boolean;
-    source: string;
 }

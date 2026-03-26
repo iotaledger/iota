@@ -3,7 +3,6 @@
 
 import type {
     AppsBackendClientOptions,
-    AppListItem,
     AppsResponse,
     CoinPriceResponse,
     FeatureDefinition,
@@ -87,6 +86,15 @@ export class AppsBackendClient {
 
     async getProductAnalyticsConfig(): Promise<ProductAnalyticsConfigResponse> {
         return this.request('product-analytics');
+    }
+
+    async checkRestricted(): Promise<boolean> {
+        const res = await fetch(`${this.url}/api/restricted/`, {
+            method: 'POST',
+            headers: { accept: '', 'content-type': 'application/json' },
+            body: JSON.stringify({}),
+        });
+        return res.status === 403;
     }
 
     async request<T>(

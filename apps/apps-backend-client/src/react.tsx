@@ -1,7 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { createContext, useCallback, useContext, useSyncExternalStore, type ReactNode } from 'react';
+import {
+    createContext,
+    useCallback,
+    useContext,
+    useSyncExternalStore,
+    type ReactNode,
+} from 'react';
 
 import type { AppsBackendClient } from './client';
 import type { FeatureResult } from './types';
@@ -43,7 +49,6 @@ export function useFeature<T = unknown>(key: string): FeatureResult<T> {
         value,
         on: !!value,
         off: !value,
-        source: feature ? 'backend' : 'defaultValue',
     };
 }
 
