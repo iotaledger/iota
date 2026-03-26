@@ -1,7 +1,15 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Title, TooltipPosition } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/apps-ui-icons';
+import {
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+    Title,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { type OnChainNotarization } from '@iota/notarization/web';
 import { Panel, PanelGroup } from 'react-resizable-panels';
 import { ErrorBoundary, SyntaxHighlighter } from '~/components';
@@ -12,30 +20,47 @@ interface StateViewProps {
 }
 
 export function StateView({ notarization }: StateViewProps) {
-    const { data, isLoading, error } = useNotarizationState(notarization);
+    const { data, isPending, isError, isSuccess } = useNotarizationState(notarization);
 
-    if (isLoading) {
-        return <div>Loading...</div>;
+    if (isError) {
+        return (
+            <InfoBox
+                title="Error Parsing Notarization State"
+                supportingText={`Could not parse state of notarization ${notarization.id} on the current network.`}
+                icon={<Warning />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
+        );
     }
 
-    if (error) {
-        return <div>Error: {error.message}</div>;
-    }
-
-    const { content, lang, metadata } = data!;
-
-    return (
-        <ErrorBoundary>
-            <div className="panel-bg flex h-full w-full flex-col gap-sm--rs rounded-xl border border-transparent p-md--rs">
-                <PanelGroup direction="horizontal">
-                    <StatePanel content={content} lang={lang} />
-                </PanelGroup>
-                <PanelGroup direction="horizontal">
-                    <MetadataPanel metadata={metadata} />
-                </PanelGroup>
+    if (isPending) {
+        return (
+            <div className="flex justify-center">
+                <LoadingIndicator size="w-6 h-6" text="Loading state and metadata..." />
             </div>
-        </ErrorBoundary>
-    );
+        );
+    }
+
+    if (isSuccess) {
+        const { content, lang, metadata } = data!;
+        return (
+            <ErrorBoundary>
+                <div className="panel-bg flex h-full w-full flex-col gap-sm--rs rounded-xl border border-transparent p-md--rs">
+                    {content && (
+                        <PanelGroup direction="horizontal">
+                            <StatePanel content={content} lang={lang} />
+                        </PanelGroup>
+                    )}
+                    {metadata && (
+                        <PanelGroup direction="horizontal">
+                            <MetadataPanel metadata={metadata} />
+                        </PanelGroup>
+                    )}
+                </div>
+            </ErrorBoundary>
+        );
+    }
 }
 
 function StatePanel({ content, lang }: { content: string; lang: string }) {
