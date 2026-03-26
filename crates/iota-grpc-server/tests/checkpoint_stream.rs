@@ -3,7 +3,7 @@
 mod common;
 use std::{
     collections::HashSet,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -19,19 +19,19 @@ use iota_types::{
     effects::{TestEffectsBuilder, TransactionEvents},
     event::Event,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use move_core_types::{account_address::AccountAddress, ident_str, language_storage::StructTag};
 use prost::Message;
 use tokio_stream::StreamExt;
 
-static MOCK_CHECKPOINT_CONTENTS: LazyLock<CheckpointContents> =
-    LazyLock::new(|| CheckpointContents::new_with_digests_only_for_tests(vec![]));
-
 fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
     CheckpointData {
-        checkpoint_summary: common::mock_summary(sequence_number, &MOCK_CHECKPOINT_CONTENTS),
-        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
+        checkpoint_summary: common::mock_summary(
+            sequence_number,
+            &common::EMPTY_CHECKPOINT_CONTENTS,
+        ),
+        checkpoint_contents: common::EMPTY_CHECKPOINT_CONTENTS.clone(),
         transactions: vec![],
     }
 }
@@ -48,8 +48,11 @@ fn mock_checkpoint_data_with_sender(
         .build_and_sign(key);
     let effects = TestEffectsBuilder::new(transaction.data()).build();
     CheckpointData {
-        checkpoint_summary: common::mock_summary(sequence_number, &MOCK_CHECKPOINT_CONTENTS),
-        checkpoint_contents: MOCK_CHECKPOINT_CONTENTS.clone(),
+        checkpoint_summary: common::mock_summary(
+            sequence_number,
+            &common::EMPTY_CHECKPOINT_CONTENTS,
+        ),
+        checkpoint_contents: common::EMPTY_CHECKPOINT_CONTENTS.clone(),
         transactions: vec![CheckpointTransaction {
             transaction,
             effects,
@@ -920,8 +923,8 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     // 10 000 transactions → total payload exceeds the 4 MB minimum message size
     // enforced by the server, which enables the splitting test.
     let transactions = build_checkpoint_transactions_with_events(10_000, 0);
-    let summary = common::mock_summary(0, &MOCK_CHECKPOINT_CONTENTS);
-    let contents = MOCK_CHECKPOINT_CONTENTS.clone();
+    let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
+    let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 
     let state_reader = Arc::new(MockGrpcStateReader {
         summary: Some(summary),
@@ -1002,8 +1005,8 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
 async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     // 2 000 transactions × 5 events each → total event payload exceeds 4 MB.
     let transactions = build_checkpoint_transactions_with_events(2_000, 5);
-    let summary = common::mock_summary(0, &MOCK_CHECKPOINT_CONTENTS);
-    let contents = MOCK_CHECKPOINT_CONTENTS.clone();
+    let summary = common::mock_summary(0, &common::EMPTY_CHECKPOINT_CONTENTS);
+    let contents = common::EMPTY_CHECKPOINT_CONTENTS.clone();
 
     let state_reader = Arc::new(MockGrpcStateReader {
         summary: Some(summary),

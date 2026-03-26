@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for `create_batching_stream!` macro used by `get_objects` and
@@ -158,6 +158,11 @@ async fn test_get_objects_batching_within_limit() {
     // has_next=false does not include those 2 bytes, so the exact limit that
     // still fits everything in one batch is encoded_len() + 2.
     let exact_limit = u32::try_from(all_responses[0].encoded_len()).unwrap() + 2;
+    assert!(
+        exact_limit >= 1_024 * 1_024,
+        "Test prerequisite: single batch ({exact_limit}) must be >= 1 MB \
+         so the server does not reject the limit"
+    );
 
     // --- Pass 2: exact limit → should still fit in one batch ---
     let req = GetObjectsRequest::default()

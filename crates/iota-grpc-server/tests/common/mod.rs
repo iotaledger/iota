@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Shared test utilities for iota-grpc-server integration tests.
@@ -98,7 +98,7 @@ pub struct MockGrpcStateReader {
 }
 
 /// Shared empty contents used when generating on-the-fly summaries.
-static EMPTY_CHECKPOINT_CONTENTS: std::sync::LazyLock<CheckpointContents> =
+pub(crate) static EMPTY_CHECKPOINT_CONTENTS: std::sync::LazyLock<CheckpointContents> =
     std::sync::LazyLock::new(|| CheckpointContents::new_with_digests_only_for_tests(vec![]));
 
 impl MockGrpcStateReader {
