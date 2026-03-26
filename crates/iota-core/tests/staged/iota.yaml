@@ -320,7 +320,7 @@ Data:
     0:
       Move:
         NEWTYPE:
-          TYPENAME: MoveObject
+          TYPENAME: MoveStruct
     1:
       Package:
         NEWTYPE:
@@ -641,12 +641,6 @@ MoveLocation:
     - instruction: U16
     - functionName:
         OPTION: STR
-MoveObject:
-  STRUCT:
-    - type_:
-        TYPENAME: MoveObjectType
-    - version: U64
-    - contents: BYTES
 MoveObjectType:
   ENUM:
     0:
@@ -679,6 +673,12 @@ MovePackage:
             TYPENAME: ObjectId
           VALUE:
             TYPENAME: UpgradeInfo
+MoveStruct:
+  STRUCT:
+    - type:
+        TYPENAME: MoveObjectType
+    - version: U64
+    - contents: BYTES
 MultiSig:
   STRUCT:
     - sigs:
