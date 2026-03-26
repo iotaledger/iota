@@ -49,8 +49,8 @@ impl<A> RequestRetrier<A> {
         allowed_validators: Vec<String>,
         blocked_validators: Vec<String>,
     ) -> Self {
-        let ranked_validators = client_monitor
-            .select_shuffled_preferred_validators(&auth_agg.committee);
+        let ranked_validators =
+            client_monitor.select_shuffled_preferred_validators(&auth_agg.committee);
         let ranked_clients = ranked_validators
             .into_iter()
             .map(|name| (name, auth_agg.get_display_name(&name)))

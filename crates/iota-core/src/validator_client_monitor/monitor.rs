@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{Arc, Weak},
+    time::{Duration, Instant},
+};
 
 use arc_swap::ArcSwap;
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
@@ -54,9 +57,10 @@ where
             authority_aggregator,
         });
 
-        let monitor_clone = monitor.clone();
+        let period = monitor.config.health_check_interval;
+        let monitor_weak = Arc::downgrade(&monitor);
         tokio::spawn(async move {
-            monitor_clone.run_health_checks().await;
+            Self::run_health_checks(monitor_weak, period).await;
         });
 
         monitor
@@ -75,49 +79,53 @@ where
     }
 
     /// Background task that runs periodic health checks on all validators.
-    async fn run_health_checks(self: Arc<Self>) {
-        let mut interval = interval(self.config.health_check_interval);
+    fn spawn_health_checks_tasks(self: Arc<Self>) -> JoinSet<()> {
+        let authority_agg = self.authority_aggregator.load();
+
+        let current_validators = authority_agg.committee.names();
+        self.client_stats
+            .write()
+            .retain_validators(current_validators);
+
+        let mut tasks = JoinSet::new();
+
+        for (name, safe_client) in authority_agg.authority_clients.iter() {
+            let name = *name;
+            let display_name = authority_agg.get_display_name(&name);
+            let client = safe_client.clone();
+            let timeout_duration = self.config.health_check_timeout;
+            let monitor = self.clone();
+
+            tasks.spawn(async move {
+                let feedback_builder =
+                    OperationFeedback::builder(name, display_name, OperationType::HealthCheck);
+                let start = Instant::now();
+                let result = match timeout(
+                    timeout_duration,
+                    client.validator_health(ValidatorHealthRequest {}),
+                )
+                .await
+                {
+                    Ok(Ok(_response)) => Ok(start.elapsed()),
+                    Ok(Err(_)) | Err(_) => Err(()),
+                };
+                monitor.record_interaction_result(feedback_builder.result_now(result));
+            });
+        }
+
+        tasks
+    }
+
+    async fn run_health_checks(monitor: Weak<Self>, period: Duration) {
+        let mut interval = interval(period);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
             interval.tick().await;
-
-            let authority_agg = self.authority_aggregator.load();
-
-            let current_validators = authority_agg.committee.names();
-            self.client_stats
-                .write()
-                .retain_validators(current_validators);
-
-            let mut tasks = JoinSet::new();
-
-            for (name, safe_client) in authority_agg.authority_clients.iter() {
-                let name = *name;
-                let display_name = authority_agg.get_display_name(&name);
-                let client = safe_client.clone();
-                let timeout_duration = self.config.health_check_timeout;
-                let monitor = self.clone();
-
-                tasks.spawn(async move {
-                    let feedback_builder =
-                        OperationFeedback::builder(name, display_name, OperationType::HealthCheck);
-                    let start = Instant::now();
-                    match timeout(
-                        timeout_duration,
-                        client.health_check(ValidatorHealthRequest {}),
-                    )
-                    .await
-                    {
-                        Ok(Ok(_response)) => {
-                            let latency = start.elapsed();
-                            monitor.record_interaction_result(feedback_builder.ok_now(latency));
-                        }
-                        Ok(Err(_)) | Err(_) => {
-                            monitor.record_interaction_result(feedback_builder.err_now());
-                        }
-                    }
-                });
-            }
-
+            let Some(monitor) = monitor.upgrade() else {
+                break;
+            };
+            let mut tasks = monitor.spawn_health_checks_tasks();
             while let Some(result) = tasks.join_next().await {
                 if let Err(e) = result {
                     warn!("Health check task failed: {}", e);
@@ -158,7 +166,9 @@ impl<A> ValidatorClientMonitor<A> {
             .client_stats
             .read()
             .select_shuffled_preferred_validators(committee.names(), now, rng);
-        self.metrics.shuffled_validators.observe(validators.len() as f64);
+        self.metrics
+            .shuffled_validators
+            .observe(validators.len() as f64);
         validators
     }
 
@@ -169,8 +179,6 @@ impl<A> ValidatorClientMonitor<A> {
 
     #[cfg(test)]
     pub fn has_validator_stats(&self, validator: &AuthorityName) -> bool {
-        self.client_stats
-            .read()
-            .has_validator(validator)
+        self.client_stats.read().has_validator(validator)
     }
 }

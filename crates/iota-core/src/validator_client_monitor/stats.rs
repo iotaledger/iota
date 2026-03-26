@@ -300,27 +300,12 @@ impl ClientObservedStats {
             })
     }
 
-    pub(super) fn select_shuffled_preferred_validators<'a>(
-        &self,
-        committee: impl Iterator<Item = &'a AuthorityName>,
-        now: Instant,
-        mut rng: impl rand::Rng,
+    pub(super) fn select_top_validators(
+        validator_with_scores: Vec<(AuthorityName, f64)>,
+        config: &ValidatorClientMonitorConfig,
     ) -> Vec<AuthorityName> {
-        let mut validator_with_scores: Vec<_> = committee
-            .map(|v| (*v, self.calculate_selection_score(v, now)))
-            .collect();
-
-        if validator_with_scores.is_empty() {
-            return vec![];
-        }
-        validator_with_scores.sort_by(|(_, latency1), (_, latency2)| {
-            latency1
-                .partial_cmp(latency2)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
         let lowest_score = validator_with_scores[0].1;
-        let threshold = lowest_score * (1.0 + self.config.preferred_group_delta);
+        let threshold = lowest_score * (1.0 + config.preferred_group_delta);
         let k = validator_with_scores
             .iter()
             .enumerate()
@@ -334,8 +319,7 @@ impl ClientObservedStats {
         // should never be force-included; this guards against the case where
         // delta is tight (e.g. 2 %) but two validators have nearly identical
         // latency (e.g. 49 ms vs 51 ms).
-        let k_min = self
-            .config
+        let k_min = config
             .min_preferred_group_size
             .min(validator_with_scores.len());
         let k = if k < k_min {
@@ -349,14 +333,49 @@ impl ClientObservedStats {
             k
         };
 
-        validator_with_scores.truncate(k);
-        validator_with_scores.shuffle(&mut rng);
+        validator_with_scores
+            .into_iter()
+            .take(k)
+            .map(|(v, _)| v)
+            .collect()
+    }
 
-        validator_with_scores.into_iter().map(|(v, _)| v).collect()
+    pub(super) fn select_shuffled_preferred_validators<'a>(
+        &self,
+        committee: impl Iterator<Item = &'a AuthorityName>,
+        now: Instant,
+        mut rng: impl rand::Rng,
+    ) -> Vec<AuthorityName> {
+        // 1. calculate scores
+        let mut validator_with_scores: Vec<_> = committee
+            .map(|v| (*v, self.calculate_selection_score(v, now)))
+            .collect();
+
+        if validator_with_scores.is_empty() {
+            return vec![];
+        }
+        // 2. reorder scores in ascending order, the lowest score is the best
+        validator_with_scores.sort_by(|(_, latency1), (_, latency2)| {
+            latency1
+                .partial_cmp(latency2)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // 3. select the top k validators
+        let mut selected_validators =
+            Self::select_top_validators(validator_with_scores, &self.config);
+
+        // 4. shuffle to avoid prejudice and randomize selection
+        selected_validators.shuffle(&mut rng);
+
+        selected_validators
     }
 
     /// Retain only the specified validators, removing any others.
-    pub(super) fn retain_validators<'a>(&mut self, validators: impl Iterator<Item = &'a AuthorityName>) {
+    pub(super) fn retain_validators<'a>(
+        &mut self,
+        validators: impl Iterator<Item = &'a AuthorityName>,
+    ) {
         let cur_len = self.validator_stats.len();
         let validator_set: HashSet<_> = validators.collect();
         self.validator_stats
@@ -369,7 +388,10 @@ impl ClientObservedStats {
 
     /// Remove the specified validators, retaining any others.
     #[cfg(test)]
-    pub(super) fn remove_validators<'a>(&mut self, validators: impl Iterator<Item = &'a AuthorityName>) {
+    pub(super) fn remove_validators<'a>(
+        &mut self,
+        validators: impl Iterator<Item = &'a AuthorityName>,
+    ) {
         let mut removed_count = 0;
         for validator in validators {
             if self.validator_stats.remove(validator).is_some() {
