@@ -49,7 +49,7 @@ impl TransactionSubmitter {
     pub(crate) async fn submit_transaction<A>(
         &self,
         authority_aggregator: &Arc<AuthorityAggregator<A>>,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        client_monitor: &Arc<ValidatorClientMonitor>,
         amplification_factor: u64,
         transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
@@ -66,8 +66,8 @@ impl TransactionSubmitter {
         let mut retrier = RequestRetrier::new(
             authority_aggregator,
             client_monitor,
-            options.allowed_validators.clone(),
-            options.blocked_validators.clone(),
+            &options.allowed_validators,
+            &options.blocked_validators,
         );
 
         let ping_label = if transaction.is_none() {
@@ -189,7 +189,7 @@ impl TransactionSubmitter {
         client: Arc<SafeClient<A>>,
         transaction: &Option<Transaction>,
         options: &SubmitTransactionOptions,
-        client_monitor: &Arc<ValidatorClientMonitor<A>>,
+        client_monitor: &Arc<ValidatorClientMonitor>,
         validator: AuthorityName,
         display_name: String,
     ) -> Result<TxStatusUpdate, TransactionRequestError>

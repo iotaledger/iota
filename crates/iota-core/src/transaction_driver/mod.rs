@@ -89,7 +89,7 @@ pub struct TransactionDriver<A> {
     metrics: Arc<TransactionDriverMetrics>,
     submitter: TransactionSubmitter,
     certifier: EffectsCertifier,
-    client_monitor: Arc<ValidatorClientMonitor<A>>,
+    client_monitor: Arc<ValidatorClientMonitor>,
 }
 
 impl<A> TransactionDriver<A>
@@ -109,8 +109,8 @@ where
         let monitor_config = node_config
             .and_then(|nc| nc.validator_client_monitor_config.clone())
             .unwrap_or_default();
-        let client_monitor =
-            ValidatorClientMonitor::new(monitor_config, client_metrics, shared_swap.clone());
+        let client_monitor = Arc::new(ValidatorClientMonitor::new(monitor_config, client_metrics));
+        ValidatorClientMonitor::spawn_health_checks(&client_monitor, Arc::downgrade(&shared_swap));
 
         let driver = Arc::new(Self {
             authority_aggregator: shared_swap,
@@ -136,7 +136,7 @@ where
     }
 
     /// Returns the validator client monitor for use in tests.
-    pub fn client_monitor_for_test(&self) -> &Arc<ValidatorClientMonitor<A>> {
+    pub fn client_monitor_for_test(&self) -> &Arc<ValidatorClientMonitor> {
         &self.client_monitor
     }
 

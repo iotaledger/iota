@@ -10,11 +10,11 @@ use std::{
 use arc_swap::ArcSwap;
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::{
-    base_types::AuthorityName, committee::Committee, messages_grpc::ValidatorHealthRequest,
+    base_types::AuthorityName, messages_grpc::ValidatorHealthRequest,
 };
 use parking_lot::RwLock;
 use tokio::{
-    task::JoinSet,
+    task::{JoinHandle, JoinSet},
     time::{interval, timeout},
 };
 use tracing::{info, warn};
@@ -29,59 +29,53 @@ use crate::{
 };
 
 /// Monitors validator interactions from the client's perspective.
-pub struct ValidatorClientMonitor<A> {
+pub struct ValidatorClientMonitor {
     config: ValidatorClientMonitorConfig,
     metrics: Arc<ValidatorClientMetrics>,
     client_stats: RwLock<ClientObservedStats>,
-    authority_aggregator: Arc<ArcSwap<AuthorityAggregator<A>>>,
 }
 
-impl<A> ValidatorClientMonitor<A>
-where
-    A: AuthorityAPI + Send + Sync + 'static,
-{
-    pub fn new(
-        config: ValidatorClientMonitorConfig,
-        metrics: Arc<ValidatorClientMetrics>,
-        authority_aggregator: Arc<ArcSwap<AuthorityAggregator<A>>>,
-    ) -> Arc<Self> {
+impl ValidatorClientMonitor {
+    pub fn new(config: ValidatorClientMonitorConfig, metrics: Arc<ValidatorClientMetrics>) -> Self {
         info!(
             "Validator client monitor starting with config: {:?}",
             config
         );
 
-        let monitor = Arc::new(Self {
+        Self {
             config: config.clone(),
             metrics,
             client_stats: RwLock::new(ClientObservedStats::new(config)),
-            authority_aggregator,
-        });
+        }
+    }
 
+    pub fn spawn_health_checks<A: AuthorityAPI + Send + Sync + 'static>(
+        monitor: &Arc<Self>,
+        authority_aggregator: Weak<ArcSwap<AuthorityAggregator<A>>>,
+    ) -> JoinHandle<()> {
         let period = monitor.config.health_check_interval;
-        let monitor_weak = Arc::downgrade(&monitor);
+        let monitor_weak = Arc::downgrade(monitor);
         tokio::spawn(async move {
-            Self::run_health_checks(monitor_weak, period).await;
-        });
-
-        monitor
+            Self::run_health_checks(monitor_weak, authority_aggregator, period).await;
+        })
     }
 
     #[cfg(test)]
-    pub fn new_for_test(authority_aggregator: Arc<AuthorityAggregator<A>>) -> Arc<Self> {
+    pub fn new_for_test() -> Self {
         // Use a fresh isolated registry per test instance to prevent parallel
         // tests from conflicting when registering metrics with the same names
         // into the global default registry.
         Self::new(
             ValidatorClientMonitorConfig::default(),
             Arc::new(ValidatorClientMetrics::new(&prometheus::Registry::new())),
-            Arc::new(ArcSwap::new(authority_aggregator)),
         )
     }
 
     /// Background task that runs periodic health checks on all validators.
-    fn spawn_health_checks_tasks(self: Arc<Self>) -> JoinSet<()> {
-        let authority_agg = self.authority_aggregator.load();
-
+    fn spawn_health_checks_tasks<A: AuthorityAPI + Send + Sync + 'static>(
+        self: Arc<Self>,
+        authority_agg: &Arc<AuthorityAggregator<A>>,
+    ) -> JoinSet<()> {
         let current_validators = authority_agg.committee.names();
         self.client_stats
             .write()
@@ -116,7 +110,11 @@ where
         tasks
     }
 
-    async fn run_health_checks(monitor: Weak<Self>, period: Duration) {
+    async fn run_health_checks<A: AuthorityAPI + Send + Sync + 'static>(
+        monitor: Weak<Self>,
+        authority_aggregator: Weak<ArcSwap<AuthorityAggregator<A>>>,
+        period: Duration,
+    ) {
         let mut interval = interval(period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
@@ -125,7 +123,12 @@ where
             let Some(monitor) = monitor.upgrade() else {
                 break;
             };
-            let mut tasks = monitor.spawn_health_checks_tasks();
+            let Some(authority_agg) = authority_aggregator.upgrade() else {
+                break;
+            };
+            let authority_agg = authority_agg.load();
+            let mut tasks = monitor.spawn_health_checks_tasks(&*authority_agg);
+            drop(authority_agg);
             while let Some(result) = tasks.join_next().await {
                 if let Err(e) = result {
                     warn!("Health check task failed: {}", e);
@@ -135,7 +138,7 @@ where
     }
 }
 
-impl<A> ValidatorClientMonitor<A> {
+impl ValidatorClientMonitor {
     /// Record client-observed interaction result with a validator.
     pub fn record_interaction_result(&self, feedback: OperationFeedback) {
         let score = self
@@ -156,16 +159,16 @@ impl<A> ValidatorClientMonitor<A> {
     /// shuffled to spread traffic; the rest are returned in score order.
     /// The prefix is guaranteed to contain at least `min_preferred_group_size`
     /// validators to prevent a single validator from monopolising all traffic.
-    pub fn select_shuffled_preferred_validators(
+    pub fn select_shuffled_preferred_validators<'a>(
         &self,
-        committee: &Committee,
-    ) -> Vec<AuthorityName> {
+        committee: impl Iterator<Item = &'a AuthorityName>,
+    ) -> Vec<&'a AuthorityName> {
         let rng = rand::thread_rng();
         let now = Instant::now();
         let validators = self
             .client_stats
             .read()
-            .select_shuffled_preferred_validators(committee.names(), now, rng);
+            .select_shuffled_preferred_validators(committee, now, rng);
         self.metrics
             .shuffled_validators
             .observe(validators.len() as f64);
