@@ -41,7 +41,7 @@ use tonic::transport::Channel;
 fn make_gas_coin(owner: IotaAddress, object_id: ObjectID, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     let move_obj = MoveObject::new_from_execution_with_limit(
-        StructTag::new_gas_coin().into(),
+        StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
         256,
@@ -64,7 +64,7 @@ fn make_large_gas_coin(
     let mut contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     contents.extend(vec![0u8; padding]);
     let move_obj = MoveObject::new_from_execution_with_limit(
-        StructTag::new_gas_coin().into(),
+        StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
         u64::try_from(padding).unwrap() + 1024,

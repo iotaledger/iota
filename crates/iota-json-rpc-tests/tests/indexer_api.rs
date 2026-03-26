@@ -483,7 +483,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             iota_call_args_1,
         )
         .await?;
-    let cmd_1 = Command::move_call(
+    let cmd_1 = Command::new_move_call(
         package_id,
         module.clone(),
         function_1,
@@ -502,7 +502,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
             iota_call_args_2,
         )
         .await?;
-    let cmd_2 = Command::move_call(package_id, module, function_2, type_args, call_args_2);
+    let cmd_2 = Command::new_move_call(package_id, module, function_2, type_args, call_args_2);
     pt_builder.command(cmd_1);
     pt_builder.command(cmd_2);
     let pt = pt_builder.finish();

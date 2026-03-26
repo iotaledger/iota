@@ -446,8 +446,8 @@ mod sim_only_tests {
                 &cluster,
                 ProgrammableMoveCall {
                     package: iota_extra,
-                    module: "msim_extra_1".to_owned(),
-                    function: "canary".to_owned(),
+                    module: Identifier::new_unchecked("msim_extra_1"),
+                    function: Identifier::new_unchecked("canary"),
                     type_arguments: vec![],
                     arguments: vec![],
                 }
@@ -476,8 +476,8 @@ mod sim_only_tests {
             cluster,
             ProgrammableMoveCall {
                 package: ObjectID::SYSTEM,
-                module: "msim_extra_1".to_owned(),
-                function: "canary".to_owned(),
+                module: Identifier::new_unchecked("msim_extra_1"),
+                function: Identifier::new_unchecked("canary"),
                 type_arguments: vec![],
                 arguments: vec![],
             },
@@ -491,8 +491,8 @@ mod sim_only_tests {
             builder
                 .move_call(
                     ObjectID::SYSTEM,
-                    Identifier::from_static("msim_extra_1"),
-                    Identifier::from_static("mint"),
+                    Identifier::new_unchecked("msim_extra_1"),
+                    Identifier::new_unchecked("mint"),
                     // type_arguments
                     vec![],
                     // call_args
@@ -550,7 +550,7 @@ mod sim_only_tests {
 
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
-            builder.command(Command::MoveCall(Box::new(call)));
+            builder.command(Command::MoveCall(call));
             builder.finish()
         };
         let txn = TransactionKind::programmable(pt);

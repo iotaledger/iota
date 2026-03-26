@@ -129,7 +129,7 @@ impl ProgrammableTransactionBuilder {
             .into_iter()
             .map(|obj| self.obj(obj.into()))
             .collect::<Result<_, _>>()?;
-        Ok(self.command(Command::MakeMoveVec(None, make_vec_args)))
+        Ok(self.command(Command::new_make_move_vector(None, make_vec_args)))
     }
 
     pub fn command(&mut self, command: Command) -> Argument {
@@ -151,7 +151,7 @@ impl ProgrammableTransactionBuilder {
             .into_iter()
             .map(|a| self.input(a))
             .collect::<Result<_, _>>()?;
-        self.command(Command::move_call(
+        self.command(Command::new_move_call(
             package,
             module,
             function,
@@ -169,7 +169,7 @@ impl ProgrammableTransactionBuilder {
         type_arguments: Vec<TypeTag>,
         arguments: Vec<Argument>,
     ) -> Argument {
-        self.command(Command::move_call(
+        self.command(Command::new_move_call(
             package,
             module,
             function,
@@ -183,12 +183,12 @@ impl ProgrammableTransactionBuilder {
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectID>,
     ) -> Argument {
-        self.command(Command::Publish(modules, dep_ids))
+        self.command(Command::new_publish(modules, dep_ids))
     }
 
     pub fn publish_immutable(&mut self, modules: Vec<Vec<u8>>, dep_ids: Vec<ObjectID>) {
         let cap = self.publish_upgradeable(modules, dep_ids);
-        self.commands.push(Command::move_call(
+        self.commands.push(Command::new_move_call(
             ObjectID::FRAMEWORK,
             Identifier::PACKAGE_MODULE,
             Identifier::from_static("make_immutable"),
@@ -204,7 +204,7 @@ impl ProgrammableTransactionBuilder {
         transitive_deps: Vec<ObjectID>,
         modules: Vec<Vec<u8>>,
     ) -> Argument {
-        self.command(Command::Upgrade(
+        self.command(Command::new_upgrade(
             modules,
             transitive_deps,
             current_package_object_id,
@@ -218,7 +218,8 @@ impl ProgrammableTransactionBuilder {
 
     pub fn transfer_args(&mut self, recipient: IotaAddress, args: Vec<Argument>) {
         let rec_arg = self.pure(recipient).unwrap();
-        self.commands.push(Command::TransferObjects(args, rec_arg));
+        self.commands
+            .push(Command::new_transfer_objects(args, rec_arg));
     }
 
     pub fn transfer_object(
@@ -229,7 +230,7 @@ impl ProgrammableTransactionBuilder {
         let rec_arg = self.pure(recipient).unwrap();
         let obj_arg = self.obj(CallArg::ImmutableOrOwned(object_ref));
         self.commands
-            .push(Command::TransferObjects(vec![obj_arg?], rec_arg));
+            .push(Command::new_transfer_objects(vec![obj_arg?], rec_arg));
         Ok(())
     }
 
@@ -237,16 +238,16 @@ impl ProgrammableTransactionBuilder {
         let rec_arg = self.pure(recipient).unwrap();
         let coin_arg = if let Some(amount) = amount {
             let amt_arg = self.pure(amount).unwrap();
-            self.command(Command::SplitCoins(Argument::Gas, vec![amt_arg]))
+            self.command(Command::new_split_coins(Argument::Gas, vec![amt_arg]))
         } else {
             Argument::Gas
         };
-        self.command(Command::TransferObjects(vec![coin_arg], rec_arg));
+        self.command(Command::new_transfer_objects(vec![coin_arg], rec_arg));
     }
 
     pub fn pay_all_iota(&mut self, recipient: IotaAddress) {
         let rec_arg = self.pure(recipient).unwrap();
-        self.command(Command::TransferObjects(vec![Argument::Gas], rec_arg));
+        self.command(Command::new_transfer_objects(vec![Argument::Gas], rec_arg));
     }
 
     /// Will fail to generate if recipients and amounts do not have the same
@@ -263,13 +264,13 @@ impl ProgrammableTransactionBuilder {
         let coin_arg = self.obj(CallArg::ImmutableOrOwned(coin)).unwrap();
         let amounts_len = amounts.len();
         let amt_args = amounts.into_iter().map(|a| self.pure(a).unwrap()).collect();
-        let result = self.command(Command::SplitCoins(coin_arg, amt_args));
+        let result = self.command(Command::new_split_coins(coin_arg, amt_args));
         let Argument::Result(result) = result else {
             panic!("self.command should always give a Argument::Result");
         };
 
         let recipient = self.pure(recipient).unwrap();
-        self.command(Command::TransferObjects(
+        self.command(Command::new_transfer_objects(
             (0..amounts_len)
                 .map(|i| Argument::NestedResult(result, i as u16))
                 .collect(),
@@ -294,7 +295,7 @@ impl ProgrammableTransactionBuilder {
             .map(|c| self.obj(CallArg::ImmutableOrOwned(c)))
             .collect::<Result<_, _>>()?;
         if !merge_args.is_empty() {
-            self.command(Command::MergeCoins(coin_arg, merge_args));
+            self.command(Command::new_merge_coins(coin_arg, merge_args));
         }
         self.pay_impl(recipients, amounts, coin_arg)
     }
@@ -324,7 +325,8 @@ impl ProgrammableTransactionBuilder {
             recipient_map.entry(recipient).or_default().push(i);
             amt_args.push(self.pure(amount)?);
         }
-        let Argument::Result(split_primary) = self.command(Command::SplitCoins(coin, amt_args))
+        let Argument::Result(split_primary) =
+            self.command(Command::new_split_coins(coin, amt_args))
         else {
             panic!("self.command should always give a Argument::Result")
         };
@@ -334,7 +336,7 @@ impl ProgrammableTransactionBuilder {
                 .into_iter()
                 .map(|j| Argument::NestedResult(split_primary, j as u16))
                 .collect();
-            self.command(Command::TransferObjects(coins, rec_arg));
+            self.command(Command::new_transfer_objects(coins, rec_arg));
         }
         Ok(())
     }

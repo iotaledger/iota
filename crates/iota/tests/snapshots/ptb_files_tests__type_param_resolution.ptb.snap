@@ -17,6 +17,6 @@ expression: "results.join(\"\\n\")"
 Input 0: Pure([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2])
 Input 1: Pure([0, 0, 0, 0, 0, 0, 0, 0])
 Input 2: Pure([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-Command 0: MoveCall(0x0000000000000000000000000000000000000000000000000000000000000002::table::new<address,u64>())
+Command 0: MoveCall(0x0000000000000000000000000000000000000000000000000000000000000002::table::new<address,u64>)
 Command 1: MoveCall(0x0000000000000000000000000000000000000000000000000000000000000002::table::add<address,u64>(Result(0),Input(0),Input(1)))
 Command 2: TransferObjects([Result(0)],Input(2))

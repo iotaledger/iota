@@ -42,7 +42,7 @@ fn create_large_object(padding_bytes_len: usize) -> (ObjectID, Object) {
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);
     let move_obj = MoveObject::new_from_execution_with_limit(
-        StructTag::new_gas_coin().into(),
+        StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
         u64::try_from(padding_bytes_len).unwrap() + 1024,
