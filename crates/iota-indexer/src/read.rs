@@ -72,7 +72,7 @@ use crate::{
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
         transactions::{
-            IndexStatus, OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
+            OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
@@ -1078,8 +1078,11 @@ impl IndexerReader {
             .join(", ");
 
         let query = format!(
-            "SELECT COUNT(*) as count FROM objects \
-             WHERE (object_id, object_version) IN (VALUES {})",
+            "WITH max_chk AS (SELECT COALESCE(MAX(sequence_number), -1) AS max_sn FROM checkpoints) \
+             SELECT COUNT(*) as count FROM objects \
+             WHERE (object_id, object_version) IN (VALUES {}) \
+             AND (finalized_in_cp IS NULL \
+                  OR finalized_in_cp <= (SELECT max_sn FROM max_chk))",
             values_clause
         );
 
@@ -1521,25 +1524,51 @@ impl IndexerReader {
             .await
     }
 
-    /// Returns `true` when `tx_global_order.optimistic_sequence_number !=
-    /// IndexStatus::Started`, which means all basic data for the transaction
-    /// (objects, displays, etc.) has been persisted by either checkpoint or
+    /// Returns `true` when all basic data for the transaction (objects,
+    /// displays, etc.) has been persisted by either the checkpoint or
     /// optimistic path.
+    ///
+    /// - Optimistic transactions: `optimistic_sequence_number > 0` (objects are
+    ///   committed atomically with the tx)
+    /// - Checkpoint transactions: the latest indexed checkpoint's
+    ///   `max_tx_sequence_number >= chk_tx_sequence_number`, meaning the
+    ///   checkpoint containing this tx has been fully persisted
     pub(crate) async fn is_transaction_fully_indexed(
         &self,
         digest: TransactionDigest,
     ) -> IndexerResult<bool> {
         self.spawn_blocking(move |this| {
             let digest_bytes = digest.inner().to_vec();
-            run_query!(&this.pool, |conn| {
+            let global_order_entry = run_query!(&this.pool, |conn| {
                 tx_global_order::table
                     .filter(tx_global_order::tx_digest.eq(digest_bytes))
-                    .select(tx_global_order::optimistic_sequence_number)
-                    .first::<i64>(conn)
+                    .select((
+                        tx_global_order::optimistic_sequence_number,
+                        tx_global_order::chk_tx_sequence_number,
+                    ))
+                    .first::<(i64, Option<i64>)>(conn)
                     .optional()
-            })
-            // n = -1 if persisted on checkpoint path, n > 0 if persisted on optimistic path
-            .map(|result| result.is_some_and(|n| n != IndexStatus::Started as i64))
+            })?;
+
+            match global_order_entry {
+                // Optimistic tx: objects committed atomically.
+                Some((opt_seq, _)) if opt_seq > 0 => Ok(true),
+                // Checkpoint tx: check if the latest indexed checkpoint covers this tx.
+                Some((_, Some(tx_seq))) => {
+                    let max_indexed_tx = run_query!(&this.pool, |conn| {
+                        checkpoints::table
+                            .order(checkpoints::sequence_number.desc())
+                            .select(checkpoints::max_tx_sequence_number)
+                            .first::<Option<i64>>(conn)
+                            .optional()
+                    })?;
+                    Ok(max_indexed_tx
+                        .flatten()
+                        .is_some_and(|max_tx| max_tx >= tx_seq))
+                }
+                // Row not found or chk_tx_sequence_number not yet set.
+                _ => Ok(false),
+            }
         })
         .await
     }

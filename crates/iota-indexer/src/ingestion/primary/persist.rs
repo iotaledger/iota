@@ -200,14 +200,6 @@ impl PrimaryWriter {
                 .expect("persisting data into DB should not fail.");
         }
 
-        self.state
-            .update_status_for_checkpoint_transactions(tx_global_order_batch)
-            .await
-            .inspect_err(|e| {
-                error!("failed to update tx global order as indexed with error: {e}");
-            })
-            .expect("updating tx global order as indexed should not fail.");
-
         let is_epoch_end = epoch.is_some();
 
         // On epoch boundary, we need to modify the existing partitions' upper bound,

@@ -56,9 +56,7 @@ use crate::{
             StoredObjects,
         },
         packages::StoredPackage,
-        transactions::{
-            CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
-        },
+        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
         watermarks::StoredWatermark,
     },
@@ -334,7 +332,8 @@ impl PgIndexerStore {
                 serialized_object,
                 coin_type,
                 coin_balance,
-                df_kind
+                df_kind,
+                finalized_in_cp
             )
             SELECT
                 u.object_id,
@@ -349,7 +348,8 @@ impl PgIndexerStore {
                 u.serialized_object,
                 u.coin_type,
                 u.coin_balance,
-                u.df_kind
+                u.df_kind,
+                u.finalized_in_cp
             FROM UNNEST(
                 $1::BYTEA[],
                 $2::BIGINT[],
@@ -364,10 +364,11 @@ impl PgIndexerStore {
                 $11::TEXT[],
                 $12::BIGINT[],
                 $13::SMALLINT[],
-                $14::BYTEA[]
-            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest)
+                $14::BYTEA[],
+                $15::BIGINT[]
+            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest, finalized_in_cp)
             LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
-            WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
+            WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = -1
             ON CONFLICT (object_id) DO UPDATE
             SET
                 object_version = EXCLUDED.object_version,
@@ -381,7 +382,8 @@ impl PgIndexerStore {
                 serialized_object = EXCLUDED.serialized_object,
                 coin_type = EXCLUDED.coin_type,
                 coin_balance = EXCLUDED.coin_balance,
-                df_kind = EXCLUDED.df_kind
+                df_kind = EXCLUDED.df_kind,
+                finalized_in_cp = EXCLUDED.finalized_in_cp
             WHERE EXCLUDED.object_version > objects.object_version
         "#;
         let (objects, tx_digests): (StoredObjects, Vec<_>) = objects
@@ -408,7 +410,8 @@ impl PgIndexerStore {
             .bind::<Array<Nullable<Text>>, _>(objects.coin_types)
             .bind::<Array<Nullable<BigInt>>, _>(objects.coin_balances)
             .bind::<Array<Nullable<SmallInt>>, _>(objects.df_kinds)
-            .bind::<Array<Bytea>, _>(tx_digests);
+            .bind::<Array<Bytea>, _>(tx_digests)
+            .bind::<Array<Nullable<BigInt>>, _>(objects.finalized_in_cps);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -442,7 +445,7 @@ impl PgIndexerStore {
                     $3::BYTEA[]
                 ) AS u(object_id, object_version, tx_digest)
                 LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
-                WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
+                WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = -1
             ) AS to_delete
             WHERE objects.object_id = to_delete.object_id
             AND objects.object_version < to_delete.object_version
@@ -498,6 +501,7 @@ impl PgIndexerStore {
                 objects::coin_type.eq(excluded(objects::coin_type)),
                 objects::coin_balance.eq(excluded(objects::coin_balance)),
                 objects::df_kind.eq(excluded(objects::df_kind)),
+                objects::finalized_in_cp.eq(excluded(objects::finalized_in_cp)),
             ),
             excluded(objects::object_version).gt(objects::object_version),
             conn
@@ -801,7 +805,7 @@ impl PgIndexerStore {
 
     fn persist_tx_global_order_chunk(
         &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -812,7 +816,18 @@ impl PgIndexerStore {
             &self.blocking_cp,
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                    insert_or_ignore_into!(tx_global_order::table, tx_order_chunk, conn);
+                    // Upsert: on conflict (row already inserted by optimistic path),
+                    // set `chk_tx_sequence_number` so checkpoint data is available
+                    // immediately.
+                    on_conflict_do_update_with_condition!(
+                        tx_global_order::table,
+                        tx_order_chunk,
+                        tx_global_order::tx_digest,
+                        tx_global_order::chk_tx_sequence_number
+                            .eq(excluded(tx_global_order::chk_tx_sequence_number)),
+                        tx_global_order::chk_tx_sequence_number.is_null(),
+                        conn
+                    );
                 }
                 Ok::<(), IndexerError>(())
             },
@@ -828,58 +843,6 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("failed to persist txs insertion order with error: {e}");
-        })
-    }
-
-    /// We enforce index-status semantics for checkpointed transactions
-    /// in `tx_global_order`.
-    ///
-    /// Namely, checkpointed transactions (i.e. with `optimistic_sequence_number
-    /// == 0`) are updated to `optimistic_sequence_number == -1` to indicate
-    /// that they have been persisted in the database.
-    fn update_status_for_checkpoint_transactions_chunk(
-        &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_insertion_order_chunks
-            .start_timer();
-
-        let num_transactions = tx_order.len();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                on_conflict_do_update_with_condition!(
-                    tx_global_order::table,
-                    tx_order.clone(),
-                    tx_global_order::tx_digest,
-                    tx_global_order::optimistic_sequence_number.eq(IndexStatus::Completed),
-                    tx_global_order::optimistic_sequence_number.eq(IndexStatus::Started),
-                    conn
-                );
-                on_conflict_do_update_with_condition!(
-                    tx_global_order::table,
-                    tx_order.clone(),
-                    tx_global_order::tx_digest,
-                    tx_global_order::chk_tx_sequence_number
-                        .eq(excluded(tx_global_order::chk_tx_sequence_number)),
-                    tx_global_order::chk_tx_sequence_number.is_null(),
-                    conn
-                );
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(
-                elapsed,
-                "Updated {} chunked values of `tx_global_order`", num_transactions
-            );
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to update `tx_global_order` with error: {e}");
         })
     }
 
@@ -1923,13 +1886,13 @@ impl IndexerStore for PgIndexerStore {
         let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
         let objects_snapshot = indexed_mutations
             .into_iter()
-            .map(StoredObjectSnapshot::from)
+            .map(StoredObjectSnapshot::try_from)
             .chain(
                 indexed_deletions
                     .into_iter()
-                    .map(StoredObjectSnapshot::from),
+                    .map(|o| Ok(StoredObjectSnapshot::from(o))),
             )
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         let len = objects_snapshot.len();
         let chunks = chunk!(objects_snapshot, self.config.parallel_objects_chunk_size);
         let futures = chunks
@@ -1969,7 +1932,7 @@ impl IndexerStore for PgIndexerStore {
         if object_changes.is_empty() {
             return Ok(());
         }
-        let objects = make_objects_history_to_commit(object_changes);
+        let objects = make_objects_history_to_commit(object_changes)?;
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_history
@@ -2388,49 +2351,9 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn update_status_for_checkpoint_transactions(
-        &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_insertion_order
-            .start_timer();
-        let len = tx_order.len();
-
-        let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
-        let futures = chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| {
-                this.update_status_for_checkpoint_transactions_chunk(c)
-            })
-        });
-
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "failed to join update_status_for_checkpoint_transactions_chunk futures: {e}",
-                );
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to update all `tx_global_order` chunks: {e:?}",
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(
-            elapsed,
-            "Updated index status for {len} txs insertion orders"
-        );
-        Ok(())
-    }
-
     async fn persist_tx_global_order(
         &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -2545,7 +2468,7 @@ impl IndexerStore for PgIndexerStore {
 
 fn make_objects_history_to_commit(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<StoredHistoryObject> {
+) -> Result<Vec<StoredHistoryObject>, IndexerError> {
     let deleted_objects: Vec<StoredHistoryObject> = tx_object_changes
         .clone()
         .into_iter()
@@ -2555,9 +2478,9 @@ fn make_objects_history_to_commit(
     let mutated_objects: Vec<StoredHistoryObject> = tx_object_changes
         .into_iter()
         .flat_map(|changes| changes.changed_objects)
-        .map(|o| o.into())
-        .collect();
-    deleted_objects.into_iter().chain(mutated_objects).collect()
+        .map(StoredHistoryObject::try_from)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(deleted_objects.into_iter().chain(mutated_objects).collect())
 }
 
 /// Partitions object changes into deletions and mutations.

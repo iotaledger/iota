@@ -6,12 +6,19 @@ use std::{
     str::FromStr,
 };
 
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper,
+};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    config::PruningOptions, errors::IndexerError, models::transactions::TxGlobalOrder,
-    read_only_blocking, schema::tx_global_order, types::IndexerResult,
+    config::PruningOptions,
+    errors::IndexerError,
+    models::transactions::TxGlobalOrder,
+    read_only_blocking,
+    schema::{objects, tx_global_order},
+    store::indexer_store::IndexerStore,
+    types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
@@ -352,6 +359,100 @@ fn execute_transaction_block() {
         assert_eq!(
             actual_object_info.data.unwrap().owner.unwrap(),
             Owner::AddressOwner(receiver)
+        );
+    });
+}
+
+#[test]
+fn optimistic_objects_are_finalized() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let object_to_transfer = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
+
+        let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
+            sender,
+            key_pair,
+            receiver,
+            object_to_transfer,
+            gas_ref,
+        )
+        .await;
+
+        let res = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_transaction_success(&res);
+
+        // Objects changed by this transaction should be finalized in the DB.
+        // Finalized means `finalized_in_cp IS NULL` (optimistic/already finalized)
+        // or the checkpoint has been indexed.
+        let changed_object_ids: Vec<Vec<u8>> = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Created { object_id, .. }
+                | ObjectChange::Mutated { object_id, .. } => Some(object_id.to_vec()),
+                _ => None,
+            })
+            .collect();
+        let max_cp: i64 = store
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap()
+            .unwrap() as i64;
+        let non_finalized_count: i64 = (|| -> Result<_, IndexerError> {
+            read_only_blocking!(&store.blocking_cp(), |conn| {
+                objects::table
+                    .filter(objects::object_id.eq_any(&changed_object_ids))
+                    .filter(
+                        objects::finalized_in_cp
+                            .is_not_null()
+                            .and(objects::finalized_in_cp.gt(max_cp)),
+                    )
+                    .count()
+                    .get_result::<i64>(conn)
+            })
+        })()
+        .unwrap();
+
+        assert_eq!(
+            non_finalized_count, 0,
+            "All objects should be finalized after optimistic or checkpoint indexing"
         );
     });
 }

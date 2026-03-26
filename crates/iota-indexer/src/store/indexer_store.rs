@@ -17,7 +17,7 @@ use crate::{
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
-        transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
+        transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
     pruning::pruner::PrunableTable,
@@ -143,14 +143,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError>;
 
-    async fn update_status_for_checkpoint_transactions(
-        &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
-    ) -> Result<(), IndexerError>;
-
     async fn persist_tx_global_order(
         &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
