@@ -28,20 +28,21 @@ export function useTransactionSummary({
 }) {
     const { objectChanges } = transaction ?? {};
 
-    const objectIds =
-        (objectChanges
-            ?.map((change) => 'objectId' in change && change.objectId)
-            .filter(Boolean) as string[]) ?? [];
+    const objectIds = objectChanges
+        ?.map((change) => 'objectId' in change && change.objectId)
+        .filter(Boolean) as string[];
 
-    const { data } = useMultiGetObjects(objectIds, { showDisplay: true, showType: true });
+    const { data } = useMultiGetObjects(objectIds, { showDisplay: true });
     const lookup = getObjectDisplayLookup(data);
 
-    const objectChangesWithDisplay = useMemo(() => {
-        return (objectChanges ?? []).map((change) => ({
-            ...change,
-            display: 'objectId' in change ? lookup?.get(change.objectId) : null,
-        }));
-    }, [lookup, objectChanges]) as IotaObjectChangeWithDisplay[];
+    const objectChangesWithDisplay = useMemo(
+        () =>
+            [...(objectChanges ?? [])].map((change) => ({
+                ...change,
+                display: 'objectId' in change ? lookup?.get(change.objectId) : null,
+            })),
+        [lookup, objectChanges],
+    ) as IotaObjectChangeWithDisplay[];
 
     const summary = useMemo(() => {
         if (!transaction) return null;
