@@ -6,7 +6,7 @@ import { setAttributes } from '_src/shared/experimentation/features';
 import { useAppsBackendClient } from '@iota/apps-backend-client';
 import { useEffect } from 'react';
 
-export function useSetClientAttributes() {
+export function useSyncAppsBackendAttributes() {
     const { network, customRpc } = useAppSelector((state) => state.app);
     const client = useAppsBackendClient();
 
