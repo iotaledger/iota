@@ -2308,16 +2308,7 @@ impl AuthorityPerEpochStore {
         transactions: &[ConsensusTransaction],
         lock: Option<&RwLockReadGuard<ReconfigState>>,
     ) -> IotaResult {
-        let key_value_pairs = transactions.iter().filter_map(|tx| {
-            if tx.kind.is_user_transaction() {
-                // UserTransactionV1 (pcool flow) is fire-and-forget and does not
-                // need crash recovery. Will be removed once pcool completely takes
-                // over.
-                None
-            } else {
-                Some((tx.key(), tx))
-            }
-        });
+        let key_value_pairs = transactions.iter().map(|tx| (tx.key(), tx));
         self.tables()?
             .pending_consensus_transactions
             .multi_insert(key_value_pairs)?;
