@@ -6715,6 +6715,7 @@ dependencies = [
  "http 1.3.1",
  "iota-grpc-types",
  "iota-sdk-types",
+ "prost 0.14.1",
  "serde",
  "thiserror 1.0.64",
  "tonic 0.14.2",

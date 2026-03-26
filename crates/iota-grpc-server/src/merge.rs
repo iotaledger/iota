@@ -433,9 +433,9 @@ impl Merge<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicField {
             self.field_id = Some(object_id_proto(&key.field_id));
         }
 
-        // Note: The index stores `name_type: TypeTag` but IOTA's `BcsData`
-        // proto has no type field (unlike Sui's `Bcs` which has `name` +
-        // `value`). Clients must know the name type out-of-band to decode
+        // Note: The index stores `name_type: TypeTag` but `BcsData`
+        // proto has no type field (it would need `name` + `value`).
+        // Clients must know the name type out-of-band to decode
         // the BCS payload.
         //
         // value, value_type, field_object, and child_object are populated

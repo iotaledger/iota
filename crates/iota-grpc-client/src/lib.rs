@@ -36,7 +36,6 @@
 pub mod api;
 
 // Re-export all read mask constants (per-method fields)
-pub use api::execution::simulate::SimulateTransactionInput;
 pub use api::{
     // CheckpointResponse per-method masks
     CHECKPOINT_CONTENTS_BCS,
@@ -88,7 +87,8 @@ pub use api::{
 };
 // Re-export types for convenience
 pub use api::{
-    CheckpointResponse, CheckpointStreamItem, Error, MetadataEnvelope, Result, RpcStatus,
+    CheckpointResponse, CheckpointStreamItem, Error, MetadataEnvelope, Page, Result, RpcStatus,
+    execution::simulate::SimulateTransactionInput,
 };
 // Re-export all read mask constants (endpoint defaults)
 pub use api::{
@@ -102,6 +102,11 @@ pub use api::{
     LIST_DYNAMIC_FIELDS_READ_MASK,
     LIST_OWNED_OBJECTS_READ_MASK,
     SIMULATE_TRANSACTIONS_READ_MASK,
+};
+// Re-export query builders for convenience
+pub use api::{
+    move_package::package_versions::ListPackageVersionsQuery,
+    state::{dynamic_fields::ListDynamicFieldsQuery, owned_objects::ListOwnedObjectsQuery},
 };
 
 mod client;

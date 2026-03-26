@@ -1736,7 +1736,7 @@ fn backfill_new_tables(
             // backfill was scanning the live object set, the incremental
             // checkpoint indexer may have written
             // `regulated_coin_metadata_object_id` (or other fields) for
-            // the same coin type.  A plain `multi_insert` would overwrite
+            // the same coin type. A plain `multi_insert` would overwrite
             // those with the backfill's snapshot (which lacks the new
             // data).  Merging preserves whichever fields are already
             // present in the DB.
