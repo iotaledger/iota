@@ -368,47 +368,61 @@ impl ProgrammableTransaction {
         use NativeProgrammableTransaction as N;
         use ProgrammableTransaction as P;
         match pt {
-            N::MoveCall(call) => P::MoveCall(MoveCallTransaction {
-                native: *call,
+            N::MoveCall(cmd) => P::MoveCall(MoveCallTransaction {
+                native: cmd,
                 checkpoint_viewed_at,
             }),
-
-            N::TransferObjects(inputs, address) => P::TransferObjects(TransferObjectsTransaction {
-                inputs: inputs.into_iter().map(TransactionArgument::from).collect(),
-                address: address.into(),
+            N::TransferObjects(cmd) => P::TransferObjects(TransferObjectsTransaction {
+                inputs: cmd
+                    .objects
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+                address: cmd.address.into(),
             }),
-
-            N::SplitCoins(coin, amounts) => P::SplitCoins(SplitCoinsTransaction {
-                coin: coin.into(),
-                amounts: amounts.into_iter().map(TransactionArgument::from).collect(),
-            }),
-
-            N::MergeCoins(coin, coins) => P::MergeCoins(MergeCoinsTransaction {
-                coin: coin.into(),
-                coins: coins.into_iter().map(TransactionArgument::from).collect(),
-            }),
-
-            N::Publish(modules, dependencies) => P::Publish(PublishTransaction {
-                modules: modules.into_iter().map(Base64::from).collect(),
-                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-            }),
-
-            N::MakeMoveVec(type_, elements) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: type_.map(Into::into),
-                elements: elements
+            N::SplitCoins(cmd) => P::SplitCoins(SplitCoinsTransaction {
+                coin: cmd.coin.into(),
+                amounts: cmd
+                    .amounts
                     .into_iter()
                     .map(TransactionArgument::from)
                     .collect(),
             }),
-
-            N::Upgrade(modules, dependencies, current_package, upgrade_ticket) => {
-                P::Upgrade(UpgradeTransaction {
-                    modules: modules.into_iter().map(Base64::from).collect(),
-                    dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
-                    current_package: current_package.into(),
-                    upgrade_ticket: upgrade_ticket.into(),
-                })
-            }
+            N::MergeCoins(cmd) => P::MergeCoins(MergeCoinsTransaction {
+                coin: cmd.coin.into(),
+                coins: cmd
+                    .coins_to_merge
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+            }),
+            N::Publish(cmd) => P::Publish(PublishTransaction {
+                modules: cmd.modules.into_iter().map(Base64::from).collect(),
+                dependencies: cmd
+                    .dependencies
+                    .into_iter()
+                    .map(IotaAddress::from)
+                    .collect(),
+            }),
+            N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
+                type_: cmd.type_.map(Into::into),
+                elements: cmd
+                    .elements
+                    .into_iter()
+                    .map(TransactionArgument::from)
+                    .collect(),
+            }),
+            N::Upgrade(cmd) => P::Upgrade(UpgradeTransaction {
+                modules: cmd.modules.into_iter().map(Base64::from).collect(),
+                dependencies: cmd
+                    .dependencies
+                    .into_iter()
+                    .map(IotaAddress::from)
+                    .collect(),
+                current_package: cmd.package.into(),
+                upgrade_ticket: cmd.ticket.into(),
+            }),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }

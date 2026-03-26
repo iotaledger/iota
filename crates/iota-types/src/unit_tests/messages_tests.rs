@@ -1140,7 +1140,7 @@ fn test_move_input_objects() {
             }))
             .unwrap(),
     ];
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
         Identifier::from_static("foo"),
         Identifier::from_static("bar"),
@@ -1241,14 +1241,14 @@ fn test_unique_input_objects() {
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
 
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
         Identifier::from_static("test_module"),
         Identifier::from_static("test_function"),
         type_args.clone(),
         args_1,
     ));
-    builder.command(Command::move_call(
+    builder.command(Command::new_move_call(
         package,
         Identifier::from_static("test_module"),
         Identifier::from_static("test_function"),

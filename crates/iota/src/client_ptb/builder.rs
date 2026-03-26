@@ -831,7 +831,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 self.last_command = Some(
                     self.ptb
-                        .command(Tx::Command::TransferObjects(transfer_args, to_arg)),
+                        .command(Tx::Command::new_transfer_objects(transfer_args, to_arg)),
                 );
             }
             ParsedPTBCommand::Assign(sp!(ident_loc, i), None) => {
@@ -874,7 +874,7 @@ impl<'a> PTBBuilder<'a> {
                 }
                 let res = self
                     .ptb
-                    .command(Tx::Command::make_move_vec(Some(ty_arg), vec_args));
+                    .command(Tx::Command::new_make_move_vector(Some(ty_arg), vec_args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::SplitCoins(pre_coin, sp!(_, amounts)) => {
@@ -884,7 +884,7 @@ impl<'a> PTBBuilder<'a> {
                     let arg = self.resolve(arg, ToPure::new(TypeTag::U64)).await?;
                     args.push(arg);
                 }
-                let res = self.ptb.command(Tx::Command::SplitCoins(coin, args));
+                let res = self.ptb.command(Tx::Command::new_split_coins(coin, args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MergeCoins(pre_coin, sp!(_, coins)) => {
@@ -894,7 +894,7 @@ impl<'a> PTBBuilder<'a> {
                     let arg = self.resolve(arg, ToObject::default()).await?;
                     args.push(arg);
                 }
-                let res = self.ptb.command(Tx::Command::MergeCoins(coin, args));
+                let res = self.ptb.command(Tx::Command::new_merge_coins(coin, args));
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(
@@ -945,7 +945,7 @@ impl<'a> PTBBuilder<'a> {
                         mod_access_loc,
                     )
                     .await?;
-                let res = self.ptb.command(Tx::Command::move_call(
+                let res = self.ptb.command(Tx::Command::new_move_call(
                     package_id,
                     module_name.value,
                     function_name.value,
@@ -1119,7 +1119,7 @@ impl<'a> PTBBuilder<'a> {
                     // .to_vec() is necessary to get the length prefix
                     .pure(package_digest.to_vec())
                     .map_err(|e| err!(cmd_span, "{e}"))?;
-                let upgrade_ticket = self.ptb.command(Tx::Command::move_call(
+                let upgrade_ticket = self.ptb.command(Tx::Command::new_move_call(
                     ObjectID::FRAMEWORK,
                     Identifier::PACKAGE_MODULE,
                     Identifier::from_static("authorize_upgrade"),
@@ -1136,7 +1136,7 @@ impl<'a> PTBBuilder<'a> {
                         .collect(),
                     compiled_modules,
                 );
-                let res = self.ptb.command(Tx::Command::move_call(
+                let res = self.ptb.command(Tx::Command::new_move_call(
                     ObjectID::FRAMEWORK,
                     Identifier::PACKAGE_MODULE,
                     Identifier::from_static("commit_upgrade"),

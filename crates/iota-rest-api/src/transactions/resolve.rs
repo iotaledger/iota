@@ -383,11 +383,7 @@ fn resolve_ptb(
 
     ProgrammableTransaction {
         inputs,
-        commands: unresolved_ptb
-            .commands
-            .into_iter()
-            .map(TryInto::try_into)
-            .collect::<Result<_, _>>()?,
+        commands: unresolved_ptb.commands,
     }
     .pipe(Ok)
 }

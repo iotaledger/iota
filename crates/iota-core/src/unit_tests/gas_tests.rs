@@ -965,7 +965,7 @@ async fn test_tx_gas_coins_input_coins() {
                 .iter()
                 .map(|obj_ref| builder.obj(CallArg::ImmutableOrOwned(*obj_ref)).unwrap())
                 .collect::<Vec<_>>();
-            builder.command(Command::MergeCoins(coin_arg, coin_args));
+            builder.command(Command::new_merge_coins(coin_arg, coin_args));
             builder.finish()
         };
         let kind = TransactionKind::ProgrammableTransaction(pt);

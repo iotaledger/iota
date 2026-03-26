@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_types::transaction::{Command, TransactionKind};
+use iota_types::transaction::{
+    Command, MakeMoveVector, MergeCoins, SplitCoins, TransactionKind, TransferObjects,
+};
 use rand::seq::SliceRandom;
 use tracing::info;
 
@@ -16,15 +18,18 @@ pub struct ShuffleCommandInputs {
 impl ShuffleCommandInputs {
     fn shuffle_command(&mut self, command: &mut Command) {
         match command {
-            Command::MakeMoveVec(_, ref mut args)
-            | Command::MergeCoins(_, ref mut args)
-            | Command::SplitCoins(_, ref mut args)
-            | Command::TransferObjects(ref mut args, _) => {
+            Command::MakeMoveVector(MakeMoveVector { elements: args, .. })
+            | Command::MergeCoins(MergeCoins {
+                coins_to_merge: args,
+                ..
+            })
+            | Command::SplitCoins(SplitCoins { amounts: args, .. })
+            | Command::TransferObjects(TransferObjects { objects: args, .. }) => {
                 args.shuffle(&mut self.rng);
             }
-            Command::MoveCall(ref mut pt) => pt.arguments.shuffle(&mut self.rng),
-            Command::Publish(_, _) => (),
-            Command::Upgrade(_, _, _, _) => (),
+            Command::MoveCall(ref mut cmd) => cmd.arguments.shuffle(&mut self.rng),
+            Command::Publish(_) | Command::Upgrade(_) => (),
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }
 }
