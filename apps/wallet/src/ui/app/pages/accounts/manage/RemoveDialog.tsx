@@ -40,7 +40,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
 
             // Track account deletion event
             if (accountType) {
-                ampli.accountDeleted({
+                ampli.deletedAccount({
                     accountType: ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[accountType],
                 });
             }

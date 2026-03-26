@@ -2012,12 +2012,16 @@ impl AuthorityState {
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
-                    .map_err(|e| IotaError::TransactionSerialization {
-                        error: format!(
-                            "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                        ),
-                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
+                input: IotaTransactionBlockData::try_from_with_module_cache(
+                    transaction,
+                    &module_cache,
+                    tx_digest,
+                )
+                .map_err(|e| IotaError::TransactionSerialization {
+                    error: format!(
+                        "Failed to convert transaction to IotaTransactionBlockData: {e}",
+                    ),
+                })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
                 effects: effects.clone().try_into()?,
                 events: IotaTransactionBlockEvents::try_from(
                     inner_temp_store.events.clone(),

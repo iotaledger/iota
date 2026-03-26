@@ -18,7 +18,7 @@ export function useCopyToClipboard(
 ) {
     const copyToClipboardCore = useCopyToClipboardCore(() => {
         if (textType && trackEvent) {
-            ampli.elementCopied({
+            ampli.copiedElement({
                 type: textType,
             });
         }
