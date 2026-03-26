@@ -51,13 +51,39 @@ pub(crate) fn require_object_id(
         })
 }
 
-/// Validate an optional limit parameter.
+/// Validate and clamp a `page_size` parameter.
 ///
-/// - `None` → `None` (no limit — return all items)
-/// - `Some(0)` → `None` (no limit — return all items)
-/// - `Some(n)` → `Some(n)`
-pub(crate) fn validate_limit(limit: Option<u32>) -> Option<usize> {
-    limit.and_then(|l| if l == 0 { None } else { Some(l as usize) })
+/// - `None` or `Some(0)` → `default`
+/// - `Some(n)` where `n > max` → `max`
+/// - Otherwise → `n`
+pub(crate) fn validate_page_size(page_size: Option<u32>, default: u32, max: u32) -> usize {
+    match page_size {
+        None | Some(0) => default as usize,
+        Some(n) => n.min(max) as usize,
+    }
+}
+
+/// Decode and validate a BCS-encoded page token.
+///
+/// Returns `Ok(None)` when no token is provided.
+/// Returns `Err(InvalidArgument)` when the token cannot be decoded.
+pub(crate) fn decode_page_token<T: serde::de::DeserializeOwned>(
+    token: &Option<prost::bytes::Bytes>,
+) -> Result<Option<T>, RpcError> {
+    match token {
+        None => Ok(None),
+        Some(bytes) => bcs::from_bytes(bytes).map(Some).map_err(|_| {
+            FieldViolation::new("page_token")
+                .with_description("invalid page_token")
+                .with_reason(ErrorReason::FieldInvalid)
+                .into()
+        }),
+    }
+}
+
+/// Encode a page token as BCS bytes.
+pub(crate) fn encode_page_token<T: serde::Serialize>(token: &T) -> Vec<u8> {
+    bcs::to_bytes(token).expect("page token serialization cannot fail")
 }
 
 /// Validate and extract a required `Address` proto field as an internal
@@ -81,15 +107,6 @@ pub(crate) fn require_address(
                 .with_reason(ErrorReason::FieldInvalid)
                 .into()
         })
-}
-
-/// Collect an iterator of `anyhow::Result<T>` into a `Vec<T>`, mapping errors
-/// to [`RpcError`] via its `From<anyhow::Error>` impl (which correctly detects
-/// [`MissingIndexesError`] and maps it to `FailedPrecondition`).
-pub(crate) fn collect_iter<T>(
-    iter: impl Iterator<Item = anyhow::Result<T>>,
-) -> Result<Vec<T>, RpcError> {
-    iter.collect::<Result<Vec<_>, _>>().map_err(RpcError::from)
 }
 
 /// Convert an `ObjectID` to a gRPC `ObjectId` proto.

@@ -5,10 +5,7 @@ use iota_grpc_types::{field::FieldMaskUtil, v0::state_service::ListDynamicFields
 use iota_macros::sim_test;
 use prost_types::FieldMask;
 
-use crate::{
-    collect_streaming_responses,
-    utils::{assert_tonic_error, object_id_from_hex, setup_grpc_test},
-};
+use crate::utils::{assert_tonic_error, object_id_from_hex, setup_grpc_test};
 
 #[sim_test]
 async fn list_dynamic_fields_missing_parent() {
@@ -32,22 +29,19 @@ async fn list_dynamic_fields_system_state() {
     // field, so it always has at least one dynamic field after genesis.
     let request = ListDynamicFieldsRequest::default().with_parent(object_id_from_hex("0x5"));
 
-    let responses = collect_streaming_responses!(
-        state_client,
-        list_dynamic_fields,
-        request,
-        "system state dynamic fields"
-    );
-
-    let fields: Vec<_> = responses.iter().flat_map(|r| &r.dynamic_fields).collect();
+    let response = state_client
+        .list_dynamic_fields(request)
+        .await
+        .unwrap()
+        .into_inner();
 
     assert!(
-        !fields.is_empty(),
+        !response.dynamic_fields.is_empty(),
         "System state object should have at least one dynamic field"
     );
 
     // With the default read mask ("parent,field_id"), both fields should be set.
-    for field in &fields {
+    for field in &response.dynamic_fields {
         assert!(
             field.parent.is_some(),
             "parent should be populated with default read mask"
@@ -67,17 +61,20 @@ async fn list_dynamic_fields_no_fields() {
     // Clock object (0x6) has no dynamic fields
     let request = ListDynamicFieldsRequest::default().with_parent(object_id_from_hex("0x6"));
 
-    let responses = collect_streaming_responses!(
-        state_client,
-        list_dynamic_fields,
-        request,
-        "object with no dynamic fields"
-    );
+    let response = state_client
+        .list_dynamic_fields(request)
+        .await
+        .unwrap()
+        .into_inner();
 
-    let total_fields: usize = responses.iter().map(|r| r.dynamic_fields.len()).sum();
     assert_eq!(
-        total_fields, 0,
+        response.dynamic_fields.len(),
+        0,
         "Clock object should have no dynamic fields"
+    );
+    assert!(
+        response.next_page_token.is_none(),
+        "Should have no next page token when there are no results"
     );
 }
 
@@ -92,17 +89,18 @@ async fn list_dynamic_fields_with_readmask() {
         .with_parent(object_id_from_hex("0x5"))
         .with_read_mask(FieldMask::from_paths(["kind"]));
 
-    let responses = collect_streaming_responses!(
-        state_client,
-        list_dynamic_fields,
-        request,
-        "partial readmask"
+    let response = state_client
+        .list_dynamic_fields(request)
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert!(
+        !response.dynamic_fields.is_empty(),
+        "Should return fields with partial mask"
     );
 
-    let fields: Vec<_> = responses.iter().flat_map(|r| &r.dynamic_fields).collect();
-    assert!(!fields.is_empty(), "Should return fields with partial mask");
-
-    for field in &fields {
+    for field in &response.dynamic_fields {
         assert!(
             field.kind.is_some(),
             "kind should be populated when requested"
@@ -119,21 +117,25 @@ async fn list_dynamic_fields_with_readmask() {
 }
 
 #[sim_test]
-async fn list_dynamic_fields_with_limit() {
+async fn list_dynamic_fields_with_page_size() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
     let mut state_client = client.state_service_client();
 
     let request = ListDynamicFieldsRequest::default()
         .with_parent(object_id_from_hex("0x5"))
-        .with_limit(1);
+        .with_page_size(1);
 
-    let responses =
-        collect_streaming_responses!(state_client, list_dynamic_fields, request, "with limit=1");
+    let response = state_client
+        .list_dynamic_fields(request)
+        .await
+        .unwrap()
+        .into_inner();
 
-    let total_fields: usize = responses.iter().map(|r| r.dynamic_fields.len()).sum();
     assert_eq!(
-        total_fields, 1,
-        "Should return exactly 1 dynamic field, got {total_fields}"
+        response.dynamic_fields.len(),
+        1,
+        "Should return exactly 1 dynamic field, got {}",
+        response.dynamic_fields.len()
     );
 }
 

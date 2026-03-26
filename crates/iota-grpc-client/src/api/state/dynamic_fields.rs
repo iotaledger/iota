@@ -21,8 +21,8 @@ use iota_sdk_types::ObjectId;
 use crate::{
     Client,
     api::{
-        LIST_DYNAMIC_FIELDS_READ_MASK, MetadataEnvelope, Result, collect_stream,
-        field_mask_with_default, proto_object_id, saturating_usize_to_u32,
+        LIST_DYNAMIC_FIELDS_READ_MASK, MetadataEnvelope, Result, auto_paginate,
+        field_mask_with_default, proto_object_id,
     },
 };
 
@@ -30,7 +30,7 @@ impl Client {
     /// List dynamic fields owned by a parent object.
     ///
     /// Returns proto `DynamicField` types for the given parent.
-    /// Results are streamed and collected into a `Vec`.
+    /// Automatically paginates through all results.
     ///
     /// # Parameters
     ///
@@ -61,29 +61,21 @@ impl Client {
         limit: Option<u32>,
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<Vec<DynamicField>>> {
-        let mut request = ListDynamicFieldsRequest::default()
+        let base_request = ListDynamicFieldsRequest::default()
             .with_parent(proto_object_id(parent))
             .with_read_mask(field_mask_with_default(
                 read_mask,
                 LIST_DYNAMIC_FIELDS_READ_MASK,
             ));
 
-        if let Some(l) = limit {
-            request = request.with_limit(l);
-        }
-
-        if let Some(max_size) = self.max_decoding_message_size() {
-            request = request.with_max_message_size_bytes(saturating_usize_to_u32(max_size));
-        }
-
         let mut client = self.state_service_client();
-
-        let response = client.list_dynamic_fields(request).await?;
-        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
-
-        collect_stream(stream, metadata, |msg| {
-            Ok((msg.has_next, msg.dynamic_fields))
-        })
-        .await
+        auto_paginate!(
+            client,
+            list_dynamic_fields,
+            base_request,
+            limit,
+            self.max_decoding_message_size(),
+            dynamic_fields
+        )
     }
 }

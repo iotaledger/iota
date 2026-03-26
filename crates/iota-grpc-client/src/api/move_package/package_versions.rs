@@ -8,14 +8,14 @@ use iota_sdk_types::ObjectId;
 
 use crate::{
     Client,
-    api::{MetadataEnvelope, Result, collect_stream, proto_object_id, saturating_usize_to_u32},
+    api::{MetadataEnvelope, Result, auto_paginate, proto_object_id},
 };
 
 impl Client {
     /// List all versions of a Move package.
     ///
     /// Returns proto `PackageVersion` types for each version of the package.
-    /// Results are streamed and collected into a `Vec`.
+    /// Automatically paginates through all results.
     ///
     /// # Parameters
     ///
@@ -43,22 +43,17 @@ impl Client {
         package_id: ObjectId,
         limit: Option<u32>,
     ) -> Result<MetadataEnvelope<Vec<PackageVersion>>> {
-        let mut request =
+        let base_request =
             ListPackageVersionsRequest::default().with_package_id(proto_object_id(package_id));
 
-        if let Some(l) = limit {
-            request = request.with_limit(l);
-        }
-
-        if let Some(max_size) = self.max_decoding_message_size() {
-            request = request.with_max_message_size_bytes(saturating_usize_to_u32(max_size));
-        }
-
         let mut client = self.move_package_service_client();
-
-        let response = client.list_package_versions(request).await?;
-        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
-
-        collect_stream(stream, metadata, |msg| Ok((msg.has_next, msg.versions))).await
+        auto_paginate!(
+            client,
+            list_package_versions,
+            base_request,
+            limit,
+            self.max_decoding_message_size(),
+            versions
+        )
     }
 }

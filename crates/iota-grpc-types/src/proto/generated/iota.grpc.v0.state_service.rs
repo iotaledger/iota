@@ -10,17 +10,25 @@ pub struct ListDynamicFieldsRequest {
     /// Required. The `UID` of the parent, which owns the collections of dynamic fields.
     #[prost(message, optional, tag = "1")]
     pub parent: ::core::option::Option<super::types::ObjectId>,
-    /// Optional limit on the total number of dynamic fields to return.
-    /// The server stops streaming after this many items.
+    /// The maximum number of dynamic fields to return. The service may return fewer than this value.
+    /// If unspecified, at most `50` entries will be returned.
+    /// The maximum value is `1000`; values above `1000` will be coerced to `1000`.
     #[prost(uint32, optional, tag = "2")]
-    pub limit: ::core::option::Option<u32>,
+    pub page_size: ::core::option::Option<u32>,
+    /// A page token, received from a previous `ListDynamicFields` call.
+    /// Provide this to retrieve the subsequent page.
+    ///
+    /// When paginating, all other parameters provided to `ListDynamicFields` must
+    /// match the call that provided the page token.
+    #[prost(bytes = "bytes", optional, tag = "3")]
+    pub page_token: ::core::option::Option<::prost::bytes::Bytes>,
     /// Mask specifying which fields to read.
     /// If no mask is specified, defaults to `parent,field_id`.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "4")]
     pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
     /// Optional maximum message size the client can receive (1MB - 128MB).
     /// If not specified, server uses default chunking threshold (4MB).
-    #[prost(uint32, optional, tag = "4")]
+    #[prost(uint32, optional, tag = "5")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
 }
 /// Response message for `StateService.ListDynamicFields`
@@ -30,10 +38,10 @@ pub struct ListDynamicFieldsResponse {
     /// Batch of dynamic fields owned by the specified parent.
     #[prost(message, repeated, tag = "1")]
     pub dynamic_fields: ::prost::alloc::vec::Vec<super::dynamic_field::DynamicField>,
-    /// Indicates whether more batches will follow.
-    /// `false` on the final batch.
-    #[prost(bool, tag = "2")]
-    pub has_next: bool,
+    /// A token, which can be sent as `page_token` to retrieve the next page.
+    /// If this field is omitted, there are no subsequent pages.
+    #[prost(bytes = "bytes", optional, tag = "2")]
+    pub next_page_token: ::core::option::Option<::prost::bytes::Bytes>,
 }
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -41,13 +49,21 @@ pub struct ListOwnedObjectsRequest {
     /// Required. The address of the account that owns the objects.
     #[prost(message, optional, tag = "1")]
     pub owner: ::core::option::Option<super::types::Address>,
-    /// Optional limit on the total number of objects to return.
-    /// The server stops streaming after this many items.
+    /// The maximum number of entries return. The service may return fewer than this value.
+    /// If unspecified, at most `50` entries will be returned.
+    /// The maximum value is `1000`; values above `1000` will be coerced to `1000`.
     #[prost(uint32, optional, tag = "2")]
-    pub limit: ::core::option::Option<u32>,
+    pub page_size: ::core::option::Option<u32>,
+    /// A page token, received from a previous `ListOwnedObjects` call.
+    /// Provide this to retrieve the subsequent page.
+    ///
+    /// When paginating, all other parameters provided to `ListOwnedObjects` must
+    /// match the call that provided the page token.
+    #[prost(bytes = "bytes", optional, tag = "3")]
+    pub page_token: ::core::option::Option<::prost::bytes::Bytes>,
     /// Mask specifying which fields to read.
     /// If no mask is specified, defaults to `reference,bcs`.
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "4")]
     pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
     /// Optional type filter to limit the types of objects listed.
     ///
@@ -57,11 +73,11 @@ pub struct ListOwnedObjectsRequest {
     /// with a type param will restrict the returned objects to only those objects
     /// that match the provided type parameters, e.g.
     /// `0x2::coin::Coin<0x2::iota::IOTA>` will only return `Coin<IOTA>` objects.
-    #[prost(string, optional, tag = "4")]
+    #[prost(string, optional, tag = "5")]
     pub object_type: ::core::option::Option<::prost::alloc::string::String>,
     /// Optional maximum message size the client can receive (1MB - 128MB).
     /// If not specified, server uses default chunking threshold (4MB).
-    #[prost(uint32, optional, tag = "5")]
+    #[prost(uint32, optional, tag = "6")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
 }
 #[non_exhaustive]
@@ -70,10 +86,10 @@ pub struct ListOwnedObjectsResponse {
     /// Batch of objects owned by the specified owner.
     #[prost(message, repeated, tag = "1")]
     pub objects: ::prost::alloc::vec::Vec<super::object::Object>,
-    /// Indicates whether more batches will follow.
-    /// `false` on the final batch.
-    #[prost(bool, tag = "2")]
-    pub has_next: bool,
+    /// A token, which can be sent as `page_token` to retrieve the next page.
+    /// If this field is omitted, there are no subsequent pages.
+    #[prost(bytes = "bytes", optional, tag = "2")]
+    pub next_page_token: ::core::option::Option<::prost::bytes::Bytes>,
 }
 /// Request message for `StateService.GetCoinInfo`.
 #[non_exhaustive]
@@ -203,7 +219,7 @@ pub mod state_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::ListDynamicFieldsRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::ListDynamicFieldsResponse>>,
+            tonic::Response<super::ListDynamicFieldsResponse>,
             tonic::Status,
         > {
             self.inner
@@ -226,13 +242,13 @@ pub mod state_service_client {
                         "ListDynamicFields",
                     ),
                 );
-            self.inner.server_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
         pub async fn list_owned_objects(
             &mut self,
             request: impl tonic::IntoRequest<super::ListOwnedObjectsRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::ListOwnedObjectsResponse>>,
+            tonic::Response<super::ListOwnedObjectsResponse>,
             tonic::Status,
         > {
             self.inner
@@ -255,7 +271,7 @@ pub mod state_service_client {
                         "ListOwnedObjects",
                     ),
                 );
-            self.inner.server_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
         pub async fn get_coin_info(
             &mut self,
@@ -301,36 +317,18 @@ pub mod state_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with StateServiceServer.
     #[async_trait]
     pub trait StateService: std::marker::Send + std::marker::Sync + 'static {
-        /// Server streaming response type for the ListDynamicFields method.
-        type ListDynamicFieldsStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::ListDynamicFieldsResponse,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
         async fn list_dynamic_fields(
             &self,
             request: tonic::Request<super::ListDynamicFieldsRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::ListDynamicFieldsStream>,
+            tonic::Response<super::ListDynamicFieldsResponse>,
             tonic::Status,
         >;
-        /// Server streaming response type for the ListOwnedObjects method.
-        type ListOwnedObjectsStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::ListOwnedObjectsResponse,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
         async fn list_owned_objects(
             &self,
             request: tonic::Request<super::ListOwnedObjectsRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::ListOwnedObjectsStream>,
+            tonic::Response<super::ListOwnedObjectsResponse>,
             tonic::Status,
         >;
         async fn get_coin_info(
@@ -422,13 +420,11 @@ pub mod state_service_server {
                     struct ListDynamicFieldsSvc<T: StateService>(pub Arc<T>);
                     impl<
                         T: StateService,
-                    > tonic::server::ServerStreamingService<
-                        super::ListDynamicFieldsRequest,
-                    > for ListDynamicFieldsSvc<T> {
+                    > tonic::server::UnaryService<super::ListDynamicFieldsRequest>
+                    for ListDynamicFieldsSvc<T> {
                         type Response = super::ListDynamicFieldsResponse;
-                        type ResponseStream = T::ListDynamicFieldsStream;
                         type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
+                            tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
@@ -460,7 +456,7 @@ pub mod state_service_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.server_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)
@@ -470,13 +466,11 @@ pub mod state_service_server {
                     struct ListOwnedObjectsSvc<T: StateService>(pub Arc<T>);
                     impl<
                         T: StateService,
-                    > tonic::server::ServerStreamingService<
-                        super::ListOwnedObjectsRequest,
-                    > for ListOwnedObjectsSvc<T> {
+                    > tonic::server::UnaryService<super::ListOwnedObjectsRequest>
+                    for ListOwnedObjectsSvc<T> {
                         type Response = super::ListOwnedObjectsResponse;
-                        type ResponseStream = T::ListOwnedObjectsStream;
                         type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
+                            tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
@@ -508,7 +502,7 @@ pub mod state_service_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.server_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

@@ -203,6 +203,77 @@ where
     Ok(MetadataEnvelope::new(results, metadata))
 }
 
+/// Auto-paginate a unary gRPC list endpoint, collecting all items into a single
+/// `Vec`.
+///
+/// The caller builds `$base_request` once (with everything except `page_size`,
+/// `page_token`, and `max_message_size_bytes`). The macro clones it on every
+/// iteration, fills in the pagination fields, invokes `$rpc_method` on
+/// `$client`, and accumulates `$items_field` from each response until
+/// `next_page_token` is `None` or the optional `$limit` is reached.
+///
+/// # Example
+/// ```ignore
+/// auto_paginate!(
+///     client, list_dynamic_fields, base_request,
+///     limit, max_decoding_message_size,
+///     dynamic_fields
+/// )
+/// ```
+macro_rules! auto_paginate {
+    (
+        $client:expr,
+        $rpc_method:ident,
+        $base_request:expr,
+        $limit:expr,
+        $max_message_size:expr,
+        $items_field:ident
+    ) => {{
+        let mut all_items = Vec::new();
+        let mut next_page_token = None;
+        let mut result_metadata = None;
+
+        loop {
+            let mut request = $base_request.clone();
+
+            if let Some(l) = $limit {
+                request = request.with_page_size(l);
+            }
+            if let Some(token) = next_page_token.take() {
+                request = request.with_page_token(token);
+            }
+            if let Some(max_size) = $max_message_size {
+                request = request
+                    .with_max_message_size_bytes($crate::api::saturating_usize_to_u32(max_size));
+            }
+
+            let response = $client.$rpc_method(request).await?;
+            let (body, metadata) = $crate::api::MetadataEnvelope::from(response).into_parts();
+            if result_metadata.is_none() {
+                result_metadata = Some(metadata);
+            }
+
+            all_items.extend(body.$items_field);
+
+            match body.next_page_token {
+                Some(token) => next_page_token = Some(token),
+                None => break,
+            }
+
+            if $limit.is_some_and(|l: u32| all_items.len() >= l as usize) {
+                break;
+            }
+        }
+
+        Ok($crate::api::MetadataEnvelope::new(
+            all_items,
+            result_metadata.unwrap_or_default(),
+        ))
+    }};
+}
+
+pub(crate) use auto_paginate;
+
 /// Convert an `ObjectId` to the gRPC proto `ObjectId` type.
 pub fn proto_object_id(id: ObjectId) -> ProtoObjectId {
     ProtoObjectId::default().with_object_id(id.inner().to_vec())

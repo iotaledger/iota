@@ -16,8 +16,8 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIndexInfo, DynamicFieldKey,
-        ObjectKey, ObjectStore, ReadStore, RestIndexes, RestStateReader, TransactionInfo,
-        WriteStore,
+        ObjectKey, ObjectStore, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, ReadStore,
+        RestIndexes, RestStateReader, TransactionInfo, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -33,10 +33,7 @@ use crate::{
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::ExecutionCacheTraitPointers,
-    rest_index::{
-        CoinIndexInfo, OwnerIndexInfo, OwnerIndexInfoV2, OwnerIndexKey, OwnerIndexKeyV2,
-        OwnerV2TypeFilter, RestIndexStore,
-    },
+    rest_index::{CoinIndexInfo, OwnerIndexInfo, OwnerIndexKey, OwnerV2TypeFilter, RestIndexStore},
 };
 
 #[derive(Clone)]
@@ -616,30 +613,29 @@ impl RestIndexes for RestIndexStore {
     fn account_owned_objects_info_iter_v2(
         &self,
         owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         object_type: Option<StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>
-    {
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>> {
         let type_filter = OwnerV2TypeFilter::from_struct_tag(object_type.as_ref());
-        let iter = self.owner_v2_iter(owner, type_filter)?.map(|result| {
-            result.map(
-                |(
-                    OwnerIndexKeyV2 {
-                        owner, object_id, ..
-                    },
-                    OwnerIndexInfoV2 {
-                        object_type,
-                        version,
-                    },
-                )| {
-                    AccountOwnedObjectInfo {
-                        owner,
-                        object_id,
-                        version,
-                        type_: object_type.into(),
-                    }
-                },
-            )
-        });
+        let iter = self
+            .owner_v2_iter(owner, cursor, type_filter)?
+            .map(|result| {
+                result.map(|(key, info)| {
+                    let cursor = OwnedObjectV2Cursor {
+                        object_type_identifier: key.object_type_identifier,
+                        object_type_params: key.object_type_params,
+                        inverted_balance: key.inverted_balance,
+                        object_id: key.object_id,
+                    };
+                    let owned = AccountOwnedObjectInfo {
+                        owner: key.owner,
+                        object_id: key.object_id,
+                        version: info.version,
+                        type_: info.object_type.into(),
+                    };
+                    (owned, cursor)
+                })
+            });
 
         Ok(Box::new(iter) as _)
     }
@@ -691,10 +687,11 @@ impl RestIndexes for RestIndexStore {
     fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
     > {
-        let iter = self.package_versions_iter(original_package_id)?;
+        let iter = self.package_versions_iter(original_package_id, cursor)?;
         Ok(Box::new(iter) as _)
     }
 

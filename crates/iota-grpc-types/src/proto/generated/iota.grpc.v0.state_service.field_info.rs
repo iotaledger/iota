@@ -44,10 +44,18 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(ObjectId::FIELDS),
         };
-        pub const LIMIT_FIELD: &'static MessageField = &MessageField {
-            name: "limit",
-            json_name: "limit",
+        pub const PAGE_SIZE_FIELD: &'static MessageField = &MessageField {
+            name: "page_size",
+            json_name: "pageSize",
             number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+        pub const PAGE_TOKEN_FIELD: &'static MessageField = &MessageField {
+            name: "page_token",
+            json_name: "pageToken",
+            number: 3i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -55,7 +63,7 @@ mod _field_impls {
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
             name: "read_mask",
             json_name: "readMask",
-            number: 3i32,
+            number: 4i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -63,7 +71,7 @@ mod _field_impls {
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
             name: "max_message_size_bytes",
             json_name: "maxMessageSizeBytes",
-            number: 4i32,
+            number: 5i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -72,7 +80,8 @@ mod _field_impls {
     impl MessageFields for ListDynamicFieldsRequest {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::PARENT_FIELD,
-            Self::LIMIT_FIELD,
+            Self::PAGE_SIZE_FIELD,
+            Self::PAGE_TOKEN_FIELD,
             Self::READ_MASK_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
@@ -101,8 +110,12 @@ mod _field_impls {
             self.path.push(ListDynamicFieldsRequest::PARENT_FIELD.name);
             ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn limit(mut self) -> String {
-            self.path.push(ListDynamicFieldsRequest::LIMIT_FIELD.name);
+        pub fn page_size(mut self) -> String {
+            self.path.push(ListDynamicFieldsRequest::PAGE_SIZE_FIELD.name);
+            self.finish()
+        }
+        pub fn page_token(mut self) -> String {
+            self.path.push(ListDynamicFieldsRequest::PAGE_TOKEN_FIELD.name);
             self.finish()
         }
         pub fn read_mask(mut self) -> String {
@@ -123,11 +136,11 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(DynamicField::FIELDS),
         };
-        pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
-            name: "has_next",
-            json_name: "hasNext",
+        pub const NEXT_PAGE_TOKEN_FIELD: &'static MessageField = &MessageField {
+            name: "next_page_token",
+            json_name: "nextPageToken",
             number: 2i32,
-            is_optional: false,
+            is_optional: true,
             is_map: false,
             message_fields: None,
         };
@@ -135,7 +148,7 @@ mod _field_impls {
     impl MessageFields for ListDynamicFieldsResponse {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::DYNAMIC_FIELDS_FIELD,
-            Self::HAS_NEXT_FIELD,
+            Self::NEXT_PAGE_TOKEN_FIELD,
         ];
     }
     impl ListDynamicFieldsResponse {
@@ -162,8 +175,8 @@ mod _field_impls {
             self.path.push(ListDynamicFieldsResponse::DYNAMIC_FIELDS_FIELD.name);
             DynamicFieldFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn has_next(mut self) -> String {
-            self.path.push(ListDynamicFieldsResponse::HAS_NEXT_FIELD.name);
+        pub fn next_page_token(mut self) -> String {
+            self.path.push(ListDynamicFieldsResponse::NEXT_PAGE_TOKEN_FIELD.name);
             self.finish()
         }
     }
@@ -176,10 +189,18 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(Address::FIELDS),
         };
-        pub const LIMIT_FIELD: &'static MessageField = &MessageField {
-            name: "limit",
-            json_name: "limit",
+        pub const PAGE_SIZE_FIELD: &'static MessageField = &MessageField {
+            name: "page_size",
+            json_name: "pageSize",
             number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+        pub const PAGE_TOKEN_FIELD: &'static MessageField = &MessageField {
+            name: "page_token",
+            json_name: "pageToken",
+            number: 3i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -187,7 +208,7 @@ mod _field_impls {
         pub const READ_MASK_FIELD: &'static MessageField = &MessageField {
             name: "read_mask",
             json_name: "readMask",
-            number: 3i32,
+            number: 4i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -195,7 +216,7 @@ mod _field_impls {
         pub const OBJECT_TYPE_FIELD: &'static MessageField = &MessageField {
             name: "object_type",
             json_name: "objectType",
-            number: 4i32,
+            number: 5i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -203,7 +224,7 @@ mod _field_impls {
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
             name: "max_message_size_bytes",
             json_name: "maxMessageSizeBytes",
-            number: 5i32,
+            number: 6i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -212,7 +233,8 @@ mod _field_impls {
     impl MessageFields for ListOwnedObjectsRequest {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::OWNER_FIELD,
-            Self::LIMIT_FIELD,
+            Self::PAGE_SIZE_FIELD,
+            Self::PAGE_TOKEN_FIELD,
             Self::READ_MASK_FIELD,
             Self::OBJECT_TYPE_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
@@ -242,8 +264,12 @@ mod _field_impls {
             self.path.push(ListOwnedObjectsRequest::OWNER_FIELD.name);
             AddressFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn limit(mut self) -> String {
-            self.path.push(ListOwnedObjectsRequest::LIMIT_FIELD.name);
+        pub fn page_size(mut self) -> String {
+            self.path.push(ListOwnedObjectsRequest::PAGE_SIZE_FIELD.name);
+            self.finish()
+        }
+        pub fn page_token(mut self) -> String {
+            self.path.push(ListOwnedObjectsRequest::PAGE_TOKEN_FIELD.name);
             self.finish()
         }
         pub fn read_mask(mut self) -> String {
@@ -268,11 +294,11 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(Object::FIELDS),
         };
-        pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
-            name: "has_next",
-            json_name: "hasNext",
+        pub const NEXT_PAGE_TOKEN_FIELD: &'static MessageField = &MessageField {
+            name: "next_page_token",
+            json_name: "nextPageToken",
             number: 2i32,
-            is_optional: false,
+            is_optional: true,
             is_map: false,
             message_fields: None,
         };
@@ -280,7 +306,7 @@ mod _field_impls {
     impl MessageFields for ListOwnedObjectsResponse {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::OBJECTS_FIELD,
-            Self::HAS_NEXT_FIELD,
+            Self::NEXT_PAGE_TOKEN_FIELD,
         ];
     }
     impl ListOwnedObjectsResponse {
@@ -307,8 +333,8 @@ mod _field_impls {
             self.path.push(ListOwnedObjectsResponse::OBJECTS_FIELD.name);
             ObjectFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn has_next(mut self) -> String {
-            self.path.push(ListOwnedObjectsResponse::HAS_NEXT_FIELD.name);
+        pub fn next_page_token(mut self) -> String {
+            self.path.push(ListOwnedObjectsResponse::NEXT_PAGE_TOKEN_FIELD.name);
             self.finish()
         }
     }

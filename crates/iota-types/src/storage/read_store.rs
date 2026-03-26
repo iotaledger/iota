@@ -877,12 +877,19 @@ pub trait RestIndexes: Send + Sync {
 
     /// Returns an iterator over objects owned by `owner`, optionally filtered
     /// by `object_type`.
+    ///
+    /// Each item includes an [`OwnedObjectV2Cursor`] that can be stored in an
+    /// opaque page token for seek-based cursor resumption.
+    ///
+    /// The `cursor` bound is **inclusive**: the iterator starts *at* the cursor
+    /// position. Callers must `.skip(1)` to get exclusive semantics.
     // only used in "grpc-server"
     fn account_owned_objects_info_iter_v2(
         &self,
         owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         object_type: Option<StructTag>,
-    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>>;
 
     /// Returns an iterator over the dynamic fields of `parent`.
     ///
@@ -911,6 +918,7 @@ pub trait RestIndexes: Send + Sync {
     fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
 
     /// Returns `true` once the `owner_v2` backfill has completed.
@@ -941,12 +949,29 @@ pub trait RestIndexes: Send + Sync {
 pub type PackageVersionIteratorItem =
     Result<(PackageVersionKey, PackageVersionInfo), TypedStoreError>;
 
+#[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
     pub version: SequenceNumber,
     pub type_: MoveObjectType,
 }
+
+/// Opaque cursor for seeking in the `owner_v2` index.
+///
+/// Mirrors the non-owner components of the v2 composite key so that
+/// pagination can resume with a direct RocksDB seek instead of scanning
+/// from the start.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OwnedObjectV2Cursor {
+    pub object_type_identifier: u64,
+    pub object_type_params: u64,
+    pub inverted_balance: Option<u64>,
+    pub object_id: ObjectID,
+}
+
+pub type OwnedObjectV2IteratorItem =
+    Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {

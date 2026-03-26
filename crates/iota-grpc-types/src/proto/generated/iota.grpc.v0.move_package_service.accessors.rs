@@ -13,9 +13,17 @@ mod _accessor_impls {
             self.package_id = Some(field.into());
             self
         }
-        /// Sets `limit` with the provided value.
-        pub fn with_limit(mut self, field: u32) -> Self {
-            self.limit = Some(field);
+        /// Sets `page_size` with the provided value.
+        pub fn with_page_size(mut self, field: u32) -> Self {
+            self.page_size = Some(field);
+            self
+        }
+        /// Sets `page_token` with the provided value.
+        pub fn with_page_token<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.page_token = Some(field.into());
             self
         }
         /// Sets `max_message_size_bytes` with the provided value.
@@ -30,9 +38,12 @@ mod _accessor_impls {
             self.versions = field;
             self
         }
-        /// Sets `has_next` with the provided value.
-        pub fn with_has_next(mut self, field: bool) -> Self {
-            self.has_next = field;
+        /// Sets `next_page_token` with the provided value.
+        pub fn with_next_page_token<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.next_page_token = Some(field.into());
             self
         }
     }
@@ -45,17 +56,17 @@ mod _accessor_impls {
             self.original_id = Some(field.into());
             self
         }
-        /// Sets `version` with the provided value.
-        pub fn with_version(mut self, field: u64) -> Self {
-            self.version = Some(field);
-            self
-        }
         /// Sets `storage_id` with the provided value.
         pub fn with_storage_id<T: Into<super::super::types::ObjectId>>(
             mut self,
             field: T,
         ) -> Self {
             self.storage_id = Some(field.into());
+            self
+        }
+        /// Sets `version` with the provided value.
+        pub fn with_version(mut self, field: u64) -> Self {
+            self.version = Some(field);
             self
         }
     }

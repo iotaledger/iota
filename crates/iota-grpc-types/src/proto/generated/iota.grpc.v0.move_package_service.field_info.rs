@@ -20,10 +20,18 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(ObjectId::FIELDS),
         };
-        pub const LIMIT_FIELD: &'static MessageField = &MessageField {
-            name: "limit",
-            json_name: "limit",
+        pub const PAGE_SIZE_FIELD: &'static MessageField = &MessageField {
+            name: "page_size",
+            json_name: "pageSize",
             number: 2i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
+        pub const PAGE_TOKEN_FIELD: &'static MessageField = &MessageField {
+            name: "page_token",
+            json_name: "pageToken",
+            number: 3i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -31,7 +39,7 @@ mod _field_impls {
         pub const MAX_MESSAGE_SIZE_BYTES_FIELD: &'static MessageField = &MessageField {
             name: "max_message_size_bytes",
             json_name: "maxMessageSizeBytes",
-            number: 3i32,
+            number: 4i32,
             is_optional: true,
             is_map: false,
             message_fields: None,
@@ -40,7 +48,8 @@ mod _field_impls {
     impl MessageFields for ListPackageVersionsRequest {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::PACKAGE_ID_FIELD,
-            Self::LIMIT_FIELD,
+            Self::PAGE_SIZE_FIELD,
+            Self::PAGE_TOKEN_FIELD,
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
     }
@@ -68,8 +77,12 @@ mod _field_impls {
             self.path.push(ListPackageVersionsRequest::PACKAGE_ID_FIELD.name);
             ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn limit(mut self) -> String {
-            self.path.push(ListPackageVersionsRequest::LIMIT_FIELD.name);
+        pub fn page_size(mut self) -> String {
+            self.path.push(ListPackageVersionsRequest::PAGE_SIZE_FIELD.name);
+            self.finish()
+        }
+        pub fn page_token(mut self) -> String {
+            self.path.push(ListPackageVersionsRequest::PAGE_TOKEN_FIELD.name);
             self.finish()
         }
         pub fn max_message_size_bytes(mut self) -> String {
@@ -87,11 +100,11 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(PackageVersion::FIELDS),
         };
-        pub const HAS_NEXT_FIELD: &'static MessageField = &MessageField {
-            name: "has_next",
-            json_name: "hasNext",
+        pub const NEXT_PAGE_TOKEN_FIELD: &'static MessageField = &MessageField {
+            name: "next_page_token",
+            json_name: "nextPageToken",
             number: 2i32,
-            is_optional: false,
+            is_optional: true,
             is_map: false,
             message_fields: None,
         };
@@ -99,7 +112,7 @@ mod _field_impls {
     impl MessageFields for ListPackageVersionsResponse {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::VERSIONS_FIELD,
-            Self::HAS_NEXT_FIELD,
+            Self::NEXT_PAGE_TOKEN_FIELD,
         ];
     }
     impl ListPackageVersionsResponse {
@@ -126,8 +139,8 @@ mod _field_impls {
             self.path.push(ListPackageVersionsResponse::VERSIONS_FIELD.name);
             PackageVersionFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn has_next(mut self) -> String {
-            self.path.push(ListPackageVersionsResponse::HAS_NEXT_FIELD.name);
+        pub fn next_page_token(mut self) -> String {
+            self.path.push(ListPackageVersionsResponse::NEXT_PAGE_TOKEN_FIELD.name);
             self.finish()
         }
     }
@@ -140,28 +153,28 @@ mod _field_impls {
             is_map: false,
             message_fields: Some(ObjectId::FIELDS),
         };
-        pub const VERSION_FIELD: &'static MessageField = &MessageField {
-            name: "version",
-            json_name: "version",
-            number: 2i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: None,
-        };
         pub const STORAGE_ID_FIELD: &'static MessageField = &MessageField {
             name: "storage_id",
             json_name: "storageId",
-            number: 3i32,
+            number: 2i32,
             is_optional: true,
             is_map: false,
             message_fields: Some(ObjectId::FIELDS),
+        };
+        pub const VERSION_FIELD: &'static MessageField = &MessageField {
+            name: "version",
+            json_name: "version",
+            number: 3i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
         };
     }
     impl MessageFields for PackageVersion {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::ORIGINAL_ID_FIELD,
-            Self::VERSION_FIELD,
             Self::STORAGE_ID_FIELD,
+            Self::VERSION_FIELD,
         ];
     }
     impl PackageVersion {
@@ -188,13 +201,13 @@ mod _field_impls {
             self.path.push(PackageVersion::ORIGINAL_ID_FIELD.name);
             ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
-        pub fn version(mut self) -> String {
-            self.path.push(PackageVersion::VERSION_FIELD.name);
-            self.finish()
-        }
         pub fn storage_id(mut self) -> ObjectIdFieldPathBuilder {
             self.path.push(PackageVersion::STORAGE_ID_FIELD.name);
             ObjectIdFieldPathBuilder::new_with_base(self.path)
+        }
+        pub fn version(mut self) -> String {
+            self.path.push(PackageVersion::VERSION_FIELD.name);
+            self.finish()
         }
     }
 }

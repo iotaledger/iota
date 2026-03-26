@@ -130,33 +130,38 @@ pub type ObjectsStreamResult = Result<grpc_ledger_service::GetObjectsResponse, S
 pub type TransactionsStreamResult = Result<grpc_ledger_service::GetTransactionsResponse, Status>;
 pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, Status>;
 
-// Iterator types for state reader methods
+// Iterator item types for state reader methods.
+//
+// These mirror the `iota_types::storage` item types but use `anyhow::Result`
+// so that different storage backends (RocksDB, mock, simulacrum) can map
+// their concrete errors into a uniform error type.
+
+/// A dynamic-field index entry (key + index info).
 pub type DynamicFieldIterItem = anyhow::Result<(
     iota_types::storage::DynamicFieldKey,
     iota_types::storage::DynamicFieldIndexInfo,
 )>;
+
+/// An owned-object from the legacy `owner` (v1) index.
 pub type OwnedObjectIterItem = anyhow::Result<iota_types::storage::AccountOwnedObjectInfo>;
+
+pub use iota_types::storage::OwnedObjectV2Cursor;
+
+/// An owned-object together with the v2 seek cursor for the position it
+/// occupies in the index.
+///
+/// Unlike [`OwnedObjectIterItem`], this carries the full v2 key components
+/// so that page tokens can encode an exact seek position.
+pub type OwnedObjectV2IterItem = anyhow::Result<(
+    iota_types::storage::AccountOwnedObjectInfo,
+    iota_types::storage::OwnedObjectV2Cursor,
+)>;
+
+/// A package-version index entry (key + storage info).
 pub type PackageVersionIterItem = anyhow::Result<(
     iota_types::storage::PackageVersionKey,
     iota_types::storage::PackageVersionInfo,
 )>;
-
-// State service stream types
-pub type ListDynamicFieldsStreamResult =
-    Result<iota_grpc_types::v0::state_service::ListDynamicFieldsResponse, Status>;
-pub type ListDynamicFieldsStream =
-    Pin<Box<dyn futures::Stream<Item = ListDynamicFieldsStreamResult> + Send>>;
-
-pub type ListOwnedObjectsStreamResult =
-    Result<iota_grpc_types::v0::state_service::ListOwnedObjectsResponse, Status>;
-pub type ListOwnedObjectsStream =
-    Pin<Box<dyn futures::Stream<Item = ListOwnedObjectsStreamResult> + Send>>;
-
-// Move package service stream types
-pub type ListPackageVersionsStreamResult =
-    Result<iota_grpc_types::v0::move_package_service::ListPackageVersionsResponse, Status>;
-pub type ListPackageVersionsStream =
-    Pin<Box<dyn futures::Stream<Item = ListPackageVersionsStreamResult> + Send>>;
 
 /// Result of [`GrpcReader::match_checkpoint_filter_or_report_progress`].
 enum FilterCheckResult {
@@ -312,11 +317,15 @@ pub trait GrpcStateReader: Send + Sync + 'static {
 
     /// Iterate over objects owned by an account address using the `owner_v2`
     /// table, optionally filtered by type.
+    ///
+    /// When `cursor` is `Some`, the iterator starts at (and includes) the
+    /// cursor position — callers must `.skip(1)` to get exclusive semantics.
     fn account_owned_objects_info_iter_v2(
         &self,
         owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>>;
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>>;
 
     /// Iterate over dynamic fields of a parent object.
     ///
@@ -346,6 +355,7 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>>;
 
     /// Returns `true` once the `owner_v2` backfill has completed.
@@ -572,10 +582,11 @@ impl GrpcStateReader for RestStateReaderAdapter {
     fn account_owned_objects_info_iter_v2(
         &self,
         owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>> {
         let indexes = self.require_indexes()?;
-        let iter = indexes.account_owned_objects_info_iter_v2(owner, object_type)?;
+        let iter = indexes.account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
         Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
@@ -608,10 +619,11 @@ impl GrpcStateReader for RestStateReaderAdapter {
     fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>> {
         let indexes = self.require_indexes()?;
         let iter = indexes
-            .package_versions_iter(original_package_id)?
+            .package_versions_iter(original_package_id, cursor)?
             .map(|r| r.map_err(Into::into));
         Ok(Box::new(iter))
     }
@@ -1019,20 +1031,44 @@ impl GrpcReader {
     ///
     /// When the `owner_v2` backfill has not yet completed, falls back to the
     /// legacy `owner` table.
+    ///
+    /// The cursor is exclusive: items *after* the cursor position are returned.
     pub fn account_owned_objects_info_iter_v2(
         &self,
         owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
-        let iter = if self.state_reader.is_owner_v2_index_ready() {
-            self.state_reader
-                .account_owned_objects_info_iter_v2(owner, object_type)?
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>> {
+        if self.state_reader.is_owner_v2_index_ready() {
+            let skip = usize::from(cursor.is_some());
+            let iter =
+                self.state_reader
+                    .account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
+            Ok(Box::new(iter.skip(skip)))
         } else {
             // Fallback: owner_v2 backfill in progress — use legacy owner table.
-            self.state_reader
-                .account_owned_objects_info_iter(owner, None, object_type)?
-        };
-        Ok(Box::new(iter))
+            // V1 natively supports cursor-based seeking by ObjectID.
+            let cursor_id = cursor.map(|c| c.object_id);
+            let skip = usize::from(cursor_id.is_some());
+            let iter =
+                self.state_reader
+                    .account_owned_objects_info_iter(owner, cursor_id, object_type)?;
+            // Wrap v1 items with a dummy cursor (only object_id is meaningful
+            // for v1; the other fields are unused if v1 is still active on the
+            // next request).
+            let iter = iter.map(|result| {
+                result.map(|info| {
+                    let c = OwnedObjectV2Cursor {
+                        object_type_identifier: 0,
+                        object_type_params: 0,
+                        inverted_balance: None,
+                        object_id: info.object_id,
+                    };
+                    (info, c)
+                })
+            });
+            Ok(Box::new(iter.skip(skip)))
+        }
     }
 
     /// Iterate over dynamic fields of a parent object.
@@ -1088,6 +1124,7 @@ impl GrpcReader {
     pub fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
         if !self.state_reader.is_package_version_index_ready() {
             return Err(crate::error::IndexBackfillInProgressError {
@@ -1097,7 +1134,7 @@ impl GrpcReader {
         }
         let iter = self
             .state_reader
-            .package_versions_iter(original_package_id)
+            .package_versions_iter(original_package_id, cursor)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
         Ok(Box::new(iter))
     }

@@ -2,22 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::LIST_OWNED_OBJECTS_READ_MASK,
-    v0::state_service::{
-        ListOwnedObjectsRequest, ListOwnedObjectsResponse, state_service_client::StateServiceClient,
-    },
+    field::FieldMaskUtil, read_masks::LIST_OWNED_OBJECTS_READ_MASK,
+    v0::state_service::ListOwnedObjectsRequest,
 };
 use iota_macros::sim_test;
 use iota_types::base_types::IotaAddress;
 use prost_types::FieldMask;
 
-use crate::{
-    collect_streaming_responses,
-    utils::{
-        NFT_PACKAGE, address_proto, assert_field_presence, assert_tonic_error,
-        comma_separated_field_mask_to_paths, publish_example_package, setup_grpc_test,
-    },
+use crate::utils::{
+    NFT_PACKAGE, address_proto, assert_field_presence, assert_tonic_error,
+    comma_separated_field_mask_to_paths, publish_example_package, setup_grpc_test,
 };
 
 /// Get the first wallet address from a test cluster.
@@ -25,32 +19,31 @@ fn first_sender(cluster: &test_cluster::TestCluster) -> IotaAddress {
     cluster.wallet.get_addresses().first().copied().unwrap()
 }
 
-/// Collect all streaming responses, validating has_next and field presence.
-///
-/// Uses [`collect_streaming_responses!`] for stream/has_next validation, then
-/// additionally asserts field presence on every returned object.
-async fn collect_list_owned_objects(
-    state_client: &mut StateServiceClient<iota_grpc_client::InterceptedChannel>,
+/// Make a unary call and validate field presence on every returned object.
+async fn list_and_validate(
+    state_client: &mut iota_grpc_types::v0::state_service::state_service_client::StateServiceClient<
+        iota_grpc_client::InterceptedChannel,
+    >,
     request: ListOwnedObjectsRequest,
     expected_field_mask_paths: &[&str],
     scenario: &str,
-) -> Vec<ListOwnedObjectsResponse> {
-    let responses =
-        collect_streaming_responses!(state_client, list_owned_objects, request, scenario);
+) -> iota_grpc_types::v0::state_service::ListOwnedObjectsResponse {
+    let response = state_client
+        .list_owned_objects(request)
+        .await
+        .unwrap()
+        .into_inner();
 
-    // Additional field-presence validation specific to owned objects
-    for (resp_idx, response) in responses.iter().enumerate() {
-        for (obj_idx, object) in response.objects.iter().enumerate() {
-            assert_field_presence(
-                object,
-                expected_field_mask_paths,
-                &[],
-                &format!("{scenario} (response {}, object {obj_idx})", resp_idx + 1),
-            );
-        }
+    for (idx, object) in response.objects.iter().enumerate() {
+        assert_field_presence(
+            object,
+            expected_field_mask_paths,
+            &[],
+            &format!("{scenario} (object {idx})"),
+        );
     }
 
-    responses
+    response
 }
 
 #[sim_test]
@@ -62,7 +55,7 @@ async fn list_owned_objects_default_readmask() {
 
     let request = ListOwnedObjectsRequest::default().with_owner(address_proto(sender));
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -70,9 +63,8 @@ async fn list_owned_objects_default_readmask() {
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
     assert!(
-        total_objects > 0,
+        !response.objects.is_empty(),
         "Sender should own at least one object (gas coins)"
     );
 }
@@ -88,7 +80,7 @@ async fn list_owned_objects_with_readmask() {
         .with_owner(address_proto(sender))
         .with_read_mask(FieldMask::from_paths(["reference.object_id"]));
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &["reference.object_id"],
@@ -96,12 +88,14 @@ async fn list_owned_objects_with_readmask() {
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
-    assert!(total_objects > 0, "Should return objects with partial mask");
+    assert!(
+        !response.objects.is_empty(),
+        "Should return objects with partial mask"
+    );
 }
 
 #[sim_test]
-async fn list_owned_objects_with_limit() {
+async fn list_owned_objects_with_page_size() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
     let mut state_client = client.state_service_client();
 
@@ -109,20 +103,21 @@ async fn list_owned_objects_with_limit() {
 
     let request = ListOwnedObjectsRequest::default()
         .with_owner(address_proto(sender))
-        .with_limit(2);
+        .with_page_size(2);
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
-        "with limit=2",
+        "with page_size=2",
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
     assert_eq!(
-        total_objects, 2,
-        "Should return exactly 2 objects, got {total_objects}"
+        response.objects.len(),
+        2,
+        "Should return exactly 2 objects, got {}",
+        response.objects.len()
     );
 }
 
@@ -148,7 +143,7 @@ async fn list_owned_objects_nonexistent_owner() {
     let random_addr = IotaAddress::random_for_testing_only();
     let request = ListOwnedObjectsRequest::default().with_owner(address_proto(random_addr));
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -156,8 +151,11 @@ async fn list_owned_objects_nonexistent_owner() {
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
-    assert_eq!(total_objects, 0, "Nonexistent owner should have 0 objects");
+    assert_eq!(
+        response.objects.len(),
+        0,
+        "Nonexistent owner should have 0 objects"
+    );
 }
 
 #[sim_test]
@@ -173,7 +171,7 @@ async fn list_owned_objects_filter_by_exact_type() {
         .with_owner(address_proto(sender))
         .with_object_type("0x2::coin::Coin<0x2::iota::IOTA>".to_string());
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -181,9 +179,8 @@ async fn list_owned_objects_filter_by_exact_type() {
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
     assert!(
-        total_objects > 0,
+        !response.objects.is_empty(),
         "Sender should own at least one Coin<IOTA> object"
     );
 }
@@ -201,7 +198,7 @@ async fn list_owned_objects_filter_by_type_without_type_params() {
         .with_owner(address_proto(sender))
         .with_object_type("0x2::coin::Coin".to_string());
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -209,9 +206,8 @@ async fn list_owned_objects_filter_by_type_without_type_params() {
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
     assert!(
-        total_objects > 0,
+        !response.objects.is_empty(),
         "Sender should own at least one Coin object when filtering without type params"
     );
 }
@@ -235,7 +231,7 @@ async fn list_owned_objects_filter_by_nonexistent_type() {
         .with_owner(address_proto(sender))
         .with_object_type(nft_type);
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -243,9 +239,9 @@ async fn list_owned_objects_filter_by_nonexistent_type() {
     )
     .await;
 
-    let total_objects: usize = responses.iter().map(|r| r.objects.len()).sum();
     assert_eq!(
-        total_objects, 0,
+        response.objects.len(),
+        0,
         "Sender should have 0 objects of NFT type (none minted)"
     );
 }
@@ -277,7 +273,7 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
         .with_owner(address_proto(sender))
         .with_object_type(nft_type);
 
-    let responses = collect_list_owned_objects(
+    let response = list_and_validate(
         &mut state_client,
         request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -285,7 +281,7 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
     )
     .await;
 
-    let total_nfts: usize = responses.iter().map(|r| r.objects.len()).sum();
+    let total_nfts = response.objects.len();
     assert_eq!(
         total_nfts, 1,
         "Sender should own exactly 1 NFT after minting"
@@ -296,7 +292,7 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
         .with_owner(address_proto(sender))
         .with_object_type("0x2::coin::Coin<0x2::iota::IOTA>".to_string());
 
-    let coin_responses = collect_list_owned_objects(
+    let coin_response = list_and_validate(
         &mut state_client,
         coin_request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -304,7 +300,7 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
     )
     .await;
 
-    let total_coins: usize = coin_responses.iter().map(|r| r.objects.len()).sum();
+    let total_coins = coin_response.objects.len();
     assert!(
         total_coins > 0,
         "Sender should still own gas coins after minting NFT"
@@ -314,7 +310,7 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
     // both coins and NFT)
     let unfiltered_request = ListOwnedObjectsRequest::default().with_owner(address_proto(sender));
 
-    let unfiltered_responses = collect_list_owned_objects(
+    let unfiltered_response = list_and_validate(
         &mut state_client,
         unfiltered_request,
         &comma_separated_field_mask_to_paths(LIST_OWNED_OBJECTS_READ_MASK),
@@ -322,11 +318,127 @@ async fn list_owned_objects_filter_by_type_exact_match_with_mint() {
     )
     .await;
 
-    let total_all: usize = unfiltered_responses.iter().map(|r| r.objects.len()).sum();
+    let total_all = unfiltered_response.objects.len();
     // The sender owns only Coin<IOTA> objects and the minted TestnetNFT in this
     // test configuration, so total_all == total_coins + total_nfts.
     assert!(
         total_all >= total_coins + total_nfts,
         "Unfiltered count ({total_all}) should be at least coins ({total_coins}) + NFTs ({total_nfts})"
+    );
+}
+
+/// Walk through all owned objects one at a time using cursor-based pagination.
+///
+/// This exercises the real v2 owner index, `owner_v2_bounds` cursor seeking,
+/// and page-token round-tripping through the full gRPC stack — something
+/// the unit tests with `MockGrpcStateReader` cannot cover.
+#[sim_test]
+async fn list_owned_objects_cursor_pagination_e2e() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let mut state_client = client.state_service_client();
+
+    let sender = first_sender(&test_cluster);
+
+    // First, get the total count in a single large page.
+    let all_response = list_and_validate(
+        &mut state_client,
+        ListOwnedObjectsRequest::default()
+            .with_owner(address_proto(sender))
+            .with_read_mask(FieldMask::from_str("reference.object_id")),
+        &["reference.object_id"],
+        "full page",
+    )
+    .await;
+
+    let total_count = all_response.objects.len();
+    assert!(
+        total_count >= 2,
+        "need at least 2 objects to test pagination, got {total_count}"
+    );
+
+    // Collect all object IDs from the single-page response.
+    let expected_ids: Vec<_> = all_response
+        .objects
+        .iter()
+        .map(|o| {
+            o.reference
+                .as_ref()
+                .unwrap()
+                .object_id
+                .as_ref()
+                .unwrap()
+                .object_id
+                .to_vec()
+        })
+        .collect();
+
+    // Now paginate one-by-one using page_size=1.
+    let mut paginated_ids = Vec::new();
+    let mut next_page_token = None;
+    let mut pages = 0u32;
+
+    loop {
+        let mut request = ListOwnedObjectsRequest::default()
+            .with_owner(address_proto(sender))
+            .with_page_size(1)
+            .with_read_mask(FieldMask::from_str("reference.object_id"));
+
+        if let Some(token) = next_page_token.take() {
+            request = request.with_page_token(token);
+        }
+
+        let resp = state_client
+            .list_owned_objects(request)
+            .await
+            .unwrap()
+            .into_inner();
+
+        for obj in &resp.objects {
+            paginated_ids.push(
+                obj.reference
+                    .as_ref()
+                    .unwrap()
+                    .object_id
+                    .as_ref()
+                    .unwrap()
+                    .object_id
+                    .to_vec(),
+            );
+        }
+
+        pages += 1;
+        assert!(
+            pages <= total_count as u32 + 1,
+            "pagination loop exceeded expected page count — possible infinite loop"
+        );
+
+        match resp.next_page_token {
+            Some(token) => next_page_token = Some(token),
+            None => break,
+        }
+    }
+
+    // Every object must appear exactly once.
+    assert_eq!(
+        paginated_ids.len(),
+        total_count,
+        "paginated walk returned {} objects, expected {total_count}",
+        paginated_ids.len()
+    );
+
+    let unique: std::collections::HashSet<_> = paginated_ids.iter().collect();
+    assert_eq!(
+        unique.len(),
+        paginated_ids.len(),
+        "duplicate object IDs found across pages"
+    );
+
+    // The set of IDs must match the single-page response (order may differ
+    // because page_size=1 walks in v2-key order while the full page may use
+    // a different natural order, but the *set* must be identical).
+    let expected_set: std::collections::HashSet<_> = expected_ids.iter().collect();
+    assert_eq!(
+        unique, expected_set,
+        "paginated IDs do not match single-page IDs"
     );
 }

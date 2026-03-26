@@ -10,22 +10,31 @@ import "iota/grpc/options.proto";
 import "iota/grpc/v0/types.proto";
 
 service MovePackageService {
-  rpc ListPackageVersions(ListPackageVersionsRequest) returns (stream ListPackageVersionsResponse);
+  rpc ListPackageVersions(ListPackageVersionsRequest) returns (ListPackageVersionsResponse);
 }
 
 message ListPackageVersionsRequest {
   option (iota.grpc.message_accessors) = "with";
 
-  // Required. The `storage_id` of any version of the package.
+  // Required. Either the `storage_id` of any version of an upgraded package,
+  // or the `original_id` of an immutable (first version) package.
   optional iota.grpc.v0.types.ObjectId package_id = 1;
 
-  // Optional limit on the total number of versions to return.
-  // The server stops streaming after this many items.
-  optional uint32 limit = 2;
+  // The maximum number of versions to return. The service may return fewer than this value.
+  // If unspecified, at most `1000` entries will be returned.
+  // The maximum value is `10000`; values above `10000` will be coerced to `10000`.
+  optional uint32 page_size = 2;
+
+  // A page token, received from a previous `ListPackageVersions` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListPackageVersions` must
+  // match the call that provided the page token.
+  optional bytes page_token = 3;
 
   // Optional maximum message size the client can receive (1MB - 128MB).
   // If not specified, server uses default chunking threshold (4MB).
-  optional uint32 max_message_size_bytes = 3;
+  optional uint32 max_message_size_bytes = 4;
 }
 
 message ListPackageVersionsResponse {
@@ -34,9 +43,9 @@ message ListPackageVersionsResponse {
   // List of all package versions, ordered by version.
   repeated PackageVersion versions = 1;
 
-  // Indicates whether more batches will follow.
-  // `false` on the final batch.
-  bool has_next = 2;
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  optional bytes next_page_token = 2;
 }
 
 // A simplified representation of a package version.
@@ -45,8 +54,9 @@ message PackageVersion {
 
   // The original (immutable) package ID shared across all versions
   optional iota.grpc.v0.types.ObjectId original_id = 1;
-  // The version number
-  optional uint64 version = 2;
   // The storage ID of this specific package version
-  optional iota.grpc.v0.types.ObjectId storage_id = 3;
+  optional iota.grpc.v0.types.ObjectId storage_id = 2;
+
+  // The version number
+  optional uint64 version = 3;
 }

@@ -22,8 +22,9 @@ use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIndexInfo, DynamicFieldKey,
-    EpochInfo, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey, ReadStore,
-    RestIndexes, RestStateReader, TransactionInfo,
+    EpochInfo, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, PackageVersionInfo,
+    PackageVersionIteratorItem, PackageVersionKey, ReadStore, RestIndexes, RestStateReader,
+    TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;

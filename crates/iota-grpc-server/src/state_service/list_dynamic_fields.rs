@@ -3,7 +3,6 @@
 
 use std::sync::Arc;
 
-use futures::Stream;
 use iota_grpc_types::{
     field::FieldMaskTree,
     read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
@@ -15,14 +14,27 @@ use iota_grpc_types::{
 };
 use iota_types::{base_types::ObjectID, dynamic_field::visitor as DFV};
 use prost::Message;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
     merge::Merge,
-    types::{GrpcReader, ListDynamicFieldsStreamResult},
-    validation::{collect_iter, require_object_id, validate_limit, validate_read_mask},
+    types::GrpcReader,
+    validation::{
+        decode_page_token, encode_page_token, require_object_id, validate_page_size,
+        validate_read_mask,
+    },
 };
+
+const DEFAULT_PAGE_SIZE: u32 = 50;
+const MAX_PAGE_SIZE: u32 = 1000;
+
+#[derive(Serialize, Deserialize)]
+struct PageToken {
+    parent: ObjectID,
+    cursor: ObjectID,
+}
 
 /// Check whether the read mask requests any field that requires loading the
 /// actual field object from storage (as opposed to index-only fields).
@@ -153,52 +165,96 @@ pub(crate) fn list_dynamic_fields(
     reader: Arc<GrpcReader>,
     ListDynamicFieldsRequest {
         parent,
-        limit,
+        page_size,
+        page_token,
         read_mask,
         max_message_size_bytes,
         ..
     }: ListDynamicFieldsRequest,
-) -> Result<impl Stream<Item = ListDynamicFieldsStreamResult> + Send, RpcError> {
+) -> Result<ListDynamicFieldsResponse, RpcError> {
     let parent_id = require_object_id(&parent, "parent")?;
     let read_mask = validate_read_mask::<DynamicField>(read_mask, LIST_DYNAMIC_FIELDS_READ_MASK)?;
-    let limit = validate_limit(limit);
+    let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
+    let page_token: Option<PageToken> = decode_page_token(&page_token)?;
+    if let Some(ref t) = page_token {
+        if t.parent != parent_id {
+            return Err(
+                iota_grpc_types::google::rpc::bad_request::FieldViolation::new("page_token")
+                    .with_description("page_token does not match request parameters")
+                    .with_reason(iota_grpc_types::v0::error_reason::ErrorReason::FieldInvalid)
+                    .into(),
+            );
+        }
+    }
+
+    let cursor = page_token.map(|t| t.cursor);
     let load_field = should_load_field(&read_mask);
 
-    let items = collect_iter(
-        reader
-            .dynamic_field_iter(parent_id, None)?
-            .take(limit.unwrap_or(usize::MAX)),
-    )?;
+    let mut iter = reader.dynamic_field_iter(parent_id, cursor)?;
 
-    Ok(crate::create_batching_stream!(
-        items.into_iter(),
-        (key, info),
-        {
-            let field_id = key.field_id;
-            let mut df = DynamicField::merge_from((key, info), &read_mask)
-                .map_err(|e| e.with_context("failed to merge dynamic field"))?;
+    let mut items = Vec::with_capacity(page_size);
+    let mut size_bytes = 0usize;
+    let mut last_field_id: Option<ObjectID> = None;
 
-            // Conditionally load the field object to populate heavy fields.
-            // On recoverable errors (missing layout, deserialization failure),
-            // the item is still returned with index-only fields populated so
-            // that clients see all items and can detect partial data via the
-            // absence of the requested heavy fields.
-            if load_field {
-                if let Err(e) = load_dynamic_field(&reader, &field_id, &read_mask, &mut df) {
-                    tracing::warn!("error loading dynamic field object {field_id}: {e}");
-                    // Return the item with index-only fields rather than
-                    // silently dropping it.
-                }
+    for result in iter.by_ref() {
+        let (key, info) = result.map_err(RpcError::from)?;
+        let field_id = key.field_id;
+
+        let mut df = DynamicField::merge_from((key, info), &read_mask)
+            .map_err(|e| e.with_context("failed to merge dynamic field"))?;
+
+        // Conditionally load the field object to populate heavy fields.
+        // On recoverable errors (missing layout, deserialization failure),
+        // the item is still returned with index-only fields populated so
+        // that clients see all items and can detect partial data via the
+        // absence of the requested heavy fields.
+        if load_field {
+            if let Err(e) = load_dynamic_field(&reader, &field_id, &read_mask, &mut df) {
+                tracing::warn!("error loading dynamic field object {field_id}: {e}");
+                // Return the item with index-only fields rather than
+                // silently dropping it.
             }
+        }
 
-            let size = df.encoded_len();
-            (df, size)
-        },
-        max_message_size,
-        ListDynamicFieldsResponse,
-        dynamic_fields,
-        has_next
-    ))
+        let item_size = df.encoded_len();
+
+        // If adding this item would exceed the message size limit, stop.
+        // Always include at least one item to guarantee forward progress.
+        if !items.is_empty() && size_bytes + item_size > max_message_size {
+            // The current item doesn't fit — it becomes the start of the next page.
+            // Use last_field_id as cursor (the last successfully added item).
+            let response = ListDynamicFieldsResponse::default()
+                .with_dynamic_fields(items)
+                .with_next_page_token(encode_page_token(&PageToken {
+                    parent: parent_id,
+                    cursor: last_field_id.expect("items is non-empty"),
+                }));
+            return Ok(response);
+        }
+
+        items.push(df);
+        size_bytes += item_size;
+        last_field_id = Some(field_id);
+
+        if items.len() >= page_size {
+            break;
+        }
+    }
+
+    // Check if there are more items beyond what we returned.
+    let has_more = iter.next().transpose().map_err(RpcError::from)?.is_some();
+
+    let mut response = ListDynamicFieldsResponse::default().with_dynamic_fields(items);
+    if has_more {
+        if let Some(cursor_id) = last_field_id {
+            response = response.with_next_page_token(encode_page_token(&PageToken {
+                parent: parent_id,
+                cursor: cursor_id,
+            }));
+        }
+    }
+
+    Ok(response)
 }

@@ -3,36 +3,49 @@
 
 use std::sync::Arc;
 
-use futures::Stream;
 use iota_grpc_types::v0::move_package_service::{
     ListPackageVersionsRequest, ListPackageVersionsResponse, PackageVersion,
 };
+use iota_types::base_types::ObjectID;
 use prost::Message;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
-    types::{GrpcReader, ListPackageVersionsStreamResult},
-    validation::{collect_iter, object_id_proto, require_object_id, validate_limit},
+    types::GrpcReader,
+    validation::{
+        decode_page_token, encode_page_token, object_id_proto, require_object_id,
+        validate_page_size,
+    },
 };
+
+const DEFAULT_PAGE_SIZE: u32 = 1000;
+const MAX_PAGE_SIZE: u32 = 10000;
+
+#[derive(Serialize, Deserialize)]
+struct PageToken {
+    original_package_id: ObjectID,
+    last_version: u64,
+}
 
 #[tracing::instrument(skip(reader))]
 pub(crate) fn list_package_versions(
     reader: Arc<GrpcReader>,
     ListPackageVersionsRequest {
         package_id,
-        limit,
+        page_size,
+        page_token,
         max_message_size_bytes,
         ..
     }: ListPackageVersionsRequest,
-) -> Result<impl Stream<Item = ListPackageVersionsStreamResult> + Send, RpcError> {
+) -> Result<ListPackageVersionsResponse, RpcError> {
     let pkg_id = require_object_id(&package_id, "package_id")?;
-    let limit = validate_limit(limit);
+    let page_size = validate_page_size(page_size, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
-    // Fetch the current package to validate it exists and is a package.
-    // If the object has been pruned, fall back to using the requested ID as
-    // the original package ID and check whether the version index has entries.
+    // Resolve the original package ID so we can list all versions across
+    // different storage IDs (relevant for upgraded user packages).
     let original_package_id = match reader.get_object(&pkg_id)? {
         Some(current_object) => {
             if !current_object.is_package() {
@@ -63,32 +76,73 @@ pub(crate) fn list_package_versions(
         }
     };
 
-    let items = collect_iter(
-        reader
-            .package_versions_iter(original_package_id)?
-            .take(limit.unwrap_or(usize::MAX)),
-    )?;
+    let page_token: Option<PageToken> = decode_page_token(&page_token)?;
+    if let Some(ref t) = page_token {
+        if t.original_package_id != original_package_id {
+            return Err(
+                iota_grpc_types::google::rpc::bad_request::FieldViolation::new("page_token")
+                    .with_description("page_token does not match request parameters")
+                    .with_reason(iota_grpc_types::v0::error_reason::ErrorReason::FieldInvalid)
+                    .into(),
+            );
+        }
+    }
 
-    if items.is_empty() {
+    let cursor_version = page_token.map(|t| t.last_version);
+
+    let mut iter = reader.package_versions_iter(original_package_id, cursor_version)?;
+
+    let mut versions = Vec::with_capacity(page_size);
+    let mut size_bytes = 0usize;
+    let mut last_version: Option<u64> = None;
+
+    for result in iter.by_ref() {
+        let (key, info) = result.map_err(RpcError::from)?;
+
+        let version = PackageVersion::default()
+            .with_original_id(object_id_proto(&key.original_package_id))
+            .with_storage_id(object_id_proto(&info.storage_id))
+            .with_version(key.version);
+
+        let item_size = version.encoded_len();
+
+        if !versions.is_empty() && size_bytes + item_size > max_message_size {
+            let response = ListPackageVersionsResponse::default()
+                .with_versions(versions)
+                .with_next_page_token(encode_page_token(&PageToken {
+                    original_package_id,
+                    last_version: last_version.expect("versions is non-empty"),
+                }));
+            return Ok(response);
+        }
+
+        last_version = Some(key.version);
+        versions.push(version);
+        size_bytes += item_size;
+
+        if versions.len() >= page_size {
+            break;
+        }
+    }
+
+    if versions.is_empty() && cursor_version.is_none() {
         return Err(RpcError::from(crate::error::ObjectNotFoundError::new(
             pkg_id,
         )));
     }
 
-    Ok(crate::create_batching_stream!(
-        items.into_iter(),
-        (key, info),
-        {
-            let version = PackageVersion::default()
-                .with_original_id(object_id_proto(&key.original_package_id))
-                .with_version(key.version)
-                .with_storage_id(object_id_proto(&info.storage_id));
-            let size = version.encoded_len();
-            (version, size)
-        },
-        max_message_size,
-        ListPackageVersionsResponse,
-        versions,
-        has_next
-    ))
+    // Check if there are more items.
+    let has_more = iter.next().transpose().map_err(RpcError::from)?.is_some();
+
+    let mut response = ListPackageVersionsResponse::default().with_versions(versions);
+    if has_more {
+        if let Some(ver) = last_version {
+            response = response.with_next_page_token(encode_page_token(&PageToken {
+                original_package_id,
+                last_version: ver,
+            }));
+        }
+    }
+
+    Ok(response)
 }

@@ -22,8 +22,8 @@ use iota_sdk_types::{Address, StructTag};
 use crate::{
     Client,
     api::{
-        LIST_OWNED_OBJECTS_READ_MASK, MetadataEnvelope, Result, collect_stream,
-        field_mask_with_default, saturating_usize_to_u32,
+        LIST_OWNED_OBJECTS_READ_MASK, MetadataEnvelope, Result, auto_paginate,
+        field_mask_with_default,
     },
 };
 
@@ -31,7 +31,7 @@ impl Client {
     /// List objects owned by an address.
     ///
     /// Returns proto `Object` types owned by the given address.
-    /// Results are streamed and collected into a `Vec`.
+    /// Automatically paginates through all results.
     ///
     /// # Parameters
     ///
@@ -64,7 +64,7 @@ impl Client {
         limit: Option<u32>,
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<Vec<Object>>> {
-        let mut request = ListOwnedObjectsRequest::default()
+        let mut base_request = ListOwnedObjectsRequest::default()
             .with_owner(ProtoAddress::default().with_address(Vec::from(owner)))
             .with_read_mask(field_mask_with_default(
                 read_mask,
@@ -72,22 +72,17 @@ impl Client {
             ));
 
         if let Some(t) = object_type {
-            request = request.with_object_type(t.to_string());
-        }
-
-        if let Some(l) = limit {
-            request = request.with_limit(l);
-        }
-
-        if let Some(max_size) = self.max_decoding_message_size() {
-            request = request.with_max_message_size_bytes(saturating_usize_to_u32(max_size));
+            base_request = base_request.with_object_type(t.to_string());
         }
 
         let mut client = self.state_service_client();
-
-        let response = client.list_owned_objects(request).await?;
-        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
-
-        collect_stream(stream, metadata, |msg| Ok((msg.has_next, msg.objects))).await
+        auto_paginate!(
+            client,
+            list_owned_objects,
+            base_request,
+            limit,
+            self.max_decoding_message_size(),
+            objects
+        )
     }
 }

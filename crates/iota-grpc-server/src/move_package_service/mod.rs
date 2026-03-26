@@ -24,15 +24,16 @@ impl MovePackageGrpcService {
 impl grpc_move_package_service::move_package_service_server::MovePackageService
     for MovePackageGrpcService
 {
-    type ListPackageVersionsStream = crate::types::ListPackageVersionsStream;
-
     async fn list_package_versions(
         &self,
         request: tonic::Request<grpc_move_package_service::ListPackageVersionsRequest>,
-    ) -> std::result::Result<tonic::Response<Self::ListPackageVersionsStream>, tonic::Status> {
+    ) -> std::result::Result<
+        tonic::Response<grpc_move_package_service::ListPackageVersionsResponse>,
+        tonic::Status,
+    > {
         let response =
             list_package_versions::list_package_versions(self.reader.clone(), request.into_inner())
-                .map(|stream| Response::new(Box::pin(stream) as Self::ListPackageVersionsStream))
+                .map(Response::new)
                 .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }

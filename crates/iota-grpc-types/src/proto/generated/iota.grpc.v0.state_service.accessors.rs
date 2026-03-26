@@ -50,9 +50,17 @@ mod _accessor_impls {
             self.parent = Some(field.into());
             self
         }
-        /// Sets `limit` with the provided value.
-        pub fn with_limit(mut self, field: u32) -> Self {
-            self.limit = Some(field);
+        /// Sets `page_size` with the provided value.
+        pub fn with_page_size(mut self, field: u32) -> Self {
+            self.page_size = Some(field);
+            self
+        }
+        /// Sets `page_token` with the provided value.
+        pub fn with_page_token<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.page_token = Some(field.into());
             self
         }
         /// Sets `read_mask` with the provided value.
@@ -78,9 +86,12 @@ mod _accessor_impls {
             self.dynamic_fields = field;
             self
         }
-        /// Sets `has_next` with the provided value.
-        pub fn with_has_next(mut self, field: bool) -> Self {
-            self.has_next = field;
+        /// Sets `next_page_token` with the provided value.
+        pub fn with_next_page_token<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.next_page_token = Some(field.into());
             self
         }
     }
@@ -93,9 +104,17 @@ mod _accessor_impls {
             self.owner = Some(field.into());
             self
         }
-        /// Sets `limit` with the provided value.
-        pub fn with_limit(mut self, field: u32) -> Self {
-            self.limit = Some(field);
+        /// Sets `page_size` with the provided value.
+        pub fn with_page_size(mut self, field: u32) -> Self {
+            self.page_size = Some(field);
+            self
+        }
+        /// Sets `page_token` with the provided value.
+        pub fn with_page_token<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.page_token = Some(field.into());
             self
         }
         /// Sets `read_mask` with the provided value.
@@ -123,9 +142,12 @@ mod _accessor_impls {
             self.objects = field;
             self
         }
-        /// Sets `has_next` with the provided value.
-        pub fn with_has_next(mut self, field: bool) -> Self {
-            self.has_next = field;
+        /// Sets `next_page_token` with the provided value.
+        pub fn with_next_page_token<T: Into<::prost::bytes::Bytes>>(
+            mut self,
+            field: T,
+        ) -> Self {
+            self.next_page_token = Some(field.into());
             self
         }
     }

@@ -6,16 +6,25 @@
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct ListPackageVersionsRequest {
-    /// Required. The `storage_id` of any version of the package.
+    /// Required. Either the `storage_id` of any version of an upgraded package,
+    /// or the `original_id` of an immutable (first version) package.
     #[prost(message, optional, tag = "1")]
     pub package_id: ::core::option::Option<super::types::ObjectId>,
-    /// Optional limit on the total number of versions to return.
-    /// The server stops streaming after this many items.
+    /// The maximum number of versions to return. The service may return fewer than this value.
+    /// If unspecified, at most `1000` entries will be returned.
+    /// The maximum value is `10000`; values above `10000` will be coerced to `10000`.
     #[prost(uint32, optional, tag = "2")]
-    pub limit: ::core::option::Option<u32>,
+    pub page_size: ::core::option::Option<u32>,
+    /// A page token, received from a previous `ListPackageVersions` call.
+    /// Provide this to retrieve the subsequent page.
+    ///
+    /// When paginating, all other parameters provided to `ListPackageVersions` must
+    /// match the call that provided the page token.
+    #[prost(bytes = "bytes", optional, tag = "3")]
+    pub page_token: ::core::option::Option<::prost::bytes::Bytes>,
     /// Optional maximum message size the client can receive (1MB - 128MB).
     /// If not specified, server uses default chunking threshold (4MB).
-    #[prost(uint32, optional, tag = "3")]
+    #[prost(uint32, optional, tag = "4")]
     pub max_message_size_bytes: ::core::option::Option<u32>,
 }
 #[non_exhaustive]
@@ -24,10 +33,10 @@ pub struct ListPackageVersionsResponse {
     /// List of all package versions, ordered by version.
     #[prost(message, repeated, tag = "1")]
     pub versions: ::prost::alloc::vec::Vec<PackageVersion>,
-    /// Indicates whether more batches will follow.
-    /// `false` on the final batch.
-    #[prost(bool, tag = "2")]
-    pub has_next: bool,
+    /// A token, which can be sent as `page_token` to retrieve the next page.
+    /// If this field is omitted, there are no subsequent pages.
+    #[prost(bytes = "bytes", optional, tag = "2")]
+    pub next_page_token: ::core::option::Option<::prost::bytes::Bytes>,
 }
 /// A simplified representation of a package version.
 #[non_exhaustive]
@@ -36,12 +45,12 @@ pub struct PackageVersion {
     /// The original (immutable) package ID shared across all versions
     #[prost(message, optional, tag = "1")]
     pub original_id: ::core::option::Option<super::types::ObjectId>,
-    /// The version number
-    #[prost(uint64, optional, tag = "2")]
-    pub version: ::core::option::Option<u64>,
     /// The storage ID of this specific package version
-    #[prost(message, optional, tag = "3")]
+    #[prost(message, optional, tag = "2")]
     pub storage_id: ::core::option::Option<super::types::ObjectId>,
+    /// The version number
+    #[prost(uint64, optional, tag = "3")]
+    pub version: ::core::option::Option<u64>,
 }
 /// Generated client implementations.
 pub mod move_package_service_client {
@@ -138,7 +147,7 @@ pub mod move_package_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::ListPackageVersionsRequest>,
         ) -> std::result::Result<
-            tonic::Response<tonic::codec::Streaming<super::ListPackageVersionsResponse>>,
+            tonic::Response<super::ListPackageVersionsResponse>,
             tonic::Status,
         > {
             self.inner
@@ -161,7 +170,7 @@ pub mod move_package_service_client {
                         "ListPackageVersions",
                     ),
                 );
-            self.inner.server_streaming(req, path, codec).await
+            self.inner.unary(req, path, codec).await
         }
     }
 }
@@ -178,20 +187,11 @@ pub mod move_package_service_server {
     /// Generated trait containing gRPC methods that should be implemented for use with MovePackageServiceServer.
     #[async_trait]
     pub trait MovePackageService: std::marker::Send + std::marker::Sync + 'static {
-        /// Server streaming response type for the ListPackageVersions method.
-        type ListPackageVersionsStream: tonic::codegen::tokio_stream::Stream<
-                Item = std::result::Result<
-                    super::ListPackageVersionsResponse,
-                    tonic::Status,
-                >,
-            >
-            + std::marker::Send
-            + 'static;
         async fn list_package_versions(
             &self,
             request: tonic::Request<super::ListPackageVersionsRequest>,
         ) -> std::result::Result<
-            tonic::Response<Self::ListPackageVersionsStream>,
+            tonic::Response<super::ListPackageVersionsResponse>,
             tonic::Status,
         >;
     }
@@ -276,13 +276,11 @@ pub mod move_package_service_server {
                     struct ListPackageVersionsSvc<T: MovePackageService>(pub Arc<T>);
                     impl<
                         T: MovePackageService,
-                    > tonic::server::ServerStreamingService<
-                        super::ListPackageVersionsRequest,
-                    > for ListPackageVersionsSvc<T> {
+                    > tonic::server::UnaryService<super::ListPackageVersionsRequest>
+                    for ListPackageVersionsSvc<T> {
                         type Response = super::ListPackageVersionsResponse;
-                        type ResponseStream = T::ListPackageVersionsStream;
                         type Future = BoxFuture<
-                            tonic::Response<Self::ResponseStream>,
+                            tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
                         fn call(
@@ -317,7 +315,7 @@ pub mod move_package_service_server {
                                 max_decoding_message_size,
                                 max_encoding_message_size,
                             );
-                        let res = grpc.server_streaming(method, req).await;
+                        let res = grpc.unary(method, req).await;
                         Ok(res)
                     };
                     Box::pin(fut)

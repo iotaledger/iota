@@ -24,16 +24,16 @@ impl StateGrpcService {
 
 #[tonic::async_trait]
 impl grpc_state_service::state_service_server::StateService for StateGrpcService {
-    type ListDynamicFieldsStream = crate::types::ListDynamicFieldsStream;
-    type ListOwnedObjectsStream = crate::types::ListOwnedObjectsStream;
-
     async fn list_dynamic_fields(
         &self,
         request: tonic::Request<grpc_state_service::ListDynamicFieldsRequest>,
-    ) -> std::result::Result<tonic::Response<Self::ListDynamicFieldsStream>, tonic::Status> {
+    ) -> std::result::Result<
+        tonic::Response<grpc_state_service::ListDynamicFieldsResponse>,
+        tonic::Status,
+    > {
         let response =
             list_dynamic_fields::list_dynamic_fields(self.reader.clone(), request.into_inner())
-                .map(|stream| Response::new(Box::pin(stream) as Self::ListDynamicFieldsStream))
+                .map(Response::new)
                 .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
@@ -41,10 +41,13 @@ impl grpc_state_service::state_service_server::StateService for StateGrpcService
     async fn list_owned_objects(
         &self,
         request: tonic::Request<grpc_state_service::ListOwnedObjectsRequest>,
-    ) -> std::result::Result<tonic::Response<Self::ListOwnedObjectsStream>, tonic::Status> {
+    ) -> std::result::Result<
+        tonic::Response<grpc_state_service::ListOwnedObjectsResponse>,
+        tonic::Status,
+    > {
         let response =
             list_owned_objects::list_owned_objects(self.reader.clone(), request.into_inner())
-                .map(|stream| Response::new(Box::pin(stream) as Self::ListOwnedObjectsStream))
+                .map(Response::new)
                 .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }

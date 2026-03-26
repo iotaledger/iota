@@ -89,6 +89,13 @@ pub struct MockGrpcStateReader {
     // -- Objects --
     pub objects: HashMap<ObjectID, Object>,
 
+    // -- Owned objects (for list_owned_objects pagination tests) --
+    /// Pre-sorted in v2 key order. The iterator respects cursor-based seeking.
+    pub owned_objects: Vec<(
+        iota_types::storage::AccountOwnedObjectInfo,
+        iota_types::storage::OwnedObjectV2Cursor,
+    )>,
+
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
     pub effects: HashMap<TransactionDigest, TransactionEffects>,
@@ -307,6 +314,91 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
         _digest: &TransactionDigest,
     ) -> anyhow::Result<Option<u64>> {
         Ok(None)
+    }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
+        _cursor: Option<ObjectID>,
+        _object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectIterItem> + '_>> {
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectV2IterItem> + '_>>
+    {
+        // Find the start index: if cursor is provided, seek to its position
+        // (inclusive — the GrpcReader wrapper handles skip(1)).
+        let start = if let Some(c) = cursor {
+            self.owned_objects
+                .iter()
+                .position(|(_, oc)| {
+                    (
+                        oc.object_type_identifier,
+                        oc.object_type_params,
+                        oc.inverted_balance,
+                        oc.object_id,
+                    ) >= (
+                        c.object_type_identifier,
+                        c.object_type_params,
+                        c.inverted_balance,
+                        c.object_id,
+                    )
+                })
+                .unwrap_or(self.owned_objects.len())
+        } else {
+            0
+        };
+
+        let owner_filter = owner;
+        let type_filter = object_type;
+        let iter = self.owned_objects[start..]
+            .iter()
+            .filter(move |(info, _)| {
+                info.owner == owner_filter
+                    && type_filter.as_ref().is_none_or(|t| {
+                        move_core_types::language_storage::StructTag::from(info.type_.clone()) == *t
+                    })
+            })
+            .map(|(info, cursor)| Ok((info.clone(), cursor.clone())));
+
+        Ok(Box::new(iter))
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::DynamicFieldIterItem> + '_>> {
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>> {
+        Ok(None)
+    }
+
+    fn get_coin_v2_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>> {
+        Ok(None)
+    }
+
+    fn package_versions_iter(
+        &self,
+        _original_package_id: ObjectID,
+        _cursor: Option<u64>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::PackageVersionIterItem> + '_>>
+    {
+        Ok(Box::new(std::iter::empty()))
     }
 }
 

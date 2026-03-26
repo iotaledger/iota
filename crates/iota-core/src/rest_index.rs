@@ -25,9 +25,9 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, PackageVersionInfo,
-        PackageVersionIteratorItem, PackageVersionKey, TransactionInfo,
-        error::Error as StorageError,
+        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo,
+        OwnedObjectV2Cursor, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
+        TransactionInfo, error::Error as StorageError,
     },
 };
 use move_core_types::language_storage::StructTag;
@@ -288,11 +288,43 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 
 /// Compute inclusive lower and upper `OwnerIndexKeyV2` bounds for a
 /// `safe_iter_with_bounds` range scan, narrowed by `type_filter`.
+///
+/// When `cursor` is `Some`, the lower bound is set to the cursor's exact
+/// position (inclusive) so that RocksDB can seek directly.
 fn owner_v2_bounds(
     owner: IotaAddress,
+    cursor: Option<&OwnedObjectV2Cursor>,
     filter: &OwnerV2TypeFilter,
 ) -> (OwnerIndexKeyV2, OwnerIndexKeyV2) {
-    let (lower_bound_id, upper_bound_id, lower_bound_params, upper_bound_params) = match filter {
+    let lower_bound = if let Some(c) = cursor {
+        // Resume from the exact cursor position in the v2 key space.
+        OwnerIndexKeyV2 {
+            owner,
+            object_type_identifier: c.object_type_identifier,
+            object_type_params: c.object_type_params,
+            inverted_balance: c.inverted_balance,
+            object_id: c.object_id,
+        }
+    } else {
+        let (lower_id, _, lower_params, _) = match filter {
+            OwnerV2TypeFilter::None => (0, u64::MAX, 0, u64::MAX),
+            OwnerV2TypeFilter::BaseType { id_hash, .. } => (*id_hash, *id_hash, 0, u64::MAX),
+            OwnerV2TypeFilter::ExactType {
+                id_hash,
+                params_hash,
+                ..
+            } => (*id_hash, *id_hash, *params_hash, *params_hash),
+        };
+        OwnerIndexKeyV2 {
+            owner,
+            object_type_identifier: lower_id,
+            object_type_params: lower_params,
+            inverted_balance: None,
+            object_id: ObjectID::ZERO,
+        }
+    };
+
+    let (_, upper_bound_id, _, upper_bound_params) = match filter {
         OwnerV2TypeFilter::None => (0, u64::MAX, 0, u64::MAX),
         OwnerV2TypeFilter::BaseType { id_hash, .. } => (*id_hash, *id_hash, 0, u64::MAX),
         OwnerV2TypeFilter::ExactType {
@@ -301,13 +333,7 @@ fn owner_v2_bounds(
             ..
         } => (*id_hash, *id_hash, *params_hash, *params_hash),
     };
-    let lower_bound = OwnerIndexKeyV2 {
-        owner,
-        object_type_identifier: lower_bound_id,
-        object_type_params: lower_bound_params,
-        inverted_balance: None,
-        object_id: ObjectID::ZERO,
-    };
+
     let upper_bound = OwnerIndexKeyV2 {
         owner,
         object_type_identifier: upper_bound_id,
@@ -315,6 +341,7 @@ fn owner_v2_bounds(
         inverted_balance: Some(u64::MAX),
         object_id: ObjectID::MAX,
     };
+
     (lower_bound, upper_bound)
 }
 
@@ -961,12 +988,13 @@ impl IndexStoreTables {
     fn owner_v2_iter(
         &self,
         owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         type_filter: OwnerV2TypeFilter,
     ) -> Result<
         impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
         TypedStoreError,
     > {
-        let (lower_bound, upper_bound) = owner_v2_bounds(owner, &type_filter);
+        let (lower_bound, upper_bound) = owner_v2_bounds(owner, cursor, &type_filter);
         Ok(self
             .owner_v2
             .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
@@ -1031,10 +1059,11 @@ impl IndexStoreTables {
     fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
         let lower_bound = PackageVersionKey {
             original_package_id,
-            version: 0,
+            version: cursor.unwrap_or(0),
         };
         let upper_bound = PackageVersionKey {
             original_package_id,
@@ -1272,12 +1301,13 @@ impl RestIndexStore {
     pub fn owner_v2_iter(
         &self,
         owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
         type_filter: OwnerV2TypeFilter,
     ) -> Result<
         impl Iterator<Item = Result<(OwnerIndexKeyV2, OwnerIndexInfoV2), TypedStoreError>> + '_,
         TypedStoreError,
     > {
-        self.tables.owner_v2_iter(owner, type_filter)
+        self.tables.owner_v2_iter(owner, cursor, type_filter)
     }
 
     // used in both "grpc-server" and "rest-api"
@@ -1312,8 +1342,10 @@ impl RestIndexStore {
     pub fn package_versions_iter(
         &self,
         original_package_id: ObjectID,
+        cursor: Option<u64>,
     ) -> Result<impl Iterator<Item = PackageVersionIteratorItem> + '_, TypedStoreError> {
-        self.tables.package_versions_iter(original_package_id)
+        self.tables
+            .package_versions_iter(original_package_id, cursor)
     }
 
     // only used in "grpc-server"

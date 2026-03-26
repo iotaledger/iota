@@ -4,10 +4,7 @@
 use iota_grpc_types::v0::move_package_service::ListPackageVersionsRequest;
 use iota_macros::sim_test;
 
-use crate::{
-    collect_streaming_responses,
-    utils::{assert_tonic_error, object_id_from_hex, setup_grpc_test},
-};
+use crate::utils::{assert_tonic_error, object_id_from_hex, setup_grpc_test};
 
 #[sim_test]
 async fn list_package_versions_framework_package() {
@@ -17,58 +14,54 @@ async fn list_package_versions_framework_package() {
     // 0x2 is the iota-framework package, should have at least version 1
     let request = ListPackageVersionsRequest::default().with_package_id(object_id_from_hex("0x2"));
 
-    let responses = collect_streaming_responses!(
-        pkg_client,
-        list_package_versions,
-        request,
-        "framework package versions"
-    );
+    let response = pkg_client
+        .list_package_versions(request)
+        .await
+        .unwrap()
+        .into_inner();
 
-    let total_versions: usize = responses.iter().map(|r| r.versions.len()).sum();
     assert!(
-        total_versions >= 1,
-        "Framework package should have at least 1 version, got {total_versions}"
+        !response.versions.is_empty(),
+        "Framework package should have at least 1 version, got 0"
     );
 
     // Each version should have original_id, storage_id and version number
-    for response in &responses {
-        for version in &response.versions {
-            assert!(
-                version.original_id.is_some(),
-                "Each version should have an original_id"
-            );
-            assert!(
-                version.version.is_some(),
-                "Each version should have a version number"
-            );
-            assert!(
-                version.storage_id.is_some(),
-                "Each version should have a storage_id"
-            );
-        }
+    for version in &response.versions {
+        assert!(
+            version.original_id.is_some(),
+            "Each version should have an original_id"
+        );
+        assert!(
+            version.version.is_some(),
+            "Each version should have a version number"
+        );
+        assert!(
+            version.storage_id.is_some(),
+            "Each version should have a storage_id"
+        );
     }
 }
 
 #[sim_test]
-async fn list_package_versions_with_limit() {
+async fn list_package_versions_with_page_size() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;
     let mut pkg_client = client.move_package_service_client();
 
     let request = ListPackageVersionsRequest::default()
         .with_package_id(object_id_from_hex("0x2"))
-        .with_limit(1);
+        .with_page_size(1);
 
-    let responses = collect_streaming_responses!(
-        pkg_client,
-        list_package_versions,
-        request,
-        "framework package with limit=1"
-    );
+    let response = pkg_client
+        .list_package_versions(request)
+        .await
+        .unwrap()
+        .into_inner();
 
-    let total_versions: usize = responses.iter().map(|r| r.versions.len()).sum();
     assert_eq!(
-        total_versions, 1,
-        "Framework package with limit=1 should return exactly 1 version, got {total_versions}"
+        response.versions.len(),
+        1,
+        "Framework package with page_size=1 should return exactly 1 version, got {}",
+        response.versions.len()
     );
 }
 
