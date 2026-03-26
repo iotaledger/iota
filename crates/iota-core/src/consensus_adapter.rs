@@ -863,9 +863,9 @@ impl ConsensusAdapter {
 
         let is_user_tx = is_soft_bundle
             || matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::CertifiedTransaction(_)
-                );
+                transactions[0].kind,
+                ConsensusTransactionKind::CertifiedTransaction(_)
+            );
         let send_end_of_publish = if is_user_tx {
             // If we are in `RejectUserCerts` state, we need to send `EndOfPublish` to
             // signal other validators that we are not submitting more user
