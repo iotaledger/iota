@@ -88,6 +88,58 @@ curl http://localhost:9124 \
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
 
+### Pruning
+
+The indexer supports automatic pruning of historical data to control database size. Pruning removes old data based on epoch-based retention policies.
+
+#### Configuration
+
+Pruning is configured via the `--pruning-config-path` flag, which points to a TOML file:
+
+```sh
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:50051" --pruning-config-path /path/to/pruning.toml
+```
+
+The TOML file specifies a default retention policy (in epochs) and optional per-table overrides:
+
+```toml
+# Default retention for all prunable tables (in epochs)
+epochs_to_keep = 10
+
+# Per-table overrides (snake_case, must match prunable table names)
+[overrides]
+objects_history = 2
+transactions = 5
+events = 5
+tx_senders = 3
+```
+
+> [!NOTE]
+> All retention values must be greater than 0.
+
+The legacy `--epochs-to-keep` CLI argument is still supported but deprecated. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
+
+#### Default behavior
+
+- If no pruning configuration is provided, pruning is disabled.
+- `objects_history` defaults to 2 epochs retention even if not explicitly overridden, as it is primarily used for consistency queries and does not need long retention.
+- All other tables default to the `epochs_to_keep` value from the config.
+
+#### How pruning works
+
+When an epoch boundary is crossed, retention policies are evaluated and lower bounds for each table are updated in the `watermarks` table. Actual data deletion is delayed by 2 hours after the lower bound update to protect in-flight reads from losing data mid-query. It is expected that there will be a delay before pruning effects become visible.
+
+#### Prunable tables
+
+When pruning is enabled, the following tables are subject to pruning:
+
+| Strategy                                          | Tables                                                                           |
+| ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Epoch partition** (drop partition)              | `objects_history`, `transactions`, `events`                                      |
+| **By checkpoint** (DELETE)                        | `checkpoints`, `pruner_cp_watermark`                                             |
+| **By transaction** (DELETE)                       | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
+| **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions`                                                        |
+
 ### Backfilling of data
 
 Sometimes when the schema changes (e.g. adding a new table or column), backfilling may be required to populate historical data.
