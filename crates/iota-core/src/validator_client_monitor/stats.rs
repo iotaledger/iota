@@ -14,6 +14,7 @@ use tracing::debug;
 
 use crate::validator_client_monitor::{OperationFeedback, OperationType};
 
+/// Ok(latency in sec) or Err(high failure latency in sec)
 type Observation = Result<f64, f64>;
 
 /// EWMA-based estimator.
@@ -29,7 +30,7 @@ struct Ewma {
     variance: f64,
     /// Failure estimate.
     failure: f64,
-    /// Decayed sample size.
+    /// Decayed/effective sample size.
     weight: f64,
     /// Total number of observations recorded so far.
     count: u64,
@@ -80,9 +81,7 @@ impl Ewma {
 
 /// Time-decayed EWMA-based estimator.
 ///
-/// Each new observation is weighted by α and the prior estimate by (1 − α):
-/// μ_t ​= α_t x_t​ + (1−α_t) μ_{t−1}​
-/// σ_t^2​ = (1−α_t) (σ_{t−1}^2 ​+ α_t(x_t​−μ_{t−1}​)^2)
+/// This is a EWMA estimator with a variable weight α_t:
 /// α_t = 1 - exp(-Δt / τ)
 #[derive(Clone, Copy, Debug)]
 struct TimeDecayEwma {
@@ -228,6 +227,25 @@ impl ValidatorClientStats {
             .unwrap_or((config.empty_latency_score, 0.0, 0.0, 0.0))
     }
 
+    /// The main validator scoring function.
+    ///
+    /// Key idea: minimize expected *tail latency* under uncertainty with adversarial failures.
+    ///
+    /// Tail latency is the latency experienced by the slowest requests.
+    /// Tail latency can be estimated as p95 quantile.
+    /// Currently, the estimation is done using: μ+kσ,
+    /// where μ is the mean and σ is the standard deviation of log latency.
+    ///
+    /// The score is roughly as follows:
+    ///
+    /// Score = Latency + Risk + Staleness + Failure + Congestion - Exploration
+    ///
+    /// Latency = exp(μ+kσ) -- EWMA score of log-latency
+    /// Risk = λ / sqrt(n_eff + ϵ) -- penalize low number of samples, n_eff -- effective sample size
+    /// Staleness = λ (1−exp(-Δt/τ)) -- penalize outdated stats
+    /// Failure = λ pf/(1-pf+ϵ) -- penalize high failure rates, where pf is the failure rate
+    /// Congestion = λ n_inflight -- penalize high congestion, not estimated, always 0
+    /// Exploration = λ sqrt(lnN / (n_eff + 1)) -- reward exploration
     fn operation_score(
         &self,
         operation: OperationType,
@@ -286,13 +304,7 @@ impl ClientObservedStats {
         )
     }
 
-    /// Calculate a simpler selection score (EWMA + reliability penalty only,
-    /// no confidence penalty) for use in
-    /// `select_shuffled_preferred_validators`.
-    ///
-    /// This keeps the selection ordering stable and proportional to actual
-    /// observed latency once a validator has any data at all.
-    pub(super) fn calculate_selection_score(&self, validator: &AuthorityName, now: Instant) -> f64 {
+    fn calculate_selection_score(&self, validator: &AuthorityName, now: Instant) -> f64 {
         self.validator_stats
             .get(validator)
             .map_or(self.config.no_validator_score, |stats| {
@@ -300,7 +312,7 @@ impl ClientObservedStats {
             })
     }
 
-    pub(super) fn select_top_validators(
+    fn select_top_validators(
         validator_with_scores: Vec<(AuthorityName, f64)>,
         config: &ValidatorClientMonitorConfig,
     ) -> Vec<AuthorityName> {
