@@ -63,7 +63,7 @@ impl TransactionBuilder {
                 builder.pure(amount.into()).unwrap(),
                 builder.pure(validator).unwrap(),
             ];
-            builder.command(Command::move_call(
+            builder.command(Command::new_move_call(
                 ObjectID::SYSTEM,
                 Identifier::IOTA_SYSTEM_MODULE,
                 ADD_STAKE_MUL_COIN_FUN_NAME,
@@ -141,7 +141,7 @@ impl TransactionBuilder {
                 builder.input(CallArg::ImmutableOrOwned(oref))?,
                 builder.pure(validator)?,
             ];
-            builder.command(Command::move_call(
+            builder.command(Command::new_move_call(
                 ObjectID::SYSTEM,
                 Identifier::TIMELOCKED_STAKING_MODULE,
                 ADD_TIMELOCKED_STAKE_FUN_NAME,

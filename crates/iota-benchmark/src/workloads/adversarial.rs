@@ -235,7 +235,7 @@ impl AdversarialTestPayload {
                     self.get_pct_of(self.shared_objs.len() as u64) as usize;
                 convert_move_call_args(&self.shared_objs[..num_objs_to_read], &mut builder);
 
-                builder.command(Command::move_call(
+                builder.command(Command::new_move_call(
                     self.package_id,
                     Identifier::new(module_name).unwrap(),
                     Identifier::new(args.fn_name).unwrap(),

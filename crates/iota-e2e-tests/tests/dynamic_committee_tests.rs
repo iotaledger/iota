@@ -251,7 +251,7 @@ impl StressTestRunner {
 
     fn split_off(builder: &mut ProgrammableTransactionBuilder, amount: u64) -> Argument {
         let amt_arg = builder.pure(amount).unwrap();
-        builder.command(Command::SplitCoins(Argument::Gas, vec![amt_arg]))
+        builder.command(Command::new_split_coins(Argument::Gas, vec![amt_arg]))
     }
 
     async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {

@@ -17,7 +17,7 @@ use iota_types::{
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
-    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+    transaction::{Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction},
 };
 use lru::LruCache;
 use move_binary_format::{
@@ -536,40 +536,39 @@ impl<S: PackageStore> Resolver<S> {
         // (1). Infer type tags for pure inputs from their uses.
         for cmd in &tx.commands {
             match cmd {
-                Command::MoveCall(call) => {
+                Command::MoveCall(cmd) => {
                     let Ok(signature) = self
                         .function_signature(
-                            call.package.into(),
-                            call.module.as_str(),
-                            call.function.as_str(),
+                            cmd.package.into(),
+                            cmd.module.as_str(),
+                            cmd.function.as_str(),
                         )
                         .await
                     else {
                         continue;
                     };
 
-                    for (open_sig, arg) in signature.parameters.iter().zip(call.arguments.iter()) {
-                        let sig = open_sig.instantiate(&call.type_arguments)?;
+                    for (open_sig, arg) in signature.parameters.iter().zip(cmd.arguments.iter()) {
+                        let sig = open_sig.instantiate(&cmd.type_arguments)?;
                         register_type(arg, &sig.body)?;
                     }
                 }
-
-                Command::TransferObjects(_, arg) => register_type(arg, &TypeTag::Address)?,
-
-                Command::SplitCoins(_, amounts) => {
-                    for amount in amounts {
+                Command::TransferObjects(cmd) => register_type(&cmd.address, &TypeTag::Address)?,
+                Command::SplitCoins(cmd) => {
+                    for amount in &cmd.amounts {
                         register_type(amount, &TypeTag::U64)?;
                     }
                 }
-
-                Command::MakeMoveVec(Some(tag), elems) => {
+                Command::MakeMoveVector(MakeMoveVector {
+                    type_: Some(tag),
+                    elements,
+                }) => {
                     if is_primitive_type_tag(tag) {
-                        for elem in elems {
+                        for elem in elements {
                             register_type(elem, tag)?;
                         }
                     }
                 }
-
                 _ => { /* nop */ }
             }
         }
@@ -2832,7 +2831,7 @@ mod tests {
                     I::Pure(bcs::to_bytes("hello").unwrap()),
                     I::Pure(bcs::to_bytes("world").unwrap()),
                 ],
-                commands: vec![Command::move_call(
+                commands: vec![Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2911,14 +2910,14 @@ mod tests {
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
                     vec![T::U64],
                     (0..=6).map(Argument::Input).collect(),
                 ),
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2966,7 +2965,7 @@ mod tests {
                 I::Pure(bcs::to_bytes("world").unwrap()),
             ],
             commands: vec![
-                Command::move_call(
+                Command::new_move_call(
                     obj_id("0xe0"),
                     Identifier::from_static("m"),
                     Identifier::from_static("foo"),
@@ -2975,7 +2974,7 @@ mod tests {
                 ),
                 // This command is using the input that was previously used as a U64, but now as a
                 // U32, which will cause an error.
-                Command::MakeMoveVec(Some(T::U32), vec![Argument::Input(3)]),
+                Command::new_make_move_vector(Some(T::U32), vec![Argument::Input(3)]),
             ],
         };
 

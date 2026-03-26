@@ -196,48 +196,31 @@ Command:
     0:
       MoveCall:
         NEWTYPE:
-          TYPENAME: ProgrammableMoveCall
+          TYPENAME: MoveCall
     1:
       TransferObjects:
-        TUPLE:
-          - SEQ:
-              TYPENAME: Argument
-          - TYPENAME: Argument
+        NEWTYPE:
+          TYPENAME: TransferObjects
     2:
       SplitCoins:
-        TUPLE:
-          - TYPENAME: Argument
-          - SEQ:
-              TYPENAME: Argument
+        NEWTYPE:
+          TYPENAME: SplitCoins
     3:
       MergeCoins:
-        TUPLE:
-          - TYPENAME: Argument
-          - SEQ:
-              TYPENAME: Argument
+        NEWTYPE:
+          TYPENAME: MergeCoins
     4:
       Publish:
-        TUPLE:
-          - SEQ:
-              SEQ: U8
-          - SEQ:
-              TYPENAME: ObjectId
+        NEWTYPE:
+          TYPENAME: Publish
     5:
-      MakeMoveVec:
-        TUPLE:
-          - OPTION:
-              TYPENAME: TypeTag
-          - SEQ:
-              TYPENAME: Argument
+      MakeMoveVector:
+        NEWTYPE:
+          TYPENAME: MakeMoveVector
     6:
       Upgrade:
-        TUPLE:
-          - SEQ:
-              SEQ: U8
-          - SEQ:
-              TYPENAME: ObjectId
-          - TYPENAME: ObjectId
-          - TYPENAME: Argument
+        NEWTYPE:
+          TYPENAME: Upgrade
 CommandArgumentError:
   ENUM:
     0:
@@ -627,11 +610,38 @@ JwkId:
   STRUCT:
     - iss: STR
     - kid: STR
+MakeMoveVector:
+  STRUCT:
+    - type:
+        OPTION:
+          TYPENAME: TypeTag
+    - elements:
+        SEQ:
+          TYPENAME: Argument
+MergeCoins:
+  STRUCT:
+    - coin:
+        TYPENAME: Argument
+    - coinsToMerge:
+        SEQ:
+          TYPENAME: Argument
 ModuleId:
   STRUCT:
     - address:
         TYPENAME: AccountAddress
     - name: STR
+MoveCall:
+  STRUCT:
+    - package:
+        TYPENAME: ObjectId
+    - module: STR
+    - function: STR
+    - typeArguments:
+        SEQ:
+          TYPENAME: TypeTag
+    - arguments:
+        SEQ:
+          TYPENAME: Argument
 MoveLocation:
   STRUCT:
     - package:
@@ -805,18 +815,6 @@ PackageUpgradeError:
               TYPENAME: ObjectId
           - ticket_id:
               TYPENAME: ObjectId
-ProgrammableMoveCall:
-  STRUCT:
-    - package:
-        TYPENAME: ObjectId
-    - module: STR
-    - function: STR
-    - type_arguments:
-        SEQ:
-          TYPENAME: TypeTag
-    - arguments:
-        SEQ:
-          TYPENAME: Argument
 ProgrammableTransaction:
   STRUCT:
     - inputs:
@@ -851,6 +849,13 @@ PublicKey:
       ZkLogin:
         NEWTYPE:
           TYPENAME: ZkLoginPublicIdentifier
+Publish:
+  STRUCT:
+    - modules:
+        SEQ: BYTES
+    - dependencies:
+        SEQ:
+          TYPENAME: ObjectId
 RandomnessStateUpdate:
   STRUCT:
     - epoch: U64
@@ -868,6 +873,13 @@ SenderSignedTransaction:
     - tx_signatures:
         SEQ:
           TYPENAME: GenericSignature
+SplitCoins:
+  STRUCT:
+    - coin:
+        TYPENAME: Argument
+    - amounts:
+        SEQ:
+          TYPENAME: Argument
 StructTag:
   STRUCT:
     - address:
@@ -977,6 +989,13 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+TransferObjects:
+  STRUCT:
+    - objects:
+        SEQ:
+          TYPENAME: Argument
+    - address:
+        TYPENAME: Argument
 TupleObjectReference:
   TUPLESTRUCT:
     - TYPENAME: ObjectId
@@ -1058,6 +1077,17 @@ UnchangedSharedKind:
         NEWTYPE: U64
     4:
       PerEpochConfig: UNIT
+Upgrade:
+  STRUCT:
+    - modules:
+        SEQ: BYTES
+    - dependencies:
+        SEQ:
+          TYPENAME: ObjectId
+    - package:
+        TYPENAME: ObjectId
+    - ticket:
+        TYPENAME: Argument
 UpgradeInfo:
   STRUCT:
     - upgraded_id:
