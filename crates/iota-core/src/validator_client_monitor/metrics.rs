@@ -20,9 +20,8 @@ pub struct ValidatorClientMetrics {
     /// Failure count per validator and operation type
     pub(super) operation_failure: IntCounterVec,
 
-    /// Current performance per validator. The performance is the average
-    /// latency of the validator weighted by the reliability of the
-    /// validator.
+    /// Current performance per validator. The performance score is based
+    /// on the average latency weighted by the reliability.
     pub(super) performance: GaugeVec,
 
     /// Number of low latency validators that got shuffled.
@@ -80,24 +79,32 @@ impl ValidatorClientMetrics {
         Self::new(&registry)
     }
 
-    pub(super) fn record_interaction_result(&self, feedback: &super::OperationFeedback) {
+    pub(super) fn record_interaction_result(
+        &self,
+        feedback: &super::OperationFeedback,
+        score: f64,
+    ) {
         let operation_str = feedback.operation.as_str();
         let ping_label = feedback.ping.to_string();
-        let labels = &[feedback.display_name.as_str(), operation_str, ping_label.as_str()];
+        let labels = &[
+            feedback.display_name.as_str(),
+            operation_str,
+            ping_label.as_str(),
+        ];
         match feedback.result {
             Ok(latency) => {
                 self.observed_latency
                     .with_label_values(labels)
                     .observe(latency.as_secs_f64());
-                self.operation_success
-                    .with_label_values(labels)
-                    .inc();
+                self.operation_success.with_label_values(labels).inc();
             }
             Err(()) => {
-                self.operation_failure
-                    .with_label_values(labels)
-                    .inc();
+                self.operation_failure.with_label_values(labels).inc();
             }
         }
+        tracing::debug!("Validator {}: score {}", feedback.display_name, score);
+        self.performance
+            .with_label_values(&[feedback.display_name.as_str()])
+            .set(score);
     }
 }

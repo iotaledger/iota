@@ -28,55 +28,38 @@ pub struct ValidatorClientMonitorConfig {
     #[serde(default = "default_health_check_timeout")]
     pub health_check_timeout: Duration,
 
-    /// Weight for reliability when computing validator scores.
+    /// History decay factor τ for EWMA latency estimation (0 < τ ≤ ∞).
     ///
-    /// Controls importance of reliability when adjusting the validator's
-    /// latency for transaction submission selection. The higher the weight,
-    /// the more penalty is given to unreliable validators. Default to 2.0.
-    /// Value should be positive.
-    #[serde(default = "default_reliability_weight")]
-    pub reliability_weight: f64,
+    /// Lower τ means faster decaying and more weight on recent observations.
+    #[serde(default = "default_latency_ewma_tau")]
+    pub latency_ewma_tau: f64,
 
-    /// Smoothing factor α for EWMA latency estimation (0 < α ≤ 1).
-    ///
-    /// Higher α means more weight on recent observations. At α = 0.5
-    /// a new observation has 50 % weight, so overload spikes are detected
-    /// in 1–2 observations and recovery takes 3–4 observations.
-    #[serde(default = "default_latency_ewma_alpha")]
-    pub latency_ewma_alpha: f64,
+    #[serde(default = "default_latency_ewma_score_coeff")]
+    pub latency_ewma_score_coeff: f64,
 
-    /// Weight for the confidence / UCB penalty applied to low-observation
-    /// validators.
-    ///
-    /// Validators with fewer than `WARMUP_OBS` (= 10) real-transaction
-    /// observations receive an additional score penalty proportional to
-    /// this weight, discouraging the scheduler from over-trusting untested
-    /// validators. Set to 0.0 to disable.
-    #[serde(default = "default_confidence_weight")]
-    pub confidence_weight: f64,
+    #[serde(default = "default_empty_latency_score")]
+    pub empty_latency_score: f64,
 
-    /// Number of consecutive real-transaction failures that trip the
-    /// circuit-breaker, flushing the reliability window with zeros so
-    /// the validator is immediately demoted.
-    #[serde(default = "default_circuit_breaker_threshold")]
-    pub circuit_breaker_threshold: u32,
+    #[serde(default = "default_risk_coeff")]
+    pub risk_coeff: f64,
+
+    #[serde(default = "default_stale_coeff")]
+    pub stale_coeff: f64,
+
+    #[serde(default = "default_failure_coeff")]
+    pub failure_coeff: f64,
+
+    #[serde(default = "default_exploration_coeff")]
+    pub exploration_coeff: f64,
+
+    #[serde(default = "default_no_validator_score")]
+    pub no_validator_score: f64,
 
     /// Minimum number of validators that must appear in the shuffled
     /// preferred group returned by `select_shuffled_preferred_validators`,
     /// preventing a single validator from monopolising all traffic.
     #[serde(default = "default_min_preferred_group_size")]
     pub min_preferred_group_size: usize,
-
-    /// Size of the moving window for latency measurements
-    ///
-    /// Deprecated: kept for config-file backwards compatibility.
-    /// The EWMA scorer ignores window size; use `latency_ewma_alpha` instead.
-    #[serde(default = "default_latency_moving_window_size")]
-    pub latency_moving_window_size: usize,
-
-    /// Size of the moving window for reliability measurements
-    #[serde(default = "default_reliability_moving_window_size")]
-    pub reliability_moving_window_size: usize,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -84,13 +67,15 @@ impl Default for ValidatorClientMonitorConfig {
         Self {
             health_check_interval: default_health_check_interval(),
             health_check_timeout: default_health_check_timeout(),
-            reliability_weight: default_reliability_weight(),
-            latency_ewma_alpha: default_latency_ewma_alpha(),
-            confidence_weight: default_confidence_weight(),
-            circuit_breaker_threshold: default_circuit_breaker_threshold(),
+            latency_ewma_tau: default_latency_ewma_tau(),
+            latency_ewma_score_coeff: default_latency_ewma_score_coeff(),
+            empty_latency_score: default_empty_latency_score(),
+            risk_coeff: default_risk_coeff(),
+            stale_coeff: default_stale_coeff(),
+            failure_coeff: default_failure_coeff(),
+            exploration_coeff: default_exploration_coeff(),
+            no_validator_score: default_no_validator_score(),
             min_preferred_group_size: default_min_preferred_group_size(),
-            latency_moving_window_size: default_latency_moving_window_size(),
-            reliability_moving_window_size: default_reliability_moving_window_size(),
         }
     }
 }
@@ -103,30 +88,38 @@ fn default_health_check_timeout() -> Duration {
     Duration::from_secs(2)
 }
 
-fn default_reliability_weight() -> f64 {
+fn default_latency_ewma_tau() -> f64 {
+    10.0
+}
+
+fn default_latency_ewma_score_coeff() -> f64 {
     2.0
 }
 
-fn default_latency_ewma_alpha() -> f64 {
-    0.5
+fn default_empty_latency_score() -> f64 {
+    10.0
 }
 
-fn default_confidence_weight() -> f64 {
-    0.3
+fn default_risk_coeff() -> f64 {
+    50.0
 }
 
-fn default_circuit_breaker_threshold() -> u32 {
-    3
+fn default_stale_coeff() -> f64 {
+    100.0
+}
+
+fn default_failure_coeff() -> f64 {
+    500.0
+}
+
+fn default_exploration_coeff() -> f64 {
+    20.0
+}
+
+fn default_no_validator_score() -> f64 {
+    0.0
 }
 
 fn default_min_preferred_group_size() -> usize {
     2
-}
-
-fn default_latency_moving_window_size() -> usize {
-    40
-}
-
-fn default_reliability_moving_window_size() -> usize {
-    20
 }
