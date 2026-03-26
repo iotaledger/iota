@@ -12,7 +12,7 @@ use move_package_alt::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename = "kebab-case")]
 pub struct OnChainDependency {
     on_chain: bool,

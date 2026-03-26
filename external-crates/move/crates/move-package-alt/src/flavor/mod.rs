@@ -32,7 +32,7 @@ pub trait MoveFlavor: Debug {
     /// flavor-specific dependencies that are already pinned (although in
     /// principle you could use an external resolved to do resolution and
     /// pinning for flavor-specific deps)
-    type FlavorDependency<P: ?Sized>: Debug + Serialize + DeserializeOwned + Clone;
+    type FlavorDependency<P: ?Sized>: Debug + Serialize + DeserializeOwned + Clone + PartialEq;
 
     /// Pin a batch of [Self::FlavorDependency]s (see TODO). The keys of the
     /// returned map should be the same as the keys of [dep].
