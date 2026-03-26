@@ -12,6 +12,7 @@ import { MonitorNetworkModule } from './monitor-network/monitorNetwork.module';
 import { PricesModule } from './prices/prices.module';
 import { RestrictedModule } from './restricted/restricted.module';
 import { HealthModule } from './health/health.module';
+import { InfoModule } from './info/info.module';
 
 @Module({
     imports: [
@@ -32,6 +33,7 @@ import { HealthModule } from './health/health.module';
             max: 100,
         }),
         HealthModule,
+        InfoModule,
     ],
 })
 export class AppModule {}
