@@ -23,9 +23,9 @@ use crate::{
 /// object store URL for historical checkpoint data, this function probes the
 /// URL to determine which type it is:
 ///
-/// 1. **gRPC health check** — attempts to connect and call `GetHealth`. If
+/// 1. **gRPC health check**: attempts to connect and call `GetHealth`. If
 ///    successful, the URL is treated as a fullnode gRPC endpoint.
-/// 2. **Historical manifest fetch** — if gRPC fails, attempts to fetch the
+/// 2. **Historical manifest fetch**: if gRPC fails, attempts to fetch the
 ///    MANIFEST file from the URL as an S3-compatible object store. If
 ///    successful, the URL is treated as a historical checkpoint store.
 ///
@@ -79,7 +79,7 @@ pub async fn resolve_remote_url(
         match backoff.next_backoff() {
             Some(duration) => {
                 warn!(
-                    "remote store not reachable as gRPC or historical, retrying in {}ms",
+                    "remote store not reachable as fullnode gRPC or historical connection, retrying in {}ms",
                     duration.as_millis()
                 );
                 tokio::time::sleep(duration).await;
