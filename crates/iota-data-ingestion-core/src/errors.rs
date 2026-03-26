@@ -22,9 +22,6 @@ pub enum IngestionError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
-    #[error(transparent)]
-    RestApi(#[from] iota_rest_api::client::sdk::Error),
-
     #[error("grpc error: `{0}`")]
     Grpc(String),
 

@@ -33,7 +33,7 @@ export function ExternalLink({
 }: ExternalLinkProps) {
     const handleClick = () => {
         if (trackEvent && type) {
-            ampli.externalLinkOpened({
+            ampli.openedLink({
                 type,
             });
         }

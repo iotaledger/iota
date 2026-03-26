@@ -20,7 +20,7 @@ export function ThemeSettings() {
 
     function updateThemePreference(value: ThemePreference) {
         setThemePreference(value);
-        ampli.themeChanged({ theme: value });
+        ampli.changedTheme({ theme: value });
     }
     return (
         <Overlay showModal title="Theme" closeOverlay={() => navigate('/tokens')} showBackButton>

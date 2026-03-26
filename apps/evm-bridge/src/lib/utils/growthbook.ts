@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { GrowthBook } from '@growthbook/growthbook';
-import { getAppsBackend } from '@iota/iota-sdk/client';
+import { getAppsBackend } from '@iota/core';
 
 const GROWTHBOOK_ENVIRONMENTS = {
     mainnet: {
