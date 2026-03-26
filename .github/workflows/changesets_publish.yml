@@ -54,6 +54,7 @@ jobs:
           fi
 
       - name: Install dependencies
+        if: github.event.inputs.release_type != 'latest'
         run: pnpm install --frozen-lockfile
 
       - name: Create snapshot versions
