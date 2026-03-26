@@ -28,9 +28,8 @@ use iota_sdk_types::{
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{GenesisObject, MoveStruct, Object, ObjectData},
     transaction::{
-        Command, GasPayment, GenesisTransaction, MakeMoveVector, MergeCoins, MoveCall,
-        ProgrammableTransaction, Publish, RandomnessStateUpdate, SignedTransaction, SplitCoins,
-        Transaction, TransactionKind, TransactionV1, TransferObjects, Upgrade,
+        GasPayment, GenesisTransaction, ProgrammableTransaction, RandomnessStateUpdate,
+        SignedTransaction, Transaction, TransactionKind, TransactionV1,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -217,11 +216,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
             InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
                 TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
                     inputs: programmable_transaction.inputs,
-                    commands: programmable_transaction
-                        .commands
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<_, _>>()?,
+                    commands: programmable_transaction.commands,
                 })
             }
             InternalTxnKind::Genesis(genesis_transaction) => {
@@ -274,11 +269,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             TransactionKind::ProgrammableTransaction(programmable_transaction) => {
                 Self::ProgrammableTransaction(crate::transaction::ProgrammableTransaction {
                     inputs: programmable_transaction.inputs,
-                    commands: programmable_transaction
-                        .commands
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<_, _>>()?,
+                    commands: programmable_transaction.commands,
                 })
             }
             TransactionKind::Genesis(genesis_transaction) => {
@@ -716,87 +707,6 @@ impl From<crate::effects::TransactionEvents> for TransactionEvents {
 impl From<TransactionEvents> for crate::effects::TransactionEvents {
     fn from(value: TransactionEvents) -> Self {
         Self { data: value.0 }
-    }
-}
-
-impl TryFrom<crate::transaction::Command> for Command {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::Command) -> Result<Self, Self::Error> {
-        use crate::transaction::Command as InternalCmd;
-        match value {
-            InternalCmd::MoveCall(programmable_move_call) => Self::MoveCall(MoveCall {
-                package: programmable_move_call.package,
-                module: Identifier::new(programmable_move_call.module.as_str())?,
-                function: Identifier::new(programmable_move_call.function.as_str())?,
-                type_arguments: programmable_move_call.type_arguments,
-                arguments: programmable_move_call.arguments,
-            }),
-            InternalCmd::TransferObjects(objects, address) => {
-                Self::TransferObjects(TransferObjects { objects, address })
-            }
-            InternalCmd::SplitCoins(coin, amounts) => {
-                Self::SplitCoins(SplitCoins { coin, amounts })
-            }
-            InternalCmd::MergeCoins(argument, coins_to_merge) => Self::MergeCoins(MergeCoins {
-                coin: argument,
-                coins_to_merge,
-            }),
-            InternalCmd::Publish(modules, dependencies) => Self::Publish(Publish {
-                modules,
-                dependencies,
-            }),
-            InternalCmd::MakeMoveVec(type_tag, elements) => Self::MakeMoveVector(MakeMoveVector {
-                type_: type_tag,
-                elements,
-            }),
-            InternalCmd::Upgrade(modules, dependencies, package, ticket) => {
-                Self::Upgrade(Upgrade {
-                    modules,
-                    dependencies,
-                    package,
-                    ticket,
-                })
-            }
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<Command> for crate::transaction::Command {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: Command) -> Result<Self, Self::Error> {
-        match value {
-            Command::MoveCall(move_call) => Self::move_call(
-                move_call.package,
-                move_call.module,
-                move_call.function,
-                move_call.type_arguments,
-                move_call.arguments,
-            ),
-            Command::TransferObjects(transfer_objects) => {
-                Self::TransferObjects(transfer_objects.objects, transfer_objects.address)
-            }
-            Command::SplitCoins(split_coins) => {
-                Self::SplitCoins(split_coins.coin, split_coins.amounts)
-            }
-            Command::MergeCoins(merge_coins) => {
-                Self::MergeCoins(merge_coins.coin, merge_coins.coins_to_merge)
-            }
-            Command::Publish(publish) => Self::Publish(publish.modules, publish.dependencies),
-            Command::MakeMoveVector(make_move_vector) => {
-                Self::make_move_vec(make_move_vector.type_, make_move_vector.elements)
-            }
-            Command::Upgrade(upgrade) => Self::Upgrade(
-                upgrade.modules,
-                upgrade.dependencies,
-                upgrade.package,
-                upgrade.ticket,
-            ),
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
-        }
-        .pipe(Ok)
     }
 }
 

@@ -487,7 +487,7 @@ impl TransactionBuilder {
             )
             .await?;
 
-        builder.command(Command::move_call(
+        builder.command(Command::new_move_call(
             package, module, function, type_args, call_args,
         ));
         Ok(())
@@ -521,7 +521,7 @@ impl TransactionBuilder {
             )
             .await?;
 
-        builder.command(Command::move_call(
+        builder.command(Command::new_move_call(
             package, module, function, type_args, call_args,
         ));
         Ok(())
@@ -553,7 +553,7 @@ impl TransactionBuilder {
             )
             .await?;
 
-        builder.command(Command::move_call(
+        builder.command(Command::new_move_call(
             package, module, function, type_args, call_args,
         ));
         Ok(())

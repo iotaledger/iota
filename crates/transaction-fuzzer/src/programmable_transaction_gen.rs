@@ -20,7 +20,7 @@ prop_compose! {
     pub fn gen_transfer()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x), arg_to in gen_argument()) -> Command {
-                Command::TransferObjects(args, arg_to)
+                Command::new_transfer_objects(args, arg_to)
     }
 }
 
@@ -28,7 +28,7 @@ prop_compose! {
     pub fn gen_split_coins()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x), arg_to in gen_argument()) -> Command {
-                Command::SplitCoins(arg_to, args)
+                Command::new_split_coins(arg_to, args)
     }
 }
 
@@ -36,7 +36,7 @@ prop_compose! {
     pub fn gen_merge_coins()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x), arg_from in gen_argument()) -> Command {
-                Command::MergeCoins(arg_from, args)
+                Command::new_merge_coins(arg_from, args)
     }
 }
 
@@ -44,7 +44,7 @@ prop_compose! {
     pub fn gen_move_vec()
         (x in arg_len_strategy())
         (args in vec(gen_argument(), x..=x)) -> Command {
-                Command::MakeMoveVec(None, args)
+                Command::new_make_move_vector(None, args)
     }
 }
 
@@ -263,7 +263,7 @@ pub fn gen_transfer_input(
     );
     assert!(coins.len() == *args_len as usize);
 
-    let next_cmd = Command::TransferObjects(coins, builder.pure(recipient).unwrap());
+    let next_cmd = Command::new_transfer_objects(coins, builder.pure(recipient).unwrap());
     (next_cmd, cmd_inc)
 }
 
@@ -301,7 +301,7 @@ pub fn gen_split_coins_input(
     }
 
     let coin_arg = Argument::Result((prev_cmd_num + cmd_inc) as u16);
-    let next_cmd = Command::SplitCoins(coin_arg, split_args);
+    let next_cmd = Command::new_split_coins(coin_arg, split_args);
     (next_cmd, cmd_inc)
 }
 
@@ -376,7 +376,7 @@ pub fn gen_merge_coins_input(
         Argument::NestedResult((prev_cmd_num + cmd_inc) as u16, *coins_to_merge as u16)
     };
 
-    let next_cmd = Command::MergeCoins(output_coin, coins);
+    let next_cmd = Command::new_merge_coins(output_coin, coins);
     (next_cmd, cmd_inc)
 }
 
@@ -405,7 +405,7 @@ pub fn gen_move_vec_input(
         &mut coins,
     );
 
-    let next_cmd = Command::MakeMoveVec(None, coins);
+    let next_cmd = Command::new_make_move_vector(None, coins);
     (next_cmd, cmd_inc)
 }
 

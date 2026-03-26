@@ -1812,7 +1812,7 @@ mod checked {
 
                 let publish_pt = {
                     let mut b = ProgrammableTransactionBuilder::new();
-                    b.command(Command::Publish(modules, dependencies));
+                    b.command(Command::new_publish(modules, dependencies));
                     b.finish()
                 };
 
