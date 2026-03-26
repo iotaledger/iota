@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
     ExtendedDelegatedStake,
     ImageIcon,
     ImageIconSize,
@@ -178,7 +179,7 @@ export function DetailsView({
                                 keyText="Effective Commission"
                                 value={effectiveCommission}
                                 fullwidth
-                                tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                                tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                                 tooltipPosition={TooltipPosition.Right}
                             />
                         </div>

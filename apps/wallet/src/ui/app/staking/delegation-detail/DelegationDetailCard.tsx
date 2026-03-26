@@ -16,6 +16,7 @@ import {
     MIN_NUMBER_IOTA_TO_STAKE,
     Validator,
     getValidatorEffectiveCommission,
+    EFFECTIVE_COMMISSION_TOOLTIP,
     toast,
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
@@ -197,7 +198,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                             keyText="Effective Commission"
                             value={getValidatorEffectiveCommission(validatorData)}
                             fullwidth
-                            tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                            tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
+import { EFFECTIVE_COMMISSION_TOOLTIP, formatPercentageDisplay, useGetStakingValidatorDetails } from '@iota/core';
 import { useSearchParams } from 'react-router-dom';
 import { useActiveAddress } from '_hooks';
 import {
@@ -82,7 +82,7 @@ export function ValidatorFormDetail({ validatorAddress, unstake }: ValidatorForm
                         keyText="Effective Commission"
                         value={effectiveCommission}
                         fullwidth
-                        tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                        tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                         tooltipPosition={TooltipPosition.Bottom}
                     />
                     <KeyValueInfo

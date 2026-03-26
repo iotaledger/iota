@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
     formatPercentageDisplay,
     useValidatorInfo,
     useGetStakingValidatorDetails,
@@ -42,7 +43,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                     keyText="Effective Commission"
                     value={effectiveCommission}
                     fullwidth
-                    tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                    tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                     tooltipPosition={TooltipPosition.Right}
                 />
                 <KeyValueInfo

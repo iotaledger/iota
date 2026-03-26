@@ -10,3 +10,6 @@ export const DELEGATED_STAKES_QUERY_REFETCH_INTERVAL = 30_000;
 export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_REDEEMABLE = 2;
 export const NUM_OF_EPOCH_BEFORE_STAKING_REWARDS_STARTS = 1;
 export const MIN_NUMBER_IOTA_TO_STAKE = 1;
+
+export const EFFECTIVE_COMMISSION_TOOLTIP =
+    'The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization.';

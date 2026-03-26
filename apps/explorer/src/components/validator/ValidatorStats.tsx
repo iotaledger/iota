@@ -5,6 +5,7 @@
 import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
 import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
     formatPercentageDisplay,
     getValidatorEffectiveCommission,
     useFormatCoin,
@@ -67,7 +68,7 @@ export function ValidatorStats({
                             size={LabelTextSize.Medium}
                             label="Effective Commission Rate"
                             text={effectiveCommissionRate}
-                            tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                            tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                             tooltipPosition={TooltipPosition.Right}
                         />
                         <LabelText
