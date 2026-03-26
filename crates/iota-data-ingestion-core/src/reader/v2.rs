@@ -9,7 +9,7 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::{StreamExt, TryFutureExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt};
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -25,7 +25,7 @@ use tap::Pipe;
 use tokio::{
     sync::mpsc::{self},
     task::JoinHandle,
-    time::{sleep, timeout},
+    time::timeout,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
@@ -102,40 +102,8 @@ impl RemoteStore {
     ) -> IngestionResult<Self> {
         let store = match remote_url {
             RemoteUrl::Fullnode(ref url) => {
-                let mut backoff = backoff::ExponentialBackoff {
-                    max_elapsed_time: Some(Duration::from_secs(timeout_secs)),
-                    initial_interval: Duration::from_millis(500),
-                    current_interval: Duration::from_millis(500),
-                    multiplier: 2.0,
-                    ..Default::default()
-                };
-
-                let grpc_result = loop {
-                    match GrpcClient::connect(url)
-                        .and_then(|grpc_client| async {
-                            grpc_client.get_health(None).await?;
-                            Ok(grpc_client.with_max_decoding_message_size(
-                                GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES,
-                            ))
-                        })
-                        .await
-                    {
-                        Ok(client) => break Ok(client),
-                        Err(e) => match backoff.next_backoff() {
-                            Some(duration) => {
-                                info!(
-                                    "gRPC connection to fullnode not ready, retrying in {}ms: {e}",
-                                    duration.as_millis()
-                                );
-                                sleep(duration).await;
-                            }
-                            None => break Err(e),
-                        },
-                    }
-                };
-
-                let grpc_client = grpc_result.inspect_err(|e| {
-                    error!("unable to establish a gRPC connection to fullnode after retries: {e}");
+                let grpc_client = GrpcClient::connect(url).await.map(|client| {
+                    client.with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES)
                 })?;
                 RemoteStore::Fullnode(grpc_client)
             }
