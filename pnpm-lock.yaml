@@ -27746,6 +27746,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
+  '@jsonjoy.com/buffers@1.2.1(tslib@2.7.0)':
+    dependencies:
+      tslib: 2.7.0
+
   '@jsonjoy.com/buffers@1.2.1(tslib@2.8.1)':
     dependencies:
       tslib: 2.8.1
@@ -27753,6 +27757,10 @@ snapshots:
   '@jsonjoy.com/buffers@17.67.0(tslib@2.8.1)':
     dependencies:
       tslib: 2.8.1
+
+  '@jsonjoy.com/codegen@1.0.0(tslib@2.7.0)':
+    dependencies:
+      tslib: 2.7.0
 
   '@jsonjoy.com/codegen@1.0.0(tslib@2.8.1)':
     dependencies:
@@ -27821,7 +27829,7 @@ snapshots:
   '@jsonjoy.com/json-pack@1.1.0(tslib@2.7.0)':
     dependencies:
       '@jsonjoy.com/base64': 1.1.2(tslib@2.7.0)
-      '@jsonjoy.com/util': 1.3.0(tslib@2.7.0)
+      '@jsonjoy.com/util': 1.9.0(tslib@2.7.0)
       hyperdyperid: 1.2.0
       thingies: 1.21.0(tslib@2.7.0)
       tslib: 2.7.0
@@ -27863,6 +27871,12 @@ snapshots:
 
   '@jsonjoy.com/util@1.3.0(tslib@2.7.0)':
     dependencies:
+      tslib: 2.7.0
+
+  '@jsonjoy.com/util@1.9.0(tslib@2.7.0)':
+    dependencies:
+      '@jsonjoy.com/buffers': 1.2.1(tslib@2.7.0)
+      '@jsonjoy.com/codegen': 1.0.0(tslib@2.7.0)
       tslib: 2.7.0
 
   '@jsonjoy.com/util@1.9.0(tslib@2.8.1)':
@@ -30649,10 +30663,10 @@ snapshots:
       '@rollup/pluginutils': 5.1.4(rollup@4.59.0)
       commondir: 1.0.1
       estree-walker: 2.0.2
-      fdir: 6.4.3(picomatch@4.0.3)
+      fdir: 6.4.3(picomatch@4.0.2)
       is-reference: 1.2.1
       magic-string: 0.30.17
-      picomatch: 4.0.3
+      picomatch: 4.0.2
     optionalDependencies:
       rollup: 4.59.0
 
@@ -30668,7 +30682,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.6
       estree-walker: 2.0.2
-      picomatch: 4.0.3
+      picomatch: 4.0.2
     optionalDependencies:
       rollup: 4.59.0
 
@@ -38720,9 +38734,9 @@ snapshots:
     dependencies:
       pend: 1.2.0
 
-  fdir@6.4.3(picomatch@4.0.3):
+  fdir@6.4.3(picomatch@4.0.2):
     optionalDependencies:
-      picomatch: 4.0.3
+      picomatch: 4.0.2
 
   fdir@6.5.0(picomatch@4.0.3):
     optionalDependencies:
@@ -46766,8 +46780,8 @@ snapshots:
 
   tinyglobby@0.2.10:
     dependencies:
-      fdir: 6.4.3(picomatch@4.0.3)
-      picomatch: 4.0.3
+      fdir: 6.4.3(picomatch@4.0.2)
+      picomatch: 4.0.2
 
   tinyglobby@0.2.15:
     dependencies:
@@ -46776,8 +46790,8 @@ snapshots:
 
   tinyglobby@0.2.6:
     dependencies:
-      fdir: 6.4.3(picomatch@4.0.3)
-      picomatch: 4.0.3
+      fdir: 6.4.3(picomatch@4.0.2)
+      picomatch: 4.0.2
 
   tinypool@1.1.1: {}
 
