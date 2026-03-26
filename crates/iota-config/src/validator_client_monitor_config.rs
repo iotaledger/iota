@@ -121,7 +121,7 @@ fn default_exploration_coeff() -> f64 {
 }
 
 fn default_no_validator_score() -> f64 {
-    0.0
+    100.0
 }
 
 fn default_min_preferred_group_size() -> usize {

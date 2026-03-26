@@ -101,7 +101,8 @@ impl TimeDecayEwma {
     fn alpha(&self, now: Instant, tau: f64) -> f64 {
         debug_assert!(now >= self.last_update, "Timestamps must be non-decreasing");
         // α_t = 1 - exp(-Δt / τ)
-        let dt = now.duration_since(self.last_update).as_secs_f64(); //.max(1e-9)
+        // avoid zero Δt, otherwise (α_t = 0) observation won't be updated
+        let dt = now.duration_since(self.last_update).as_secs_f64().max(1e-9);
         1.0 - (-dt / tau).exp()
     }
     fn update_with_time_decay(&mut self, observation: Observation, now: Instant, tau: f64) {
@@ -153,7 +154,9 @@ impl LogLatencyEwma {
 
     fn update(&mut self, observation: Observation, timestamp: Instant, tau: f64) {
         // Avoid ln(0) by capping at a small positive value.
-        let log_observation = observation.map(|x| x.max(1e-9).ln());
+        let log_observation = observation
+            .map(|x| x.max(1e-9).ln())
+            .map_err(|x| x.max(1e-9).ln());
         self.inner.update(log_observation, timestamp, tau);
     }
 
@@ -224,44 +227,78 @@ impl ValidatorClientStats {
                 now,
                 config.latency_ewma_tau,
             )
-            .unwrap_or((config.empty_latency_score, 0.0, 0.0, 0.0))
+            .unwrap_or((config.empty_latency_score, 0.0, 0.0, 1.0))
     }
 
     /// The main validator scoring function.
     ///
-    /// Key idea: minimize expected *tail latency* under uncertainty with adversarial failures.
+    /// Key idea: minimize expected *tail latency* under uncertainty with
+    /// adversarial failures.
     ///
     /// Tail latency is the latency experienced by the slowest requests.
     /// Tail latency can be estimated as p95 quantile.
     /// Currently, the estimation is done using: μ+kσ,
     /// where μ is the mean and σ is the standard deviation of log latency.
     ///
-    /// The score is roughly as follows:
+    /// The score consists of the following metrics:
+    ///
+    /// Latency = exp(μ+kσ):
+    ///   - EWMA score of log-latency.
+    ///   - The responsiveness of the validator.
+    /// Risk = λ / sqrt(n_eff + ϵ):
+    ///   - Penalize low number of samples, where n_eff is effective sample
+    ///     size.
+    ///   - The potential for failure based on historical data.
+    /// Staleness = λ (1−exp(-Δt/τ)):
+    ///   - Penalize outdated stats.
+    ///   - How outdated the data is.
+    /// Failure = λ pf/(1-pf+ϵ):
+    ///   - Penalize high failure rates, where pf is the failure rate.
+    ///   - The rate of failed interactions.
+    /// Congestion = λ n_inflight:
+    ///   - Penalize high congestion, not estimated, always 0.
+    ///   - The current load on the validator.
+    /// Exploration = λ sqrt(ln(N) / (n_eff + 1)):
+    ///   - Reward exploration.
+    ///   - The willingness to try new paths.
+    ///
+    /// These score metrics should reflect validator state and behavior:
+    ///
+    /// - New validator, no data: high Risk, high Exploration.
+    /// - Fast, well-sampled, fresh: low Latency, low Risk, low Staleness, low
+    ///   Failure, low Exploration.
+    /// - Slow, but reliable: high Latency, low Risk, low Failure.
+    /// - High failure rate: high Failure.
+    /// - Good went stale: increasing Staleness, increasing Exploration.
+    ///
+    /// The final score can be computed as follows:
     ///
     /// Score = Latency + Risk + Staleness + Failure + Congestion - Exploration
-    ///
-    /// Latency = exp(μ+kσ) -- EWMA score of log-latency
-    /// Risk = λ / sqrt(n_eff + ϵ) -- penalize low number of samples, n_eff -- effective sample size
-    /// Staleness = λ (1−exp(-Δt/τ)) -- penalize outdated stats
-    /// Failure = λ pf/(1-pf+ϵ) -- penalize high failure rates, where pf is the failure rate
-    /// Congestion = λ n_inflight -- penalize high congestion, not estimated, always 0
-    /// Exploration = λ sqrt(lnN / (n_eff + 1)) -- reward exploration
     fn operation_score(
         &self,
         operation: OperationType,
         total_observations: u64,
         now: Instant,
         config: &ValidatorClientMonitorConfig,
-    ) -> f64 {
+    ) -> ValidatorScore {
         let (latency, n_eff, failure_rate, alpha) = self.operation_stats(operation, now, config);
         let risk = config.risk_coeff / (n_eff + 1e-2).sqrt();
         let staleness = config.stale_coeff * alpha;
         let failure = config.failure_coeff * failure_rate / (1.0 - failure_rate + 1e-2);
         let congestion = 0.0; // we have no way to measure congestion here
-        let total_requests = total_observations as f64;
+        let total_requests = (total_observations + 1) as f64;
         let exploration = config.exploration_coeff * (total_requests.ln() / (n_eff + 1.0)).sqrt();
 
-        latency + risk + staleness + failure + congestion - exploration
+        // let exploitation = latency + risk + staleness + failure + congestion;
+        // exploitation - exploration
+        ValidatorScore {
+            latency,
+            risk,
+            staleness,
+            failure,
+            congestion,
+            exploration,
+        }
     }
 
     fn calculate_selection_score(
@@ -270,13 +307,19 @@ impl ValidatorClientStats {
         now: Instant,
         config: &ValidatorClientMonitorConfig,
     ) -> f64 {
-        let consensus_score =
-            self.operation_score(OperationType::Consensus, total_observations, now, config);
-        let health_check_score =
-            self.operation_score(OperationType::HealthCheck, total_observations, now, config);
-        let effects_score =
-            self.operation_score(OperationType::Effects, total_observations, now, config);
-        consensus_score * 0.6 + health_check_score * 0.2 + effects_score * 0.2
+        let consensus_score = self
+            .operation_score(OperationType::Consensus, total_observations, now, config)
+            .score();
+        let health_check_score = self
+            .operation_score(OperationType::HealthCheck, total_observations, now, config)
+            .score();
+        let effects_score = self
+            .operation_score(OperationType::Effects, total_observations, now, config)
+            .score();
+        let submit_score = self
+            .operation_score(OperationType::Submit, total_observations, now, config)
+            .score();
+        consensus_score * 0.5 + health_check_score * 0.2 + effects_score * 0.2 + submit_score * 0.1
     }
 }
 
@@ -312,38 +355,22 @@ impl ClientObservedStats {
             })
     }
 
-    fn select_top_validators(
-        validator_with_scores: Vec<(AuthorityName, f64)>,
+    fn select_top_validators<'a>(
+        validator_with_scores: Vec<(&'a AuthorityName, f64)>,
         config: &ValidatorClientMonitorConfig,
-    ) -> Vec<AuthorityName> {
+    ) -> Vec<&'a AuthorityName> {
         let lowest_score = validator_with_scores[0].1;
-        let threshold = lowest_score * (1.0 + config.preferred_group_delta);
+        // compute acceptable score threshold within delta neighborhood of lowest_score
+        // use this formula just in case lowest_score is negative
+        let threshold = lowest_score + lowest_score.abs() * config.preferred_group_delta;
+
         let k = validator_with_scores
             .iter()
             .enumerate()
             .find(|(_, (_, latency))| *latency > threshold)
             .map(|(i, _)| i)
-            .unwrap_or(validator_with_scores.len());
-
-        // Enforce minimum preferred group size to prevent a single validator
-        // from monopolising all traffic — but only when the additional
-        // validators are within 2× the best score.  A 500× slower validator
-        // should never be force-included; this guards against the case where
-        // delta is tight (e.g. 2 %) but two validators have nearly identical
-        // latency (e.g. 49 ms vs 51 ms).
-        let k_min = config
-            .min_preferred_group_size
-            .min(validator_with_scores.len());
-        let k = if k < k_min {
-            let expansion_threshold = lowest_score * 2.0;
-            if validator_with_scores[k_min - 1].1 <= expansion_threshold {
-                k_min
-            } else {
-                k
-            }
-        } else {
-            k
-        };
+            .unwrap_or(validator_with_scores.len())
+            .max(config.min_preferred_group_size);
 
         validator_with_scores
             .into_iter()
@@ -357,10 +384,10 @@ impl ClientObservedStats {
         committee: impl Iterator<Item = &'a AuthorityName>,
         now: Instant,
         mut rng: impl rand::Rng,
-    ) -> Vec<AuthorityName> {
+    ) -> Vec<&'a AuthorityName> {
         // 1. calculate scores
         let mut validator_with_scores: Vec<_> = committee
-            .map(|v| (*v, self.calculate_selection_score(v, now)))
+            .map(|v| (v, self.calculate_selection_score(v, now)))
             .collect();
 
         if validator_with_scores.is_empty() {
@@ -423,5 +450,59 @@ impl ClientObservedStats {
     #[cfg(test)]
     pub(super) fn num_validators(&self) -> usize {
         self.validator_stats.len()
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ValidatorScore {
+    latency: f64,
+    risk: f64,
+    staleness: f64,
+    failure: f64,
+    congestion: f64,
+    exploration: f64,
+}
+
+impl ValidatorScore {
+    fn score(&self) -> f64 {
+        let exploitation =
+            self.latency + self.risk + self.staleness + self.failure + self.congestion;
+        exploitation - self.exploration
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_validator_names(n: usize) -> Vec<AuthorityName> {
+        (0..n)
+            .map(|_| {
+                let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
+                key_pair.public().into()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_client_stats_record_success() {
+        let config = ValidatorClientMonitorConfig::default();
+        let mut stats = ClientObservedStats::new(config);
+
+        let validators = create_test_validator_names(1);
+        let validator = validators[0];
+
+        let now = Instant::now();
+        let feedback = OperationFeedback::builder(
+            validator,
+            validator.concise().to_string(),
+            OperationType::Submit,
+        )
+        .ok_at(Duration::from_millis(100), now);
+
+        let score = stats.record_interaction_result(feedback);
+        let score2 = stats.calculate_selection_score(&validator, now);
+
+        assert_eq!((score - score2).abs() < f64::EPSILON, true);
     }
 }
