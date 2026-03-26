@@ -224,7 +224,7 @@ impl MoveObjectExt for MoveObject {
     /// and the (transitive) dependencies of `self.type_` in order for this
     /// to succeed. Failure will result in an `ObjectSerializationError`
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.object_type().clone().into(), resolver)
+        Self::get_struct_layout_from_struct_tag(self.struct_tag().clone().into(), resolver)
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
@@ -248,7 +248,7 @@ impl MoveObjectExt for MoveObject {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(self.object_type())?;
+            let layout = layout_resolver.get_annotated_layout(self.struct_tag())?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
@@ -363,7 +363,7 @@ impl Data {
     pub fn type_(&self) -> Option<&MoveObjectType> {
         use Data::*;
         match self {
-            Move(m) => Some(m.object_type()),
+            Move(m) => Some(m.object_type_()),
             Package(_) => None,
         }
     }
@@ -371,7 +371,7 @@ impl Data {
     pub fn struct_tag(&self) -> Option<StructTag> {
         use Data::*;
         match self {
-            Move(m) => Some(m.object_type().clone().into()),
+            Move(m) => Some(m.struct_tag().clone().into()),
             Package(_) => None,
         }
     }
@@ -618,7 +618,7 @@ impl ObjectInner {
 
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.object_type().is_coin()
+            move_object.struct_tag().is_coin()
         } else {
             false
         }
@@ -626,7 +626,7 @@ impl ObjectInner {
 
     pub fn is_gas_coin(&self) -> bool {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.object_type().is_gas_coin()
+            move_object.struct_tag().is_gas_coin()
         } else {
             false
         }
@@ -653,7 +653,7 @@ impl ObjectInner {
 
     pub fn coin_type_opt(&self) -> Option<&TypeTag> {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.object_type().coin_type_opt()
+            move_object.struct_tag().coin_type_opt()
         } else {
             None
         }

@@ -1423,7 +1423,7 @@ mod checked {
             vm,
             linkage_view,
             new_packages,
-            object.object_type().clone().into(),
+            object.struct_tag().clone().into(),
             used_in_non_entry_move_call,
             object.contents(),
         )
@@ -1575,8 +1575,8 @@ mod checked {
             ObjectContents::Coin(coin) => coin.to_bcs_bytes(),
             ObjectContents::Raw(bytes) => bytes,
         };
-        let object_id = MoveObject::id_opt(&bytes).map_err(|e| {
-            ExecutionError::invariant_violation(format!("No id for Raw object bytes. {e}"))
+        let object_id = MoveObject::id_opt(&bytes).ok_or_else(|| {
+            ExecutionError::invariant_violation("No id for Raw object bytes".to_string())
         })?;
         let additional_write = AdditionalWrite {
             recipient: owner,

@@ -149,7 +149,7 @@ pub mod checked {
                             "Provided non-gas coin object as input for gas!",
                         ));
                     };
-                    if !move_obj.object_type().is_gas_coin() {
+                    if !move_obj.struct_tag().is_gas_coin() {
                         return Err(ExecutionError::invariant_violation(
                             "Provided non-gas coin object as input for gas!",
                         ));

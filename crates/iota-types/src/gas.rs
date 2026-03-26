@@ -133,7 +133,7 @@ pub mod checked {
 
     pub fn get_gas_balance(gas_object: &Object) -> UserInputResult<u64> {
         if let Some(move_obj) = gas_object.data.try_as_move() {
-            if !move_obj.object_type().is_gas_coin() {
+            if !move_obj.struct_tag().is_gas_coin() {
                 return Err(UserInputError::InvalidGasObject {
                     object_id: gas_object.id(),
                 });

@@ -825,12 +825,12 @@ fn try_create_dynamic_field_info(
     //     of the pointed
     //   to object
     //
-    if !move_object.object_type().is_dynamic_field() {
+    if !move_object.struct_tag().is_dynamic_field() {
         return Ok(None);
     }
 
     let layout = resolver
-        .get_annotated_layout(&move_object.object_type().clone())
+        .get_annotated_layout(&move_object.struct_tag().clone())
         .map_err(StorageError::custom)?
         .into_layout();
 

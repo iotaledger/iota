@@ -117,7 +117,7 @@ pub fn get_store_object(object: Object) -> StoreObjectWrapper {
     let data = match object.data {
         Data::Package(package) => StoreData::Package(package),
         Data::Move(move_obj) => {
-            if move_obj.object_type().is_gas_coin() {
+            if move_obj.struct_tag().is_gas_coin() {
                 StoreData::Coin(
                     Coin::from_bcs_bytes(move_obj.contents())
                         .expect("failed to deserialize coin")
