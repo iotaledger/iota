@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AppsBackendClient } from '@iota/apps-backend-client';
-import { Network, getAppsBackend } from '@iota/iota-sdk/client';
+import { getAppsBackend } from '@iota/core';
+import { Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
 export const appsBackendClient = new AppsBackendClient({

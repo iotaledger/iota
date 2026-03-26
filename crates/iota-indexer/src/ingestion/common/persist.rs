@@ -8,8 +8,9 @@ use std::{collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
-use iota_rest_api::CheckpointData;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::info;

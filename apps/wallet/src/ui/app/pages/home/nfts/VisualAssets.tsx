@@ -31,7 +31,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
         event.stopPropagation();
         hideAsset(object.objectId);
 
-        ampli.collectibleHidden({
+        ampli.hidCollectible({
             collectibleType: object.type!,
         });
 
@@ -42,7 +42,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                     destination="Hidden Assets"
                     onUndo={() => {
                         showAsset(object.objectId);
-                        ampli.collectibleUnHidden({
+                        ampli.clickedShowAsset({
                             collectibleType: object.type!,
                         });
                     }}
@@ -68,7 +68,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                               }).toString()}`
                     }
                     onClick={() => {
-                        ampli.collectibleCardClicked({
+                        ampli.clickedCollectibleCard({
                             collectibleType: object.type!,
                         });
                     }}
