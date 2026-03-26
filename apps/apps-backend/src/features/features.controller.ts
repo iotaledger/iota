@@ -20,10 +20,6 @@ export class FeaturesController {
     getFeatures() {
         const deployType = this.configService.get<string>('DEPLOY_TYPE');
 
-        if (!deployType) {
-            throw new Error('DEPLOY_TYPE is not configured');
-        }
-
         switch (deployType) {
             case 'production':
                 return this.getProductionFeatures();

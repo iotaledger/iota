@@ -10,12 +10,6 @@ export class InfoController {
 
     @Get()
     getInfo() {
-        const deployType = this.configService.get<string>('DEPLOY_TYPE');
-
-        if (!deployType) {
-            throw new Error('DEPLOY_TYPE is not configured');
-        }
-
-        return { deployType };
+        return { deployType: this.configService.get<string>('DEPLOY_TYPE') };
     }
 }
