@@ -97,7 +97,7 @@ The indexer supports automatic pruning of historical data to control database si
 Pruning is configured via the `--pruning-config-path` flag, which points to a TOML file:
 
 ```sh
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:9000/api/v1" --pruning-config-path /path/to/pruning.toml
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:50051" --pruning-config-path /path/to/pruning.toml
 ```
 
 The TOML file specifies a default retention policy (in epochs) and optional per-table overrides:
