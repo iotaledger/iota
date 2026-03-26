@@ -9,6 +9,7 @@ use std::{
 
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::base_types::AuthorityName;
+use rand::seq::SliceRandom;
 use tracing::debug;
 
 use crate::validator_client_monitor::{OperationFeedback, OperationType};
@@ -299,15 +300,94 @@ impl ClientObservedStats {
             })
     }
 
+    pub(super) fn select_shuffled_preferred_validators<'a>(
+        &self,
+        committee: impl Iterator<Item = &'a AuthorityName>,
+        now: Instant,
+        mut rng: impl rand::Rng,
+    ) -> Vec<AuthorityName> {
+        let mut validator_with_scores: Vec<_> = committee
+            .map(|v| (*v, self.calculate_selection_score(v, now)))
+            .collect();
+
+        if validator_with_scores.is_empty() {
+            return vec![];
+        }
+        validator_with_scores.sort_by(|(_, latency1), (_, latency2)| {
+            latency1
+                .partial_cmp(latency2)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let lowest_score = validator_with_scores[0].1;
+        let threshold = lowest_score * (1.0 + self.config.preferred_group_delta);
+        let k = validator_with_scores
+            .iter()
+            .enumerate()
+            .find(|(_, (_, latency))| *latency > threshold)
+            .map(|(i, _)| i)
+            .unwrap_or(validator_with_scores.len());
+
+        // Enforce minimum preferred group size to prevent a single validator
+        // from monopolising all traffic — but only when the additional
+        // validators are within 2× the best score.  A 500× slower validator
+        // should never be force-included; this guards against the case where
+        // delta is tight (e.g. 2 %) but two validators have nearly identical
+        // latency (e.g. 49 ms vs 51 ms).
+        let k_min = self
+            .config
+            .min_preferred_group_size
+            .min(validator_with_scores.len());
+        let k = if k < k_min {
+            let expansion_threshold = lowest_score * 2.0;
+            if validator_with_scores[k_min - 1].1 <= expansion_threshold {
+                k_min
+            } else {
+                k
+            }
+        } else {
+            k
+        };
+
+        validator_with_scores.truncate(k);
+        validator_with_scores.shuffle(&mut rng);
+
+        validator_with_scores.into_iter().map(|(v, _)| v).collect()
+    }
+
     /// Retain only the specified validators, removing any others.
-    pub(super) fn retain_validators<'a>(&mut self, current_validators: impl Iterator<Item = &'a AuthorityName>) {
+    pub(super) fn retain_validators<'a>(&mut self, validators: impl Iterator<Item = &'a AuthorityName>) {
         let cur_len = self.validator_stats.len();
-        let validator_set: HashSet<_> = current_validators.collect();
+        let validator_set: HashSet<_> = validators.collect();
         self.validator_stats
             .retain(|validator, _| validator_set.contains(validator));
         let removed_count = cur_len - self.validator_stats.len();
         if removed_count > 0 {
             debug!("Removed {} stale validator data", removed_count);
         }
+    }
+
+    /// Remove the specified validators, retaining any others.
+    #[cfg(test)]
+    pub(super) fn remove_validators<'a>(&mut self, validators: impl Iterator<Item = &'a AuthorityName>) {
+        let mut removed_count = 0;
+        for validator in validators {
+            if self.validator_stats.remove(validator).is_some() {
+                removed_count += 1;
+            }
+        }
+        if removed_count > 0 {
+            debug!("Removed {} stale validator data", removed_count);
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn has_validator(&self, validator: &AuthorityName) -> bool {
+        self.validator_stats.contains_key(validator)
+    }
+
+    #[cfg(test)]
+    pub(super) fn num_validators(&self) -> usize {
+        self.validator_stats.len()
     }
 }

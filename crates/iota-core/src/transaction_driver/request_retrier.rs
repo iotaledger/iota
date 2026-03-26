@@ -17,9 +17,6 @@ use crate::{
     validator_client_monitor::ValidatorClientMonitor,
 };
 
-/// Select validators with latencies within 2% of the lowest latency.
-const SELECT_LATENCY_DELTA: f64 = 0.02;
-
 /// Provides the next target validator to retry operations,
 /// and gathers the errors along with the operations.
 ///
@@ -53,7 +50,7 @@ impl<A> RequestRetrier<A> {
         blocked_validators: Vec<String>,
     ) -> Self {
         let ranked_validators = client_monitor
-            .select_shuffled_preferred_validators(&auth_agg.committee, SELECT_LATENCY_DELTA);
+            .select_shuffled_preferred_validators(&auth_agg.committee);
         let ranked_clients = ranked_validators
             .into_iter()
             .map(|name| (name, auth_agg.get_display_name(&name)))

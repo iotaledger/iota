@@ -60,6 +60,9 @@ pub struct ValidatorClientMonitorConfig {
     /// preventing a single validator from monopolising all traffic.
     #[serde(default = "default_min_preferred_group_size")]
     pub min_preferred_group_size: usize,
+
+    #[serde(default = "default_preferred_group_delta")]
+    pub preferred_group_delta: f64,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -76,6 +79,7 @@ impl Default for ValidatorClientMonitorConfig {
             exploration_coeff: default_exploration_coeff(),
             no_validator_score: default_no_validator_score(),
             min_preferred_group_size: default_min_preferred_group_size(),
+            preferred_group_delta: default_preferred_group_delta(),
         }
     }
 }
@@ -122,4 +126,8 @@ fn default_no_validator_score() -> f64 {
 
 fn default_min_preferred_group_size() -> usize {
     2
+}
+
+fn default_preferred_group_delta() -> f64 {
+    0.02
 }
