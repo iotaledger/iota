@@ -448,7 +448,7 @@ impl TryFrom<&MoveObject> for StakedIota {
     type Error = StakedIotaDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.is_staked_iota() {
+        if !move_object.native.struct_tag().is_staked_iota() {
             return Err(StakedIotaDowncastError::NotAStakedIota);
         }
 

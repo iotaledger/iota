@@ -397,7 +397,7 @@ impl TryFrom<&MoveObject> for Coin {
     type Error = CoinDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.is_coin() {
+        if !move_object.native.struct_tag().is_coin() {
             return Err(CoinDowncastError::NotACoin);
         }
 

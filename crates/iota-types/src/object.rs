@@ -224,7 +224,7 @@ impl MoveObjectExt for MoveObject {
     /// and the (transitive) dependencies of `self.type_` in order for this
     /// to succeed. Failure will result in an `ObjectSerializationError`
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.struct_tag().clone().into(), resolver)
+        Self::get_struct_layout_from_struct_tag(self.struct_tag().clone(), resolver)
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
@@ -290,7 +290,7 @@ impl MoveObjectExt for MoveObject {
     ///
     /// Panics if the object isn't a `Clock`.
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64) {
-        assert!(self.is_clock());
+        assert!(self.struct_tag().is_clock());
         // 32 bytes for object ID, 8 for timestamp
         assert!(self.contents.len() == 40);
 
@@ -363,7 +363,7 @@ impl Data {
     pub fn type_(&self) -> Option<&MoveObjectType> {
         use Data::*;
         match self {
-            Move(m) => Some(m.object_type_()),
+            Move(m) => Some(m.object_type()),
             Package(_) => None,
         }
     }
@@ -371,7 +371,7 @@ impl Data {
     pub fn struct_tag(&self) -> Option<StructTag> {
         use Data::*;
         match self {
-            Move(m) => Some(m.struct_tag().clone().into()),
+            Move(m) => Some(m.struct_tag().clone()),
             Package(_) => None,
         }
     }
