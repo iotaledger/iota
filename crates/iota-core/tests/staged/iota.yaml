@@ -685,7 +685,7 @@ MovePackage:
             TYPENAME: UpgradeInfo
 MoveStruct:
   STRUCT:
-    - type:
+    - objectType:
         TYPENAME: MoveObjectType
     - version: U64
     - contents: BYTES
