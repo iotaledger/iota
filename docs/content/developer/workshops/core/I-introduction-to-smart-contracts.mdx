@@ -83,9 +83,6 @@ Create `sources/grant.move`. Start with the module, imports, and the three data 
 
 ```move
 module scholarflow::grant {
-    use iota::object::{Self, UID, ID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use iota::event;
 
     /// Capability granting authority to mint grants.
@@ -126,7 +123,7 @@ Append this function inside the same module:
     /// Runs once at package publish. Transfers AdminCap to the publisher.
     fun init(ctx: &mut TxContext) {
         let cap = AdminCap { id: object::new(ctx) };
-        let publisher = tx_context::sender(ctx);
+        let publisher = ctx.sender();
         transfer::transfer(cap, publisher);
     }
 ```
@@ -166,7 +163,9 @@ Append this inside the same module:
         ctx: &mut TxContext
     ) {
         // TODO: Create Grant, emit event, transfer to `student`.
-        // Hints: object::new(ctx), object::id(&grant), transfer::transfer(grant, student)
+        // Hints: object::new(ctx), object::id(&grant),
+        //        event::emit(GrantMinted { grant_id, student, amount }),
+        //        transfer::transfer(grant, student)
         abort 0;
     }
 ```
@@ -252,8 +251,8 @@ export PKG_ID=<paste Package ID>
 export ADMIN_CAP_ID=<paste AdminCap object ID>
 export PUBLISHER_ADDR=<your publisher 0x...>
 
-iota client objects --owner "$PUBLISHER_ADDR"
-iota client object --id "$ADMIN_CAP_ID"
+iota client objects "$PUBLISHER_ADDR"
+iota client object "$ADMIN_CAP_ID"
 ```
 
 More context: [Publish a Package](../../getting-started/publish.mdx)
@@ -298,8 +297,8 @@ Expected output (events excerpt):
 ## Verify what happened
 
 ```bash
-iota client objects --owner "$STUDENT_ADDR"
-iota client object --id <GRANT_OBJECT_ID>
+iota client objects "$STUDENT_ADDR"
+iota client object <GRANT_OBJECT_ID>
 ```
 
 This confirms that a `Grant` object now exists and is owned by the student. For events, use your indexer of choice and the [Using Events](../../iota-101/using-events.mdx) patterns. Ownership concepts recap: [Object Ownership](../../iota-101/objects/object-ownership/object-ownership.mdx).

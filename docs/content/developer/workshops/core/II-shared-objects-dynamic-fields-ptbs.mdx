@@ -69,12 +69,8 @@ Create `sources/registry.move`. Begin with the module, imports, and data types.
 
 ```move
 module scholarflow::registry {
-    use iota::object::{Self, UID, ID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use iota::event;
     use iota::table::{Self as table, Table};
-    use std::option;
 
     /// The shared Registry with an attached index of student -> grant ID.
     public struct Registry has key {
@@ -126,7 +122,7 @@ The `index_grant` entry should insert `student -> grant_id` and emit a `GrantInd
 
 ```move
     /// insert mapping student -> grant_id and emit an event.
-    public entry fun index_grant(
+    public fun index_grant(
         reg: &mut Registry,
         student: address,
         grant_id: ID,
@@ -159,7 +155,7 @@ module scholarflow::grant {
     /// ... existing imports, structs, events, and functions ...
 
     /// Mint a grant and return its ID so callers (e.g., a PTB) can chain actions.
-    public entry fun mint_return_id(
+    public fun mint_return_id(
         student: address,
         amount: u64,
         _cap: &AdminCap,
@@ -173,6 +169,13 @@ module scholarflow::grant {
     }
 }
 ```
+
+:::tip Why `public` and not `public entry`?
+- [`entry` functions](../../iota-101/move-overview/entry-functions.mdx) can only receive transaction inputs as arguments and their return values can only be dropped — they cannot be consumed by subsequent calls in the same PTB.
+- [`public` functions](../../iota-101/move-overview/visibility.mdx) can receive both transaction inputs and results from previous PTB calls, and their return values can be passed forward to the next step.
+
+Because `mint_return_id` needs to return an `ID` that `index_grant` then consumes in the same PTB, both functions must be `public` — not `entry`.
+:::
 
 :::note Big picture
 Returning the freshly minted `Grant` ID lets downstream steps (like indexing) reference it immediately, avoiding extra RPCs or guesswork.
@@ -292,8 +295,8 @@ If mint fails, index doesn’t run; if index would fail, mint is rolled back. On
 ## Verify outcomes
 
 ```bash
-iota client objects --owner $STUDENT_ADDR
-iota client object --id $REGISTRY_ID
+iota client objects $STUDENT_ADDR
+iota client object $REGISTRY_ID
 ```
 
 You should see the new grant under the student’s ownership and a shared `Registry` with the index populated.

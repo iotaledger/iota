@@ -118,33 +118,10 @@ import { OwnedObjects } from './components/OwnedObjects';
 // … inside App()
 {account && (
   <>
+    <div style={{ marginTop: 12 }}>Connected: {account.address}</div>
     <OwnedObjects />
   </>
 )}
-```
-
-Now your `App.tsx` should look like:
-
-```tsx
-// src/App.tsx
-import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
-import { OwnedObjects } from './components/OwnedObjects';
-
-export default function App() {
-  const account = useCurrentAccount();
-
-  return (
-    <div style={{ padding: 16 }}>
-      <ConnectButton />
-      {account && (
-        <>
-          <div style={{ marginTop: 12 }}>Connected: {account.address}</div>
-          <OwnedObjects />
-        </>
-      )}
-    </div>
-  );
-}
 ```
 
 ## Build a call: request a grant (example)
@@ -183,7 +160,6 @@ export function RequestGrant() {
             // amount: u64
             tx.pure.u64(BigInt(amount)),
           ],
-          typeArguments: [],
         });
         signAndExecute(
           { transaction: tx },
@@ -201,44 +177,19 @@ export function RequestGrant() {
 }
 ```
 
-Add it to `App` below the wallet connection when connected.
+Add it to `App` below `OwnedObjects`.
 
 ```tsx
 // src/App.tsx (continued)
 import { RequestGrant } from './components/RequestGrant';
+
 // … inside App()
-{account && <RequestGrant />}
-```
-
-Now your `App.tsx` should look like:
-
-```tsx
-// src/App.tsx
-import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
-import { OwnedObjects } from './components/OwnedObjects';
-import { RequestGrant } from './components/RequestGrant';
-
-export default function App() {
-  const account = useCurrentAccount();
-
-  return (
-    <div style={{ padding: 16 }}>
-      <ConnectButton />
-      {account && (
-        <>
-          <div style={{ marginTop: 12 }}>Connected: {account.address}</div>
-          <OwnedObjects />
-          <RequestGrant />
-        </>
-      )}
-    </div>
-  );
-}
+<RequestGrant />
 ```
 
 ## Approve a request from the CLI
 
-An issuer (admin-gated) should approve a student’s request by calling `lifecycle::approve_grant` from the CLI. This mints and transfers the Grant to the student by calling into the `grant` module.
+`approve_grant` requires an `AdminCap`, which only lives in the issuer’s wallet — it is not something the student-facing dApp should expose. For this workshop, call it directly from the CLI as the issuer.
 
 You need the following IDs:
 - `PKG_ID`: the published package ID
@@ -247,38 +198,34 @@ You need the following IDs:
 - `ADMIN_CAP_ID`: the AdminCap object ID held by an issuer/admin
 - `STUDENT_ADDR`: the student’s address that submitted the request
 
-Example using the CLI:
-
-```
+```bash
 iota client call \
-  --package <PACKAGE-ID> \
+  --package $PKG_ID \
   --module lifecycle \
   --function approve_grant \
-  --args <REQUESTS_ID> <STUDENT_ADDR> <ROLES_ID> <ADMIN_CAP_ID> \
+  --args $REQUESTS_ID $STUDENT_ADDR $ROLES_ID $ADMIN_CAP_ID \
   --gas-budget 80000000
 ```
 
-Notes:
-- Double-check argument order: `approve_grant(requests, student, roles, cap, ctx)`.
-- The function reads and removes the student’s pending amount from `Requests`, then mints and transfers a `Grant` to the student address.
+Note: argument order must match `approve_grant(requests, student, roles, cap, ctx)`. The function reads and removes the student’s pending amount from `Requests`, then mints and transfers a `Grant` to the student address.
 
-:::tip Open discussion
-How are we still indexing this grant if we approve it this way?
+:::note Registry not updated here
+Calling `approve_grant` directly does not update the `Registry` from Workshop II. To index the new grant at the same time, compose `approve_grant` and `registry::index_grant` into a single PTB — the same pattern you practised in Workshop II.
 :::
 
-## See your grant in the dApp
-
-After a successful `approve_grant` call, refresh your dApp. The `OwnedObjects` section should now list the new `Grant` object owned by the student’s address.
+After a successful call, refresh your dApp. The `OwnedObjects` section should now list the new `Grant` object owned by the student’s address.
 
 ## Optional: Admin panel actions
 
-If you plan to expose admin-only operations (e.g., creating the shared Roles object or indexing grants), gate them in the UI by checking that the connected account is allowed (for example, show the admin panel only for a known publisher address). These calls typically require passing capability object IDs in the move call, which you should store in a config file and never hardcode in public deployments.
+To expose admin-only operations in the UI, gate them by checking the connected address against a known admin address before rendering the component.
 
-- Example admin calls (adjust to your modules):
-  - access::create_roles(&AdminCap)
-  - registry::index_grant(&mut Registry, student, grant_id, &AdminCap)
+```tsx
+const ADMIN_ADDR = '0x<your_admin_address>';
 
-Reuse the `useSignAndExecuteTransaction` pattern from RequestGrant.
+{account?.address === ADMIN_ADDR && <AdminPanel />}
+```
+
+Inside `AdminPanel`, build transactions the same way as `RequestGrant` — use `useSignAndExecuteTransaction` and pass the required object IDs (cap, shared objects) via `tx.object(...)`. Store those IDs in a config file; never hardcode them inline in a component.
 
 ## Run the app
 
