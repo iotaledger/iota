@@ -175,11 +175,7 @@ pub async fn start_test_indexer_impl(
         } => {
             let fullnode_rpc_url = rpc_url.parse::<Url>().unwrap();
             let store_clone = store.clone();
-            let mut ingestion_config = IngestionConfig {
-                checkpoint_download_timeout: 60, /* Increase the timeout in tests in order for
-                                                  * the node to report healthy via gRPC. */
-                ..Default::default()
-            };
+            let mut ingestion_config = IngestionConfig::default();
             ingestion_config.sources.remote_store_url =
                 data_ingestion_path.is_none().then_some(fullnode_rpc_url);
             ingestion_config.sources.data_ingestion_path = data_ingestion_path;
