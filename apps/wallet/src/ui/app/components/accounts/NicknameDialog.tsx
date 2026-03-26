@@ -53,7 +53,7 @@ export function NicknameDialog({ isOpen, setOpen, accountID }: NicknameDialogPro
                     id: accountID,
                     nickname: nickname || null,
                 });
-                ampli.accountRenamed();
+                ampli.renamedAccount();
                 setOpen(false);
             } catch (e) {
                 toast.error((e as Error).message || 'Failed to set nickname');

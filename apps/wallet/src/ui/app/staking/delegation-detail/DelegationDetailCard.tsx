@@ -146,7 +146,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);
-        ampli.stakeClicked({
+        ampli.clickedStakeIota({
             isCurrentlyStaking: true,
             sourceFlow: SOURCE_FLOW,
         });

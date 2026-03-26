@@ -41,7 +41,7 @@ function HomeDashboardPage(): JSX.Element {
             </div>
             <div className="relative flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
                 <div className="absolute right-2 top-2 sm:right-8 sm:top-8">
-                    <ThemeSwitcher onThemeChange={(theme) => ampli.themeChanged({ theme })} />
+                    <ThemeSwitcher onThemeChange={(theme) => ampli.changedTheme({ theme })} />
                 </div>
                 <IotaLogoWeb width={130} height={32} />
                 <div className="flex max-w-sm flex-col items-center gap-8 text-center">
@@ -55,7 +55,13 @@ function HomeDashboardPage(): JSX.Element {
                         </span>
                     </div>
                     <div className="[&_button]:!bg-iota-neutral-90 [&_button]:dark:!bg-iota-neutral-20">
-                        <ConnectButton connectText="Connect" iotaNamesEnabled={iotaNamesEnabled} />
+                        <ConnectButton
+                            connectText="Connect"
+                            iotaNamesEnabled={iotaNamesEnabled}
+                            onConnected={(args) => {
+                                ampli.connectedWallet({ wallet: args.wallet.name });
+                            }}
+                        />
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-iota-neutral-60">

@@ -4,16 +4,17 @@
 
 use std::{env, path::PathBuf, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use iota_data_ingestion::{
     ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
     HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
+use iota_grpc_client::Client;
 use iota_kvstore::{BigTableClient, KvWorker};
-use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -55,8 +56,6 @@ struct IndexerConfig {
     progress_store_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     remote_store_url: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    remote_store_options: Vec<(String, String)>,
     #[serde(default = "default_remote_read_batch_size")]
     remote_read_batch_size: usize,
     #[serde(default = "default_metrics_host")]
@@ -151,12 +150,15 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
-                let rest_client = Client::new(&blob_config.node_rest_api_url);
+                let url = config
+                    .remote_store_url
+                    .as_ref()
+                    .ok_or(anyhow!("Blob worker type requires remote store URL"))?;
+
+                let grpc_client = Client::connect(url).await?;
                 let watermark = executor.read_watermark(task_config.name.clone()).await?;
-                let current_epoch = common::current_epoch(&rest_client).await?;
-                let current_epoch_first_checkpoint_seq_num =
-                    common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)
-                        .await?;
+                let (current_epoch, current_epoch_first_checkpoint_seq_num) =
+                    common::epoch_info(&grpc_client, None).await?;
                 // if watermark is less than the first checkpoint of current epoch
                 // is safe to assume that an epoch was changed.
                 let worker = if watermark < current_epoch_first_checkpoint_seq_num {
@@ -171,15 +173,15 @@ async fn main() -> Result<()> {
                     // get the range from the first checkpoint of the watermark's epoch to the
                     // watermark
                     let reset_range = common::checkpoint_sequence_number_range_to_watermark(
-                        &rest_client,
+                        &grpc_client,
                         watermark,
                     )
                     .await?;
-                    let worker = BlobWorker::new(blob_config, rest_client, current_epoch)?;
+                    let worker = BlobWorker::new(blob_config, grpc_client, current_epoch)?;
                     worker.reset_remote_store(reset_range).await?;
                     worker
                 } else {
-                    BlobWorker::new(blob_config, rest_client, current_epoch)?
+                    BlobWorker::new(blob_config, grpc_client, current_epoch)?
                 };
 
                 let worker_pool = WorkerPool::new(
@@ -248,13 +250,13 @@ async fn main() -> Result<()> {
         ..Default::default()
     };
 
-    executor
-        .run(
-            config.path,
-            config.remote_store_url,
-            config.remote_store_options,
-            reader_options,
-        )
-        .await?;
+    let config = CheckpointReaderConfig {
+        remote_store_url: config.remote_store_url.map(RemoteUrl::Fullnode),
+        ingestion_path: Some(config.path),
+        reader_options,
+    };
+
+    executor.run_with_config(config).await?;
+
     Ok(())
 }

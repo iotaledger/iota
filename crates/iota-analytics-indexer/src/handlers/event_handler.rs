@@ -93,8 +93,8 @@ impl AnalyticsHandler<EventEntry> for EventHandler {
 }
 
 impl EventHandler {
-    pub fn new(store_path: &Path, rest_uri: &str) -> Self {
-        let package_store = LocalDBPackageStore::new(&store_path.join("event"), rest_uri);
+    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+        let package_store = LocalDBPackageStore::new(&store_path.join("event"), client);
         let state = State {
             events: vec![],
             package_store: package_store.clone(),

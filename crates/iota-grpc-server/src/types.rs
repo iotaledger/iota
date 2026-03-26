@@ -518,7 +518,6 @@ impl GrpcReader {
                 Box::pin(async_stream::stream! {
                     let transaction_stream = state_reader.stream_checkpoint_transactions(checkpoint_contents.clone());
                     let mut checkpoint_stream = Box::pin(Self::create_checkpoint_messages_stream(
-                        state_reader.clone(),
                         checkpoint_summary,
                         checkpoint_contents,
                         transaction_stream,
@@ -556,7 +555,6 @@ impl GrpcReader {
     /// Generic over transaction stream source - works for both historical and
     /// live data.
     fn create_checkpoint_messages_stream<S>(
-        state_reader: Arc<dyn GrpcStateReader>,
         checkpoint_summary: CertifiedCheckpointSummary,
         checkpoint_contents: CheckpointContents,
         transaction_stream: S,
@@ -636,7 +634,7 @@ impl GrpcReader {
                                     for raw_event in &tx_events.data {
                                         // Apply event filter if present
                                         if let Some(ref evt_filter) = event_filter {
-                                            if !evt_filter.matches_event(state_reader.clone(), raw_event) {
+                                            if !evt_filter.matches_event(raw_event) {
                                                 continue; // Skip non-matching events
                                             }
                                         }
@@ -671,7 +669,7 @@ impl GrpcReader {
                             if transactions_mask.is_some() {
                                 // Apply transaction filter if present
                                 if let Some(ref tx_filter) = transaction_filter {
-                                    if !tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
+                                    if !tx_filter.matches_transaction(&checkpoint_transaction) {
                                         continue; // Skip non-matching transactions
                                     }
                                 }
@@ -924,7 +922,6 @@ impl GrpcReader {
     /// without performing full SDK conversion or Merge operations.
     /// Returns true on first match (OR semantics when both filters are set).
     async fn has_matching_data<S>(
-        state_reader: Arc<dyn GrpcStateReader>,
         transaction_stream: S,
         transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
         event_filter: &Option<crate::event_filter::EventFilter>,
@@ -938,7 +935,7 @@ impl GrpcReader {
                 result.map_err(|e| Status::internal(format!("failed to read transaction: {e}")))?;
 
             if let Some(ref tx_filter) = transaction_filter {
-                if tx_filter.matches_transaction(state_reader.clone(), &checkpoint_transaction) {
+                if tx_filter.matches_transaction(&checkpoint_transaction) {
                     return Ok(true);
                 }
             }
@@ -946,7 +943,7 @@ impl GrpcReader {
             if let Some(ref evt_filter) = event_filter {
                 if let Some(ref tx_events) = checkpoint_transaction.events {
                     for event in &tx_events.data {
-                        if evt_filter.matches_event(state_reader.clone(), event) {
+                        if evt_filter.matches_event(event) {
                             return Ok(true);
                         }
                     }
@@ -965,7 +962,6 @@ impl GrpcReader {
     /// progress heartbeat when `progress_interval` has elapsed since the
     /// last emitted message.
     async fn match_checkpoint_filter_or_report_progress<S>(
-        state_reader: Arc<dyn GrpcStateReader>,
         transaction_stream: S,
         transaction_filter: &Option<crate::transaction_filter::TransactionFilter>,
         event_filter: &Option<crate::event_filter::EventFilter>,
@@ -976,14 +972,7 @@ impl GrpcReader {
     where
         S: futures::Stream<Item = anyhow::Result<IotaTypesCheckpointTransaction>> + Send,
     {
-        if Self::has_matching_data(
-            state_reader.clone(),
-            transaction_stream,
-            transaction_filter,
-            event_filter,
-        )
-        .await?
-        {
+        if Self::has_matching_data(transaction_stream, transaction_filter, event_filter).await? {
             *last_msg_time.lock().unwrap() = tokio::time::Instant::now();
             Ok(FilterCheckResult::Matched)
         } else {
@@ -1072,7 +1061,6 @@ impl GrpcReader {
                             if filter_checkpoints {
                                 let scan_stream = state_reader_inner.stream_checkpoint_transactions(checkpoint_contents.clone());
                                 match Self::match_checkpoint_filter_or_report_progress(
-                                    state_reader_inner.clone(),
                                     scan_stream,
                                     &tx_filter,
                                     &ev_filter,
@@ -1095,7 +1083,6 @@ impl GrpcReader {
                             // Pass 2 (or normal mode): full processing
                             let transaction_stream = state_reader_inner.stream_checkpoint_transactions(checkpoint_contents.clone());
                             let mut stream = Box::pin(Self::create_checkpoint_messages_stream(
-                                state_reader_inner.clone(),
                                 checkpoint_summary,
                                 checkpoint_contents,
                                 transaction_stream,
@@ -1116,10 +1103,8 @@ impl GrpcReader {
             },
             // Live data processor - extracts transactions from CheckpointData
             {
-                let state_reader_live = state_reader_clone.clone();
                 let last_message_time_live = last_message_time;
                 move |item: Arc<IotaTypesCheckpointData>| {
-                    let state_reader_inner = state_reader_live.clone();
                     let cp_mask = checkpoint_mask.clone();
                     let tx_mask = transactions_mask.clone();
                     let ev_mask = events_mask.clone();
@@ -1136,7 +1121,6 @@ impl GrpcReader {
                                 item.transactions.clone().into_iter().map(Ok)
                             );
                             match Self::match_checkpoint_filter_or_report_progress(
-                                state_reader_inner.clone(),
                                 scan_stream,
                                 &tx_filter,
                                 &ev_filter,
@@ -1165,7 +1149,6 @@ impl GrpcReader {
 
                         // Use the unified streaming function
                         let mut stream = Box::pin(Self::create_checkpoint_messages_stream(
-                            state_reader_inner.clone(),
                             item.checkpoint_summary.clone(),
                             item.checkpoint_contents.clone(),
                             transaction_stream,

@@ -108,7 +108,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
             queryClient.invalidateQueries({ queryKey: ['get-owned-objects'] });
 
-            ampli.collectibleSent({ collectibleType: objectType || undefined });
+            ampli.sentCollectible({ collectibleType: objectType || undefined });
 
             return navigate(
                 `/receipt?${new URLSearchParams({
