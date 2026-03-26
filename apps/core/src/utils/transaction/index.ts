@@ -15,4 +15,3 @@ export * from './createNftSendValidationSchema';
 export * from './createUnlockTimelockedObjectsTransaction';
 export * from './isMigrationTransaction';
 export * from './isUnlockTimelockedObjectTransaction';
-export * from './getUnwrappedObjectChangesFromEffects';

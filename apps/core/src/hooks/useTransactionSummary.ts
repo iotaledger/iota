@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import {
     DryRunTransactionBlockResponse,
-    type IotaObjectChange,
     type IotaTransactionBlockResponse,
 } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
@@ -15,7 +14,6 @@ import {
     getTransactionAction,
     getObjectChangeSummary,
     getObjectDisplayLookup,
-    getUnwrappedObjectChangesFromEffects,
 } from '../utils';
 import { useMultiGetObjects } from './useMultiGetObjects';
 
@@ -30,57 +28,20 @@ export function useTransactionSummary({
 }) {
     const { objectChanges } = transaction ?? {};
 
-    // Collect object IDs from effects.unwrapped that are missing in objectChanges,
-    // so we can fetch their type information.
-    const missingUnwrappedIds = useMemo(() => {
-        if (!transaction) return [];
-        const effects = 'effects' in transaction ? transaction.effects : undefined;
-        const unwrappedFromEffects = effects?.unwrapped ?? [];
-        if (unwrappedFromEffects.length === 0) return [];
-
-        const existingIds = new Set(
-            (objectChanges ?? [])
-                .filter((c): c is IotaObjectChange & { objectId: string } => 'objectId' in c)
-                .map((c) => c.objectId),
-        );
-
-        return unwrappedFromEffects
-            .map((entry) => entry.reference.objectId)
-            .filter((id) => !existingIds.has(id));
-    }, [transaction, objectChanges]);
-
-    const objectIds = [
-        ...((objectChanges
+    const objectIds =
+        (objectChanges
             ?.map((change) => 'objectId' in change && change.objectId)
-            .filter(Boolean) as string[]) ?? []),
-        ...missingUnwrappedIds,
-    ];
+            .filter(Boolean) as string[]) ?? [];
 
     const { data } = useMultiGetObjects(objectIds, { showDisplay: true, showType: true });
     const lookup = getObjectDisplayLookup(data);
 
-    // Build a lookup from objectId → objectType for synthesized unwrapped entries.
-    const objectTypeLookup = useMemo(() => {
-        const map = new Map<string, string>();
-        if (!data) return map;
-        for (const obj of data) {
-            if (obj.data?.objectId && obj.data.type) {
-                map.set(obj.data.objectId, obj.data.type);
-            }
-        }
-        return map;
-    }, [data]);
-
     const objectChangesWithDisplay = useMemo(() => {
-        const synthesized = transaction
-            ? getUnwrappedObjectChangesFromEffects(transaction, objectTypeLookup)
-            : [];
-
-        return [...(objectChanges ?? []), ...synthesized].map((change) => ({
+        return (objectChanges ?? []).map((change) => ({
             ...change,
             display: 'objectId' in change ? lookup?.get(change.objectId) : null,
         }));
-    }, [lookup, objectChanges, transaction, objectTypeLookup]) as IotaObjectChangeWithDisplay[];
+    }, [lookup, objectChanges]) as IotaObjectChangeWithDisplay[];
 
     const summary = useMemo(() => {
         if (!transaction) return null;
