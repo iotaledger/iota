@@ -15,7 +15,6 @@ use iota_types::{
     execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::MakeMoveVector,
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{account_address::AccountAddress, identifier::IdentStr, u256::U256};

@@ -1853,7 +1853,6 @@ mod tests {
     use iota_types::{
         base_types::{Identifier, ObjectID, random_object_ref},
         error::IotaResult,
-        transaction::{CommandExt, MakeMoveVector},
     };
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;

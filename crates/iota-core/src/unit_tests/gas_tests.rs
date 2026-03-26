@@ -11,7 +11,6 @@ use iota_types::{
     gas_coin::GasCoin,
     object::GAS_VALUE_FOR_TESTING,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::MergeCoins,
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;

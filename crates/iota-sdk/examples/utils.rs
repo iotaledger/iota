@@ -30,7 +30,6 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::crypto::Intent;
-use iota_types::transaction::{MergeCoins, SplitCoins};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
