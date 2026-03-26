@@ -9,9 +9,7 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
-    transaction::{
-        Command, InputObjectKind, Publish, TransactionData, TransactionDataAPI, Upgrade,
-    },
+    transaction::{Command, InputObjectKind, TransactionData, TransactionDataAPI},
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -180,29 +178,23 @@ fn check_package_dependencies(
     let mut dependencies = vec![];
     for command in tx_data.kind().iter_commands() {
         match command {
-            Command::Publish(Publish {
-                dependencies: deps, ..
-            }) => {
+            Command::Publish(cmd) => {
                 // It is possible that the deps list is inaccurate since it's provided
                 // by the user. But that's OK because this publish transaction will fail
                 // to execute in the end. Similar reasoning for Upgrade.
-                dependencies.extend(deps.iter().copied());
+                dependencies.extend(cmd.dependencies.iter().copied());
             }
-            Command::Upgrade(Upgrade {
-                dependencies: deps,
-                package,
-                ..
-            }) => {
-                dependencies.extend(deps.iter().copied());
+            Command::Upgrade(cmd) => {
+                dependencies.extend(cmd.dependencies.iter().copied());
                 // It's crucial that we don't allow upgrading a package in the deny list,
                 // otherwise one can bypass the deny list by upgrading a package.
-                dependencies.push(*package);
+                dependencies.push(cmd.package);
             }
-            Command::MoveCall(call) => {
-                let package = package_store.get_package_object(&call.package)?.ok_or(
+            Command::MoveCall(cmd) => {
+                let package = package_store.get_package_object(&cmd.package)?.ok_or(
                     IotaError::UserInput {
                         error: UserInputError::ObjectNotFound {
-                            object_id: call.package,
+                            object_id: cmd.package,
                             version: None,
                         },
                     },

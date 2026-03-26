@@ -2243,7 +2243,6 @@ impl From<Command> for IotaCommand {
                     elements.into_iter().map(IotaArgument::from).collect(),
                 )
             }
-            // TODO why no modules?
             Command::Upgrade(Upgrade {
                 modules: _,
                 dependencies,
