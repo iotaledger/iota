@@ -6,13 +6,12 @@ use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
 
 use anyhow::{Context, Result, bail};
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{Identifier, ObjectID},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     transaction::{Argument, Command, ProgrammableMoveCall},
 };
 use move_core_types::{
     account_address::AccountAddress,
-    identifier::Identifier,
     parsing::{
         parser::{Parser, Token},
         types::{ParsedType, TypeToken},
@@ -337,15 +336,13 @@ impl ParsedCommand {
         address_mapping: &impl Fn(&str) -> Option<AccountAddress>,
     ) -> Result<Command> {
         Ok(match self {
-            ParsedCommand::MoveCall(c) => {
-                Command::MoveCall(Box::new(c.into_move_call(address_mapping)?))
-            }
+            ParsedCommand::MoveCall(c) => Command::MoveCall(c.into_move_call(address_mapping)?),
             ParsedCommand::TransferObjects(objs, recipient) => {
-                Command::TransferObjects(objs, recipient)
+                Command::new_transfer_objects(objs, recipient)
             }
-            ParsedCommand::SplitCoins(coin, amts) => Command::SplitCoins(coin, amts),
-            ParsedCommand::MergeCoins(target, coins) => Command::MergeCoins(target, coins),
-            ParsedCommand::MakeMoveVec(ty_opt, args) => Command::make_move_vec(
+            ParsedCommand::SplitCoins(coin, amts) => Command::new_split_coins(coin, amts),
+            ParsedCommand::MergeCoins(target, coins) => Command::new_merge_coins(target, coins),
+            ParsedCommand::MakeMoveVec(ty_opt, args) => Command::new_make_move_vector(
                 ty_opt
                     .map(|t| {
                         t.into_type_tag(address_mapping)
@@ -365,7 +362,7 @@ impl ParsedCommand {
                         None => bail!("Unbound dependency '{d}"),
                     })
                     .collect::<Result<Vec<ObjectID>>>()?;
-                Command::Publish(package_contents, dependencies)
+                Command::new_publish(package_contents, dependencies)
             }
             ParsedCommand::Upgrade(staged_package, dependencies, upgraded_package, ticket) => {
                 let Some(package_contents) = staged_packages(&staged_package) else {
@@ -382,7 +379,7 @@ impl ParsedCommand {
                     bail!("Unbound upgraded package '{upgraded_package}'");
                 };
                 let upgraded_package = ObjectID::new(upgraded_package.into_bytes());
-                Command::Upgrade(package_contents, dependencies, upgraded_package, ticket)
+                Command::new_upgrade(package_contents, dependencies, upgraded_package, ticket)
             }
         })
     }
@@ -410,10 +407,11 @@ impl ParsedMoveCall {
                     .map(|tt| type_tag_core_to_sdk(&tt))
             })
             .collect::<Result<_>>()?;
+
         Ok(ProgrammableMoveCall {
             package: ObjectID::new(package.into_bytes()),
-            module: module.to_string(),
-            function: function.to_string(),
+            module,
+            function,
             type_arguments,
             arguments,
         })

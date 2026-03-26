@@ -63,7 +63,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let package = ObjectID::from_hex(pkg_id).map_err(|e| anyhow!(e))?;
     let module = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
     let function = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
-    ptb.command(Command::move_call(
+    ptb.command(Command::new_move_call(
         package,
         module,
         function,

@@ -247,7 +247,8 @@ impl Executor {
             let deps = self.checked_system_packages();
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let upgrade_cap = builder.command(Command::Publish(modules, PACKAGE_DEPS.into()));
+                let upgrade_cap =
+                    builder.command(Command::new_publish(modules, PACKAGE_DEPS.into()));
                 // We make a dummy transfer because the `UpgradeCap` does
                 // not have the drop ability.
                 //

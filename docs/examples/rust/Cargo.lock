@@ -3509,7 +3509,6 @@ dependencies = [
  "hex",
  "im",
  "indexmap 2.13.0",
- "iota-enum-compat-util",
  "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",

@@ -832,7 +832,10 @@ async fn test_entry_point_vector_empty() {
             .unwrap();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::MakeMoveVec(Some(type_tag.clone()), vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(
+            Some(type_tag.clone()),
+            vec![],
+        ));
         builder.programmable_move_call(
             package.object_id,
             Identifier::from_static("entry_point_vector"),
@@ -861,7 +864,10 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector whose type is generic
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::MakeMoveVec(Some(type_tag.clone()), vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(
+            Some(type_tag.clone()),
+            vec![],
+        ));
         builder.programmable_move_call(
             package.object_id,
             Identifier::from_static("entry_point_vector"),
@@ -891,7 +897,7 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector, no type tag
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(None, vec![]));
         builder.programmable_move_call(
             package.object_id,
             Identifier::from_static("entry_point_vector"),
@@ -921,7 +927,7 @@ async fn test_entry_point_vector_empty() {
     // call a function with an empty vector whose type is generic
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        let empty_vec = builder.command(Command::MakeMoveVec(None, vec![]));
+        let empty_vec = builder.command(Command::new_make_move_vector(None, vec![]));
         builder.programmable_move_call(
             package.object_id,
             Identifier::from_static("entry_point_vector"),
@@ -2383,7 +2389,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
         args: Vec<Argument>,
     ) {
         let n = builder.pure(args.len() as u64).unwrap();
-        let vec = builder.command(Command::MakeMoveVec(Some(t.clone()), args));
+        let vec = builder.command(Command::new_make_move_vector(Some(t.clone()), args));
         builder.programmable_move_call(
             package,
             Identifier::from_static("entry_point_types"),
@@ -2502,7 +2508,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
         vec![arg],
     );
     let inner_args = vec![arg, id_result, arg];
-    let vec = builder.command(Command::MakeMoveVec(Some(t.clone()), inner_args));
+    let vec = builder.command(Command::new_make_move_vector(Some(t.clone()), inner_args));
     let args = vec![vec, vec, vec];
     make_and_drop(
         &mut builder,
@@ -2652,7 +2658,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     // single without a type argument
     let mut builder = ProgrammableTransactionBuilder::new();
     let arg = builder.pure(value.clone()).unwrap();
-    builder.command(Command::MakeMoveVec(None, vec![arg]));
+    builder.command(Command::new_make_move_vector(None, vec![arg]));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2681,7 +2687,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     // invalid bcs
     let mut builder = ProgrammableTransactionBuilder::new();
     let args = vec![builder.pure_bytes(ALWAYS_INVALID_BYTES.to_vec(), false)];
-    builder.command(Command::MakeMoveVec(Some(t.clone()), args));
+    builder.command(Command::new_make_move_vector(Some(t.clone()), args));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2712,7 +2718,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
         builder.pure(value).unwrap(),
         builder.pure_bytes(ALWAYS_INVALID_BYTES.to_vec(), false),
     ];
-    builder.command(Command::MakeMoveVec(Some(t), args));
+    builder.command(Command::new_make_move_vector(Some(t.clone()), args));
     let pt = builder.finish();
     let effects = execute_programmable_transaction(
         authority,
@@ -2835,7 +2841,7 @@ async fn test_make_move_vec_empty() {
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.command(Command::MakeMoveVec(None, vec![]));
+    builder.command(Command::new_make_move_vector(None, vec![]));
     let pt = builder.finish();
     let result = execute_programmable_transaction(
         &authority,

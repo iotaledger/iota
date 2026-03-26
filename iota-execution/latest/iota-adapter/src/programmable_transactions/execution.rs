@@ -37,7 +37,7 @@ mod checked {
         },
         object::OBJECT_START_VERSION,
         storage::{PackageObject, get_package_objects},
-        transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
+        transaction::{Command, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
     };
     use iota_verifier::{
@@ -155,10 +155,10 @@ mod checked {
     ) -> Result<(), ExecutionError> {
         let mut argument_updates = Mode::empty_arguments();
         let results = match command {
-            Command::MakeMoveVec(tag_opt, args) if args.is_empty() => {
-                let Some(tag) = tag_opt else {
+            Command::MakeMoveVector(cmd) if cmd.elements.is_empty() => {
+                let Some(tag) = cmd.type_ else {
                     invariant_violation!(
-                        "input checker ensures if args are empty, there is a type specified"
+                        "input checker ensures if elements are empty, there is a type specified"
                     );
                 };
 
@@ -186,12 +186,12 @@ mod checked {
                     bytes,
                 )]
             }
-            Command::MakeMoveVec(tag_opt, args) => {
-                let args = context.splat_args(0, args)?;
+            Command::MakeMoveVector(cmd) => {
+                let args = context.splat_args(0, cmd.elements)?;
                 let mut res = vec![];
                 leb128::write::unsigned(&mut res, args.len() as u64).unwrap();
                 let mut arg_iter = args.into_iter().enumerate();
-                let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
+                let (mut used_in_non_entry_move_call, elem_ty) = match cmd.type_ {
                     Some(tag) => {
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
@@ -240,10 +240,10 @@ mod checked {
                     res,
                 )]
             }
-            Command::TransferObjects(objs, addr_arg) => {
-                let unsplat_objs_len = objs.len();
-                let objs = context.splat_args(0, objs)?;
-                let addr_arg = context.one_arg(unsplat_objs_len, addr_arg)?;
+            Command::TransferObjects(cmd) => {
+                let unsplat_objs_len = cmd.objects.len();
+                let objs = context.splat_args(0, cmd.objects)?;
+                let addr_arg = context.one_arg(unsplat_objs_len, cmd.address)?;
                 let objs: Vec<ObjectValue> = objs
                     .into_iter()
                     .enumerate()
@@ -257,9 +257,9 @@ mod checked {
                 }
                 vec![]
             }
-            Command::SplitCoins(coin_arg, amount_args) => {
-                let coin_arg = context.one_arg(0, coin_arg)?;
-                let amount_args = context.splat_args(1, amount_args)?;
+            Command::SplitCoins(cmd) => {
+                let coin_arg = context.one_arg(0, cmd.coin)?;
+                let amount_args = context.splat_args(1, cmd.amounts)?;
                 let mut obj: ObjectValue = context.borrow_arg_mut(0, coin_arg)?;
                 let ObjectContents::Coin(coin) = &mut obj.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -287,9 +287,9 @@ mod checked {
                 context.restore_arg::<Mode>(&mut argument_updates, coin_arg, Value::Object(obj))?;
                 split_coins
             }
-            Command::MergeCoins(target_arg, coin_args) => {
-                let target_arg = context.one_arg(0, target_arg)?;
-                let coin_args = context.splat_args(1, coin_args)?;
+            Command::MergeCoins(cmd) => {
+                let target_arg = context.one_arg(0, cmd.coin)?;
+                let coin_args = context.splat_args(1, cmd.coins_to_merge)?;
                 let mut target: ObjectValue = context.borrow_arg_mut(0, target_arg)?;
                 let ObjectContents::Coin(target_coin) = &mut target.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -329,32 +329,26 @@ mod checked {
                 )?;
                 vec![]
             }
-            Command::MoveCall(move_call) => {
-                let ProgrammableMoveCall {
-                    package,
-                    module,
-                    function,
-                    type_arguments,
-                    arguments,
-                } = *move_call;
-                let arguments = context.splat_args(0, arguments)?;
+            Command::MoveCall(cmd) => {
+                let arguments = context.splat_args(0, cmd.arguments)?;
 
-                let module = to_identifier(context, module)?;
-                let function = to_identifier(context, function)?;
+                let module = validate_identifier(context, cmd.module.as_str())?;
+                let function = validate_identifier(context, cmd.function.as_str())?;
 
                 // Convert type arguments to `Type`s
-                let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
-                for (ix, type_arg) in type_arguments.into_iter().enumerate() {
+                let mut loaded_type_arguments = Vec::with_capacity(cmd.type_arguments.len());
+                for (ix, type_arg) in cmd.type_arguments.into_iter().enumerate() {
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
                     loaded_type_arguments.push(ty);
                 }
 
-                let original_address = context.set_link_context(package)?;
-                let storage_id = ModuleId::new(AccountAddress::new(package.into_bytes()), unsafe {
-                    move_core_types::identifier::Identifier::new_unchecked(module.as_str())
-                });
+                let original_address = context.set_link_context(cmd.package)?;
+                let storage_id =
+                    ModuleId::new(AccountAddress::new(cmd.package.into_bytes()), unsafe {
+                        move_core_types::identifier::Identifier::new_unchecked(module.as_str())
+                    });
                 let runtime_id = ModuleId::new(original_address, unsafe {
                     move_core_types::identifier::Identifier::new_unchecked(module.as_str())
                 });
@@ -374,23 +368,24 @@ mod checked {
                 context.linkage_view.reset_linkage();
                 return_values?
             }
-            Command::Publish(modules, dep_ids) => execute_move_publish::<Mode>(
+            Command::Publish(cmd) => execute_move_publish::<Mode>(
                 context,
                 &mut argument_updates,
-                modules,
-                dep_ids,
+                cmd.modules,
+                cmd.dependencies,
                 trace_builder_opt,
             )?,
-            Command::Upgrade(modules, dep_ids, current_package_id, upgrade_ticket) => {
-                let upgrade_ticket = context.one_arg(0, upgrade_ticket)?;
+            Command::Upgrade(cmd) => {
+                let ticket = context.one_arg(0, cmd.ticket)?;
                 execute_move_upgrade::<Mode>(
                     context,
-                    modules,
-                    dep_ids,
-                    current_package_id,
-                    upgrade_ticket,
+                    cmd.modules,
+                    cmd.dependencies,
+                    cmd.package,
+                    ticket,
                 )?
             }
+            _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         };
 
         Mode::finish_command(context, mode_results, argument_updates, &results)?;
@@ -1733,9 +1728,9 @@ mod checked {
         Ok(())
     }
 
-    fn to_identifier(
+    fn validate_identifier(
         context: &mut ExecutionContext<'_, '_, '_>,
-        ident: String,
+        ident: &str,
     ) -> Result<Identifier, ExecutionError> {
         if context.protocol_config.validate_identifier_inputs() {
             Identifier::new(ident).map_err(|e| {
@@ -1746,7 +1741,7 @@ mod checked {
             })
         } else {
             // SAFETY: Preserving existing behaviour for identifier deserialization.
-            Ok(Identifier::new_unchecked(&ident))
+            Ok(Identifier::new_unchecked(ident))
         }
     }
 
