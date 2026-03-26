@@ -8,6 +8,7 @@ import {
     IOTA_CLOCK_OBJECT_ID,
     IOTA_SYSTEM_ADDRESS,
 } from '@iota/iota-sdk/utils';
+import { NestedResultType } from '../../types';
 
 // Timelocked stake: fields.staked_iota.fields.{pool_id, stake_activation_epoch}
 export interface TimelockedStakeObjectInput {
@@ -51,7 +52,7 @@ export function createCollectAllTimelocksTransaction({
     existingStakedObjects = [],
 }: CreateCollectAllTimelocksTransactionOptions) {
     const ptb = new Transaction();
-    const coins: { $kind: 'NestedResult'; NestedResult: [number, number] }[] = [];
+    const coins: NestedResultType[] = [];
 
     // Unlock regular timelocks and convert to coins
     for (const objectId of timelockObjectIds) {
@@ -71,10 +72,7 @@ export function createCollectAllTimelocksTransaction({
     }
 
     // Unlock timelock stakes and group by (pool_id, stake_activation_epoch)
-    const stakedIotaByKey = new Map<
-        string,
-        { $kind: 'NestedResult'; NestedResult: [number, number] }[]
-    >();
+    const stakedIotaByKey = new Map<string, NestedResultType[]>();
 
     for (const stakedObject of timelockedStakedObjects) {
         const [unlockedStakedIota] = ptb.moveCall({

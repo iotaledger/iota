@@ -11,11 +11,7 @@ import {
     NftOutputObject,
     NftOutputObjectSchema,
 } from './types';
-
-type NestedResultType = {
-    $kind: 'NestedResult';
-    NestedResult: [number, number];
-};
+import { NestedResultType } from '../../types';
 
 export async function getNativeTokensFromBag(bagId: string, client: IotaClient) {
     const nativeTokenDynamicFields = await client.getDynamicFields({
