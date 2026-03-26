@@ -17,10 +17,7 @@ use iota_types::{
     iota_sdk_types_conversions::{struct_tag_sdk_to_core, type_tag_core_to_sdk},
     move_package::{MovePackage, TypeOrigin},
     object::Object,
-    transaction::{
-        Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction, SplitCoins,
-        TransferObjects,
-    },
+    transaction::{Argument, CallArg, Command, MakeMoveVector, ProgrammableTransaction},
 };
 use lru::LruCache;
 use move_binary_format::{
@@ -539,28 +536,26 @@ impl<S: PackageStore> Resolver<S> {
         // (1). Infer type tags for pure inputs from their uses.
         for cmd in &tx.commands {
             match cmd {
-                Command::MoveCall(call) => {
+                Command::MoveCall(cmd) => {
                     let Ok(signature) = self
                         .function_signature(
-                            call.package.into(),
-                            call.module.as_str(),
-                            call.function.as_str(),
+                            cmd.package.into(),
+                            cmd.module.as_str(),
+                            cmd.function.as_str(),
                         )
                         .await
                     else {
                         continue;
                     };
 
-                    for (open_sig, arg) in signature.parameters.iter().zip(call.arguments.iter()) {
-                        let sig = open_sig.instantiate(&call.type_arguments)?;
+                    for (open_sig, arg) in signature.parameters.iter().zip(cmd.arguments.iter()) {
+                        let sig = open_sig.instantiate(&cmd.type_arguments)?;
                         register_type(arg, &sig.body)?;
                     }
                 }
-                Command::TransferObjects(TransferObjects { address, .. }) => {
-                    register_type(address, &TypeTag::Address)?
-                }
-                Command::SplitCoins(SplitCoins { amounts, .. }) => {
-                    for amount in amounts {
+                Command::TransferObjects(cmd) => register_type(&cmd.address, &TypeTag::Address)?,
+                Command::SplitCoins(cmd) => {
+                    for amount in &cmd.amounts {
                         register_type(amount, &TypeTag::U64)?;
                     }
                 }
