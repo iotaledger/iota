@@ -31,8 +31,8 @@ service LedgerService {
   rpc GetTransactions(GetTransactionsRequest) returns (stream GetTransactionsResponse);
 
   // Checkpoint operations
-  rpc GetCheckpointData (GetCheckpointDataRequest) returns (stream CheckpointData);
-  rpc StreamCheckpointData (CheckpointDataStreamRequest) returns (stream CheckpointData);
+  rpc GetCheckpoint (GetCheckpointRequest) returns (stream CheckpointData);
+  rpc StreamCheckpoints (StreamCheckpointsRequest) returns (stream CheckpointData);
 
   rpc GetEpoch(GetEpochRequest) returns (GetEpochResponse);
 }
@@ -187,7 +187,7 @@ message GetTransactionsResponse {
   bool has_next = 2;
 }
 
-message GetCheckpointDataRequest {
+message GetCheckpointRequest {
   option (iota.grpc.message_accessors) = "with";
 
   oneof checkpoint_id {
@@ -216,7 +216,7 @@ message GetCheckpointDataRequest {
   optional uint32 max_message_size_bytes = 7;
 }
 
-message CheckpointDataStreamRequest {
+message StreamCheckpointsRequest {
   option (iota.grpc.message_accessors) = "with";
 
   // if no start sequence number is provided, streaming starts from the latest checkpoint

@@ -903,7 +903,7 @@ mod _field_impls {
             self.finish()
         }
     }
-    impl GetCheckpointDataRequest {
+    impl GetCheckpointRequest {
         pub const LATEST_FIELD: &'static MessageField = &MessageField {
             name: "latest",
             json_name: "latest",
@@ -961,10 +961,10 @@ mod _field_impls {
             message_fields: None,
         };
     }
-    impl GetCheckpointDataRequest {
+    impl GetCheckpointRequest {
         pub const CHECKPOINT_ID_ONEOF: &'static str = "checkpoint_id";
     }
-    impl MessageFields for GetCheckpointDataRequest {
+    impl MessageFields for GetCheckpointRequest {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::LATEST_FIELD,
             Self::SEQUENCE_NUMBER_FIELD,
@@ -975,15 +975,15 @@ mod _field_impls {
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
     }
-    impl GetCheckpointDataRequest {
-        pub fn path_builder() -> GetCheckpointDataRequestFieldPathBuilder {
-            GetCheckpointDataRequestFieldPathBuilder::new()
+    impl GetCheckpointRequest {
+        pub fn path_builder() -> GetCheckpointRequestFieldPathBuilder {
+            GetCheckpointRequestFieldPathBuilder::new()
         }
     }
-    pub struct GetCheckpointDataRequestFieldPathBuilder {
+    pub struct GetCheckpointRequestFieldPathBuilder {
         path: Vec<&'static str>,
     }
-    impl GetCheckpointDataRequestFieldPathBuilder {
+    impl GetCheckpointRequestFieldPathBuilder {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self { path: Default::default() }
@@ -996,35 +996,35 @@ mod _field_impls {
             self.path.join(".")
         }
         pub fn latest(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::LATEST_FIELD.name);
+            self.path.push(GetCheckpointRequest::LATEST_FIELD.name);
             self.finish()
         }
         pub fn sequence_number(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::SEQUENCE_NUMBER_FIELD.name);
+            self.path.push(GetCheckpointRequest::SEQUENCE_NUMBER_FIELD.name);
             self.finish()
         }
         pub fn digest(mut self) -> DigestFieldPathBuilder {
-            self.path.push(GetCheckpointDataRequest::DIGEST_FIELD.name);
+            self.path.push(GetCheckpointRequest::DIGEST_FIELD.name);
             DigestFieldPathBuilder::new_with_base(self.path)
         }
         pub fn read_mask(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::READ_MASK_FIELD.name);
+            self.path.push(GetCheckpointRequest::READ_MASK_FIELD.name);
             self.finish()
         }
         pub fn transactions_filter(mut self) -> TransactionFilterFieldPathBuilder {
-            self.path.push(GetCheckpointDataRequest::TRANSACTIONS_FILTER_FIELD.name);
+            self.path.push(GetCheckpointRequest::TRANSACTIONS_FILTER_FIELD.name);
             TransactionFilterFieldPathBuilder::new_with_base(self.path)
         }
         pub fn events_filter(mut self) -> EventFilterFieldPathBuilder {
-            self.path.push(GetCheckpointDataRequest::EVENTS_FILTER_FIELD.name);
+            self.path.push(GetCheckpointRequest::EVENTS_FILTER_FIELD.name);
             EventFilterFieldPathBuilder::new_with_base(self.path)
         }
         pub fn max_message_size_bytes(mut self) -> String {
-            self.path.push(GetCheckpointDataRequest::MAX_MESSAGE_SIZE_BYTES_FIELD.name);
+            self.path.push(GetCheckpointRequest::MAX_MESSAGE_SIZE_BYTES_FIELD.name);
             self.finish()
         }
     }
-    impl CheckpointDataStreamRequest {
+    impl StreamCheckpointsRequest {
         pub const START_SEQUENCE_NUMBER_FIELD: &'static MessageField = &MessageField {
             name: "start_sequence_number",
             json_name: "startSequenceNumber",
@@ -1090,7 +1090,7 @@ mod _field_impls {
             message_fields: None,
         };
     }
-    impl MessageFields for CheckpointDataStreamRequest {
+    impl MessageFields for StreamCheckpointsRequest {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::START_SEQUENCE_NUMBER_FIELD,
             Self::END_SEQUENCE_NUMBER_FIELD,
@@ -1102,15 +1102,15 @@ mod _field_impls {
             Self::MAX_MESSAGE_SIZE_BYTES_FIELD,
         ];
     }
-    impl CheckpointDataStreamRequest {
-        pub fn path_builder() -> CheckpointDataStreamRequestFieldPathBuilder {
-            CheckpointDataStreamRequestFieldPathBuilder::new()
+    impl StreamCheckpointsRequest {
+        pub fn path_builder() -> StreamCheckpointsRequestFieldPathBuilder {
+            StreamCheckpointsRequestFieldPathBuilder::new()
         }
     }
-    pub struct CheckpointDataStreamRequestFieldPathBuilder {
+    pub struct StreamCheckpointsRequestFieldPathBuilder {
         path: Vec<&'static str>,
     }
-    impl CheckpointDataStreamRequestFieldPathBuilder {
+    impl StreamCheckpointsRequestFieldPathBuilder {
         #[allow(clippy::new_without_default)]
         pub fn new() -> Self {
             Self { path: Default::default() }
@@ -1123,37 +1123,35 @@ mod _field_impls {
             self.path.join(".")
         }
         pub fn start_sequence_number(mut self) -> String {
-            self.path
-                .push(CheckpointDataStreamRequest::START_SEQUENCE_NUMBER_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::START_SEQUENCE_NUMBER_FIELD.name);
             self.finish()
         }
         pub fn end_sequence_number(mut self) -> String {
-            self.path.push(CheckpointDataStreamRequest::END_SEQUENCE_NUMBER_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::END_SEQUENCE_NUMBER_FIELD.name);
             self.finish()
         }
         pub fn read_mask(mut self) -> String {
-            self.path.push(CheckpointDataStreamRequest::READ_MASK_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::READ_MASK_FIELD.name);
             self.finish()
         }
         pub fn transactions_filter(mut self) -> TransactionFilterFieldPathBuilder {
-            self.path.push(CheckpointDataStreamRequest::TRANSACTIONS_FILTER_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::TRANSACTIONS_FILTER_FIELD.name);
             TransactionFilterFieldPathBuilder::new_with_base(self.path)
         }
         pub fn events_filter(mut self) -> EventFilterFieldPathBuilder {
-            self.path.push(CheckpointDataStreamRequest::EVENTS_FILTER_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::EVENTS_FILTER_FIELD.name);
             EventFilterFieldPathBuilder::new_with_base(self.path)
         }
         pub fn filter_checkpoints(mut self) -> String {
-            self.path.push(CheckpointDataStreamRequest::FILTER_CHECKPOINTS_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::FILTER_CHECKPOINTS_FIELD.name);
             self.finish()
         }
         pub fn progress_interval_ms(mut self) -> String {
-            self.path.push(CheckpointDataStreamRequest::PROGRESS_INTERVAL_MS_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::PROGRESS_INTERVAL_MS_FIELD.name);
             self.finish()
         }
         pub fn max_message_size_bytes(mut self) -> String {
-            self.path
-                .push(CheckpointDataStreamRequest::MAX_MESSAGE_SIZE_BYTES_FIELD.name);
+            self.path.push(StreamCheckpointsRequest::MAX_MESSAGE_SIZE_BYTES_FIELD.name);
             self.finish()
         }
     }

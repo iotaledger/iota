@@ -896,25 +896,25 @@ async fn collect_checkpoint_data_stream(
     (all_messages, tx_batch_sizes, event_batch_sizes)
 }
 
-/// Issue a `GetCheckpointData` request via the raw tonic client.
-async fn get_checkpoint_data_raw(
+/// Issue a `GetCheckpoint` request via the raw tonic client.
+async fn get_checkpoint_raw(
     client: &mut iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient<
         tonic::transport::Channel,
     >,
     read_mask: &str,
     max_message_size: u32,
 ) -> tonic::codec::Streaming<iota_grpc_types::v0::ledger_service::CheckpointData> {
-    use iota_grpc_types::{field::FieldMaskUtil, v0::ledger_service::GetCheckpointDataRequest};
+    use iota_grpc_types::{field::FieldMaskUtil, v0::ledger_service::GetCheckpointRequest};
 
-    let req = GetCheckpointDataRequest::default()
+    let req = GetCheckpointRequest::default()
         .with_sequence_number(0)
         .with_read_mask(prost_types::FieldMask::from_str(read_mask))
         .with_max_message_size_bytes(max_message_size);
 
     client
-        .get_checkpoint_data(req)
+        .get_checkpoint(req)
         .await
-        .expect("get_checkpoint_data should succeed")
+        .expect("get_checkpoint should succeed")
         .into_inner()
 }
 
@@ -956,7 +956,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     let read_mask = "checkpoint.summary,transactions";
 
     // --- Pass 1: unlimited (128 MB) → measure single-batch encoded size ---
-    let stream = get_checkpoint_data_raw(&mut client, read_mask, 128 * 1024 * 1024).await;
+    let stream = get_checkpoint_raw(&mut client, read_mask, 128 * 1024 * 1024).await;
     let (_, tx_sizes_unlimited, _) = collect_checkpoint_data_stream(stream).await;
     assert_eq!(
         tx_sizes_unlimited.len(),
@@ -971,7 +971,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
     );
 
     // --- Pass 2: exact limit → should still fit in one batch ---
-    let stream = get_checkpoint_data_raw(&mut client, read_mask, exact_batch_size).await;
+    let stream = get_checkpoint_raw(&mut client, read_mask, exact_batch_size).await;
     let (_, tx_sizes_exact, _) = collect_checkpoint_data_stream(stream).await;
     assert_eq!(
         tx_sizes_exact.len(),
@@ -981,7 +981,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
 
     // --- Pass 3: exact - 1 → must split ---
     let tight_limit = exact_batch_size - 1;
-    let stream = get_checkpoint_data_raw(&mut client, read_mask, tight_limit).await;
+    let stream = get_checkpoint_raw(&mut client, read_mask, tight_limit).await;
     let (all_messages, tx_sizes_split, _) = collect_checkpoint_data_stream(stream).await;
     assert!(
         tx_sizes_split.len() > 1,
@@ -1037,7 +1037,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     let read_mask = "checkpoint.summary,events";
 
     // --- Pass 1: unlimited (128 MB) → measure single-batch encoded size ---
-    let stream = get_checkpoint_data_raw(&mut client, read_mask, 128 * 1024 * 1024).await;
+    let stream = get_checkpoint_raw(&mut client, read_mask, 128 * 1024 * 1024).await;
     let (_, _, event_sizes_unlimited) = collect_checkpoint_data_stream(stream).await;
     assert_eq!(
         event_sizes_unlimited.len(),
@@ -1052,7 +1052,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
     );
 
     // --- Pass 2: exact limit → should still fit in one batch ---
-    let stream = get_checkpoint_data_raw(&mut client, read_mask, exact_batch_size).await;
+    let stream = get_checkpoint_raw(&mut client, read_mask, exact_batch_size).await;
     let (_, _, event_sizes_exact) = collect_checkpoint_data_stream(stream).await;
     assert_eq!(
         event_sizes_exact.len(),
@@ -1062,7 +1062,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
 
     // --- Pass 3: exact - 1 → must split ---
     let tight_limit = exact_batch_size - 1;
-    let stream = get_checkpoint_data_raw(&mut client, read_mask, tight_limit).await;
+    let stream = get_checkpoint_raw(&mut client, read_mask, tight_limit).await;
     let (all_messages, _, event_sizes_split) = collect_checkpoint_data_stream(stream).await;
     assert!(
         event_sizes_split.len() > 1,

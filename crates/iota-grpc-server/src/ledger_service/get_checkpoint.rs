@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of the `get_checkpoint` and `stream_checkpoint_data` methods
+//! Implementation of the `get_checkpoint` and `stream_checkpoints` methods
 //! of the LedgerService.
 //!
 //! # Available Read Mask Fields
@@ -222,19 +222,17 @@ fn parse_checkpoint_read_mask(
 ///   - `sequence_number` - the sequence number of the checkpoint to fetch
 ///   - `digest` - the digest of the checkpoint to fetch
 ///   - `latest` - if set, fetches the latest checkpoint
-pub(crate) fn get_checkpoint_data(
+pub(crate) fn get_checkpoint(
     service: &LedgerGrpcService,
-    request: Request<grpc_ledger_service::GetCheckpointDataRequest>,
+    request: Request<grpc_ledger_service::GetCheckpointRequest>,
 ) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
     let req = request.into_inner();
 
     // determine if we need to get the checkpoint based on the sequential number,
     // digest or the latest one.
     let sequence_number = match req.checkpoint_id {
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::SequenceNumber(
-            seq,
-        )) => seq,
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Digest(digest)) => {
+        Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::SequenceNumber(seq)) => seq,
+        Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::Digest(digest)) => {
             let sdk_digest: iota_sdk_types::Digest = (&digest)
                 .try_into()
                 .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
@@ -245,7 +243,7 @@ pub(crate) fn get_checkpoint_data(
                 .map_err(|e| Status::internal(format!("failed to get checkpoint by digest: {e}")))?
                 .ok_or(Status::not_found("checkpoint not found"))?
         }
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Latest(_)) => service
+        Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::Latest(_)) => service
             .reader
             .get_latest_checkpoint_sequence_number()
             .map_err(|e| Status::internal(format!("failed to get latest checkpoint: {e}")))?
@@ -342,9 +340,9 @@ pub(crate) fn get_checkpoint_data(
 /// * `max_message_size_bytes` - Optional maximum message size in bytes that the
 ///   client can handle. The server will use this to limit the size of the
 ///   response and avoid sending messages that are too large.
-pub(crate) fn stream_checkpoint_data(
+pub(crate) fn stream_checkpoints(
     service: &LedgerGrpcService,
-    request: Request<grpc_ledger_service::CheckpointDataStreamRequest>,
+    request: Request<grpc_ledger_service::StreamCheckpointsRequest>,
 ) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
     let req = request.into_inner();
     let start_sequence_number = req.start_sequence_number;

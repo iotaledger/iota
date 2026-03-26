@@ -4,8 +4,8 @@
 use iota_grpc_types::{
     headers,
     v0::ledger_service::{
-        CheckpointDataStreamRequest, GetCheckpointDataRequest, GetEpochRequest, GetObjectsRequest,
-        GetServiceInfoRequest, GetTransactionsRequest,
+        GetCheckpointRequest, GetEpochRequest, GetObjectsRequest, GetServiceInfoRequest,
+        GetTransactionsRequest, StreamCheckpointsRequest,
     },
 };
 use iota_macros::sim_test;
@@ -107,38 +107,38 @@ async fn test_response_headers() {
         assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
-    // Test get_checkpoint_data
+    // Test get_checkpoint
     {
-        let request = GetCheckpointDataRequest::default().with_latest(true);
+        let request = GetCheckpointRequest::default().with_latest(true);
 
         let stream = ledger_client
-            .get_checkpoint_data(request)
+            .get_checkpoint(request)
             .await
-            .expect("gRPC call to get_checkpoint_data");
+            .expect("gRPC call to get_checkpoint");
 
         // Get metadata from the response
         let metadata = stream.metadata();
-        verify_iota_headers(metadata, "get_checkpoint_data");
+        verify_iota_headers(metadata, "get_checkpoint");
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);
         assert!(epoch >= 1, "epoch should be at least 1, got {epoch}");
     }
 
-    // Test stream_checkpoint_data
+    // Test stream_checkpoints
     {
-        let request = CheckpointDataStreamRequest::default()
+        let request = StreamCheckpointsRequest::default()
             .with_start_sequence_number(1)
             .with_end_sequence_number(2);
 
         let stream = ledger_client
-            .stream_checkpoint_data(request)
+            .stream_checkpoints(request)
             .await
-            .expect("gRPC call to stream_checkpoint_data");
+            .expect("gRPC call to stream_checkpoints");
 
         // Get metadata from the response
         let metadata = stream.metadata();
-        verify_iota_headers(metadata, "stream_checkpoint_data");
+        verify_iota_headers(metadata, "stream_checkpoints");
 
         // Verify epoch value
         let epoch = parse_u64_header(metadata, headers::X_IOTA_EPOCH);

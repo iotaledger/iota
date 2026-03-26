@@ -72,7 +72,7 @@ pub const GET_TRANSACTIONS_READ_MASK: &str =
 /// Default read mask for `get_objects`.
 pub const GET_OBJECTS_READ_MASK: &str = field_mask!("reference", "bcs");
 
-/// Default read mask for `get_checkpoint` / `stream_checkpoint_data`.
+/// Default read mask for `get_checkpoint` / `stream_checkpoints`.
 pub const GET_CHECKPOINT_READ_MASK: &str = field_mask!("checkpoint.summary");
 
 /// Default read mask for `execute_transaction`.
