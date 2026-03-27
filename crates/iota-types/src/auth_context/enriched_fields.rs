@@ -221,6 +221,30 @@ pub fn enrich_object_arg(
     }
 }
 
+/// Returns the pure-input arguments of a built-in PTB command together with
+/// their expected Move type, derived from protocol constants.
+///
+/// The Move VM has no knowledge of built-in commands, so types must be
+/// inferred from the PTB protocol:
+///   - `TransferObjects` recipient     → `address`
+///   - `SplitCoins` amounts            → `u64`
+///   - `MakeMoveVec(Some<T>, _)`       → `T` (per element)
+///   - `MakeMoveVec(None, _)`          → `None` per element (type unknown)
+///   - everything else                 → no pure inputs
+pub fn pure_param_types_for_cmd(cmd: &Command) -> Vec<(&Argument, Option<TypeTag>)> {
+    match cmd {
+        Command::TransferObjects(_, recipient) => vec![(recipient, Some(TypeTag::Address))],
+        Command::SplitCoins(_, amounts) => {
+            amounts.iter().map(|a| (a, Some(TypeTag::U64))).collect()
+        }
+        Command::MakeMoveVec(ty_input_opt, args) => {
+            let tag = ty_input_opt.as_ref().and_then(|ty| ty.as_type_tag().ok());
+            args.iter().map(|a| (a, tag.clone())).collect()
+        }
+        _ => vec![],
+    }
+}
+
 /// Converts a non-[`Command::MoveCall`] command into a
 /// [`MoveEnrichedCommand`].
 ///

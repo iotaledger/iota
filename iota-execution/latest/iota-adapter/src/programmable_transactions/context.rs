@@ -1800,7 +1800,7 @@ mod checked {
         module_name: &str,
         function_name: &str,
         type_tags: &[TypeTag],
-    ) -> VMResult<(LoadedFunctionInstantiation, bool, Vec<Option<TypeTag>>)> {
+    ) -> VMResult<(LoadedFunctionInstantiation, bool, Vec<TypeTag>)> {
         let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
 
         // Load type arguments first; each struct call internally sets/resets linkage.
@@ -1849,8 +1849,17 @@ mod checked {
         let returns = loaded_fn
             .return_
             .iter()
-            .map(|ty| type_to_type_tag_with_subst(vm, ty, type_tags))
-            .collect();
+            .map(|ty| {
+                type_to_type_tag_with_subst(vm, ty, type_tags).ok_or_else(|| {
+                    PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                        .with_message(format!(
+                            "Failed to resolve return type tag for {:?}",
+                            ty
+                        ))
+                        .finish(Location::Undefined)
+                })
+            })
+            .collect::<VMResult<Vec<_>>>()?;
 
         Ok((loaded_fn, is_entry, returns))
     }

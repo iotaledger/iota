@@ -29,6 +29,7 @@ mod checked {
             AuthContext, MoveEnrichedCallArg, MoveEnrichedCommand,
             enriched_fields::{
                 enrich_move_call_command, enrich_non_move_call_command, enrich_object_arg,
+                pure_param_types_for_cmd,
             },
         },
         authenticator_state::{
@@ -73,7 +74,6 @@ mod checked {
     use move_core_types::language_storage::TypeTag;
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
-    use move_vm_types::loaded_data::runtime_types::Type;
     use tracing::{info, instrument, trace, warn};
 
     use crate::{
@@ -2117,52 +2117,6 @@ mod checked {
     /// - **Protocol constants** — fixed by the IOTA protocol spec:
     ///   `TransferObjects(_, recipient)` → `Some(address)` `SplitCoins(_,
     ///   amounts)`        → `Some(u64)` per amount
-    ///
-    /// - **PTB-supplied type annotation** — provided explicitly by the sender:
-    ///   `MakeMoveVec(Some<T>, items)`   → `Some(T)` per item
-    ///   `MakeMoveVec(None, items)`      → `None` per item (type unknown)
-    ///
-    /// Returns `None` when the type cannot be determined; the argument will
-    /// receive an empty-name sentinel in the enriched output.
-    fn pure_param_types_for_cmd(cmd: &Command) -> Vec<(&Argument, Option<TypeTag>)> {
-        match cmd {
-            Command::TransferObjects(_, recipient) => vec![(recipient, Some(TypeTag::Address))],
-            Command::SplitCoins(_, amounts) => {
-                amounts.iter().map(|a| (a, Some(TypeTag::U64))).collect()
-            }
-            Command::MakeMoveVec(ty_input_opt, args) => {
-                let tag = ty_input_opt.as_ref().and_then(|ty| ty.as_type_tag().ok());
-                args.iter().map(|a| (a, tag.clone())).collect()
-            }
-            _ => vec![],
-        }
-    }
-
-    /// Stores the inferred type for a single pure `Argument::Input(i)` in the
-    /// index.  Silently ignores non-`Input` arguments (`Result`, `GasCoin`),
-    /// which never correspond to a PTB input slot.
-    fn set_pure_input_type(
-        input_type_names: &mut HashMap<u16, TypeName>,
-        arg: &Argument,
-        tag: &TypeTag,
-    ) {
-        if let Argument::Input(i) = arg {
-            input_type_names
-                .entry(*i)
-                .or_insert_with(|| TypeName::from(tag));
-        }
-    }
-
-    /// Populates `input_type_names` with the expected type of every pure
-    /// `Input(i)` argument referenced by a built-in PTB command.
-    fn index_pure_inputs_for_builtin(cmd: &Command, input_type_names: &mut HashMap<u16, TypeName>) {
-        for (arg, tag_opt) in pure_param_types_for_cmd(cmd) {
-            if let Some(tag) = tag_opt {
-                set_pure_input_type(input_type_names, arg, &tag);
-            }
-        }
-    }
-
     /// Produces the typed, enriched view of `ptb` that is passed to the
     /// authenticator function as [`AuthContext`].
     ///
@@ -2192,23 +2146,17 @@ mod checked {
             .map(|o| (o.id(), o))
             .collect();
 
-        // Per-input metadata tables, keyed by `Argument::Input` index.
-        // Populated during the command loop below and consumed in Pass 2.
-        //
-        //   input_type_names[i]  — the Move TypeName of pure Input(i),
-        //                          derived from the function signature or
-        //                          from the built-in command's protocol type.
-        //   input_is_mutable[i]  — true when object Input(i) is passed as
-        //                          `&mut` in at least one MoveCall.
+        // `input_type_names[i]` — the Move TypeName of pure Input(i), derived
+        // from the MoveCall function signature or from the built-in command's
+        // protocol type (e.g. `u64` for SplitCoins amounts).
         let mut input_type_names: HashMap<u16, TypeName> = HashMap::new();
-        let mut input_is_mutable: HashMap<u16, bool> = HashMap::new();
 
         // Command loop (Pass 1).
         //
         // Walk every PTB command once to:
         //   a) Build its enriched representation (`MoveEnrichedCommand`).
-        //   b) Collect per-input metadata into `input_type_names` and
-        //      `input_is_mutable` for use in Pass 2.
+        //   b) Collect pure-input type names into `input_type_names` for
+        //      use in Pass 2.
         //
         // For `MoveCall`: the Move VM loads the function signature, giving us
         // concrete parameter types for every argument.  Generic type params
@@ -2216,13 +2164,16 @@ mod checked {
         // arguments via `type_to_type_tag_with_subst`.
         //
         // For built-in commands (`TransferObjects`, `SplitCoins`, etc.): the
-        // VM has no knowledge of them (they are not Move functions). Types
-        // are inferred from protocol constants or from PTB-supplied type
-        // annotations via `index_pure_inputs_for_builtin`.
+        // VM has no knowledge of them. Types are inferred from protocol
+        // constants via `pure_param_types_for_cmd`.
         let mut enriched_commands = Vec::with_capacity(ptb.commands.len());
         for cmd in ptb.commands.iter() {
             let Command::MoveCall(call) = cmd else {
-                index_pure_inputs_for_builtin(cmd, &mut input_type_names);
+                for (arg, tag_opt) in pure_param_types_for_cmd(cmd) {
+                    if let (Argument::Input(i), Some(tag)) = (arg, tag_opt) {
+                        input_type_names.entry(*i).or_insert_with(|| TypeName::from(&tag));
+                    }
+                }
                 enriched_commands.push(enrich_non_move_call_command(cmd));
                 continue;
             };
@@ -2266,49 +2217,46 @@ mod checked {
                     )
                 })?;
 
-            // Zip call arguments with their parameter types.
+            // Zip call arguments with their parameter types to derive TypeNames
+            // for pure inputs. Object mutability is determined in Pass 2.
             for (j, arg) in call.arguments.iter().enumerate() {
                 let Argument::Input(i) = arg else { continue };
                 let i = *i;
 
                 let Some(param_ty) = loaded_fn.parameters.get(j) else {
-                    continue;
+                    return Err(ExecutionError::new_with_source(
+                        ExecutionErrorKind::VMInvariantViolation,
+                        format!(
+                            "Argument count mismatch for {}::{}::{}: \
+                             parameter at index {j} not found (function has {} parameters)",
+                            call.package,
+                            call.module,
+                            call.function,
+                            loaded_fn.parameters.len(),
+                        ),
+                    ));
                 };
 
-                match ptb.inputs.get(i as usize) {
-                    Some(CallArg::Pure(_)) => {
-                        // Derive the TypeName for this pure input from the
-                        // corresponding function parameter type.  Generic
-                        // parameters (TyParam) are replaced with the concrete
-                        // type arguments supplied at this call site.
-                        if let std::collections::hash_map::Entry::Vacant(e) =
-                            input_type_names.entry(i)
+                if matches!(ptb.inputs.get(i as usize), Some(CallArg::Pure(_))) {
+                    // Derive the TypeName for this pure input from the
+                    // corresponding function parameter type. Generic
+                    // parameters (TyParam) are replaced with the concrete
+                    // type arguments supplied at this call site.
+                    if let std::collections::hash_map::Entry::Vacant(e) =
+                        input_type_names.entry(i)
+                    {
+                        if let Some(type_tag) =
+                            programmable_transactions::context::type_to_type_tag_with_subst(
+                                vm, param_ty, &type_tags,
+                            )
                         {
-                            if let Some(type_tag) =
-                                programmable_transactions::context::type_to_type_tag_with_subst(
-                                    vm, param_ty, &type_tags,
-                                )
-                            {
-                                e.insert(TypeName::from(&type_tag));
-                            }
+                            e.insert(TypeName::from(&type_tag));
                         }
                     }
-                    Some(CallArg::Object(_)) => {
-                        // Track whether this object input is passed mutably.
-                        // Pass 2 can set the correct flag in the enriched arg.
-                        let entry = input_is_mutable.entry(i).or_insert(false);
-                        if matches!(param_ty, Type::MutableReference(_)) {
-                            *entry = true;
-                        }
-                    }
-                    None => {}
                 }
             }
 
-            let returns = return_tags
-                .iter()
-                .filter_map(|tag| tag.as_ref().map(TypeName::from))
-                .collect();
+            let returns = return_tags.iter().map(TypeName::from).collect();
             enriched_commands.push(enrich_move_call_command(call, is_entry, returns));
         }
 
@@ -2324,7 +2272,12 @@ mod checked {
         // that the authenticator can detect via `type_name.name.is_empty()`.
         //
         // Object inputs: resolved from `authenticator_input_objects` and
-        // annotated with their on-chain type, version, and mutable flag.
+        // annotated with their on-chain type and mutable flag. Mutability is
+        // derived directly from the object:
+        //   - SharedObject: uses the transaction-level `mutable` flag from
+        //     `ObjectArg::SharedObject`.
+        //   - ImmOrOwned / Receiving: `!object.is_immutable()` — frozen
+        //     objects are immutable, all other owned objects are mutable.
         let enriched_inputs = ptb
             .inputs
             .iter()
@@ -2354,7 +2307,10 @@ mod checked {
                                 ),
                             )
                         })?;
-                        let mutable = *input_is_mutable.get(&idx).unwrap_or(&false);
+                        let mutable = match obj_arg {
+                            ObjectArg::SharedObject { mutable, .. } => *mutable,
+                            _ => !object.is_immutable(),
+                        };
                         enrich_object_arg(obj_arg, object, mutable)
                     }
                 }
