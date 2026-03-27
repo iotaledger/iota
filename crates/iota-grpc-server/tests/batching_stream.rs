@@ -25,7 +25,7 @@ use iota_types::{
     digests::TransactionDigest,
     effects::{TestEffectsBuilder, TransactionEffects},
     gas_coin::GasCoin,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     transaction::VerifiedTransaction,
 };
 use prost::Message;

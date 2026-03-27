@@ -636,7 +636,7 @@ impl NameRegistration {
         move_object: &MoveObject,
         tag: &StructTag,
     ) -> Result<Self, NameRegistrationDowncastError> {
-        if !move_object.native.is_type(tag) {
+        if !move_object.native.is_struct_tag(tag) {
             return Err(NameRegistrationDowncastError::NotAnNameRegistration);
         }
 

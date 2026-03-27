@@ -23,7 +23,7 @@ use crate::{
     error::IotaError,
     id::UID,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
-    object::{MoveObject, Object},
+    object::{MoveObject, MoveObjectExt, Object},
     storage::ObjectStore,
     versioned::Versioned,
 };

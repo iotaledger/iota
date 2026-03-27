@@ -25,7 +25,7 @@ use iota_types::{
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead, Owner},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
@@ -918,7 +918,7 @@ impl IotaMoveObject for IotaParsedMoveObject {
                 }
             } else {
                 IotaParsedMoveObject {
-                    type_: object.type_().clone().into(),
+                    type_: object.struct_tag().clone(),
                     fields: move_struct,
                 }
             },
@@ -991,7 +991,7 @@ pub struct IotaRawMoveObject {
 impl From<MoveObject> for IotaRawMoveObject {
     fn from(o: MoveObject) -> Self {
         Self {
-            type_: o.type_().clone().into(),
+            type_: o.struct_tag().clone(),
             version: o.version(),
             bcs_bytes: o.into_contents(),
         }
@@ -1004,7 +1004,7 @@ impl IotaMoveObject for IotaRawMoveObject {
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            type_: object.type_().clone().into(),
+            type_: object.struct_tag().clone(),
             version: object.version(),
             bcs_bytes: object.into_contents(),
         })

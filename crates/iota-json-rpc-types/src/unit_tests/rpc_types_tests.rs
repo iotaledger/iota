@@ -9,7 +9,7 @@ use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS,
     base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
     gas_coin::GasCoin,
-    object::{MoveObject, Owner},
+    object::{MoveObject, MoveObjectExt, Owner},
     parse_iota_struct_tag,
 };
 use move_core_types::{

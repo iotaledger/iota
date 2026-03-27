@@ -440,7 +440,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let object = self
             .with_store(|store| {
                 store.owned_objects(sender).find(|object| {
-                    object.is_gas_coin() && object.get_coin_value_unsafe() > amount + NANOS_PER_IOTA
+                    object.is_gas_coin()
+                        && object.get_coin_value_unchecked() > amount + NANOS_PER_IOTA
                 })
             })
             .ok_or_else(|| {

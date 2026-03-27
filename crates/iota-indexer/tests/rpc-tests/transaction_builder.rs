@@ -22,7 +22,7 @@ use iota_types::{
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner, Owner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,

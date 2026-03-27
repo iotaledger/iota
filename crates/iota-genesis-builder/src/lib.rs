@@ -60,7 +60,7 @@ use iota_types::{
         CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
     },
     metrics::LimitsMetrics,
-    object::{Object, Owner},
+    object::{MoveObjectExt, Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
     timelock::{
@@ -1599,7 +1599,7 @@ pub fn generate_genesis_system_object(
             .data
             .try_as_move_mut()
             .unwrap()
-            .set_clock_timestamp_ms_unsafe(genesis_chain_parameters.chain_start_timestamp_ms);
+            .set_clock_timestamp_ms_unchecked(genesis_chain_parameters.chain_start_timestamp_ms);
     }
 
     store.finish(written);

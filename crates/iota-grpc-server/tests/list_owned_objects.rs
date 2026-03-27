@@ -27,7 +27,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;

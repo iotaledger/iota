@@ -23,7 +23,7 @@ use iota_types::{
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     id::UID,
-    object::{Data, MoveObject, OBJECT_START_VERSION, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},

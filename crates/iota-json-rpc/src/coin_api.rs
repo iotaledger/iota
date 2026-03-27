@@ -582,7 +582,7 @@ mod tests {
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-        object::Object,
+        object::{MoveObjectExt, Object},
         parse_iota_struct_tag,
         utils::create_fake_transaction,
     };
