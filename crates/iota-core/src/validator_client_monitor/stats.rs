@@ -186,9 +186,6 @@ struct ValidatorClientStats {
 }
 
 impl ValidatorClientStats {
-    /// Construct with explicit parameters (used directly in some tests).
-    /// `_latency_window_size` is accepted for API compatibility but ignored;
-    /// the EWMA scorer does not use a fixed window size.
     fn new() -> Self {
         Self {
             latency_per_operation: [LogLatencyEwma::new(); 4],
@@ -200,7 +197,7 @@ impl ValidatorClientStats {
         feedback: &OperationFeedback,
         config: &ValidatorClientMonitorConfig,
     ) {
-        // treat timeout/failure as high latency
+        // Treat timeout/failure as high latency
         let failure_latency = config.health_check_timeout.as_secs_f64() * 3.0;
         let observation = feedback
             .result
@@ -230,104 +227,70 @@ impl ValidatorClientStats {
             .unwrap_or((config.empty_latency_score, 0.0, 0.0, 1.0))
     }
 
-    /// The main validator scoring function.
-    ///
-    /// Key idea: minimize expected *tail latency* under uncertainty with
-    /// adversarial failures.
-    ///
-    /// Tail latency is the latency experienced by the slowest requests.
-    /// Tail latency can be estimated as p95 quantile.
-    /// Currently, the estimation is done using: μ+kσ,
-    /// where μ is the mean and σ is the standard deviation of log latency.
-    ///
-    /// The score consists of the following metrics:
-    ///
-    /// Latency = Σ_op w_op * exp(μ_op + k·σ_op) / expected_latency_op:
-    ///   - Weighted sum of per-operation EWMA latency scores, each normalised
-    ///     to a dimensionless ratio (actual / expected).  A value of 1.0 means
-    ///     the validator is at expected latency; 2.0 means twice as slow.
-    ///     Normalisation makes all four operation types directly comparable
-    ///     regardless of their absolute timescales (~100 ms HealthCheck vs
-    ///     ~1500 ms Effects).
-    /// Risk = λ / sqrt(min_op(n_eff_op) + ϵ):
-    ///   - Driven by the *least-sampled* operation.  Confidence in a validator
-    ///     is limited by the operation we know least about.
-    /// Staleness = λ * max_op(1 − exp(−Δt_op / τ)):
-    ///   - Driven by the *stalest* operation.  Any operation that has not been
-    ///     observed recently degrades the overall score.
-    /// Failure = λ * pf_max / (1 − pf_max + ϵ):
-    ///   - Driven by the *highest* per-operation failure rate.  A validator
-    ///     that fails any single operation is penalised even if others succeed.
-    /// SelectiveFailure = λ * max(0, f_work − f_hc − ε) * min(1, n_hc / n_min):
-    ///   - Penalises validators that pass HealthCheck reliably but fail work
-    ///     operations (Submit / Consensus / Effects).  This is the signature
-    ///     of a validator that appears alive to monitors but selectively refuses
-    ///     to process transactions.
-    ///   - The noise threshold ε prevents statistical variance from triggering
-    ///     the penalty; the confidence weight suppresses it until enough
-    ///     HealthCheck samples have been collected.
-    /// Exploration = λ * sqrt(ln(N) / (min_op(n_eff_op) + 1)):
-    ///   - Reward exploring validators where any operation is under-sampled.
-    ///
-    /// Using worst-case aggregation for Risk, Staleness, and Failure means
-    /// good performance on one operation cannot mask bad performance on
-    /// another, and selective misbehaviour is explicitly penalised.
-    ///
-    /// Score = Latency + Risk + Staleness + Failure + SelectiveFailure - Exploration
-    fn calculate_selection_score(
-        &self,
-        total_observations: u64,
-        now: Instant,
-        config: &ValidatorClientMonitorConfig,
-    ) -> f64 {
-        // Gather raw stats (raw_latency_secs, n_eff, failure_rate, alpha) for
-        // all four operations.
+    fn performance_score(&self, total_observations: u64, now: Instant, config: &ValidatorClientMonitorConfig) -> Option<(f64, f64)> {
         let (l_sub, n_sub, f_sub, a_sub) =
             self.operation_stats(OperationType::Submit, now, config);
-        let (l_eff, n_eff, f_eff, a_eff) =
+        let (l_eff, n_eff_e, f_eff, a_eff) =
             self.operation_stats(OperationType::Effects, now, config);
         let (l_hc, n_hc, f_hc, a_hc) =
             self.operation_stats(OperationType::HealthCheck, now, config);
         let (l_con, n_con, f_con, a_con) =
             self.operation_stats(OperationType::Consensus, now, config);
 
-        // Weighted sum of normalised latencies.  Weights reflect operational
-        // importance; normalisation makes the four timescales comparable.
-        let latency = l_con / config.expected_latency_consensus_secs * 0.5
-            + l_hc / config.expected_latency_healthcheck_secs * 0.2
-            + l_eff / config.expected_latency_effects_secs * 0.2
-            + l_sub / config.expected_latency_submit_secs * 0.1;
-
-        // Shared risk: confidence is limited by the least-sampled operation.
-        let n_eff_min = n_sub.min(n_eff).min(n_hc).min(n_con);
-        let risk = config.risk_coeff / (n_eff_min + 1e-2).sqrt();
-
-        // Shared staleness: any stale operation degrades the overall score.
-        let alpha_max = a_sub.max(a_eff).max(a_hc).max(a_con);
-        let staleness = config.stale_coeff * alpha_max;
-
-        // Shared failure: any operation's failures penalise the whole validator.
-        let f_max = f_sub.max(f_eff).max(f_hc).max(f_con);
-        let failure = config.failure_coeff * f_max / (1.0 - f_max + 1e-2);
-
-        // Selective failure: penalise validators that look healthy on HealthCheck
-        // but fail work operations.  The inconsistency is the excess failure rate
-        // of work ops over HealthCheck, after subtracting a noise floor.
-        // The confidence weight ramps up linearly from 0 to 1 as HealthCheck
-        // n_eff grows from 0 to selective_failure_min_n_eff, so the penalty is
-        // suppressed when evidence is still thin.
         let f_work = f_sub.max(f_eff).max(f_con);
-        let inconsistency =
-            (f_work - f_hc - config.selective_failure_noise_threshold).max(0.0);
-        let confidence = (n_hc / config.selective_failure_min_n_eff).min(1.0);
-        let selective_failure = config.selective_failure_coeff * inconsistency * confidence;
+        let f_max = f_work.max(f_hc);
+        if n_hc > config.exclusion_min_n_eff && f_max > config.exclusion_failure_threshold {
+            // Exclusion check: return None when this validator should be excluded
+            // from selection entirely, computing its other scores makes no sense.
+            //
+            // A validator is excluded when its maximum per-operation failure rate
+            // exceeds `exclusion_failure_threshold` AND enough HealthCheck samples
+            // have been collected to make that judgement reliable.
+            None
+        } else {
+            // Latency = Σ_op w_op * exp(μ_op + k·σ_op) / expected_latency_op:
+            //   Weighted sum of per-operation EWMA latency scores normalised to a
+            //   dimensionless ratio (actual / expected).  1.0 = at expected latency.
+            let latency = l_con / config.expected_latency_consensus_secs * 0.5
+                + l_hc / config.expected_latency_healthcheck_secs * 0.2
+                + l_eff / config.expected_latency_effects_secs * 0.2
+                + l_sub / config.expected_latency_submit_secs * 0.1;
 
-        // Exploration: under-sampling any single operation warrants exploration.
-        let total_requests = (total_observations + 1) as f64;
-        let exploration =
-            config.exploration_coeff * (total_requests.ln() / (n_eff_min + 1.0)).sqrt();
+            // Risk = λ / sqrt(min_op(n_eff_op) + ϵ):
+            //   Driven by the least-sampled operation — confidence is limited by
+            //   the operation we know least about.
+            let n_eff_min = n_sub.min(n_eff_e).min(n_hc).min(n_con);
+            let risk = config.risk_coeff / (n_eff_min + 1e-2).sqrt();
 
-        (latency + risk + staleness + failure + selective_failure - exploration).max(0.0)
+            // Staleness = λ * max_op(1 − exp(−Δt_op / τ)):
+            //   Driven by the stalest operation.
+            let alpha_max = a_sub.max(a_eff).max(a_hc).max(a_con);
+            let staleness = config.stale_coeff * alpha_max;
+
+            // Failure = λ * pf_max / (1 − pf_max + ϵ):
+            //   Driven by the highest per-operation failure rate.
+            let failure = config.failure_coeff * f_max / (1.0 - f_max + 1e-2);
+
+            // SelectiveFailure = λ * max(0, f_work − f_hc − ε) * min(1, n_hc / n_min):
+            //   Extra penalty when HealthCheck passes but work operations fail —
+            //   the signature of a validator selectively refusing transactions.
+            let inconsistency =
+                (f_work - f_hc - config.selective_failure_noise_threshold).max(0.0);
+            let confidence = (n_hc / config.selective_failure_min_n_eff).min(1.0);
+            let selective_failure = config.selective_failure_coeff * inconsistency * confidence;
+
+            // Exploitation is the main performance score.
+            let exploitation = latency + risk + staleness + failure + selective_failure;
+
+            // Exploration = λ * sqrt(ln(N) / (min_op(n_eff_op) + 1)):
+            //   Under-sampling any single operation makes this validator a good
+            //   candidate for exploration.
+            let total_requests = (total_observations + 1) as f64;
+            let exploration = config.exploration_coeff * (total_requests.ln() / (n_eff_min + 1.0)).sqrt();
+
+            // The final score is a combination of exclusion, exploitation, and exploration.
+            Some((exploitation, exploration))
+        }
     }
 }
 
@@ -341,20 +304,16 @@ impl ClientObservedStats {
     }
 
     /// Record client-observed interaction result with a validator.
-    pub(super) fn record_interaction_result(&mut self, feedback: &OperationFeedback) -> f64 {
+    pub(super) fn record_interaction_result(&mut self, feedback: &OperationFeedback) {
         self.total_observations += 1;
         let validator_stats = self
             .validator_stats
             .entry(feedback.authority_name)
             .or_insert_with(ValidatorClientStats::new);
         validator_stats.record_interaction_result(feedback, &self.config);
-        validator_stats.calculate_selection_score(
-            self.total_observations,
-            feedback.timestamp,
-            &self.config,
-        )
     }
 
+    #[cfg(test)]
     fn calculate_selection_score(&self, validator: &AuthorityName, now: Instant) -> f64 {
         self.validator_stats
             .get(validator)
@@ -363,59 +322,80 @@ impl ClientObservedStats {
             })
     }
 
-    fn select_top_validators<'a>(
-        validator_with_scores: Vec<(&'a AuthorityName, f64)>,
-        config: &ValidatorClientMonitorConfig,
-    ) -> Vec<&'a AuthorityName> {
-        let lowest_score = validator_with_scores[0].1;
-        // compute acceptable score threshold within delta neighborhood of lowest_score
-        // use this formula just in case lowest_score is negative
-        let threshold = lowest_score + lowest_score.abs() * config.preferred_group_delta;
-
-        let k = validator_with_scores
-            .iter()
-            .enumerate()
-            .find(|(_, (_, latency))| *latency > threshold)
-            .map(|(i, _)| i)
-            .unwrap_or(validator_with_scores.len())
-            .max(config.min_preferred_group_size);
-
-        validator_with_scores
-            .into_iter()
-            .take(k)
-            .map(|(v, _)| v)
-            .collect()
-    }
-
     pub(super) fn select_shuffled_preferred_validators<'a>(
         &self,
         committee: impl Iterator<Item = &'a AuthorityName>,
         now: Instant,
         mut rng: impl rand::Rng,
     ) -> Vec<&'a AuthorityName> {
-        // 1. calculate scores
-        let mut validator_with_scores: Vec<_> = committee
-            .map(|v| (v, self.calculate_selection_score(v, now)))
-            .collect();
-
-        if validator_with_scores.is_empty() {
-            return vec![];
+        // Phase 0 — Exclusion: partition validators into excluded / candidates.
+        let exploration = self.config.exploration_coeff
+            * ((self.total_observations + 1) as f64).ln().sqrt();
+        let mut excluded: Vec<&'a AuthorityName> = vec![];
+        let mut candidates: Vec<(&'a AuthorityName, f64, f64)> = vec![];
+        for v in committee {
+            if let Some(stats) = self.validator_stats.get(v) {
+                if let Some((exploitation, exploration)) = stats.performance_score(self.total_observations, now, &self.config) {
+                    // known validator with reasonable scores
+                    candidates.push((v, exploitation, exploration));
+                } else {
+                    // excluded known validator, too many failures
+                    excluded.push(v);
+                }
+            } else {
+                // unknown validator: sentinel exploitation score, maximum
+                // exploration bonus so it is picked up quickly.
+                candidates.push((v, self.config.no_validator_score, exploration));
+            }
         }
-        // 2. reorder scores in ascending order, the lowest score is the best
-        validator_with_scores.sort_by(|(_, latency1), (_, latency2)| {
-            latency1
-                .partial_cmp(latency2)
-                .unwrap_or(std::cmp::Ordering::Equal)
+
+        if candidates.is_empty() {
+            // this looks like a total blackout, fallback -- still try random excluded validators
+            return excluded.choose_multiple(&mut rng, self.config.max_exploration_group_size).cloned().collect();
+        }
+
+        // Phase 1 — Exploitation: sort by performance ascending, select top
+        // group within `preferred_group_delta` of the best score.
+        candidates.sort_by(|(_, p1, _), (_, p2, _)| {
+            // ascending exploitation order (lower is better)
+            p1.partial_cmp(p2).unwrap_or(std::cmp::Ordering::Equal)
         });
+        // Relative threshold: within `preferred_group_delta` fraction of the
+        // best score.  All candidates whose perf score is at most this value
+        // join Phase 1.
+        let perf_threshold = candidates[0].1 * (1.0 + self.config.preferred_group_delta);
+        let phase1_count = candidates
+            .iter()
+            .enumerate()
+            .find(|(_, (_, perf, _))| *perf > perf_threshold)
+            .map(|(i, _)| i)
+            .unwrap_or(candidates.len())
+            .max(self.config.min_preferred_group_size)
+            .min(self.config.max_preferred_group_size);
 
-        // 3. select the top k validators
-        let mut selected_validators =
-            Self::select_top_validators(validator_with_scores, &self.config);
+        // Phase 2 — Exploration: from the remainder, pick `max_exploration_group_size`
+        // validators with the highest exploration bonus.
+        let remainder = &mut candidates[phase1_count..];
+        remainder.sort_by(|(_, _, e1), (_, _, e2)| {
+            // descending exploration order
+            e2.partial_cmp(e1).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let phase2_count = candidates[phase1_count..]
+            .iter()
+            .enumerate()
+            .find(|(_, (_, _, exploration))| *exploration < self.config.min_exploration_threshold)
+            .map(|(i, _)| i)
+            .unwrap_or(candidates.len() - phase1_count)
+            .min(self.config.max_exploration_group_size);
 
-        // 4. shuffle to avoid prejudice and randomize selection
-        selected_validators.shuffle(&mut rng);
-
-        selected_validators
+        // Merge Phase 1 + Phase 2 and shuffle to avoid systematic bias.
+        let mut selected: Vec<&'a AuthorityName> = candidates
+            .into_iter()
+            .take(phase1_count + phase2_count)
+            .map(|(v, _, _)| v)
+            .collect();
+        selected.shuffle(&mut rng);
+        selected
     }
 
     /// Retain only the specified validators, removing any others.

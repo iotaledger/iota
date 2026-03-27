@@ -61,6 +61,9 @@ pub struct ValidatorClientMonitorConfig {
     #[serde(default = "default_min_preferred_group_size")]
     pub min_preferred_group_size: usize,
 
+    #[serde(default = "default_max_preferred_group_size")]
+    pub max_preferred_group_size: usize,
+
     #[serde(default = "default_preferred_group_delta")]
     pub preferred_group_delta: f64,
 
@@ -109,6 +112,34 @@ pub struct ValidatorClientMonitorConfig {
     /// is reached.
     #[serde(default = "default_selective_failure_min_n_eff")]
     pub selective_failure_min_n_eff: f64,
+
+    /// Failure rate above which a validator is excluded from selection
+    /// entirely (Phase 0).
+    ///
+    /// Exclusion is only applied once `exclusion_min_n_eff` HealthCheck
+    /// samples have been collected, so a brief outage at startup does not
+    /// permanently ban a validator.
+    #[serde(default = "default_exclusion_failure_threshold")]
+    pub exclusion_failure_threshold: f64,
+
+    /// Minimum HealthCheck effective sample size required before the
+    /// exclusion threshold is enforced.
+    ///
+    /// Guards against excluding a validator on the basis of a handful of
+    /// failures that may not be representative.
+    #[serde(default = "default_exclusion_min_n_eff")]
+    pub exclusion_min_n_eff: f64,
+
+    /// Number of exploration slots: how many validators are selected in
+    /// Phase 2 (from the non-excluded, non-Phase-1 remainder) purely on the
+    /// basis of their exploration bonus.
+    #[serde(default = "default_max_exploration_group_size")]
+    pub max_exploration_group_size: usize,
+
+    /// Minimum exploration threshold: the minimum exploration bonus a validator
+    /// must have to be considered for selection in Phase 2.
+    #[serde(default = "default_min_exploration_threshold")]
+    pub min_exploration_threshold: f64,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -125,6 +156,7 @@ impl Default for ValidatorClientMonitorConfig {
             exploration_coeff: default_exploration_coeff(),
             no_validator_score: default_no_validator_score(),
             min_preferred_group_size: default_min_preferred_group_size(),
+            max_preferred_group_size: default_max_preferred_group_size(),
             preferred_group_delta: default_preferred_group_delta(),
             expected_latency_submit_secs: default_expected_latency_submit_secs(),
             expected_latency_effects_secs: default_expected_latency_effects_secs(),
@@ -133,6 +165,10 @@ impl Default for ValidatorClientMonitorConfig {
             selective_failure_coeff: default_selective_failure_coeff(),
             selective_failure_noise_threshold: default_selective_failure_noise_threshold(),
             selective_failure_min_n_eff: default_selective_failure_min_n_eff(),
+            exclusion_failure_threshold: default_exclusion_failure_threshold(),
+            exclusion_min_n_eff: default_exclusion_min_n_eff(),
+            max_exploration_group_size: default_max_exploration_group_size(),
+            min_exploration_threshold: default_min_exploration_threshold(),
         }
     }
 }
@@ -181,6 +217,10 @@ fn default_min_preferred_group_size() -> usize {
     2
 }
 
+fn default_max_preferred_group_size() -> usize {
+    10
+}
+
 fn default_preferred_group_delta() -> f64 {
     0.02
 }
@@ -211,4 +251,20 @@ fn default_selective_failure_noise_threshold() -> f64 {
 
 fn default_selective_failure_min_n_eff() -> f64 {
     5.0
+}
+
+fn default_exclusion_failure_threshold() -> f64 {
+    0.7
+}
+
+fn default_exclusion_min_n_eff() -> f64 {
+    5.0
+}
+
+fn default_max_exploration_group_size() -> usize {
+    1
+}
+
+fn default_min_exploration_threshold() -> f64 {
+    20.0
 }

@@ -82,7 +82,6 @@ impl ValidatorClientMetrics {
     pub(super) fn record_interaction_result(
         &self,
         feedback: &super::OperationFeedback,
-        score: f64,
     ) {
         let operation_str = feedback.operation.as_str();
         let ping_label = feedback.ping.to_string();
@@ -102,9 +101,10 @@ impl ValidatorClientMetrics {
                 self.operation_failure.with_label_values(labels).inc();
             }
         }
-        tracing::debug!("Validator {}: score {}", feedback.display_name, score);
-        self.performance
-            .with_label_values(&[feedback.display_name.as_str()])
-            .set(score);
+        todo!();
+        // tracing::debug!("Validator {}: score {}", feedback.display_name, score);
+        // self.performance
+        //     .with_label_values(&[feedback.display_name.as_str()])
+        //     .set(score);
     }
 }
