@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::Arc};
 use common::MockGrpcStateReader;
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    v0::{
+    v1::{
         ledger_service::{
             GetObjectsRequest, GetTransactionsRequest, ObjectRequest, ObjectRequests,
             TransactionRequest, TransactionRequests, ledger_service_client::LedgerServiceClient,
@@ -120,7 +120,7 @@ async fn test_get_objects_batching_within_limit() {
             .map(|id| {
                 ObjectRequest::default().with_object_ref(
                     ObjectReference::default().with_object_id(
-                        iota_grpc_types::v0::types::ObjectId::default()
+                        iota_grpc_types::v1::types::ObjectId::default()
                             .with_object_id(id.as_ref().to_vec()),
                     ),
                 )
@@ -280,7 +280,7 @@ async fn test_get_transactions_batching_within_limit() {
             .iter()
             .map(|d| {
                 TransactionRequest::default().with_digest(
-                    iota_grpc_types::v0::types::Digest::default()
+                    iota_grpc_types::v1::types::Digest::default()
                         .with_digest(d.into_inner().to_vec()),
                 )
             })

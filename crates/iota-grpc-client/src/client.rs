@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     ledger_service::ledger_service_client::LedgerServiceClient,
     move_package_service::move_package_service_client::MovePackageServiceClient,
     state_service::state_service_client::StateServiceClient,

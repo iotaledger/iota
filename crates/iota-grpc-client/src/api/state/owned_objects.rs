@@ -14,7 +14,7 @@
 //! - `owner` - the object owner
 //! - `bcs` - the full BCS-encoded object
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     object::Object,
     state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
     types::Address as ProtoAddress,

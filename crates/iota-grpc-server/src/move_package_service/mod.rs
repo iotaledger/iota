@@ -5,7 +5,7 @@ mod list_package_versions;
 
 use std::sync::Arc;
 
-use iota_grpc_types::v0::move_package_service::{self as grpc_move_package_service};
+use iota_grpc_types::v1::move_package_service::{self as grpc_move_package_service};
 use tonic::Response;
 
 use crate::types::*;

@@ -10,7 +10,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_types::v0::{filter as grpc_filter, types as grpc_types};
+use iota_grpc_types::v1::{filter as grpc_filter, types as grpc_types};
 use iota_macros::sim_test;
 use iota_types::transaction::CallArg;
 use tokio::time::timeout;

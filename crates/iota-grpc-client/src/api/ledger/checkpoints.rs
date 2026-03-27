@@ -83,7 +83,7 @@
 use std::pin::Pin;
 
 use futures::{Stream, StreamExt};
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     checkpoint, event, filter as grpc_filter,
     ledger_service::{
         GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data, get_checkpoint_request,
@@ -411,7 +411,7 @@ impl Client {
     ///
     /// ```no_run
     /// # use iota_grpc_client::{Client, CheckpointStreamItem};
-    /// # use iota_grpc_types::v0::filter as grpc_filter;
+    /// # use iota_grpc_types::v1::filter as grpc_filter;
     /// # use futures::StreamExt;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
@@ -527,7 +527,7 @@ impl Client {
     ) -> impl Stream<Item = Result<CheckpointStreamItem>>
     where
         S: Stream<
-            Item = std::result::Result<iota_grpc_types::v0::ledger_service::CheckpointData, E>,
+            Item = std::result::Result<iota_grpc_types::v1::ledger_service::CheckpointData, E>,
         >,
         E: Into<Error>,
     {

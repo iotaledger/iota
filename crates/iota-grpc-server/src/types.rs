@@ -9,7 +9,7 @@ use grpc_ledger_service::checkpoint_data::Progress;
 use iota_grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
-    v0::{
+    v1::{
         checkpoint as grpc_checkpoint, event as grpc_event,
         ledger_service::{self as grpc_ledger_service},
         transaction as grpc_transaction,
@@ -53,7 +53,7 @@ pub struct TransactionReadFields {
 impl TransactionReadFields {
     /// Derive which fields to fetch from an `ExecutedTransaction` field mask.
     pub fn from_mask(mask: &FieldMaskTree) -> Self {
-        use iota_grpc_types::v0::transaction::ExecutedTransaction;
+        use iota_grpc_types::v1::transaction::ExecutedTransaction;
 
         Self {
             include_transaction: mask.contains(ExecutedTransaction::TRANSACTION_FIELD.name),
@@ -1708,7 +1708,7 @@ impl CheckpointTransactionWithContext {
 }
 
 impl Merge<CheckpointTransactionWithContext>
-    for iota_grpc_types::v0::transaction::ExecutedTransaction
+    for iota_grpc_types::v1::transaction::ExecutedTransaction
 {
     type Error = RpcError;
 
@@ -1718,14 +1718,14 @@ impl Merge<CheckpointTransactionWithContext>
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
-            self.transaction = Some(iota_grpc_types::v0::transaction::Transaction::merge_from(
+            self.transaction = Some(iota_grpc_types::v1::transaction::Transaction::merge_from(
                 source.transaction.transaction.clone(),
                 &submask,
             )?);
         }
 
         if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = Some(iota_grpc_types::v0::signatures::UserSignatures::merge_from(
+            self.signatures = Some(iota_grpc_types::v1::signatures::UserSignatures::merge_from(
                 source.transaction.transaction.clone(),
                 &submask,
             )?);
@@ -1733,7 +1733,7 @@ impl Merge<CheckpointTransactionWithContext>
 
         if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
             self.effects = Some(
-                iota_grpc_types::v0::transaction::TransactionEffects::merge_from(
+                iota_grpc_types::v1::transaction::TransactionEffects::merge_from(
                     source.transaction.effects.clone(),
                     &submask,
                 )?,
@@ -1762,14 +1762,14 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {
-            self.input_objects = Some(iota_grpc_types::v0::object::Objects::merge_from(
+            self.input_objects = Some(iota_grpc_types::v1::object::Objects::merge_from(
                 Some(source.transaction.input_objects),
                 &submask,
             )?);
         }
 
         if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name) {
-            self.output_objects = Some(iota_grpc_types::v0::object::Objects::merge_from(
+            self.output_objects = Some(iota_grpc_types::v1::object::Objects::merge_from(
                 Some(source.transaction.output_objects),
                 &submask,
             )?);

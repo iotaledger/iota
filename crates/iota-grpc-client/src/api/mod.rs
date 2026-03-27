@@ -90,19 +90,19 @@ pub struct CheckpointResponse {
     pub sequence_number: CheckpointSequenceNumber,
     /// Proto checkpoint summary. Use `response.summary()?.summary()` to convert
     /// to SDK type.
-    pub summary: Option<iota_grpc_types::v0::checkpoint::CheckpointSummary>,
+    pub summary: Option<iota_grpc_types::v1::checkpoint::CheckpointSummary>,
     /// Proto validator signature. Use `response.signature()?.signature()` to
     /// convert to SDK type.
-    pub signature: Option<iota_grpc_types::v0::signatures::ValidatorAggregatedSignature>,
+    pub signature: Option<iota_grpc_types::v1::signatures::ValidatorAggregatedSignature>,
     /// Proto checkpoint contents. Use `response.contents()?.contents()` to
     /// convert to SDK type.
-    pub contents: Option<iota_grpc_types::v0::checkpoint::CheckpointContents>,
+    pub contents: Option<iota_grpc_types::v1::checkpoint::CheckpointContents>,
     /// Proto executed transactions. Use methods like `tx.effects()?`,
     /// `tx.transaction()?`, etc.
-    pub executed_transactions: Vec<iota_grpc_types::v0::transaction::ExecutedTransaction>,
+    pub executed_transactions: Vec<iota_grpc_types::v1::transaction::ExecutedTransaction>,
     /// Proto events. Use `event.try_into()` or `event.events()` to convert to
     /// SDK types.
-    pub events: Vec<iota_grpc_types::v0::event::Event>,
+    pub events: Vec<iota_grpc_types::v1::event::Event>,
 }
 
 impl CheckpointResponse {
@@ -116,14 +116,14 @@ impl CheckpointResponse {
     /// Get the checkpoint summary.
     ///
     /// Returns the proto
-    /// [`CheckpointSummary`](iota_grpc_types::v0::checkpoint::CheckpointSummary)
+    /// [`CheckpointSummary`](iota_grpc_types::v1::checkpoint::CheckpointSummary)
     /// which provides:
-    /// - [`digest()`](iota_grpc_types::v0::checkpoint::CheckpointSummary::digest) — the summary digest
-    /// - [`summary()`](iota_grpc_types::v0::checkpoint::CheckpointSummary::summary) — the deserialized SDK `CheckpointSummary`
+    /// - [`digest()`](iota_grpc_types::v1::checkpoint::CheckpointSummary::digest) — the summary digest
+    /// - [`summary()`](iota_grpc_types::v1::checkpoint::CheckpointSummary::summary) — the deserialized SDK `CheckpointSummary`
     ///
     /// **Read mask:** `"checkpoint.summary"` (see
     /// [`CHECKPOINT_RESPONSE_SUMMARY`])
-    pub fn summary(&self) -> Result<&iota_grpc_types::v0::checkpoint::CheckpointSummary> {
+    pub fn summary(&self) -> Result<&iota_grpc_types::v1::checkpoint::CheckpointSummary> {
         self.summary
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("summary").into())
@@ -148,7 +148,7 @@ impl CheckpointResponse {
     /// [`CHECKPOINT_RESPONSE_SIGNATURE`])
     pub fn signature(
         &self,
-    ) -> Result<&iota_grpc_types::v0::signatures::ValidatorAggregatedSignature> {
+    ) -> Result<&iota_grpc_types::v1::signatures::ValidatorAggregatedSignature> {
         self.signature
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("signature").into())
@@ -157,14 +157,14 @@ impl CheckpointResponse {
     /// Get the checkpoint contents.
     ///
     /// Returns the proto
-    /// [`CheckpointContents`](iota_grpc_types::v0::checkpoint::CheckpointContents)
+    /// [`CheckpointContents`](iota_grpc_types::v1::checkpoint::CheckpointContents)
     /// which provides:
-    /// - [`digest()`](iota_grpc_types::v0::checkpoint::CheckpointContents::digest) — the contents digest
-    /// - [`contents()`](iota_grpc_types::v0::checkpoint::CheckpointContents::contents) — the deserialized SDK `CheckpointContents`
+    /// - [`digest()`](iota_grpc_types::v1::checkpoint::CheckpointContents::digest) — the contents digest
+    /// - [`contents()`](iota_grpc_types::v1::checkpoint::CheckpointContents::contents) — the deserialized SDK `CheckpointContents`
     ///
     /// **Read mask:** `"checkpoint.contents"` (see
     /// [`CHECKPOINT_RESPONSE_CONTENTS`])
-    pub fn contents(&self) -> Result<&iota_grpc_types::v0::checkpoint::CheckpointContents> {
+    pub fn contents(&self) -> Result<&iota_grpc_types::v1::checkpoint::CheckpointContents> {
         self.contents
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing("contents").into())
@@ -173,7 +173,7 @@ impl CheckpointResponse {
     /// Get the executed transactions in this checkpoint.
     ///
     /// Returns proto
-    /// [`ExecutedTransaction`](iota_grpc_types::v0::transaction::ExecutedTransaction)
+    /// [`ExecutedTransaction`](iota_grpc_types::v1::transaction::ExecutedTransaction)
     /// values. Which sub-fields are populated depends on the read mask; use
     /// paths like `"transactions.effects"` or `"transactions.transaction"`.
     ///
@@ -181,19 +181,19 @@ impl CheckpointResponse {
     /// [`CHECKPOINT_RESPONSE_EXECUTED_TRANSACTIONS`])
     pub fn executed_transactions(
         &self,
-    ) -> &Vec<iota_grpc_types::v0::transaction::ExecutedTransaction> {
+    ) -> &Vec<iota_grpc_types::v1::transaction::ExecutedTransaction> {
         &self.executed_transactions
     }
 
     /// Get the top-level events for this checkpoint.
     ///
-    /// Returns proto [`Event`](iota_grpc_types::v0::event::Event) values.
+    /// Returns proto [`Event`](iota_grpc_types::v1::event::Event) values.
     /// Which sub-fields are populated depends on the read mask; use paths like
     /// `"events.bcs"` or `"events.event_type"`.
     ///
     /// **Read mask:** `"events"` for all sub-fields (see
     /// [`CHECKPOINT_RESPONSE_EVENTS`])
-    pub fn events(&self) -> &Vec<iota_grpc_types::v0::event::Event> {
+    pub fn events(&self) -> &Vec<iota_grpc_types::v1::event::Event> {
         &self.events
     }
 

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     field::FieldMaskTree,
     read_masks::LIST_DYNAMIC_FIELDS_READ_MASK,
-    v0::{
+    v1::{
         bcs::BcsData,
         dynamic_field::DynamicField,
         state_service::{ListDynamicFieldsRequest, ListDynamicFieldsResponse},

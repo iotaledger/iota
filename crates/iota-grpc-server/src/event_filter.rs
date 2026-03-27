@@ -54,11 +54,11 @@ pub enum EventFilter {
 }
 
 // Proto-to-internal filter conversion
-impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
+impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
     type Error = String;
 
-    fn try_from(proto: iota_grpc_types::v0::filter::EventFilter) -> Result<Self, Self::Error> {
-        use iota_grpc_types::v0::filter::event_filter::Filter as ProtoFilter;
+    fn try_from(proto: iota_grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
+        use iota_grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
 
         let filter = proto.filter.ok_or("event filter is missing")?;
 

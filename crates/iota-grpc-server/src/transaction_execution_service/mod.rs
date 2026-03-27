@@ -11,7 +11,7 @@ use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageFields},
     google::rpc::bad_request::FieldViolation,
     read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
-    v0::{
+    v1::{
         error_reason::ErrorReason,
         transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
         transaction_execution_service::{
@@ -180,7 +180,7 @@ fn parse_transaction_proto(
 /// the rest. Results are returned in the same order as the input.
 ///
 /// The read mask paths apply directly to
-/// [`ExecutedTransaction`](iota_grpc_types::v0::transaction::ExecutedTransaction)
+/// [`ExecutedTransaction`](iota_grpc_types::v1::transaction::ExecutedTransaction)
 /// fields (e.g. `"effects"`, not `"executed_transaction.effects"`).
 ///
 /// ## Available Read Mask Fields

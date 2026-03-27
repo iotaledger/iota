@@ -750,7 +750,7 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
 /// Provides conversion methods from gRPC types to iota core types.
 pub(crate) mod grpc_conversion {
 
-    use iota_grpc_types::v0::{
+    use iota_grpc_types::v1::{
         command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
         object::Objects as GrpcObjects,
     };

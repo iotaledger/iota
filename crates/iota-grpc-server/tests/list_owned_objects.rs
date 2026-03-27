@@ -14,7 +14,7 @@ use std::{collections::HashMap, sync::Arc};
 use common::{MockGrpcStateReader, start_test_server};
 use iota_grpc_types::{
     field::FieldMaskUtil,
-    v0::{
+    v1::{
         state_service::{
             ListOwnedObjectsRequest, ListOwnedObjectsResponse,
             state_service_client::StateServiceClient,

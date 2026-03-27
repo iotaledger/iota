@@ -3,7 +3,7 @@
 
 //! High-level API for coin info queries.
 
-use iota_grpc_types::v0::state_service::{GetCoinInfoRequest, GetCoinInfoResponse};
+use iota_grpc_types::v1::state_service::{GetCoinInfoRequest, GetCoinInfoResponse};
 use iota_sdk_types::StructTag;
 
 use crate::{

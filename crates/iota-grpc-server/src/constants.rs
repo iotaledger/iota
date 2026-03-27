@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v0::error_reason::ErrorReason};
+use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v1::error_reason::ErrorReason};
 
 use crate::error::RpcError;
 

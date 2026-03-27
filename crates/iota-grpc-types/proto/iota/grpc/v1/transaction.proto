@@ -1,0 +1,90 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.transaction;
+
+import "google/protobuf/timestamp.proto";
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/event.proto";
+import "iota/grpc/v1/object.proto";
+import "iota/grpc/v1/signatures.proto";
+import "iota/grpc/v1/types.proto";
+
+// A transaction.
+message Transaction {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The digest of this Transaction.
+  optional iota.grpc.v1.types.Digest digest = 1;
+
+  // This Transaction serialized as BCS.
+  optional iota.grpc.v1.bcs.BcsData bcs = 2;
+}
+
+// The effects of executing a transaction.
+message TransactionEffects {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The digest of this TransactionEffects.
+  optional iota.grpc.v1.types.Digest digest = 1;
+
+  // This TransactionEffects serialized as BCS.
+  optional iota.grpc.v1.bcs.BcsData bcs = 2;
+}
+
+// iota.grpc.v1.event.Events emitted during the successful execution of a transaction.
+message TransactionEvents {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The digest of this TransactionEvents.
+  optional iota.grpc.v1.types.Digest digest = 1;
+
+  // List of events emitted by a transaction.
+  optional iota.grpc.v1.event.Events events = 2;
+}
+
+// A transaction that has been executed, along with its signatures, effects, events and objects.
+message ExecutedTransaction {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The transaction itself.
+  optional Transaction transaction = 1;
+
+  // List of user signatures that are used to authorize the
+  // execution of this transaction.
+  optional iota.grpc.v1.signatures.UserSignatures signatures = 2;
+
+  // The `TransactionEffects` for this transaction.
+  optional TransactionEffects effects = 3;
+
+  // The `TransactionEvents` for this transaction.
+  //
+  // This field might be empty, even if it was explicitly requested, if the
+  // transaction didn't produce any events.
+  // `iota.types.TransactionEffects.events_digest` is populated if the
+  // transaction produced any events.
+  optional TransactionEvents events = 4;
+
+  // The sequence number for the checkpoint that includes this transaction.
+  optional uint64 checkpoint = 5;
+
+  // The Unix timestamp of the checkpoint that includes this transaction.
+  optional google.protobuf.Timestamp timestamp = 6;
+
+  // Set of input objects used by this transaction.
+  optional iota.grpc.v1.object.Objects input_objects = 7;
+
+  // Set of output objects produced by this transaction.
+  optional iota.grpc.v1.object.Objects output_objects = 8;
+}
+
+message ExecutedTransactions {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated ExecutedTransaction executed_transactions = 1;
+}
