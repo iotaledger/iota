@@ -1,0 +1,9 @@
+[package]
+name = "account_multi_auth"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+account_multi_auth = "0x0"

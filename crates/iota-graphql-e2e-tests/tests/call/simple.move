@@ -31,6 +31,8 @@ module Test::M1 {
 
 //# view-object 0,0
 
+//# view-object 0,1
+
 //# view-object 2,0
 
 //# view-object 3,0
@@ -127,6 +129,11 @@ module Test::M1 {
         node {
           address
           digest
+          contents {
+            type {
+              repr
+            }
+          }
           owner {
               __typename
           }

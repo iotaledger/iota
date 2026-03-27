@@ -123,13 +123,6 @@ export interface CompletedSearchProperties {
     searchQuery?: string;
 }
 
-export interface OpenedIotaExplorerProperties {
-    activeNetwork?: string;
-    pageDomain?: string;
-    pagePath?: string;
-    pageUrl?: string;
-}
-
 export interface SwitchedNetworkProperties {
     /**
      * | Rule | Value |
@@ -167,14 +160,6 @@ export class CompletedSearch implements BaseEvent {
     event_type = 'completed search';
 
     constructor(public event_properties?: CompletedSearchProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class OpenedIotaExplorer implements BaseEvent {
-    event_type = 'opened iota explorer';
-
-    constructor(public event_properties?: OpenedIotaExplorerProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -366,23 +351,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new CompletedSearch(properties), options);
-  }
-
-  /**
-   * opened iota explorer
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Explorer/events/main/latest/opened%20iota%20explorer)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. activeNetwork)
-   * @param options Amplitude event options.
-   */
-  openedIotaExplorer(
-    properties?: OpenedIotaExplorerProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new OpenedIotaExplorer(properties), options);
   }
 
   /**

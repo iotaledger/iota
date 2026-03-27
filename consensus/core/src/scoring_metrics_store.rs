@@ -1202,7 +1202,7 @@ mod tests {
 
         // Destroy and recover dag state from storage.
         drop(dag_state);
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Since the last accepted blocks were not flushed, the equivocations from
         // rounds 13 to 20 should not be accounted for. The metrics should remain
@@ -1232,7 +1232,7 @@ mod tests {
 
         // Now we accept those lost blocks again and flush the dag state
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
+        for commit in second_temp_commits {
             dag_state.add_commit(commit);
         }
         dag_state.flush();
@@ -1566,7 +1566,7 @@ mod tests {
 
         // Destroy and recover dag state from storage.
         drop(dag_state);
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Since the last accepted blocks were not flushed, the equivocations from
         // rounds 13 to 20 should not be accounted for. The metrics should remain
@@ -1596,7 +1596,7 @@ mod tests {
 
         // Now we accept those lost blocks again and flush the dag state
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
+        for commit in second_temp_commits {
             dag_state.add_commit(commit);
         }
         dag_state.flush();

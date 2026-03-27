@@ -17,6 +17,7 @@ use fastcrypto::{
     traits::AllowedRng,
 };
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
+use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::HashingIntentScope;
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
@@ -995,6 +996,43 @@ pub fn url_layout() -> A::MoveStructLayout {
     }
 }
 
+// The Rust representation of the Move `TxContext`.
+// This struct must be kept in sync with the Move `TxContext` definition.
+// Moving forward we are going to zero all fields of the Move `TxContext`
+// and use native functions to retrieve info about the transaction.
+// However we cannot remove the Move type and so this struct is going to
+// be the Rust equivalent to the Move `TxContext` for legacy usages.
+//
+// `TxContext` in Rust (see below) is going to be purely used in Rust and can
+// evolve as needed without worrying about any compatibility with Move.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct MoveLegacyTxContext {
+    // Signer/sender of the transaction
+    sender: AccountAddress,
+    // Digest of the current transaction
+    digest: Vec<u8>,
+    // The current epoch number
+    epoch: EpochId,
+    // Timestamp that the epoch started at
+    epoch_timestamp_ms: CheckpointTimestamp,
+    // Number of `ObjectID`'s generated during execution of the current transaction
+    ids_created: u64,
+}
+
+impl From<&TxContext> for MoveLegacyTxContext {
+    fn from(tx_context: &TxContext) -> Self {
+        Self {
+            sender: tx_context.sender,
+            digest: tx_context.digest.clone(),
+            epoch: tx_context.epoch,
+            epoch_timestamp_ms: tx_context.epoch_timestamp_ms,
+            ids_created: tx_context.ids_created,
+        }
+    }
+}
+
+// Information about the transaction context.
+// This struct is not related to Move and can evolve as needed/required.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct TxContext {
     /// Signer/sender of the transaction
@@ -1008,6 +1046,17 @@ pub struct TxContext {
     /// Number of `ObjectID`'s generated during execution of the current
     /// transaction
     ids_created: u64,
+    // Reference gas price
+    rgp: u64,
+    /// Gas price passed to transaction as input
+    gas_price: u64,
+    /// Gas budget passed to transaction as input
+    gas_budget: u64,
+    /// Address of the sponsor if any (gas owner != sender)
+    sponsor: Option<AccountAddress>,
+    /// Whether the `TxContext` is native or not (i.e., Move reads values via
+    /// native functions instead of struct fields).
+    is_native: bool,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -1021,12 +1070,26 @@ pub enum TxContextKind {
 }
 
 impl TxContext {
-    pub fn new(sender: &IotaAddress, digest: &TransactionDigest, epoch_data: &EpochData) -> Self {
+    pub fn new(
+        sender: &IotaAddress,
+        digest: &TransactionDigest,
+        epoch_data: &EpochData,
+        rgp: u64,
+        gas_price: u64,
+        gas_budget: u64,
+        sponsor: Option<IotaAddress>,
+        protocol_config: &ProtocolConfig,
+    ) -> Self {
         Self::new_from_components(
             sender,
             digest,
             &epoch_data.epoch_id(),
             epoch_data.epoch_start_timestamp(),
+            rgp,
+            gas_price,
+            gas_budget,
+            sponsor,
+            protocol_config,
         )
     }
 
@@ -1035,6 +1098,11 @@ impl TxContext {
         digest: &TransactionDigest,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
+        rgp: u64,
+        gas_price: u64,
+        gas_budget: u64,
+        sponsor: Option<IotaAddress>,
+        protocol_config: &ProtocolConfig,
     ) -> Self {
         Self {
             sender: AccountAddress::new(sender.0),
@@ -1042,6 +1110,11 @@ impl TxContext {
             epoch: *epoch_id,
             epoch_timestamp_ms,
             ids_created: 0,
+            rgp,
+            gas_price,
+            gas_budget,
+            sponsor: sponsor.map(|s| s.into()),
+            is_native: protocol_config.move_native_tx_context(),
         }
     }
 
@@ -1075,13 +1148,12 @@ impl TxContext {
         self.epoch
     }
 
-    /// Derive a globally unique object ID by hashing self.digest |
-    /// self.ids_created
-    pub fn fresh_id(&mut self) -> ObjectID {
-        let id = ObjectID::derive_id(self.digest(), self.ids_created);
+    pub fn sender(&self) -> IotaAddress {
+        IotaAddress::from(ObjectID(self.sender))
+    }
 
-        self.ids_created += 1;
-        id
+    pub fn epoch_timestamp_ms(&self) -> u64 {
+        self.epoch_timestamp_ms
     }
 
     /// Return the transaction digest, to include in new objects
@@ -1089,30 +1161,104 @@ impl TxContext {
         TransactionDigest::new(self.digest.clone().try_into().unwrap())
     }
 
-    pub fn sender(&self) -> IotaAddress {
-        IotaAddress::from(ObjectID(self.sender))
+    pub fn sponsor(&self) -> Option<IotaAddress> {
+        self.sponsor.map(IotaAddress::from)
+    }
+
+    pub fn rgp(&self) -> u64 {
+        self.rgp
+    }
+
+    pub fn gas_price(&self) -> u64 {
+        self.gas_price
+    }
+
+    pub fn gas_budget(&self) -> u64 {
+        self.gas_budget
+    }
+
+    pub fn ids_created(&self) -> u64 {
+        self.ids_created
+    }
+
+    /// Derive a globally unique object ID by hashing self.digest |
+    /// self.ids_created
+    pub fn fresh_id(&mut self) -> ObjectID {
+        let id = ObjectID::derive_id(self.digest(), self.ids_created);
+        self.ids_created += 1;
+        id
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }
 
+    /// Serialize this context as a `MoveLegacyTxContext`. When `is_native` is
+    /// true, all fields except digest are zeroed (Move reads actual values via
+    /// native functions). When false, actual field values are used.
+    pub fn to_bcs_legacy_context(&self) -> Vec<u8> {
+        let move_context: MoveLegacyTxContext = if self.is_native {
+            let tx_context = &TxContext {
+                sender: AccountAddress::ZERO,
+                digest: vec![],
+                epoch: 0,
+                epoch_timestamp_ms: 0,
+                ids_created: 0,
+                rgp: 0,
+                gas_price: 0,
+                gas_budget: 0,
+                sponsor: None,
+                is_native: true,
+            };
+            tx_context.into()
+        } else {
+            self.into()
+        };
+        bcs::to_bytes(&move_context).unwrap()
+    }
+
     /// Updates state of the context instance. It's intended to use
     /// when mutable context is passed over some boundary via
     /// serialize/deserialize and this is the reason why this method
-    /// consumes the other context..
-    pub fn update_state(&mut self, other: TxContext) -> Result<(), ExecutionError> {
-        if self.sender != other.sender
-            || self.digest != other.digest
-            || other.ids_created < self.ids_created
-        {
-            return Err(ExecutionError::new_with_source(
-                ExecutionErrorKind::InvariantViolation,
-                "Immutable fields for TxContext changed",
-            ));
+    /// consumes the other context.
+    pub fn update_state(&mut self, other: MoveLegacyTxContext) -> Result<(), ExecutionError> {
+        if !self.is_native {
+            if self.sender != other.sender
+                || self.digest != other.digest
+                || other.ids_created < self.ids_created
+            {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::InvariantViolation,
+                    "Immutable fields for TxContext changed",
+                ));
+            }
+            self.ids_created = other.ids_created;
         }
-        self.ids_created = other.ids_created;
         Ok(())
+    }
+
+    /// Replace all fields. Used by Move test-only native functions.
+    pub fn replace(
+        &mut self,
+        sender: AccountAddress,
+        tx_hash: Vec<u8>,
+        epoch: u64,
+        epoch_timestamp_ms: u64,
+        ids_created: u64,
+        rgp: u64,
+        gas_price: u64,
+        gas_budget: u64,
+        sponsor: Option<AccountAddress>,
+    ) {
+        self.sender = sender;
+        self.digest = tx_hash;
+        self.epoch = epoch;
+        self.epoch_timestamp_ms = epoch_timestamp_ms;
+        self.ids_created = ids_created;
+        self.rgp = rgp;
+        self.gas_price = gas_price;
+        self.gas_budget = gas_budget;
+        self.sponsor = sponsor;
     }
 
     // Generate a random TxContext for testing.
@@ -1121,12 +1267,12 @@ impl TxContext {
             &IotaAddress::random_for_testing_only(),
             &TransactionDigest::random(),
             &EpochData::new_test(),
+            0,
+            0,
+            0,
+            None,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
         )
-    }
-
-    /// Generate a TxContext for testing with a specific sender.
-    pub fn with_sender_for_testing_only(sender: &IotaAddress) -> Self {
-        Self::new(sender, &TransactionDigest::random(), &EpochData::new_test())
     }
 }
 

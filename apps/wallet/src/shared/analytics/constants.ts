@@ -1,6 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { type AccountsAddedProperties } from '_src/shared/analytics/ampli';
+import { type AddedAccountsProperties } from '_src/shared/analytics/ampli';
 import { AccountType } from '_src/background/accounts/account';
 import { AccountsFormType } from '_components/accounts';
 
@@ -13,6 +13,13 @@ enum AmpliAccountType {
     Seed = 'Seed',
 }
 
+export enum AmpliSourceFlow {
+    Onboarding = 'Onboarding',
+    ManageAccounts = 'Manage Accounts',
+    BalanceFinder = 'Balance Finder',
+    Unknown = 'Unknown',
+}
+
 export enum AmpliAccountOrigin {
     New = 'new',
     Import = 'import',
@@ -22,7 +29,7 @@ export enum AmpliAccountOrigin {
 export const ACCOUNT_FORM_TYPE_TO_AMPLI: Record<
     AccountsFormType,
     {
-        accountType: AccountsAddedProperties['accountType'];
+        accountType: AddedAccountsProperties['accountType'];
         accountOrigin: AmpliAccountOrigin;
     }
 > = {
@@ -70,7 +77,7 @@ export const ACCOUNT_FORM_TYPE_TO_AMPLI: Record<
 
 export const ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE: Record<
     AccountType,
-    AccountsAddedProperties['accountType']
+    AddedAccountsProperties['accountType']
 > = {
     [AccountType.MnemonicDerived]: AmpliAccountType.Mnemonic,
     [AccountType.SeedDerived]: AmpliAccountType.Seed,

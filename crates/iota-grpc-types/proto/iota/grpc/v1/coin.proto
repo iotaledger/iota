@@ -1,0 +1,101 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.coin;
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/types.proto";
+
+// Metadata for a coin type
+message CoinMetadata {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Information about the state of the coin's MetadataCap
+  enum MetadataCapState {
+    // Indicates the state of the MetadataCap is unknown.
+    // Set when the coin has not been migrated to the CoinRegistry.
+    METADATA_CAP_STATE_UNKNOWN = 0;
+    // Indicates the MetadataCap has been claimed.
+    CLAIMED = 1;
+    // Indicates the MetadataCap has not been claimed.
+    UNCLAIMED = 2;
+    // Indicates the MetadataCap has been deleted.
+    DELETED = 3;
+  }
+
+  // ObjectId of the `0x2::coin::CoinMetadata` object or
+  // 0x2::iota::coin_registry::Currency object (when registered with CoinRegistry).
+  optional iota.grpc.v1.types.ObjectId id = 1;
+  // Number of decimal places the coin uses.
+  optional uint32 decimals = 2;
+  // Name for the token
+  optional string name = 3;
+  // Symbol for the token
+  optional string symbol = 4;
+  // Description of the token
+  optional string description = 5;
+  // URL for the token logo
+  optional string icon_url = 6;
+  // The MetadataCap ID if it has been claimed for this coin type.
+  // This capability allows updating the coin's metadata fields.
+  // Only populated when metadata is from CoinRegistry.
+  optional iota.grpc.v1.types.ObjectId metadata_cap_id = 7;
+  // State of the MetadataCap for this coin type.
+  optional MetadataCapState metadata_cap_state = 8;
+}
+
+// Information about a coin type's `0x2::coin::TreasuryCap` and its total available supply
+message CoinTreasury {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Supply state of a coin, matching the Move SupplyState enum
+  enum SupplyState {
+    // Supply is unknown or TreasuryCap still exists (minting still possible)
+    SUPPLY_STATE_UNKNOWN = 0;
+    // Supply is fixed (TreasuryCap consumed, no more minting possible)
+    FIXED = 1;
+    // Supply can only decrease (burning allowed, minting not allowed)
+    BURN_ONLY = 2;
+  }
+  // ObjectId of the `0x2::coin::TreasuryCap` object.
+  optional iota.grpc.v1.types.ObjectId id = 1;
+  // Total available supply for this coin type.
+  optional uint64 total_supply = 2;
+  // Supply state indicating if the supply is fixed or can still be minted
+  optional SupplyState supply_state = 3;
+}
+
+// Information about a regulated coin, which indicates that it makes use of the transfer deny list.
+message RegulatedCoinMetadata {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Indicates the state of the regulation of the coin.
+  enum CoinRegulatedState {
+    // Indicates the regulation state of the coin is unknown.
+    // This is set when a coin has not been migrated to the
+    // coin registry and has no `0x2::coin::RegulatedCoinMetadata`
+    // object.
+    COIN_REGULATED_STATE_UNKNOWN = 0;
+    // Indicates a coin is regulated. RegulatedCoinMetadata will be populated.
+    REGULATED = 1;
+    // Indicates a coin is unregulated.
+    UNREGULATED = 2;
+  }
+
+  // ObjectId of the `0x2::coin::RegulatedCoinMetadata` object.
+  // Only present for coins that have not been migrated to CoinRegistry.
+  optional iota.grpc.v1.types.ObjectId id = 1;
+  // The ID of the coin's `CoinMetadata` or `CoinData` object.
+  optional iota.grpc.v1.types.ObjectId coin_metadata_object = 2;
+  // The ID of the coin's `DenyCap` object.
+  optional iota.grpc.v1.types.ObjectId deny_cap_object = 3;
+  // Whether the coin can be globally paused
+  optional bool allow_global_pause = 4;
+  // Variant of the regulated coin metadata
+  optional uint32 variant = 5;
+  // Indicates the coin's regulated state.
+  optional CoinRegulatedState coin_regulated_state = 6;
+}

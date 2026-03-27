@@ -83,7 +83,7 @@ Only one object type can be passed in given run, to process multiple object type
 
 In general, the data flow is as follows:
 
-- Checkpoints are read via JSON RPC using reused code from `iota_data_ingestion_core`.
+- Checkpoints are read via gRPC using reused code from `iota_data_ingestion_core`.
 - Checkpoints are processed by an appropriate handler (e.g. `EventHandler`), which extracts relevant objects from each transaction of the checkpoint.
 - Objects are passed to the Writer, which writes the objects to a local temporary store in CSV or Parquet format.
 - The `AnalyticsProcessor` syncs the objects from the local store to the remote store (S3/GCS/Azure, or also local, for testing purposes).

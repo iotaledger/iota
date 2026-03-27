@@ -159,15 +159,31 @@ function mapObjectChanges(
         });
     });
 
-    effects?.unwrapped?.forEach((unwrapped) => {
+    effects?.wrapped?.forEach((wrapped) => {
         changes.push({
             type: 'wrapped',
+            objectId: wrapped.objectId,
+            objectType: toShortTypeString(
+                transactionBlock.effects?.objectChanges?.nodes.find(
+                    (change) => change.address === wrapped.objectId,
+                )?.inputState?.asMoveObject?.contents?.type.repr!,
+            ),
+            sender: transactionBlock.sender?.address!,
+            version: wrapped.version?.toString(),
+        });
+    });
+
+    effects?.unwrapped?.forEach((unwrapped) => {
+        changes.push({
+            type: 'unwrapped',
+            digest: unwrapped.reference.digest,
             objectId: unwrapped.reference.objectId,
             objectType: toShortTypeString(
                 transactionBlock.effects?.objectChanges?.nodes.find(
                     (change) => change.address === unwrapped.reference.objectId,
                 )?.outputState?.asMoveObject?.contents?.type.repr!,
             ),
+            owner: unwrapped.owner,
             sender: transactionBlock.sender?.address!,
             version: unwrapped.reference.version?.toString(),
         });

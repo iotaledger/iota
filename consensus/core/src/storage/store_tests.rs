@@ -346,7 +346,7 @@ async fn scan_scoring_metrics(
     let metrics_to_write = vec![(authories[0], metrics_updates[1].clone())];
 
     store
-        .write(WriteBatch::default().scoring_metrics(metrics_to_write.clone()))
+        .write(WriteBatch::default().scoring_metrics(metrics_to_write))
         .unwrap();
 
     {

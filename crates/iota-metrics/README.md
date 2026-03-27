@@ -5,7 +5,7 @@ They are then scraped by prometheus and displayed in the Grafana UI.
 
 To only see metrics exposed on the endpoint `/metrics`, you need to:
 
-- launch a local swarm via `RUST_LOG="off,iota_swarm=info,iota_node=info" cargo run --bin iota -- start --force-regenesis`
+- launch a local swarm via `RUST_LOG="off,iota_swarm=info,iota_node=info" cargo run --bin iota-localnet -- start --force-regenesis`
 - search the beginning of the logs for `Prometheus` (the full log line should look like `Started Prometheus HTTP endpoint. To query metrics use curl -s http://127.0.0.1:51426/metrics` )
 - run the curl command you found, containing the right port to reach the prometheus endpoint
 

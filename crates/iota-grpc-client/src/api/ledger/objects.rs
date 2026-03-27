@@ -3,7 +3,7 @@
 
 //! High-level API for object queries.
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     ledger_service::{GetObjectsRequest, ObjectRequest, ObjectRequests},
     object::Object,
     types::ObjectReference,
@@ -13,8 +13,8 @@ use iota_sdk_types::{ObjectId, Version};
 use crate::{
     Client,
     api::{
-        Error, GET_OBJECTS_READ_MASK, MetadataEnvelope, ProtoResult, Result,
-        field_mask_with_default,
+        Error, GET_OBJECTS_READ_MASK, MetadataEnvelope, ProtoResult, Result, collect_stream,
+        field_mask_with_default, proto_object_id, saturating_usize_to_u32,
     },
 };
 
@@ -82,7 +82,8 @@ impl Client {
         let requests = ObjectRequests::default().with_requests(
             refs.iter()
                 .map(|(id, version)| {
-                    let mut object_ref = ObjectReference::default().with_object_id(id.to_string());
+                    let mut object_ref =
+                        ObjectReference::default().with_object_id(proto_object_id(*id));
 
                     if let Some(v) = version {
                         object_ref = object_ref.with_version(*v);
@@ -98,29 +99,23 @@ impl Client {
             .with_read_mask(field_mask_with_default(read_mask, GET_OBJECTS_READ_MASK));
 
         if let Some(max_size) = self.max_decoding_message_size() {
-            request = request.with_max_message_size_bytes(max_size as u32);
+            request = request.with_max_message_size_bytes(saturating_usize_to_u32(max_size));
         }
 
         let mut client = self.ledger_service_client();
 
         let response = client.get_objects(request).await?;
-        let (mut stream, metadata) = MetadataEnvelope::from(response).into_parts();
+        let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         // Server guarantees results are returned in request order
-        let mut results = Vec::with_capacity(refs.len());
-        let mut has_next = false;
-
-        while let Some(response) = stream.message().await? {
-            has_next = response.has_next;
-            for result in response.objects {
-                results.push(result.into_result()?);
-            }
-        }
-
-        if has_next {
-            return Err(Error::UnexpectedEndOfStream);
-        }
-
-        Ok(MetadataEnvelope::new(results, metadata))
+        collect_stream(stream, metadata, |msg| {
+            let items = msg
+                .objects
+                .into_iter()
+                .map(|r| r.into_result())
+                .collect::<Result<Vec<_>>>()?;
+            Ok((msg.has_next, items))
+        })
+        .await
     }
 }

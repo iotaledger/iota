@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 import { secp256r1 } from '@noble/curves/p256';
 import { blake2b } from '@noble/hashes/blake2b';
 import { sha256 } from '@noble/hashes/sha256';
@@ -243,8 +243,8 @@ export class PasskeyKeypair extends Signer {
         serializedSignature.set([SIGNATURE_SCHEME_TO_FLAG[this.getKeyScheme()]]);
         serializedSignature.set(signature, 1);
         return {
-            signature: toB64(serializedSignature),
-            bytes: toB64(bytes),
+            signature: toBase64(serializedSignature),
+            bytes: toBase64(bytes),
         };
     }
 
