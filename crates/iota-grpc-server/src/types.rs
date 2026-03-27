@@ -1132,11 +1132,12 @@ impl GrpcReader {
             }
             .into());
         }
+        let skip = usize::from(cursor.is_some());
         let iter = self
             .state_reader
             .package_versions_iter(original_package_id, cursor)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        Ok(Box::new(iter))
+        Ok(Box::new(iter.skip(skip)))
     }
 
     /// Generic stream implementation for checkpoints
