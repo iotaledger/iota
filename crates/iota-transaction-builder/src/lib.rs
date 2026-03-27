@@ -21,7 +21,10 @@ use iota_types::{
     fp_ensure,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Command, InputObjectKind, TransactionData, TransactionKind},
+    transaction::{
+        CallArg, Command, InputObjectKind, ProgrammableTransactionExt, TransactionData,
+        TransactionKind,
+    },
 };
 
 #[async_trait]
