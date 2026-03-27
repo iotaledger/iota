@@ -14,19 +14,6 @@ use tracing::debug;
 
 use crate::validator_client_monitor::{OperationFeedback, OperationType};
 
-/// Return the configured expected latency (seconds) for `operation`.
-///
-/// Lives here rather than in `iota-config` because `OperationType` is defined
-/// in `iota-core`, which `iota-config` must not depend on.
-fn expected_latency_secs(config: &ValidatorClientMonitorConfig, operation: OperationType) -> f64 {
-    match operation {
-        OperationType::Submit => config.expected_latency_submit_secs,
-        OperationType::Effects => config.expected_latency_effects_secs,
-        OperationType::HealthCheck => config.expected_latency_healthcheck_secs,
-        OperationType::Consensus => config.expected_latency_consensus_secs,
-    }
-}
-
 /// Ok(latency in sec) or Err(high failure latency in sec)
 type Observation = Result<f64, f64>;
 
@@ -255,94 +242,72 @@ impl ValidatorClientStats {
     ///
     /// The score consists of the following metrics:
     ///
-    /// Latency = exp(μ+kσ) / expected_latency:
-    ///   - EWMA score of log-latency, normalised by the operation's expected
-    ///     baseline.  A value of 1.0 means the validator is at expected
-    ///     latency; 2.0 means twice as slow.  Normalisation makes all four
-    ///     operation types directly comparable regardless of their absolute
-    ///     timescales (~100 ms for HealthCheck vs ~1500 ms for Effects).
-    ///   - The responsiveness of the validator.
-    /// Risk = λ / sqrt(n_eff + ϵ):
-    ///   - Penalize low number of samples, where n_eff is effective sample
-    ///     size.
-    ///   - The potential for failure based on historical data.
-    /// Staleness = λ (1−exp(-Δt/τ)):
-    ///   - Penalize outdated stats.
-    ///   - How outdated the data is.
-    /// Failure = λ pf/(1-pf+ϵ):
-    ///   - Penalize high failure rates, where pf is the failure rate.
-    ///   - The rate of failed interactions.
-    /// Congestion = λ n_inflight:
-    ///   - Penalize high congestion, not estimated, always 0.
-    ///   - The current load on the validator.
-    /// Exploration = λ sqrt(ln(N) / (n_eff + 1)):
-    ///   - Reward exploration.
-    ///   - The willingness to try new paths.
+    /// Latency = Σ_op w_op * exp(μ_op + k·σ_op) / expected_latency_op:
+    ///   - Weighted sum of per-operation EWMA latency scores, each normalised
+    ///     to a dimensionless ratio (actual / expected).  A value of 1.0 means
+    ///     the validator is at expected latency; 2.0 means twice as slow.
+    ///     Normalisation makes all four operation types directly comparable
+    ///     regardless of their absolute timescales (~100 ms HealthCheck vs
+    ///     ~1500 ms Effects).
+    /// Risk = λ / sqrt(min_op(n_eff_op) + ϵ):
+    ///   - Driven by the *least-sampled* operation.  Confidence in a validator
+    ///     is limited by the operation we know least about.
+    /// Staleness = λ * max_op(1 − exp(−Δt_op / τ)):
+    ///   - Driven by the *stalest* operation.  Any operation that has not been
+    ///     observed recently degrades the overall score.
+    /// Failure = λ * pf_max / (1 − pf_max + ϵ):
+    ///   - Driven by the *highest* per-operation failure rate.  A validator
+    ///     that fails any single operation is penalised even if others succeed.
+    /// Exploration = λ * sqrt(ln(N) / (min_op(n_eff_op) + 1)):
+    ///   - Reward exploring validators where any operation is under-sampled.
     ///
-    /// These score metrics should reflect validator state and behavior:
+    /// Using worst-case aggregation for Risk, Staleness, and Failure means
+    /// good performance on one operation cannot mask bad performance on
+    /// another, and selective misbehaviour is naturally penalised.
     ///
-    /// - New validator, no data: high Risk, high Exploration.
-    /// - Fast, well-sampled, fresh: low Latency, low Risk, low Staleness, low
-    ///   Failure, low Exploration.
-    /// - Slow, but reliable: high Latency, low Risk, low Failure.
-    /// - High failure rate: high Failure.
-    /// - Good went stale: increasing Staleness, increasing Exploration.
-    ///
-    /// The final score can be computed as follows:
-    ///
-    /// Score = Latency + Risk + Staleness + Failure + Congestion - Exploration
-    fn operation_score(
-        &self,
-        operation: OperationType,
-        total_observations: u64,
-        now: Instant,
-        config: &ValidatorClientMonitorConfig,
-    ) -> ValidatorScore {
-        let (raw_latency, n_eff, failure_rate, alpha) =
-            self.operation_stats(operation, now, config);
-        // Normalise raw latency (seconds) to a dimensionless ratio
-        // actual / expected.  A score of 1.0 means exactly at baseline; 2.0
-        // means twice as slow.  This makes the four operations comparable and
-        // removes the need for ad-hoc per-operation weight compensation.
-        let latency = raw_latency / expected_latency_secs(config, operation);
-        let risk = config.risk_coeff / (n_eff + 1e-2).sqrt();
-        let staleness = config.stale_coeff * alpha;
-        let failure = config.failure_coeff * failure_rate / (1.0 - failure_rate + 1e-2);
-        let congestion = 0.0; // we have no way to measure congestion here
-        let total_requests = (total_observations + 1) as f64;
-        let exploration = config.exploration_coeff * (total_requests.ln() / (n_eff + 1.0)).sqrt();
-
-        // let exploitation = latency + risk + staleness + failure + congestion;
-        // exploitation - exploration
-        ValidatorScore {
-            latency,
-            risk,
-            staleness,
-            failure,
-            congestion,
-            exploration,
-        }
-    }
-
+    /// Score = Latency + Risk + Staleness + Failure - Exploration
     fn calculate_selection_score(
         &self,
         total_observations: u64,
         now: Instant,
         config: &ValidatorClientMonitorConfig,
     ) -> f64 {
-        let consensus_score = self
-            .operation_score(OperationType::Consensus, total_observations, now, config)
-            .score();
-        let health_check_score = self
-            .operation_score(OperationType::HealthCheck, total_observations, now, config)
-            .score();
-        let effects_score = self
-            .operation_score(OperationType::Effects, total_observations, now, config)
-            .score();
-        let submit_score = self
-            .operation_score(OperationType::Submit, total_observations, now, config)
-            .score();
-        consensus_score * 0.5 + health_check_score * 0.2 + effects_score * 0.2 + submit_score * 0.1
+        // Gather raw stats (raw_latency_secs, n_eff, failure_rate, alpha) for
+        // all four operations.
+        let (l_sub, n_sub, f_sub, a_sub) =
+            self.operation_stats(OperationType::Submit, now, config);
+        let (l_eff, n_eff, f_eff, a_eff) =
+            self.operation_stats(OperationType::Effects, now, config);
+        let (l_hc, n_hc, f_hc, a_hc) =
+            self.operation_stats(OperationType::HealthCheck, now, config);
+        let (l_con, n_con, f_con, a_con) =
+            self.operation_stats(OperationType::Consensus, now, config);
+
+        // Weighted sum of normalised latencies.  Weights reflect operational
+        // importance; normalisation makes the four timescales comparable.
+        let latency = l_con / config.expected_latency_consensus_secs * 0.5
+            + l_hc / config.expected_latency_healthcheck_secs * 0.2
+            + l_eff / config.expected_latency_effects_secs * 0.2
+            + l_sub / config.expected_latency_submit_secs * 0.1;
+
+        // Shared risk: confidence is limited by the least-sampled operation.
+        let n_eff_min = n_sub.min(n_eff).min(n_hc).min(n_con);
+        let risk = config.risk_coeff / (n_eff_min + 1e-2).sqrt();
+
+        // Shared staleness: any stale operation degrades the overall score.
+        let alpha_max = a_sub.max(a_eff).max(a_hc).max(a_con);
+        let staleness = config.stale_coeff * alpha_max;
+
+        // Shared failure: any operation's failures penalise the whole validator.
+        let f_max = f_sub.max(f_eff).max(f_hc).max(f_con);
+        let failure = config.failure_coeff * f_max / (1.0 - f_max + 1e-2);
+
+        // Exploration: under-sampling any single operation warrants exploration.
+        let total_requests = (total_observations + 1) as f64;
+        let exploration =
+            config.exploration_coeff * (total_requests.ln() / (n_eff_min + 1.0)).sqrt();
+
+        (latency + risk + staleness + failure - exploration).max(0.0)
     }
 }
 
@@ -473,24 +438,6 @@ impl ClientObservedStats {
     #[cfg(test)]
     pub(super) fn num_validators(&self) -> usize {
         self.validator_stats.len()
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct ValidatorScore {
-    latency: f64,
-    risk: f64,
-    staleness: f64,
-    failure: f64,
-    congestion: f64,
-    exploration: f64,
-}
-
-impl ValidatorScore {
-    fn score(&self) -> f64 {
-        let exploitation =
-            self.latency + self.risk + self.staleness + self.failure + self.congestion;
-        exploitation - self.exploration
     }
 }
 
