@@ -47,7 +47,6 @@ jobs:
     environment: ${{ needs.resolve-deploy-type.outputs.environment }}
     permissions:
       contents: read
-      pull-requests: write
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.WALLET_DASHBOARD_VERCEL_PROJECT_ID }}
