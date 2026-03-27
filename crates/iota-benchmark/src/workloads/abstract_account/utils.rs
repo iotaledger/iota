@@ -92,7 +92,7 @@ pub async fn publish_aa_package_and_find_metadata(
 
         let (is_package, ty) = match &obj.data {
             iota_types::object::Data::Package(_) => (true, "<package>".to_string()),
-            iota_types::object::Data::Move(m) => (false, m.type_().to_string()),
+            iota_types::object::Data::Move(m) => (false, m.struct_tag().to_string()),
         };
 
         Ok((

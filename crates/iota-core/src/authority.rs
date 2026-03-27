@@ -112,7 +112,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticator,
     object::{
-        MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
         bounded_visitor::BoundedVisitor,
     },
     storage::{
@@ -2671,12 +2671,12 @@ impl AuthorityState {
         };
 
         // We only index dynamic field objects
-        if !move_object.type_().is_dynamic_field() {
+        if !move_object.struct_tag().is_dynamic_field() {
             return Ok(None);
         }
 
         let layout = resolver
-            .get_annotated_layout(&move_object.type_().clone())?
+            .get_annotated_layout(&move_object.struct_tag().clone())?
             .into_layout();
 
         let field =
@@ -2921,7 +2921,7 @@ impl AuthorityState {
                 epoch_store
                     .executor()
                     .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
-                    .get_annotated_layout(&move_obj.type_().clone())?,
+                    .get_annotated_layout(&move_obj.struct_tag().clone())?,
             )?)
         } else {
             None
@@ -3821,7 +3821,7 @@ impl AuthorityState {
                         .executor()
                         // TODO(cache) - must read through cache
                         .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
-                        .get_annotated_layout(&object.type_().clone())?,
+                        .get_annotated_layout(&object.struct_tag().clone())?,
                 )
             })
             .transpose()?;

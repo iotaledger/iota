@@ -21,7 +21,7 @@ use iota_types::{
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
-    object::{MoveObject, OBJECT_START_VERSION, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Owner},
     storage::ChildObjectResolver,
 };
 use prometheus::default_registry;

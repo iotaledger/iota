@@ -14,7 +14,7 @@ use iota_types::{
     coin::Coin,
     collection_types::Bag,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     stardust::{
         coin_type::CoinType,
         output::unlock_conditions::{

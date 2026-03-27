@@ -352,7 +352,7 @@ fn examine_object(
             }
             Ok(name) if name == STR_OTHER => {
                 for other_obj in other_object_map.values() {
-                    println!("{:#?}", other_obj.type_());
+                    println!("{:#?}", other_obj.struct_tag());
                     println!("{:?}", other_obj.version());
                 }
                 print_divider("Other");

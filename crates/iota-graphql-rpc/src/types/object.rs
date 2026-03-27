@@ -1674,7 +1674,7 @@ pub(crate) async fn deserialize_move_struct(
     move_object: &NativeMoveObject,
     resolver: &PackageResolver,
 ) -> Result<(StructTag, MoveStruct), Error> {
-    let struct_tag = StructTag::from(move_object.type_().clone());
+    let struct_tag = move_object.struct_tag().clone();
     let contents = move_object.contents();
     let move_type_layout = resolver
         .type_layout(TypeTag::from(struct_tag.clone()))

@@ -147,7 +147,7 @@ pub async fn main() -> Result<()> {
             println!("Successfully verified object: {object_id}");
 
             if let Data::Move(move_object) = &object.data {
-                let object_type = move_object.type_();
+                let object_type = move_object.struct_tag();
 
                 let type_layout = resolver.type_layout(move_object.type_tag()).await?;
 

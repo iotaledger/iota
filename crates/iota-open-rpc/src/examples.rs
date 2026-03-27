@@ -41,7 +41,7 @@ use iota_types::{
     gas_coin::GasCoin,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
     messages_checkpoint::CheckpointDigest,
-    object::{MoveObject, Owner},
+    object::{MoveObject, MoveObjectExt, Owner},
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,

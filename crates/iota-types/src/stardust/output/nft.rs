@@ -192,7 +192,7 @@ impl TryFrom<&Object> for NftOutput {
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if NftOutput::is_nft_output(o.type_()) {
+                if NftOutput::is_nft_output(o.struct_tag()) {
                     return NftOutput::from_bcs_bytes(o.contents());
                 }
             }

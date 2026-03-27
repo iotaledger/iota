@@ -57,7 +57,7 @@ use iota_types::{
     move_package::{
         IotaAttribute, MovePackage, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
     },
-    object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
+    object::{self, GAS_VALUE_FOR_TESTING, MoveObjectExt, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore},
@@ -2022,7 +2022,7 @@ impl IotaTestAdapter {
     // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectID) -> String {
         match &self.get_object(id, None).unwrap().data {
-            object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.type_())),
+            object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
             object::Data::Package(pkg) => pkg
                 .serialized_module_map()
                 .keys()

@@ -4,10 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::{
-    base_types::StructTag,
-    object::{Data, MoveObject as NativeMoveObject},
-};
+use iota_types::object::{Data, MoveObject as NativeMoveObject};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -442,7 +439,7 @@ impl MoveObjectImpl<'_> {
         Some(MoveValue::new(type_, self.0.native.contents().into()))
     }
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
-        let type_: MoveType = StructTag::from(self.0.native.type_().clone()).into();
+        let type_: MoveType = self.0.native.struct_tag().clone().into();
         let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
         Ok(set.is_some_and(|s| s.has_key() && s.has_store()))
     }

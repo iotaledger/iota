@@ -24,7 +24,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object, Owner},
     transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
