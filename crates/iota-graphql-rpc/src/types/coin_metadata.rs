@@ -341,7 +341,7 @@ impl CoinMetadata {
 
     /// The overall quantity of tokens that will be issued.
     async fn supply(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
-        let type_params = self.super_.native.type_().type_params();
+        let type_params = self.super_.native.struct_tag().type_params();
         let Some(coin_type) = type_params.last().cloned() else {
             return Ok(None);
         };
@@ -442,7 +442,7 @@ impl TryFrom<&MoveObject> for CoinMetadata {
     type Error = CoinMetadataDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.type_().is_coin_metadata() {
+        if !move_object.native.struct_tag().is_coin_metadata() {
             return Err(CoinMetadataDowncastError::NotCoinMetadata);
         }
 

@@ -19,7 +19,7 @@ use iota_types::{
     id::UID,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    object::{MoveObject, Object, Owner},
+    object::{MoveObject, MoveObjectExt, Object, Owner},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};

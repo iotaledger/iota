@@ -87,7 +87,7 @@ impl TryFrom<&Object> for BasicOutput {
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if BasicOutput::is_basic_output(o.type_()) {
+                if BasicOutput::is_basic_output(o.struct_tag()) {
                     return BasicOutput::from_bcs_bytes(o.contents());
                 }
             }

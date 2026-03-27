@@ -18,7 +18,7 @@ use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
@@ -79,7 +79,7 @@ fn generate_random_gas_data(
     assert_eq!(
         gas_objects
             .iter()
-            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unsafe())
+            .map(|o| o.data.try_as_move().unwrap().get_coin_value_unchecked())
             .sum::<u64>(),
         total_gas_balance
     );

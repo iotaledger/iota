@@ -269,7 +269,7 @@ The `IndexerExecutor` actor is the coordinator of the entire framework logic.
 pub struct IndexerExecutor<P> {
     // Holds the registered WorkerPools actors
     pools: Vec<Pin<Box<dyn Future<Output = ()> + Send>>>,
-    // Store the Sender half of the channel to notofy Worker Pool of new CheckpointData
+    // Store the Sender half of the channel to notify Worker Pool of new CheckpointData
     pool_senders: Vec<mpsc::Sender<Arc<CheckpointData>>>,
     // A wrapper around the implemented ProgressStore by having an internal cache
     progress_store: ProgressStoreWrapper<P>,

@@ -8,7 +8,7 @@ use iota_sdk::{
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
         base_types::{ObjectID, ObjectType},
-        object::{MoveObject, Object},
+        object::{MoveObject, MoveObjectExt, Object},
         transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
     },
 };
