@@ -6,7 +6,6 @@ import * as Sentry from '@sentry/react';
 const IS_PROD = import.meta.env.VITE_BUILD_ENV === 'production';
 export const IS_SENTRY_ENABLED = import.meta.env.VITE_SENTRY_ENABLED === 'true';
 
-// TODO: Replace with actual EVM Bridge Sentry DSN once the project is created in Sentry
 const SENTRY_DSN = IS_SENTRY_ENABLED
     ? IS_PROD
         ? 'https://c81b9282933b63a064b73860d59d4ad5@o4508279186718720.ingest.de.sentry.io/4511065397264464'
