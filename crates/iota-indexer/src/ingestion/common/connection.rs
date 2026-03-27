@@ -3,13 +3,14 @@
 
 use std::time::Duration;
 
-use backoff::{self, ExponentialBackoff, backoff::Backoff};
+use backoff::{self, ExponentialBackoff};
+use futures::TryFutureExt;
 use iota_data_ingestion_core::{
     create_remote_store_client, history::manifest::Manifest, reader::v2::RemoteUrl,
 };
 use iota_grpc_client::Client as GrpcClient;
 use object_store::ObjectStoreExt;
-use tracing::{info, warn};
+use tracing::{debug, info};
 
 use crate::{
     config::IngestionSources,
@@ -31,6 +32,10 @@ use crate::{
 ///
 /// Both probes are retried with exponential backoff within the given timeout.
 /// If neither succeeds, returns an error.
+///
+/// When `live_checkpoints_store_url` is provided, the URL is assumed to be a
+/// historical store and the live URL is included in the
+/// [`RemoteUrl::HybridHistoricalStore`].
 pub async fn resolve_remote_url(
     ingestion_sources: &IngestionSources,
     timeout: Duration,
@@ -43,51 +48,67 @@ pub async fn resolve_remote_url(
         return Ok(None);
     };
 
-    let grpc_client = GrpcClient::connect(url.clone()).await?;
+    let live_url = ingestion_sources
+        .live_checkpoints_store_url
+        .as_ref()
+        .map(ToString::to_string);
 
-    // Use a lightweight S3 client to check if the MANIFEST file exists.
-    // We avoid HistoricalReader here as its internal manifest fetch retries
-    // with a 15-minute default backoff and does not have a timeout.
-    let historical =
-        create_remote_store_client(url.clone(), Default::default(), timeout.as_secs())?;
+    // if live URL is provided, remote-store-url can be assumed as a historical
+    // store
+    if live_url.is_some() {
+        return Ok(Some(RemoteUrl::HybridHistoricalStore {
+            historical_url: url,
+            live_url,
+        }));
+    }
 
-    let mut backoff = ExponentialBackoff {
+    let backoff = ExponentialBackoff {
         max_elapsed_time: Some(timeout),
         multiplier: 2.0,
         ..Default::default()
     };
 
-    loop {
-        if grpc_client.get_health(None).await.is_ok() {
-            info!("resolved remote store as fullnode gRPC: {url}");
-            return Ok(Some(RemoteUrl::Fullnode(url)));
-        }
+    backoff::future::retry(backoff, || {
+        let url = url.clone();
+        async move {
+            let grpc_result = GrpcClient::connect(url.clone())
+                .and_then(|client| async move { client.get_health(None).await })
+                .await
+                .inspect_err(|e| debug!("gRPC health check failed: {e}"));
 
-        if historical.head(&Manifest::file_path()).await.is_ok() {
+            if grpc_result.is_ok() {
+                info!("resolved remote store as fullnode gRPC: {url}");
+                return Ok(Some(RemoteUrl::Fullnode(url)));
+            }
+
+            // we use a lightweight S3 client to check if the MANIFEST file exists.
+            // we avoid HistoricalReader here as its internal manifest fetch retries
+            // with a 15-minute default backoff and does not have a timeout.
+            let store =
+                create_remote_store_client(url.clone(), Default::default(), timeout.as_secs())
+                    .map_err(|e| {
+                        debug!("failed to create historical store client: {e}");
+                        backoff::Error::transient(IndexerError::Generic(format!(
+                            "remote store not reachable: {url}"
+                        )))
+                    })?;
+
+            store.head(&Manifest::file_path()).await.map_err(|e| {
+                debug!("historical store MANIFEST not found: {e}");
+                backoff::Error::transient(IndexerError::Generic(format!(
+                    "remote store not reachable: {url}"
+                )))
+            })?;
+
             info!("resolved remote store as historical object store: {url}");
-            let live_url = ingestion_sources
-                .current_epoch_store_url
-                .as_ref()
-                .map(ToString::to_string);
-            return Ok(Some(RemoteUrl::HybridHistoricalStore {
+            Ok(Some(RemoteUrl::HybridHistoricalStore {
                 historical_url: url,
-                live_url,
-            }));
+                live_url: None,
+            }))
         }
-
-        match backoff.next_backoff() {
-            Some(duration) => {
-                warn!(
-                    "remote store not reachable as fullnode gRPC or historical connection, retrying in {}ms",
-                    duration.as_millis()
-                );
-                tokio::time::sleep(duration).await;
-            }
-            None => {
-                return Err(IndexerError::Generic(format!(
-                    "unable to resolve remote store URL after {timeout:?}: {url}"
-                )));
-            }
-        }
-    }
+    })
+    .await
+    .map_err(|_: IndexerError| IndexerError::Generic(format!(
+        "failed to resolve remote store '{url}' after {timeout:?}: not reachable as gRPC or historical store"
+    )))
 }
