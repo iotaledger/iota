@@ -121,7 +121,7 @@ impl DynamicFieldHandler {
         let Some(move_object) = move_obj_opt else {
             return Ok(());
         };
-        if !move_object.type_().is_dynamic_field() {
+        if !move_object.struct_tag().is_dynamic_field() {
             return Ok(());
         }
         let layout = state.resolver.type_layout(move_object.type_tag()).await?;
@@ -159,7 +159,7 @@ impl DynamicFieldHandler {
                 object_id: object.id().to_string(),
                 version: object.version().as_u64(),
                 digest: object.digest().to_string(),
-                object_type: move_object.type_().type_params()[1]
+                object_type: move_object.struct_tag().type_params()[1]
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {

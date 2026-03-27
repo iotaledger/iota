@@ -183,7 +183,7 @@ impl ObjectHandler {
         } else {
             (None, None)
         };
-        let object_type = move_obj_opt.map(|o| o.type_().to_string());
+        let object_type = move_obj_opt.map(|o| o.struct_tag().to_string());
         let object_id = object.id();
         let entry = ObjectEntry {
             object_id: object_id.to_string(),
@@ -204,7 +204,7 @@ impl ObjectHandler {
             bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
             coin_type: object.coin_type_opt().map(|t| t.to_string()),
             coin_balance: if object.coin_type_opt().is_some() {
-                Some(object.get_coin_value_unsafe())
+                Some(object.get_coin_value_unchecked())
             } else {
                 None
             },

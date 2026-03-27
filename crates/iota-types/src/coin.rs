@@ -51,7 +51,7 @@ impl Coin {
         let Data::Move(obj) = &object.data else {
             return Ok(None);
         };
-        let Some(_) = obj.type_().coin_type_opt() else {
+        let Some(_) = obj.struct_tag().coin_type_opt() else {
             return Ok(None);
         };
 
@@ -143,7 +143,7 @@ impl TryFrom<Object> for TreasuryCap {
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_treasury_cap() {
+                if o.struct_tag().is_treasury_cap() {
                     return TreasuryCap::from_bcs_bytes(o.contents());
                 }
             }
@@ -206,7 +206,7 @@ impl TryFrom<&Object> for CoinMetadata {
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
-                if o.type_().is_coin_metadata() {
+                if o.struct_tag().is_coin_metadata() {
                     return CoinMetadata::from_bcs_bytes(o.contents());
                 }
             }

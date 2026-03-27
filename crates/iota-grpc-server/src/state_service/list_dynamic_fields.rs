@@ -13,7 +13,7 @@ use iota_grpc_types::{
     },
 };
 use iota_types::{
-    base_types::{ObjectID, StructTag, TypeTag},
+    base_types::{ObjectID, TypeTag},
     dynamic_field::visitor as DFV,
 };
 use prost::Message;
@@ -116,14 +116,15 @@ fn load_dynamic_field(
         return Ok(());
     };
 
+    let struct_tag = move_object.struct_tag();
+
     // Only proceed if this is actually a `Field<Name, Value>` type.
-    if !move_object.type_().is_dynamic_field() {
+    if !struct_tag.is_dynamic_field() {
         return Ok(());
     }
 
-    let struct_tag: StructTag = move_object.clone().into_type();
     let layout = match reader
-        .get_type_layout(&TypeTag::from(struct_tag))
+        .get_type_layout(&TypeTag::from(struct_tag.clone()))
         .map_err(RpcError::from)?
     {
         Some(layout) => layout,

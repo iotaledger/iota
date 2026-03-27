@@ -29,7 +29,7 @@ mod checked {
         iota_sdk_types_conversions::{struct_tag_core_to_sdk, type_tag_core_to_sdk},
         metrics::LimitsMetrics,
         move_package::{MovePackage, MovePackageExt, derive_package_metadata_id},
-        object::{Data, MoveObject, Object, ObjectInner, Owner},
+        object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, SharedObjectRef},
     };
@@ -1425,7 +1425,7 @@ mod checked {
             vm,
             linkage_view,
             new_packages,
-            object.type_().clone().into(),
+            object.struct_tag().clone(),
             used_in_non_entry_move_call,
             object.contents(),
         )
@@ -1577,8 +1577,8 @@ mod checked {
             ObjectContents::Coin(coin) => coin.to_bcs_bytes(),
             ObjectContents::Raw(bytes) => bytes,
         };
-        let object_id = MoveObject::id_opt(&bytes).map_err(|e| {
-            ExecutionError::invariant_violation(format!("No id for Raw object bytes. {e}"))
+        let object_id = MoveObject::id_opt(&bytes).ok_or_else(|| {
+            ExecutionError::invariant_violation("No id for Raw object bytes".to_string())
         })?;
         let additional_write = AdditionalWrite {
             recipient: owner,

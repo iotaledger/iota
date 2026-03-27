@@ -12,7 +12,7 @@ use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
     digests::{ObjectDigest, TransactionDigest},
     event::Event,
-    object::{Data, Object, Owner},
+    object::{Data, MoveObjectExt, Object, Owner},
     storage::BackingPackageStore,
     transaction::Argument,
 };

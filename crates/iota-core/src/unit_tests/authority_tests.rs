@@ -38,7 +38,7 @@ use iota_types::{
         AuthorityCapabilitiesV1, CancelledTransaction, ConsensusDeterminedVersionAssignments,
         VersionAssignment,
     },
-    object::{Data, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Owner},
+    object::{Data, GAS_VALUE_FOR_TESTING, MoveObjectExt, OBJECT_START_VERSION, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -3103,7 +3103,7 @@ async fn test_genesis_iota_system_state_object() {
     let move_object = wrapper.data.try_as_move().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is_iota_system_state());
+    assert!(move_object.struct_tag().is_iota_system_state());
     let iota_system_state = authority_state
         .get_iota_system_state_object_for_testing()
         .unwrap();

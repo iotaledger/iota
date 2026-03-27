@@ -326,7 +326,7 @@ impl Inner<'_> {
             Some(obj) => obj,
         };
         // object exists, but the type does not match
-        if obj.type_() != child_struct_tag {
+        if obj.struct_tag() != child_struct_tag {
             return Ok(ObjectResult::MismatchedType);
         }
         // deserialize the value
@@ -394,7 +394,7 @@ fn deserialize_move_object(
 ) -> PartialVMResult<ObjectResult<(Type, StructTag, Value)>> {
     let child_id = obj.id();
     // object exists, but the type does not match
-    if obj.type_() != &child_struct_tag {
+    if obj.struct_tag() != &child_struct_tag {
         return Ok(ObjectResult::MismatchedType);
     }
     let value = match Value::simple_deserialize(obj.contents(), child_ty_layout) {
@@ -513,7 +513,7 @@ impl<'a> ChildObjectStore<'a> {
         Ok(self
             .inner
             .get_or_fetch_object_from_store(parent, child)?
-            .map(|move_obj| move_obj.type_() == child_struct_tag)
+            .map(|move_obj| move_obj.struct_tag() == child_struct_tag)
             .unwrap_or(false))
     }
 

@@ -100,7 +100,7 @@ impl TryFrom<IndexedObject> for StoredObjectSnapshot {
             .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
+            Some(object.get_coin_value_unchecked())
         } else {
             None
         };
@@ -210,7 +210,7 @@ impl StoredHistoryObject {
                     "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
                     object.id(),
                     object.version(),
-                    move_object.type_(),
+                    move_object.struct_tag(),
                 ))
             })?;
 
@@ -268,7 +268,7 @@ impl TryFrom<IndexedObject> for StoredHistoryObject {
             .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
+            Some(object.get_coin_value_unchecked())
         } else {
             None
         };
@@ -357,7 +357,7 @@ impl From<IndexedObject> for StoredObject {
             .coin_type_opt()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
-            Some(object.get_coin_value_unsafe())
+            Some(object.get_coin_value_unchecked())
         } else {
             None
         };
@@ -418,7 +418,7 @@ impl StoredObject {
                     "Failed to convert into object read for obj {}:{}, type: {}. Error: {e}",
                     object.id(),
                     object.version(),
-                    move_object.type_(),
+                    move_object.struct_tag(),
                 ))
             })?;
         let move_struct_layout = match move_type_layout {
@@ -457,7 +457,7 @@ impl StoredObject {
         let object: Object = bcs::from_bytes(&self.serialized_object).ok()?;
 
         let object = object.data.try_as_move()?;
-        let ty = object.type_();
+        let ty = object.struct_tag();
 
         if !ty.is_dynamic_field() {
             return None;
@@ -609,7 +609,7 @@ mod tests {
         base_types::{Identifier, IotaAddress, StructTag, TypeTag},
         digests::TransactionDigest,
         gas_coin::GasCoin,
-        object::{Data, MoveObject, ObjectInner, Owner},
+        object::{Data, MoveObject, MoveObjectExt, ObjectInner, Owner},
     };
 
     use super::*;

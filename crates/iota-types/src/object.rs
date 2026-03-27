@@ -4,26 +4,24 @@
 
 use std::{
     collections::BTreeMap,
-    convert::TryFrom,
     fmt::{Debug, Display, Formatter},
     mem::size_of,
     sync::Arc,
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::Owner;
-use iota_sdk_types::{MoveObjectType, StructTag, TypeTag};
+pub use iota_sdk_types::{MoveStruct as MoveObject, Owner};
+use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
-use serde_with::{Bytes, serde_as};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
     base_types::{
-        IotaAddress, ObjectDigest, ObjectID, ObjectIDParseError, ObjectRef, SequenceNumber,
+        IotaAddress, MoveObjectType, ObjectDigest, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
     },
     coin::{Coin, CoinMetadata, TreasuryCap},
@@ -45,44 +43,79 @@ pub mod option_visitor;
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
 pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
 
-#[serde_as]
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub struct MoveObject {
-    /// The type of this object. Immutable
-    pub(crate) type_: MoveObjectType,
-    /// Number that increases each time a tx takes this object as a mutable
-    /// input This is a lamport timestamp, not a sequentially increasing
-    /// version
-    pub(crate) version: SequenceNumber,
-    /// BCS bytes of a Move struct value
-    #[serde_as(as = "Bytes")]
-    pub(crate) contents: Vec<u8>,
-}
-
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectID::LENGTH;
 
-impl MoveObject {
-    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+mod move_object_ext_private {
+    pub trait Sealed {}
+    impl Sealed for iota_sdk_types::MoveStruct {}
+}
+
+pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
+    fn new_from_execution(
+        tag: StructTag,
+        version: SequenceNumber,
+        contents: Vec<u8>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<Self, ExecutionError>;
+    fn new_from_execution_with_limit(
+        tag: StructTag,
+        version: SequenceNumber,
+        contents: Vec<u8>,
+        max_move_object_size: u64,
+    ) -> Result<Self, ExecutionError>;
+    fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self;
+    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self;
+    fn get_coin_value_unchecked(&self) -> u64;
+    fn set_coin_value_unchecked(&mut self, value: u64);
+    fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
+    fn update_contents(
+        &mut self,
+        new_contents: Vec<u8>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<(), ExecutionError>;
+    fn update_contents_with_limit(
+        &mut self,
+        new_contents: Vec<u8>,
+        max_move_object_size: u64,
+    ) -> Result<(), ExecutionError>;
+    fn increment_version_to(&mut self, next: SequenceNumber);
+    fn decrement_version_to(&mut self, prev: SequenceNumber);
+    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
+    fn get_struct_layout_from_struct_tag(
+        struct_tag: StructTag,
+        resolver: &impl GetModule,
+    ) -> Result<MoveStructLayout, IotaError>;
+    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError>;
+    fn object_size_for_gas_metering(&self) -> usize;
+    fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError>;
+    fn get_coin_balances(
+        &self,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> Result<BTreeMap<TypeTag, u64>, IotaError>;
+}
+
+impl MoveObjectExt for MoveObject {
+    /// Creates a new Move object of type `tag` with BCS encoded bytes in
     /// `contents`.
-    pub fn new_from_execution(
-        type_: StructTag,
+    fn new_from_execution(
+        tag: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError> {
         Self::new_from_execution_with_limit(
-            type_,
+            tag,
             version,
             contents,
             protocol_config.max_move_object_size(),
         )
     }
 
-    /// Creates a new Move object of type `type_` with BCS encoded bytes in
+    /// Creates a new Move object of type `tag` with BCS encoded bytes in
     /// `contents`. It allows to set a `max_move_object_size` for that.
-    pub fn new_from_execution_with_limit(
-        type_: StructTag,
+    fn new_from_execution_with_limit(
+        tag: StructTag,
         version: SequenceNumber,
         contents: Vec<u8>,
         max_move_object_size: u64,
@@ -96,68 +129,42 @@ impl MoveObject {
             ));
         }
         Ok(Self {
-            type_: type_.into(),
+            object_type: tag.into(),
             version,
             contents,
         })
     }
 
-    pub fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
+    fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        {
-            Self::new_from_execution_with_limit(
-                StructTag::new_gas_coin(),
-                version,
-                GasCoin::new(id, value).to_bcs_bytes(),
-                256,
-            )
-            .unwrap()
-        }
+
+        Self::new_from_execution_with_limit(
+            StructTag::new_gas_coin(),
+            version,
+            GasCoin::new(id, value).to_bcs_bytes(),
+            256,
+        )
+        .unwrap()
     }
 
-    pub fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
+    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
-        {
-            Self::new_from_execution_with_limit(
-                StructTag::new_coin(coin_type),
-                version,
-                Coin::new(id, value).to_bcs_bytes(),
-                256,
-            )
-            .unwrap()
-        }
-    }
 
-    pub fn type_(&self) -> &MoveObjectType {
-        &self.type_
-    }
-
-    pub fn type_tag(&self) -> TypeTag {
-        TypeTag::Struct(Box::new(self.type_().clone().into()))
-    }
-
-    pub fn is_type(&self, s: &StructTag) -> bool {
-        &self.type_ == s
-    }
-
-    pub fn id(&self) -> ObjectID {
-        Self::id_opt(&self.contents).unwrap()
-    }
-
-    pub fn id_opt(contents: &[u8]) -> Result<ObjectID, ObjectIDParseError> {
-        if ID_END_INDEX > contents.len() {
-            return Err(ObjectIDParseError::TryFromSlice);
-        }
-        ObjectID::from_bytes(&contents[0..ID_END_INDEX])
-            .map_err(|_| ObjectIDParseError::TryFromSlice)
+        Self::new_from_execution_with_limit(
+            StructTag::new_coin(coin_type),
+            version,
+            Coin::new(id, value).to_bcs_bytes(),
+            256,
+        )
+        .unwrap()
     }
 
     /// Return the `value: u64` field of a `Coin<T>` type.
     /// Useful for reading the coin without deserializing the object into a Move
-    /// value It is the caller's responsibility to check that `self` is a
-    /// coin--this function may panic or do something unexpected otherwise.
-    pub fn get_coin_value_unsafe(&self) -> u64 {
-        debug_assert!(self.type_.is_coin());
+    /// value. It is the caller's responsibility to check that `self` is a coin.
+    /// This function may panic or do something unexpected otherwise.
+    fn get_coin_value_unchecked(&self) -> u64 {
+        debug_assert!(self.object_type.is_coin());
         // 32 bytes for object ID, 8 for balance
         debug_assert!(self.contents.len() == 40);
 
@@ -167,11 +174,11 @@ impl MoveObject {
 
     /// Update the `value: u64` field of a `Coin<T>` type.
     /// Useful for updating the coin without deserializing the object into a
-    /// Move value It is the caller's responsibility to check that `self` is
-    /// a coin--this function may panic or do something unexpected
-    /// otherwise.
-    pub fn set_coin_value_unsafe(&mut self, value: u64) {
-        debug_assert!(self.type_.is_coin());
+    /// Move value. It is the caller's responsibility to check that `self` is a
+    /// coin.
+    /// This function may panic or do something unexpected otherwise.
+    fn set_coin_value_unchecked(&mut self, value: u64) {
+        debug_assert!(self.object_type.is_coin());
         // 32 bytes for object ID, 8 for balance
         debug_assert!(self.contents.len() == 40);
 
@@ -181,8 +188,8 @@ impl MoveObject {
     /// Update the `timestamp_ms: u64` field of the `Clock` type.
     ///
     /// Panics if the object isn't a `Clock`.
-    pub fn set_clock_timestamp_ms_unsafe(&mut self, timestamp_ms: u64) {
-        assert!(self.is_clock());
+    fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64) {
+        assert!(self.struct_tag().is_clock());
         // 32 bytes for object ID, 8 for timestamp
         assert!(self.contents.len() == 40);
 
@@ -190,33 +197,8 @@ impl MoveObject {
             .splice(ID_END_INDEX.., timestamp_ms.to_le_bytes());
     }
 
-    pub fn is_coin(&self) -> bool {
-        self.type_.is_coin()
-    }
-
-    pub fn is_staked_iota(&self) -> bool {
-        self.type_.is_staked_iota()
-    }
-
-    pub fn is_clock(&self) -> bool {
-        self.type_.is_clock()
-    }
-
-    pub fn version(&self) -> SequenceNumber {
-        self.version
-    }
-
-    /// Contents of the object that are specific to its type--i.e., not its ID
-    /// and version, which all objects have For example if the object was
-    /// declared as `struct S has key { id: ID, f1: u64, f2: bool },
-    /// this returns the slice containing `f1` and `f2`.
-    #[cfg(test)]
-    pub fn type_specific_contents(&self) -> &[u8] {
-        &self.contents[ID_END_INDEX..]
-    }
-
     /// Update the contents of this object but does not increment its version
-    pub fn update_contents(
+    fn update_contents(
         &mut self,
         new_contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
@@ -251,7 +233,7 @@ impl MoveObject {
 
     /// Sets the version of this object to a new value which is assumed to be
     /// higher (and checked to be higher in debug).
-    pub fn increment_version_to(&mut self, next: SequenceNumber) {
+    fn increment_version_to(&mut self, next: SequenceNumber) {
         debug_assert!(
             self.version < next,
             "Not an increment: {} to {next}",
@@ -260,7 +242,8 @@ impl MoveObject {
         self.version = next;
     }
 
-    pub fn decrement_version_to(&mut self, prev: SequenceNumber) {
+    /// Sets the version to a lower value (checked in debug).
+    fn decrement_version_to(&mut self, prev: SequenceNumber) {
         debug_assert!(
             prev < self.version,
             "Not a decrement: {} to {prev}",
@@ -269,31 +252,16 @@ impl MoveObject {
         self.version = prev;
     }
 
-    pub fn contents(&self) -> &[u8] {
-        &self.contents
-    }
-
-    pub fn into_contents(self) -> Vec<u8> {
-        self.contents
-    }
-
-    pub fn into_type(self) -> StructTag {
-        self.type_.into()
-    }
-
-    pub fn into_inner(self) -> (StructTag, Vec<u8>) {
-        (self.type_.into(), self.contents)
-    }
-
     /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_`
-    /// and the (transitive) dependencies of `self.type_` in order for this
-    /// to succeed. Failure will result in an `ObjectSerializationError`
-    pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
+    /// The `resolver` value must contain the module that declares
+    /// `self.object_type` and the (transitive) dependencies of
+    /// `self.object_type` in order for this to succeed. Failure will result
+    /// in an `ObjectSerializationError`
+    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
+        Self::get_struct_layout_from_struct_tag(self.struct_tag().clone(), resolver)
     }
 
-    pub fn get_struct_layout_from_struct_tag(
+    fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError> {
@@ -311,7 +279,7 @@ impl MoveObject {
     }
 
     /// Convert `self` to the JSON representation dictated by `layout`.
-    pub fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
+    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
         BoundedVisitor::deserialize_struct(&self.contents, layout).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
@@ -319,57 +287,39 @@ impl MoveObject {
         })
     }
 
-    /// Convert `self` to the JSON representation dictated by `layout`.
-    pub fn to_move_struct_with_resolver(
-        &self,
-        resolver: &impl GetModule,
-    ) -> Result<MoveStruct, IotaError> {
-        self.to_move_struct(&self.get_layout(resolver)?)
-    }
-
-    pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        bcs::from_bytes(self.contents()).ok()
-    }
-
     /// Approximate size of the object in bytes. This is used for gas metering.
     /// For the type tag field, we serialize it on the spot to get the accurate
     /// size. This should not be very expensive since the type tag is
     /// usually simple, and we only do this once per object being mutated.
-    pub fn object_size_for_gas_metering(&self) -> usize {
+    fn object_size_for_gas_metering(&self) -> usize {
         let serialized_type_tag_size =
-            bcs::serialized_size(&self.type_).expect("Serializing type tag should not fail");
+            bcs::serialized_size(&self.object_type).expect("Serializing type tag should not fail");
         // + 8 for `version`
         self.contents.len() + serialized_type_tag_size + 8
     }
 
     /// Get the total amount of IOTA embedded in `self`. Intended for testing
     /// purposes
-    pub fn get_total_iota(
-        &self,
-        layout_resolver: &mut dyn LayoutResolver,
-    ) -> Result<u64, IotaError> {
+    fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
         Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
     }
-}
 
-// Helpers for extracting Coin<T> balances for all T
-impl MoveObject {
     /// Get the total balances for all `Coin<T>` embedded in `self`.
-    pub fn get_coin_balances(
+    fn get_coin_balances(
         &self,
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.type_.coin_type_opt() {
-            let balance = self.get_coin_value_unsafe();
+        if let Some(type_tag) = self.object_type.coin_type_opt() {
+            let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])
             } else {
                 BTreeMap::default()
             })
         } else {
-            let layout = layout_resolver.get_annotated_layout(&self.type_().clone())?;
+            let layout = layout_resolver.get_annotated_layout(self.struct_tag())?;
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
@@ -435,7 +385,7 @@ impl Data {
     pub fn type_(&self) -> Option<&MoveObjectType> {
         use Data::*;
         match self {
-            Move(m) => Some(m.type_()),
+            Move(m) => Some(m.object_type()),
             Package(_) => None,
         }
     }
@@ -443,7 +393,7 @@ impl Data {
     pub fn struct_tag(&self) -> Option<StructTag> {
         use Data::*;
         match self {
-            Move(m) => Some(m.type_().clone().into()),
+            Move(m) => Some(m.struct_tag().clone()),
             Package(_) => None,
         }
     }
@@ -689,7 +639,7 @@ impl ObjectInner {
 
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().is_coin()
+            move_object.struct_tag().is_coin()
         } else {
             false
         }
@@ -697,7 +647,7 @@ impl ObjectInner {
 
     pub fn is_gas_coin(&self) -> bool {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().is_gas_coin()
+            move_object.struct_tag().is_gas_coin()
         } else {
             false
         }
@@ -724,7 +674,7 @@ impl ObjectInner {
 
     pub fn coin_type_opt(&self) -> Option<&TypeTag> {
         if let Some(move_object) = self.data.try_as_move() {
-            move_object.type_().coin_type_opt()
+            move_object.struct_tag().coin_type_opt()
         } else {
             None
         }
@@ -734,8 +684,8 @@ impl ObjectInner {
     /// Useful for reading the coin without deserializing the object into a Move
     /// value It is the caller's responsibility to check that `self` is a
     /// coin--this function may panic or do something unexpected otherwise.
-    pub fn get_coin_value_unsafe(&self) -> u64 {
-        self.data.try_as_move().unwrap().get_coin_value_unsafe()
+    pub fn get_coin_value_unchecked(&self) -> u64 {
+        self.data.try_as_move().unwrap().get_coin_value_unchecked()
     }
 
     /// Approximate size of the object in bytes. This is used for gas metering.
@@ -757,9 +707,10 @@ impl ObjectInner {
     }
 
     /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_`
-    /// and the (transitive) dependencies of `self.type_` in order for this
-    /// to succeed. Failure will result in an `ObjectSerializationError`
+    /// The `resolver` value must contain the module that declares
+    /// `self.object_type` and the (transitive) dependencies of
+    /// `self.object_type` in order for this to succeed. Failure will result
+    /// in an `ObjectSerializationError`
     pub fn get_layout(
         &self,
         resolver: &impl GetModule,
@@ -810,7 +761,7 @@ impl Object {
 
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -841,7 +792,7 @@ impl Object {
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
         });
@@ -856,7 +807,7 @@ impl Object {
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_treasury_cap(struct_tag).into(),
+            object_type: StructTag::new_treasury_cap(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
         });
@@ -871,7 +822,7 @@ impl Object {
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_coin_metadata(struct_tag).into(),
+            object_type: StructTag::new_coin_metadata(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
         });
@@ -886,7 +837,7 @@ impl Object {
 
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -910,7 +861,7 @@ impl Object {
         owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
-            type_: StructTag::new_gas_coin().into(),
+            object_type: StructTag::new_gas_coin().into(),
             version,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
@@ -1102,7 +1053,7 @@ mod tests {
     use crate::{
         base_types::{IotaAddress, ObjectID, TransactionDigest},
         gas_coin::GasCoin,
-        object::{OBJECT_START_VERSION, Object, Owner},
+        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
     };
 
     // Ensure that object digest computation and bcs serialized format are not
@@ -1139,10 +1090,10 @@ mod tests {
     }
 
     #[test]
-    fn test_get_coin_value_unsafe() {
+    fn test_get_coin_value_unchecked() {
         fn test_for_value(v: u64) {
             let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
-            assert_eq!(g.get_coin_value_unsafe(), v);
+            assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
         }
 
@@ -1160,11 +1111,11 @@ mod tests {
     }
 
     #[test]
-    fn test_set_coin_value_unsafe() {
+    fn test_set_coin_value_unchecked() {
         fn test_for_value(v: u64) {
             let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
-            g.set_coin_value_unsafe(v);
-            assert_eq!(g.get_coin_value_unsafe(), v);
+            g.set_coin_value_unchecked(v);
+            assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
             assert_eq!(g.version(), OBJECT_START_VERSION);
             assert_eq!(g.contents().len(), 40);

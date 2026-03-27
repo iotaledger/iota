@@ -1169,7 +1169,7 @@ fn should_index_dynamic_field(object: &Object) -> bool {
     object
         .data
         .try_as_move()
-        .is_some_and(|move_object| move_object.type_().is_dynamic_field())
+        .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {

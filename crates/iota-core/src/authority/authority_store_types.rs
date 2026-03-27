@@ -7,7 +7,7 @@ use iota_types::{
     coin::Coin,
     error::IotaError,
     move_package::MovePackage,
-    object::{Data, MoveObject, Object, ObjectInner, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, Owner},
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
@@ -117,7 +117,7 @@ pub fn get_store_object(object: Object) -> StoreObjectWrapper {
     let data = match object.data {
         Data::Package(package) => StoreData::Package(package),
         Data::Move(move_obj) => {
-            if move_obj.type_().is_gas_coin() {
+            if move_obj.struct_tag().is_gas_coin() {
                 StoreData::Coin(
                     Coin::from_bcs_bytes(move_obj.contents())
                         .expect("failed to deserialize coin")
