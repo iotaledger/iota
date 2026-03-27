@@ -1191,7 +1191,7 @@ impl AuthorityState {
     ///
     /// It is caller's responsibility to ensure input objects are available and
     /// locks are set. If this cannot be satisfied by the caller,
-    /// [`execute_certificate()`] should be called instead.
+    /// `execute_certificate()` should be called instead.
     ///
     /// Should only be called within iota-core.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
@@ -1614,7 +1614,7 @@ impl AuthorityState {
         );
     }
 
-    /// [`prepare_transaction()`] validates the transaction input, and executes
+    /// `prepare_transaction()` validates the transaction input, and executes
     /// the transaction, returning effects, output objects, events, etc.
     ///
     /// It reads state from the db (both owned and shared locks), but it has no

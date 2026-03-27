@@ -117,7 +117,7 @@ impl SuggestedGasPriceCalculator {
     /// only be called for scheduled transactions that contain shared object(s);
     /// otherwise, the calculator might wrongly calculate suggested gas price.
     /// `bump_object_execution_slots_result` is the outcome of the
-    /// [`bump_object_execution_slots`] of `SharedObjectCongestionTracker`.
+    /// `bump_object_execution_slots` of `SharedObjectCongestionTracker`.
     pub(super) fn update_congestion_info(
         &mut self,
         bump_object_execution_slots_result: Option<BumpObjectExecutionSlotsResult>,
