@@ -1,18 +1,18 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppSelector } from '_hooks';
 import { setAttributes } from '_src/shared/experimentation/features';
-import { useGrowthBook } from '@growthbook/growthbook-react';
+import { useAppsBackendClient } from '@iota/apps-backend-client';
 import { useEffect } from 'react';
 
-export function useSetGrowthbookAttributes() {
+export function useSyncAppsBackendAttributes() {
     const { network, customRpc } = useAppSelector((state) => state.app);
-    const growthBook = useGrowthBook();
+    const client = useAppsBackendClient();
 
     useEffect(() => {
-        if (growthBook) {
+        if (client) {
             setAttributes({ network, customRpc });
         }
-    }, [growthBook, network, customRpc]);
+    }, [client, network, customRpc]);
 }
