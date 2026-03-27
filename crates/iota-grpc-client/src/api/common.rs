@@ -3,7 +3,7 @@
 
 //! Common utilities shared across API modules.
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     bcs::BcsData,
     ledger_service::{ObjectResult, TransactionResult, object_result, transaction_result},
     transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
@@ -113,7 +113,7 @@ pub trait ProtoResult {
 }
 
 impl ProtoResult for ObjectResult {
-    type Value = iota_grpc_types::v0::object::Object;
+    type Value = iota_grpc_types::v1::object::Object;
 
     fn into_result(self) -> Result<Self::Value> {
         match self.result {

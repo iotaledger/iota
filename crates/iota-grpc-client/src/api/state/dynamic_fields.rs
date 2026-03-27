@@ -15,7 +15,7 @@
 //! - `field_object` - the full field object (sub-fields match `GetObjects`)
 //! - `child_object` - the full child object (sub-fields match `GetObjects`)
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     dynamic_field::DynamicField,
     state_service::{ListDynamicFieldsRequest, state_service_client::StateServiceClient},
 };

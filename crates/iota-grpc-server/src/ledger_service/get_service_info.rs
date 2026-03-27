@@ -5,7 +5,7 @@
 use iota_grpc_types::{
     proto::timestamp_ms_to_proto,
     read_masks::GET_SERVICE_INFO_READ_MASK,
-    v0::ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
+    v1::ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
 };
 
 use crate::{error::RpcError, ledger_service::LedgerGrpcService, validation::validate_read_mask};

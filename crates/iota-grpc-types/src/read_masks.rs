@@ -20,7 +20,7 @@
 //!
 //! ### Context-dependent paths
 //!
-//! [`ExecutedTransaction`](crate::v0::transaction::ExecutedTransaction) appears
+//! [`ExecutedTransaction`](crate::v1::transaction::ExecutedTransaction) appears
 //! in multiple endpoints with different field-path prefixes:
 //!
 //! | Endpoint | Prefix |
@@ -169,19 +169,19 @@ pub const CHECKPOINT_RESPONSE_CHECKPOINT_DATA: &str = field_mask!(
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`CheckpointSummary::digest()`](crate::v0::checkpoint::CheckpointSummary::digest).
+/// [`CheckpointSummary::digest()`](crate::v1::checkpoint::CheckpointSummary::digest).
 pub const CHECKPOINT_SUMMARY_DIGEST: &str = "checkpoint.summary.digest";
 
 /// Read mask for
-/// [`CheckpointSummary::summary()`](crate::v0::checkpoint::CheckpointSummary::summary).
+/// [`CheckpointSummary::summary()`](crate::v1::checkpoint::CheckpointSummary::summary).
 pub const CHECKPOINT_SUMMARY_BCS: &str = "checkpoint.summary.bcs";
 
 /// Read mask for
-/// [`CheckpointContents::digest()`](crate::v0::checkpoint::CheckpointContents::digest).
+/// [`CheckpointContents::digest()`](crate::v1::checkpoint::CheckpointContents::digest).
 pub const CHECKPOINT_CONTENTS_DIGEST: &str = "checkpoint.contents.digest";
 
 /// Read mask for
-/// [`CheckpointContents::contents()`](crate::v0::checkpoint::CheckpointContents::contents).
+/// [`CheckpointContents::contents()`](crate::v1::checkpoint::CheckpointContents::contents).
 pub const CHECKPOINT_CONTENTS_BCS: &str = "checkpoint.contents.bcs";
 
 // ---------------------------------------------------------------------------
@@ -193,43 +193,43 @@ pub const CHECKPOINT_CONTENTS_BCS: &str = "checkpoint.contents.bcs";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`ExecutedTransaction::transaction()`](crate::v0::transaction::ExecutedTransaction::transaction).
+/// [`ExecutedTransaction::transaction()`](crate::v1::transaction::ExecutedTransaction::transaction).
 ///
 /// Includes the transaction digest and BCS.
 pub const EXECUTED_TRANSACTION_TRANSACTION: &str = "transaction";
 
 /// Read mask for
-/// [`ExecutedTransaction::signatures()`](crate::v0::transaction::ExecutedTransaction::signatures).
+/// [`ExecutedTransaction::signatures()`](crate::v1::transaction::ExecutedTransaction::signatures).
 pub const EXECUTED_TRANSACTION_SIGNATURES: &str = "signatures";
 
 /// Read mask for
-/// [`ExecutedTransaction::effects()`](crate::v0::transaction::ExecutedTransaction::effects).
+/// [`ExecutedTransaction::effects()`](crate::v1::transaction::ExecutedTransaction::effects).
 ///
 /// Includes the effects digest and BCS.
 pub const EXECUTED_TRANSACTION_EFFECTS: &str = "effects";
 
 /// Read mask for
-/// [`ExecutedTransaction::events()`](crate::v0::transaction::ExecutedTransaction::events).
+/// [`ExecutedTransaction::events()`](crate::v1::transaction::ExecutedTransaction::events).
 ///
 /// Includes the events digest and all individual event fields.
 pub const EXECUTED_TRANSACTION_EVENTS: &str = "events";
 
 /// Read mask for
-/// [`ExecutedTransaction::checkpoint_sequence_number()`](crate::v0::transaction::ExecutedTransaction::checkpoint_sequence_number).
+/// [`ExecutedTransaction::checkpoint_sequence_number()`](crate::v1::transaction::ExecutedTransaction::checkpoint_sequence_number).
 pub const EXECUTED_TRANSACTION_CHECKPOINT: &str = "checkpoint";
 
 /// Read mask for
-/// [`ExecutedTransaction::timestamp_ms()`](crate::v0::transaction::ExecutedTransaction::timestamp_ms).
+/// [`ExecutedTransaction::timestamp_ms()`](crate::v1::transaction::ExecutedTransaction::timestamp_ms).
 pub const EXECUTED_TRANSACTION_TIMESTAMP: &str = "timestamp";
 
 /// Read mask for
-/// [`ExecutedTransaction::input_objects()`](crate::v0::transaction::ExecutedTransaction::input_objects).
+/// [`ExecutedTransaction::input_objects()`](crate::v1::transaction::ExecutedTransaction::input_objects).
 ///
 /// Includes object references and BCS for all input objects.
 pub const EXECUTED_TRANSACTION_INPUT_OBJECTS: &str = "input_objects";
 
 /// Read mask for
-/// [`ExecutedTransaction::output_objects()`](crate::v0::transaction::ExecutedTransaction::output_objects).
+/// [`ExecutedTransaction::output_objects()`](crate::v1::transaction::ExecutedTransaction::output_objects).
 ///
 /// Includes object references and BCS for all output objects.
 pub const EXECUTED_TRANSACTION_OUTPUT_OBJECTS: &str = "output_objects";
@@ -239,11 +239,11 @@ pub const EXECUTED_TRANSACTION_OUTPUT_OBJECTS: &str = "output_objects";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`Transaction::digest()`](crate::v0::transaction::Transaction::digest).
+/// [`Transaction::digest()`](crate::v1::transaction::Transaction::digest).
 pub const TRANSACTION_DIGEST: &str = "transaction.digest";
 
 /// Read mask for
-/// [`Transaction::transaction()`](crate::v0::transaction::Transaction::transaction)
+/// [`Transaction::transaction()`](crate::v1::transaction::Transaction::transaction)
 /// (BCS deserialization).
 pub const TRANSACTION_BCS: &str = "transaction.bcs";
 
@@ -252,11 +252,11 @@ pub const TRANSACTION_BCS: &str = "transaction.bcs";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`TransactionEffects::digest()`](crate::v0::transaction::TransactionEffects::digest).
+/// [`TransactionEffects::digest()`](crate::v1::transaction::TransactionEffects::digest).
 pub const TRANSACTION_EFFECTS_DIGEST: &str = "effects.digest";
 
 /// Read mask for
-/// [`TransactionEffects::effects()`](crate::v0::transaction::TransactionEffects::effects)
+/// [`TransactionEffects::effects()`](crate::v1::transaction::TransactionEffects::effects)
 /// (BCS deserialization).
 pub const TRANSACTION_EFFECTS_BCS: &str = "effects.bcs";
 
@@ -265,11 +265,11 @@ pub const TRANSACTION_EFFECTS_BCS: &str = "effects.bcs";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`TransactionEvents::digest()`](crate::v0::transaction::TransactionEvents::digest).
+/// [`TransactionEvents::digest()`](crate::v1::transaction::TransactionEvents::digest).
 pub const TRANSACTION_EVENTS_DIGEST: &str = "events.digest";
 
 /// Read mask for
-/// [`TransactionEvents::events()`](crate::v0::transaction::TransactionEvents::events)
+/// [`TransactionEvents::events()`](crate::v1::transaction::TransactionEvents::events)
 /// (BCS deserialization of all events).
 pub const TRANSACTION_EVENTS_BCS: &str = "events.events.bcs";
 
@@ -283,32 +283,32 @@ pub const TRANSACTION_EVENTS_BCS: &str = "events.events.bcs";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`Event::event()`](crate::v0::event::Event::event)
+/// [`Event::event()`](crate::v1::event::Event::event)
 /// (full BCS deserialization).
 pub const EVENT_BCS: &str = "bcs";
 
 /// Read mask for
-/// [`Event::package_id()`](crate::v0::event::Event::package_id).
+/// [`Event::package_id()`](crate::v1::event::Event::package_id).
 pub const EVENT_PACKAGE_ID: &str = "package_id";
 
 /// Read mask for
-/// [`Event::module_name()`](crate::v0::event::Event::module_name).
+/// [`Event::module_name()`](crate::v1::event::Event::module_name).
 pub const EVENT_MODULE: &str = "module";
 
 /// Read mask for
-/// [`Event::sender()`](crate::v0::event::Event::sender).
+/// [`Event::sender()`](crate::v1::event::Event::sender).
 pub const EVENT_SENDER: &str = "sender";
 
 /// Read mask for
-/// [`Event::type_name()`](crate::v0::event::Event::type_name).
+/// [`Event::type_name()`](crate::v1::event::Event::type_name).
 pub const EVENT_TYPE: &str = "event_type";
 
 /// Read mask for
-/// [`Event::bcs_contents()`](crate::v0::event::Event::bcs_contents).
+/// [`Event::bcs_contents()`](crate::v1::event::Event::bcs_contents).
 pub const EVENT_BCS_CONTENTS: &str = "bcs_contents";
 
 /// Read mask for
-/// [`Event::json_contents()`](crate::v0::event::Event::json_contents).
+/// [`Event::json_contents()`](crate::v1::event::Event::json_contents).
 pub const EVENT_JSON_CONTENTS: &str = "json_contents";
 
 // ---------------------------------------------------------------------------
@@ -316,13 +316,13 @@ pub const EVENT_JSON_CONTENTS: &str = "json_contents";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`Object::object_reference()`](crate::v0::object::Object::object_reference).
+/// [`Object::object_reference()`](crate::v1::object::Object::object_reference).
 ///
 /// Includes object_id, version, and digest.
 pub const OBJECT_REFERENCE: &str = "reference";
 
 /// Read mask for
-/// [`Object::object()`](crate::v0::object::Object::object)
+/// [`Object::object()`](crate::v1::object::Object::object)
 /// (BCS deserialization).
 pub const OBJECT_BCS: &str = "bcs";
 
@@ -331,21 +331,21 @@ pub const OBJECT_BCS: &str = "bcs";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`SimulatedTransaction::executed_transaction()`](crate::v0::transaction_execution_service::SimulatedTransaction::executed_transaction).
+/// [`SimulatedTransaction::executed_transaction()`](crate::v1::transaction_execution_service::SimulatedTransaction::executed_transaction).
 ///
 /// Includes all ExecutedTransaction sub-fields. To request specific
 /// sub-fields, use paths like `"executed_transaction.effects"`.
 pub const SIMULATED_TRANSACTION_EXECUTED_TRANSACTION: &str = "executed_transaction";
 
 /// Read mask for
-/// [`SimulatedTransaction::gas_price_suggested()`](crate::v0::transaction_execution_service::SimulatedTransaction::gas_price_suggested).
+/// [`SimulatedTransaction::gas_price_suggested()`](crate::v1::transaction_execution_service::SimulatedTransaction::gas_price_suggested).
 pub const SIMULATED_TRANSACTION_SUGGESTED_GAS_PRICE: &str = "suggested_gas_price";
 
 /// Read mask for
-/// [`SimulatedTransaction::execution_result()`](crate::v0::transaction_execution_service::SimulatedTransaction::execution_result),
-/// [`SimulatedTransaction::command_results()`](crate::v0::transaction_execution_service::SimulatedTransaction::command_results),
+/// [`SimulatedTransaction::execution_result()`](crate::v1::transaction_execution_service::SimulatedTransaction::execution_result),
+/// [`SimulatedTransaction::command_results()`](crate::v1::transaction_execution_service::SimulatedTransaction::command_results),
 /// and
-/// [`SimulatedTransaction::execution_error()`](crate::v0::transaction_execution_service::SimulatedTransaction::execution_error).
+/// [`SimulatedTransaction::execution_error()`](crate::v1::transaction_execution_service::SimulatedTransaction::execution_error).
 pub const SIMULATED_TRANSACTION_EXECUTION_RESULT: &str = "execution_result";
 
 // ---------------------------------------------------------------------------
@@ -353,13 +353,13 @@ pub const SIMULATED_TRANSACTION_EXECUTION_RESULT: &str = "execution_result";
 // ---------------------------------------------------------------------------
 
 /// Read mask for
-/// [`ExecutionError::error_kind()`](crate::v0::transaction_execution_service::ExecutionError::error_kind).
+/// [`ExecutionError::error_kind()`](crate::v1::transaction_execution_service::ExecutionError::error_kind).
 pub const EXECUTION_ERROR_BCS_KIND: &str = "execution_result.execution_error.bcs_kind";
 
 /// Read mask for
-/// [`ExecutionError::error_source()`](crate::v0::transaction_execution_service::ExecutionError::error_source).
+/// [`ExecutionError::error_source()`](crate::v1::transaction_execution_service::ExecutionError::error_source).
 pub const EXECUTION_ERROR_SOURCE: &str = "execution_result.execution_error.source";
 
 /// Read mask for
-/// [`ExecutionError::error_command_index()`](crate::v0::transaction_execution_service::ExecutionError::error_command_index).
+/// [`ExecutionError::error_command_index()`](crate::v1::transaction_execution_service::ExecutionError::error_command_index).
 pub const EXECUTION_ERROR_COMMAND_INDEX: &str = "execution_result.execution_error.command_index";

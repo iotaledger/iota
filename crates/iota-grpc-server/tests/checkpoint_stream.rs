@@ -11,7 +11,7 @@ use common::MockGrpcStateReader;
 use iota_config::node::GrpcApiConfig;
 use iota_grpc_client::{CheckpointStreamItem, Client};
 use iota_grpc_server::GrpcServerHandle;
-use iota_grpc_types::v0::{filter, ledger_service::checkpoint_data};
+use iota_grpc_types::v1::{filter, ledger_service::checkpoint_data};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, random_object_ref},
@@ -599,7 +599,7 @@ async fn test_filter_checkpoints_validation() {
     let sender_bytes = sender.to_inner();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(
-            iota_grpc_types::v0::types::Address::default().with_address(sender_bytes.to_vec()),
+            iota_grpc_types::v1::types::Address::default().with_address(sender_bytes.to_vec()),
         ),
     );
 
@@ -633,9 +633,9 @@ async fn test_filter_checkpoints_streaming() {
 
     // Create a sender filter matching our known sender
     let make_tx_filter = || {
-        iota_grpc_types::v0::filter::TransactionFilter::default().with_sender(
-            iota_grpc_types::v0::filter::AddressFilter::default().with_address(
-                iota_grpc_types::v0::types::Address::default().with_address(sender_bytes.to_vec()),
+        iota_grpc_types::v1::filter::TransactionFilter::default().with_sender(
+            iota_grpc_types::v1::filter::AddressFilter::default().with_address(
+                iota_grpc_types::v1::types::Address::default().with_address(sender_bytes.to_vec()),
             ),
         )
     };
@@ -870,9 +870,9 @@ fn build_checkpoint_transactions_with_events(
 /// Collect all CheckpointData messages from a tonic streaming response,
 /// partitioning payload sizes by type.
 async fn collect_checkpoint_data_stream(
-    mut stream: tonic::codec::Streaming<iota_grpc_types::v0::ledger_service::CheckpointData>,
+    mut stream: tonic::codec::Streaming<iota_grpc_types::v1::ledger_service::CheckpointData>,
 ) -> (
-    Vec<iota_grpc_types::v0::ledger_service::CheckpointData>,
+    Vec<iota_grpc_types::v1::ledger_service::CheckpointData>,
     Vec<usize>,
     Vec<usize>,
 ) {
@@ -898,13 +898,13 @@ async fn collect_checkpoint_data_stream(
 
 /// Issue a `GetCheckpoint` request via the raw tonic client.
 async fn get_checkpoint_raw(
-    client: &mut iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient<
+    client: &mut iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient<
         tonic::transport::Channel,
     >,
     read_mask: &str,
     max_message_size: u32,
-) -> tonic::codec::Streaming<iota_grpc_types::v0::ledger_service::CheckpointData> {
-    use iota_grpc_types::{field::FieldMaskUtil, v0::ledger_service::GetCheckpointRequest};
+) -> tonic::codec::Streaming<iota_grpc_types::v1::ledger_service::CheckpointData> {
+    use iota_grpc_types::{field::FieldMaskUtil, v1::ledger_service::GetCheckpointRequest};
 
     let req = GetCheckpointRequest::default()
         .with_sequence_number(0)
@@ -948,7 +948,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
         .await
         .expect("connect");
     let mut client =
-        iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient::new(
+        iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
             channel,
         )
         .max_decoding_message_size(128 * 1024 * 1024);
@@ -1029,7 +1029,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
         .await
         .expect("connect");
     let mut client =
-        iota_grpc_types::v0::ledger_service::ledger_service_client::LedgerServiceClient::new(
+        iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
             channel,
         )
         .max_decoding_message_size(128 * 1024 * 1024);

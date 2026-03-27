@@ -3,7 +3,7 @@
 
 //! High-level API for transaction simulation.
 
-use iota_grpc_types::v0::transaction_execution_service::{
+use iota_grpc_types::v1::transaction_execution_service::{
     SimulateTransactionItem, SimulateTransactionsRequest, SimulatedTransaction,
     simulate_transaction_item::TransactionCheckModes,
 };

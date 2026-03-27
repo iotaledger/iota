@@ -6,7 +6,7 @@ use std::sync::Arc;
 use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
     read_masks::LIST_OWNED_OBJECTS_READ_MASK,
-    v0::{
+    v1::{
         error_reason::ErrorReason,
         object::Object,
         state_service::{ListOwnedObjectsRequest, ListOwnedObjectsResponse},

@@ -3,7 +3,7 @@
 
 //! High-level API for listing package versions.
 
-use iota_grpc_types::v0::move_package_service::{
+use iota_grpc_types::v1::move_package_service::{
     ListPackageVersionsRequest, PackageVersion,
     move_package_service_client::MovePackageServiceClient,
 };

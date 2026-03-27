@@ -111,7 +111,7 @@ pub mod google {
     pub use super::proto::google::*;
 }
 
-// Re-export under v0 namespace
-pub mod v0 {
-    pub use super::proto::iota::grpc::v0::*;
+// Re-export under v1 namespace
+pub mod v1 {
+    pub use super::proto::iota::grpc::v1::*;
 }

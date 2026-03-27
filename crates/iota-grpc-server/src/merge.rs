@@ -4,7 +4,7 @@
 
 use iota_grpc_types::{
     field::FieldMaskTree,
-    v0::{
+    v1::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
         dynamic_field::DynamicField,
@@ -414,7 +414,7 @@ impl Merge<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicField {
         let (key, info) = source;
 
         if mask.contains(Self::KIND_FIELD.name) {
-            use iota_grpc_types::v0::dynamic_field::dynamic_field::DynamicFieldKind;
+            use iota_grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
             self.kind = Some(match info.dynamic_field_type {
                 iota_types::dynamic_field::DynamicFieldType::DynamicField => {
                     DynamicFieldKind::Field.into()
@@ -893,7 +893,7 @@ impl Merge<&Transaction> for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_types::{field::FieldMaskUtil, v0::epoch::ProtocolConfig};
+    use iota_grpc_types::{field::FieldMaskUtil, v1::epoch::ProtocolConfig};
     use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
     use prost_types::FieldMask;
 

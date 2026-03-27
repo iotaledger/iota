@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use iota_grpc_types::v0::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
+use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     effects::TransactionEffectsAPI,

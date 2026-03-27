@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use iota_grpc_types::{
     google::rpc::bad_request::FieldViolation,
-    v0::{
+    v1::{
         coin::{
             CoinMetadata, CoinTreasury, RegulatedCoinMetadata, coin_treasury::SupplyState,
             regulated_coin_metadata::CoinRegulatedState,

@@ -27,13 +27,13 @@ pub(crate) struct TransparentInfo {
     /// maps.
     pub inner_message_name: Option<String>,
     /// Full protobuf type name of the inner message (e.g.
-    /// ".iota.grpc.v0.event.Event"), None for maps.
+    /// ".iota.grpc.v1.event.Event"), None for maps.
     pub inner_full_type_name: Option<String>,
 }
 
 /// Parses the descriptor pool to find all messages with the
 /// `field_mask_transparent` option set to true. Returns a map keyed by full
-/// protobuf type name (e.g. `.iota.grpc.v0.event.Events`) with information
+/// protobuf type name (e.g. `.iota.grpc.v1.event.Events`) with information
 /// about the inner field that should be surfaced through the transparent
 /// wrapper.
 pub fn parse_transparent_messages_from_pool(
@@ -139,7 +139,7 @@ fn find_package_for_type(
                         return None;
                     }
                     // Extract the last part of the package name (e.g., "types" from
-                    // "iota.grpc.v0.types")
+                    // "iota.grpc.v1.types")
                     return Some(package.split('.').next_back().unwrap_or(package).to_owned());
                 }
                 // Check nested messages (including map entries)
@@ -157,7 +157,7 @@ fn find_package_for_type(
 // Collects types from other packages that need to be imported.
 // This function identifies all external message types (and their
 // FieldPathBuilders) and tracks which package they come from to generate
-// the correct import paths like `use crate::v0::object::Object`.
+// the correct import paths like `use crate::v1::object::Object`.
 // For transparent wrapper types, the inner type is imported instead of the
 // wrapper, because the generated field_info code references the inner type
 // directly (e.g. `Some(Event::FIELDS)` instead of `Some(Events::FIELDS)`).

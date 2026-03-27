@@ -6,7 +6,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     state_service as grpc_state_service, transaction_execution_service as grpc_tx_service,
 };

@@ -3,7 +3,7 @@
 
 //! High-level API for transaction queries.
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     ledger_service::{GetTransactionsRequest, TransactionRequest, TransactionRequests},
     transaction::ExecutedTransaction,
 };

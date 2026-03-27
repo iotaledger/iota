@@ -8,7 +8,7 @@ use iota_grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
     read_masks::GET_EPOCH_READ_MASK,
-    v0::{
+    v1::{
         bcs::BcsData,
         epoch::{Epoch, ProtocolConfig},
         ledger_service::{GetEpochRequest, GetEpochResponse},

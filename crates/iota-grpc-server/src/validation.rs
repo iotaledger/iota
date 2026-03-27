@@ -4,7 +4,7 @@
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageFields},
     google::rpc::bad_request::FieldViolation,
-    v0::{
+    v1::{
         error_reason::ErrorReason,
         types::{Address, ObjectId},
     },

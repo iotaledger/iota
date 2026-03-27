@@ -9,7 +9,7 @@ use iota_grpc_types::{
     field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     read_masks::GET_OBJECTS_READ_MASK,
-    v0::{
+    v1::{
         error_reason::ErrorReason,
         ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
         object::Object,

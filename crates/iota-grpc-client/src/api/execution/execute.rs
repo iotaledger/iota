@@ -3,7 +3,7 @@
 
 //! High-level API for transaction execution.
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     signatures::{UserSignature as ProtoUserSignature, UserSignatures},
     transaction::ExecutedTransaction,
     transaction_execution_service::{ExecuteTransactionItem, ExecuteTransactionsRequest},

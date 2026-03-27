@@ -7,7 +7,7 @@ mod list_owned_objects;
 
 use std::sync::Arc;
 
-use iota_grpc_types::v0::state_service::{self as grpc_state_service};
+use iota_grpc_types::v1::state_service::{self as grpc_state_service};
 use tonic::Response;
 
 use crate::types::*;
