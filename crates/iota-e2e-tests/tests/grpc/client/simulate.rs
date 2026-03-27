@@ -66,7 +66,7 @@ async fn simulate_transaction_scenarios() {
         "Effects should be present with minimal mask"
     );
 
-    // Test: insufficient gas budget returns gRPC error
+    // Test: insufficient gas budget returns InvalidArgument error
     // Gas budget validation (min/max bounds) happens upfront in
     // check_gas_balance(), so a budget of 1 (below minimum) is rejected before
     // execution begins.
@@ -83,7 +83,7 @@ async fn simulate_transaction_scenarios() {
         .build();
     let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
-    assert_grpc_error(result, Code::Internal);
+    assert_grpc_error(result, Code::InvalidArgument);
 
     // Test: transfer exceeding balance returns Ok with failed effects
     // Transfer amount validation happens during Move VM execution, not upfront,
