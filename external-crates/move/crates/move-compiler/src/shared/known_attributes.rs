@@ -185,6 +185,7 @@ impl AttributePosition {
         Self::Friend,
         Self::Constant,
         Self::Struct,
+        Self::Enum,
         Self::Function,
         Self::Spec,
     ];

@@ -1,5 +1,41 @@
 # @iota/kiosk
 
+## 0.8.0
+
+### Minor Changes
+
+-   1a2b37f: Add `return this` in some functions in file
+    `packages/kiosk/src/client/kiosk-transaction.ts` to make it chainable.
+-   bd1fa0b: Removed deprecated `transactionBlock` when resolving rules. Also updated
+    @iota/iota-sdk.
+
+### Patch Changes
+
+-   adea573: Enable declarationMap in TS packages
+-   b473eb3: Fix double-slash in Kiosk imports.
+-   Updated dependencies [fe97265]
+-   Updated dependencies [d2ed95a]
+-   Updated dependencies [379dd4b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [66d0c0d]
+-   Updated dependencies [9c6137c]
+-   Updated dependencies [331b7ab]
+-   Updated dependencies [adea573]
+-   Updated dependencies [bd1fa0b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [3f80310]
+-   Updated dependencies [2a9a1df]
+-   Updated dependencies [999224b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [f3d9079]
+-   Updated dependencies [7849d0e]
+-   Updated dependencies [0be1d8d]
+-   Updated dependencies [235a8d7]
+-   Updated dependencies [46171b1]
+-   Updated dependencies [9d88461]
+    -   @iota/iota-sdk@1.12.0
+
 ## 0.7.0
 
 ### Minor Changes

@@ -1281,12 +1281,12 @@
         }
       },
       "Bls12381PublicKey": {
-        "description": "A bls12381 min-sig public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-public-key = %x60 96OCTECT ```\n\nDue to historical reasons, even though a min-sig `Bls12381PublicKey` has a fixed-length of 96, IOTA's binary representation of a min-sig `Bls12381PublicKey` is prefixed with its length meaning its serialized binary form (in bcs) is 97 bytes long vs a more compact 96 bytes.",
+        "description": "A bls12381 min-sig public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-public-key = %x60 96OCTET ```\n\nDue to historical reasons, even though a min-sig `Bls12381PublicKey` has a fixed-length of 96, IOTA's binary representation of a min-sig `Bls12381PublicKey` is prefixed with its length meaning its serialized binary form (in bcs) is 97 bytes long vs a more compact 96 bytes.",
         "type": "string",
         "format": "base64"
       },
       "Bls12381Signature": {
-        "description": "A bls12381 min-sig signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-signature = 48OCTECT ```",
+        "description": "A bls12381 min-sig signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-signature = 48OCTET ```",
         "type": "string",
         "format": "base64"
       },
@@ -2212,12 +2212,12 @@
         ]
       },
       "Ed25519PublicKey": {
-        "description": "An ed25519 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-public-key = 32OCTECT ```",
+        "description": "An ed25519 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-public-key = 32OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Ed25519Signature": {
-        "description": "An ed25519 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-signature = 64OCTECT ```",
+        "description": "An ed25519 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-signature = 64OCTET ```",
         "type": "string",
         "format": "base64"
       },
@@ -3765,6 +3765,39 @@
           }
         }
       },
+      "MoveAuthenticatorV1": {
+        "description": "Version 1 of the [`MoveAuthenticator`].",
+        "type": "object",
+        "required": [
+          "call_args",
+          "object_to_authenticate",
+          "type_args"
+        ],
+        "properties": {
+          "call_args": {
+            "description": "Input objects or primitive values",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Input"
+            }
+          },
+          "object_to_authenticate": {
+            "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Input"
+              }
+            ]
+          },
+          "type_args": {
+            "description": "Type arguments for the Move authenticate function",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeTag"
+            }
+          }
+        }
+      },
       "MoveLocation": {
         "description": "Location in move bytecode where an error occurred\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text move-location = object-id identifier u16 u16 (option identifier) ```",
         "type": "object",
@@ -4545,22 +4578,22 @@
         }
       },
       "Secp256k1PublicKey": {
-        "description": "A secp256k1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-public-key = 33OCTECT ```",
+        "description": "A secp256k1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-public-key = 33OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256k1Signature": {
-        "description": "A secp256k1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-signature = 64OCTECT ```",
+        "description": "A secp256k1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-signature = 64OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256r1PublicKey": {
-        "description": "A secp256r1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-public-key = 33OCTECT ```",
+        "description": "A secp256r1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-public-key = 33OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256r1Signature": {
-        "description": "A secp256r1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-signature = 64OCTECT ```",
+        "description": "A secp256r1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-signature = 64OCTET ```",
         "type": "string",
         "format": "base64"
       },
@@ -5841,32 +5874,18 @@
           {
             "type": "object",
             "required": [
-              "call_args",
-              "object_to_authenticate",
-              "scheme",
-              "type_args"
+              "V1",
+              "scheme"
             ],
             "properties": {
-              "call_args": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Input"
-                }
-              },
-              "object_to_authenticate": {
-                "$ref": "#/components/schemas/Input"
+              "V1": {
+                "$ref": "#/components/schemas/MoveAuthenticatorV1"
               },
               "scheme": {
                 "type": "string",
                 "enum": [
                   "move"
                 ]
-              },
-              "type_args": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
               }
             }
           }

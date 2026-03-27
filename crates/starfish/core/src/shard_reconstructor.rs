@@ -311,7 +311,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         let reconstructor = Self {
             info_length,
             total_length,
-            context: context.clone(),
+            context,
             core_dispatcher,
             dag_state,
             transaction_gc_round: GENESIS_ROUND,
@@ -661,11 +661,8 @@ mod tests {
             let store = Arc::new(MemStore::new(context.clone()));
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
-            let handle = ShardReconstructor::start(
-                context.clone(),
-                dag_state.clone(),
-                core_dispatcher.clone(),
-            );
+            let handle =
+                ShardReconstructor::start(context.clone(), dag_state, core_dispatcher.clone());
             let tx = handle.transaction_message_sender();
             Self {
                 context,

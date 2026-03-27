@@ -182,3 +182,6 @@ path = "examples/transaction_builder/transfer.rs"
 [[example]]
 name = "tx_data"
 path = "examples/transaction_builder/tx_data.rs"
+
+[lints]
+workspace = true

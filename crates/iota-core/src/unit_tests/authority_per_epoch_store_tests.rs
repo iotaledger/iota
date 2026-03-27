@@ -27,6 +27,7 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
         .insert_finalized_transactions(
             vec![txes_to_be_notified[0]].as_slice(),
             checkpoint_sequence_1,
+            0,
         )
         .expect("Should not fail");
 
@@ -41,7 +42,7 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
     // Now insert the rest of the transactions
     let store = authority_state.epoch_store_for_testing();
     store
-        .insert_finalized_transactions(&txes_to_be_notified[1..], checkpoint_sequence_2)
+        .insert_finalized_transactions(&txes_to_be_notified[1..], checkpoint_sequence_2, 0)
         .expect("Should not fail");
 
     // We should get notified about all the transactions having been executed via

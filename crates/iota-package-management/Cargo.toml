@@ -29,3 +29,6 @@ anyhow.workspace = true
 
 # internal dependencies
 iota-framework-snapshot.workspace = true
+
+[lints]
+workspace = true

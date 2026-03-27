@@ -52,14 +52,14 @@ export function MyTokens({ coinBalances, isLoading, isFetched }: MyTokensProps) 
     const isFirstTimeLoading = isLoading && !isFetched;
 
     function handlePin(coinType: string) {
-        ampli.coinPinned({
+        ampli.pinnedCoin({
             coinType: coinType,
         });
         pinCoinType(coinType);
     }
 
     function handleUnpin(coinType: string) {
-        ampli.coinUnpinned({
+        ampli.unpinnedCoin({
             coinType: coinType,
         });
         unpinCoinType(coinType);

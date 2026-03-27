@@ -10,7 +10,7 @@ export type IntentScope = Exclude<keyof typeof bcs.IntentScope.$inferType, '$kin
  */
 export function messageWithIntent(scope: IntentScope, message: Uint8Array) {
     return bcs
-        .IntentMessage(bcs.fixedArray(message.length, bcs.u8()))
+        .IntentMessage(bcs.bytes(message.length))
         .serialize({
             intent: {
                 scope: { [scope as 'PersonalMessage']: true },

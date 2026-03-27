@@ -55,7 +55,7 @@ const getResultsForDid = async (
         {
             id: didUrlEncoded,
             label: didDocument.id().toString(),
-            type: 'did',
+            type: 'identity',
         },
     ];
 };
