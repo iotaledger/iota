@@ -150,7 +150,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                 let package_bytes = call_filter
                     .package_id
                     .ok_or("package_id is missing")?
-                    .address;
+                    .object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {}", e))?;
                 Ok(CommandFilter::MoveCall {
@@ -168,7 +168,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                 let package = upgrade_filter
                     .package_id
                     .map(|addr| {
-                        ObjectID::from_bytes(&addr.address)
+                        ObjectID::from_bytes(&addr.object_id)
                             .map_err(|e| format!("invalid package_id: {}", e))
                     })
                     .transpose()?;
@@ -302,11 +302,13 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                 Ok(TransactionFilter::Receiver(iota_address))
             }
             ProtoFilter::AffectedObject(obj_filter) => {
-                // TODO: add a function to convert ObjectReference to ObjectID
                 let object_ref = obj_filter.object_ref.ok_or("object_ref is missing")?;
-                let object_id_str = object_ref.object_id.ok_or("object_id is missing")?;
-                let object_id: ObjectID = object_id_str
-                    .parse()
+                let object_id: ObjectID = object_ref
+                    .object_id
+                    .as_ref()
+                    .ok_or("object_id is missing")?
+                    .object_id()
+                    .map(Into::into)
                     .map_err(|e| format!("invalid object_id: {}", e))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }

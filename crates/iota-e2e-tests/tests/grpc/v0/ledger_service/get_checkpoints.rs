@@ -4,20 +4,13 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use iota_grpc_types::v0::{filter as grpc_filter, types as grpc_types};
-use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
+use iota_types::transaction::CallArg;
 use tokio::time::timeout;
 
-use crate::utils::setup_grpc_test;
-
-// Test constants for Move packages and contracts
-const NFT_PACKAGE: &str = "nft";
-const BASICS_PACKAGE: &str = "basics";
-const NFT_MODULE: &str = "testnet_nft";
-const CLOCK_MODULE: &str = "clock";
-const CLOCK_ACCESS_FUNCTION: &str = "access";
-
-// Event type names
-const NFT_MINTED_EVENT: &str = "NFTMinted";
+use crate::utils::{
+    BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_MINTED_EVENT, NFT_MODULE, NFT_PACKAGE,
+    publish_example_package, setup_grpc_test,
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_checkpoint() {
@@ -117,45 +110,9 @@ async fn test_event_filtering() {
     let sender_1 = cluster.get_address_0();
     let sender_2 = cluster.get_address_1();
 
-    // Publish NFT package
-    let nft_tx = cluster
-        .test_transaction_builder_with_sender(sender_1)
-        .await
-        .publish_examples(NFT_PACKAGE)
-        .build();
-
-    let signed_tx = cluster.sign_transaction(&nft_tx);
-    let (effects, _events) = cluster
-        .execute_transaction_return_raw_effects(signed_tx)
-        .await
-        .expect("NFT publishing should succeed");
-
-    let nft_package_id = effects
-        .created()
-        .iter()
-        .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
-        .expect("Should have created NFT package");
-
-    // Publish basics package
-    let basics_tx = cluster
-        .test_transaction_builder_with_sender(sender_1)
-        .await
-        .publish_examples(BASICS_PACKAGE)
-        .build();
-
-    let signed_tx = cluster.sign_transaction(&basics_tx);
-    let (effects, _events) = cluster
-        .execute_transaction_return_raw_effects(signed_tx)
-        .await
-        .expect("Basics publishing should succeed");
-
-    let basics_package_id = effects
-        .created()
-        .iter()
-        .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
-        .expect("Should have created basics package");
+    // Publish NFT and basics packages
+    let nft_package_id = publish_example_package(&cluster, sender_1, NFT_PACKAGE).await;
+    let basics_package_id = publish_example_package(&cluster, sender_1, BASICS_PACKAGE).await;
 
     // Define event filters for later use
     let sender_filter = grpc_filter::EventFilter::default().with_sender(
@@ -288,7 +245,7 @@ async fn test_event_filtering() {
 
                         // Verify NFT filter logic: only NFT events
                         assert_eq!(
-                            event.package_id.as_ref().unwrap().address.as_ref(),
+                            event.package_id.as_ref().unwrap().object_id.as_ref(),
                             nft_package_id.as_ref(),
                             "MoveEventTypeFilter should only match NFT package events"
                         );
@@ -335,10 +292,10 @@ async fn test_event_filtering() {
                         assert!(
                             (event.sender.as_ref().map(|s| &s.address)
                                 == Some(&sender_1.as_ref().to_vec().into()))
-                                || (event.package_id.as_ref().map(|p| &p.address)
+                                || (event.package_id.as_ref().map(|p| &p.object_id)
                                     == Some(&nft_package_id.as_ref().to_vec().into())),
                             "AnyEventFilter should receive events from both events: {:?}",
-                            event.package_id.as_ref().map(|p| &p.address)
+                            event.package_id.as_ref().map(|p| &p.object_id)
                         );
 
                         any_events.push(event.clone());

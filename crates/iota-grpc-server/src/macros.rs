@@ -4,6 +4,11 @@
 /// Creates a lazy batching stream that fetches and batches items on-demand
 /// based on message size limits.
 ///
+/// The `has_next` field is a batching signal: `true` means more stream
+/// messages follow (current batch hit `max_message_size`), `false` means
+/// this is the final message. It does not indicate whether more data
+/// exists in storage beyond the requested items.
+///
 /// # Example
 /// ```ignore
 /// create_batching_stream!(

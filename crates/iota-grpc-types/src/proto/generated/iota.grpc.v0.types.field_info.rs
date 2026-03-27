@@ -45,6 +45,44 @@ mod _field_impls {
             self.finish()
         }
     }
+    impl ObjectId {
+        pub const OBJECT_ID_FIELD: &'static MessageField = &MessageField {
+            name: "object_id",
+            json_name: "objectId",
+            number: 1i32,
+            is_optional: false,
+            is_map: false,
+            message_fields: None,
+        };
+    }
+    impl MessageFields for ObjectId {
+        const FIELDS: &'static [&'static MessageField] = &[Self::OBJECT_ID_FIELD];
+    }
+    impl ObjectId {
+        pub fn path_builder() -> ObjectIdFieldPathBuilder {
+            ObjectIdFieldPathBuilder::new()
+        }
+    }
+    pub struct ObjectIdFieldPathBuilder {
+        path: Vec<&'static str>,
+    }
+    impl ObjectIdFieldPathBuilder {
+        #[allow(clippy::new_without_default)]
+        pub fn new() -> Self {
+            Self { path: Default::default() }
+        }
+        #[doc(hidden)]
+        pub fn new_with_base(base: Vec<&'static str>) -> Self {
+            Self { path: base }
+        }
+        pub fn finish(self) -> String {
+            self.path.join(".")
+        }
+        pub fn object_id(mut self) -> String {
+            self.path.push(ObjectId::OBJECT_ID_FIELD.name);
+            self.finish()
+        }
+    }
     impl Digest {
         pub const DIGEST_FIELD: &'static MessageField = &MessageField {
             name: "digest",
@@ -90,7 +128,7 @@ mod _field_impls {
             number: 1i32,
             is_optional: true,
             is_map: false,
-            message_fields: None,
+            message_fields: Some(ObjectId::FIELDS),
         };
         pub const VERSION_FIELD: &'static MessageField = &MessageField {
             name: "version",
@@ -136,9 +174,9 @@ mod _field_impls {
         pub fn finish(self) -> String {
             self.path.join(".")
         }
-        pub fn object_id(mut self) -> String {
+        pub fn object_id(mut self) -> ObjectIdFieldPathBuilder {
             self.path.push(ObjectReference::OBJECT_ID_FIELD.name);
-            self.finish()
+            ObjectIdFieldPathBuilder::new_with_base(self.path)
         }
         pub fn version(mut self) -> String {
             self.path.push(ObjectReference::VERSION_FIELD.name);

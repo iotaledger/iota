@@ -13,10 +13,13 @@ mod common;
 pub mod execution;
 pub mod ledger;
 mod metadata;
+pub mod move_package;
+pub mod state;
 
-pub use common::{Error, Result, RpcStatus};
+pub use common::{Error, Page, Result, RpcStatus};
 pub(crate) use common::{
-    ProtoResult, TryFromProtoError, build_proto_transaction, field_mask_with_default,
+    ProtoResult, TryFromProtoError, build_proto_transaction, collect_stream, define_list_query,
+    field_mask_with_default, proto_object_id, saturating_usize_to_u32,
 };
 pub use iota_grpc_types::read_masks::*;
 pub use metadata::MetadataEnvelope;

@@ -14,7 +14,7 @@ mod _accessor_impls {
             self
         }
         /// Sets `package_id` with the provided value.
-        pub fn with_package_id<T: Into<super::super::types::Address>>(
+        pub fn with_package_id<T: Into<super::super::types::ObjectId>>(
             mut self,
             field: T,
         ) -> Self {

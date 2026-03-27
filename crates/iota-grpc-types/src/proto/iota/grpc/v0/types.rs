@@ -43,12 +43,25 @@ impl TryFrom<&Address> for iota_sdk_types::Address {
     }
 }
 
-impl TryFrom<&Address> for iota_sdk_types::ObjectId {
+// ObjectId conversions
+impl From<iota_sdk_types::ObjectId> for ObjectId {
+    fn from(value: iota_sdk_types::ObjectId) -> Self {
+        Self {
+            object_id: value.into_inner().to_vec().into(),
+        }
+    }
+}
+
+impl TryFrom<&ObjectId> for iota_sdk_types::ObjectId {
     type Error = TryFromProtoError;
 
-    fn try_from(value: &Address) -> Result<Self, Self::Error> {
-        let sdk_address: iota_sdk_types::Address = value.try_into()?;
-        Ok(iota_sdk_types::ObjectId::from(sdk_address))
+    fn try_from(value: &ObjectId) -> Result<Self, Self::Error> {
+        let bytes: [u8; 32] = value
+            .object_id
+            .as_ref()
+            .try_into()
+            .map_err(|_| TryFromProtoError::invalid("object_id", "expected 32 bytes"))?;
+        Ok(bytes.into())
     }
 }
 
@@ -56,7 +69,7 @@ impl TryFrom<&Address> for iota_sdk_types::ObjectId {
 impl From<iota_sdk_types::ObjectReference> for ObjectReference {
     fn from(value: iota_sdk_types::ObjectReference) -> Self {
         Self {
-            object_id: Some(value.object_id.to_string()),
+            object_id: Some(value.object_id.into()),
             version: Some(value.version),
             digest: Some(value.digest.into()),
         }
@@ -67,14 +80,12 @@ impl TryFrom<&ObjectReference> for iota_sdk_types::ObjectReference {
     type Error = TryFromProtoError;
 
     fn try_from(value: &ObjectReference) -> Result<Self, Self::Error> {
-        let object_id_str = value
+        let object_id = value
             .object_id
             .as_ref()
-            .ok_or_else(|| TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name))?;
-
-        let object_id = object_id_str
-            .parse()
-            .map_err(|e| TryFromProtoError::invalid(ObjectReference::OBJECT_ID_FIELD.name, e))?;
+            .ok_or_else(|| TryFromProtoError::missing(ObjectReference::OBJECT_ID_FIELD.name))?
+            .object_id()
+            .map_err(|e| e.nested(ObjectReference::OBJECT_ID_FIELD.name))?;
 
         let version = value
             .version
@@ -104,6 +115,13 @@ impl Address {
     }
 }
 
+impl ObjectId {
+    /// Deserialize the object ID to SDK type.
+    pub fn object_id(&self) -> Result<iota_sdk_types::ObjectId, TryFromProtoError> {
+        self.try_into()
+    }
+}
+
 impl Digest {
     /// Deserialize the digest to SDK type.
     pub fn digest(&self) -> Result<iota_sdk_types::Digest, TryFromProtoError> {
@@ -122,8 +140,8 @@ impl ObjectReference {
         self.object_id
             .as_ref()
             .ok_or_else(|| TryFromProtoError::missing(Self::OBJECT_ID_FIELD.name))?
-            .parse()
-            .map_err(|e| TryFromProtoError::invalid(Self::OBJECT_ID_FIELD.name, e))
+            .object_id()
+            .map_err(|e| e.nested(Self::OBJECT_ID_FIELD.name))
     }
 
     /// Get the object version number.

@@ -83,7 +83,7 @@
 
 use futures::Stream;
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil, MessageField, MessageFields},
+    field::{FieldMaskTree, MessageField, MessageFields},
     read_masks::GET_CHECKPOINT_READ_MASK,
     v0::{
         checkpoint::Checkpoint, event::Event, ledger_service as grpc_ledger_service,
@@ -96,7 +96,7 @@ use tracing::debug;
 use super::LedgerGrpcService;
 use crate::{
     error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
-    types::CheckpointStreamResult,
+    types::CheckpointStreamResult, validation::validate_read_mask,
 };
 
 /// Helper function to convert proto filters to internal filters and validate
@@ -177,16 +177,9 @@ impl MessageFields for CheckpointDataResponse {
 /// transactions, and events.
 fn parse_checkpoint_read_mask(
     read_mask: Option<prost_types::FieldMask>,
-) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), Status> {
-    let field_mask =
-        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
-
-    // Validate the read_mask paths
-    FieldMaskUtil::validate::<CheckpointDataResponse>(&field_mask)
-        .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;
-
-    // Convert to FieldMaskTree after validation
-    let read_mask = FieldMaskTree::from(field_mask);
+) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), RpcError> {
+    let read_mask =
+        validate_read_mask::<CheckpointDataResponse>(read_mask, GET_CHECKPOINT_READ_MASK)?;
 
     // Extract checkpoint-related fields mask
     let checkpoint_mask = read_mask.subtree("checkpoint").unwrap_or_default();

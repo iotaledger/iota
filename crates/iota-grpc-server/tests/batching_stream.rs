@@ -118,8 +118,12 @@ async fn test_get_objects_batching_within_limit() {
         object_ids
             .iter()
             .map(|id| {
-                ObjectRequest::default()
-                    .with_object_ref(ObjectReference::default().with_object_id(id.to_string()))
+                ObjectRequest::default().with_object_ref(
+                    ObjectReference::default().with_object_id(
+                        iota_grpc_types::v0::types::ObjectId::default()
+                            .with_object_id(id.as_ref().to_vec()),
+                    ),
+                )
             })
             .collect(),
     );

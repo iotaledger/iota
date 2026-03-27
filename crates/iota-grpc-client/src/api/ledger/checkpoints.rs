@@ -97,7 +97,7 @@ use crate::{
     Client, Error,
     api::{
         CheckpointResponse, CheckpointStreamItem, GET_CHECKPOINT_READ_MASK, MetadataEnvelope,
-        Result, TryFromProtoError, field_mask_with_default,
+        Result, TryFromProtoError, field_mask_with_default, saturating_usize_to_u32,
     },
 };
 
@@ -262,7 +262,10 @@ impl Client {
         if let Some(ef) = events_filter {
             request = request.with_events_filter(ef);
         }
-        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+        if let Some(max_size) = self
+            .max_decoding_message_size()
+            .map(saturating_usize_to_u32)
+        {
             request = request.with_max_message_size_bytes(max_size);
         }
 
@@ -489,7 +492,10 @@ impl Client {
         if let Some(ms) = progress_interval_ms {
             request = request.with_progress_interval_ms(ms);
         }
-        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+        if let Some(max_size) = self
+            .max_decoding_message_size()
+            .map(saturating_usize_to_u32)
+        {
             request = request.with_max_message_size_bytes(max_size);
         }
 

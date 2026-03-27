@@ -2,15 +2,18 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use futures::Stream;
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil},
+    field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     read_masks::GET_OBJECTS_READ_MASK,
     v0::{
         error_reason::ErrorReason,
         ledger_service::{GetObjectsRequest, GetObjectsResponse, ObjectResult},
         object::Object,
+        types::ObjectId,
     },
 };
 use iota_types::base_types::ObjectID;
@@ -22,35 +25,29 @@ use crate::{
     error::{ObjectNotFoundError, RpcError},
     merge::Merge,
     types::{GrpcReader, ObjectsStreamResult},
+    validation::validate_read_mask,
 };
 
 type ValidationResult = Result<(Vec<(ObjectID, Option<u64>)>, FieldMaskTree), RpcError>;
 
-pub fn validate_get_object_requests(
-    requests: Vec<(Option<String>, Option<u64>)>,
+pub(crate) fn validate_get_object_requests(
+    requests: Vec<(Option<ObjectId>, Option<u64>)>,
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
-    let read_mask = {
-        let read_mask = read_mask.unwrap_or_else(|| FieldMask::from_str(GET_OBJECTS_READ_MASK));
-        read_mask.validate::<Object>().map_err(|path| {
-            FieldViolation::new("read_mask")
-                .with_description(format!("invalid read_mask path: {path}"))
-                .with_reason(ErrorReason::FieldInvalid)
-        })?;
-        FieldMaskTree::from(read_mask)
-    };
+    let read_mask = validate_read_mask::<Object>(read_mask, GET_OBJECTS_READ_MASK)?;
     let requests = requests
         .into_iter()
         .enumerate()
         .map(|(idx, (object_id, version))| {
-            let object_id = object_id
+            let object_id: ObjectID = object_id
                 .as_ref()
                 .ok_or_else(|| {
                     FieldViolation::new("object_id")
                         .with_reason(ErrorReason::FieldMissing)
                         .nested_at("requests", idx)
                 })?
-                .parse()
+                .object_id()
+                .map(Into::into)
                 .map_err(|e| {
                     FieldViolation::new("object_id")
                         .with_description(format!("invalid object_id: {e}"))
@@ -81,7 +78,7 @@ pub fn validate_get_object_requests(
 /// - `bcs` - the full BCS-encoded object
 #[tracing::instrument(skip(reader))]
 pub(crate) fn get_objects(
-    reader: GrpcReader,
+    reader: Arc<GrpcReader>,
     GetObjectsRequest {
         requests,
         read_mask,
@@ -104,7 +101,7 @@ pub(crate) fn get_objects(
     let (requests, read_mask) = validate_get_object_requests(requests, read_mask)?;
 
     // Validate and set max_message_size
-    let max_message_size = validate_max_message_size(max_message_size_bytes.map(|v| v as u64))?;
+    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
     // Create lazy stream that fetches and batches objects on-demand
     Ok(crate::create_batching_stream!(

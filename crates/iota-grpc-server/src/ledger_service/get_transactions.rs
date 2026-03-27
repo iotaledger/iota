@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use futures::Stream;
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil},
+    field::FieldMaskTree,
     google::rpc::bad_request::FieldViolation,
     read_masks::GET_TRANSACTIONS_READ_MASK,
     v0::{
@@ -24,26 +24,17 @@ use crate::{
     merge::Merge,
     transaction_execution_service::TransactionReadSource,
     types::{GrpcReader, TransactionReadFields, TransactionsStreamResult},
+    validation::validate_read_mask,
 };
 
 type ValidationResult = Result<(Vec<TransactionDigest>, FieldMaskTree), RpcError>;
 
-pub fn validate_get_transaction_requests(
+pub(crate) fn validate_get_transaction_requests(
     requests: Vec<Option<Vec<u8>>>,
     read_mask: Option<FieldMask>,
 ) -> ValidationResult {
-    let read_mask = {
-        let read_mask =
-            read_mask.unwrap_or_else(|| FieldMask::from_str(GET_TRANSACTIONS_READ_MASK));
-        read_mask
-            .validate::<ExecutedTransaction>()
-            .map_err(|path| {
-                FieldViolation::new("read_mask")
-                    .with_description(format!("invalid read_mask path: {path}"))
-                    .with_reason(ErrorReason::FieldInvalid)
-            })?;
-        FieldMaskTree::from(read_mask)
-    };
+    let read_mask =
+        validate_read_mask::<ExecutedTransaction>(read_mask, GET_TRANSACTIONS_READ_MASK)?;
 
     let requests = requests
         .into_iter()
@@ -139,7 +130,7 @@ pub(crate) fn get_transactions(
         .collect();
 
     let (digests, read_mask) = validate_get_transaction_requests(requests, read_mask)?;
-    let max_message_size = validate_max_message_size(max_message_size_bytes.map(|v| v as u64))?;
+    let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
     Ok(crate::create_batching_stream!(
         digests.into_iter(),

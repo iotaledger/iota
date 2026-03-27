@@ -13,12 +13,12 @@ pub struct Event {
     /// Package ID of the top-level function invoked by a `MoveCall` command that triggered this
     /// event to be emitted.
     #[prost(message, optional, tag = "2")]
-    pub package_id: ::core::option::Option<super::types::Address>,
+    pub package_id: ::core::option::Option<super::types::ObjectId>,
     /// Module name of the top-level function invoked by a `MoveCall` command that triggered this
     /// event to be emitted.
     #[prost(string, optional, tag = "3")]
     pub module: ::core::option::Option<::prost::alloc::string::String>,
-    /// iota.grpc.v0.types.Address of the account that sent the transaction where this event was emitted.
+    /// Address of the account that sent the transaction where this event was emitted.
     #[prost(message, optional, tag = "4")]
     pub sender: ::core::option::Option<super::types::Address>,
     /// The type of the event emitted.

@@ -41,7 +41,7 @@ message AddressFilter {
 message MovePackageAndModuleFilter {
   option (iota.grpc.message_accessors) = "with";
 
-  iota.grpc.v0.types.Address package_id = 1;
+  iota.grpc.v0.types.ObjectId package_id = 1;
   optional string module = 2;
 }
 
@@ -138,7 +138,7 @@ message ObjectIdFilter {
 message MoveCallCommandFilter {
   option (iota.grpc.message_accessors) = "with";
 
-  iota.grpc.v0.types.Address package_id = 1;
+  iota.grpc.v0.types.ObjectId package_id = 1;
   optional string module = 2;
   optional string function = 3;
 }
@@ -172,7 +172,7 @@ message MakeMoveVecCommandFilter {
 message UpgradeCommandFilter {
   option (iota.grpc.message_accessors) = "with";
 
-  optional iota.grpc.v0.types.Address package_id = 1;
+  optional iota.grpc.v0.types.ObjectId package_id = 1;
 }
 
 // Filter by command type.
