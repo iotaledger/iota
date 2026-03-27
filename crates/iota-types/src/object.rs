@@ -148,7 +148,7 @@ impl MoveObjectExt for MoveObject {
     }
 
     fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
-        // unwrap safe because coins are always smaller the the max object size
+        // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
             StructTag::new_coin(coin_type),
