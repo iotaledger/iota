@@ -24,8 +24,6 @@ pub struct SimulateTransactionInput {
     /// Set to true for relaxed Move VM checks (useful for debugging and
     /// development).
     pub dev_inspect: bool,
-    /// Set to true to estimate the gas budget required.
-    pub estimate_gas_budget: bool,
 }
 
 impl Client {
@@ -39,7 +37,6 @@ impl Client {
     /// - `transaction`: The transaction to simulate
     /// - `dev_inspect`: Set to true for relaxed Move VM checks (useful for
     ///   debugging and development)
-    /// - `estimate_gas_budget`: Set to true to estimate the gas budget required
     /// - `read_mask`: Optional field mask to control which fields are returned
     ///
     /// Returns [`SimulatedTransaction`] which contains:
@@ -169,7 +166,7 @@ impl Client {
     /// let tx: Transaction = todo!();
     ///
     /// // Simulate transaction - returns proto type
-    /// let result = client.simulate_transaction(tx, false, false, None).await?;
+    /// let result = client.simulate_transaction(tx, false, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
     /// let executed_tx = result.body().executed_transaction()?;
@@ -185,14 +182,12 @@ impl Client {
         &self,
         transaction: Transaction,
         dev_inspect: bool,
-        estimate_gas_budget: bool,
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<SimulatedTransaction>> {
         self.simulate_transactions(
             vec![SimulateTransactionInput {
                 transaction,
                 dev_inspect,
-                estimate_gas_budget,
             }],
             read_mask,
         )
@@ -230,13 +225,7 @@ impl Client {
 
         let items = transactions
             .into_iter()
-            .map(|input| {
-                build_simulate_item(
-                    input.transaction,
-                    input.dev_inspect,
-                    input.estimate_gas_budget,
-                )
-            })
+            .map(|input| build_simulate_item(input.transaction, input.dev_inspect))
             .collect::<Result<Vec<_>>>()?;
 
         let request = SimulateTransactionsRequest::default()
@@ -264,7 +253,6 @@ impl Client {
 fn build_simulate_item(
     transaction: Transaction,
     dev_inspect: bool,
-    estimate_gas_budget: bool,
 ) -> Result<SimulateTransactionItem> {
     let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
 
@@ -276,6 +264,5 @@ fn build_simulate_item(
 
     Ok(SimulateTransactionItem::default()
         .with_transaction(proto_transaction)
-        .with_tx_checks(tx_checks)
-        .with_estimate_gas_budget(estimate_gas_budget))
+        .with_tx_checks(tx_checks))
 }

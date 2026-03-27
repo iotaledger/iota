@@ -75,14 +75,12 @@ async fn test_response_headers() {
             1000,          // gas price
         );
 
-        // Create the simulation request with gas estimation enabled
         let transaction = ProtoTransaction::default()
             .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
 
         let item = SimulateTransactionItem::default()
             .with_transaction(transaction)
-            .with_tx_checks(vec![])
-            .with_estimate_gas_budget(true);
+            .with_tx_checks(vec![]);
 
         let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
 

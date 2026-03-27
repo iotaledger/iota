@@ -66,9 +66,6 @@ pub struct SimulateTransactionItem {
         tag = "2"
     )]
     pub tx_checks: ::prost::alloc::vec::Vec<i32>,
-    /// Perform gas budget estimation and include the budget in the response.
-    #[prost(bool, optional, tag = "3")]
-    pub estimate_gas_budget: ::core::option::Option<bool>,
 }
 /// Nested message and enum types in `SimulateTransactionItem`.
 pub mod simulate_transaction_item {

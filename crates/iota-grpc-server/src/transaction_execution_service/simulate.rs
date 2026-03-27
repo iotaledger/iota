@@ -21,7 +21,6 @@ use iota_grpc_types::{
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     effects::TransactionEffectsAPI,
-    gas::GasCostSummary,
     transaction::TransactionDataAPI,
     transaction_executor::{
         SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
@@ -199,22 +198,28 @@ async fn simulate_single_transaction(
         })?;
 
     let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name)
-        || (item.estimate_gas_budget.unwrap_or(false) && vm_checks.enabled())
+        || vm_checks.enabled()
     {
         Some(reader.get_system_state_summary().map_err(|e| {
             RpcError::new(
                 tonic::Code::Internal,
-                format!("failed to get system state for suggested gas price or gas price estimation: {e}"),
+                format!("failed to get system state: {e}"),
             )
         })?)
     } else {
         None
     };
 
-    // Perform budget estimation if requested and if VmChecks are enabled
-    // (it makes no sense to do gas estimation if checks are disabled because such a
-    // transaction can't ever be committed to the chain).
-    if item.estimate_gas_budget.unwrap_or(false) && vm_checks.enabled() {
+    // If the transaction has a zero gas budget and VM checks are enabled, we'll set
+    // the gas budget in the result to the actual cost from the simulation. This
+    // allows clients to estimate the gas cost by simulating with a zero budget.
+    let set_gas_budget = vm_checks.enabled() && transaction_data.gas_data().budget == 0;
+    let mut min_gas_budget_opt = None;
+
+    // Validate and adjust gas budget when VM checks are enabled.
+    // (It makes no sense to validate gas if checks are disabled because such a
+    // transaction can't ever be committed to the chain.)
+    if vm_checks.enabled() {
         let protocol_config = ProtocolConfig::get_for_version_if_supported(
             system_state
                 .as_ref()
@@ -225,59 +230,29 @@ async fn simulate_single_transaction(
         .ok_or_else(|| {
             RpcError::new(
                 tonic::Code::Internal,
-                "failed to get protocol config for gas estimation".to_string(),
+                "failed to get protocol config for gas budget validation".to_string(),
             )
         })?;
 
-        let mut estimation_transaction = transaction_data.clone();
-        estimation_transaction.gas_data_mut().payment = Vec::new();
-        estimation_transaction.gas_data_mut().budget = protocol_config.max_tx_gas();
+        let min_gas_budget =
+            protocol_config.base_tx_cost_fixed() * transaction_data.gas_data().price;
 
-        let simulation_result = executor
-            .simulate_transaction(estimation_transaction, VmChecks::Enabled)
-            .map_err(|e| {
-                RpcError::new(
-                    tonic::Code::Internal,
-                    format!("Transaction simulation for gas estimation failed: {e}"),
-                )
-            })?;
-
-        if !simulation_result.effects.status().is_ok() {
+        let gas_budget = transaction_data.gas_data().budget;
+        if gas_budget == 0 {
+            // A zero budget signals "use maximum" — run the dry run with
+            // max_tx_gas so the actual cost shows up in the gas status.
+            transaction_data.gas_data_mut().budget = protocol_config.max_tx_gas();
+        } else if gas_budget < min_gas_budget {
             return Err(RpcError::new(
                 tonic::Code::InvalidArgument,
                 format!(
-                    "Budget estimation failed with status: {:?}.",
-                    simulation_result.effects.status()
+                    "Gas budget {gas_budget} NANOS is below the minimum required \
+                        gas budget of {min_gas_budget} NANOS"
                 ),
             ));
         }
 
-        let estimate = estimate_gas_budget_from_gas_cost(
-            simulation_result.effects.gas_cost_summary(),
-            system_state
-                .as_ref()
-                .expect("system state should be available")
-                .reference_gas_price(),
-            transaction_data.gas_data().payment.len(),
-            &protocol_config,
-        );
-
-        // We don't want to return a resolved transaction where the gas payment can't
-        // satisfy the budget, so validate that balance can actually cover the
-        // estimated budget.
-        let gas_balance = transaction_data.gas_data().budget;
-        if gas_balance < estimate {
-            return Err(RpcError::new(
-                tonic::Code::InvalidArgument,
-                format!(
-                    "Insufficient gas balance to cover estimated transaction cost. \
-                    Available gas balance: {gas_balance} NANOS. Estimated gas budget required: {estimate} NANOS"
-                ),
-            ));
-        }
-
-        // Update transaction with estimated budget
-        transaction_data.gas_data_mut().budget = estimate;
+        min_gas_budget_opt = Some(min_gas_budget);
     }
 
     // Simulate the transaction
@@ -304,6 +279,13 @@ async fn simulate_single_transaction(
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
+        if set_gas_budget {
+            transaction_data.gas_data_mut().budget = effects
+                .gas_cost_summary()
+                .gas_used()
+                .max(min_gas_budget_opt.expect("min_gas_budget_opt should exist"));
+        }
+
         let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
 
         // Create a source for the merge
@@ -400,72 +382,4 @@ async fn simulate_single_transaction(
     }
 
     Ok(response)
-}
-
-// An amount of gas (in gas units) that is added to transactions as an overhead
-// to ensure transactions do not fail.
-const GAS_SAFE_OVERHEAD: u64 = 1000;
-const GAS_COIN_BCS_BYTES_SIZE: u64 = 40;
-
-/// Estimate the gas budget for a transaction based on simulation results.
-///
-/// The estimation includes:
-/// 1. Base cost from gas_cost_summary (computation + storage costs)
-/// 2. Cost of loading gas payment objects (which weren't loaded during
-///    simulation)
-/// 3. Rounding up to the protocol gas rounding step (typically 1000 NANOS)
-/// 4. Adding safe overhead buffer (1000 * reference_gas_price)
-/// 5. Clamping to max_tx_gas protocol limit
-pub fn estimate_gas_budget_from_gas_cost(
-    gas_cost_summary: &GasCostSummary,
-    reference_gas_price: u64,
-    num_payment_objects_on_request: usize,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
-) -> u64 {
-    // Calculate base estimate from gas cost summary (in NANOS)
-    let gas_usage = gas_cost_summary.net_gas_usage();
-    let base_estimate_nanos =
-        gas_cost_summary
-            .computation_cost
-            .max(if gas_usage < 0 { 0 } else { gas_usage as u64 });
-
-    // Calculate cost of loading gas payment objects.
-    // Subtract 1 because the simulation already loaded one ephemeral gas coin.
-    let num_payment_objects_for_estimation = {
-        let total = if num_payment_objects_on_request == 0 {
-            protocol_config.max_gas_payment_objects() as u64
-        } else {
-            num_payment_objects_on_request as u64
-        };
-        total.saturating_sub(1)
-    };
-
-    // Calculate gas loading cost in gas units
-    let gas_loading_cost_units = num_payment_objects_for_estimation
-        .saturating_mul(GAS_COIN_BCS_BYTES_SIZE)
-        .saturating_mul(protocol_config.obj_access_cost_read_per_byte());
-
-    // Round up to the nearest gas rounding step (in gas units)
-    let rounded_gas_loading_cost_units =
-        if let Some(step) = protocol_config.gas_rounding_step_as_option() {
-            gas_loading_cost_units
-                .checked_next_multiple_of(step)
-                .unwrap_or(u64::MAX)
-        } else {
-            gas_loading_cost_units
-        };
-
-    // Convert gas loading cost to NANOS
-    let gas_loading_cost_nanos = rounded_gas_loading_cost_units.saturating_mul(reference_gas_price);
-
-    // Calculate safe overhead buffer in NANOS
-    let safe_overhead_nanos = GAS_SAFE_OVERHEAD.saturating_mul(reference_gas_price);
-
-    // Add all together: base (NANOS) + loading (NANOS) + overhead (NANOS)
-    let estimate_nanos = base_estimate_nanos
-        .saturating_add(gas_loading_cost_nanos)
-        .saturating_add(safe_overhead_nanos);
-
-    // Clamp to max_tx_gas to ensure we don't exceed the protocol limit
-    estimate_nanos.min(protocol_config.max_tx_gas())
 }

@@ -31,16 +31,6 @@ fn build_simulate_item(transaction: ProtoTransaction) -> SimulateTransactionItem
         .with_tx_checks(vec![])
 }
 
-/// Helper to build a `SimulateTransactionItem` with gas estimation enabled.
-fn build_simulate_item_with_gas_estimation(
-    transaction: ProtoTransaction,
-) -> SimulateTransactionItem {
-    SimulateTransactionItem::default()
-        .with_transaction(transaction)
-        .with_tx_checks(vec![])
-        .with_estimate_gas_budget(true)
-}
-
 /// Extract the `SimulatedTransaction` from the first result in the response.
 fn first_simulated_transaction(response: &SimulateTransactionsResponse) -> &SimulatedTransaction {
     let result = response
@@ -136,7 +126,7 @@ async fn assert_simulate_transaction_request(
 }
 
 #[sim_test]
-async fn simulate_transaction_with_gas_estimation() {
+async fn simulate_transaction_zero_gas_budget_uses_max() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
@@ -148,21 +138,20 @@ async fn simulate_transaction_with_gas_estimation() {
     let obj_to_send = gas.first().unwrap();
     let gas_obj = gas.last().unwrap();
 
-    // Build a simple transfer transaction with a very high gas budget
+    // Build a transfer transaction with gas budget = 0
     let tx_data = TransactionData::new_transfer(
         recipient,
         *obj_to_send,
         sender,
         *gas_obj,
-        1_000_000_000, // very high gas budget
-        1000,          // gas price
+        0,    // zero gas budget — server should replace with max_tx_gas
+        1000, // gas price
     );
 
-    // Create the simulation request with gas estimation enabled
     let transaction = ProtoTransaction::default()
         .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
 
-    let item = build_simulate_item_with_gas_estimation(transaction);
+    let item = build_simulate_item(transaction);
     let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
 
     // Simulate the transaction
@@ -174,7 +163,8 @@ async fn simulate_transaction_with_gas_estimation() {
 
     let simulated = first_simulated_transaction(&response);
 
-    // Verify gas budget estimation worked correctly
+    // Verify that the returned transaction has a non-zero gas budget (replaced with
+    // max_tx_gas)
     let bcs_data = simulated
         .executed_transaction
         .as_ref()
@@ -187,16 +177,63 @@ async fn simulate_transaction_with_gas_estimation() {
         .unwrap();
 
     let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
-    // The estimated budget should be much less than 1 billion
-    assert!(
-        returned_tx.gas_data().budget < 1_000_000_000,
-        "estimated budget should be less than original 1_000_000_000, got: {}",
-        returned_tx.gas_data().budget
-    );
-    // The gas data should be positive
     assert!(
         returned_tx.gas_data().budget > 0,
-        "estimated budget should be positive"
+        "gas budget should have been replaced with max_tx_gas, but was 0"
+    );
+}
+
+#[sim_test]
+async fn simulate_transaction_below_min_gas_budget_returns_error() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.0);
+    let obj_to_send = gas.first().unwrap();
+    let gas_obj = gas.last().unwrap();
+
+    // Build a transfer transaction with a gas budget below the minimum
+    // (min = base_tx_cost_fixed * gas_price = 1000 * 1000 = 1_000_000 NANOS)
+    let tx_data = TransactionData::new_transfer(
+        recipient,
+        *obj_to_send,
+        sender,
+        *gas_obj,
+        1,    // way below minimum gas budget
+        1000, // gas price
+    );
+
+    let transaction = ProtoTransaction::default()
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
+
+    let item = build_simulate_item(transaction);
+    let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
+
+    let response = exec_client
+        .simulate_transactions(request)
+        .await
+        .unwrap()
+        .into_inner();
+
+    // The per-item result should be an error
+    let result = response.transaction_results.first().unwrap();
+    let error = result
+        .error()
+        .expect("Expected per-item error for below-minimum gas budget");
+    assert_eq!(
+        error.code,
+        tonic::Code::InvalidArgument as i32,
+        "Expected InvalidArgument error code, got code {}",
+        error.code
+    );
+    assert!(
+        error.message.contains("below the minimum"),
+        "Error message should mention 'below the minimum', got: {}",
+        error.message
     );
 }
 

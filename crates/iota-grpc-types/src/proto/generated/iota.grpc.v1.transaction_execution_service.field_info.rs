@@ -249,20 +249,11 @@ mod _field_impls {
             is_map: false,
             message_fields: None,
         };
-        pub const ESTIMATE_GAS_BUDGET_FIELD: &'static MessageField = &MessageField {
-            name: "estimate_gas_budget",
-            json_name: "estimateGasBudget",
-            number: 3i32,
-            is_optional: true,
-            is_map: false,
-            message_fields: None,
-        };
     }
     impl MessageFields for SimulateTransactionItem {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTION_FIELD,
             Self::TX_CHECKS_FIELD,
-            Self::ESTIMATE_GAS_BUDGET_FIELD,
         ];
     }
     impl SimulateTransactionItem {
@@ -291,10 +282,6 @@ mod _field_impls {
         }
         pub fn tx_checks(mut self) -> String {
             self.path.push(SimulateTransactionItem::TX_CHECKS_FIELD.name);
-            self.finish()
-        }
-        pub fn estimate_gas_budget(mut self) -> String {
-            self.path.push(SimulateTransactionItem::ESTIMATE_GAS_BUDGET_FIELD.name);
             self.finish()
         }
     }

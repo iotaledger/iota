@@ -108,11 +108,6 @@ mod _accessor_impls {
             self.tx_checks = field;
             self
         }
-        /// Sets `estimate_gas_budget` with the provided value.
-        pub fn with_estimate_gas_budget(mut self, field: bool) -> Self {
-            self.estimate_gas_budget = Some(field);
-            self
-        }
     }
     impl super::SimulateTransactionResult {
         /// Sets `simulated_transaction` with the provided value.

@@ -21,7 +21,7 @@ async fn simulate_transaction_scenarios() {
         let transaction = create_transaction_for_simulation(&test_cluster).await;
 
         let result = client
-            .simulate_transaction(transaction, dev_inspect, false, None)
+            .simulate_transaction(transaction, dev_inspect, None)
             .await
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
@@ -48,12 +48,7 @@ async fn simulate_transaction_scenarios() {
     // Test: minimal read mask
     let transaction = create_transaction_for_simulation(&test_cluster).await;
     let result = client
-        .simulate_transaction(
-            transaction,
-            false,
-            false,
-            Some("executed_transaction.effects"),
-        )
+        .simulate_transaction(transaction, false, Some("executed_transaction.effects"))
         .await
         .expect("Failed to simulate transaction with minimal mask");
 
@@ -87,9 +82,7 @@ async fn simulate_transaction_scenarios() {
         .with_gas_budget(1)
         .build();
     let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
-    let result = client
-        .simulate_transaction(transaction, false, false, None)
-        .await;
+    let result = client.simulate_transaction(transaction, false, None).await;
     assert_grpc_error(result, Code::Internal);
 
     // Test: transfer exceeding balance returns Ok with failed effects
@@ -108,7 +101,7 @@ async fn simulate_transaction_scenarios() {
         .build();
     let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let response = client
-        .simulate_transaction(transaction, false, false, None)
+        .simulate_transaction(transaction, false, None)
         .await
         .expect("Simulation should succeed at RPC level");
 

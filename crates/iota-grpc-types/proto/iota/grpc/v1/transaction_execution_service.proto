@@ -79,9 +79,6 @@ message SimulateTransactionItem {
 
   // List of checks to disable. If empty, all checks are enabled (default).
   repeated TransactionCheckModes tx_checks = 2;
-
-  // Perform gas budget estimation and include the budget in the response.
-  optional bool estimate_gas_budget = 3;
 }
 
 message SimulateTransactionsRequest {
