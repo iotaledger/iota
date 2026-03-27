@@ -1605,7 +1605,13 @@ impl ProtocolConfig {
     }
 
     pub fn enable_move_authentication_for_sponsor(&self) -> bool {
-        self.feature_flags.enable_move_authentication_for_sponsor
+        let enable_move_authentication_for_sponsor =
+            self.feature_flags.enable_move_authentication_for_sponsor;
+        assert!(
+            !enable_move_authentication_for_sponsor || self.enable_move_authentication(),
+            "enable_move_authentication_for_sponsor requires enable_move_authentication to be set"
+        );
+        enable_move_authentication_for_sponsor
     }
 
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
