@@ -197,8 +197,14 @@ async fn simulate_single_transaction(
             )
         })?;
 
+    // If the transaction has a zero gas budget and VM checks are disabled, we'll
+    // set the gas budget in the result to the actual cost from the simulation.
+    // This allows clients to estimate the gas cost by simulating with a zero
+    // budget.
+    let set_gas_budget = vm_checks.disabled() && transaction_data.gas_data().budget == 0;
+
     let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name)
-        || vm_checks.enabled()
+        || set_gas_budget
     {
         Some(reader.get_system_state_summary().map_err(|e| {
             RpcError::new(
@@ -210,16 +216,7 @@ async fn simulate_single_transaction(
         None
     };
 
-    // If the transaction has a zero gas budget and VM checks are enabled, we'll set
-    // the gas budget in the result to the actual cost from the simulation. This
-    // allows clients to estimate the gas cost by simulating with a zero budget.
-    let set_gas_budget = vm_checks.enabled() && transaction_data.gas_data().budget == 0;
-    let mut min_gas_budget_opt = None;
-
-    // Validate and adjust gas budget when VM checks are enabled.
-    // (It makes no sense to validate gas if checks are disabled because such a
-    // transaction can't ever be committed to the chain.)
-    if vm_checks.enabled() {
+    if set_gas_budget {
         let protocol_config = ProtocolConfig::get_for_version_if_supported(
             system_state
                 .as_ref()
@@ -234,25 +231,9 @@ async fn simulate_single_transaction(
             )
         })?;
 
-        let min_gas_budget =
-            protocol_config.base_tx_cost_fixed() * transaction_data.gas_data().price;
-
-        let gas_budget = transaction_data.gas_data().budget;
-        if gas_budget == 0 {
-            // A zero budget signals "use maximum" — run the dry run with
-            // max_tx_gas so the actual cost shows up in the gas status.
-            transaction_data.gas_data_mut().budget = protocol_config.max_tx_gas();
-        } else if gas_budget < min_gas_budget {
-            return Err(RpcError::new(
-                tonic::Code::InvalidArgument,
-                format!(
-                    "Gas budget {gas_budget} NANOS is below the minimum required \
-                        gas budget of {min_gas_budget} NANOS"
-                ),
-            ));
-        }
-
-        min_gas_budget_opt = Some(min_gas_budget);
+        // A zero budget signals "use maximum" — run the dry run with
+        // max_tx_gas so the actual cost shows up in the gas status.
+        transaction_data.gas_data_mut().budget = protocol_config.max_tx_gas();
     }
 
     // Simulate the transaction
@@ -280,10 +261,7 @@ async fn simulate_single_transaction(
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
         if set_gas_budget {
-            transaction_data.gas_data_mut().budget = effects
-                .gas_cost_summary()
-                .gas_used()
-                .max(min_gas_budget_opt.expect("min_gas_budget_opt should exist"));
+            transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
         }
 
         let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
