@@ -5487,6 +5487,14 @@ impl AuthorityState {
         CheckedInputObjects,
         Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
     )> {
+        let authenticator_gas_budget = if move_authenticators.is_empty() {
+            0
+        } else {
+            // `max_auth_gas` is used here as a Move authenticator gas budget until it is
+            // not a part of the transaction data.
+            protocol_config.max_auth_gas()
+        };
+
         let auth_checked_inputs = move_authenticators
             .iter()
             .zip(auth_input_objects)
@@ -5523,10 +5531,6 @@ impl AuthorityState {
                 },
             )
             .collect::<IotaResult<Vec<_>>>()?;
-
-        // `max_auth_gas` is used here as a Move authenticator gas budget until it is
-        // not a part of the transaction data.
-        let authenticator_gas_budget = protocol_config.max_auth_gas();
 
         // Check the transaction inputs.
         let (gas_status, tx_checked_input_objects) =
