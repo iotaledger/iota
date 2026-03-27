@@ -68,31 +68,31 @@ pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
     ) -> Result<Self, ExecutionError>;
     fn new_gas_coin(version: SequenceNumber, id: ObjectID, value: u64) -> Self;
     fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self;
-    fn update_contents_with_limit(
-        &mut self,
-        new_contents: Vec<u8>,
-        max_move_object_size: u64,
-    ) -> Result<(), ExecutionError>;
+    fn get_coin_value_unchecked(&self) -> u64;
+    fn set_coin_value_unchecked(&mut self, value: u64);
+    fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
     fn update_contents(
         &mut self,
         new_contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<(), ExecutionError>;
+    fn update_contents_with_limit(
+        &mut self,
+        new_contents: Vec<u8>,
+        max_move_object_size: u64,
+    ) -> Result<(), ExecutionError>;
+    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
     fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError>;
     fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError>;
-    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
+    fn object_size_for_gas_metering(&self) -> usize;
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError>;
     fn get_coin_balances(
         &self,
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError>;
-    fn get_coin_value_unchecked(&self) -> u64;
-    fn set_coin_value_unchecked(&mut self, value: u64);
-    fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
-    fn object_size_for_gas_metering(&self) -> usize;
 }
 
 impl MoveObjectExt for MoveObject {
@@ -159,107 +159,6 @@ impl MoveObjectExt for MoveObject {
         .unwrap()
     }
 
-    fn update_contents_with_limit(
-        &mut self,
-        new_contents: Vec<u8>,
-        max_move_object_size: u64,
-    ) -> Result<(), ExecutionError> {
-        if new_contents.len() as u64 > max_move_object_size {
-            return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::ObjectTooBig {
-                    object_size: new_contents.len() as u64,
-                    max_object_size: max_move_object_size,
-                },
-            ));
-        }
-
-        #[cfg(debug_assertions)]
-        let old_id = self.id();
-        self.contents = new_contents;
-
-        // Update should not modify ID
-        #[cfg(debug_assertions)]
-        debug_assert_eq!(self.id(), old_id);
-
-        Ok(())
-    }
-
-    /// Update the contents of this object but does not increment its version
-    fn update_contents(
-        &mut self,
-        new_contents: Vec<u8>,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<(), ExecutionError> {
-        self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
-    }
-
-    fn get_struct_layout_from_struct_tag(
-        struct_tag: StructTag,
-        resolver: &impl GetModule,
-    ) -> Result<MoveStructLayout, IotaError> {
-        let type_ = TypeTag::Struct(Box::new(struct_tag));
-        let layout = TypeLayoutBuilder::build_with_types(&type_tag_sdk_to_core(&type_), resolver)
-            .map_err(|e| IotaError::ObjectSerialization {
-            error: e.to_string(),
-        })?;
-        match layout {
-            MoveTypeLayout::Struct(l) => Ok(*l),
-            _ => unreachable!(
-                "We called build_with_types on Struct type, should get a struct layout"
-            ),
-        }
-    }
-
-    /// Convert `self` to the JSON representation dictated by `layout`.
-    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
-        BoundedVisitor::deserialize_struct(&self.contents, layout).map_err(|e| {
-            IotaError::ObjectSerialization {
-                error: e.to_string(),
-            }
-        })
-    }
-
-    /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_`
-    /// and the (transitive) dependencies of `self.type_` in order for this
-    /// to succeed. Failure will result in an `ObjectSerializationError`
-    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
-        Self::get_struct_layout_from_struct_tag(self.struct_tag().clone(), resolver)
-    }
-
-    /// Get the total amount of IOTA embedded in `self`. Intended for testing
-    /// purposes
-    fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
-        let balances = self.get_coin_balances(layout_resolver)?;
-        Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
-    }
-
-    /// Get the total balances for all `Coin<T>` embedded in `self`.
-    fn get_coin_balances(
-        &self,
-        layout_resolver: &mut dyn LayoutResolver,
-    ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
-        // Fast path without deserialization.
-        if let Some(type_tag) = self.object_type.coin_type_opt() {
-            let balance = self.get_coin_value_unchecked();
-            Ok(if balance > 0 {
-                BTreeMap::from([(type_tag.clone(), balance)])
-            } else {
-                BTreeMap::default()
-            })
-        } else {
-            let layout = layout_resolver.get_annotated_layout(self.struct_tag())?;
-
-            let mut traversal = BalanceTraversal::default();
-            MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
-                .map_err(|e| IotaError::ObjectSerialization {
-                    error: e.to_string(),
-                })?;
-
-            Ok(traversal.finish())
-        }
-    }
-
     /// Return the `value: u64` field of a `Coin<T>` type.
     /// Useful for reading the coin without deserializing the object into a Move
     /// value. It is the caller's responsibility to check that `self` is a coin.
@@ -298,6 +197,74 @@ impl MoveObjectExt for MoveObject {
             .splice(ID_END_INDEX.., timestamp_ms.to_le_bytes());
     }
 
+    /// Update the contents of this object but does not increment its version
+    fn update_contents(
+        &mut self,
+        new_contents: Vec<u8>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<(), ExecutionError> {
+        self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
+    }
+
+    fn update_contents_with_limit(
+        &mut self,
+        new_contents: Vec<u8>,
+        max_move_object_size: u64,
+    ) -> Result<(), ExecutionError> {
+        if new_contents.len() as u64 > max_move_object_size {
+            return Err(ExecutionError::from_kind(
+                ExecutionErrorKind::ObjectTooBig {
+                    object_size: new_contents.len() as u64,
+                    max_object_size: max_move_object_size,
+                },
+            ));
+        }
+
+        #[cfg(debug_assertions)]
+        let old_id = self.id();
+        self.contents = new_contents;
+
+        // Update should not modify ID
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(self.id(), old_id);
+
+        Ok(())
+    }
+
+    /// Get a `MoveStructLayout` for `self`.
+    /// The `resolver` value must contain the module that declares `self.type_`
+    /// and the (transitive) dependencies of `self.type_` in order for this
+    /// to succeed. Failure will result in an `ObjectSerializationError`
+    fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
+        Self::get_struct_layout_from_struct_tag(self.struct_tag().clone(), resolver)
+    }
+
+    fn get_struct_layout_from_struct_tag(
+        struct_tag: StructTag,
+        resolver: &impl GetModule,
+    ) -> Result<MoveStructLayout, IotaError> {
+        let type_ = TypeTag::Struct(Box::new(struct_tag));
+        let layout = TypeLayoutBuilder::build_with_types(&type_tag_sdk_to_core(&type_), resolver)
+            .map_err(|e| IotaError::ObjectSerialization {
+            error: e.to_string(),
+        })?;
+        match layout {
+            MoveTypeLayout::Struct(l) => Ok(*l),
+            _ => unreachable!(
+                "We called build_with_types on Struct type, should get a struct layout"
+            ),
+        }
+    }
+
+    /// Convert `self` to the JSON representation dictated by `layout`.
+    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
+        BoundedVisitor::deserialize_struct(&self.contents, layout).map_err(|e| {
+            IotaError::ObjectSerialization {
+                error: e.to_string(),
+            }
+        })
+    }
+
     /// Approximate size of the object in bytes. This is used for gas metering.
     /// For the type tag field, we serialize it on the spot to get the accurate
     /// size. This should not be very expensive since the type tag is
@@ -307,6 +274,39 @@ impl MoveObjectExt for MoveObject {
             bcs::serialized_size(&self.object_type).expect("Serializing type tag should not fail");
         // + 8 for `version`
         self.contents.len() + serialized_type_tag_size + 8
+    }
+
+    /// Get the total amount of IOTA embedded in `self`. Intended for testing
+    /// purposes
+    fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
+        let balances = self.get_coin_balances(layout_resolver)?;
+        Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
+    }
+
+    /// Get the total balances for all `Coin<T>` embedded in `self`.
+    fn get_coin_balances(
+        &self,
+        layout_resolver: &mut dyn LayoutResolver,
+    ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
+        // Fast path without deserialization.
+        if let Some(type_tag) = self.object_type.coin_type_opt() {
+            let balance = self.get_coin_value_unchecked();
+            Ok(if balance > 0 {
+                BTreeMap::from([(type_tag.clone(), balance)])
+            } else {
+                BTreeMap::default()
+            })
+        } else {
+            let layout = layout_resolver.get_annotated_layout(self.struct_tag())?;
+
+            let mut traversal = BalanceTraversal::default();
+            MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
+                .map_err(|e| IotaError::ObjectSerialization {
+                    error: e.to_string(),
+                })?;
+
+            Ok(traversal.finish())
+        }
     }
 }
 
