@@ -131,6 +131,41 @@ async fn list_owned_objects_collect_with_limit() {
     }
 }
 
+#[sim_test]
+async fn list_owned_objects_collect_limit_truncates() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+    let owner = first_sender(&test_cluster);
+
+    // Collect everything to confirm we have more than 2 objects.
+    let all = client
+        .list_owned_objects(owner, None, None, None, None)
+        .collect(None)
+        .await
+        .expect("collect all should succeed");
+
+    assert!(
+        all.body().len() > 2,
+        "Test requires > 2 owned objects, got {}",
+        all.body().len()
+    );
+
+    // Collect with limit=2 but NO page_size — the server will use its
+    // default (50), which is larger than the limit. The client must
+    // truncate the result to exactly 2 items.
+    let limited = client
+        .list_owned_objects(owner, None, None, None, None)
+        .collect(Some(2))
+        .await
+        .expect("collect with limit should succeed");
+
+    assert_eq!(
+        limited.body().len(),
+        2,
+        "collect(Some(2)) without page_size must return exactly 2 items, got {}",
+        limited.body().len()
+    );
+}
+
 // ==========================================================================
 // list_dynamic_fields
 // ==========================================================================

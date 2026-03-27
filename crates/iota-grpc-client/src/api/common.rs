@@ -293,7 +293,21 @@ macro_rules! define_list_query {
                 loop {
                     let mut request = self.base_request.clone();
 
-                    if let Some(ps) = self.page_size {
+                    // Cap page_size to the remaining items needed when a
+                    // limit is set, so we don't over-fetch from the server.
+                    let effective_page_size = match (self.page_size, limit) {
+                        (Some(ps), Some(l)) => {
+                            let remaining = (l as usize).saturating_sub(all_items.len());
+                            Some(ps.min(remaining as u32))
+                        }
+                        (Some(ps), None) => Some(ps),
+                        (None, Some(l)) => {
+                            let remaining = (l as usize).saturating_sub(all_items.len());
+                            Some(remaining as u32)
+                        }
+                        (None, None) => None,
+                    };
+                    if let Some(ps) = effective_page_size {
                         request = request.with_page_size(ps);
                     }
                     if let Some(token) = next_page_token.take() {
