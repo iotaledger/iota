@@ -81,6 +81,8 @@ pub trait MoveObjectExt: Sized + move_object_ext_private::Sealed {
         new_contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<(), ExecutionError>;
+    fn increment_version_to(&mut self, next: SequenceNumber);
+    fn decrement_version_to(&mut self, prev: SequenceNumber);
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
     fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
@@ -231,10 +233,32 @@ impl MoveObjectExt for MoveObject {
         Ok(())
     }
 
+    /// Sets the version of this object to a new value which is assumed to be
+    /// higher (and checked to be higher in debug).
+    fn increment_version_to(&mut self, next: SequenceNumber) {
+        debug_assert!(
+            self.version < next,
+            "Not an increment: {} to {next}",
+            self.version
+        );
+        self.version = next;
+    }
+
+    /// Sets the version to a lower value (checked in debug).
+    fn decrement_version_to(&mut self, prev: SequenceNumber) {
+        debug_assert!(
+            prev < self.version,
+            "Not a decrement: {} to {prev}",
+            self.version
+        );
+        self.version = prev;
+    }
+
     /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_`
-    /// and the (transitive) dependencies of `self.type_` in order for this
-    /// to succeed. Failure will result in an `ObjectSerializationError`
+    /// The `resolver` value must contain the module that declares
+    /// `self.object_type` and the (transitive) dependencies of
+    /// `self.object_type` in order for this to succeed. Failure will result
+    /// in an `ObjectSerializationError`
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
         Self::get_struct_layout_from_struct_tag(self.struct_tag().clone(), resolver)
     }
@@ -686,9 +710,10 @@ impl ObjectInner {
     }
 
     /// Get a `MoveStructLayout` for `self`.
-    /// The `resolver` value must contain the module that declares `self.type_`
-    /// and the (transitive) dependencies of `self.type_` in order for this
-    /// to succeed. Failure will result in an `ObjectSerializationError`
+    /// The `resolver` value must contain the module that declares
+    /// `self.object_type` and the (transitive) dependencies of
+    /// `self.object_type` in order for this to succeed. Failure will result
+    /// in an `ObjectSerializationError`
     pub fn get_layout(
         &self,
         resolver: &impl GetModule,
