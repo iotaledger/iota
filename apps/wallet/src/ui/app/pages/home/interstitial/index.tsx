@@ -75,7 +75,7 @@ export function Interstitial({
                         <ExternalLink
                             href={bannerUrl}
                             onClick={() => {
-                                ampli.appsBannerCtaClicked({
+                                ampli.clickedAppsBannerCta({
                                     sourceFlow: 'Interstitial',
                                     bannerUrl,
                                 });

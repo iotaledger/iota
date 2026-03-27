@@ -22,7 +22,7 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
             : 'https://files.iota.org/media/tooling/wallet-dashboard-migration-light.mp4';
 
     function navigateToDashboard() {
-        ampli.applicationOpened({
+        ampli.openedApplication({
             applicationName: 'IOTA Wallet Dashboard',
         });
         window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');

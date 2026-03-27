@@ -39,9 +39,10 @@ native fun native_sender(): address;
 
 /// Return the transaction digest (hash of transaction inputs).
 /// Please do not use as a source of randomness.
-public fun digest(self: &TxContext): &vector<u8> {
-    &self.tx_hash
+public fun digest(_self: &TxContext): &vector<u8> {
+    native_digest()
 }
+native fun native_digest(): &vector<u8>;
 
 /// Return the current epoch
 public fun epoch(_self: &TxContext): u64 {
@@ -82,6 +83,13 @@ public fun gas_price(_self: &TxContext): u64 {
 }
 native fun native_gas_price(): u64;
 
+/// Return the gas budget for the current transaction.
+public fun gas_budget(_self: &TxContext): u64 {
+    native_gas_budget()
+}
+// native function to retrieve gas budget, currently not exposed
+native fun native_gas_budget(): u64;
+
 // ==== test-only functions ====
 #[test_only]
 /// Return the number of id's created by the current transaction.
@@ -90,15 +98,6 @@ public fun ids_created(_self: &TxContext): u64 {
 }
 #[allow(unused_function)]
 native fun native_ids_created(): u64;
-
-#[test_only]
-/// Return the gas budget for the current transaction.
-public fun gas_budget(_self: &TxContext): u64 {
-    native_gas_budget()
-}
-#[allow(unused_function)]
-// native function to retrieve gas budget, currently not exposed
-native fun native_gas_budget(): u64;
 
 #[test_only]
 /// Create a `TxContext` for testing. All fields can be provided.
@@ -127,7 +126,7 @@ public fun create(
     );
     TxContext {
         sender: @0x0,
-        tx_hash,
+        tx_hash: vector::empty(),
         epoch: 0,
         epoch_timestamp_ms: 0,
         ids_created: 0,
@@ -203,7 +202,7 @@ public fun increment_epoch_number(self: &mut TxContext) {
     let epoch = self.epoch() + 1;
     replace(
         native_sender(),
-        self.tx_hash,
+        *native_digest(),
         epoch,
         native_epoch_timestamp_ms(),
         native_ids_created(),
@@ -219,7 +218,7 @@ public fun increment_epoch_timestamp(self: &mut TxContext, delta_ms: u64) {
     let epoch_timestamp_ms = self.epoch_timestamp_ms() + delta_ms;
     replace(
         native_sender(),
-        self.tx_hash,
+        *native_digest(),
         native_epoch(),
         epoch_timestamp_ms,
         native_ids_created(),

@@ -177,9 +177,6 @@ pub struct IngestionSources {
 
     #[arg(long)]
     pub remote_store_url: Option<Url>,
-
-    #[arg(long)]
-    pub rpc_client_url: Option<Url>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -475,7 +472,7 @@ pub mod deprecated {
         pub db_name: Option<String>,
         #[arg(long, default_value = "http://0.0.0.0:9000", global = true)]
         pub rpc_client_url: String,
-        #[arg(long, default_value = Some("http://0.0.0.0:9000/api/v1"), global = true)]
+        #[arg(long, default_value = Some("http://0.0.0.0:50051"), global = true)]
         pub remote_store_url: Option<String>,
         #[arg(long, default_value = "0.0.0.0", global = true)]
         pub client_metric_host: String,
@@ -559,7 +556,7 @@ pub mod deprecated {
                 db_port: None,
                 db_name: None,
                 rpc_client_url: "http://127.0.0.1:9000".to_string(),
-                remote_store_url: Some("http://127.0.0.1:9000/api/v1".to_string()),
+                remote_store_url: Some("http://127.0.0.1:50051".to_string()),
                 client_metric_host: "0.0.0.0".to_string(),
                 client_metric_port: 9184,
                 rpc_server_url: "0.0.0.0".to_string(),
@@ -597,9 +594,7 @@ pub mod deprecated {
 
     impl TryFrom<OldIndexerConfig> for IndexerConfig {
         type Error = IndexerError;
-        fn try_from(mut old_conf: OldIndexerConfig) -> Result<Self, Self::Error> {
-            old_conf.remote_store_url = Some(format!("{}/api/v1", old_conf.rpc_client_url));
-
+        fn try_from(old_conf: OldIndexerConfig) -> Result<Self, Self::Error> {
             let db_url = old_conf.get_db_url();
 
             // NOTE: this parses the input host addr and port number for socket addr,
@@ -635,11 +630,6 @@ pub mod deprecated {
                 .and_then(|s| s.parse::<usize>().ok())
                 .unwrap_or(SnapshotLagConfig::DEFAULT_MIN_LAG);
 
-            let rpc_client_url_parsed = old_conf
-                .rpc_client_url
-                .parse()
-                .expect("rpc client url should be valid");
-
             let command = if old_conf.analytical_worker {
                 Command::AnalyticalWorker
             } else if old_conf.rpc_server_worker {
@@ -664,7 +654,6 @@ pub mod deprecated {
                             remote_store_url: old_conf.remote_store_url.map(|url| {
                                 url.parse().expect("remote store url should be correct")
                             }),
-                            rpc_client_url: Some(rpc_client_url_parsed),
                         },
                         checkpoint_download_queue_size: download_queue_size,
                         checkpoint_download_timeout: ingestion_reader_timeout_secs,
@@ -755,12 +744,10 @@ mod test {
     fn ingestion_sources() {
         parse_args::<IngestionSources>(["--data-ingestion-path=/tmp/foo"]).unwrap();
         parse_args::<IngestionSources>(["--remote-store-url=http://example.com"]).unwrap();
-        parse_args::<IngestionSources>(["--rpc-client-url=http://example.com"]).unwrap();
 
         parse_args::<IngestionSources>([
             "--data-ingestion-path=/tmp/foo",
             "--remote-store-url=http://example.com",
-            "--rpc-client-url=http://example.com",
         ])
         .unwrap();
 

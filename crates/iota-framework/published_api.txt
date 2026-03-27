@@ -1144,6 +1144,9 @@ native_sender
 digest
 	public fun
 	0x2::tx_context
+native_digest
+	fun
+	0x2::tx_context
 epoch
 	public fun
 	0x2::tx_context
@@ -1177,10 +1180,13 @@ gas_price
 native_gas_price
 	fun
 	0x2::tx_context
-native_ids_created
-	fun
+gas_budget
+	public fun
 	0x2::tx_context
 native_gas_budget
+	fun
+	0x2::tx_context
+native_ids_created
 	fun
 	0x2::tx_context
 option_sponsor

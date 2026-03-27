@@ -121,9 +121,8 @@ pub struct Parameters {
     /// enabled for FastCommitSyncer to run. The protocol flag controls
     /// whether gRPC endpoints are available, while this local flag controls
     /// whether this specific node creates and runs the FastCommitSyncer.
-    /// Disabled by default; operators can enable it locally once the protocol
-    /// flag is active, or disable it again if bugs are discovered, without
-    /// affecting protocol-level endpoint availability.
+    /// Enabled by default; operators can disable it locally if bugs are
+    /// discovered, without affecting protocol-level endpoint availability.
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
 }
@@ -261,10 +260,9 @@ impl Parameters {
     }
 
     pub(crate) fn default_enable_fast_commit_syncer() -> bool {
-        // Disabled by default. Operators can enable it locally once the protocol-level
-        // consensus_fast_commit_sync flag is active, or disable it again if bugs are
-        // discovered, without waiting for a protocol upgrade.
-        false
+        // Enabled by default. Operators can disable it locally if bugs are discovered,
+        // without waiting for a protocol upgrade.
+        true
     }
 }
 

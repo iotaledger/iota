@@ -1200,7 +1200,7 @@ impl TxContext {
         let move_context: MoveLegacyTxContext = if self.is_native {
             let tx_context = &TxContext {
                 sender: AccountAddress::ZERO,
-                digest: self.digest.clone(),
+                digest: vec![],
                 epoch: 0,
                 epoch_timestamp_ms: 0,
                 ids_created: 0,
