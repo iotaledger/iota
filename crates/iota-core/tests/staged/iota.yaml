@@ -298,16 +298,6 @@ ConsensusDeterminedVersionAssignments:
         NEWTYPE:
           SEQ:
             TYPENAME: CancelledTransaction
-Data:
-  ENUM:
-    0:
-      Move:
-        NEWTYPE:
-          TYPENAME: MoveStruct
-    1:
-      Package:
-        NEWTYPE:
-          TYPENAME: MovePackage
 DeleteKind:
   ENUM:
     0:
@@ -570,7 +560,7 @@ GenesisObject:
       RawObject:
         STRUCT:
           - data:
-              TYPENAME: Data
+              TYPENAME: ObjectData
           - owner:
               TYPENAME: Owner
 GenesisTransaction:
@@ -708,7 +698,7 @@ MultiSigPublicKey:
 Object:
   STRUCT:
     - data:
-        TYPENAME: Data
+        TYPENAME: ObjectData
     - owner:
         TYPENAME: Owner
     - previous_transaction:
@@ -731,6 +721,16 @@ ObjectArg:
       Receiving:
         NEWTYPE:
           TYPENAME: TupleObjectReference
+ObjectData:
+  ENUM:
+    0:
+      Struct:
+        NEWTYPE:
+          TYPENAME: MoveStruct
+    1:
+      Package:
+        NEWTYPE:
+          TYPENAME: MovePackage
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
