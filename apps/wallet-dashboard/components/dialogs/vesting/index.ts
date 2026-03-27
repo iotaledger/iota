@@ -4,4 +4,3 @@
 export * from './VestingScheduleDialog';
 export * from './VestingScheduleBox';
 export * from './CollectSummaryDialog';
-export * from './CollectSummary';
