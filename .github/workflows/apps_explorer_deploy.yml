@@ -51,7 +51,6 @@ jobs:
 
     permissions:
       contents: read
-      pull-requests: write
 
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
