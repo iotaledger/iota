@@ -10,7 +10,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TxContext},
     error::ExecutionError,
     id::UID,
-    object::{Data, MoveObject, Object, Owner},
+    object::{Data, MoveObject, MoveObjectExt, Object, Owner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,

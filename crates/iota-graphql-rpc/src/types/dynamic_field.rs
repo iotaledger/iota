@@ -272,7 +272,7 @@ impl TryFrom<MoveObject> for DynamicField {
             return Err(Error::Internal("DynamicField is not an object".to_string()));
         };
 
-        if !DynamicFieldInfo::is_dynamic_field(object.type_()) {
+        if !DynamicFieldInfo::is_dynamic_field(object.struct_tag()) {
             return Err(Error::Internal("Wrong type for DynamicField".to_string()));
         }
 

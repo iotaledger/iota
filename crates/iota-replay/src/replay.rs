@@ -2325,7 +2325,7 @@ impl ResourceResolver for LocalExec {
             match &object.data {
                 Data::Move(m) => {
                     assert!(
-                        m.is_type(type_),
+                        m.is_struct_tag(type_),
                         "Invariant violation: ill-typed object in storage \
                         or bad object request from caller"
                     );
