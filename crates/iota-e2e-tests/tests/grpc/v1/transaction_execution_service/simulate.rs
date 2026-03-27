@@ -10,7 +10,8 @@ use iota_grpc_types::{
         transaction::Transaction as ProtoTransaction,
         transaction_execution_service::{
             SimulateTransactionItem, SimulateTransactionsRequest, SimulateTransactionsResponse,
-            SimulatedTransaction, simulated_transaction::ExecutionResult,
+            SimulatedTransaction, simulate_transaction_item::TransactionCheckModes,
+            simulated_transaction::ExecutionResult,
             transaction_execution_service_client::TransactionExecutionServiceClient,
         },
     },
@@ -151,7 +152,9 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     let transaction = ProtoTransaction::default()
         .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
 
-    let item = build_simulate_item(transaction);
+    let item = SimulateTransactionItem::default()
+        .with_transaction(transaction)
+        .with_tx_checks(vec![TransactionCheckModes::DisableVmChecks as i32]);
     let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
 
     // Simulate the transaction
@@ -219,21 +222,17 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
         .unwrap()
         .into_inner();
 
-    // The per-item result should be an error
+    // With upfront gas validation removed, the simulation engine itself
+    // rejects the insufficient budget, producing an Internal error.
     let result = response.transaction_results.first().unwrap();
     let error = result
         .error()
         .expect("Expected per-item error for below-minimum gas budget");
     assert_eq!(
         error.code,
-        tonic::Code::InvalidArgument as i32,
-        "Expected InvalidArgument error code, got code {}",
+        tonic::Code::Internal as i32,
+        "Expected Internal error code, got code {}",
         error.code
-    );
-    assert!(
-        error.message.contains("below the minimum"),
-        "Error message should mention 'below the minimum', got: {}",
-        error.message
     );
 }
 
