@@ -3817,7 +3817,20 @@ pub(crate) fn process_auth_args(
         .as_ref()
         .map(|args| {
             args.iter()
-                .map(|arg| IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap())
+                .map(|arg| {
+                    // Use bracket-aware parsing only for array-like args
+                    // (e.g. "[0xAA,0xBBCC]"), so that nested vectors are
+                    // correctly split. Everything else is kept as a JSON
+                    // string, which the resolver handles for u64, hex
+                    // bytes, addresses, object IDs, etc.
+                    if arg.starts_with('[') {
+                        IotaJsonValue::from_str(arg).unwrap_or_else(|_| {
+                            IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap()
+                        })
+                    } else {
+                        IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap()
+                    }
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -3864,4 +3877,111 @@ async fn create_move_authenticator_signature(
             }),
         ),
     ))
+}
+
+#[cfg(test)]
+mod tests_process_auth_args {
+    use iota_types::base_types::IotaAddress;
+    use serde_json::Value as JsonValue;
+
+    use super::process_auth_args;
+
+    #[test]
+    fn test_no_args() {
+        let signer = IotaAddress::ZERO;
+        let (type_args, json_args) = process_auth_args(None, None, signer).unwrap();
+        assert!(type_args.is_empty());
+        // Should only contain the signer
+        assert_eq!(json_args.len(), 1);
+    }
+
+    #[test]
+    fn test_simple_hex_arg() {
+        let signer = IotaAddress::ZERO;
+        let args = vec!["0xAABBCC".to_string()];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        // signer + 1 arg
+        assert_eq!(json_args.len(), 2);
+        assert_eq!(
+            json_args[1].to_json_value(),
+            JsonValue::String("0xAABBCC".to_string())
+        );
+    }
+
+    #[test]
+    fn test_vector_arg() {
+        let signer = IotaAddress::ZERO;
+        let args = vec!["[0xAABBCC,0xDDEE]".to_string()];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        assert_eq!(json_args.len(), 2);
+        let val = &json_args[1].to_json_value();
+        assert!(val.is_array());
+        let arr = val.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0].as_str().unwrap(), "0xAABBCC");
+        assert_eq!(arr[1].as_str().unwrap(), "0xDDEE");
+    }
+
+    #[test]
+    fn test_triple_nested_vector() {
+        let signer = IotaAddress::ZERO;
+        // Simulates: vector<vector<vector<u8>>> with nested brackets
+        let args = vec!["[[0xAA,0xBB],[0xCC]]".to_string()];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        assert_eq!(json_args.len(), 2);
+        let val = &json_args[1].to_json_value();
+        assert!(val.is_array());
+        let outer = val.as_array().unwrap();
+        assert_eq!(outer.len(), 2);
+        // First inner array: ["0xAA", "0xBB"]
+        assert!(outer[0].is_array());
+        let first = outer[0].as_array().unwrap();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0].as_str().unwrap(), "0xAA");
+        assert_eq!(first[1].as_str().unwrap(), "0xBB");
+        // Second inner array: ["0xCC"]
+        assert!(outer[1].is_array());
+        let second = outer[1].as_array().unwrap();
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].as_str().unwrap(), "0xCC");
+    }
+
+    #[test]
+    fn test_multiple_args_with_nested_vector() {
+        let signer = IotaAddress::ZERO;
+        // Simulates: merkle_root, merkle_proof (vector<vector<u8>>), signature
+        let merkle_root = "0xABCD";
+        let proof = "[0x1234,0x5678]";
+        let signature = "0xEF01";
+        let args = vec![
+            merkle_root.to_string(),
+            proof.to_string(),
+            signature.to_string(),
+        ];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        // signer + 3 args
+        assert_eq!(json_args.len(), 4);
+        // merkle_root is a string
+        assert_eq!(
+            json_args[1].to_json_value(),
+            JsonValue::String(merkle_root.to_string())
+        );
+        // proof is an array
+        let proof_val = &json_args[2].to_json_value();
+        assert!(proof_val.is_array());
+        assert_eq!(proof_val.as_array().unwrap().len(), 2);
+        // signature is a string
+        assert_eq!(
+            json_args[3].to_json_value(),
+            JsonValue::String(signature.to_string())
+        );
+    }
+
+    #[test]
+    fn test_type_args() {
+        let signer = IotaAddress::ZERO;
+        let type_args = vec!["u64".to_string(), "bool".to_string()];
+        let (types, _) = process_auth_args(None, Some(&type_args), signer).unwrap();
+        assert_eq!(types.len(), 2);
+    }
 }

@@ -3,8 +3,8 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { useQuery, UseQueryResult } from '@tanstack/react-query';
-import { IotaObjectResponse } from '@iota/iota-sdk/client';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { IotaClient, type IotaObjectData, type IotaObjectResponse } from '@iota/iota-sdk/client';
 
 const DEFAULT_GET_OBJECT_OPTIONS = {
     showType: true,
@@ -16,17 +16,19 @@ const DEFAULT_GET_OBJECT_OPTIONS = {
 };
 
 interface UseGetObjectOrPastObject extends IotaObjectResponse {
-    isViewingPastVersion: boolean;
+    isViewingPastVersion?: boolean | IotaObjectData | null;
 }
 
-export function useGetObjectOrPastObject(
+export const getObjectOrPastObjectQuery = <TSelectData>(
+    client: IotaClient,
     objectId?: string | null,
-): UseQueryResult<UseGetObjectOrPastObject> {
+    select?: (data: UseGetObjectOrPastObject | null) => TSelectData,
+) => {
     const normalizedObjId = objectId && normalizeIotaAddress(objectId);
-    const client = useIotaClient();
-    return useQuery({
+    return {
+        select,
         queryKey: ['object-or-past-object', normalizedObjId],
-        async queryFn() {
+        async queryFn(): Promise<UseGetObjectOrPastObject | null> {
             if (!normalizedObjId) {
                 return null;
             }
@@ -118,5 +120,12 @@ export function useGetObjectOrPastObject(
             };
         },
         enabled: !!normalizedObjId,
-    });
+    };
+};
+
+export function useGetObjectOrPastObject<TData = UseGetObjectOrPastObject | null>(
+    objectId?: string | null,
+): UseQueryResult<TData> {
+    const client = useIotaClient();
+    return useQuery(getObjectOrPastObjectQuery(client, objectId));
 }

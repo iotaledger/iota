@@ -3,7 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { LogLevel } from '@amplitude/analytics-types';
-import { attachEnvironmentPlugin, getAmplitudeConsentStatus } from '@iota/core';
+import {
+    attachEnvironmentPlugin,
+    dialogContextPlugin,
+    getAmplitudeConsentStatus,
+} from '@iota/core';
 import { Identify } from '@amplitude/analytics-browser';
 
 import { ampli } from './ampli';
@@ -47,6 +51,11 @@ export async function initAmplitude() {
             },
         },
     }).promise;
+
+    // Add dialog context plugin to enrich events with dialog information
+    if (IS_ENABLED) {
+        ampli.client.add(dialogContextPlugin(ampli.client));
+    }
 
     window.addEventListener('pagehide', () => {
         ampli.client.setTransport('beacon');
