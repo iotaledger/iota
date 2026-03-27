@@ -81,8 +81,6 @@ jobs:
           vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
           cp ./.vercel/.env.${VERCEL_ENV}.local ./sdk/.env
 
-          pnpm wallet-dashboard build
-
           if [ "$DEPLOY_TYPE" = "production" ]; then
             vercel build --prod --token="$TOKEN"
             vercel deploy --prod --prebuilt --token="$TOKEN"
