@@ -20,7 +20,7 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
     EndOfEpochTransactionKind, GasPayment as GasData, MakeMoveVector, MergeCoins,
-    MoveCall as ProgrammableMoveCall, Publish, RandomnessStateUpdate,
+    MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
     SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
     TransferObjects, Upgrade,
 };
@@ -380,17 +380,6 @@ fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &Type
     }
 }
 
-/// A series of commands where the results of one command can be used in future
-/// commands
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct ProgrammableTransaction {
-    /// Input objects or primitive values
-    pub inputs: Vec<CallArg>,
-    /// The commands to be executed sequentially. A failure in any command will
-    /// result in the failure of the entire transaction.
-    pub commands: Vec<Command>,
-}
-
 pub trait MoveCallExt {
     fn input_objects(&self) -> Vec<InputObjectKind>;
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
@@ -399,14 +388,9 @@ pub trait MoveCallExt {
 
 impl MoveCallExt for ProgrammableMoveCall {
     fn input_objects(&self) -> Vec<InputObjectKind> {
-        let ProgrammableMoveCall {
-            package,
-            type_arguments,
-            ..
-        } = self;
-        let mut packages = BTreeSet::from([*package]);
-        for type_argument in type_arguments {
-            add_type_tag_packages(&mut packages, type_argument)
+        let mut packages = BTreeSet::from([self.package]);
+        for type_argument in &self.type_arguments {
+            add_type_tag_packages(&mut packages, type_argument);
         }
         packages
             .into_iter()
@@ -613,8 +597,18 @@ impl CommandExt for Command {
     }
 }
 
-impl ProgrammableTransaction {
-    pub fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
+pub trait ProgrammableTransactionExt {
+    fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
+    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
+    fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result;
+}
+
+impl ProgrammableTransactionExt for ProgrammableTransaction {
+    fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
         let ProgrammableTransaction { inputs, commands } = self;
         let input_arg_objects = inputs
             .iter()
@@ -725,15 +719,13 @@ impl ProgrammableTransaction {
             .collect()
     }
 
-    pub fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>> + '_ {
+    fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>> {
         self.commands
             .iter()
             .filter_map(|q| q.non_system_packages_to_be_published())
     }
-}
 
-impl Display for ProgrammableTransaction {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result {
         let ProgrammableTransaction { inputs, commands } = self;
         writeln!(f, "Inputs: {inputs:?}")?;
         writeln!(f, "Commands: [")?;
@@ -1024,7 +1016,7 @@ impl Display for TransactionKind {
             }
             Self::ProgrammableTransaction(p) => {
                 writeln!(writer, "Transaction Kind : Programmable")?;
-                write!(writer, "{p}")?;
+                p.fmt_display(&mut writer)?;
             }
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => {

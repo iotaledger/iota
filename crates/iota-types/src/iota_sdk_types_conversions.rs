@@ -28,8 +28,8 @@ use iota_sdk_types::{
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::{GenesisObject, Object, ObjectData},
     transaction::{
-        GasPayment, GenesisTransaction, ProgrammableTransaction, RandomnessStateUpdate,
-        SignedTransaction, Transaction, TransactionKind, TransactionV1,
+        GasPayment, GenesisTransaction, RandomnessStateUpdate, SignedTransaction, Transaction,
+        TransactionKind, TransactionV1,
     },
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
@@ -198,10 +198,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
 
         match value {
             InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
-                TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
-                    inputs: programmable_transaction.inputs,
-                    commands: programmable_transaction.commands,
-                })
+                TransactionKind::ProgrammableTransaction(programmable_transaction)
             }
             InternalTxnKind::Genesis(genesis_transaction) => {
                 TransactionKind::Genesis(GenesisTransaction {
@@ -251,10 +248,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
     fn try_from(value: TransactionKind) -> Result<Self, Self::Error> {
         match value {
             TransactionKind::ProgrammableTransaction(programmable_transaction) => {
-                Self::ProgrammableTransaction(crate::transaction::ProgrammableTransaction {
-                    inputs: programmable_transaction.inputs,
-                    commands: programmable_transaction.commands,
-                })
+                Self::ProgrammableTransaction(programmable_transaction)
             }
             TransactionKind::Genesis(genesis_transaction) => {
                 Self::Genesis(crate::transaction::GenesisTransaction {

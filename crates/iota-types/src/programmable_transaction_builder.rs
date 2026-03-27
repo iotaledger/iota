@@ -228,9 +228,9 @@ impl ProgrammableTransactionBuilder {
         object_ref: ObjectRef,
     ) -> anyhow::Result<()> {
         let rec_arg = self.pure(recipient).unwrap();
-        let obj_arg = self.obj(CallArg::ImmutableOrOwned(object_ref));
+        let obj_arg = self.obj(CallArg::ImmutableOrOwned(object_ref))?;
         self.commands
-            .push(Command::new_transfer_objects(vec![obj_arg?], rec_arg));
+            .push(Command::new_transfer_objects(vec![obj_arg], rec_arg));
         Ok(())
     }
 
