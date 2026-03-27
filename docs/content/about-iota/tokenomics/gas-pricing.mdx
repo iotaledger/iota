@@ -1,5 +1,5 @@
 ---
-title: Gas Pricing
+title: Gas Pricing and Transaction Fees
 description: How gas pricing determines transaction fees and incentivizes efficient network operation.
 tags: [tokenomics]
 teams:
@@ -14,15 +14,7 @@ The IOTA gas pricing mechanism determines how transaction fees are computed and 
 1. Delivering **low, predictable transaction fees**.
 2. Preventing **denial-of-service (DoS) attacks**.
 
-To achieve these goals, the protocol prices the two key resources consumed by transactions: computation and storage, while embedding incentives that promote efficient validator behavior.
-
-## Transaction Fees
-
-Every IOTA transaction pays fees for two resources:
-
-- **Computation**, required to execute the transaction.
-- **Storage**, required to persist data on-chain.
-
+To achieve these goals, every IOTA transaction pays fees for **computation**, required to execute the transaction, and **storage**, required to persist data on-chain.
 Hence, transaction fees decompose into:
 
 <div align="center">
@@ -83,7 +75,7 @@ The gas price is specified by the user and must be at least a protocol-defined b
 
 During normal network conditions, most transactions use the reference gas price with no tip, ensuring predictable and stable fees.
 Instead, during periods of congestion, users can request an estimated minimum gas price for successful execution through a transaction dry run.
-This estimation is computed using a predictive gas pricing algorithm, which helps users determine an appropriate tip.
+This estimation is computed using a [predictive gas pricing algorithm](#gas-price-prediction), which helps users determine an appropriate tip.
 The algorithm leverages historical congestion data and dynamically adjusts weights for shared objects accessed by transactions using an online gradient descent method.
 
 ## Storage Fees
@@ -156,6 +148,35 @@ These examples highlight the importance of the gas budget:
 | Simple transaction storing 10 bytes and deleting data   | 500 NANOS         | 1,000            | 75 NANOS      | 1,000         | 100,000 NANOS   | 500,000 NANOS    | 475,000 NANOS   |
 | Complex transaction storing 120 bytes                   | 1,000 NANOS       | 5,000            | 200 NANOS     | 12,000        | 0 NANOS         | 7,400,000 NANOS  | 7,400,000 NANOS |
 | Complex transaction storing 120 bytes and deleting data | 500 NANOS         | 5,000            | 200 NANOS     | 12,000        | 5,000,000 NANOS | 2,500,000 NANOS  | -100,000 NANOS  |
+
+## Gas Price Prediction During Dry Run {#gas-price-prediction}
+
+When you execute a **dry run** or **dev inspect** transaction, the IOTA network provides a `suggested_gas_price` in the response.
+This value helps users estimate an appropriate gas price for transactions that interact with shared objects, particularly during periods of network congestion.
+
+:::info When to Use It
+
+If your transaction touches popular shared objects (e.g., a DEX pool), the suggested gas price reflects the current level of congestion on those objects and helps reduce the probability that the transaction will be cancelled.
+For transactions that only use owned objects, no additional tip is required.
+
+:::
+
+The network maintains a **congestion tracker** that monitors shared-object access patterns across checkpoints.
+For each mutable shared object, the tracker computes a _hotness_ value that reflects how congested that object is based on recent transaction history.
+This hotness value is updated using an online gradient-descent-based mechanism driven by checkpoint statistics (e.g., cancelled transactions, successfully scheduled transactions).
+
+During a dry run, the suggested gas price is calculated as:
+
+<div align="center">
+`suggested_gas_price = reference_gas_price + max_hotness`
+</div>
+
+where `max_hotness` is the highest hotness value among all mutable shared objects accessed by the transaction.
+If the transaction does not access any tracked shared objects, the suggested gas price falls back to the current `reference_gas_price`.
+
+
+By using the `suggested_gas_price` from a dry-run response, users can adapt their gas price to current network conditions.
+This reduces the risk of underbidding during congestion while avoiding unnecessary overpayment during periods of low activity.
 
 
 <Quiz questions={quizData.questions} />
