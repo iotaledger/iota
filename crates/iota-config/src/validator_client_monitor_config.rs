@@ -81,6 +81,34 @@ pub struct ValidatorClientMonitorConfig {
     /// Expected baseline latency for Consensus operations (seconds).
     #[serde(default = "default_expected_latency_consensus_secs")]
     pub expected_latency_consensus_secs: f64,
+
+    /// Coefficient for the selective-failure penalty.
+    ///
+    /// A validator that passes HealthCheck reliably but fails work operations
+    /// (Submit / Consensus / Effects) is likely misbehaving selectively.
+    /// This coefficient scales the resulting additional penalty.
+    #[serde(default = "default_selective_failure_coeff")]
+    pub selective_failure_coeff: f64,
+
+    /// Minimum failure-rate gap between work operations and HealthCheck before
+    /// the selective-failure penalty applies.
+    ///
+    /// Acts as a noise floor: a gap smaller than this threshold is attributed
+    /// to statistical variance and does not trigger the penalty.
+    /// Example: 0.1 means work ops must fail at least 10 percentage points more
+    /// often than HealthCheck before the inconsistency is flagged.
+    #[serde(default = "default_selective_failure_noise_threshold")]
+    pub selective_failure_noise_threshold: f64,
+
+    /// Minimum HealthCheck effective sample size (n_eff) required before the
+    /// selective-failure penalty is applied at full weight.
+    ///
+    /// The penalty is scaled by `min(1, n_eff_healthcheck / this_value)`,
+    /// so it is fully suppressed below a small number of HealthCheck
+    /// observations and ramps up linearly to full strength once this threshold
+    /// is reached.
+    #[serde(default = "default_selective_failure_min_n_eff")]
+    pub selective_failure_min_n_eff: f64,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -102,6 +130,9 @@ impl Default for ValidatorClientMonitorConfig {
             expected_latency_effects_secs: default_expected_latency_effects_secs(),
             expected_latency_healthcheck_secs: default_expected_latency_healthcheck_secs(),
             expected_latency_consensus_secs: default_expected_latency_consensus_secs(),
+            selective_failure_coeff: default_selective_failure_coeff(),
+            selective_failure_noise_threshold: default_selective_failure_noise_threshold(),
+            selective_failure_min_n_eff: default_selective_failure_min_n_eff(),
         }
     }
 }
@@ -168,4 +199,16 @@ fn default_expected_latency_healthcheck_secs() -> f64 {
 
 fn default_expected_latency_consensus_secs() -> f64 {
     0.8
+}
+
+fn default_selective_failure_coeff() -> f64 {
+    500.0
+}
+
+fn default_selective_failure_noise_threshold() -> f64 {
+    0.1
+}
+
+fn default_selective_failure_min_n_eff() -> f64 {
+    5.0
 }

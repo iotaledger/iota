@@ -258,14 +258,22 @@ impl ValidatorClientStats {
     /// Failure = λ * pf_max / (1 − pf_max + ϵ):
     ///   - Driven by the *highest* per-operation failure rate.  A validator
     ///     that fails any single operation is penalised even if others succeed.
+    /// SelectiveFailure = λ * max(0, f_work − f_hc − ε) * min(1, n_hc / n_min):
+    ///   - Penalises validators that pass HealthCheck reliably but fail work
+    ///     operations (Submit / Consensus / Effects).  This is the signature
+    ///     of a validator that appears alive to monitors but selectively refuses
+    ///     to process transactions.
+    ///   - The noise threshold ε prevents statistical variance from triggering
+    ///     the penalty; the confidence weight suppresses it until enough
+    ///     HealthCheck samples have been collected.
     /// Exploration = λ * sqrt(ln(N) / (min_op(n_eff_op) + 1)):
     ///   - Reward exploring validators where any operation is under-sampled.
     ///
     /// Using worst-case aggregation for Risk, Staleness, and Failure means
     /// good performance on one operation cannot mask bad performance on
-    /// another, and selective misbehaviour is naturally penalised.
+    /// another, and selective misbehaviour is explicitly penalised.
     ///
-    /// Score = Latency + Risk + Staleness + Failure - Exploration
+    /// Score = Latency + Risk + Staleness + Failure + SelectiveFailure - Exploration
     fn calculate_selection_score(
         &self,
         total_observations: u64,
@@ -302,12 +310,24 @@ impl ValidatorClientStats {
         let f_max = f_sub.max(f_eff).max(f_hc).max(f_con);
         let failure = config.failure_coeff * f_max / (1.0 - f_max + 1e-2);
 
+        // Selective failure: penalise validators that look healthy on HealthCheck
+        // but fail work operations.  The inconsistency is the excess failure rate
+        // of work ops over HealthCheck, after subtracting a noise floor.
+        // The confidence weight ramps up linearly from 0 to 1 as HealthCheck
+        // n_eff grows from 0 to selective_failure_min_n_eff, so the penalty is
+        // suppressed when evidence is still thin.
+        let f_work = f_sub.max(f_eff).max(f_con);
+        let inconsistency =
+            (f_work - f_hc - config.selective_failure_noise_threshold).max(0.0);
+        let confidence = (n_hc / config.selective_failure_min_n_eff).min(1.0);
+        let selective_failure = config.selective_failure_coeff * inconsistency * confidence;
+
         // Exploration: under-sampling any single operation warrants exploration.
         let total_requests = (total_observations + 1) as f64;
         let exploration =
             config.exploration_coeff * (total_requests.ln() / (n_eff_min + 1.0)).sqrt();
 
-        (latency + risk + staleness + failure - exploration).max(0.0)
+        (latency + risk + staleness + failure + selective_failure - exploration).max(0.0)
     }
 }
 
