@@ -6067,11 +6067,9 @@ dependencies = [
  "futures",
  "iota-macros",
  "iota-metrics",
- "iota-tls",
  "iota-types",
  "once_cell",
  "parking_lot 0.12.3",
- "prometheus",
  "rand 0.8.5",
  "reqwest",
  "snap",
@@ -7278,6 +7276,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-metrics-push-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fastcrypto",
+ "iota-metrics",
+ "iota-tls",
+ "iota-types",
+ "prometheus",
+ "reqwest",
+ "serde",
+ "snap",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "iota-move"
 version = "1.20.0-alpha"
 dependencies = [
@@ -7477,6 +7492,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-macros",
  "iota-metrics",
+ "iota-metrics-push-client",
  "iota-names",
  "iota-network",
  "iota-network-stack",
