@@ -63,6 +63,24 @@ pub struct ValidatorClientMonitorConfig {
 
     #[serde(default = "default_preferred_group_delta")]
     pub preferred_group_delta: f64,
+
+    /// Expected baseline latency for Submit operations (seconds).
+    /// Used to normalise raw latency scores to a dimensionless ratio
+    /// (actual / expected), making all operation types directly comparable.
+    #[serde(default = "default_expected_latency_submit_secs")]
+    pub expected_latency_submit_secs: f64,
+
+    /// Expected baseline latency for Effects operations (seconds).
+    #[serde(default = "default_expected_latency_effects_secs")]
+    pub expected_latency_effects_secs: f64,
+
+    /// Expected baseline latency for HealthCheck operations (seconds).
+    #[serde(default = "default_expected_latency_healthcheck_secs")]
+    pub expected_latency_healthcheck_secs: f64,
+
+    /// Expected baseline latency for Consensus operations (seconds).
+    #[serde(default = "default_expected_latency_consensus_secs")]
+    pub expected_latency_consensus_secs: f64,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -80,6 +98,10 @@ impl Default for ValidatorClientMonitorConfig {
             no_validator_score: default_no_validator_score(),
             min_preferred_group_size: default_min_preferred_group_size(),
             preferred_group_delta: default_preferred_group_delta(),
+            expected_latency_submit_secs: default_expected_latency_submit_secs(),
+            expected_latency_effects_secs: default_expected_latency_effects_secs(),
+            expected_latency_healthcheck_secs: default_expected_latency_healthcheck_secs(),
+            expected_latency_consensus_secs: default_expected_latency_consensus_secs(),
         }
     }
 }
@@ -130,4 +152,20 @@ fn default_min_preferred_group_size() -> usize {
 
 fn default_preferred_group_delta() -> f64 {
     0.02
+}
+
+fn default_expected_latency_submit_secs() -> f64 {
+    0.15
+}
+
+fn default_expected_latency_effects_secs() -> f64 {
+    1.5
+}
+
+fn default_expected_latency_healthcheck_secs() -> f64 {
+    0.1
+}
+
+fn default_expected_latency_consensus_secs() -> f64 {
+    0.8
 }

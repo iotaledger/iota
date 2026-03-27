@@ -14,6 +14,19 @@ use tracing::debug;
 
 use crate::validator_client_monitor::{OperationFeedback, OperationType};
 
+/// Return the configured expected latency (seconds) for `operation`.
+///
+/// Lives here rather than in `iota-config` because `OperationType` is defined
+/// in `iota-core`, which `iota-config` must not depend on.
+fn expected_latency_secs(config: &ValidatorClientMonitorConfig, operation: OperationType) -> f64 {
+    match operation {
+        OperationType::Submit => config.expected_latency_submit_secs,
+        OperationType::Effects => config.expected_latency_effects_secs,
+        OperationType::HealthCheck => config.expected_latency_healthcheck_secs,
+        OperationType::Consensus => config.expected_latency_consensus_secs,
+    }
+}
+
 /// Ok(latency in sec) or Err(high failure latency in sec)
 type Observation = Result<f64, f64>;
 
@@ -242,8 +255,12 @@ impl ValidatorClientStats {
     ///
     /// The score consists of the following metrics:
     ///
-    /// Latency = exp(μ+kσ):
-    ///   - EWMA score of log-latency.
+    /// Latency = exp(μ+kσ) / expected_latency:
+    ///   - EWMA score of log-latency, normalised by the operation's expected
+    ///     baseline.  A value of 1.0 means the validator is at expected
+    ///     latency; 2.0 means twice as slow.  Normalisation makes all four
+    ///     operation types directly comparable regardless of their absolute
+    ///     timescales (~100 ms for HealthCheck vs ~1500 ms for Effects).
     ///   - The responsiveness of the validator.
     /// Risk = λ / sqrt(n_eff + ϵ):
     ///   - Penalize low number of samples, where n_eff is effective sample
@@ -281,7 +298,13 @@ impl ValidatorClientStats {
         now: Instant,
         config: &ValidatorClientMonitorConfig,
     ) -> ValidatorScore {
-        let (latency, n_eff, failure_rate, alpha) = self.operation_stats(operation, now, config);
+        let (raw_latency, n_eff, failure_rate, alpha) =
+            self.operation_stats(operation, now, config);
+        // Normalise raw latency (seconds) to a dimensionless ratio
+        // actual / expected.  A score of 1.0 means exactly at baseline; 2.0
+        // means twice as slow.  This makes the four operations comparable and
+        // removes the need for ad-hoc per-operation weight compensation.
+        let latency = raw_latency / expected_latency_secs(config, operation);
         let risk = config.risk_coeff / (n_eff + 1e-2).sqrt();
         let staleness = config.stale_coeff * alpha;
         let failure = config.failure_coeff * failure_rate / (1.0 - failure_rate + 1e-2);

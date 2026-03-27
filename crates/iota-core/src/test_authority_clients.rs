@@ -837,7 +837,7 @@ impl AuthorityAPI for ScoringTestAuthorityApi {
 
     async fn handle_wait_for_effects(
         &self,
-        _request: WaitForEffectsRequest,
+        _request: GetTxStatusRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<WaitForEffectsResponse, IotaError> {
         unimplemented!("ScoringTestAuthorityApi: handle_wait_for_effects not used in scoring tests")
