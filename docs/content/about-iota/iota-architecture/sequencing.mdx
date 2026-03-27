@@ -87,9 +87,9 @@ the _same_ consensus commit.
 Other networks such as Sui only report which shared objects were congested, but
 not what gas price would have been enough for successful execution. Users on
 those networks have to rely on dry-run simulations to figure out a sufficient
-gas price. IOTA instead computes the suggested gas price from the actual
-scheduling decisions in the commit, so the sender already knows what gas price
-to bid when retrying.
+gas price. The IOTA protocol instead provides gas price feedback based on the
+actual scheduling decisions in the latest commits, which helps the sender
+estimate a sufficient gas price for a retry.
 
 ### How the suggested gas price is calculated
 
