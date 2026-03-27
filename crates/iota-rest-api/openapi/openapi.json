@@ -1284,12 +1284,12 @@
         }
       },
       "Bls12381PublicKey": {
-        "description": "A bls12381 min-sig public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-public-key = %x60 96OCTECT ```\n\nDue to historical reasons, even though a min-sig `Bls12381PublicKey` has a fixed-length of 96, IOTA's binary representation of a min-sig `Bls12381PublicKey` is prefixed with its length meaning its serialized binary form (in bcs) is 97 bytes long vs a more compact 96 bytes.",
+        "description": "A bls12381 min-sig public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-public-key = %x60 96OCTET ```\n\nDue to historical reasons, even though a min-sig `Bls12381PublicKey` has a fixed-length of 96, IOTA's binary representation of a min-sig `Bls12381PublicKey` is prefixed with its length meaning its serialized binary form (in bcs) is 97 bytes long vs a more compact 96 bytes.",
         "type": "string",
         "format": "base64"
       },
       "Bls12381Signature": {
-        "description": "A bls12381 min-sig signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-signature = 48OCTECT ```",
+        "description": "A bls12381 min-sig signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text bls-signature = 48OCTET ```",
         "type": "string",
         "format": "base64"
       },
@@ -1373,23 +1373,20 @@
         ]
       },
       "CancelledTransaction": {
-        "description": "A transaction that was cancelled\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text cancelled-transaction = digest (vector version-assignment) ```",
-        "type": "object",
-        "required": [
-          "digest",
-          "versionAssignments"
-        ],
-        "properties": {
-          "digest": {
+        "type": "array",
+        "items": [
+          {
             "$ref": "#/components/schemas/Digest"
           },
-          "versionAssignments": {
+          {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/VersionAssignment"
             }
           }
-        }
+        ],
+        "maxItems": 2,
+        "minItems": 2
       },
       "ChangedObject": {
         "description": "Input/output state of an object that was changed during execution\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text changed-object = object-id object-in object-out id-operation ```",
@@ -2203,28 +2200,22 @@
         ]
       },
       "ConsensusDeterminedVersionAssignments": {
+        "description": "Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.",
         "oneOf": [
           {
-            "description": "Cancelled transaction version assignment.",
             "type": "object",
             "required": [
-              "cancelled_transactions",
-              "kind"
+              "CancelledTransactions"
             ],
             "properties": {
-              "cancelled_transactions": {
+              "CancelledTransactions": {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/CancelledTransaction"
                 }
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "cancelled_transactions"
-                ]
               }
-            }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -2289,12 +2280,12 @@
         ]
       },
       "Ed25519PublicKey": {
-        "description": "An ed25519 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-public-key = 32OCTECT ```",
+        "description": "An ed25519 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-public-key = 32OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Ed25519Signature": {
-        "description": "An ed25519 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-signature = 64OCTECT ```",
+        "description": "An ed25519 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text ed25519-signature = 64OCTET ```",
         "type": "string",
         "format": "base64"
       },
@@ -4495,22 +4486,22 @@
         }
       },
       "Secp256k1PublicKey": {
-        "description": "A secp256k1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-public-key = 33OCTECT ```",
+        "description": "A secp256k1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-public-key = 33OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256k1Signature": {
-        "description": "A secp256k1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-signature = 64OCTECT ```",
+        "description": "A secp256k1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256k1-signature = 64OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256r1PublicKey": {
-        "description": "A secp256r1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-public-key = 33OCTECT ```",
+        "description": "A secp256r1 public key.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-public-key = 33OCTET ```",
         "type": "string",
         "format": "base64"
       },
       "Secp256r1Signature": {
-        "description": "A secp256r1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-signature = 64OCTECT ```",
+        "description": "A secp256r1 signature.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text secp256r1-signature = 64OCTET ```",
         "type": "string",
         "format": "base64"
       },
@@ -5080,22 +5071,25 @@
       "TransactionExpiration": {
         "oneOf": [
           {
+            "type": "string",
+            "enum": [
+              "None"
+            ]
+          },
+          {
             "description": "Validators won't sign a transaction unless the expiration Epoch is greater than or equal to the current epoch",
             "type": "object",
             "required": [
-              "epoch"
+              "Epoch"
             ],
             "properties": {
-              "epoch": {
+              "Epoch": {
                 "description": "Radix-10 encoded 64-bit unsigned integer",
                 "type": "string",
                 "format": "u64"
               }
             },
             "additionalProperties": false
-          },
-          {
-            "type": "null"
           }
         ]
       },
@@ -5165,20 +5159,20 @@
             "description": "V1 of the consensus commit prologue system transaction\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text consensus-commit-prologue-v1 = u64 u64 (option u64) u64 digest consensus-determined-version-assignments ```",
             "type": "object",
             "required": [
-              "commitTimestampMs",
-              "consensusCommitDigest",
-              "consensusDeterminedVersionAssignments",
+              "commit_timestamp_ms",
+              "consensus_commit_digest",
+              "consensus_determined_version_assignments",
               "epoch",
               "kind",
               "round"
             ],
             "properties": {
-              "commitTimestampMs": {
+              "commit_timestamp_ms": {
                 "description": "Unix timestamp from consensus",
                 "type": "string",
                 "format": "u64"
               },
-              "consensusCommitDigest": {
+              "consensus_commit_digest": {
                 "description": "Digest of consensus output",
                 "allOf": [
                   {
@@ -5186,7 +5180,7 @@
                   }
                 ]
               },
-              "consensusDeterminedVersionAssignments": {
+              "consensus_determined_version_assignments": {
                 "description": "Stores consensus handler determined shared object version assignments.",
                 "allOf": [
                   {
@@ -5210,7 +5204,7 @@
                 "type": "string",
                 "format": "u64"
               },
-              "subDagIndex": {
+              "sub_dag_index": {
                 "description": "The sub DAG index of the consensus commit. This field will be populated if there are multiple consensus commits per round.",
                 "type": "string",
                 "format": "u64"
@@ -5437,22 +5431,37 @@
         ]
       },
       "TypeOrigin": {
-        "description": "Identifies a struct and the module it was defined in\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text type-origin = identifier identifier object-id ```",
+        "description": "Stores the origin of a data type where it first appeared in the version chain. A data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text type-origin = identifier identifier object-id ```",
         "type": "object",
         "required": [
-          "moduleName",
-          "package",
-          "structName"
+          "datatype_name",
+          "module_name",
+          "package"
         ],
         "properties": {
-          "moduleName": {
-            "$ref": "#/components/schemas/Identifier"
+          "datatype_name": {
+            "description": "The name of the data type. Either refers to an enum or a struct identifier.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
+          },
+          "module_name": {
+            "description": "The name of the module the data type resides in.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              }
+            ]
           },
           "package": {
-            "$ref": "#/components/schemas/ObjectId"
-          },
-          "structName": {
-            "$ref": "#/components/schemas/Identifier"
+            "description": "ID of the package, where the given type first appeared.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectId"
+              }
+            ]
           }
         }
       },
@@ -5589,25 +5598,26 @@
         }
       },
       "UpgradeInfo": {
-        "description": "Upgraded package info for the linkage table\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text upgrade-info = object-id u64 ```",
+        "description": "Upgraded package info for [MovePackage]'s linkage_table.\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text upgrade-info = object-id u64 ```",
         "type": "object",
         "required": [
-          "upgradedId",
-          "upgradedVersion"
+          "upgraded_id",
+          "upgraded_version"
         ],
         "properties": {
-          "upgradedId": {
-            "description": "Id of the upgraded packages",
+          "upgraded_id": {
+            "description": "ID of the upgraded package",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectId"
               }
             ]
           },
-          "upgradedVersion": {
+          "upgraded_version": {
             "description": "Version of the upgraded package",
-            "type": "string",
-            "format": "u64"
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
         }
       },
@@ -6076,22 +6086,19 @@
         }
       },
       "VersionAssignment": {
-        "description": "Object version assignment from consensus\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text version-assignment = object-id u64 ```",
-        "type": "object",
-        "required": [
-          "objectId",
-          "version"
-        ],
-        "properties": {
-          "objectId": {
+        "type": "array",
+        "items": [
+          {
             "$ref": "#/components/schemas/ObjectId"
           },
-          "version": {
-            "description": "Radix-10 encoded 64-bit unsigned integer",
-            "type": "string",
-            "format": "u64"
+          {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
           }
-        }
+        ],
+        "maxItems": 2,
+        "minItems": 2
       },
       "ZkLoginClaim": {
         "description": "A claim of the iss in a zklogin proof\n\n# BCS\n\nThe BCS serialized form for this type is defined by the following ABNF:\n\n```text zklogin-claim = string u8 ```",
