@@ -915,10 +915,6 @@ impl AuthorityState {
         // Get the `MoveAuthenticator`s, if any.
         let move_authenticators = transaction.move_authenticators();
 
-        // This is an invariant - Move authenticators must match the number of
-        // authenticator inputs.
-        assert_eq!(auth_input_objects.len(), move_authenticators.len());
-
         // Check the inputs for signing.
         // If there are `MoveAuthenticator` signatures, their input objects and the
         // account objects are also checked and must be provided.
@@ -943,6 +939,12 @@ impl AuthorityState {
             &auth_checked_input_objects,
             &self.get_object_store(),
         )?;
+
+        debug_assert_eq!(
+            move_authenticators.len(),
+            auth_checked_inputs.len(),
+            "Move authenticators amount must match the number of checked authenticator inputs"
+        );
 
         let move_authenticators = move_authenticators
             .into_iter()
@@ -1689,9 +1691,11 @@ impl AuthorityState {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            // This is an invariant - Move authenticators must match the number of
-            // authenticator inputs.
-            assert_eq!(authenticator_inputs.len(), move_authenticators.len());
+            debug_assert_eq!(
+                move_authenticators.len(),
+                authenticator_inputs.len(),
+                "Move authenticators amount must match the number of authenticator inputs"
+            );
 
             let authenticator_inputs = move_authenticators
                 .iter()
@@ -1743,6 +1747,12 @@ impl AuthorityState {
                 protocol_config,
                 reference_gas_price,
             )?;
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                authenticator_checked_input_objects.len(),
+                "Move authenticators amount must match the number of checked authenticator inputs"
+            );
 
             let move_authenticators = move_authenticators
                 .into_iter()
@@ -5494,6 +5504,12 @@ impl AuthorityState {
             // not a part of the transaction data.
             protocol_config.max_auth_gas()
         };
+
+        debug_assert_eq!(
+            move_authenticators.len(),
+            auth_input_objects.len(),
+            "Move authenticators amount must match the number of authenticator inputs"
+        );
 
         let auth_checked_inputs = move_authenticators
             .iter()
