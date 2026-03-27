@@ -490,8 +490,8 @@ impl MysticetiConsensusHandler {
                     consensus_handler
                         .handle_consensus_output(consensus_output)
                         .await;
-                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
                 }
+                commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }
         });
         Self {
@@ -540,8 +540,8 @@ impl StarfishConsensusHandler {
                     consensus_handler
                         .handle_consensus_output(consensus_output)
                         .await;
-                    commit_consumer_monitor.set_highest_handled_commit(commit_index);
                 }
+                commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }
         });
         Self {
