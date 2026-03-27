@@ -15,6 +15,5 @@ export function createUnlockTimelockedObjectsTransaction({
     return createCollectAllTimelocksTransaction({
         address,
         timelockObjectIds: objectIds,
-        timelockedStakedObjects: [],
     });
 }

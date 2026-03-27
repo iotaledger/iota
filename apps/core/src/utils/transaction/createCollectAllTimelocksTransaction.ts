@@ -41,14 +41,14 @@ export interface RegularStakeObjectInput {
 interface CreateCollectAllTimelocksTransactionOptions {
     address: string;
     timelockObjectIds: string[];
-    timelockedStakedObjects: TimelockedStakeObjectInput[];
+    timelockedStakedObjects?: TimelockedStakeObjectInput[];
     existingStakedObjects?: RegularStakeObjectInput[];
 }
 
 export function createCollectAllTimelocksTransaction({
     address,
     timelockObjectIds,
-    timelockedStakedObjects,
+    timelockedStakedObjects = [],
     existingStakedObjects = [],
 }: CreateCollectAllTimelocksTransactionOptions) {
     const ptb = new Transaction();
