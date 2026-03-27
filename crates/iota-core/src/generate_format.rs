@@ -268,7 +268,7 @@ fn get_registry() -> Result<Registry> {
     // serde_reflection's tracing deserializer for map keys.
     let sample_move_obj = MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0);
     tracer
-        .trace_value(&mut samples, &Data::Move(sample_move_obj))
+        .trace_value(&mut samples, &Data::Struct(sample_move_obj))
         .unwrap();
     let sample_upgrade_info = iota_types::move_package::UpgradeInfo {
         upgraded_id: ObjectID::ZERO,
@@ -383,7 +383,7 @@ fn get_registry() -> Result<Registry> {
         )
         .unwrap();
     let sample_genesis_obj = GenesisObject::RawObject {
-        data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
         owner: Owner::Address(IotaAddress::ZERO),
     };
     tracer
@@ -457,7 +457,7 @@ fn get_registry() -> Result<Registry> {
     // so we need to trace ObjectInner directly to avoid a format conflict
     // (Struct vs NewTypeStruct both named "Object").
     let sample_obj_inner = ObjectInner {
-        data: Data::Move(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
         owner: Owner::Address(IotaAddress::ZERO),
         previous_transaction: TransactionDigest::default(),
         storage_rebate: 0,

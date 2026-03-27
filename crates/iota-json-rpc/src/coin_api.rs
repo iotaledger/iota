@@ -412,7 +412,7 @@ where
     {
         let data = obj
             .data
-            .try_as_move()
+            .as_struct_opt()
             .ok_or_else(|| Error::Unexpected("Cannot get move contents".into()))?
             .contents();
         let tc = TreasuryCap::from_bcs_bytes(data).map_err(Error::from)?;

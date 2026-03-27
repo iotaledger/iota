@@ -240,7 +240,7 @@ fn called_packages(
             .try_get_object(&move_call.package)?
             .ok_or_else(|| ObjectNotFoundError::new(move_call.package))?
             .data
-            .try_as_package()
+            .as_package_opt()
             .ok_or_else(|| {
                 RestError::new(
                     axum::http::StatusCode::BAD_REQUEST,

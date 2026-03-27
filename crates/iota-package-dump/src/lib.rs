@@ -221,7 +221,7 @@ fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
 
     let object = bcs::from_bytes::<Object>(&bytes).context("failed to deserialize")?;
     let id = object.id();
-    let Some(package) = object.data.try_as_package() else {
+    let Some(package) = object.data.as_package_opt() else {
         bail!("not a package");
     };
 

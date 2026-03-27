@@ -67,7 +67,7 @@ impl TryFrom<&Object> for TimelockedStakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if o.struct_tag().is_timelocked_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!(

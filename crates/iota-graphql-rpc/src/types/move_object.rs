@@ -503,7 +503,7 @@ impl TryFrom<&Object> for MoveObject {
             return Err(MoveObjectDowncastError::WrappedOrDeleted);
         };
 
-        if let Data::Move(move_object) = &native.data {
+        if let Data::Struct(move_object) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_object.clone(),

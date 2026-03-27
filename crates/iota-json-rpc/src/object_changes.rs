@@ -57,7 +57,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                 }),
                 _ => {}
             }
-        } else if let Some(p) = o.data.try_as_package() {
+        } else if let Some(p) = o.data.as_package_opt() {
             if kind == WriteKind::Create {
                 object_changes.push(ObjectChange::Published {
                     package_id: p.id(),

@@ -92,9 +92,9 @@ fn migrate_alias(
     );
 
     let alias_output: AliasOutput =
-        bcs::from_bytes(alias_output_object.data.try_as_move().unwrap().contents()).unwrap();
+        bcs::from_bytes(alias_output_object.data.as_struct_opt().unwrap().contents()).unwrap();
     let alias: Alias =
-        bcs::from_bytes(alias_object.data.try_as_move().unwrap().contents()).unwrap();
+        bcs::from_bytes(alias_object.data.as_struct_opt().unwrap().contents()).unwrap();
 
     Ok((
         alias_object_id,

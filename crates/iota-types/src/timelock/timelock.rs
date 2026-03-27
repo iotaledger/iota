@@ -110,7 +110,7 @@ where
 
     fn try_from(object: &'de Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if o.struct_tag().is_time_lock() {
                     return TimeLock::from_bcs_bytes(o.contents());
                 }
