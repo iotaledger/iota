@@ -55,8 +55,6 @@ pub(crate) fn list_package_versions(
                 ));
             }
 
-            // Resolve the original package ID so we can list all versions across
-            // different storage IDs (relevant for upgraded user packages).
             current_object
                 .data
                 .try_as_package()
