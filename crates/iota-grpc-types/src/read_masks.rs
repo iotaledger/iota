@@ -43,6 +43,24 @@ pub const GET_OBJECTS_READ_MASK: &str = field_mask!("reference", "bcs");
 /// Default read mask for `get_checkpoint` / `stream_checkpoint_data`.
 pub const GET_CHECKPOINT_READ_MASK: &str = field_mask!("checkpoint.summary");
 
+/// Read mask for fetching full checkpoint data suitable for conversion to
+/// `iota_sdk_types::CheckpointData` via
+/// `CheckpointResponse::checkpoint_data()`.
+///
+/// Requests only the `.bcs` sub-fields needed for the conversion, avoiding
+/// unnecessary data transfer.
+pub const CHECKPOINT_DATA_READ_MASK: &str = field_mask!(
+    "checkpoint.summary.bcs",
+    "checkpoint.contents.bcs",
+    "checkpoint.signature",
+    "transactions.transaction.bcs",
+    "transactions.signatures.bcs",
+    "transactions.effects.bcs",
+    "transactions.events.events.bcs",
+    "transactions.input_objects.bcs",
+    "transactions.output_objects.bcs",
+);
+
 /// Default read mask for `execute_transaction`.
 ///
 /// `ExecuteTransactionResponse` is transparent, so these paths apply directly

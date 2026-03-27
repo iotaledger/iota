@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -11,8 +9,6 @@ use iota_types::{
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
-
-use crate::GrpcStateReader;
 
 const MAX_FILTER_DEPTH: usize = 10;
 
@@ -137,17 +133,13 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
 }
 
 impl EventFilter {
-    pub fn matches_event(&self, state_reader: Arc<dyn GrpcStateReader>, item: &Event) -> bool {
+    pub fn matches_event(&self, item: &Event) -> bool {
         let _scope = monitored_scope("EventFilter::matches_event");
 
         match self {
-            EventFilter::All(filters) => filters
-                .iter()
-                .all(|f| f.matches_event(state_reader.clone(), item)),
-            EventFilter::Any(filters) => filters
-                .iter()
-                .any(|f| f.matches_event(state_reader.clone(), item)),
-            EventFilter::Not(filter) => !filter.matches_event(state_reader.clone(), item),
+            EventFilter::All(filters) => filters.iter().all(|f| f.matches_event(item)),
+            EventFilter::Any(filters) => filters.iter().any(|f| f.matches_event(item)),
+            EventFilter::Not(filter) => !filter.matches_event(item),
 
             EventFilter::Sender(sender) => item.sender == *sender,
 

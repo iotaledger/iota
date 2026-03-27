@@ -20,8 +20,7 @@ use rocksdb::Direction;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    Map, TypedStoreError,
-    rocks::{be_fix_int_ser, errors::typed_store_err_from_bcs_err},
+    DbIterator, Map, TypedStoreError, be_fix_int_ser, rocks::errors::typed_store_err_from_bcs_err,
 };
 
 /// An interface to a btree map backed sally database. This is mainly intended
@@ -103,11 +102,11 @@ impl<'a, K: Serialize, V> TestDBIter<'a, K, V> {
     /// the key.
     pub fn skip_to(mut self, key: &K) -> Result<Self, TypedStoreError> {
         self.with_mut(|fields| {
-            let serialized_key = be_fix_int_ser(key).expect("serialization failed");
+            let serialized_key = be_fix_int_ser(key);
             let mut peekable = fields.iter.peekable();
             let mut peeked = peekable.peek();
             while peeked.is_some() {
-                let serialized = be_fix_int_ser(peeked.unwrap()).expect("serialization failed");
+                let serialized = be_fix_int_ser(peeked.unwrap());
                 if serialized >= serialized_key {
                     break;
                 } else {
@@ -124,11 +123,11 @@ impl<'a, K: Serialize, V> TestDBIter<'a, K, V> {
     /// no element prior to it, it returns an empty iterator.
     pub fn skip_prior_to(mut self, key: &K) -> Result<Self, TypedStoreError> {
         self.with_mut(|fields| {
-            let serialized_key = be_fix_int_ser(key).expect("serialization failed");
+            let serialized_key = be_fix_int_ser(key);
             let mut peekable = fields.iter.peekable();
             let mut peeked = peekable.peek();
             while peeked.is_some() {
-                let serialized = be_fix_int_ser(peeked.unwrap()).expect("serialization failed");
+                let serialized = be_fix_int_ser(peeked.unwrap());
                 if serialized > serialized_key {
                     break;
                 } else {
@@ -222,23 +221,22 @@ where
     V: Serialize + DeserializeOwned,
 {
     type Error = TypedStoreError;
-    type SafeIterator = TestDBIter<'a, K, V>;
 
     fn contains_key(&self, key: &K) -> Result<bool, Self::Error> {
-        let raw_key = be_fix_int_ser(key)?;
+        let raw_key = be_fix_int_ser(key);
         let locked = self.rows.read().unwrap();
         Ok(locked.contains_key(&raw_key))
     }
 
     fn get(&self, key: &K) -> Result<Option<V>, Self::Error> {
-        let raw_key = be_fix_int_ser(key)?;
+        let raw_key = be_fix_int_ser(key);
         let locked = self.rows.read().unwrap();
         let res = locked.get(&raw_key);
         Ok(res.map(|raw_value| bcs::from_bytes(raw_value).ok().unwrap()))
     }
 
     fn insert(&self, key: &K, value: &V) -> Result<(), Self::Error> {
-        let raw_key = be_fix_int_ser(key)?;
+        let raw_key = be_fix_int_ser(key);
         let raw_value = bcs::to_bytes(value).map_err(typed_store_err_from_bcs_err)?;
         let mut locked = self.rows.write().unwrap();
         locked.insert(raw_key, raw_value);
@@ -246,7 +244,7 @@ where
     }
 
     fn remove(&self, key: &K) -> Result<(), Self::Error> {
-        let raw_key = be_fix_int_ser(key)?;
+        let raw_key = be_fix_int_ser(key);
         let mut locked = self.rows.write().unwrap();
         locked.remove(&raw_key);
         Ok(())
@@ -269,25 +267,29 @@ where
         locked.is_empty()
     }
 
-    fn safe_iter(&'a self) -> Self::SafeIterator {
-        TestDBIterBuilder {
-            rows: self.rows.read().unwrap(),
-            iter_builder: |rows: &mut RwLockReadGuard<'a, BTreeMap<Vec<u8>, Vec<u8>>>| rows.iter(),
-            phantom: PhantomData,
-            direction: Direction::Forward,
-        }
-        .build()
+    fn safe_iter(&'a self) -> DbIterator<'a, (K, V)> {
+        Box::new(
+            TestDBIterBuilder {
+                rows: self.rows.read().unwrap(),
+                iter_builder: |rows: &mut RwLockReadGuard<'a, BTreeMap<Vec<u8>, Vec<u8>>>| {
+                    rows.iter()
+                },
+                phantom: PhantomData,
+                direction: Direction::Forward,
+            }
+            .build(),
+        )
     }
 
     fn safe_iter_with_bounds(
         &'a self,
         _lower_bound: Option<K>,
         _upper_bound: Option<K>,
-    ) -> Self::SafeIterator {
+    ) -> DbIterator<'a, (K, V)> {
         unimplemented!("unimplemented API");
     }
 
-    fn safe_range_iter(&'a self, _range: impl RangeBounds<K>) -> Self::SafeIterator {
+    fn safe_range_iter(&'a self, _range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
         unimplemented!("unimplemented API");
     }
 
@@ -430,7 +432,7 @@ impl TestDBWriteBatch {
             db.name.clone(),
             purged_vals
                 .into_iter()
-                .map(|key| be_fix_int_ser(&key.borrow()).unwrap())
+                .map(|key| be_fix_int_ser(&key.borrow()))
                 .collect(),
         )));
         Ok(())
@@ -443,8 +445,8 @@ impl TestDBWriteBatch {
         from: &K,
         to: &K,
     ) -> Result<(), TypedStoreError> {
-        let raw_from = be_fix_int_ser(from).unwrap();
-        let raw_to = be_fix_int_ser(to).unwrap();
+        let raw_from = be_fix_int_ser(from);
+        let raw_to = be_fix_int_ser(to);
         self.ops.push_back(WriteBatchOp::DeleteRange((
             db.rows.clone(),
             db.name.clone(),
@@ -465,7 +467,7 @@ impl TestDBWriteBatch {
                 .into_iter()
                 .map(|(key, value)| {
                     (
-                        be_fix_int_ser(&key.borrow()).unwrap(),
+                        be_fix_int_ser(&key.borrow()),
                         bcs::to_bytes(&value.borrow()).unwrap(),
                     )
                 })

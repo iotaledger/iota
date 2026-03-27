@@ -46,7 +46,7 @@ import {
     AmpliAccountOrigin,
     AmpliSourceFlow,
 } from '_src/shared/analytics';
-import type { AccountsAddedProperties } from '_src/shared/analytics/ampli';
+import type { AddedAccountsProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -150,17 +150,17 @@ export function AccountsFinderView(): JSX.Element {
     async function runAccountsFinder() {
         try {
             setSearchPhase(SearchPhase.Ongoing);
-            ampli.balanceFinderUsed({
+            ampli.usedBalanceFinder({
                 accountType: getAmplitudeAccountType(accountSource),
             });
             const numberOfAccountsCreated = await find();
 
             // Fire accountsAdded event if accounts were created
             if (numberOfAccountsCreated > 0) {
-                const accountType: AccountsAddedProperties['accountType'] =
+                const accountType: AddedAccountsProperties['accountType'] =
                     getAmplitudeAccountType(accountSource);
 
-                ampli.accountsAdded({
+                ampli.addedAccounts({
                     accountType,
                     accountOrigin: AmpliAccountOrigin.Import,
                     numberOfAccounts: numberOfAccountsCreated,
