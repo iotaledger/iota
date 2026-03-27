@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_type:
-        description: 'Deploy type'
+        description: "Deploy type"
         required: true
         type: choice
         options:
