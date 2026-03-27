@@ -23,7 +23,7 @@ pub struct SimulateTransactionInput {
     pub transaction: Transaction,
     /// Set to true for relaxed Move VM checks (useful for debugging and
     /// development).
-    pub dev_inspect: bool,
+    pub skip_checks: bool,
 }
 
 impl Client {
@@ -35,7 +35,7 @@ impl Client {
     /// # Parameters
     ///
     /// - `transaction`: The transaction to simulate
-    /// - `dev_inspect`: Set to true for relaxed Move VM checks (useful for
+    /// - `skip_checks`: Set to true for relaxed Move VM checks (useful for
     ///   debugging and development)
     /// - `read_mask`: Optional field mask to control which fields are returned
     ///
@@ -181,13 +181,13 @@ impl Client {
     pub async fn simulate_transaction(
         &self,
         transaction: Transaction,
-        dev_inspect: bool,
+        skip_checks: bool,
         read_mask: Option<&str>,
     ) -> Result<MetadataEnvelope<SimulatedTransaction>> {
         self.simulate_transactions(
             vec![SimulateTransactionInput {
                 transaction,
-                dev_inspect,
+                skip_checks,
             }],
             read_mask,
         )
@@ -225,7 +225,7 @@ impl Client {
 
         let items = transactions
             .into_iter()
-            .map(|input| build_simulate_item(input.transaction, input.dev_inspect))
+            .map(|input| build_simulate_item(input.transaction, input.skip_checks))
             .collect::<Result<Vec<_>>>()?;
 
         let request = SimulateTransactionsRequest::default()
@@ -252,11 +252,11 @@ impl Client {
 /// Convert a transaction and options into a proto `SimulateTransactionItem`.
 fn build_simulate_item(
     transaction: Transaction,
-    dev_inspect: bool,
+    skip_checks: bool,
 ) -> Result<SimulateTransactionItem> {
     let proto_transaction = build_proto_transaction(&transaction, transaction.digest())?;
 
-    let tx_checks = if dev_inspect {
+    let tx_checks = if skip_checks {
         vec![TransactionCheckModes::DisableVmChecks as i32]
     } else {
         vec![]

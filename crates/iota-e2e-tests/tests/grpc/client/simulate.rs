@@ -17,11 +17,11 @@ async fn simulate_transaction_scenarios() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     // Test: regular and dev-inspect simulation modes
-    for (dev_inspect, mode_name) in [(false, "regular"), (true, "dev-inspect")] {
+    for (skip_checks, mode_name) in [(false, "regular"), (true, "dev-inspect")] {
         let transaction = create_transaction_for_simulation(&test_cluster).await;
 
         let result = client
-            .simulate_transaction(transaction, dev_inspect, None)
+            .simulate_transaction(transaction, skip_checks, None)
             .await
             .unwrap_or_else(|e| panic!("Failed to simulate transaction in {mode_name} mode: {e}"));
 
