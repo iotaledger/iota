@@ -109,6 +109,15 @@ pub(crate) fn require_address(
         })
 }
 
+/// Return an error indicating the page token does not match the current
+/// request parameters (e.g. owner, parent, or package ID changed).
+pub(crate) fn page_token_mismatch() -> RpcError {
+    FieldViolation::new("page_token")
+        .with_description("page_token does not match request parameters")
+        .with_reason(ErrorReason::FieldInvalid)
+        .into()
+}
+
 /// Convert an `ObjectID` to a gRPC `ObjectId` proto.
 pub(crate) fn object_id_proto(id: &ObjectID) -> ObjectId {
     ObjectId::default().with_object_id(id.as_ref().to_vec())

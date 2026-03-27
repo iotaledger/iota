@@ -22,8 +22,8 @@ use crate::{
     merge::Merge,
     types::{GrpcReader, OwnedObjectV2Cursor},
     validation::{
-        decode_page_token, encode_page_token, require_address, validate_page_size,
-        validate_read_mask,
+        decode_page_token, encode_page_token, page_token_mismatch, require_address,
+        validate_page_size, validate_read_mask,
     },
 };
 
@@ -72,10 +72,7 @@ pub(crate) fn list_owned_objects(
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
     if let Some(ref t) = page_token {
         if t.owner != owner_address || t.object_type != type_filter {
-            return Err(FieldViolation::new("page_token")
-                .with_description("page_token does not match request parameters")
-                .with_reason(ErrorReason::FieldInvalid)
-                .into());
+            return Err(page_token_mismatch());
         }
     }
 

@@ -15,8 +15,8 @@ use crate::{
     error::RpcError,
     types::GrpcReader,
     validation::{
-        decode_page_token, encode_page_token, object_id_proto, require_object_id,
-        validate_page_size,
+        decode_page_token, encode_page_token, object_id_proto, page_token_mismatch,
+        require_object_id, validate_page_size,
     },
 };
 
@@ -77,12 +77,7 @@ pub(crate) fn list_package_versions(
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
     if let Some(ref t) = page_token {
         if t.original_package_id != original_package_id {
-            return Err(
-                iota_grpc_types::google::rpc::bad_request::FieldViolation::new("page_token")
-                    .with_description("page_token does not match request parameters")
-                    .with_reason(iota_grpc_types::v0::error_reason::ErrorReason::FieldInvalid)
-                    .into(),
-            );
+            return Err(page_token_mismatch());
         }
     }
 
