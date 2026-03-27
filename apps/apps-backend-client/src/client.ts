@@ -27,13 +27,17 @@ export class AppsBackendClient {
     }
 
     async refreshFeatures(): Promise<void> {
-        const res = await fetch(`${this.url}/api/features`);
-        if (!res.ok) {
-            throw new Error('Failed to fetch features');
+        try {
+            const res = await fetch(`${this.url}/api/features`);
+            if (!res.ok) {
+                throw new Error('Failed to fetch features');
+            }
+            const data: FeaturesResponse = await res.json();
+            this.features = data.features;
+            this.updateSnapshot();
+        } catch (error) {
+            console.error(error);
         }
-        const data: FeaturesResponse = await res.json();
-        this.features = data.features;
-        this.updateSnapshot();
     }
 
     getFeatureValue<T>(key: string, defaultValue: T): T {
