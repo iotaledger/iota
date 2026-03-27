@@ -5,11 +5,12 @@
 mod simulate;
 mod transaction;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil, MessageFields},
     google::rpc::bad_request::FieldViolation,
+    proto::timestamp_ms_to_proto,
     read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
     v1::{
         error_reason::ErrorReason,
@@ -17,11 +18,13 @@ use iota_grpc_types::{
         transaction_execution_service::{
             self as grpc_tx_service, ExecuteTransactionItem, ExecuteTransactionResult,
             ExecuteTransactionsRequest, ExecuteTransactionsResponse, SimulateTransactionsRequest,
-            SimulateTransactionsResponse,
+            SimulateTransactionsResponse, execute_transaction_result,
         },
     },
 };
 use iota_types::{
+    digests::TransactionDigest,
+    effects::TransactionEffectsAPI,
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
     transaction_executor::TransactionExecutor,
 };
@@ -179,6 +182,20 @@ fn parse_transaction_proto(
 /// Each transaction is executed independently — failure of one does not abort
 /// the rest. Results are returned in the same order as the input.
 ///
+/// ## Checkpoint Inclusion
+///
+/// If `checkpoint_inclusion_timeout_ms` is set in the request, the server will
+/// wait (after executing all transactions) for them to be included in a
+/// checkpoint. On success the `checkpoint` and `timestamp` fields of each
+/// `ExecutedTransaction` are populated. If the timeout expires, partial results
+/// are returned: transactions that were already checkpointed will have the
+/// fields set, while the rest will have them unset.
+///
+/// Note: `checkpoint` and `timestamp` must also be included in the `read_mask`
+/// for them to appear in the response.
+///
+/// ## Read Mask
+///
 /// The read mask paths apply directly to
 /// [`ExecutedTransaction`](iota_grpc_types::v1::transaction::ExecutedTransaction)
 /// fields (e.g. `"effects"`, not `"executed_transaction.effects"`).
@@ -212,11 +229,11 @@ fn parse_transaction_proto(
 ///     event
 ///   - `events.events.json_contents` - the JSON-encoded contents of the event
 ///
-/// ## Timing Fields
-/// - `checkpoint` - the checkpoint that included the transaction (not available
-///   for just-executed transactions)
-/// - `timestamp` - the timestamp of the checkpoint (not available for
-///   just-executed transactions)
+/// ## Checkpoint Fields
+/// - `checkpoint` - the checkpoint that included the transaction. Requires
+///   `checkpoint_inclusion_timeout_ms` to be set.
+/// - `timestamp` - the timestamp of the checkpoint. Requires
+///   `checkpoint_inclusion_timeout_ms` to be set.
 ///
 /// ## Object Fields
 /// - `input_objects` - includes all input object fields
@@ -247,16 +264,78 @@ pub async fn execute_transactions(
     let read_mask =
         parse_read_mask::<ExecutedTransaction>(request.read_mask, EXECUTE_TRANSACTIONS_READ_MASK)?;
 
-    // Execute each transaction sequentially, collecting per-item results
+    // Parse and clamp checkpoint inclusion timeout.
+    // If None or 0 is provided, we won't wait for checkpoint inclusion and the
+    // response will be returned immediately after execution with
+    // checkpoint/timestamp fields unset. If a positive value is provided, the
+    // server will wait up to the specified duration for the transaction to be
+    // included in a checkpoint before returning. The timeout is clamped by the
+    // server's max_checkpoint_inclusion_timeout_ms config to prevent excessively
+    // long waits.
+    let checkpoint_timeout = request
+        .checkpoint_inclusion_timeout_ms
+        .filter(|&ms| ms > 0)
+        .map(|ms| Duration::from_millis(ms.min(config.max_checkpoint_inclusion_timeout_ms)));
+
+    // Execute each transaction sequentially, collecting per-item results and
+    // digests for successful executions.
     let mut transaction_results = Vec::with_capacity(request.transactions.len());
-    for item in &request.transactions {
+    let mut successful_digests: Vec<(usize, TransactionDigest)> = Vec::new();
+    for (i, item) in request.transactions.iter().enumerate() {
         let result = match execute_single_transaction(reader, executor, config, item, &read_mask)
             .await
         {
-            Ok(tx) => ExecuteTransactionResult::default().with_executed_transaction(tx),
+            Ok((digest, tx)) => {
+                successful_digests.push((i, digest));
+                ExecuteTransactionResult::default().with_executed_transaction(tx)
+            }
             Err(error) => ExecuteTransactionResult::default().with_error(error.into_status_proto()),
         };
         transaction_results.push(result);
+    }
+
+    // Optionally wait for checkpoint inclusion and populate checkpoint/timestamp
+    // on the already-built results.
+    if let Some(timeout) = checkpoint_timeout {
+        if !successful_digests.is_empty() {
+            let digests: Vec<_> = successful_digests.iter().map(|(_, d)| *d).collect();
+            match executor
+                .wait_for_checkpoint_inclusion(&digests, timeout)
+                .await
+            {
+                Ok(checkpoint_map) => {
+                    let needs_checkpoint =
+                        read_mask.contains(ExecutedTransaction::CHECKPOINT_FIELD.name);
+                    let needs_timestamp =
+                        read_mask.contains(ExecutedTransaction::TIMESTAMP_FIELD.name);
+
+                    if !needs_checkpoint && !needs_timestamp {
+                        // No need to update results if fields aren't requested in read mask
+                        return Ok(ExecuteTransactionsResponse::default()
+                            .with_transaction_results(transaction_results));
+                    }
+
+                    for (i, digest) in &successful_digests {
+                        if let Some((seq, ts)) = checkpoint_map.get(digest) {
+                            if let Some(execute_transaction_result::Result::ExecutedTransaction(
+                                ref mut tx,
+                            )) = transaction_results[*i].result
+                            {
+                                if needs_checkpoint {
+                                    tx.checkpoint = Some(*seq);
+                                }
+                                if needs_timestamp && *ts > 0 {
+                                    tx.timestamp = Some(timestamp_ms_to_proto(*ts));
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("wait_for_checkpoint_inclusion failed: {e}");
+                }
+            }
+        }
     }
 
     Ok(ExecuteTransactionsResponse::default().with_transaction_results(transaction_results))
@@ -269,7 +348,7 @@ async fn execute_single_transaction(
     config: &iota_config::node::GrpcApiConfig,
     item: &ExecuteTransactionItem,
     read_mask: &FieldMaskTree,
-) -> Result<ExecutedTransaction, RpcError> {
+) -> Result<(TransactionDigest, ExecutedTransaction), RpcError> {
     let sdk_transaction = parse_transaction_proto(item.transaction.as_ref())?;
 
     // Extract and validate signatures
@@ -337,6 +416,8 @@ async fn execute_single_transaction(
         .await
         .map_err(RpcError::from)?;
 
+    let digest = *effects.effects.transaction_digest();
+
     // Build the merged response
     let sdk_transaction: iota_sdk_types::Transaction =
         transaction.transaction_data().clone().try_into()?;
@@ -360,6 +441,8 @@ async fn execute_single_transaction(
         output_objects,
     };
 
-    ExecutedTransaction::merge_from(&source, read_mask)
-        .map_err(|e| e.with_context("failed to merge executed transaction"))
+    let executed = ExecutedTransaction::merge_from(&source, read_mask)
+        .map_err(|e| e.with_context("failed to merge executed transaction"))?;
+
+    Ok((digest, executed))
 }

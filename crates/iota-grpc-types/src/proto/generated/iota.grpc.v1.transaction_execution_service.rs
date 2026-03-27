@@ -26,6 +26,14 @@ pub struct ExecuteTransactionsRequest {
     /// If no mask is specified, defaults to `transaction.digest,effects,events,input_objects,output_objects`.
     #[prost(message, optional, tag = "2")]
     pub read_mask: ::core::option::Option<::prost_types::FieldMask>,
+    /// Optional timeout in milliseconds for waiting for checkpoint inclusion.
+    /// If set and > 0, after executing all transactions, the server waits up to
+    /// this duration for them to be included in a checkpoint, populating the
+    /// `checkpoint` and `timestamp` fields in the response, if specified in `read_mask`.
+    /// If not set or zero, no waiting is done (default behavior).
+    /// The server may clamp this to a configured maximum.
+    #[prost(uint64, optional, tag = "3")]
+    pub checkpoint_inclusion_timeout_ms: ::core::option::Option<u64>,
 }
 /// The result of executing a single transaction: either the executed transaction or an error.
 #[non_exhaustive]

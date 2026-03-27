@@ -329,6 +329,12 @@ pub struct GrpcApiConfig {
     /// batch request.
     #[serde(default = "default_grpc_api_max_simulate_transaction_batch_size")]
     pub max_simulate_transaction_batch_size: u32,
+
+    /// Maximum allowed timeout in milliseconds for waiting for checkpoint
+    /// inclusion in ExecuteTransactions requests. Client-specified timeouts
+    /// are clamped to this value.
+    #[serde(default = "default_grpc_api_max_checkpoint_inclusion_timeout_ms")]
+    pub max_checkpoint_inclusion_timeout_ms: u64,
 }
 
 fn default_grpc_api_address() -> SocketAddr {
@@ -355,6 +361,10 @@ fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
     20
 }
 
+fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
+    60_000 // 60 seconds
+}
+
 impl Default for GrpcApiConfig {
     fn default() -> Self {
         Self {
@@ -367,6 +377,8 @@ impl Default for GrpcApiConfig {
             ),
             max_simulate_transaction_batch_size:
                 default_grpc_api_max_simulate_transaction_batch_size(),
+            max_checkpoint_inclusion_timeout_ms:
+                default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
     }
 }

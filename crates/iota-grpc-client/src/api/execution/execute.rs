@@ -46,10 +46,10 @@ impl Client {
     /// - `effects` - includes all effects fields
     ///   - `effects.digest` - the effects digest
     ///   - `effects.bcs` - the full BCS-encoded effects
-    /// - `checkpoint` - the checkpoint that included the transaction (not
-    ///   available for just-executed transactions)
-    /// - `timestamp` - the timestamp of the checkpoint (not available for
-    ///   just-executed transactions)
+    /// - `checkpoint` - the checkpoint that included the transaction. Requires
+    ///   `checkpoint_inclusion_timeout_ms` to be set.
+    /// - `timestamp` - the timestamp of the checkpoint. Requires
+    ///   `checkpoint_inclusion_timeout_ms` to be set.
     ///
     /// ## Event Fields
     /// - `events` - includes all event fields (all events of the transaction)
@@ -83,6 +83,13 @@ impl Client {
     ///       object contents
     ///   - `output_objects.bcs` - the full BCS-encoded object
     ///
+    /// # Checkpoint Inclusion
+    ///
+    /// If `checkpoint_inclusion_timeout_ms` is set, the server will wait up to
+    /// the specified duration (in milliseconds) for the transaction to be
+    /// included in a checkpoint before returning. When set, include
+    /// `checkpoint` and `timestamp` in the `read_mask` to receive the data.
+    ///
     /// # Example
     ///
     /// ```no_run
@@ -94,7 +101,7 @@ impl Client {
     /// let signed_tx: SignedTransaction = todo!();
     ///
     /// // Execute transaction - returns proto type
-    /// let result = client.execute_transaction(signed_tx, None).await?;
+    /// let result = client.execute_transaction(signed_tx, None, None).await?;
     ///
     /// // Lazy conversion - only deserialize what you need
     /// let effects = result.body().effects()?.effects()?;
@@ -111,15 +118,20 @@ impl Client {
         &self,
         signed_transaction: SignedTransaction,
         read_mask: Option<&str>,
+        checkpoint_inclusion_timeout_ms: Option<u64>,
     ) -> Result<MetadataEnvelope<ExecutedTransaction>> {
-        self.execute_transactions(vec![signed_transaction], read_mask)
-            .await?
-            .try_map(|results| {
-                results
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| Error::Protocol("empty transaction_results".into()))?
-            })
+        self.execute_transactions(
+            vec![signed_transaction],
+            read_mask,
+            checkpoint_inclusion_timeout_ms,
+        )
+        .await?
+        .try_map(|results| {
+            results
+                .into_iter()
+                .next()
+                .ok_or_else(|| Error::Protocol("empty transaction_results".into()))?
+        })
     }
 
     /// Execute a batch of signed transactions.
@@ -141,6 +153,13 @@ impl Client {
     /// See [`execute_transaction`](Self::execute_transaction) for the full list
     /// of supported read mask fields.
     ///
+    /// # Checkpoint Inclusion
+    ///
+    /// If `checkpoint_inclusion_timeout_ms` is set, the server will wait up to
+    /// the specified duration (in milliseconds) for all executed transactions
+    /// to be included in a checkpoint before returning. When set, include
+    /// `checkpoint` and `timestamp` in the `read_mask` to receive the data.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::EmptyRequest`] if `transactions` is empty.
@@ -150,6 +169,7 @@ impl Client {
         &self,
         transactions: Vec<SignedTransaction>,
         read_mask: Option<&str>,
+        checkpoint_inclusion_timeout_ms: Option<u64>,
     ) -> Result<MetadataEnvelope<Vec<Result<ExecutedTransaction>>>> {
         if transactions.is_empty() {
             return Err(Error::EmptyRequest);
@@ -160,12 +180,16 @@ impl Client {
             .map(build_execute_item)
             .collect::<Result<Vec<_>>>()?;
 
-        let request = ExecuteTransactionsRequest::default()
+        let mut request = ExecuteTransactionsRequest::default()
             .with_transactions(items)
             .with_read_mask(field_mask_with_default(
                 read_mask,
                 EXECUTE_TRANSACTIONS_READ_MASK,
             ));
+
+        if let Some(timeout_ms) = checkpoint_inclusion_timeout_ms {
+            request = request.with_checkpoint_inclusion_timeout_ms(timeout_ms);
+        }
 
         let response = self
             .execution_service_client()

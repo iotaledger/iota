@@ -63,6 +63,11 @@ mod _accessor_impls {
             self.read_mask = Some(field.into());
             self
         }
+        /// Sets `checkpoint_inclusion_timeout_ms` with the provided value.
+        pub fn with_checkpoint_inclusion_timeout_ms(mut self, field: u64) -> Self {
+            self.checkpoint_inclusion_timeout_ms = Some(field);
+            self
+        }
     }
     impl super::ExecuteTransactionsResponse {
         /// Sets `transaction_results` with the provided value.

@@ -684,6 +684,14 @@ impl GrpcReader {
         self.state_reader.get_chain_identifier()
     }
 
+    /// Get checkpoint summary by sequence number.
+    pub fn get_checkpoint_summary(
+        &self,
+        seq: u64,
+    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
+        self.state_reader.get_checkpoint_summary(seq)
+    }
+
     /// Get checkpoint sequence number by digest
     pub fn get_checkpoint_sequence_number_by_digest(
         &self,

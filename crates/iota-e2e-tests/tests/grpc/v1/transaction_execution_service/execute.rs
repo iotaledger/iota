@@ -399,3 +399,161 @@ async fn execute_transaction_batch_size_exceeded() {
         status.code()
     );
 }
+
+#[sim_test]
+async fn execute_transaction_with_checkpoint_inclusion() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    let txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+    let item = build_item(&txn);
+
+    // Execute with checkpoint inclusion timeout and request checkpoint + timestamp
+    // in the read mask
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(vec![item])
+                .with_read_mask(FieldMask::from_paths([
+                    "transaction.digest",
+                    "effects",
+                    "checkpoint",
+                    "timestamp",
+                ]))
+                .with_checkpoint_inclusion_timeout_ms(30_000),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    let executed_tx = first_executed_transaction(&response);
+
+    // Verify checkpoint and timestamp are populated
+    assert!(
+        executed_tx.checkpoint.is_some(),
+        "checkpoint should be populated when checkpoint_inclusion_timeout_ms is set"
+    );
+    assert!(
+        executed_tx.timestamp.is_some(),
+        "timestamp should be populated when checkpoint_inclusion_timeout_ms is set"
+    );
+
+    // Verify the checkpoint number is reasonable (> 0)
+    let checkpoint = executed_tx.checkpoint.unwrap();
+    assert!(checkpoint > 0, "checkpoint should be > 0, got {checkpoint}");
+
+    // Verify the timestamp is reasonable (> 0)
+    let timestamp = executed_tx.timestamp.as_ref().unwrap();
+    assert!(
+        timestamp.seconds > 0,
+        "timestamp seconds should be > 0, got {}",
+        timestamp.seconds
+    );
+}
+
+#[sim_test]
+async fn execute_transaction_without_checkpoint_timeout_has_no_checkpoint() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    let txn =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+    let item = build_item(&txn);
+
+    // Execute without checkpoint inclusion timeout but request checkpoint in mask
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(vec![item])
+                .with_read_mask(FieldMask::from_paths([
+                    "transaction.digest",
+                    "effects",
+                    "checkpoint",
+                    "timestamp",
+                ])),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    let executed_tx = first_executed_transaction(&response);
+
+    // Without checkpoint_inclusion_timeout_ms, checkpoint and timestamp should be
+    // absent
+    assert!(
+        executed_tx.checkpoint.is_none(),
+        "checkpoint should be None without checkpoint_inclusion_timeout_ms"
+    );
+    assert!(
+        executed_tx.timestamp.is_none(),
+        "timestamp should be None without checkpoint_inclusion_timeout_ms"
+    );
+}
+
+#[sim_test]
+async fn execute_transaction_batch_with_checkpoint_inclusion() {
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = iota_types::base_types::IotaAddress::random_for_testing_only();
+    let amount = 9;
+
+    // Create two valid transactions
+    let txn1 =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+    let txn2 =
+        make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
+
+    let items = vec![build_item(&txn1), build_item(&txn2)];
+
+    let response = exec_client
+        .execute_transactions(
+            ExecuteTransactionsRequest::default()
+                .with_transactions(items)
+                .with_read_mask(FieldMask::from_paths([
+                    "transaction.digest",
+                    "effects",
+                    "checkpoint",
+                    "timestamp",
+                ]))
+                .with_checkpoint_inclusion_timeout_ms(30_000),
+        )
+        .await
+        .unwrap()
+        .into_inner();
+
+    assert_eq!(
+        response.transaction_results.len(),
+        2,
+        "Expected 2 results for batch of 2 transactions"
+    );
+
+    // Both transactions should have checkpoint and timestamp populated
+    for (i, result) in response.transaction_results.iter().enumerate() {
+        let executed = result.executed_transaction().unwrap_or_else(|| {
+            panic!(
+                "Expected success for transaction {i}, got: {:?}",
+                result.result
+            )
+        });
+
+        assert!(
+            executed.checkpoint.is_some(),
+            "transaction {i}: checkpoint should be populated"
+        );
+        assert!(
+            executed.timestamp.is_some(),
+            "transaction {i}: timestamp should be populated"
+        );
+    }
+}

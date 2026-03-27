@@ -43,6 +43,14 @@ message ExecuteTransactionsRequest {
   // Mask specifying which fields to read, applied to each ExecutedTransaction in the response.
   // If no mask is specified, defaults to `transaction.digest,effects,events,input_objects,output_objects`.
   optional google.protobuf.FieldMask read_mask = 2;
+
+  // Optional timeout in milliseconds for waiting for checkpoint inclusion.
+  // If set and > 0, after executing all transactions, the server waits up to
+  // this duration for them to be included in a checkpoint, populating the
+  // `checkpoint` and `timestamp` fields in the response, if specified in `read_mask`.
+  // If not set or zero, no waiting is done (default behavior).
+  // The server may clamp this to a configured maximum.
+  optional uint64 checkpoint_inclusion_timeout_ms = 3;
 }
 
 // The result of executing a single transaction: either the executed transaction or an error.

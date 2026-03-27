@@ -97,11 +97,20 @@ mod _field_impls {
             is_map: false,
             message_fields: None,
         };
+        pub const CHECKPOINT_INCLUSION_TIMEOUT_MS_FIELD: &'static MessageField = &MessageField {
+            name: "checkpoint_inclusion_timeout_ms",
+            json_name: "checkpointInclusionTimeoutMs",
+            number: 3i32,
+            is_optional: true,
+            is_map: false,
+            message_fields: None,
+        };
     }
     impl MessageFields for ExecuteTransactionsRequest {
         const FIELDS: &'static [&'static MessageField] = &[
             Self::TRANSACTIONS_FIELD,
             Self::READ_MASK_FIELD,
+            Self::CHECKPOINT_INCLUSION_TIMEOUT_MS_FIELD,
         ];
     }
     impl ExecuteTransactionsRequest {
@@ -130,6 +139,14 @@ mod _field_impls {
         }
         pub fn read_mask(mut self) -> String {
             self.path.push(ExecuteTransactionsRequest::READ_MASK_FIELD.name);
+            self.finish()
+        }
+        pub fn checkpoint_inclusion_timeout_ms(mut self) -> String {
+            self.path
+                .push(
+                    ExecuteTransactionsRequest::CHECKPOINT_INCLUSION_TIMEOUT_MS_FIELD
+                        .name,
+                );
             self.finish()
         }
     }

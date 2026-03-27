@@ -229,7 +229,11 @@ impl OptimisticTransactionExecutor {
 
         let response = self
             .rpc_client
-            .execute_transaction(transaction.clone().try_into()?, Some(readmask.as_str()))
+            .execute_transaction(
+                transaction.clone().try_into()?,
+                Some(readmask.as_str()),
+                None,
+            )
             .await;
 
         let executed_transaction = match response {

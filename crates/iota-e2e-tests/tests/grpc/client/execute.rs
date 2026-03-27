@@ -18,7 +18,7 @@ async fn execute_transaction_transfer() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, None)
+        .execute_transaction(signed_tx, None, None)
         .await
         .expect("Failed to execute transaction");
 
@@ -66,7 +66,7 @@ async fn execute_transaction_transfer_outputs() {
         tx.try_into().expect("SDK type conversion failed");
 
     let result = client
-        .execute_transaction(signed_tx, None)
+        .execute_transaction(signed_tx, None, None)
         .await
         .expect("Failed to execute transaction");
 
@@ -100,7 +100,7 @@ async fn execute_transaction_minimal_mask() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, Some("effects"))
+        .execute_transaction(signed_tx, Some("effects"), None)
         .await
         .expect("Failed to execute transaction");
 
@@ -151,7 +151,7 @@ async fn execute_transaction_invalid_signature() {
         bcs::from_bytes(&sig_bytes).expect("Corrupted signature should still deserialize");
     signed_tx.signatures = vec![corrupted_sig];
 
-    let result = client.execute_transaction(signed_tx, None).await;
+    let result = client.execute_transaction(signed_tx, None, None).await;
 
     // With batch semantics, per-item validation errors come back as Error::Server
     let err = result.expect_err("Expected error for invalid signature");
@@ -176,7 +176,7 @@ async fn execute_transaction_idempotency() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result1 = client
-        .execute_transaction(signed_tx.clone(), None)
+        .execute_transaction(signed_tx.clone(), None, None)
         .await
         .expect("First execution should succeed");
 
@@ -197,7 +197,7 @@ async fn execute_transaction_idempotency() {
     // The server uses TransactionOrchestrator with a NotifyRead pub-sub mechanism
     // that naturally returns cached effects for duplicates.
     let result2 = client
-        .execute_transaction(signed_tx, None)
+        .execute_transaction(signed_tx, None, None)
         .await
         .expect("Re-execution should return cached result");
 
