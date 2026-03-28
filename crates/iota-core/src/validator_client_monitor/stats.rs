@@ -32,8 +32,6 @@ struct Ewma {
     failure: f64,
     /// Decayed/effective sample size.
     weight: f64,
-    /// Total number of observations recorded so far.
-    count: u64,
 }
 
 impl Ewma {
@@ -43,7 +41,6 @@ impl Ewma {
             variance: 0.0,
             failure: observation.map_or(1.0, |_| 0.0),
             weight: 1.0,
-            count: 1,
         }
     }
 
@@ -65,7 +62,6 @@ impl Ewma {
         // weight is just EWMA of the count
         // w_t = (1 - α) w_{t-1} + 1
         self.weight = a1 * self.weight + 1.0;
-        self.count += 1;
     }
 
     fn score(&self, k: f64) -> f64 {

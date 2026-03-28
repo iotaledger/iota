@@ -123,7 +123,6 @@ fn test_ewma_first_success() {
     assert_eq!(e.variance, 0.0);
     assert_eq!(e.failure, 0.0);
     assert_eq!(e.weight, 1.0);
-    assert_eq!(e.count, 1);
 }
 
 #[test]
@@ -132,7 +131,6 @@ fn test_ewma_first_failure() {
     assert_eq!(e.mean, 6.0);
     assert_eq!(e.failure, 1.0);
     assert_eq!(e.weight, 1.0);
-    assert_eq!(e.count, 1);
 }
 
 #[test]
