@@ -9,9 +9,7 @@ use std::{
 
 use arc_swap::ArcSwap;
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
-use iota_types::{
-    base_types::AuthorityName, messages_grpc::ValidatorHealthRequest,
-};
+use iota_types::{base_types::AuthorityName, messages_grpc::ValidatorHealthRequest};
 use parking_lot::RwLock;
 use tokio::{
     task::{JoinHandle, JoinSet},
@@ -141,8 +139,7 @@ impl ValidatorClientMonitor {
 impl ValidatorClientMonitor {
     /// Record client-observed interaction result with a validator.
     pub fn record_interaction_result(&self, feedback: OperationFeedback) {
-        self
-            .client_stats
+        self.client_stats
             .write()
             .record_interaction_result(&feedback);
         self.metrics.record_interaction_result(&feedback);

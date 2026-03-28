@@ -227,9 +227,26 @@ impl ValidatorClientStats {
             .unwrap_or((config.empty_latency_score, 0.0, 0.0, 1.0))
     }
 
-    fn performance_score(&self, total_observations: u64, now: Instant, config: &ValidatorClientMonitorConfig) -> Option<(f64, f64)> {
-        let (l_sub, n_sub, f_sub, a_sub) =
-            self.operation_stats(OperationType::Submit, now, config);
+    #[cfg(test)]
+    fn calculate_selection_score(
+        &self,
+        total_observations: u64,
+        now: Instant,
+        config: &ValidatorClientMonitorConfig,
+    ) -> f64 {
+        self.performance_score(total_observations, now, config)
+            .map_or(config.unknown_validator_score, |(exploitation, exploration)| {
+                (exploitation - exploration).max(0.0)
+            })
+    }
+
+    fn performance_score(
+        &self,
+        total_observations: u64,
+        now: Instant,
+        config: &ValidatorClientMonitorConfig,
+    ) -> Option<(f64, f64)> {
+        let (l_sub, n_sub, f_sub, a_sub) = self.operation_stats(OperationType::Submit, now, config);
         let (l_eff, n_eff_e, f_eff, a_eff) =
             self.operation_stats(OperationType::Effects, now, config);
         let (l_hc, n_hc, f_hc, a_hc) =
@@ -274,8 +291,7 @@ impl ValidatorClientStats {
             // SelectiveFailure = λ * max(0, f_work − f_hc − ε) * min(1, n_hc / n_min):
             //   Extra penalty when HealthCheck passes but work operations fail —
             //   the signature of a validator selectively refusing transactions.
-            let inconsistency =
-                (f_work - f_hc - config.selective_failure_noise_threshold).max(0.0);
+            let inconsistency = (f_work - f_hc - config.selective_failure_noise_threshold).max(0.0);
             let confidence = (n_hc / config.selective_failure_min_n_eff).min(1.0);
             let selective_failure = config.selective_failure_coeff * inconsistency * confidence;
 
@@ -286,7 +302,8 @@ impl ValidatorClientStats {
             //   Under-sampling any single operation makes this validator a good
             //   candidate for exploration.
             let total_requests = (total_observations + 1) as f64;
-            let exploration = config.exploration_coeff * (total_requests.ln() / (n_eff_min + 1.0)).sqrt();
+            let exploration =
+                config.exploration_coeff * (total_requests.ln() / (n_eff_min + 1.0)).sqrt();
 
             // The final score is a combination of exclusion, exploitation, and exploration.
             Some((exploitation, exploration))
@@ -317,7 +334,7 @@ impl ClientObservedStats {
     fn calculate_selection_score(&self, validator: &AuthorityName, now: Instant) -> f64 {
         self.validator_stats
             .get(validator)
-            .map_or(self.config.no_validator_score, |stats| {
+            .map_or(self.config.unknown_validator_score, |stats| {
                 stats.calculate_selection_score(self.total_observations, now, &self.config)
             })
     }
@@ -329,13 +346,15 @@ impl ClientObservedStats {
         mut rng: impl rand::Rng,
     ) -> Vec<&'a AuthorityName> {
         // Phase 0 — Exclusion: partition validators into excluded / candidates.
-        let exploration = self.config.exploration_coeff
-            * ((self.total_observations + 1) as f64).ln().sqrt();
+        let unknown_exploration =
+            self.config.exploration_coeff * ((self.total_observations + 1) as f64).ln().sqrt();
         let mut excluded: Vec<&'a AuthorityName> = vec![];
         let mut candidates: Vec<(&'a AuthorityName, f64, f64)> = vec![];
         for v in committee {
             if let Some(stats) = self.validator_stats.get(v) {
-                if let Some((exploitation, exploration)) = stats.performance_score(self.total_observations, now, &self.config) {
+                if let Some((exploitation, exploration)) =
+                    stats.performance_score(self.total_observations, now, &self.config)
+                {
                     // known validator with reasonable scores
                     candidates.push((v, exploitation, exploration));
                 } else {
@@ -345,13 +364,19 @@ impl ClientObservedStats {
             } else {
                 // unknown validator: sentinel exploitation score, maximum
                 // exploration bonus so it is picked up quickly.
-                candidates.push((v, self.config.no_validator_score, exploration));
+                candidates.push((v, self.config.unknown_validator_score, unknown_exploration));
             }
         }
 
         if candidates.is_empty() {
-            // this looks like a total blackout, fallback -- still try random excluded validators
-            return excluded.choose_multiple(&mut rng, self.config.max_exploration_group_size).cloned().collect();
+            // this looks like a total blackout, fallback -- still try random excluded
+            // validators
+            let amount = self.config.max_exploration_group_size
+                .clamp(self.config.min_preferred_group_size, self.config.max_preferred_group_size);
+            return excluded
+                .choose_multiple(&mut rng, amount)
+                .cloned()
+                .collect();
         }
 
         // Phase 1 — Exploitation: sort by performance ascending, select top
@@ -370,8 +395,10 @@ impl ClientObservedStats {
             .find(|(_, (_, perf, _))| *perf > perf_threshold)
             .map(|(i, _)| i)
             .unwrap_or(candidates.len())
-            .max(self.config.min_preferred_group_size)
-            .min(self.config.max_preferred_group_size);
+            .clamp(self.config.min_preferred_group_size, self.config.max_preferred_group_size)
+            // Never exceed the actual number of candidates — guards against
+            // min_preferred_group_size > committee size.
+            .min(candidates.len());
 
         // Phase 2 — Exploration: from the remainder, pick `max_exploration_group_size`
         // validators with the highest exploration bonus.
@@ -442,37 +469,4 @@ impl ClientObservedStats {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn create_test_validator_names(n: usize) -> Vec<AuthorityName> {
-        (0..n)
-            .map(|_| {
-                let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
-                key_pair.public().into()
-            })
-            .collect()
-    }
-
-    #[test]
-    fn test_client_stats_record_success() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
-
-        let validators = create_test_validator_names(1);
-        let validator = validators[0];
-
-        let now = Instant::now();
-        let feedback = OperationFeedback::builder(
-            validator,
-            validator.concise().to_string(),
-            OperationType::Submit,
-        )
-        .ok_at(Duration::from_millis(100), now);
-
-        let score = stats.record_interaction_result(feedback);
-        let score2 = stats.calculate_selection_score(&validator, now);
-
-        assert_eq!((score - score2).abs() < f64::EPSILON, true);
-    }
-}
+mod tests;

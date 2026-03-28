@@ -53,7 +53,7 @@ pub struct ValidatorClientMonitorConfig {
     pub exploration_coeff: f64,
 
     #[serde(default = "default_no_validator_score")]
-    pub no_validator_score: f64,
+    pub unknown_validator_score: f64,
 
     /// Minimum number of validators that must appear in the shuffled
     /// preferred group returned by `select_shuffled_preferred_validators`,
@@ -154,7 +154,7 @@ impl Default for ValidatorClientMonitorConfig {
             stale_coeff: default_stale_coeff(),
             failure_coeff: default_failure_coeff(),
             exploration_coeff: default_exploration_coeff(),
-            no_validator_score: default_no_validator_score(),
+            unknown_validator_score: default_no_validator_score(),
             min_preferred_group_size: default_min_preferred_group_size(),
             max_preferred_group_size: default_max_preferred_group_size(),
             preferred_group_delta: default_preferred_group_delta(),
@@ -182,7 +182,12 @@ fn default_health_check_timeout() -> Duration {
 }
 
 fn default_latency_ewma_tau() -> f64 {
-    10.0
+    // With health_check_interval=10s: alpha = 1−exp(−10/60) ≈ 0.154,
+    // giving a steady-state n_eff ≈ 6.5, comfortably above
+    // exclusion_min_n_eff=5.0 and selective_failure_min_n_eff=5.0.
+    // A value of 10s (the old default) gave n_eff_ss ≈ 1.6, which meant
+    // those thresholds were never reachable in practice.
+    60.0
 }
 
 fn default_latency_ewma_score_coeff() -> f64 {

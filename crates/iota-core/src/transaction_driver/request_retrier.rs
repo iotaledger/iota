@@ -52,7 +52,7 @@ impl<A> RequestRetrier<A> {
         let committee = auth_agg
             .committee
             .names()
-            .map(|name| (name, auth_agg.get_display_name(&name)))
+            .map(|name| (name, auth_agg.get_display_name(name)))
             .filter(|(_name, display_name)| {
                 allowed_validators.is_empty() || allowed_validators.contains(display_name)
             })
@@ -176,7 +176,7 @@ mod tests {
     async fn test_next_target() {
         let auth_agg = Arc::new(get_authority_aggregator(4));
         let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
-        let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, vec![], vec![]);
+        let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
 
         for name in auth_agg.committee.names() {
             retrier.next_target().unwrap();
@@ -212,14 +212,14 @@ mod tests {
 
         println!("Case 1. Mix of unknown validators and one known validator");
         {
-            let allowed_validators = vec![
+            let allowed_validators = [
                 unknown_validator1.concise().to_string(),
                 unknown_validator2.concise().to_string(),
                 authorities[0].concise().to_string(), // This one exists in auth_agg
             ];
 
             let retrier =
-                RequestRetrier::new(&auth_agg, &client_monitor, allowed_validators, vec![]);
+                RequestRetrier::new(&auth_agg, &client_monitor, &allowed_validators, &[]);
 
             // Should only have 1 remaining client (the known validator)
             assert_eq!(retrier.ranked_clients.len(), 1);
@@ -228,13 +228,12 @@ mod tests {
 
         println!("Case 2. Only unknown validators are provided");
         {
-            let allowed_validators = vec![
+            let allowed_validators = [
                 unknown_validator1.concise().to_string(),
                 unknown_validator2.concise().to_string(),
             ];
 
-            let retrier =
-                RequestRetrier::new(&auth_agg, &client_monitor, allowed_validators, vec![]);
+            let retrier = RequestRetrier::new(&auth_agg, &client_monitor, &allowed_validators, &[]);
 
             // Should have no remaining clients since none of the allowed validators exist
             assert_eq!(retrier.ranked_clients.len(), 0);
@@ -263,7 +262,7 @@ mod tests {
         let allowed_validator = auth_agg.committee.names().nth(3).unwrap();
 
         let mut retrier =
-            RequestRetrier::new(&auth_agg, &client_monitor, vec![], blocked_display_names);
+            RequestRetrier::new(&auth_agg, &client_monitor, &[], &blocked_display_names);
 
         // The last validator will be picked up.
         assert_eq!(retrier.next_target().unwrap().0, *allowed_validator);
@@ -279,7 +278,7 @@ mod tests {
         // Add retriable errors.
         {
             let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
-            let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, vec![], vec![]);
+            let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
 
             // 25% stake.
             retrier
@@ -315,7 +314,7 @@ mod tests {
         // Add mix of retriable and non-retriable errors.
         {
             let client_monitor = Arc::new(ValidatorClientMonitor::new_for_test());
-            let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, vec![], vec![]);
+            let mut retrier = RequestRetrier::new(&auth_agg, &client_monitor, &[], &[]);
 
             // 25% stake retriable error.
             retrier

@@ -79,10 +79,7 @@ impl ValidatorClientMetrics {
         Self::new(&registry)
     }
 
-    pub(super) fn record_interaction_result(
-        &self,
-        feedback: &super::OperationFeedback,
-    ) {
+    pub(super) fn record_interaction_result(&self, feedback: &super::OperationFeedback) {
         let operation_str = feedback.operation.as_str();
         let ping_label = feedback.ping.to_string();
         let labels = &[
