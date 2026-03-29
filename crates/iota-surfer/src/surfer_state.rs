@@ -273,7 +273,7 @@ impl SurferState {
 
     async fn discover_entry_functions(&self, package: Object) {
         let package_id = package.id();
-        let move_package = package.into_inner().data.try_into_package().unwrap();
+        let move_package = package.into_inner().data.into_package_opt().unwrap();
         let proto_version = self.cluster.highest_protocol_version();
         let config = ProtocolConfig::get_for_version(proto_version, Chain::Unknown);
         let binary_config = to_binary_config(&config);

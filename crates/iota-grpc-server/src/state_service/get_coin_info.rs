@@ -135,7 +135,7 @@ pub(crate) fn get_coin_info(
     // updated to use it for consistency and better error handling.
     if let Some(regulated_object_id) = coin_info.regulated_coin_metadata_object_id {
         if let Some(object) = reader.get_object(&regulated_object_id)? {
-            if let Some(move_obj) = object.data.try_as_move() {
+            if let Some(move_obj) = object.data.as_struct_opt() {
                 match bcs::from_bytes::<iota_types::deny_list_v1::RegulatedCoinMetadata>(
                     move_obj.contents(),
                 ) {

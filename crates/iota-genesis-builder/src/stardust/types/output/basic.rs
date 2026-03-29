@@ -53,7 +53,7 @@ pub fn create_coin(
     // Resolve ownership
     let owner = Owner::Address(owner);
     Ok(Object::new_from_genesis(
-        Data::Move(move_object),
+        Data::Struct(move_object),
         owner,
         tx_context.digest(),
     ))
@@ -167,7 +167,7 @@ impl BasicOutputExt for BasicOutput {
             Owner::Address(owner)
         };
         Ok(Object::new_from_genesis(
-            Data::Move(move_object),
+            Data::Struct(move_object),
             owner,
             tx_context.digest(),
         ))

@@ -526,7 +526,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let package = object.data.try_as_package()?;
+                let package = object.data.as_package_opt()?;
                 if package
                     .serialized_module_map()
                     .get(&Identifier::new_unchecked(first_module_name.clone()))
@@ -560,7 +560,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             .get_object(&created_package, None)
             .unwrap()
             .data
-            .try_as_package()
+            .as_package_opt()
             .unwrap()
             .serialized_module_map()
             .values()
@@ -743,7 +743,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             IotaSubcommand::ViewObject(ViewObjectCommand { id: fake_id }) => {
                 let obj = get_obj!(fake_id);
                 Ok(Some(match &obj.data {
-                    object::Data::Move(move_obj) => {
+                    object::Data::Struct(move_obj) => {
                         let layout = move_obj.get_layout(&&*self).unwrap();
                         let move_struct =
                             BoundedVisitor::deserialize_struct(move_obj.contents(), &layout)
@@ -1081,7 +1081,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
                         };
                         let obj = self.get_object(&id, version)?;
-                        let package = obj.data.try_as_package().map(|package| {
+                        let package = obj.data.as_package_opt().map(|package| {
                             package
                                 .serialized_module_map()
                                 .values()
@@ -1649,7 +1649,7 @@ impl IotaTestAdapter {
             .iter()
             .find_map(|id| {
                 let object = self.get_object(id, None).unwrap();
-                let package = object.data.try_as_package()?;
+                let package = object.data.as_package_opt()?;
                 Some(package.id())
             })
             .unwrap();
@@ -2022,7 +2022,7 @@ impl IotaTestAdapter {
     // sorting between objects of the same type
     fn get_object_sorting_key(&self, id: &ObjectID) -> String {
         match &self.get_object(id, None).unwrap().data {
-            object::Data::Move(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
+            object::Data::Struct(obj) => self.stabilize_str(format!("{}", obj.struct_tag())),
             object::Data::Package(pkg) => pkg
                 .serialized_module_map()
                 .keys()

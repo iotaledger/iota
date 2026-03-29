@@ -165,7 +165,7 @@ impl MigrationTxData {
         let total_supply: u64 = self
             .get_objects()
             .map(|object| match &object.data {
-                Data::Move(_) => GasCoin::try_from(&object)
+                Data::Struct(_) => GasCoin::try_from(&object)
                     .map(|gas| gas.value())
                     .or_else(|_| {
                         TimeLock::<Balance>::try_from(&object).map(|t| {

@@ -103,7 +103,7 @@ impl TryFrom<&Object> for AliasOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if AliasOutput::is_alias_output(o.struct_tag()) {
                     return AliasOutput::from_bcs_bytes(o.contents());
                 }

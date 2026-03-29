@@ -176,7 +176,7 @@ macro_rules! fetch_child_object_unbounded {
                         ),
                     ));
                 }
-                Data::Move(_) => Some(object),
+                Data::Struct(_) => Some(object),
             }
         } else {
             None
@@ -241,7 +241,7 @@ impl Inner<'_> {
                         ),
                     ));
                 }
-                Data::Move(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
+                Data::Struct(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
             }
         } else {
             None
@@ -296,7 +296,7 @@ impl Inner<'_> {
             .as_ref()
             .map(|obj| {
                 obj.data
-                    .try_as_move()
+                    .as_struct_opt()
                     // unwrap safe because we only insert Move objects
                     .unwrap()
             }))
@@ -670,7 +670,9 @@ impl<'a> ChildObjectStore<'a> {
                     SequenceNumber::MAX_VALID_EXCL,
                     true
                 );
-                let Some(move_obj) = obj_opt.as_ref().map(|obj| obj.data.try_as_move().unwrap())
+                let Some(move_obj) = obj_opt
+                    .as_ref()
+                    .map(|obj| obj.data.as_struct_opt().unwrap())
                 else {
                     return Ok(ObjectResult::Loaded(None));
                 };
