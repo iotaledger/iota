@@ -40,8 +40,7 @@ fn make_fb(
     result: Result<Duration, ()>,
     ts: Instant,
 ) -> OperationFeedback {
-    OperationFeedback::builder(v, String::new(), op)
-        .result_at(result, ts)
+    OperationFeedback::builder(v, String::new(), op).result_at(result, ts)
 }
 
 /// Feed `n` observations of `op` spaced `dt` apart starting from `t0+dt`.
@@ -88,14 +87,23 @@ mod ewma_math {
     use super::*;
 
     /// A single ok observation → selection score equals latency contribution
-    /// (no failure penalty, staleness driven by Δt=0 so alpha≈1 → staleness=stale_coeff).
+    /// (no failure penalty, staleness driven by Δt=0 so alpha≈1 →
+    /// staleness=stale_coeff).
     #[test]
     fn single_ok_observation_produces_finite_score() {
         let config = fast_config();
         let mut stats = ClientObservedStats::new(config.clone());
         let v = gen_validator();
         let t0 = Instant::now();
-        feed(&mut stats, v, OperationType::HealthCheck, Ok(100), 1, t0, Duration::from_millis(10));
+        feed(
+            &mut stats,
+            v,
+            OperationType::HealthCheck,
+            Ok(100),
+            1,
+            t0,
+            Duration::from_millis(10),
+        );
         let score = stats.calculate_selection_score(&v, t0 + Duration::from_millis(11));
         assert!(score.is_finite(), "score should be finite: {score}");
         assert!(score > 0.0, "score should be positive");
@@ -153,10 +161,30 @@ mod ewma_math {
         let mut stats_fast = ClientObservedStats::new(config.clone());
         let mut stats_slow = ClientObservedStats::new(config.clone());
         // At expected latency Submit=150ms, HC=100ms, Effects=1500ms, Consensus=800ms.
-        feed(&mut stats_fast, v, OperationType::Submit, Ok(150), 30, t0, dt);
-        feed(&mut stats_slow, v, OperationType::Submit, Ok(1500), 30, t0, dt);
+        feed(
+            &mut stats_fast,
+            v,
+            OperationType::Submit,
+            Ok(150),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_slow,
+            v,
+            OperationType::Submit,
+            Ok(1500),
+            30,
+            t0,
+            dt,
+        );
         // Feed same data for other operations so only Submit differs.
-        for op in [OperationType::Effects, OperationType::HealthCheck, OperationType::Consensus] {
+        for op in [
+            OperationType::Effects,
+            OperationType::HealthCheck,
+            OperationType::Consensus,
+        ] {
             feed(&mut stats_fast, v, op, Ok(100), 30, t0, dt);
             feed(&mut stats_slow, v, op, Ok(100), 30, t0, dt);
         }
@@ -272,7 +300,10 @@ mod performance_score {
         // score == 0 is the marker for excluded (None → unknown_validator_score).
         // A healthy validator should have a finite positive score well below
         // the unknown_validator_score.
-        assert!(score.is_finite() && score > 0.0, "healthy validator should have finite score");
+        assert!(
+            score.is_finite() && score > 0.0,
+            "healthy validator should have finite score"
+        );
         assert!(
             score < config.unknown_validator_score,
             "healthy validator should score below sentinel; got {score:.2}"
@@ -301,7 +332,8 @@ mod performance_score {
     }
 
     /// Exclusion is NOT triggered when n_eff is too low, even if failure rate
-    /// is 100%.  We should not permanently ban a validator after a brief outage.
+    /// is 100%.  We should not permanently ban a validator after a brief
+    /// outage.
     #[test]
     fn exclusion_requires_minimum_n_eff() {
         let mut config = fast_config();
@@ -311,10 +343,42 @@ mod performance_score {
         let v = gen_validator();
         let t0 = Instant::now();
         // Only 3 failures → n_eff_hc << 20.
-        feed(&mut stats, v, OperationType::HealthCheck, Err(()), 3, t0, Duration::from_millis(10));
-        feed(&mut stats, v, OperationType::Submit, Err(()), 3, t0, Duration::from_millis(10));
-        feed(&mut stats, v, OperationType::Effects, Err(()), 3, t0, Duration::from_millis(10));
-        feed(&mut stats, v, OperationType::Consensus, Err(()), 3, t0, Duration::from_millis(10));
+        feed(
+            &mut stats,
+            v,
+            OperationType::HealthCheck,
+            Err(()),
+            3,
+            t0,
+            Duration::from_millis(10),
+        );
+        feed(
+            &mut stats,
+            v,
+            OperationType::Submit,
+            Err(()),
+            3,
+            t0,
+            Duration::from_millis(10),
+        );
+        feed(
+            &mut stats,
+            v,
+            OperationType::Effects,
+            Err(()),
+            3,
+            t0,
+            Duration::from_millis(10),
+        );
+        feed(
+            &mut stats,
+            v,
+            OperationType::Consensus,
+            Err(()),
+            3,
+            t0,
+            Duration::from_millis(10),
+        );
         let score = stats.calculate_selection_score(&v, t0 + Duration::from_millis(40));
         assert_ne!(
             score, config.unknown_validator_score,
@@ -322,8 +386,8 @@ mod performance_score {
         );
     }
 
-    /// Selective-failure penalty: work operations fail while HealthCheck passes.
-    /// The gap must exceed `selective_failure_noise_threshold`.
+    /// Selective-failure penalty: work operations fail while HealthCheck
+    /// passes. The gap must exceed `selective_failure_noise_threshold`.
     #[test]
     fn selective_failure_penalty_applied_when_work_fails_but_hc_passes() {
         let mut config = fast_config();
@@ -340,10 +404,42 @@ mod performance_score {
 
         // Selective failure: HealthCheck succeeds, work operations fail.
         let mut stats_sel = ClientObservedStats::new(config.clone());
-        feed(&mut stats_sel, v, OperationType::HealthCheck, Ok(50), 30, t0, dt);
-        feed(&mut stats_sel, v, OperationType::Submit, Err(()), 30, t0, dt);
-        feed(&mut stats_sel, v, OperationType::Effects, Err(()), 30, t0, dt);
-        feed(&mut stats_sel, v, OperationType::Consensus, Err(()), 30, t0, dt);
+        feed(
+            &mut stats_sel,
+            v,
+            OperationType::HealthCheck,
+            Ok(50),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_sel,
+            v,
+            OperationType::Submit,
+            Err(()),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_sel,
+            v,
+            OperationType::Effects,
+            Err(()),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_sel,
+            v,
+            OperationType::Consensus,
+            Err(()),
+            30,
+            t0,
+            dt,
+        );
 
         let now = t0 + dt * 31;
         let score_ok = stats_ok.calculate_selection_score(&v, now);
@@ -384,8 +480,9 @@ mod performance_score {
             score_same > score_ok,
             "uniform failures should still score worse than successes; same={score_same:.2} ok={score_ok:.2}"
         );
-        // The difference should be attributable only to the failure penalty, not selective.
-        // (We can't separate them directly here, but at least verify no panic/NaN.)
+        // The difference should be attributable only to the failure penalty, not
+        // selective. (We can't separate them directly here, but at least verify
+        // no panic/NaN.)
         assert!(score_same.is_finite());
     }
 
@@ -404,16 +501,80 @@ mod performance_score {
         let mut stats_many = ClientObservedStats::new(config.clone());
 
         // Few Consensus observations.
-        feed(&mut stats_few, v, OperationType::HealthCheck, Ok(80), 50, t0, dt);
-        feed(&mut stats_few, v, OperationType::Effects, Ok(100), 50, t0, dt);
-        feed(&mut stats_few, v, OperationType::Submit, Ok(120), 50, t0, dt);
-        feed(&mut stats_few, v, OperationType::Consensus, Ok(500), 2, t0, dt);
+        feed(
+            &mut stats_few,
+            v,
+            OperationType::HealthCheck,
+            Ok(80),
+            50,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_few,
+            v,
+            OperationType::Effects,
+            Ok(100),
+            50,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_few,
+            v,
+            OperationType::Submit,
+            Ok(120),
+            50,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_few,
+            v,
+            OperationType::Consensus,
+            Ok(500),
+            2,
+            t0,
+            dt,
+        );
 
         // Many Consensus observations (same other ops).
-        feed(&mut stats_many, v, OperationType::HealthCheck, Ok(80), 50, t0, dt);
-        feed(&mut stats_many, v, OperationType::Effects, Ok(100), 50, t0, dt);
-        feed(&mut stats_many, v, OperationType::Submit, Ok(120), 50, t0, dt);
-        feed(&mut stats_many, v, OperationType::Consensus, Ok(500), 50, t0, dt);
+        feed(
+            &mut stats_many,
+            v,
+            OperationType::HealthCheck,
+            Ok(80),
+            50,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_many,
+            v,
+            OperationType::Effects,
+            Ok(100),
+            50,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_many,
+            v,
+            OperationType::Submit,
+            Ok(120),
+            50,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_many,
+            v,
+            OperationType::Consensus,
+            Ok(500),
+            50,
+            t0,
+            dt,
+        );
 
         let now = t0 + dt * 51;
         let score_few = stats_few.calculate_selection_score(&v, now);
@@ -424,10 +585,11 @@ mod performance_score {
         );
     }
 
-    /// With the old n_eff_min formula, a single sparsely-sampled Submit (weight=0.1)
-    /// would cap the risk for ALL operations.  With the weighted-quadrature formula,
-    /// the sparse-Submit penalty is proportional to its weight (0.1), not the whole
-    /// risk budget.  We isolate the risk term by zeroing all other score components.
+    /// With the old n_eff_min formula, a single sparsely-sampled Submit
+    /// (weight=0.1) would cap the risk for ALL operations.  With the
+    /// weighted-quadrature formula, the sparse-Submit penalty is
+    /// proportional to its weight (0.1), not the whole risk budget.  We
+    /// isolate the risk term by zeroing all other score components.
     #[test]
     fn risk_not_dominated_by_sparse_submit() {
         let mut config = fast_config();
@@ -448,12 +610,28 @@ mod performance_score {
         // Both validators have 50 obs for HC/Effects/Consensus.
         // Sparse has only 2 Submit obs (weight=0.1 in the quadrature).
         for s in [&mut stats_sparse_sub, &mut stats_full] {
-            feed(s, v, OperationType::HealthCheck, Ok(80),  50, t0, dt);
-            feed(s, v, OperationType::Effects,     Ok(100), 50, t0, dt);
-            feed(s, v, OperationType::Consensus,   Ok(500), 50, t0, dt);
+            feed(s, v, OperationType::HealthCheck, Ok(80), 50, t0, dt);
+            feed(s, v, OperationType::Effects, Ok(100), 50, t0, dt);
+            feed(s, v, OperationType::Consensus, Ok(500), 50, t0, dt);
         }
-        feed(&mut stats_sparse_sub, v, OperationType::Submit, Ok(120), 2,  t0, dt);
-        feed(&mut stats_full,       v, OperationType::Submit, Ok(120), 50, t0, dt);
+        feed(
+            &mut stats_sparse_sub,
+            v,
+            OperationType::Submit,
+            Ok(120),
+            2,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_full,
+            v,
+            OperationType::Submit,
+            Ok(120),
+            50,
+            t0,
+            dt,
+        );
 
         // Evaluate immediately after the last observation so staleness ≈ 0.
         let now = t0 + dt * 51;
@@ -485,17 +663,81 @@ mod performance_score {
 
         // Submit fails, Consensus OK.
         let mut stats_sub_fail = ClientObservedStats::new(config.clone());
-        feed(&mut stats_sub_fail, v, OperationType::HealthCheck, Ok(80), 30, t0, dt);
-        feed(&mut stats_sub_fail, v, OperationType::Effects, Ok(100), 30, t0, dt);
-        feed(&mut stats_sub_fail, v, OperationType::Consensus, Ok(500), 30, t0, dt);
-        feed(&mut stats_sub_fail, v, OperationType::Submit, Err(()), 30, t0, dt);
+        feed(
+            &mut stats_sub_fail,
+            v,
+            OperationType::HealthCheck,
+            Ok(80),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_sub_fail,
+            v,
+            OperationType::Effects,
+            Ok(100),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_sub_fail,
+            v,
+            OperationType::Consensus,
+            Ok(500),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_sub_fail,
+            v,
+            OperationType::Submit,
+            Err(()),
+            30,
+            t0,
+            dt,
+        );
 
         // Consensus fails, Submit OK.
         let mut stats_con_fail = ClientObservedStats::new(config.clone());
-        feed(&mut stats_con_fail, v, OperationType::HealthCheck, Ok(80), 30, t0, dt);
-        feed(&mut stats_con_fail, v, OperationType::Effects, Ok(100), 30, t0, dt);
-        feed(&mut stats_con_fail, v, OperationType::Submit, Ok(120), 30, t0, dt);
-        feed(&mut stats_con_fail, v, OperationType::Consensus, Err(()), 30, t0, dt);
+        feed(
+            &mut stats_con_fail,
+            v,
+            OperationType::HealthCheck,
+            Ok(80),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_con_fail,
+            v,
+            OperationType::Effects,
+            Ok(100),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_con_fail,
+            v,
+            OperationType::Submit,
+            Ok(120),
+            30,
+            t0,
+            dt,
+        );
+        feed(
+            &mut stats_con_fail,
+            v,
+            OperationType::Consensus,
+            Err(()),
+            30,
+            t0,
+            dt,
+        );
 
         let now = t0 + dt * 31;
         let score_sub_fail = stats_sub_fail.calculate_selection_score(&v, now);
@@ -540,11 +782,8 @@ mod selection {
         let t0 = Instant::now();
         feed_all(&mut stats, v, Ok(100), 10, t0, Duration::from_millis(10));
         let now = t0 + Duration::from_millis(110);
-        let result = stats.select_shuffled_preferred_validators(
-            validators.iter(),
-            now,
-            rand::thread_rng(),
-        );
+        let result =
+            stats.select_shuffled_preferred_validators(validators.iter(), now, rand::thread_rng());
         assert_eq!(result.len(), 1);
         assert_eq!(*result[0], v);
     }
@@ -566,11 +805,7 @@ mod selection {
             feed_all(&mut stats, *vi, Ok(5000), 30, t0, dt);
         }
         let now = t0 + dt * 31;
-        let result = stats.select_shuffled_preferred_validators(
-            v.iter(),
-            now,
-            rand::thread_rng(),
-        );
+        let result = stats.select_shuffled_preferred_validators(v.iter(), now, rand::thread_rng());
         assert!(
             result.len() >= 3,
             "result should have at least min_preferred_group_size=3 validators; got {}",
@@ -595,11 +830,7 @@ mod selection {
             feed_all(&mut stats, *vi, Ok(100), 30, t0, dt);
         }
         let now = t0 + dt * 31;
-        let result = stats.select_shuffled_preferred_validators(
-            v.iter(),
-            now,
-            rand::thread_rng(),
-        );
+        let result = stats.select_shuffled_preferred_validators(v.iter(), now, rand::thread_rng());
         assert!(
             result.len() <= 3,
             "result should not exceed max_preferred_group_size=3; got {}",
@@ -626,11 +857,7 @@ mod selection {
             feed_all(&mut stats, *vi, Err(()), 30, t0, dt);
         }
         let now = t0 + dt * 31;
-        let result = stats.select_shuffled_preferred_validators(
-            v.iter(),
-            now,
-            rand::thread_rng(),
-        );
+        let result = stats.select_shuffled_preferred_validators(v.iter(), now, rand::thread_rng());
         assert!(
             !result.is_empty(),
             "fallback should return at least one excluded validator"
@@ -658,11 +885,8 @@ mod selection {
             feed_all(&mut stats, *vi, Ok(100), 200, t0, dt);
         }
         let now = t0 + dt * 201;
-        let result = stats.select_shuffled_preferred_validators(
-            all.iter(),
-            now,
-            rand::thread_rng(),
-        );
+        let result =
+            stats.select_shuffled_preferred_validators(all.iter(), now, rand::thread_rng());
         // Unknown validators must appear in the result (high exploration bonus).
         let unknown_in_result = result.iter().filter(|v| unknown.contains(*v)).count();
         assert!(
@@ -687,16 +911,13 @@ mod selection {
         let t0 = Instant::now();
         let dt = Duration::from_millis(10);
         let mut stats = ClientObservedStats::new(config.clone());
-        feed_all(&mut stats, v_good, Ok(50), 30, t0, dt);  // fast validator
+        feed_all(&mut stats, v_good, Ok(50), 30, t0, dt); // fast validator
         feed_all(&mut stats, v_bad, Ok(5000), 30, t0, dt); // slow validator
         let now = t0 + dt * 31;
         // Run 10 trials; v_good must be selected every time (Phase 1 = 1, no Phase 2).
         for _ in 0..10 {
-            let result = stats.select_shuffled_preferred_validators(
-                all.iter(),
-                now,
-                rand::thread_rng(),
-            );
+            let result =
+                stats.select_shuffled_preferred_validators(all.iter(), now, rand::thread_rng());
             assert_eq!(result.len(), 1);
             assert_eq!(
                 *result[0], v_good,
@@ -721,12 +942,12 @@ mod selection {
         }
         let now = t0 + dt * 11;
         // Must not panic.
-        let result = stats.select_shuffled_preferred_validators(
-            v.iter(),
-            now,
-            rand::thread_rng(),
+        let result = stats.select_shuffled_preferred_validators(v.iter(), now, rand::thread_rng());
+        assert_eq!(
+            result.len(),
+            v.len(),
+            "all candidates returned when min > committee size"
         );
-        assert_eq!(result.len(), v.len(), "all candidates returned when min > committee size");
     }
 }
 
@@ -759,8 +980,8 @@ mod monotonicity {
         }
     }
 
-    /// Score improves (decreases) monotonically as we add more good observations
-    /// to a validator that previously had mixed results.
+    /// Score improves (decreases) monotonically as we add more good
+    /// observations to a validator that previously had mixed results.
     #[test]
     fn score_monotone_decreasing_with_good_observations() {
         let mut config = fast_config();
@@ -776,7 +997,14 @@ mod monotonicity {
         let good_count = [10, 20, 40, 80];
         let mut cumulative = 5usize;
         for add in good_count {
-            feed_all(&mut stats, v, Ok(50), add, t0 + dt * (cumulative as u32 + 1), dt);
+            feed_all(
+                &mut stats,
+                v,
+                Ok(50),
+                add,
+                t0 + dt * (cumulative as u32 + 1),
+                dt,
+            );
             cumulative += add;
             let now = t0 + dt * (cumulative as u32 + 1);
             let score = stats.calculate_selection_score(&v, now);
@@ -863,7 +1091,8 @@ mod network_conditions {
     use super::*;
 
     /// When all validators in the committee are completely unknown (no prior
-    /// observations), the selection still returns a non-empty set of validators.
+    /// observations), the selection still returns a non-empty set of
+    /// validators.
     #[test]
     fn all_unknown_validators_still_selected() {
         let config = fast_config();
@@ -874,7 +1103,10 @@ mod network_conditions {
             Instant::now(),
             rand::thread_rng(),
         );
-        assert!(!result.is_empty(), "should select some validators even if all are unknown");
+        assert!(
+            !result.is_empty(),
+            "should select some validators even if all are unknown"
+        );
     }
 
     /// After a complete network blackout (all validators fail many times) the
@@ -892,11 +1124,7 @@ mod network_conditions {
             feed_all(&mut stats, *vi, Err(()), 30, t0, dt);
         }
         let now = t0 + dt * 31;
-        let result = stats.select_shuffled_preferred_validators(
-            v.iter(),
-            now,
-            rand::thread_rng(),
-        );
+        let result = stats.select_shuffled_preferred_validators(v.iter(), now, rand::thread_rng());
         assert!(
             !result.is_empty(),
             "should still return validators from fallback path after blackout"

@@ -7,6 +7,8 @@ mod monitor;
 mod stats;
 
 #[cfg(test)]
+mod sim_tests;
+#[cfg(test)]
 mod tests;
 
 use std::time::Duration;

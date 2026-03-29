@@ -218,8 +218,7 @@ mod tests {
                 authorities[0].concise().to_string(), // This one exists in auth_agg
             ];
 
-            let retrier =
-                RequestRetrier::new(&auth_agg, &client_monitor, &allowed_validators, &[]);
+            let retrier = RequestRetrier::new(&auth_agg, &client_monitor, &allowed_validators, &[]);
 
             // Should only have 1 remaining client (the known validator)
             assert_eq!(retrier.ranked_clients.len(), 1);

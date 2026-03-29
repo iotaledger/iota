@@ -114,12 +114,21 @@ impl TimeDecayEwma {
         self.last_update = now;
         // Update the interval EWMA with a fixed weight of 0.1.
         const ALPHA: f64 = 0.1;
-        self.int_ewma = Some(self.int_ewma.map_or(int, |prev| (1.0 - ALPHA) * prev + ALPHA * int));
+        self.int_ewma = Some(
+            self.int_ewma
+                .map_or(int, |prev| (1.0 - ALPHA) * prev + ALPHA * int),
+        );
     }
 
     fn stats(&self, k: f64, now: Instant, tau: f64) -> (f64, f64, f64, f64, Option<f64>) {
         let (score, weight, failure) = self.ewma.stats(k);
-        (score, weight, failure, self.int_alpha(now, tau).1, self.int_ewma)
+        (
+            score,
+            weight,
+            failure,
+            self.int_alpha(now, tau).1,
+            self.int_ewma,
+        )
     }
 }
 
@@ -170,7 +179,9 @@ impl LogLatencyEwma {
     fn stats(&self, k: f64, now: Instant, tau: f64) -> Option<(f64, f64, f64, f64, Option<f64>)> {
         self.inner
             .stats(k, now, tau)
-            .map(|(score, weight, failure, alpha, int_ewma)| (score.exp(), weight, failure, alpha, int_ewma))
+            .map(|(score, weight, failure, alpha, int_ewma)| {
+                (score.exp(), weight, failure, alpha, int_ewma)
+            })
     }
 }
 
@@ -242,9 +253,10 @@ impl ValidatorClientStats {
         config: &ValidatorClientMonitorConfig,
     ) -> f64 {
         self.performance_score(total_observations, now, config)
-            .map_or(config.unknown_validator_score, |(exploitation, exploration)| {
-                (exploitation - exploration).max(0.0)
-            })
+            .map_or(
+                config.unknown_validator_score,
+                |(exploitation, exploration)| (exploitation - exploration).max(0.0),
+            )
     }
 
     fn performance_score(
@@ -253,7 +265,8 @@ impl ValidatorClientStats {
         now: Instant,
         config: &ValidatorClientMonitorConfig,
     ) -> Option<(f64, f64)> {
-        let (l_sub, n_sub, f_sub, a_sub, _) = self.operation_stats(OperationType::Submit, now, config);
+        let (l_sub, n_sub, f_sub, a_sub, _) =
+            self.operation_stats(OperationType::Submit, now, config);
         let (l_eff, n_eff_e, f_eff, a_eff, _) =
             self.operation_stats(OperationType::Effects, now, config);
         let (l_hc, n_hc, f_hc, a_hc, _) =
@@ -288,10 +301,10 @@ impl ValidatorClientStats {
             //   rate tx_rate/N) no longer caps the score indefinitely; its
             //   contribution decays naturally as n_eff grows.  Weights match the
             //   latency coefficients so the risk budget mirrors the latency budget.
-            let u_con = 0.5 / (n_con   + 1e-2).sqrt();
-            let u_hc  = 0.2 / (n_hc    + 1e-2).sqrt();
+            let u_con = 0.5 / (n_con + 1e-2).sqrt();
+            let u_hc = 0.2 / (n_hc + 1e-2).sqrt();
             let u_eff = 0.2 / (n_eff_e + 1e-2).sqrt();
-            let u_sub = 0.1 / (n_sub   + 1e-2).sqrt();
+            let u_sub = 0.1 / (n_sub + 1e-2).sqrt();
             let risk = config.risk_coeff
                 * (u_con * u_con + u_hc * u_hc + u_eff * u_eff + u_sub * u_sub).sqrt();
 
@@ -392,8 +405,10 @@ impl ClientObservedStats {
         if candidates.is_empty() {
             // this looks like a total blackout, fallback -- still try random excluded
             // validators
-            let amount = self.config.max_exploration_group_size
-                .clamp(self.config.min_preferred_group_size, self.config.max_preferred_group_size);
+            let amount = self.config.max_exploration_group_size.clamp(
+                self.config.min_preferred_group_size,
+                self.config.max_preferred_group_size,
+            );
             return excluded
                 .choose_multiple(&mut rng, amount)
                 .cloned()
@@ -416,7 +431,10 @@ impl ClientObservedStats {
             .find(|(_, (_, perf, _))| *perf > perf_threshold)
             .map(|(i, _)| i)
             .unwrap_or(candidates.len())
-            .clamp(self.config.min_preferred_group_size, self.config.max_preferred_group_size)
+            .clamp(
+                self.config.min_preferred_group_size,
+                self.config.max_preferred_group_size,
+            )
             // Never exceed the actual number of candidates — guards against
             // min_preferred_group_size > committee size.
             .min(candidates.len());
