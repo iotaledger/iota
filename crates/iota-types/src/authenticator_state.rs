@@ -43,7 +43,7 @@ pub fn get_authenticator_state(
     let Some(outer) = outer else {
         return Ok(None);
     };
-    let move_object = outer.data.try_as_move().ok_or_else(|| {
+    let move_object = outer.data.as_struct_opt().ok_or_else(|| {
         IotaError::IotaSystemStateRead("AuthenticatorState object must be a Move object".to_owned())
     })?;
     let outer = bcs::from_bytes::<AuthenticatorState>(move_object.contents())

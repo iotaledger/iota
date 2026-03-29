@@ -1416,7 +1416,7 @@ mod checked {
         object: &Object,
     ) -> Result<ObjectValue, ExecutionError> {
         let ObjectInner {
-            data: Data::Move(object),
+            data: Data::Struct(object),
             ..
         } = object.as_inner()
         else {

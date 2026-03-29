@@ -309,7 +309,7 @@
     "required_objects": [
         {
             "data": {
-                "Move": {
+                "Struct": {
                     "version": "144",
                     "contents": [
                         44,
@@ -397,7 +397,7 @@
         },
         {
             "data": {
-                "Move": {
+                "Struct": {
                     "version": "144",
                     "contents": [
                         253,
@@ -307466,7 +307466,7 @@
         },
         {
             "data": {
-                "Move": {
+                "Struct": {
                     "version": "144",
                     "contents": [
                         44,
@@ -307554,7 +307554,7 @@
         },
         {
             "data": {
-                "Move": {
+                "Struct": {
                     "version": "144",
                     "contents": [
                         253,

@@ -49,7 +49,7 @@ impl Coin {
     /// The cost is 2 comparisons if not a coin, and deserialization if its a
     /// Coin.
     pub fn extract_balance_if_coin(object: &Object) -> Result<Option<u64>, bcs::Error> {
-        let Data::Move(obj) = &object.data else {
+        let Data::Struct(obj) = &object.data else {
             return Ok(None);
         };
         let Some(_) = obj.struct_tag().coin_type_opt() else {
@@ -143,7 +143,7 @@ impl TryFrom<Object> for TreasuryCap {
     type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if o.struct_tag().is_treasury_cap() {
                     return TreasuryCap::from_bcs_bytes(o.contents());
                 }
@@ -206,7 +206,7 @@ impl TryFrom<&Object> for CoinMetadata {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if o.struct_tag().is_coin_metadata() {
                     return CoinMetadata::from_bcs_bytes(o.contents());
                 }

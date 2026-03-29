@@ -512,7 +512,7 @@ mod tests {
             .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
-                    Data::Move(move_object),
+                    Data::Struct(move_object),
                     Owner::Address(address),
                     tx_context.digest(),
                 )
@@ -556,7 +556,7 @@ mod tests {
             .map(|_| GasCoin::new_for_testing(0).to_object(SequenceNumber::MIN_VALID_INCL))
             .map(|move_object| {
                 Object::new_from_genesis(
-                    Data::Move(move_object),
+                    Data::Struct(move_object),
                     Owner::Address(owner),
                     tx_context.digest(),
                 )
