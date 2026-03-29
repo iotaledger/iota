@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::{MoveStruct as MoveObject, Owner};
+pub use iota_sdk_types::{MoveStruct as MoveObject, ObjectData as Data, Owner};
 use iota_sdk_types::{StructTag, TypeTag};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -333,80 +333,6 @@ impl MoveObjectExt for MoveObject {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-pub enum Data {
-    /// An object whose governing logic lives in a published Move module
-    Move(MoveObject),
-    /// Map from each module name to raw serialized Move module bytes
-    Package(MovePackage),
-    // ... IOTA "native" types go here
-}
-
-impl Data {
-    pub fn try_as_move(&self) -> Option<&MoveObject> {
-        use Data::*;
-        match self {
-            Move(m) => Some(m),
-            Package(_) => None,
-        }
-    }
-
-    pub fn try_as_move_mut(&mut self) -> Option<&mut MoveObject> {
-        use Data::*;
-        match self {
-            Move(m) => Some(m),
-            Package(_) => None,
-        }
-    }
-
-    pub fn try_as_package(&self) -> Option<&MovePackage> {
-        use Data::*;
-        match self {
-            Move(_) => None,
-            Package(p) => Some(p),
-        }
-    }
-
-    pub fn try_as_package_mut(&mut self) -> Option<&mut MovePackage> {
-        use Data::*;
-        match self {
-            Move(_) => None,
-            Package(p) => Some(p),
-        }
-    }
-
-    pub fn try_into_package(self) -> Option<MovePackage> {
-        use Data::*;
-        match self {
-            Move(_) => None,
-            Package(p) => Some(p),
-        }
-    }
-
-    pub fn type_(&self) -> Option<&MoveObjectType> {
-        use Data::*;
-        match self {
-            Move(m) => Some(m.object_type()),
-            Package(_) => None,
-        }
-    }
-
-    pub fn struct_tag(&self) -> Option<StructTag> {
-        use Data::*;
-        match self {
-            Move(m) => Some(m.struct_tag().clone()),
-            Package(_) => None,
-        }
-    }
-
-    pub fn id(&self) -> ObjectID {
-        match self {
-            Self::Move(v) => v.id(),
-            Self::Package(m) => m.id(),
-        }
-    }
-}
-
-#[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 #[serde(rename = "Object")]
 pub struct ObjectInner {
     /// The meat of the object
@@ -464,7 +390,7 @@ impl Object {
     /// Create a new Move object
     pub fn new_move(o: MoveObject, owner: Owner, previous_transaction: TransactionDigest) -> Self {
         ObjectInner {
-            data: Data::Move(o),
+            data: Data::Struct(o),
             owner,
             previous_transaction,
             storage_rebate: 0,
@@ -615,7 +541,7 @@ impl ObjectInner {
         use Data::*;
 
         match &self.data {
-            Move(v) => v.id(),
+            Struct(v) => v.id(),
             Package(m) => m.id(),
         }
     }
@@ -624,13 +550,13 @@ impl ObjectInner {
         use Data::*;
 
         match &self.data {
-            Move(o) => o.version(),
+            Struct(o) => o.version(),
             Package(p) => p.version(),
         }
     }
 
     pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.type_()
+        self.data.object_type()
     }
 
     pub fn struct_tag(&self) -> Option<StructTag> {
@@ -638,7 +564,7 @@ impl ObjectInner {
     }
 
     pub fn is_coin(&self) -> bool {
-        if let Some(move_object) = self.data.try_as_move() {
+        if let Some(move_object) = self.data.as_struct_opt() {
             move_object.struct_tag().is_coin()
         } else {
             false
@@ -646,7 +572,7 @@ impl ObjectInner {
     }
 
     pub fn is_gas_coin(&self) -> bool {
-        if let Some(move_object) = self.data.try_as_move() {
+        if let Some(move_object) = self.data.as_struct_opt() {
             move_object.struct_tag().is_gas_coin()
         } else {
             false
@@ -656,7 +582,7 @@ impl ObjectInner {
     // TODO: use `MoveObj::get_balance_unsafe` instead.
     // context: https://github.com/iotaledger/iota/pull/10679#discussion_r1165877816
     pub fn as_coin_maybe(&self) -> Option<Coin> {
-        if let Some(move_object) = self.data.try_as_move() {
+        if let Some(move_object) = self.data.as_struct_opt() {
             let coin: Coin = bcs::from_bytes(move_object.contents()).ok()?;
             Some(coin)
         } else {
@@ -665,7 +591,7 @@ impl ObjectInner {
     }
 
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
-        if let Some(move_object) = self.data.try_as_move() {
+        if let Some(move_object) = self.data.as_struct_opt() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
         } else {
             None
@@ -673,7 +599,7 @@ impl ObjectInner {
     }
 
     pub fn coin_type_opt(&self) -> Option<&TypeTag> {
-        if let Some(move_object) = self.data.try_as_move() {
+        if let Some(move_object) = self.data.as_struct_opt() {
             move_object.struct_tag().coin_type_opt()
         } else {
             None
@@ -685,7 +611,10 @@ impl ObjectInner {
     /// value It is the caller's responsibility to check that `self` is a
     /// coin--this function may panic or do something unexpected otherwise.
     pub fn get_coin_value_unchecked(&self) -> u64 {
-        self.data.try_as_move().unwrap().get_coin_value_unchecked()
+        self.data
+            .as_struct_opt()
+            .unwrap()
+            .get_coin_value_unchecked()
     }
 
     /// Approximate size of the object in bytes. This is used for gas metering.
@@ -695,7 +624,7 @@ impl ObjectInner {
     pub fn object_size_for_gas_metering(&self) -> usize {
         let meta_data_size = size_of::<Owner>() + size_of::<TransactionDigest>() + size_of::<u64>();
         let data_size = match &self.data {
-            Data::Move(m) => m.object_size_for_gas_metering(),
+            Data::Struct(m) => m.object_size_for_gas_metering(),
             Data::Package(p) => p.size(),
         };
         meta_data_size + data_size
@@ -716,7 +645,7 @@ impl ObjectInner {
         resolver: &impl GetModule,
     ) -> Result<Option<MoveStructLayout>, IotaError> {
         match &self.data {
-            Data::Move(m) => Ok(Some(m.get_layout(resolver)?)),
+            Data::Struct(m) => Ok(Some(m.get_layout(resolver)?)),
             Data::Package(_) => Ok(None),
         }
     }
@@ -740,7 +669,7 @@ impl ObjectInner {
     }
 
     pub fn to_rust<'de, T: Deserialize<'de>>(&'de self) -> Option<T> {
-        self.data.try_as_move().and_then(|data| data.to_rust())
+        self.data.as_struct_opt().and_then(|data| data.to_rust())
     }
 }
 
@@ -754,13 +683,13 @@ impl Object {
     ) -> Result<u64, IotaError> {
         Ok(self.storage_rebate
             + match &self.data {
-                Data::Move(m) => m.get_total_iota(layout_resolver)?,
+                Data::Struct(m) => m.get_total_iota(layout_resolver)?,
                 Data::Package(_) => 0,
             })
     }
 
     pub fn immutable_with_id_for_testing(id: ObjectID) -> Self {
-        let data = Data::Move(MoveObject {
+        let data = Data::Struct(MoveObject {
             object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -791,7 +720,7 @@ impl Object {
     }
 
     pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
-        let data = Data::Move(MoveObject {
+        let data = Data::Struct(MoveObject {
             object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, gas).to_bcs_bytes(),
@@ -806,7 +735,7 @@ impl Object {
     }
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
-        let data = Data::Move(MoveObject {
+        let data = Data::Struct(MoveObject {
             object_type: StructTag::new_treasury_cap(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
@@ -821,7 +750,7 @@ impl Object {
     }
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
-        let data = Data::Move(MoveObject {
+        let data = Data::Struct(MoveObject {
             object_type: StructTag::new_coin_metadata(struct_tag).into(),
             version: OBJECT_START_VERSION,
             contents: bcs::to_bytes(&metadata).expect("Failed to serialize"),
@@ -836,7 +765,7 @@ impl Object {
     }
 
     pub fn with_object_owner_for_testing(id: ObjectID, owner: ObjectID) -> Self {
-        let data = Data::Move(MoveObject {
+        let data = Data::Struct(MoveObject {
             object_type: StructTag::new_gas_coin().into(),
             version: OBJECT_START_VERSION,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -860,7 +789,7 @@ impl Object {
         version: SequenceNumber,
         owner: Owner,
     ) -> Self {
-        let data = Data::Move(MoveObject {
+        let data = Data::Struct(MoveObject {
             object_type: StructTag::new_gas_coin().into(),
             version,
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),

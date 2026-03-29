@@ -265,7 +265,7 @@ impl Executor {
                     foundry_package = Some(
                         object
                             .data
-                            .try_as_package()
+                            .as_package_opt()
                             .expect("already verified this is a package"),
                     );
                     created_objects.set_package(object.id())?;
@@ -492,7 +492,7 @@ impl Executor {
         let bag = bcs::from_bytes(
             bag_object
                 .data
-                .try_as_move()
+                .as_struct_opt()
                 .expect("this should be a move object")
                 .contents(),
         )

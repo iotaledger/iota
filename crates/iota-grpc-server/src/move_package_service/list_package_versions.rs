@@ -57,7 +57,7 @@ pub(crate) fn list_package_versions(
 
             current_object
                 .data
-                .try_as_package()
+                .as_package_opt()
                 .ok_or_else(|| {
                     RpcError::new(
                         tonic::Code::Internal,

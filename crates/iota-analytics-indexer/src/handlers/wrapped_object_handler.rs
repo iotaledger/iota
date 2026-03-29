@@ -122,7 +122,7 @@ impl WrappedObjectHandler {
     ) -> Result<()> {
         let move_struct = if let Some((tag, contents)) = object
             .struct_tag()
-            .and_then(|tag| object.data.try_as_move().map(|mo| (tag, mo.contents())))
+            .and_then(|tag| object.data.as_struct_opt().map(|mo| (tag, mo.contents())))
         {
             let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
             Some(move_struct)

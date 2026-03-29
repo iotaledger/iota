@@ -1844,7 +1844,7 @@ mod checked {
                 // the version growing by one in the effects.
                 new_package
                     .data
-                    .try_as_package_mut()
+                    .as_package_mut_opt()
                     .unwrap()
                     .decrement_version()
                     .expect("package version should never underflow");

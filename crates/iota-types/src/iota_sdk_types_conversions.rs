@@ -26,7 +26,7 @@ use iota_sdk_types::{
     events::TransactionEvents,
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{GenesisObject, Object, ObjectData},
+    object::{GenesisObject, Object},
     transaction::{
         GasPayment, GenesisTransaction, RandomnessStateUpdate, SignedTransaction, Transaction,
         TransactionKind, TransactionV1,
@@ -71,7 +71,7 @@ impl TryFrom<crate::object::Object> for Object {
 
     fn try_from(value: crate::object::Object) -> Result<Self, Self::Error> {
         Self {
-            data: value.data.clone().try_into()?,
+            data: value.data.clone(),
             owner: value.owner,
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
@@ -85,35 +85,11 @@ impl TryFrom<Object> for crate::object::Object {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         Self::from(ObjectInner {
-            data: value.data.try_into()?,
+            data: value.data,
             owner: value.owner,
             previous_transaction: value.previous_transaction,
             storage_rebate: value.storage_rebate,
         })
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::object::Data> for ObjectData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::object::Data) -> Result<Self, Self::Error> {
-        match value {
-            crate::object::Data::Move(move_object) => Self::Struct(move_object),
-            crate::object::Data::Package(move_package) => Self::Package(move_package),
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<ObjectData> for crate::object::Data {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: ObjectData) -> Result<Self, Self::Error> {
-        match value {
-            ObjectData::Struct(move_object) => Self::Move(move_object),
-            ObjectData::Package(move_package) => Self::Package(move_package),
-        }
         .pipe(Ok)
     }
 }
@@ -207,13 +183,10 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                         .into_iter()
                         .map(|obj| match obj {
                             crate::transaction::GenesisObject::RawObject { data, owner } => {
-                                match data.try_into() {
-                                    Ok(data) => Ok(GenesisObject { data, owner }),
-                                    Err(e) => Err(e),
-                                }
+                                GenesisObject { data, owner }
                             }
                         })
-                        .collect::<Result<_, _>>()?,
+                        .collect(),
                     events: genesis_transaction.events,
                 })
             }
@@ -255,14 +228,11 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     objects: genesis_transaction
                         .objects
                         .into_iter()
-                        .map(|obj| match obj.data.try_into() {
-                            Ok(data) => Ok(crate::transaction::GenesisObject::RawObject {
-                                data,
-                                owner: obj.owner,
-                            }),
-                            Err(e) => Err(e),
+                        .map(|obj| crate::transaction::GenesisObject::RawObject {
+                            data: obj.data,
+                            owner: obj.owner,
                         })
-                        .collect::<Result<_, _>>()?,
+                        .collect(),
                     events: genesis_transaction.events,
                 })
             }
