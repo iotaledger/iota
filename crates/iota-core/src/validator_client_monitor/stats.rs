@@ -280,11 +280,25 @@ impl ValidatorClientStats {
                 + l_eff / config.expected_latency_effects_secs * 0.2
                 + l_sub / config.expected_latency_submit_secs * 0.1;
 
-            // Risk = λ / sqrt(min_op(n_eff_op) + ϵ):
-            //   Driven by the least-sampled operation — confidence is limited by
-            //   the operation we know least about.
+            // Risk = coeff · sqrt( Σ_op (w_op / sqrt(n_eff_op + ε))² ):
+            //   Each operation contributes uncertainty proportional to its
+            //   latency weight divided by the square root of its effective
+            //   sample count.  This avoids the n_eff_min bottleneck: a single
+            //   sparsely-sampled operation (Submit / Consensus, which arrive at
+            //   rate tx_rate/N) no longer caps the score indefinitely; its
+            //   contribution decays naturally as n_eff grows.  Weights match the
+            //   latency coefficients so the risk budget mirrors the latency budget.
+            let u_con = 0.5 / (n_con   + 1e-2).sqrt();
+            let u_hc  = 0.2 / (n_hc    + 1e-2).sqrt();
+            let u_eff = 0.2 / (n_eff_e + 1e-2).sqrt();
+            let u_sub = 0.1 / (n_sub   + 1e-2).sqrt();
+            let risk = config.risk_coeff
+                * (u_con * u_con + u_hc * u_hc + u_eff * u_eff + u_sub * u_sub).sqrt();
+
+            // Keep n_eff_min for exploration: a validator under-sampled in any
+            // single operation is a good candidate for exploration regardless of
+            // how well the other operations are known.
             let n_eff_min = n_sub.min(n_eff_e).min(n_hc).min(n_con);
-            let risk = config.risk_coeff / (n_eff_min + 1e-2).sqrt();
 
             // Staleness = λ * max_op(1 − exp(−Δt_op / τ)):
             //   Driven by the stalest operation.
