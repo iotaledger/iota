@@ -149,7 +149,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         if let Some(initial_shared_version) = initial_shared_version_override {
             shared_object
                 .data
-                .try_as_move_mut()
+                .as_struct_mut_opt()
                 .unwrap()
                 .increment_version_to(initial_shared_version);
             shared_object.owner = Owner::Shared(initial_shared_version);
@@ -340,7 +340,7 @@ async fn test_dev_inspect_object_by_bytes() {
     let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
-        .try_as_move()
+        .as_struct_opt()
         .unwrap()
         .contents()
         .to_vec();
@@ -409,7 +409,7 @@ async fn test_dev_inspect_object_by_bytes() {
 
     // compare the bytes
     let updated_object = validator.get_object(&created_object_id).await.unwrap();
-    let updated_object_bytes = updated_object.data.try_as_move().unwrap().contents();
+    let updated_object_bytes = updated_object.data.as_struct_opt().unwrap().contents();
     assert_eq!(updated_object_bytes, updated_reference_bytes)
 }
 
@@ -513,7 +513,7 @@ async fn test_dev_inspect_dynamic_field() {
                 let created_object = validator.get_object(&created_object_id).await.unwrap();
                 created_object
                     .data
-                    .try_as_move()
+                    .as_struct_opt()
                     .unwrap()
                     .contents()
                     .to_vec()
@@ -620,7 +620,7 @@ async fn test_dev_inspect_return_values() {
     let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
-        .try_as_move()
+        .as_struct_opt()
         .unwrap()
         .contents()
         .to_vec();
@@ -3097,7 +3097,7 @@ async fn test_genesis_iota_system_state_object() {
         .await
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
-    let move_object = wrapper.data.try_as_move().unwrap();
+    let move_object = wrapper.data.as_struct_opt().unwrap();
     let _iota_system_state =
         bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
     assert!(move_object.struct_tag().is_iota_system_state());

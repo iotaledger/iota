@@ -112,14 +112,14 @@ fn migrate_nft(
     let nft_output: NftOutput = bcs::from_bytes(
         nft_output_object
             .data
-            .try_as_move()
+            .as_struct_opt()
             .ok_or_else(|| anyhow!("nft output is not a move object"))?
             .contents(),
     )?;
     let nft: Nft = bcs::from_bytes(
         nft_object
             .data
-            .try_as_move()
+            .as_struct_opt()
             .ok_or_else(|| anyhow!("nft is not a move object"))?
             .contents(),
     )?;

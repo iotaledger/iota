@@ -128,7 +128,7 @@ pub enum ObjectType {
 impl From<&Object> for ObjectType {
     fn from(o: &Object) -> Self {
         o.data
-            .type_()
+            .object_type()
             .map(|t| ObjectType::Struct(t.clone()))
             .unwrap_or(ObjectType::Package)
     }

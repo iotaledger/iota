@@ -112,7 +112,7 @@ fn load_dynamic_field(
         return Ok(());
     };
 
-    let Some(move_object) = field_object.data.try_as_move() else {
+    let Some(move_object) = field_object.data.as_struct_opt() else {
         return Ok(());
     };
 

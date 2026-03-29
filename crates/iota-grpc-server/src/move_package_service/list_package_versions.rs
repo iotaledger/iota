@@ -54,7 +54,7 @@ pub(crate) fn list_package_versions(
                     format!("Object {pkg_id} is not a package"),
                 ));
             }
-            move_package_original_package_id(current_object.data.try_as_package().ok_or_else(
+            move_package_original_package_id(current_object.data.as_package_opt().ok_or_else(
                 || {
                     RpcError::new(
                         tonic::Code::Internal,
