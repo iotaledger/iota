@@ -342,7 +342,9 @@ where
             let latency = start_time.elapsed();
             self.client_monitor
                 .record_interaction_result(feedback_builder.ok_now(latency));
-            // TODO: should there be a branch for errors as well?
+        } else {
+            self.client_monitor
+                .record_interaction_result(feedback_builder.err_now());
         }
         result
     }
