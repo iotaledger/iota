@@ -20,9 +20,16 @@ pub struct ValidatorClientMetrics {
     /// Failure count per validator and operation type
     pub(super) operation_failure: IntCounterVec,
 
-    /// Current performance per validator. The performance score is based
-    /// on the average latency weighted by the reliability.
+    /// Flag indicating validator exclusion based on the current metrics.
+    pub(super) exclusion: GaugeVec,
+
+    /// Current performance score per validator. It is based
+    /// on the average latency, risk, staleness over operation types.
     pub(super) performance: GaugeVec,
+
+    /// Current exploration score per validator. It is based
+    /// on the effective sample size.
+    pub(super) exploration: GaugeVec,
 
     /// Number of low latency validators that got shuffled.
     pub(super) shuffled_validators: Histogram,
@@ -56,9 +63,25 @@ impl ValidatorClientMetrics {
             )
             .unwrap(),
 
+            exclusion: register_gauge_vec_with_registry!(
+                "validator_client_observed_exclusion",
+                "Current client-observed exclusion per validator.",
+                &["validator"],
+                registry,
+            )
+            .unwrap(),
+
             performance: register_gauge_vec_with_registry!(
                 "validator_client_observed_performance",
                 "Current client-observed performance per validator.",
+                &["validator"],
+                registry,
+            )
+            .unwrap(),
+
+            exploration: register_gauge_vec_with_registry!(
+                "validator_client_observed_exploration",
+                "Current client-observed exploration per validator.",
                 &["validator"],
                 registry,
             )
@@ -79,7 +102,11 @@ impl ValidatorClientMetrics {
         Self::new(&registry)
     }
 
-    pub(super) fn record_interaction_result(&self, feedback: &super::OperationFeedback) {
+    pub(super) fn record_interaction_result(
+        &self,
+        feedback: &super::OperationFeedback,
+        score: Option<(f64, f64)>,
+    ) {
         let operation_str = feedback.operation.as_str();
         let ping_label = feedback.ping.to_string();
         let labels = &[
@@ -98,10 +125,27 @@ impl ValidatorClientMetrics {
                 self.operation_failure.with_label_values(labels).inc();
             }
         }
-        todo!();
-        // tracing::debug!("Validator {}: score {}", feedback.display_name, score);
-        // self.performance
-        //     .with_label_values(&[feedback.display_name.as_str()])
-        //     .set(score);
+        if let Some((performance, exploration)) = score {
+            tracing::debug!(
+                "Validator {}: performance {} exploration {}",
+                feedback.display_name,
+                performance,
+                exploration
+            );
+            self.exclusion
+                .with_label_values(&[feedback.display_name.as_str()])
+                .set(0.0);
+            self.performance
+                .with_label_values(&[feedback.display_name.as_str()])
+                .set(performance);
+            self.exploration
+                .with_label_values(&[feedback.display_name.as_str()])
+                .set(exploration);
+        } else {
+            tracing::debug!("Validator {}: excluded", feedback.display_name);
+            self.exclusion
+                .with_label_values(&[feedback.display_name.as_str()])
+                .set(1.0);
+        }
     }
 }

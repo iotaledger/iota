@@ -355,13 +355,17 @@ impl ClientObservedStats {
     }
 
     /// Record client-observed interaction result with a validator.
-    pub(super) fn record_interaction_result(&mut self, feedback: &OperationFeedback) {
+    pub(super) fn record_interaction_result(
+        &mut self,
+        feedback: &OperationFeedback,
+    ) -> Option<(f64, f64)> {
         self.total_observations += 1;
         let validator_stats = self
             .validator_stats
             .entry(feedback.authority_name)
             .or_insert_with(ValidatorClientStats::new);
         validator_stats.record_interaction_result(feedback, &self.config);
+        validator_stats.performance_score(self.total_observations, feedback.timestamp, &self.config)
     }
 
     #[cfg(test)]

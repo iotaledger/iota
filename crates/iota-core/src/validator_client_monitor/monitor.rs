@@ -139,10 +139,11 @@ impl ValidatorClientMonitor {
 impl ValidatorClientMonitor {
     /// Record client-observed interaction result with a validator.
     pub fn record_interaction_result(&self, feedback: OperationFeedback) {
-        self.client_stats
+        let score = self
+            .client_stats
             .write()
             .record_interaction_result(&feedback);
-        self.metrics.record_interaction_result(&feedback);
+        self.metrics.record_interaction_result(&feedback, score);
     }
 
     /// Select validators based on client-observed performance for the given
