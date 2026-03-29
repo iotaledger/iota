@@ -235,7 +235,7 @@ impl ValidatorClientStats {
     }
 
     #[cfg(test)]
-    fn calculate_selection_score(
+    pub(super) fn calculate_selection_score(
         &self,
         total_observations: u64,
         now: Instant,
@@ -352,7 +352,7 @@ impl ClientObservedStats {
     }
 
     #[cfg(test)]
-    fn calculate_selection_score(&self, validator: &AuthorityName, now: Instant) -> f64 {
+    pub(super) fn calculate_selection_score(&self, validator: &AuthorityName, now: Instant) -> f64 {
         self.validator_stats
             .get(validator)
             .map_or(self.config.unknown_validator_score, |stats| {

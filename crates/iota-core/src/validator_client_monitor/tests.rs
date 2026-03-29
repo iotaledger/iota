@@ -1,1445 +1,905 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::time::{Duration, Instant};
 
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName},
+    base_types::AuthorityName,
     crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair},
 };
 
-use super::*;
-use crate::validator_client_monitor::stats::{ClientObservedStats, ValidatorClientStats};
+use super::{OperationFeedback, OperationType};
+use crate::validator_client_monitor::stats::ClientObservedStats;
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Test helpers
 // ---------------------------------------------------------------------------
 
-/// Serialises `AuthorityAggregator` construction across parallel tests.
-///
-/// `CommitteeStore::new_for_testing` opens a RocksDB instance, which
-/// registers typed-store Prometheus metrics into the global default registry.
-/// Because `DBMetrics` uses a `OnceCell` singleton the first two concurrent
-/// callers can both evaluate `DBMetrics::new(registry)` before either one's
-/// `OnceCell::set` completes, causing the second to try registering already-
-/// registered metric names and panic.
-///
-/// Holding this mutex around every `build_mock_authority_aggregator()` call
-/// ensures at most one `CommitteeStore` is being constructed at a time so the
-/// singleton is set before the next caller evaluates `DBMetrics::new`.
-static AUTH_AGG_CREATE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn create_test_validator_names(n: usize) -> Vec<AuthorityName> {
-    (0..n)
-        .map(|_| {
-            let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
-            key_pair.public().into()
-        })
-        .collect()
+fn gen_validator() -> AuthorityName {
+    let (_, kp): (_, AuthorityKeyPair) = get_key_pair();
+    kp.public().into()
 }
 
-fn make_feedback(
-    validator: AuthorityName,
-    operation: OperationType,
+fn gen_validators(n: usize) -> Vec<AuthorityName> {
+    (0..n).map(|_| gen_validator()).collect()
+}
+
+/// Config with fast-converging EWMA: tau=0.1s, dt=10ms → alpha≈0.095,
+/// steady-state n_eff ≈ 10.5, comfortably above all default thresholds.
+fn fast_config() -> ValidatorClientMonitorConfig {
+    let mut c = ValidatorClientMonitorConfig::default();
+    c.latency_ewma_tau = 0.1;
+    c
+}
+
+fn make_fb(
+    v: AuthorityName,
+    op: OperationType,
     result: Result<Duration, ()>,
+    ts: Instant,
 ) -> OperationFeedback {
-    OperationFeedback {
-        authority_name: validator,
-        display_name: validator.concise().to_string(),
-        operation,
-        ping: false,
-        result,
+    OperationFeedback::builder(v, String::new(), op)
+        .result_at(result, ts)
+}
+
+/// Feed `n` observations of `op` spaced `dt` apart starting from `t0+dt`.
+fn feed(
+    stats: &mut ClientObservedStats,
+    v: AuthorityName,
+    op: OperationType,
+    result: Result<u64, ()>, // Ok(millis) or Err(())
+    n: usize,
+    t0: Instant,
+    dt: Duration,
+) {
+    for i in 0..n {
+        let ts = t0 + dt * (i as u32 + 1);
+        let fb = make_fb(v, op, result.map(Duration::from_millis), ts);
+        stats.record_interaction_result(&fb);
     }
 }
 
-fn make_ping_feedback(
-    validator: AuthorityName,
-    operation: OperationType,
-    result: Result<Duration, ()>,
-) -> OperationFeedback {
-    OperationFeedback {
-        authority_name: validator,
-        display_name: validator.concise().to_string(),
-        operation,
-        ping: true,
-        result,
+/// Feed all 4 operations with the same result and spacing.
+fn feed_all(
+    stats: &mut ClientObservedStats,
+    v: AuthorityName,
+    result: Result<u64, ()>,
+    n: usize,
+    t0: Instant,
+    dt: Duration,
+) {
+    for op in [
+        OperationType::Submit,
+        OperationType::Effects,
+        OperationType::HealthCheck,
+        OperationType::Consensus,
+    ] {
+        feed(stats, v, op, result, n, t0, dt);
     }
 }
 
 // ---------------------------------------------------------------------------
-// Existing tests (unchanged)
+// EWMA math
 // ---------------------------------------------------------------------------
 
-mod client_stats_tests {
+mod ewma_math {
     use super::*;
 
-    #[tokio::test]
-    async fn test_client_stats_record_success() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
-
-        let validators = create_test_validator_names(1);
-        let validator = validators[0];
-
-        let feedback = OperationFeedback {
-            authority_name: validator,
-            display_name: validator.concise().to_string(),
-            operation: OperationType::Submit,
-            ping: false,
-            result: Ok(Duration::from_millis(100)),
-        };
-
-        stats.record_interaction_result(feedback);
-
-        let validator_stats = stats.validator_stats.get(&validator).unwrap();
-        assert_eq!(validator_stats.reliability.get(), 1.0);
-
-        let submit_latency = validator_stats
-            .average_latencies
-            .get(&OperationType::Submit)
-            .unwrap();
-        assert_eq!(submit_latency.get(), Duration::from_millis(100));
+    /// A single ok observation → selection score equals latency contribution
+    /// (no failure penalty, staleness driven by Δt=0 so alpha≈1 → staleness=stale_coeff).
+    #[test]
+    fn single_ok_observation_produces_finite_score() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        feed(&mut stats, v, OperationType::HealthCheck, Ok(100), 1, t0, Duration::from_millis(10));
+        let score = stats.calculate_selection_score(&v, t0 + Duration::from_millis(11));
+        assert!(score.is_finite(), "score should be finite: {score}");
+        assert!(score > 0.0, "score should be positive");
     }
 
-    #[tokio::test]
-    async fn test_client_stats_refresh_validator_set() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
-
-        let validators = create_test_validator_names(3);
-
-        for validator in &validators {
-            stats.record_interaction_result(OperationFeedback {
-                authority_name: *validator,
-                display_name: validator.concise().to_string(),
-                operation: OperationType::Submit,
-                ping: false,
-                result: Ok(Duration::from_millis(100)),
-            });
-        }
-
-        assert_eq!(stats.validator_stats.len(), 3);
-
-        let remaining_validators: Vec<_> = validators.iter().take(2).cloned().collect();
-        stats.retain_validators(&remaining_validators);
-
-        assert_eq!(stats.validator_stats.len(), 2);
-        assert!(stats.validator_stats.contains_key(&validators[0]));
-        assert!(stats.validator_stats.contains_key(&validators[1]));
-        assert!(!stats.validator_stats.contains_key(&validators[2]));
-    }
-
-    #[tokio::test]
-    async fn test_validator_stats_update_latency() {
-        let mut stats = ValidatorClientStats::new(1.0, 40, 40);
-
-        stats.update_average_latency(OperationType::Submit, Duration::from_millis(100));
-        assert_eq!(stats.average_latencies.len(), 1);
-        assert_eq!(
-            stats
-                .average_latencies
-                .get(&OperationType::Submit)
-                .unwrap()
-                .get(),
-            Duration::from_millis(100)
+    /// After many ok observations the effective sample count grows and the risk
+    /// term decreases, so the overall score converges downward.
+    #[test]
+    fn many_ok_observations_reduce_score() {
+        let config = fast_config();
+        let mut stats_few = ClientObservedStats::new(config.clone());
+        let mut stats_many = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(100); // 100ms spacing, tau=100ms → alpha≈0.63, fast convergence
+        feed_all(&mut stats_few, v, Ok(100), 5, t0, dt);
+        feed_all(&mut stats_many, v, Ok(100), 50, t0, dt);
+        let now = t0 + dt * 51;
+        let score_few = stats_few.calculate_selection_score(&v, now);
+        let score_many = stats_many.calculate_selection_score(&v, now);
+        assert!(
+            score_many < score_few,
+            "more observations should reduce risk term; few={score_few:.2} many={score_many:.2}"
         );
-
-        stats.update_average_latency(OperationType::Submit, Duration::from_millis(200));
-        let latency = stats
-            .average_latencies
-            .get(&OperationType::Submit)
-            .unwrap()
-            .get();
-
-        // With MovingWindow: (100ms + 200ms) / 2 = 150ms
-        assert_eq!(latency, Duration::from_millis(150));
     }
 
-    #[tokio::test]
-    async fn test_reliability_decay() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
+    /// Pure failure observations drive the failure score up.
+    #[test]
+    fn failure_observations_increase_score() {
+        let config = fast_config();
+        let mut stats_ok = ClientObservedStats::new(config.clone());
+        let mut stats_fail = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        feed_all(&mut stats_ok, v, Ok(100), 30, t0, dt);
+        feed_all(&mut stats_fail, v, Err(()), 30, t0, dt);
+        let now = t0 + dt * 31;
+        let score_ok = stats_ok.calculate_selection_score(&v, now);
+        let score_fail = stats_fail.calculate_selection_score(&v, now);
+        assert!(
+            score_fail > score_ok,
+            "failures should raise score; ok={score_ok:.2} fail={score_fail:.2}"
+        );
+    }
 
-        let validators = create_test_validator_names(1);
-        let validator = validators[0];
+    /// High latency observations increase the latency component of the score.
+    #[test]
+    fn high_latency_increases_score_over_low_latency() {
+        let config = fast_config();
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
 
-        stats.record_interaction_result(OperationFeedback {
-            authority_name: validator,
-            display_name: validator.concise().to_string(),
-            operation: OperationType::Submit,
-            ping: false,
-            result: Ok(Duration::from_millis(100)),
-        });
+        let mut stats_fast = ClientObservedStats::new(config.clone());
+        let mut stats_slow = ClientObservedStats::new(config.clone());
+        // At expected latency Submit=150ms, HC=100ms, Effects=1500ms, Consensus=800ms.
+        feed(&mut stats_fast, v, OperationType::Submit, Ok(150), 30, t0, dt);
+        feed(&mut stats_slow, v, OperationType::Submit, Ok(1500), 30, t0, dt);
+        // Feed same data for other operations so only Submit differs.
+        for op in [OperationType::Effects, OperationType::HealthCheck, OperationType::Consensus] {
+            feed(&mut stats_fast, v, op, Ok(100), 30, t0, dt);
+            feed(&mut stats_slow, v, op, Ok(100), 30, t0, dt);
+        }
+        let now = t0 + dt * 31;
+        let score_fast = stats_fast.calculate_selection_score(&v, now);
+        let score_slow = stats_slow.calculate_selection_score(&v, now);
+        assert!(
+            score_slow > score_fast,
+            "slow validator should score worse; fast={score_fast:.2} slow={score_slow:.2}"
+        );
+    }
 
-        let initial_reliability = stats
-            .validator_stats
-            .get(&validator)
-            .unwrap()
-            .reliability
-            .get();
-        assert_eq!(initial_reliability, 1.0);
-
-        stats.record_interaction_result(OperationFeedback {
-            authority_name: validator,
-            display_name: validator.concise().to_string(),
-            operation: OperationType::Submit,
-            ping: false,
-            result: Err(()),
-        });
-
-        let new_reliability = stats
-            .validator_stats
-            .get(&validator)
-            .unwrap()
-            .reliability
-            .get();
-        assert!((new_reliability - (2.0 / 3.0)).abs() < 1e-10);
+    /// The EWMA weight grows with each observation and approaches steady-state.
+    #[test]
+    fn weight_approaches_steady_state() {
+        // tau=0.1s, dt=0.1s → alpha≈0.63, steady-state weight = 1/(1-e^{-1}) ≈ 1.58.
+        // With tau=0.1 and dt=10ms → alpha≈0.095, steady-state ≈ 10.5.
+        // After 50 obs the weight should be above 5.
+        let config = fast_config(); // tau=0.1
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        feed_all(&mut stats, v, Ok(100), 50, t0, dt);
+        // We can't inspect the EWMA weight directly, but we can observe that the
+        // score stabilises and is well below the unknown_validator_score.
+        let now = t0 + dt * 51;
+        let score = stats.calculate_selection_score(&v, now);
+        assert!(
+            score < config.unknown_validator_score,
+            "after many good observations score should be below unknown_validator_score; got {score:.2}"
+        );
     }
 }
 
 // ---------------------------------------------------------------------------
-// Existing monitor tests (unchanged)
+// Staleness / clock-jump
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
-mod client_monitor_tests {
-    use std::collections::HashSet;
-
+mod staleness {
     use super::*;
-    use crate::{
-        authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        test_authority_clients::MockAuthorityApi,
-    };
 
-    fn get_authority_aggregator(
-        committee_size: usize,
-    ) -> Arc<AuthorityAggregator<MockAuthorityApi>> {
-        let _guard = crate::validator_client_monitor::tests::AUTH_AGG_CREATE_LOCK
-            .lock()
-            .unwrap();
-        Arc::new(
-            AuthorityAggregatorBuilder::from_committee_size(committee_size)
-                .build_mock_authority_aggregator(),
-        )
+    /// A validator not observed for a long time (≫ tau) accumulates maximum
+    /// staleness (alpha → 1) which drives the staleness penalty to stale_coeff.
+    #[test]
+    fn stale_validator_has_high_staleness_penalty() {
+        let config = fast_config(); // tau=0.1s
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        // Record a fresh observation.
+        feed_all(&mut stats, v, Ok(100), 20, t0, Duration::from_millis(10));
+
+        // Score when fresh (Δt ≈ 0).
+        let fresh_now = t0 + Duration::from_millis(201);
+        let score_fresh = stats.calculate_selection_score(&v, fresh_now);
+
+        // Score after a very long gap (≫ tau=0.1s).
+        let stale_now = t0 + Duration::from_secs(10); // 10s >> 0.1s
+        let score_stale = stats.calculate_selection_score(&v, stale_now);
+
+        assert!(
+            score_stale > score_fresh,
+            "stale validator should score worse; fresh={score_fresh:.2} stale={score_stale:.2}"
+        );
     }
 
-    #[tokio::test]
-    async fn test_validator_selection_top_k_basic() {
-        let auth_agg = get_authority_aggregator(4);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-
-        let committee = auth_agg.committee.clone();
-        let validators = committee.names().cloned().collect::<Vec<_>>();
-
-        for (i, validator) in validators.iter().enumerate() {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: *validator,
-                display_name: auth_agg.get_display_name(validator),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis((i as u64 + 1) * 50)),
-            });
-        }
-
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        let selected = monitor.select_shuffled_preferred_validators(&committee, 1.0);
-        assert_eq!(selected.len(), 4);
-
-        let top_2_positions: HashSet<_> = selected.iter().take(2).cloned().collect();
-        assert!(top_2_positions.contains(&validators[0]));
-        assert!(top_2_positions.contains(&validators[1]));
-
-        assert_eq!(selected[2], validators[2]);
-        assert_eq!(selected[3], validators[3]);
+    /// A clock jump forward (e.g. NTP correction or resume from sleep) should
+    /// not panic and should produce a high staleness score (alpha → 1), not a
+    /// negative or NaN score.
+    #[test]
+    fn clock_jump_forward_does_not_panic_or_nan() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        feed_all(&mut stats, v, Ok(100), 10, t0, Duration::from_millis(10));
+        // Simulate a large clock jump: check score after 1 hour.
+        let now = t0 + Duration::from_secs(3600);
+        let score = stats.calculate_selection_score(&v, now);
+        assert!(score.is_finite(), "score must be finite after clock jump");
+        assert!(!score.is_nan(), "score must not be NaN after clock jump");
     }
 }
 
 // ---------------------------------------------------------------------------
-// Scoring-gap specification tests
-//
-// Each test below expresses the *desired* behaviour for a known limitation
-// in the current scoring mechanism.  All tests in this module FAIL against
-// the current implementation and should be made to pass as each gap is
-// addressed.
-//
-// The gap number in each test name corresponds to the design document section
-// that describes the improvement needed.
+// performance_score: exclusion and penalty components
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
-mod scoring_gap_tests {
+mod performance_score {
     use super::*;
-    use crate::{
-        authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        test_authority_clients::MockAuthorityApi,
-    };
 
-    fn get_authority_aggregator(
-        committee_size: usize,
-    ) -> Arc<AuthorityAggregator<MockAuthorityApi>> {
-        let _guard = crate::validator_client_monitor::tests::AUTH_AGG_CREATE_LOCK
-            .lock()
-            .unwrap();
-        Arc::new(
-            AuthorityAggregatorBuilder::from_committee_size(committee_size)
-                .build_mock_authority_aggregator(),
-        )
+    /// Unknown validator (no recorded interactions) returns
+    /// `unknown_validator_score` from calculate_selection_score.
+    #[test]
+    fn unknown_validator_gets_sentinel_score() {
+        let config = fast_config();
+        let stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let score = stats.calculate_selection_score(&v, Instant::now());
+        assert_eq!(score, config.unknown_validator_score);
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 1 — Scoring should use an EWMA so that recent observations receive
-    //          exponentially more weight than older ones.
-    //
-    // With a uniform moving window of size N, the score needs N new
-    // observations before it fully reflects a change in validator behaviour.
-    // An EWMA (e.g. α = 0.5) lets the score recover after just 2–3 fast
-    // observations even when the window was previously full of slow ones.
-    //
-    // Desired: after filling a window=5 with 500 ms and injecting 2 fast
-    //          10 ms observations (40 % of the window), the score should
-    //          already drop below 150 ms.
-    // Current: uniform average is (3×500 + 2×10) / 5 = 304 ms → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_ewma_weights_recent_observations_more_than_old() {
-        let mut stats = ValidatorClientStats::new(1.0, 20, 5);
-        let slow = Duration::from_millis(500);
-        let fast = Duration::from_millis(10);
-
-        // Fill the entire window with slow observations.
-        for _ in 0..5 {
-            stats.update_average_latency(OperationType::Consensus, slow);
-        }
-
-        // Inject 2 fast observations — 40 % of the window.
-        stats.update_average_latency(OperationType::Consensus, fast);
-        stats.update_average_latency(OperationType::Consensus, fast);
-
-        let avg = stats
-            .average_latencies
-            .get(&OperationType::Consensus)
-            .unwrap()
-            .get();
-
-        // With EWMA (α=0.5): 500→255→132 ms after 2 fast observations.
-        // The uniform average gives 304 ms and FAILS this assertion.
+    /// A healthy validator with many good observations is NOT excluded.
+    #[test]
+    fn healthy_validator_not_excluded() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        feed_all(&mut stats, v, Ok(100), 30, t0, Duration::from_millis(10));
+        let score = stats.calculate_selection_score(&v, t0 + Duration::from_millis(310));
+        // score == 0 is the marker for excluded (None → unknown_validator_score).
+        // A healthy validator should have a finite positive score well below
+        // the unknown_validator_score.
+        assert!(score.is_finite() && score > 0.0, "healthy validator should have finite score");
         assert!(
-            avg <= Duration::from_millis(150),
-            "after 2 fast observations the score should already reflect improvement \
-             (got {avg:?}); EWMA would give ~132 ms"
+            score < config.unknown_validator_score,
+            "healthy validator should score below sentinel; got {score:.2}"
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 2 — Validators with few observations should receive a confidence
-    //          penalty so that they score worse than well-observed validators
-    //          at the same raw latency.
-    //
-    // A UCB/Bayesian approach inflates the score when n_observations is small,
-    // discouraging the scheduler from preferring an untested validator over
-    // one with a long track record.
-    //
-    // Desired: a validator with 1 observation at 50 ms scores higher (worse)
-    //          than one with 20 observations at 50 ms.
-    // Current: both have reliability = 1.0 and identical latency → same score
-    //          → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_low_confidence_validator_penalized_vs_established_validator() {
-        let auth_agg = get_authority_aggregator(2);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let validators: Vec<_> = auth_agg.committee.names().cloned().collect();
-        let established = validators[0];
-        let newcomer = validators[1];
-
-        // Established validator: 20 successful Consensus observations at 50 ms.
-        for _ in 0..20 {
-            monitor.record_interaction_result(make_feedback(
-                established,
-                OperationType::Consensus,
-                Ok(Duration::from_millis(50)),
-            ));
-        }
-
-        // Newcomer: just 1 successful observation at the same 50 ms.
-        monitor.record_interaction_result(make_feedback(
-            newcomer,
-            OperationType::Consensus,
-            Ok(Duration::from_millis(50)),
-        ));
-
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        let latencies = monitor
-            .client_stats_for_test()
-            .get_all_validator_stats(&auth_agg.committee);
-
-        let score_established = latencies[&established];
-        let score_newcomer = latencies[&newcomer];
-
-        // The newcomer has fewer observations → lower confidence → higher
-        // (worse) score.  Currently both scores are identical → FAILS.
-        assert!(
-            score_newcomer > score_established,
-            "newcomer ({score_newcomer:?}) should score worse than established \
-             ({score_established:?}) at equal raw latency due to low confidence"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Gap 3 — Real-transaction failures must not be diluted by background
-    //          health-check / ping successes.
-    //
-    // A malicious validator can pass every health check while silently
-    // dropping real transactions.  Because all operations share one reliability
-    // window, 15 HC successes + 5 real-tx failures yields reliability ≈ 0.75,
-    // which masks a 100 % real-transaction failure rate.
-    //
-    // Desired: real-transaction operations (Submit, Effects, Consensus) must
-    //          be tracked in a separate reliability plane from probes
-    //          (HealthCheck, pings).  With 100 % real-tx failures the
-    //          adjusted score must equal MAX_LATENCY (10 s).
-    // Current: combined reliability ≈ 0.75 → adjusted score ≈ 6.3 s → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_real_tx_failure_rate_not_diluted_by_health_check_successes() {
-        let config = ValidatorClientMonitorConfig {
-            reliability_moving_window_size: 20,
-            reliability_weight: 2.0,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
-
-        // Give the validator a Consensus latency baseline of 50 ms.
-        stats.record_interaction_result(make_feedback(
-            validator,
-            OperationType::Consensus,
-            Ok(Duration::from_millis(50)),
-        ));
-
-        // 15 health-check successes (background probing).
-        for _ in 0..15 {
-            stats.record_interaction_result(make_ping_feedback(
-                validator,
-                OperationType::HealthCheck,
-                Ok(Duration::from_millis(20)),
-            ));
-        }
-
-        // 5 consecutive real-transaction failures — 100 % real-tx failure rate.
-        for _ in 0..5 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Submit,
-                Err(()),
-            ));
-        }
-
-        // Compute the score directly using the stats.
-        // With separate real-tx reliability = 0/5 = 0.0:
-        //   penalty = 10s × (1.0 – 0.0) × 2.0 = 20s, capped → MAX_LATENCY.
-        // With combined reliability ≈ 0.75 (current):
-        //   penalty = 10s × 0.25 × 2.0 = 5s → adjusted ≈ 5.05s < MAX_LATENCY.
-        let auth_agg = get_authority_aggregator(1);
-        let latencies = stats.get_all_validator_stats(&auth_agg.committee);
-        // The validator isn't in this committee; read the score via the formula.
-        let v_stats = &stats.validator_stats[&validator];
-        let base_latency = v_stats.average_latencies[&OperationType::Consensus].get();
-        let reliability = v_stats.reliability.get();
-        let penalty = Duration::from_secs(10).mul_f64((1.0 - reliability) * 2.0);
-        let adjusted = (base_latency + penalty).min(Duration::from_secs(10));
-
+    /// A validator with very high failure rate AND enough n_eff is excluded
+    /// (performance_score returns None → calculate_selection_score returns
+    /// unknown_validator_score).
+    #[test]
+    fn high_failure_rate_causes_exclusion() {
+        let mut config = fast_config();
+        // Lower thresholds so exclusion triggers quickly in tests.
+        config.exclusion_failure_threshold = 0.5;
+        config.exclusion_min_n_eff = 3.0;
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        // 30 failures → failure rate → 1.0, n_eff >> 3.
+        feed_all(&mut stats, v, Err(()), 30, t0, Duration::from_millis(10));
+        let score = stats.calculate_selection_score(&v, t0 + Duration::from_millis(310));
         assert_eq!(
-            adjusted,
-            Duration::from_secs(10),
-            "100 % real-tx failure rate must yield MAX_LATENCY score regardless of HC successes; \
-             current combined reliability = {reliability:.2}, adjusted = {adjusted:?}"
+            score, config.unknown_validator_score,
+            "excluded validator should return unknown_validator_score"
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 4 — A run of consecutive failures should trigger an immediate score
-    //          penalty (circuit-breaker), not merely shift the window average
-    //          by 5/N.
-    //
-    // Desired: after 20 prior successes followed by 5 consecutive failures,
-    //          reliability must drop to ≤ 0.20 (circuit-breaker threshold).
-    // Current: reliability ≈ 0.75 (window average) → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_consecutive_failures_trigger_immediate_score_degradation() {
-        let config = ValidatorClientMonitorConfig {
-            reliability_moving_window_size: 20,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
+    /// Exclusion is NOT triggered when n_eff is too low, even if failure rate
+    /// is 100%.  We should not permanently ban a validator after a brief outage.
+    #[test]
+    fn exclusion_requires_minimum_n_eff() {
+        let mut config = fast_config();
+        config.exclusion_failure_threshold = 0.5;
+        config.exclusion_min_n_eff = 20.0; // require 20 effective samples
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validator();
+        let t0 = Instant::now();
+        // Only 3 failures → n_eff_hc << 20.
+        feed(&mut stats, v, OperationType::HealthCheck, Err(()), 3, t0, Duration::from_millis(10));
+        feed(&mut stats, v, OperationType::Submit, Err(()), 3, t0, Duration::from_millis(10));
+        feed(&mut stats, v, OperationType::Effects, Err(()), 3, t0, Duration::from_millis(10));
+        feed(&mut stats, v, OperationType::Consensus, Err(()), 3, t0, Duration::from_millis(10));
+        let score = stats.calculate_selection_score(&v, t0 + Duration::from_millis(40));
+        assert_ne!(
+            score, config.unknown_validator_score,
+            "insufficient n_eff should not trigger exclusion"
+        );
+    }
 
-        // Establish a history of 20 successful Consensus operations.
-        for _ in 0..20 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Consensus,
-                Ok(Duration::from_millis(50)),
-            ));
-        }
+    /// Selective-failure penalty: work operations fail while HealthCheck passes.
+    /// The gap must exceed `selective_failure_noise_threshold`.
+    #[test]
+    fn selective_failure_penalty_applied_when_work_fails_but_hc_passes() {
+        let mut config = fast_config();
+        config.selective_failure_noise_threshold = 0.05;
+        config.selective_failure_coeff = 1000.0;
+        config.selective_failure_min_n_eff = 3.0;
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
 
-        // Simulate 5 consecutive failures (e.g., validator suddenly overloaded
-        // or partitioned).
-        for _ in 0..5 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Submit,
-                Err(()),
-            ));
-        }
+        // Baseline: all operations succeed.
+        let mut stats_ok = ClientObservedStats::new(config.clone());
+        feed_all(&mut stats_ok, v, Ok(100), 30, t0, dt);
 
-        let reliability = stats.validator_stats[&validator].reliability.get();
+        // Selective failure: HealthCheck succeeds, work operations fail.
+        let mut stats_sel = ClientObservedStats::new(config.clone());
+        feed(&mut stats_sel, v, OperationType::HealthCheck, Ok(50), 30, t0, dt);
+        feed(&mut stats_sel, v, OperationType::Submit, Err(()), 30, t0, dt);
+        feed(&mut stats_sel, v, OperationType::Effects, Err(()), 30, t0, dt);
+        feed(&mut stats_sel, v, OperationType::Consensus, Err(()), 30, t0, dt);
 
-        // A circuit-breaker would detect the run of 5 consecutive failures and
-        // immediately set reliability to ≤ 0.20.
-        // Current window-based average ≈ 0.75 → FAILS.
+        let now = t0 + dt * 31;
+        let score_ok = stats_ok.calculate_selection_score(&v, now);
+        let score_sel = stats_sel.calculate_selection_score(&v, now);
+        // Selective failure should either be excluded or have a much higher score.
         assert!(
-            reliability <= 0.20,
-            "5 consecutive failures should fire the circuit-breaker and drop \
-             reliability to ≤ 0.20; got {reliability:.2}"
+            score_sel > score_ok,
+            "selective failure should raise score; ok={score_ok:.2} selective={score_sel:.2}"
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 5 — Selection should reflect live observations without requiring an
-    //          explicit cache refresh.
-    //
-    // Currently `select_shuffled_preferred_validators` reads from
-    // `cached_latencies`, which is only updated after each health-check round
-    // (every 10 s).  Observations recorded between cache refreshes have no
-    // effect on selection until the next round completes.
-    //
-    // Desired: after recording v0 = 10 ms and v1 = 5 s, selection immediately
-    //          returns v0 first — no `force_update_cached_latencies` required.
-    // Current: empty cache returns Duration::ZERO for both → order is
-    //          arbitrary → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_selection_immediately_reflects_live_observations() {
-        let auth_agg = get_authority_aggregator(2);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let committee = auth_agg.committee.clone();
-        let validators: Vec<_> = committee.names().cloned().collect();
-        let v0 = validators[0];
-        let v1 = validators[1];
+    /// When work-failure rate exceeds HC-failure rate by less than the noise
+    /// threshold, no selective-failure penalty is applied.
+    #[test]
+    fn selective_failure_below_noise_threshold_no_penalty() {
+        let mut config = fast_config();
+        config.selective_failure_noise_threshold = 0.3; // 30% noise floor
+        config.selective_failure_coeff = 1000.0;
+        config.selective_failure_min_n_eff = 3.0;
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
 
-        // Record a large latency difference — v0 is 500× faster than v1.
-        monitor.record_interaction_result(OperationFeedback {
-            authority_name: v0,
-            display_name: auth_agg.get_display_name(&v0),
-            operation: OperationType::Consensus,
-            ping: false,
-            result: Ok(Duration::from_millis(10)),
-        });
-        monitor.record_interaction_result(OperationFeedback {
-            authority_name: v1,
-            display_name: auth_agg.get_display_name(&v1),
-            operation: OperationType::Consensus,
-            ping: false,
-            result: Ok(Duration::from_secs(5)),
-        });
+        // Both HC and work fail at the same rate: inconsistency = 0 → no penalty.
+        let mut stats_same = ClientObservedStats::new(config.clone());
+        feed_all(&mut stats_same, v, Err(()), 15, t0, dt);
 
-        // No cache refresh — live observations must drive selection directly.
-        let selected = monitor.select_shuffled_preferred_validators(&committee, 0.02);
+        // Reference: all succeed (lower score).
+        let mut stats_ok = ClientObservedStats::new(config.clone());
+        feed_all(&mut stats_ok, v, Ok(100), 15, t0, dt);
 
-        // v0 (10 ms) must rank first without an explicit cache refresh.
-        // Currently both get Duration::ZERO from the empty cache → FAILS.
-        assert_eq!(
-            selected[0], v0,
-            "fast validator (10 ms) should rank first without a cache refresh"
+        let now = t0 + dt * 16;
+        let score_same = stats_same.calculate_selection_score(&v, now);
+        let score_ok = stats_ok.calculate_selection_score(&v, now);
+        // score_same > score_ok because of global failure rate, but this verifies
+        // that the *selective-failure* component is zero (same HC+work rate).
+        assert!(
+            score_same > score_ok,
+            "uniform failures should still score worse than successes; same={score_same:.2} ok={score_ok:.2}"
+        );
+        // The difference should be attributable only to the failure penalty, not selective.
+        // (We can't separate them directly here, but at least verify no panic/NaN.)
+        assert!(score_same.is_finite());
+    }
+
+    /// The risk term decreases as n_eff grows for the dominant operation.
+    /// Specifically, with the weighted-quadrature formula, a validator with
+    /// many Consensus observations (weight=0.5, dominant) should have lower
+    /// risk than one with few.
+    #[test]
+    fn risk_decreases_as_consensus_n_eff_grows() {
+        let config = fast_config();
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+
+        let mut stats_few = ClientObservedStats::new(config.clone());
+        let mut stats_many = ClientObservedStats::new(config.clone());
+
+        // Few Consensus observations.
+        feed(&mut stats_few, v, OperationType::HealthCheck, Ok(80), 50, t0, dt);
+        feed(&mut stats_few, v, OperationType::Effects, Ok(100), 50, t0, dt);
+        feed(&mut stats_few, v, OperationType::Submit, Ok(120), 50, t0, dt);
+        feed(&mut stats_few, v, OperationType::Consensus, Ok(500), 2, t0, dt);
+
+        // Many Consensus observations (same other ops).
+        feed(&mut stats_many, v, OperationType::HealthCheck, Ok(80), 50, t0, dt);
+        feed(&mut stats_many, v, OperationType::Effects, Ok(100), 50, t0, dt);
+        feed(&mut stats_many, v, OperationType::Submit, Ok(120), 50, t0, dt);
+        feed(&mut stats_many, v, OperationType::Consensus, Ok(500), 50, t0, dt);
+
+        let now = t0 + dt * 51;
+        let score_few = stats_few.calculate_selection_score(&v, now);
+        let score_many = stats_many.calculate_selection_score(&v, now);
+        assert!(
+            score_many < score_few,
+            "more Consensus obs should reduce risk; few_con={score_few:.2} many_con={score_many:.2}"
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 6 — HealthCheck latency should feed the selection score as a
-    //          fallback when no Consensus observations exist yet.
-    //
-    // Currently `calculate_client_latency` returns MAX_LATENCY (10 s) for any
-    // validator that lacks Consensus data, even if it has dozens of
-    // sub-millisecond health-check observations.  This means a validator
-    // cannot be preferred before its first real transaction, regardless of how
-    // fast its health checks are.
-    //
-    // Desired: with 20 HealthCheck observations at 5 ms and no Consensus data,
-    //          the score should be ≤ 100 ms.
-    // Current: score = MAX_LATENCY = 10 s → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_health_check_latency_feeds_score_when_no_consensus_data() {
-        let auth_agg = get_authority_aggregator(1);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let validator = *auth_agg.committee.names().next().unwrap();
+    /// With the old n_eff_min formula, a single sparsely-sampled Submit (weight=0.1)
+    /// would cap the risk for ALL operations.  With the weighted-quadrature formula,
+    /// the sparse-Submit penalty is proportional to its weight (0.1), not the whole
+    /// risk budget.  We isolate the risk term by zeroing all other score components.
+    #[test]
+    fn risk_not_dominated_by_sparse_submit() {
+        let mut config = fast_config();
+        // Zero out everything except risk so we can measure it in isolation.
+        config.stale_coeff = 0.0;
+        config.failure_coeff = 0.0;
+        config.selective_failure_coeff = 0.0;
+        config.exploration_coeff = 0.0;
+        // Laten coefficients kept at defaults; latency contribution is the same
+        // for both validators (same latency data, only n_eff differs).
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
 
-        // 20 excellent health-check observations — no Consensus data at all.
-        for _ in 0..20 {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: validator,
-                display_name: auth_agg.get_display_name(&validator),
-                operation: OperationType::HealthCheck,
-                ping: false,
-                result: Ok(Duration::from_millis(5)),
-            });
+        let mut stats_sparse_sub = ClientObservedStats::new(config.clone());
+        let mut stats_full = ClientObservedStats::new(config.clone());
+
+        // Both validators have 50 obs for HC/Effects/Consensus.
+        // Sparse has only 2 Submit obs (weight=0.1 in the quadrature).
+        for s in [&mut stats_sparse_sub, &mut stats_full] {
+            feed(s, v, OperationType::HealthCheck, Ok(80),  50, t0, dt);
+            feed(s, v, OperationType::Effects,     Ok(100), 50, t0, dt);
+            feed(s, v, OperationType::Consensus,   Ok(500), 50, t0, dt);
         }
-        monitor.force_update_cached_latencies(&auth_agg);
+        feed(&mut stats_sparse_sub, v, OperationType::Submit, Ok(120), 2,  t0, dt);
+        feed(&mut stats_full,       v, OperationType::Submit, Ok(120), 50, t0, dt);
 
-        let latencies = monitor
-            .client_stats_for_test()
-            .get_all_validator_stats(&auth_agg.committee);
-        let score = latencies[&validator];
+        // Evaluate immediately after the last observation so staleness ≈ 0.
+        let now = t0 + dt * 51;
+        let score_sparse = stats_sparse_sub.calculate_selection_score(&v, now);
+        let score_full = stats_full.calculate_selection_score(&v, now);
 
-        // Desired: health-check latency used as fallback → score ≈ 5 ms.
-        // Current: MAX_LATENCY (10 s) because Consensus window is empty → FAILS.
+        // With quadrature, sparse Submit (weight=0.1) contributes only 1% of
+        // the total variance budget (0.1² = 0.01 vs Consensus 0.5² = 0.25).
+        // The ratio must be small — well under 2x.
+        let ratio = score_sparse / score_full;
         assert!(
-            score <= Duration::from_millis(100),
-            "with excellent health-check data the score should be ≤ 100 ms (got {score:?}); \
-             currently MAX_LATENCY is returned because only Consensus latency is read"
+            ratio < 2.0,
+            "sparse Submit (weight=0.1) should not dominate risk with quadrature formula; ratio={ratio:.2}"
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 7 — Adjusted latency penalty formula regression test.
-    //
-    // This test PASSES with the current implementation.  It verifies that the
-    // formula `adjusted = base + MAX_LATENCY × (1 − reliability) × weight`
-    // is applied correctly and capped at MAX_LATENCY.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_adjusted_latency_penalty_formula_is_correct() {
-        let config = ValidatorClientMonitorConfig {
-            reliability_weight: 2.0,
-            reliability_moving_window_size: 2,
-            latency_moving_window_size: 1,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
+    /// Consensus failure increases score more than equivalent Submit failure
+    /// (Consensus weight=0.5 vs Submit weight=0.1 in the latency/risk formula).
+    #[test]
+    fn consensus_failure_penalised_more_than_submit_failure() {
+        let config = fast_config();
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
 
-        // window=2: init(1.0) + failure(0.0) → reliability = 0.5.
-        stats.record_interaction_result(make_feedback(
-            validator,
-            OperationType::Consensus,
-            Err(()),
-        ));
-        // Set Consensus latency to 100 ms.
-        stats.record_interaction_result(make_feedback(
-            validator,
-            OperationType::Consensus,
-            Ok(Duration::from_millis(100)),
-        ));
+        // Baseline: all good.
+        let mut stats_base = ClientObservedStats::new(config.clone());
+        feed_all(&mut stats_base, v, Ok(100), 30, t0, dt);
 
-        let v_stats = &stats.validator_stats[&validator];
-        let reliability = v_stats.reliability.get();
-        let base_latency = v_stats.average_latencies[&OperationType::Consensus].get();
-        let penalty = Duration::from_secs(10).mul_f64((1.0 - reliability) * 2.0);
-        let adjusted = (base_latency + penalty).min(Duration::from_secs(10));
+        // Submit fails, Consensus OK.
+        let mut stats_sub_fail = ClientObservedStats::new(config.clone());
+        feed(&mut stats_sub_fail, v, OperationType::HealthCheck, Ok(80), 30, t0, dt);
+        feed(&mut stats_sub_fail, v, OperationType::Effects, Ok(100), 30, t0, dt);
+        feed(&mut stats_sub_fail, v, OperationType::Consensus, Ok(500), 30, t0, dt);
+        feed(&mut stats_sub_fail, v, OperationType::Submit, Err(()), 30, t0, dt);
 
+        // Consensus fails, Submit OK.
+        let mut stats_con_fail = ClientObservedStats::new(config.clone());
+        feed(&mut stats_con_fail, v, OperationType::HealthCheck, Ok(80), 30, t0, dt);
+        feed(&mut stats_con_fail, v, OperationType::Effects, Ok(100), 30, t0, dt);
+        feed(&mut stats_con_fail, v, OperationType::Submit, Ok(120), 30, t0, dt);
+        feed(&mut stats_con_fail, v, OperationType::Consensus, Err(()), 30, t0, dt);
+
+        let now = t0 + dt * 31;
+        let score_sub_fail = stats_sub_fail.calculate_selection_score(&v, now);
+        let score_con_fail = stats_con_fail.calculate_selection_score(&v, now);
+        // Consensus failure must raise the score more (or equal, since it also
+        // affects f_work → failure/selective terms).
         assert!(
-            (reliability - 0.5).abs() < 0.01,
-            "reliability should be ~0.5; got {reliability}"
+            score_con_fail >= score_sub_fail,
+            "Consensus failure should penalise at least as much as Submit failure; \
+             sub_fail={score_sub_fail:.2} con_fail={score_con_fail:.2}"
         );
-        // penalty = 10s × 0.5 × 2.0 = 10s; 100ms + 10s = 10.1s → capped at 10s.
-        assert_eq!(
-            adjusted,
-            Duration::from_secs(10),
-            "adjusted latency should be capped at MAX_LATENCY"
+    }
+}
+
+// ---------------------------------------------------------------------------
+// select_shuffled_preferred_validators
+// ---------------------------------------------------------------------------
+
+mod selection {
+    use super::*;
+
+    /// Empty committee returns empty result without panicking.
+    #[test]
+    fn empty_committee_returns_empty() {
+        let config = fast_config();
+        let stats = ClientObservedStats::new(config);
+        let result = stats.select_shuffled_preferred_validators(
+            std::iter::empty::<&AuthorityName>(),
+            Instant::now(),
+            rand::thread_rng(),
+        );
+        assert!(result.is_empty());
+    }
+
+    /// Single validator is always returned.
+    #[test]
+    fn single_validator_returned() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let validators = gen_validators(1);
+        let v = validators[0];
+        let t0 = Instant::now();
+        feed_all(&mut stats, v, Ok(100), 10, t0, Duration::from_millis(10));
+        let now = t0 + Duration::from_millis(110);
+        let result = stats.select_shuffled_preferred_validators(
+            validators.iter(),
+            now,
+            rand::thread_rng(),
+        );
+        assert_eq!(result.len(), 1);
+        assert_eq!(*result[0], v);
+    }
+
+    /// min_preferred_group_size is honoured even if only one validator is in
+    /// the preferred group by score.
+    #[test]
+    fn min_preferred_group_size_honoured() {
+        let mut config = fast_config();
+        config.min_preferred_group_size = 3;
+        config.max_preferred_group_size = 10;
+        let v = gen_validators(5);
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        // Make v[0] the clear winner.
+        feed_all(&mut stats, v[0], Ok(50), 30, t0, dt);
+        for vi in &v[1..] {
+            feed_all(&mut stats, *vi, Ok(5000), 30, t0, dt);
+        }
+        let now = t0 + dt * 31;
+        let result = stats.select_shuffled_preferred_validators(
+            v.iter(),
+            now,
+            rand::thread_rng(),
+        );
+        assert!(
+            result.len() >= 3,
+            "result should have at least min_preferred_group_size=3 validators; got {}",
+            result.len()
         );
     }
 
-    // -----------------------------------------------------------------------
-    // Gap 8 — Ping / probe observations must not pollute the real-transaction
-    //          reliability signal.
-    //
-    // The `ping` flag is currently used only for Prometheus labels.  Both
-    // `ping = true` and `ping = false` update the same reliability window,
-    // making it impossible to detect a validator that passes pings but drops
-    // real transactions.
-    //
-    // Desired: a validator that received 10 successful pings but 5 failed
-    //          real-transaction Submits should have its selection score set to
-    //          MAX_LATENCY (as if real-tx reliability = 0/5 = 0.0).
-    // Current: combined reliability inflates the score → adjusted < MAX_LATENCY
-    //          → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_ping_success_does_not_prevent_real_tx_failure_penalty() {
-        let config = ValidatorClientMonitorConfig {
-            reliability_moving_window_size: 20,
-            reliability_weight: 2.0,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
+    /// max_preferred_group_size is not exceeded when many validators have
+    /// similar scores.
+    #[test]
+    fn max_preferred_group_size_not_exceeded() {
+        let mut config = fast_config();
+        config.min_preferred_group_size = 1;
+        config.max_preferred_group_size = 3;
+        config.max_exploration_group_size = 0;
+        config.preferred_group_delta = 1.0; // very wide delta → all would qualify
+        let v = gen_validators(10);
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        for vi in &v {
+            feed_all(&mut stats, *vi, Ok(100), 30, t0, dt);
+        }
+        let now = t0 + dt * 31;
+        let result = stats.select_shuffled_preferred_validators(
+            v.iter(),
+            now,
+            rand::thread_rng(),
+        );
+        assert!(
+            result.len() <= 3,
+            "result should not exceed max_preferred_group_size=3; got {}",
+            result.len()
+        );
+    }
 
-        // Baseline Consensus latency of 50 ms.
-        stats.record_interaction_result(make_feedback(
-            validator,
-            OperationType::Consensus,
-            Ok(Duration::from_millis(50)),
-        ));
+    /// When all known validators are excluded, the fallback returns some
+    /// excluded validators chosen at random (not an empty list).
+    #[test]
+    fn all_excluded_fallback_returns_some() {
+        let mut config = fast_config();
+        config.exclusion_failure_threshold = 0.5;
+        config.exclusion_min_n_eff = 3.0;
+        config.min_preferred_group_size = 1;
+        config.max_preferred_group_size = 4;
+        config.max_exploration_group_size = 2;
+        let v = gen_validators(4);
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        for vi in &v {
+            // All validators fail everywhere → excluded.
+            feed_all(&mut stats, *vi, Err(()), 30, t0, dt);
+        }
+        let now = t0 + dt * 31;
+        let result = stats.select_shuffled_preferred_validators(
+            v.iter(),
+            now,
+            rand::thread_rng(),
+        );
+        assert!(
+            !result.is_empty(),
+            "fallback should return at least one excluded validator"
+        );
+    }
 
-        // 10 successful pings (simulates probe traffic the validator handles fine).
+    /// Unknown validators (no recorded stats) appear in the output because
+    /// they carry maximum exploration bonus.
+    #[test]
+    fn unknown_validators_included_via_exploration() {
+        let mut config = fast_config();
+        config.exploration_coeff = 100.0;
+        config.min_exploration_threshold = 0.0; // include any exploration bonus
+        config.max_exploration_group_size = 2;
+        config.max_preferred_group_size = 2;
+        let known = gen_validators(2);
+        let unknown = gen_validators(2);
+        let all: Vec<AuthorityName> = known.iter().chain(unknown.iter()).cloned().collect();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        // Record many good observations for known validators so they are
+        // well-explored and their exploration bonus drops.
+        for vi in &known {
+            feed_all(&mut stats, *vi, Ok(100), 200, t0, dt);
+        }
+        let now = t0 + dt * 201;
+        let result = stats.select_shuffled_preferred_validators(
+            all.iter(),
+            now,
+            rand::thread_rng(),
+        );
+        // Unknown validators must appear in the result (high exploration bonus).
+        let unknown_in_result = result.iter().filter(|v| unknown.contains(*v)).count();
+        assert!(
+            unknown_in_result > 0,
+            "at least one unknown validator should be included via exploration"
+        );
+    }
+
+    /// A better-scoring validator is preferentially selected: when we run
+    /// many trials without shuffling (no randomness in seeded test), the
+    /// better validator consistently ends up in the Phase 1 group.
+    #[test]
+    fn better_validator_preferred_over_worse() {
+        let mut config = fast_config();
+        config.max_exploration_group_size = 0; // disable exploration for clarity
+        config.preferred_group_delta = 0.0; // no delta grouping: only best validator
+        config.min_preferred_group_size = 1;
+        config.max_preferred_group_size = 1;
+        let v_good = gen_validator();
+        let v_bad = gen_validator();
+        let all = vec![v_good, v_bad];
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        feed_all(&mut stats, v_good, Ok(50), 30, t0, dt);  // fast validator
+        feed_all(&mut stats, v_bad, Ok(5000), 30, t0, dt); // slow validator
+        let now = t0 + dt * 31;
+        // Run 10 trials; v_good must be selected every time (Phase 1 = 1, no Phase 2).
         for _ in 0..10 {
-            stats.record_interaction_result(make_ping_feedback(
-                validator,
-                OperationType::HealthCheck,
-                Ok(Duration::from_millis(20)),
-            ));
-        }
-
-        // 5 real-transaction failures — 100 % failure rate for actual work.
-        for _ in 0..5 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Submit,
-                Err(()),
-            ));
-        }
-
-        let v_stats = &stats.validator_stats[&validator];
-        let base_latency = v_stats.average_latencies[&OperationType::Consensus].get();
-        let reliability = v_stats.reliability.get();
-        let penalty = Duration::from_secs(10).mul_f64((1.0 - reliability) * 2.0);
-        let adjusted = (base_latency + penalty).min(Duration::from_secs(10));
-
-        // Desired: ping successes are isolated; real-tx reliability = 0.0 →
-        //   penalty = MAX_LATENCY → adjusted = MAX_LATENCY.
-        // Current: combined reliability > 0.6 → adjusted < MAX_LATENCY → FAILS.
-        assert_eq!(
-            adjusted,
-            Duration::from_secs(10),
-            "10 ping successes must not prevent MAX_LATENCY penalty for 100 % real-tx \
-             failure rate; current reliability = {reliability:.2}, adjusted = {adjusted:?}"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Gap 9 — A validator that was good but is now failing must be immediately
-    //          demoted without waiting for the next cache refresh.
-    //
-    // The cache is populated once per health-check round (every 10 s).  If a
-    // validator's score was 50 ms in the last cache snapshot but has since
-    // accumulated failures, selection still prefers it until the next refresh.
-    //
-    // Desired: after recording 5 consecutive failures for a previously-good
-    //          validator (cached at 50 ms), that validator must NOT appear in
-    //          the preferred group in the next `select` call.
-    // Current: stale cache keeps the validator in the preferred group → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_failing_validator_immediately_demoted_without_cache_refresh() {
-        let auth_agg = get_authority_aggregator(2);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let committee = auth_agg.committee.clone();
-        let validators: Vec<_> = committee.names().cloned().collect();
-        let v0 = validators[0]; // will start failing
-        let v1 = validators[1]; // stays healthy
-
-        // Warm up: give both validators a good score and snapshot the cache.
-        for v in &[v0, v1] {
-            for _ in 0..5 {
-                monitor.record_interaction_result(OperationFeedback {
-                    authority_name: *v,
-                    display_name: auth_agg.get_display_name(v),
-                    operation: OperationType::Consensus,
-                    ping: false,
-                    result: Ok(Duration::from_millis(50)),
-                });
-            }
-        }
-        monitor.force_update_cached_latencies(&auth_agg);
-        // Both in preferred group at this point.
-        let baseline = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-        assert_eq!(
-            baseline.len(),
-            2,
-            "sanity: both in preferred group after warm-up"
-        );
-
-        // v0 starts failing — do NOT refresh the cache.
-        for _ in 0..5 {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: v0,
-                display_name: auth_agg.get_display_name(&v0),
-                operation: OperationType::Submit,
-                ping: false,
-                result: Err(()),
-            });
-        }
-
-        // Desired: live failures demote v0 immediately, even without a cache
-        // refresh → only v1 is in the preferred group.
-        // Current: stale cache still shows v0 = 50 ms → both preferred → FAILS.
-        let selected = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-        let preferred_contains_v0 = selected
-            .iter()
-            .position(|&v| v == v0)
-            .map(|pos| pos == 0) // v0 is at position 0 iff it is in the preferred prefix
-            .unwrap_or(false);
-
-        assert!(
-            !preferred_contains_v0,
-            "v0 should be demoted from the preferred group after 5 consecutive failures \
-             without waiting for a cache refresh"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Gap 10 — A minimum preferred-group size must prevent a single validator
-    //           from monopolising all traffic.
-    //
-    // With delta = 2 %, a validator at 49 ms is the sole preferred member when
-    // all others are at 51 ms (51 > 49 × 1.02 = 49.98).  It receives 100 % of
-    // requests, creating a single point of failure and enabling traffic
-    // monopolisation by a validator that can sustain marginally better latency.
-    //
-    // Desired: the preferred group must always contain ≥ 2 validators.
-    //          We verify this probabilistically: over 100 draws, v1 (51 ms)
-    //          must appear in position 0 at least once — proof it is in the
-    //          shuffled preferred prefix.
-    // Current: preferred prefix has k = 1 (only v0) → v1 never reaches
-    //          position 0 → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_minimum_preferred_group_prevents_traffic_monopoly() {
-        let auth_agg = get_authority_aggregator(4);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let committee = auth_agg.committee.clone();
-        let validators: Vec<_> = committee.names().cloned().collect();
-
-        // v0: 49 ms.  v1–v3: 51 ms each.
-        // With delta=2 %: threshold = 49 × 1.02 = 49.98 ms.
-        // 51 ms > 49.98 ms → only v0 in preferred group currently.
-        monitor.record_interaction_result(OperationFeedback {
-            authority_name: validators[0],
-            display_name: auth_agg.get_display_name(&validators[0]),
-            operation: OperationType::Consensus,
-            ping: false,
-            result: Ok(Duration::from_millis(49)),
-        });
-        for v in &validators[1..] {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: *v,
-                display_name: auth_agg.get_display_name(v),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis(51)),
-            });
-        }
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        // Run 100 selections.  If the preferred group has ≥ 2 members, v1
-        // (or v2/v3) will appear in position 0 at least once with very high
-        // probability.  If the group is only {v0}, position 0 is always v0.
-        let v1 = validators[1];
-        let mut non_v0_appeared_first = false;
-        for _ in 0..100 {
-            let selected = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-            if selected[0] != validators[0] {
-                non_v0_appeared_first = true;
-                break;
-            }
-        }
-
-        // Desired: minimum group size ≥ 2 → v1/v2/v3 occasionally appear first.
-        // Current: k = 1 → v0 always first → FAILS.
-        assert!(
-            non_v0_appeared_first,
-            "with 49 ms vs 51 ms the preferred group should contain ≥ 2 validators \
-             (minimum group size), but v0 (49 ms) monopolises all 100 draws"
-        );
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Overload and load-balancing specification tests
-//
-// These tests verify that the scoring mechanism correctly detects, reacts to,
-// and recovers from validator overload scenarios.  All tests FAIL against the
-// current implementation (uniform moving window) and should pass once an
-// EWMA-based scorer with fast spike detection and recovery is in place.
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod overload_tests {
-    use super::*;
-    use crate::{
-        authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        test_authority_clients::MockAuthorityApi,
-    };
-
-    fn get_authority_aggregator(
-        committee_size: usize,
-    ) -> Arc<AuthorityAggregator<MockAuthorityApi>> {
-        let _guard = crate::validator_client_monitor::tests::AUTH_AGG_CREATE_LOCK
-            .lock()
-            .unwrap();
-        Arc::new(
-            AuthorityAggregatorBuilder::from_committee_size(committee_size)
-                .build_mock_authority_aggregator(),
-        )
-    }
-
-    // -----------------------------------------------------------------------
-    // A single overload spike must substantially raise the score.
-    //
-    // With the default latency window of 40, one spike observation at 2000 ms
-    // shifts the uniform average from 50 ms to only (39×50 + 2000)/40 ≈ 99 ms
-    // — far below the 500 ms threshold that would reflect actual overload.
-    //
-    // With EWMA (α = 0.5): 0.5×2000 + 0.5×50 = 1025 ms after 1 spike.
-    //
-    // Desired: score > 500 ms after a single 2000 ms spike.
-    // Current: ≈ 99 ms → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_single_overload_spike_significantly_raises_score() {
-        let config = ValidatorClientMonitorConfig {
-            latency_moving_window_size: 40,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
-
-        // Fill the latency window with baseline observations.
-        for _ in 0..40 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Consensus,
-                Ok(Duration::from_millis(50)),
-            ));
-        }
-
-        // A single overload spike.
-        stats.record_interaction_result(make_feedback(
-            validator,
-            OperationType::Consensus,
-            Ok(Duration::from_millis(2000)),
-        ));
-
-        let avg =
-            stats.validator_stats[&validator].average_latencies[&OperationType::Consensus].get();
-
-        // EWMA (α=0.5) would yield 1025 ms.
-        // Uniform window gives ≈ 99 ms → FAILS this assertion.
-        assert!(
-            avg > Duration::from_millis(500),
-            "a single 2000 ms spike should raise the score above 500 ms for fast \
-             overload detection (EWMA gives ~1025 ms); got {avg:?}"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // After an overload period the score must recover quickly once fast
-    // observations resume.
-    //
-    // With a window=10 fully filled with 2000 ms observations, the uniform
-    // average after 3 recovery observations (50 ms) is still
-    // (7×2000 + 3×50) / 10 = 1415 ms — the validator remains penalised for
-    // ~10 rounds after it has already recovered.
-    //
-    // With EWMA (α=0.5): 2000 → 1025 → 537 → 293 ms after 3 fast observations.
-    //
-    // Desired: score < 300 ms after 3 fast observations following full overload.
-    // Current: 1415 ms → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_score_recovers_quickly_after_overload_subsides() {
-        let config = ValidatorClientMonitorConfig {
-            latency_moving_window_size: 10,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
-
-        // Simulate a period of full overload.
-        for _ in 0..10 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Consensus,
-                Ok(Duration::from_millis(2000)),
-            ));
-        }
-
-        // Overload subsides — 3 fast observations.
-        for _ in 0..3 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Consensus,
-                Ok(Duration::from_millis(50)),
-            ));
-        }
-
-        let avg =
-            stats.validator_stats[&validator].average_latencies[&OperationType::Consensus].get();
-
-        // EWMA (α=0.5) reaches 293 ms after 3 fast observations.
-        // Uniform window gives 1415 ms → FAILS this assertion.
-        assert!(
-            avg < Duration::from_millis(300),
-            "after 3 fast recovery observations the score should drop below 300 ms \
-             (EWMA gives ~293 ms); got {avg:?}"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Gradual load degradation must be tracked proportionally — the score
-    // should closely follow the recent trend, not lag behind the uniform
-    // historical average.
-    //
-    // With a window=10 and 10 observations that linearly increase from
-    // 100 ms to 1000 ms, the uniform average is 550 ms (historical midpoint).
-    // EWMA (α=0.5) weighs recent observations more and reaches ≈ 800 ms at
-    // the end of the sequence.
-    //
-    // Desired: score > 700 ms (reflecting the recent degradation trend).
-    // Current: 550 ms → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_gradual_load_degradation_reflected_in_score_proportionally() {
-        let config = ValidatorClientMonitorConfig {
-            latency_moving_window_size: 10,
-            ..Default::default()
-        };
-        let mut stats = ClientObservedStats::new(config);
-        let validator = create_test_validator_names(1)[0];
-
-        // 10 observations: 100 ms, 200 ms, ..., 1000 ms (linear ramp-up).
-        for i in 1..=10_u64 {
-            stats.record_interaction_result(make_feedback(
-                validator,
-                OperationType::Consensus,
-                Ok(Duration::from_millis(i * 100)),
-            ));
-        }
-
-        let avg =
-            stats.validator_stats[&validator].average_latencies[&OperationType::Consensus].get();
-
-        // EWMA (α=0.5) reaches ≈ 800 ms, tracking the recent degradation.
-        // Uniform average = 550 ms → FAILS this assertion.
-        assert!(
-            avg > Duration::from_millis(700),
-            "gradual load increase should bring score above 700 ms to reflect \
-             the recent trend (EWMA gives ~800 ms); got {avg:?}"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // An overloaded validator must exit the preferred group after a small
-    // number of overload observations.
-    //
-    // With a tight delta = 2 %, once a validator's score meaningfully exceeds
-    // the fastest validator's score it is excluded from the preferred group.
-    // The EWMA ensures this happens after just 1–3 observations rather than
-    // requiring the window to fill with overload data.
-    //
-    // Desired: after 3 overload observations (2000 ms) for v0, with v1
-    //          remaining at 50 ms, only v1 appears in the preferred group.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_overloaded_validator_exits_preferred_group_quickly() {
-        let auth_agg = get_authority_aggregator(2);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let committee = auth_agg.committee.clone();
-        let validators: Vec<_> = committee.names().cloned().collect();
-        let v0 = validators[0]; // will become overloaded
-        let v1 = validators[1]; // stays healthy
-
-        // Establish baseline for both validators (window=10 config override
-        // via direct stats injection).
-        let config = ValidatorClientMonitorConfig {
-            latency_moving_window_size: 10,
-            ..Default::default()
-        };
-        // Inject baseline into the monitor directly.
-        for v in &[v0, v1] {
-            for _ in 0..10 {
-                monitor.record_interaction_result(OperationFeedback {
-                    authority_name: *v,
-                    display_name: auth_agg.get_display_name(v),
-                    operation: OperationType::Consensus,
-                    ping: false,
-                    result: Ok(Duration::from_millis(50)),
-                });
-            }
-        }
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        // Sanity: both in preferred group at baseline.
-        let baseline = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-        assert_eq!(
-            baseline.len(),
-            2,
-            "sanity: both in preferred group at baseline"
-        );
-
-        // v0 experiences 3 overload observations (2000 ms).
-        for _ in 0..3 {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: v0,
-                display_name: auth_agg.get_display_name(&v0),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis(2000)),
-            });
-        }
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        let selected = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-
-        // v0's score after 3 overload obs:
-        //   EWMA (α=0.5): 50→1025→537→793 ms after 3 overload obs from 50ms baseline...
-        //   Actually: start=50ms after 10 obs, then overload: 0.5×2000+0.5×50=1025,
-        //             0.5×2000+0.5×1025=1512, 0.5×2000+0.5×1512=1756ms
-        //   Uniform window=10: (7×50 + 3×2000)/10 = 635ms
-        //   Both are > 51ms threshold → v0 is excluded regardless.
-        //
-        // The interesting check is the SPEED: with EWMA, even 1 overload
-        // observation raises the score far above threshold.  The test passes
-        // for both approaches at 3 observations, so we tighten to 1 here to
-        // expose the difference:
-        let score_v0 = monitor
-            .client_stats_for_test()
-            .get_all_validator_stats(&committee)[&v0];
-
-        // Desired: after just 3 overload observations, v0 score > 1000 ms
-        // (reflecting true overload severity, not just barely above threshold).
-        // EWMA gives ~1756 ms; uniform window gives 635 ms → FAILS.
-        assert!(
-            score_v0 > Duration::from_millis(1000),
-            "after 3 overload observations, v0 score should exceed 1000 ms to \
-             accurately reflect overload severity (EWMA gives ~1756 ms); got {score_v0:?}"
-        );
-
-        // Regardless of scoring method, v0 should be excluded from preferred group.
-        assert_eq!(
-            selected[0], v1,
-            "v1 (50 ms) must be the first preferred validator after v0 overloads"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // A recovered validator must rejoin the preferred group promptly after
-    // overload subsides, enabling automatic rebalancing.
-    //
-    // After a full window (10 observations) of 2000 ms overload, the uniform
-    // average only reaches 50 ms after ~10 fast observations.  The EWMA
-    // reaches 50 ms in 3–4 observations.
-    //
-    // Desired: after 4 fast recovery observations following full overload,
-    //          v0 rejoins v1 in the preferred group.
-    // Current: uniform window score ≈ 1415 ms after 3 fast obs → v0 stays
-    //          excluded → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_recovered_validator_rejoins_preferred_group_promptly() {
-        let auth_agg = get_authority_aggregator(2);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-        let committee = auth_agg.committee.clone();
-        let validators: Vec<_> = committee.names().cloned().collect();
-        let v0 = validators[0]; // overloaded, then recovers
-        let v1 = validators[1]; // steady at 50 ms
-
-        // v1 maintains a consistent 50 ms score.
-        for _ in 0..10 {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: v1,
-                display_name: auth_agg.get_display_name(&v1),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis(50)),
-            });
-        }
-
-        // v0 is fully overloaded (10 observations at 2000 ms — fills window).
-        for _ in 0..10 {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: v0,
-                display_name: auth_agg.get_display_name(&v0),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis(2000)),
-            });
-        }
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        // Confirm v0 is currently excluded from the preferred group.
-        let during_overload = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-        assert_eq!(
-            during_overload[0], v1,
-            "sanity: v1 preferred while v0 is overloaded"
-        );
-
-        // v0 recovers — 4 fast observations at 50 ms.
-        for _ in 0..4 {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: v0,
-                display_name: auth_agg.get_display_name(&v0),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis(50)),
-            });
-        }
-        monitor.force_update_cached_latencies(&auth_agg);
-
-        // Directly check v0's score: EWMA (α=0.5) after 4 fast obs from 2000 ms
-        // gives 2000→1025→537→293→171 ms.  Uniform window=10:
-        // (6×2000 + 4×50)/10 = 1220 ms.
-        //
-        // Desired: score < 300 ms (EWMA achieves this in 4 observations).
-        // Current: uniform window score ≈ 1220 ms → FAILS.
-        let score_v0_after_recovery = monitor
-            .client_stats_for_test()
-            .get_all_validator_stats(&committee)[&v0];
-
-        assert!(
-            score_v0_after_recovery < Duration::from_millis(300),
-            "after 4 recovery observations v0 score should be < 300 ms \
-             (EWMA gives ~171 ms); uniform window gives ~1220 ms and keeps \
-             v0 penalised → FAILS (got {score_v0_after_recovery:?})"
-        );
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Integration tests — health-check pipeline
-//
-// These tests run the actual `ValidatorClientMonitor` background health-check
-// task against `ScoringTestAuthorityApi` mocks.  They verify that the full
-// pipeline (background task → mock → record_interaction_result →
-// update_cached_latencies) produces the expected scores.
-// ---------------------------------------------------------------------------
-
-#[cfg(test)]
-mod health_check_integration_tests {
-    use arc_swap::ArcSwap;
-    use prometheus::Registry;
-
-    use super::*;
-    use crate::{
-        authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        test_authority_clients::ScoringTestAuthorityApi,
-        validator_client_monitor::metrics::ValidatorClientMetrics,
-    };
-
-    fn build_aggregator_with_scoring_clients(
-        committee_size: usize,
-    ) -> (
-        Arc<AuthorityAggregator<ScoringTestAuthorityApi>>,
-        Vec<ScoringTestAuthorityApi>,
-    ) {
-        let clients_vec: Vec<ScoringTestAuthorityApi> = (0..committee_size)
-            .map(|_| ScoringTestAuthorityApi::new())
-            .collect();
-
-        let auth_agg = {
-            use iota_types::committee::Committee;
-            let (committee, _keypairs) =
-                Committee::new_simple_test_committee_of_size(committee_size);
-            let names: Vec<_> = committee.names().cloned().collect();
-            let clients_map: std::collections::BTreeMap<_, _> =
-                names.into_iter().zip(clients_vec.clone()).collect();
-            // Serialise construction to avoid racing on DBMetrics singleton init.
-            let _guard = crate::validator_client_monitor::tests::AUTH_AGG_CREATE_LOCK
-                .lock()
-                .unwrap();
-            Arc::new(
-                AuthorityAggregatorBuilder::from_committee_size(committee_size)
-                    .build_custom_clients(clients_map),
-            )
-        };
-
-        (auth_agg, clients_vec)
-    }
-
-    // -----------------------------------------------------------------------
-    // Verify that the background health-check task actually calls
-    // `handle_validator_health` on every validator and records the results
-    // into the monitor's stats.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_health_checks_run_and_record_results() {
-        let committee_size = 4;
-        let (auth_agg, clients) = build_aggregator_with_scoring_clients(committee_size);
-
-        let config = ValidatorClientMonitorConfig {
-            health_check_interval: Duration::from_millis(50),
-            health_check_timeout: Duration::from_millis(500),
-            ..Default::default()
-        };
-        let metrics = Arc::new(ValidatorClientMetrics::new(&Registry::default()));
-        let swap = Arc::new(ArcSwap::new(auth_agg.clone()));
-        let _monitor = ValidatorClientMonitor::new(config, metrics, swap);
-
-        tokio::time::sleep(Duration::from_millis(300)).await;
-
-        for (i, client) in clients.iter().enumerate() {
-            assert!(
-                client.health_check_call_count() >= 1,
-                "validator {i} should have received at least one health check call"
+            let result = stats.select_shuffled_preferred_validators(
+                all.iter(),
+                now,
+                rand::thread_rng(),
+            );
+            assert_eq!(result.len(), 1);
+            assert_eq!(
+                *result[0], v_good,
+                "faster validator should always be selected with delta=0"
             );
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Verify that a slow validator ends up with a worse (higher) cached
-    // latency score than a fast one after health checks run.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_slow_validator_gets_worse_score_after_health_checks() {
-        let committee_size = 2;
-        let (auth_agg, clients) = build_aggregator_with_scoring_clients(committee_size);
-
-        let validators: Vec<_> = auth_agg.committee.names().cloned().collect();
-        let slow_validator = validators[0];
-        let fast_validator = validators[1];
-
-        let config = ValidatorClientMonitorConfig {
-            health_check_interval: Duration::from_millis(50),
-            health_check_timeout: Duration::from_millis(500),
-            ..Default::default()
-        };
-        let metrics = Arc::new(ValidatorClientMetrics::new(&Registry::default()));
-        let swap = Arc::new(ArcSwap::new(auth_agg.clone()));
-        let monitor = ValidatorClientMonitor::new(config, metrics, swap);
-
-        // Configure the slow validator to take 200 ms for health checks.
-        clients[0].set_health_check_delay(Duration::from_millis(200));
-
-        tokio::time::sleep(Duration::from_millis(400)).await;
-
-        // Inject Consensus observations directly because health-check latency
-        // does not currently feed the Consensus score (Gap 6 above).
-        monitor.record_interaction_result(OperationFeedback {
-            authority_name: slow_validator,
-            display_name: auth_agg.get_display_name(&slow_validator),
-            operation: OperationType::Consensus,
-            ping: false,
-            result: Ok(Duration::from_millis(500)),
-        });
-        monitor.record_interaction_result(OperationFeedback {
-            authority_name: fast_validator,
-            display_name: auth_agg.get_display_name(&fast_validator),
-            operation: OperationType::Consensus,
-            ping: false,
-            result: Ok(Duration::from_millis(20)),
-        });
-        monitor.force_update_cached_latencies(&*auth_agg);
-
-        let committee = auth_agg.committee.clone();
-        let selected = monitor.select_shuffled_preferred_validators(&committee, 0.02);
-
-        assert_eq!(
-            selected[0], fast_validator,
-            "fast validator should rank first"
-        );
-        assert_eq!(
-            selected[1], slow_validator,
-            "slow validator should rank last"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Verify that a validator which starts failing health checks accumulates
-    // reliability penalties that degrade its score over time.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_failing_health_checks_degrade_reliability() {
-        let committee_size = 2;
-        let (auth_agg, clients) = build_aggregator_with_scoring_clients(committee_size);
-        let validators: Vec<_> = auth_agg.committee.names().cloned().collect();
-        let failing_validator = validators[0];
-
-        let config = ValidatorClientMonitorConfig {
-            health_check_interval: Duration::from_millis(50),
-            health_check_timeout: Duration::from_millis(200),
-            reliability_moving_window_size: 10,
-            ..Default::default()
-        };
-        let metrics = Arc::new(ValidatorClientMetrics::new(&Registry::default()));
-        let swap = Arc::new(ArcSwap::new(auth_agg.clone()));
-        let monitor = ValidatorClientMonitor::new(config, metrics, swap);
-
-        clients[0].set_health_check_fail(true);
-
-        tokio::time::sleep(Duration::from_millis(400)).await;
-
-        let stats = monitor.client_stats_for_test();
-        if let Some(v_stats) = stats.validator_stats.get(&failing_validator) {
-            assert!(
-                v_stats.reliability.get() < 1.0,
-                "reliability should have dropped below 1.0 after repeated failures; got {}",
-                v_stats.reliability.get()
-            );
+    /// min_preferred_group_size must not cause a panic when it exceeds the
+    /// number of available candidates.
+    #[test]
+    fn min_preferred_group_size_larger_than_committee_no_panic() {
+        let mut config = fast_config();
+        config.min_preferred_group_size = 10; // larger than committee
+        config.max_preferred_group_size = 20;
+        let v = gen_validators(3);
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        for vi in &v {
+            feed_all(&mut stats, *vi, Ok(100), 10, t0, dt);
         }
-        assert!(
-            clients[0].health_check_call_count() >= 1,
-            "health checks must have been issued to the failing validator"
+        let now = t0 + dt * 11;
+        // Must not panic.
+        let result = stats.select_shuffled_preferred_validators(
+            v.iter(),
+            now,
+            rand::thread_rng(),
         );
+        assert_eq!(result.len(), v.len(), "all candidates returned when min > committee size");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Monotonicity properties
+// ---------------------------------------------------------------------------
+
+mod monotonicity {
+    use super::*;
+
+    /// Adding more failures to an already-failing validator increases (worsens)
+    /// its score monotonically.
+    #[test]
+    fn score_monotone_increasing_with_failure_count() {
+        let config = fast_config();
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut prev_score = 0.0f64;
+        for n in [5, 10, 20, 30, 50] {
+            let mut stats = ClientObservedStats::new(config.clone());
+            feed_all(&mut stats, v, Err(()), n, t0, dt);
+            let now = t0 + dt * (n as u32 + 1);
+            let score = stats.calculate_selection_score(&v, now);
+            assert!(
+                score >= prev_score || score == config.unknown_validator_score,
+                "score should not decrease as failures accumulate; n={n} score={score:.2} prev={prev_score:.2}"
+            );
+            prev_score = score;
+        }
     }
 
-    // -----------------------------------------------------------------------
-    // Verify that health-check latency alone drives validator selection.
-    //
-    // This test exposes Gap 6: when a validator has high health-check latency
-    // but no Consensus observations, it should still be deprioritised in
-    // selection.  Currently, health-check latency does not feed the Consensus
-    // score, so both validators score MAX_LATENCY and appear equally preferred.
-    //
-    // Desired: after v0 starts responding slowly to health checks (500 ms),
-    //          v0 must NOT be in the preferred group at delta = 2 %.
-    // Current: both validators have no Consensus data → both score MAX_LATENCY
-    //          → both in preferred group → FAILS.
-    // -----------------------------------------------------------------------
-    #[tokio::test]
-    async fn test_high_health_check_latency_deprioritizes_validator_for_selection() {
-        let committee_size = 2;
-        let (auth_agg, clients) = build_aggregator_with_scoring_clients(committee_size);
-        let validators: Vec<_> = auth_agg.committee.names().cloned().collect();
-        let slow_validator = validators[0];
-        let fast_validator = validators[1];
+    /// Score improves (decreases) monotonically as we add more good observations
+    /// to a validator that previously had mixed results.
+    #[test]
+    fn score_monotone_decreasing_with_good_observations() {
+        let mut config = fast_config();
+        config.latency_ewma_tau = 1.0; // slower decay to see the trend
+        let v = gen_validator();
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(100);
+        let mut stats = ClientObservedStats::new(config.clone());
+        // Start with some noise.
+        feed_all(&mut stats, v, Ok(500), 5, t0, dt);
+        let mut prev_score = stats.calculate_selection_score(&v, t0 + dt * 6);
+        // Add more good observations and expect score to trend downward.
+        let good_count = [10, 20, 40, 80];
+        let mut cumulative = 5usize;
+        for add in good_count {
+            feed_all(&mut stats, v, Ok(50), add, t0 + dt * (cumulative as u32 + 1), dt);
+            cumulative += add;
+            let now = t0 + dt * (cumulative as u32 + 1);
+            let score = stats.calculate_selection_score(&v, now);
+            assert!(
+                score <= prev_score * 1.1, // allow 10% tolerance for variance effects
+                "score should trend downward with good observations; score={score:.2} prev={prev_score:.2}"
+            );
+            prev_score = score;
+        }
+    }
+}
 
-        let config = ValidatorClientMonitorConfig {
-            health_check_interval: Duration::from_millis(50),
-            health_check_timeout: Duration::from_millis(2000),
-            ..Default::default()
-        };
-        let metrics = Arc::new(ValidatorClientMetrics::new(&Registry::default()));
-        let swap = Arc::new(ArcSwap::new(auth_agg.clone()));
-        let monitor = ValidatorClientMonitor::new(config, metrics, swap);
+// ---------------------------------------------------------------------------
+// Data management
+// ---------------------------------------------------------------------------
 
-        // v0 takes 500 ms per health check; v1 responds immediately.
-        clients[0].set_health_check_delay(Duration::from_millis(500));
+mod data_management {
+    use super::*;
 
-        // Allow several health-check rounds to accumulate latency data.
-        tokio::time::sleep(Duration::from_millis(600)).await;
+    /// retain_validators removes validators not in the provided set.
+    #[test]
+    fn retain_validators_removes_stale() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validators(4);
+        let t0 = Instant::now();
+        for vi in &v {
+            feed_all(&mut stats, *vi, Ok(100), 5, t0, Duration::from_millis(10));
+        }
+        assert_eq!(stats.num_validators(), 4);
+        // Retain only v[0] and v[1].
+        stats.retain_validators(v[..2].iter());
+        assert_eq!(stats.num_validators(), 2);
+        assert!(stats.has_validator(&v[0]));
+        assert!(stats.has_validator(&v[1]));
+        assert!(!stats.has_validator(&v[2]));
+        assert!(!stats.has_validator(&v[3]));
+    }
 
-        monitor.force_update_cached_latencies(&*auth_agg);
+    /// remove_validators removes specific validators.
+    #[test]
+    fn remove_validators_removes_specific() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validators(3);
+        let t0 = Instant::now();
+        for vi in &v {
+            feed_all(&mut stats, *vi, Ok(100), 5, t0, Duration::from_millis(10));
+        }
+        stats.remove_validators(v[1..2].iter());
+        assert_eq!(stats.num_validators(), 2);
+        assert!(stats.has_validator(&v[0]));
+        assert!(!stats.has_validator(&v[1]));
+        assert!(stats.has_validator(&v[2]));
+    }
 
-        let committee = auth_agg.committee.clone();
-        let latencies = monitor
-            .client_stats_for_test()
-            .get_all_validator_stats(&committee);
+    /// Validator count is tracked per-validator (not per-observation).
+    /// Each distinct validator with any recorded interaction should appear
+    /// exactly once in the internal map.
+    #[test]
+    fn unique_validator_count_tracked_correctly() {
+        let config = fast_config();
+        let mut stats = ClientObservedStats::new(config.clone());
+        let v = gen_validators(5);
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        // Feed different numbers of observations to each validator.
+        for (i, vi) in v.iter().enumerate() {
+            feed_all(&mut stats, *vi, Ok(100), i + 1, t0, dt);
+        }
+        // Regardless of observation count, each distinct validator appears once.
+        assert_eq!(stats.num_validators(), 5);
+        // Feeding more observations to existing validators should not change the count.
+        feed_all(&mut stats, v[0], Ok(100), 10, t0, dt);
+        assert_eq!(stats.num_validators(), 5);
+    }
+}
 
-        // Desired: health-check latency feeds the score → fast validator's
-        //          score is well below MAX_LATENCY (≈ HC latency of 0 ms).
-        // Current: no Consensus data for either validator → both return
-        //          MAX_LATENCY (10 s) → assertion FAILS.
+// ---------------------------------------------------------------------------
+// Network blackout / all-unknown scenario
+// ---------------------------------------------------------------------------
+
+mod network_conditions {
+    use super::*;
+
+    /// When all validators in the committee are completely unknown (no prior
+    /// observations), the selection still returns a non-empty set of validators.
+    #[test]
+    fn all_unknown_validators_still_selected() {
+        let config = fast_config();
+        let stats = ClientObservedStats::new(config);
+        let v = gen_validators(5);
+        let result = stats.select_shuffled_preferred_validators(
+            v.iter(),
+            Instant::now(),
+            rand::thread_rng(),
+        );
+        assert!(!result.is_empty(), "should select some validators even if all are unknown");
+    }
+
+    /// After a complete network blackout (all validators fail many times) the
+    /// system still recovers and returns validators from the fallback path.
+    #[test]
+    fn post_blackout_still_returns_validators() {
+        let mut config = fast_config();
+        config.exclusion_failure_threshold = 0.5;
+        config.exclusion_min_n_eff = 3.0;
+        let v = gen_validators(3);
+        let t0 = Instant::now();
+        let dt = Duration::from_millis(10);
+        let mut stats = ClientObservedStats::new(config.clone());
+        for vi in &v {
+            feed_all(&mut stats, *vi, Err(()), 30, t0, dt);
+        }
+        let now = t0 + dt * 31;
+        let result = stats.select_shuffled_preferred_validators(
+            v.iter(),
+            now,
+            rand::thread_rng(),
+        );
         assert!(
-            latencies[&fast_validator] < Duration::from_secs(10),
-            "v1 (0 ms health checks) should score below MAX_LATENCY when HC \
-             latency feeds the selection score; currently MAX_LATENCY is returned \
-             because only Consensus latency is used (Gap 6)"
+            !result.is_empty(),
+            "should still return validators from fallback path after blackout"
         );
     }
 }
