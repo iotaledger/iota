@@ -120,7 +120,7 @@ pub mod checked {
 
     pub fn deduct_gas(gas_object: &mut Object, charge_or_rebate: i64) {
         // The object must be a gas coin as we have checked in transaction handle phase.
-        let gas_coin = gas_object.data.try_as_move_mut().unwrap();
+        let gas_coin = gas_object.data.as_struct_mut_opt().unwrap();
         let balance = gas_coin.get_coin_value_unchecked();
         let new_balance = if charge_or_rebate < 0 {
             balance + (-charge_or_rebate as u64)
@@ -132,7 +132,7 @@ pub mod checked {
     }
 
     pub fn get_gas_balance(gas_object: &Object) -> UserInputResult<u64> {
-        if let Some(move_obj) = gas_object.data.try_as_move() {
+        if let Some(move_obj) = gas_object.data.as_struct_opt() {
             if !move_obj.struct_tag().is_gas_coin() {
                 return Err(UserInputError::InvalidGasObject {
                     object_id: gas_object.id(),

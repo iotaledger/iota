@@ -131,7 +131,7 @@ pub fn to_genesis_object(
     };
 
     Ok(Object::new_from_genesis(
-        Data::Move(move_object),
+        Data::Struct(move_object),
         Owner::Address(owner),
         tx_context.digest(),
     ))

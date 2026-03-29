@@ -191,7 +191,7 @@ impl TryFrom<&Object> for NftOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if NftOutput::is_nft_output(o.struct_tag()) {
                     return NftOutput::from_bcs_bytes(o.contents());
                 }

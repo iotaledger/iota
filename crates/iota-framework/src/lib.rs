@@ -223,7 +223,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     let cur_ref = cur_object.compute_object_reference();
     let cur_pkg = cur_object
         .data
-        .try_as_package()
+        .as_package_opt()
         .expect("Framework not package");
 
     let mut new_object = Object::new_system_package(
@@ -243,7 +243,7 @@ pub async fn compare_system_package<S: ObjectStore>(
 
     let new_pkg = new_object
         .data
-        .try_as_package_mut()
+        .as_package_mut_opt()
         .expect("Created as package");
 
     let pool = &mut normalized::RcPool::new();

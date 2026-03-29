@@ -83,7 +83,7 @@ impl IotaSystemStateWrapper {
         let mut new_field_object = old_field_object.clone();
         let move_object = new_field_object
             .data
-            .try_as_move_mut()
+            .as_struct_mut_opt()
             .expect("Dynamic field object must be a Move object");
         match self.version {
             1 => {
@@ -229,7 +229,7 @@ pub fn get_iota_system_state_wrapper(
         .ok_or_else(|| {
             IotaError::IotaSystemStateRead("IotaSystemStateWrapper object not found".to_owned())
         })?;
-    let move_object = wrapper.data.try_as_move().ok_or_else(|| {
+    let move_object = wrapper.data.as_struct_opt().ok_or_else(|| {
         IotaError::IotaSystemStateRead(
             "IotaSystemStateWrapper object must be a Move object".to_owned(),
         )

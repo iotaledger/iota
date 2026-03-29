@@ -86,7 +86,7 @@ impl TryFrom<&Object> for BasicOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if BasicOutput::is_basic_output(o.struct_tag()) {
                     return BasicOutput::from_bcs_bytes(o.contents());
                 }

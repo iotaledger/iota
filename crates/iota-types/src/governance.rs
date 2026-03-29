@@ -82,7 +82,7 @@ impl TryFrom<&Object> for StakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Move(o) => {
+            Data::Struct(o) => {
                 if o.struct_tag().is_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!("Unable to deserialize StakedIota object: {err:?}"),

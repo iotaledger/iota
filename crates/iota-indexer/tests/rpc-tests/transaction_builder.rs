@@ -833,7 +833,7 @@ async fn create_cluster_with_timelocked_iota(
     };
     let timelock_iota = ObjectInner {
         owner: Owner::Address(address),
-        data: Data::Move(timelock_iota),
+        data: Data::Struct(timelock_iota),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };

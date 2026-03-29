@@ -43,7 +43,7 @@ pub fn get_gas_balance_maybe(object: &Object) -> Option<Balance> {
     if !is_gas_coin_kind(object) {
         return None;
     }
-    let inner = object.data.try_as_move()?;
+    let inner = object.data.as_struct_opt()?;
     bcs::from_bytes(&inner.contents()[ID_END_INDEX..][..size_of::<Balance>()]).ok()
 }
 

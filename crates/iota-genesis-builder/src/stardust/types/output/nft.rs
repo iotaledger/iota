@@ -266,7 +266,7 @@ impl NftExt for Nft {
         };
 
         let move_nft_object = Object::new_from_genesis(
-            Data::Move(move_nft_object),
+            Data::Struct(move_nft_object),
             // We will later overwrite the owner we set here since this object will be added
             // as a dynamic field on the nft output object.
             owner,
@@ -350,7 +350,7 @@ impl NftOutputExt for NftOutput {
         };
 
         let move_nft_output_object = Object::new_from_genesis(
-            Data::Move(move_nft_output_object),
+            Data::Struct(move_nft_output_object),
             owner,
             tx_context.digest(),
         );

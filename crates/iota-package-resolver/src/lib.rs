@@ -746,7 +746,7 @@ impl<T: PackageStore> PackageStore for PackageStoreWithLruCache<T> {
 
 impl Package {
     pub fn read_from_object(object: &Object) -> Result<Self> {
-        let Some(package) = object.data.try_as_package() else {
+        let Some(package) = object.data.as_package_opt() else {
             return Err(Error::NotAPackage(object.id().into()));
         };
 

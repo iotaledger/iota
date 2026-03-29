@@ -813,7 +813,7 @@ fn try_create_dynamic_field_info(
     resolver: &mut dyn LayoutResolver,
 ) -> Result<Option<DynamicFieldIndexInfo>, StorageError> {
     // Skip if not a move object
-    let Some(move_object) = object.data.try_as_move() else {
+    let Some(move_object) = object.data.as_struct_opt() else {
         return Ok(None);
     };
 
