@@ -84,6 +84,9 @@ struct TimeDecayEwma {
     ewma: Ewma,
     /// Timestamp of the last update: t.
     last_update: Instant,
+    /// EWMA of normalized observations interval (Δt/τ).
+    /// None until the second observation.
+    int_ewma: Option<f64>,
 }
 
 impl TimeDecayEwma {
@@ -91,24 +94,32 @@ impl TimeDecayEwma {
         Self {
             ewma: Ewma::first_value(observation),
             last_update: now,
+            int_ewma: None,
         }
     }
 
-    fn alpha(&self, now: Instant, tau: f64) -> f64 {
+    fn int_alpha(&self, now: Instant, tau: f64) -> (f64, f64) {
         debug_assert!(now >= self.last_update, "Timestamps must be non-decreasing");
         // α_t = 1 - exp(-Δt / τ)
         // avoid zero Δt, otherwise (α_t = 0) observation won't be updated
         let dt = now.duration_since(self.last_update).as_secs_f64().max(1e-9);
-        1.0 - (-dt / tau).exp()
-    }
-    fn update_with_time_decay(&mut self, observation: Observation, now: Instant, tau: f64) {
-        self.ewma.update(observation, self.alpha(now, tau));
-        self.last_update = now;
+        let int = dt / tau;
+        (int, 1.0 - (-int).exp())
     }
 
-    fn stats(&self, k: f64, now: Instant, tau: f64) -> (f64, f64, f64, f64) {
+    fn update_with_time_decay(&mut self, observation: Observation, now: Instant, tau: f64) {
+        let (int, alpha) = self.int_alpha(now, tau);
+        // Update the value EWMA with time-derived alpha.
+        self.ewma.update(observation, alpha);
+        self.last_update = now;
+        // Update the interval EWMA with a fixed weight of 0.1.
+        const ALPHA: f64 = 0.1;
+        self.int_ewma = Some(self.int_ewma.map_or(int, |prev| (1.0 - ALPHA) * prev + ALPHA * int));
+    }
+
+    fn stats(&self, k: f64, now: Instant, tau: f64) -> (f64, f64, f64, f64, Option<f64>) {
         let (score, weight, failure) = self.ewma.stats(k);
-        (score, weight, failure, self.alpha(now, tau))
+        (score, weight, failure, self.int_alpha(now, tau).1, self.int_ewma)
     }
 }
 
@@ -130,7 +141,7 @@ impl LatencyEwma {
         }
     }
 
-    fn stats(&self, k: f64, now: Instant, tau: f64) -> Option<(f64, f64, f64, f64)> {
+    fn stats(&self, k: f64, now: Instant, tau: f64) -> Option<(f64, f64, f64, f64, Option<f64>)> {
         self.inner
             .map(|time_decay_ewma| time_decay_ewma.stats(k, now, tau))
     }
@@ -156,10 +167,10 @@ impl LogLatencyEwma {
         self.inner.update(log_observation, timestamp, tau);
     }
 
-    fn stats(&self, k: f64, now: Instant, tau: f64) -> Option<(f64, f64, f64, f64)> {
+    fn stats(&self, k: f64, now: Instant, tau: f64) -> Option<(f64, f64, f64, f64, Option<f64>)> {
         self.inner
             .stats(k, now, tau)
-            .map(|(score, weight, failure, alpha)| (score.exp(), weight, failure, alpha))
+            .map(|(score, weight, failure, alpha, int_ewma)| (score.exp(), weight, failure, alpha, int_ewma))
     }
 }
 
@@ -212,7 +223,7 @@ impl ValidatorClientStats {
         operation: OperationType,
         now: Instant,
         config: &ValidatorClientMonitorConfig,
-    ) -> (f64, f64, f64, f64) {
+    ) -> (f64, f64, f64, f64, Option<f64>) {
         assert!((operation as usize) < self.latency_per_operation.len());
         self.latency_per_operation[operation as usize]
             .stats(
@@ -220,7 +231,7 @@ impl ValidatorClientStats {
                 now,
                 config.latency_ewma_tau,
             )
-            .unwrap_or((config.empty_latency_score, 0.0, 0.0, 1.0))
+            .unwrap_or((config.empty_latency_score, 0.0, 0.0, 1.0, None))
     }
 
     #[cfg(test)]
@@ -242,12 +253,12 @@ impl ValidatorClientStats {
         now: Instant,
         config: &ValidatorClientMonitorConfig,
     ) -> Option<(f64, f64)> {
-        let (l_sub, n_sub, f_sub, a_sub) = self.operation_stats(OperationType::Submit, now, config);
-        let (l_eff, n_eff_e, f_eff, a_eff) =
+        let (l_sub, n_sub, f_sub, a_sub, _) = self.operation_stats(OperationType::Submit, now, config);
+        let (l_eff, n_eff_e, f_eff, a_eff, _) =
             self.operation_stats(OperationType::Effects, now, config);
-        let (l_hc, n_hc, f_hc, a_hc) =
+        let (l_hc, n_hc, f_hc, a_hc, _) =
             self.operation_stats(OperationType::HealthCheck, now, config);
-        let (l_con, n_con, f_con, a_con) =
+        let (l_con, n_con, f_con, a_con, _) =
             self.operation_stats(OperationType::Consensus, now, config);
 
         let f_work = f_sub.max(f_eff).max(f_con);
