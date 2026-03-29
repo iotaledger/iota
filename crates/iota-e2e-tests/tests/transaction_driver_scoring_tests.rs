@@ -292,7 +292,6 @@ mod scoring_tests {
         let committee = auth_agg.committee.clone();
 
         // Force an explicit cache refresh so we have a baseline.
-        monitor.force_update_cached_latencies(&auth_agg);
         let preferred_before: Vec<AuthorityName> =
             monitor.select_shuffled_preferred_validators(&committee, 0.02);
 
@@ -306,7 +305,6 @@ mod scoring_tests {
         // rounds so that reliability has degraded measurably.
         tokio::time::sleep(Duration::from_secs(35)).await;
 
-        monitor.force_update_cached_latencies(&auth_agg);
         let preferred_after: Vec<AuthorityName> =
             monitor.select_shuffled_preferred_validators(&committee, 0.02);
 
@@ -377,9 +375,6 @@ mod scoring_tests {
                 );
             }
         }
-
-        let auth_agg = td.authority_aggregator().load();
-        monitor.force_update_cached_latencies(&auth_agg);
 
         let reliability_after_failures = {
             monitor

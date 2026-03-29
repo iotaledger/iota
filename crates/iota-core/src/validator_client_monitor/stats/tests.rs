@@ -199,7 +199,7 @@ fn test_time_decay_alpha_at_zero_one_tau_and_large_dt() {
     let tau = 10.0;
 
     // Zero Δt: dt clamps to 1e-9, alpha is tiny but strictly positive.
-    let alpha_zero = td.alpha(now, tau);
+    let (_, alpha_zero) = td.int_alpha(now, tau);
     assert!(alpha_zero > 0.0, "alpha must be positive at Δt=0");
     assert!(
         alpha_zero < 1e-7,
@@ -207,7 +207,7 @@ fn test_time_decay_alpha_at_zero_one_tau_and_large_dt() {
     );
 
     // Δt = τ: alpha = 1 − 1/e ≈ 0.6321.
-    let alpha_one_tau = td.alpha(now + Duration::from_secs(10), tau);
+    let (_, alpha_one_tau) = td.int_alpha(now + Duration::from_secs(10), tau);
     let expected = 1.0 - (-1.0_f64).exp();
     assert!(
         (alpha_one_tau - expected).abs() < 1e-9,
@@ -215,7 +215,7 @@ fn test_time_decay_alpha_at_zero_one_tau_and_large_dt() {
     );
 
     // Δt >> τ (clock jump / wakeup from sleep): alpha must approach 1.
-    let alpha_large = td.alpha(now + Duration::from_secs(1000), tau);
+    let (_, alpha_large) = td.int_alpha(now + Duration::from_secs(1000), tau);
     assert!(
         alpha_large > 0.9999,
         "alpha must approach 1 for large Δt, got {alpha_large}"
@@ -230,7 +230,7 @@ fn test_log_latency_ewma_near_zero_latency_stays_finite() {
     let now = Instant::now();
     let mut lle = LogLatencyEwma::new();
     lle.update(Ok(1e-15), now, 10.0);
-    let (score, _, _, _) = lle.stats(2.0, now, 10.0).unwrap();
+    let (score, _, _, _, _) = lle.stats(2.0, now, 10.0).unwrap();
     assert!(
         score.is_finite(),
         "score must be finite for near-zero latency"
@@ -243,7 +243,7 @@ fn test_log_latency_ewma_large_latency_stays_finite() {
     let now = Instant::now();
     let mut lle = LogLatencyEwma::new();
     lle.update(Ok(1_000.0), now, 10.0); // 1 000-second latency
-    let (score, _, _, _) = lle.stats(2.0, now, 10.0).unwrap();
+    let (score, _, _, _, _) = lle.stats(2.0, now, 10.0).unwrap();
     assert!(score.is_finite(), "score must be finite for huge latency");
 }
 
