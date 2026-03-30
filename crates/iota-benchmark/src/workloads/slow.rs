@@ -232,12 +232,11 @@ impl Workload<dyn Payload> for SlowWorkload {
 
         for o in &created {
             let obj = proxy.get_object(o.0.0).await.unwrap();
-            if let Some(tag) = obj.data.struct_tag() {
-                if tag.to_string().contains("::slow::Obj") {
+            if let Some(tag) = obj.data.struct_tag()
+                && tag.to_string().contains("::slow::Obj") {
                     self.shared_obj_ref = o.0;
                     break;
                 }
-            }
         }
         assert!(
             self.shared_obj_ref.0 != ObjectID::ZERO,

@@ -296,8 +296,8 @@ pub async fn execute_transactions(
 
     // Optionally wait for checkpoint inclusion and populate checkpoint/timestamp
     // on the already-built results.
-    if let Some(timeout) = checkpoint_timeout {
-        if !successful_digests.is_empty() {
+    if let Some(timeout) = checkpoint_timeout
+        && !successful_digests.is_empty() {
             let digests: Vec<_> = successful_digests.iter().map(|(_, d)| *d).collect();
             match executor
                 .wait_for_checkpoint_inclusion(&digests, timeout)
@@ -316,8 +316,8 @@ pub async fn execute_transactions(
                     }
 
                     for (i, digest) in &successful_digests {
-                        if let Some((seq, ts)) = checkpoint_map.get(digest) {
-                            if let Some(execute_transaction_result::Result::ExecutedTransaction(
+                        if let Some((seq, ts)) = checkpoint_map.get(digest)
+                            && let Some(execute_transaction_result::Result::ExecutedTransaction(
                                 ref mut tx,
                             )) = transaction_results[*i].result
                             {
@@ -328,7 +328,6 @@ pub async fn execute_transactions(
                                     tx.timestamp = Some(timestamp_ms_to_proto(*ts));
                                 }
                             }
-                        }
                     }
                 }
                 Err(e) => {
@@ -336,7 +335,6 @@ pub async fn execute_transactions(
                 }
             }
         }
-    }
 
     Ok(ExecuteTransactionsResponse::default().with_transaction_results(transaction_results))
 }

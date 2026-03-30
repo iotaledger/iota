@@ -75,11 +75,10 @@ pub(crate) fn list_package_versions(
     };
 
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
-    if let Some(ref t) = page_token {
-        if t.original_package_id != original_package_id {
+    if let Some(ref t) = page_token
+        && t.original_package_id != original_package_id {
             return Err(page_token_mismatch());
         }
-    }
 
     let cursor_version = page_token.map(|t| t.last_version);
 
@@ -128,14 +127,13 @@ pub(crate) fn list_package_versions(
     let has_more = iter.next().transpose().map_err(RpcError::from)?.is_some();
 
     let mut response = ListPackageVersionsResponse::default().with_versions(versions);
-    if has_more {
-        if let Some(ver) = last_version {
+    if has_more
+        && let Some(ver) = last_version {
             response = response.with_next_page_token(encode_page_token(&PageToken {
                 original_package_id,
                 last_version: ver,
             }));
         }
-    }
 
     Ok(response)
 }

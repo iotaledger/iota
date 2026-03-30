@@ -1285,21 +1285,19 @@ impl GrpcReader {
             let checkpoint_transaction =
                 result.map_err(|e| Status::internal(format!("failed to read transaction: {e}")))?;
 
-            if let Some(tx_filter) = transaction_filter {
-                if tx_filter.matches_transaction(&checkpoint_transaction) {
+            if let Some(tx_filter) = transaction_filter
+                && tx_filter.matches_transaction(&checkpoint_transaction) {
                     return Ok(true);
                 }
-            }
 
-            if let Some(evt_filter) = event_filter {
-                if let Some(tx_events) = checkpoint_transaction.events {
+            if let Some(evt_filter) = event_filter
+                && let Some(tx_events) = checkpoint_transaction.events {
                     for event in &tx_events.data {
                         if evt_filter.matches_event(event) {
                             return Ok(true);
                         }
                     }
                 }
-            }
         }
         Ok(false)
     }

@@ -1637,12 +1637,11 @@ impl<'a> ParMakeLiveObjectIndexer for BackfillIndexer<'a> {
 
 impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
     fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
-        if self.backfill_package_version {
-            if let Some((key, info)) = try_create_package_version_info(&object) {
+        if self.backfill_package_version
+            && let Some((key, info)) = try_create_package_version_info(&object) {
                 self.batch
                     .insert_batch(&self.tables.package_version, [(key, info)])?;
             }
-        }
         if self.backfill_coin_v2 {
             if let Some((key, value)) = try_create_coin_index_info(&object) {
                 merge_coin_into_v2(
@@ -1662,14 +1661,12 @@ impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
                 );
             }
         }
-        if self.backfill_owner_v2 {
-            if let Owner::AddressOwner(owner) = object.owner {
-                if let Some((key, info)) = make_owner_v2_key(owner, &object) {
+        if self.backfill_owner_v2
+            && let Owner::AddressOwner(owner) = object.owner
+                && let Some((key, info)) = make_owner_v2_key(owner, &object) {
                     self.batch
                         .insert_batch(&self.tables.owner_v2, [(key, info)])?;
                 }
-            }
-        }
         // If the batch size grows to greater that 128MB then write out to the DB so
         // that the data we need to hold in memory doesn't grown unbounded.
         if self.batch.size_in_bytes() >= 1 << 27 {

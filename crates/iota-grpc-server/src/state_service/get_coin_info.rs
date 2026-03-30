@@ -55,8 +55,8 @@ pub(crate) fn get_coin_info(
     let mut response = GetCoinInfoResponse::default().with_coin_type(coin_type_str.to_string());
 
     // Populate metadata if available
-    if let Some(coin_metadata_object_id) = coin_info.coin_metadata_object_id {
-        if let Some(object) = reader.get_object(&coin_metadata_object_id)? {
+    if let Some(coin_metadata_object_id) = coin_info.coin_metadata_object_id
+        && let Some(object) = reader.get_object(&coin_metadata_object_id)? {
             match iota_types::coin::CoinMetadata::try_from(object) {
                 Ok(metadata) => {
                     let mut grpc_metadata = CoinMetadata::default()
@@ -78,7 +78,6 @@ pub(crate) fn get_coin_info(
                 }
             }
         }
-    }
 
     // Populate treasury if available
     if let Some(treasury_object_id) = coin_info.treasury_object_id {

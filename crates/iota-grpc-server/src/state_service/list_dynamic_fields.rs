@@ -141,12 +141,11 @@ fn load_dynamic_field(
                 //
                 // Clients should use `child_object` to access the full
                 // object, not BCS-decode `value` using `value_type`.
-                if read_mask.contains(DynamicField::VALUE_TYPE_FIELD.name) {
-                    if let Some(struct_tag) = child_object.struct_tag() {
+                if read_mask.contains(DynamicField::VALUE_TYPE_FIELD.name)
+                    && let Some(struct_tag) = child_object.struct_tag() {
                         let type_tag = iota_types::TypeTag::from(struct_tag);
                         message.value_type = Some(type_tag.to_canonical_string(true));
                     }
-                }
 
                 if let Some(submask) = read_mask.subtree(DynamicField::CHILD_OBJECT_FIELD.name) {
                     let merged = crate::merge::Merge::merge_from(child_object, &submask)
@@ -178,11 +177,10 @@ pub(crate) fn list_dynamic_fields(
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
-    if let Some(ref t) = page_token {
-        if t.parent != parent_id {
+    if let Some(ref t) = page_token
+        && t.parent != parent_id {
             return Err(page_token_mismatch());
         }
-    }
 
     let cursor = page_token.map(|t| t.cursor);
     let load_field = should_load_field(&read_mask);
@@ -205,13 +203,12 @@ pub(crate) fn list_dynamic_fields(
         // the item is still returned with index-only fields populated so
         // that clients see all items and can detect partial data via the
         // absence of the requested heavy fields.
-        if load_field {
-            if let Err(e) = load_dynamic_field(&reader, &field_id, &read_mask, &mut df) {
+        if load_field
+            && let Err(e) = load_dynamic_field(&reader, &field_id, &read_mask, &mut df) {
                 tracing::warn!("error loading dynamic field object {field_id}: {e}");
                 // Return the item with index-only fields rather than
                 // silently dropping it.
             }
-        }
 
         let item_size = df.encoded_len();
 
@@ -242,14 +239,13 @@ pub(crate) fn list_dynamic_fields(
     let has_more = iter.next().transpose().map_err(RpcError::from)?.is_some();
 
     let mut response = ListDynamicFieldsResponse::default().with_dynamic_fields(items);
-    if has_more {
-        if let Some(cursor_id) = last_field_id {
+    if has_more
+        && let Some(cursor_id) = last_field_id {
             response = response.with_next_page_token(encode_page_token(&PageToken {
                 parent: parent_id,
                 cursor: cursor_id,
             }));
         }
-    }
 
     Ok(response)
 }

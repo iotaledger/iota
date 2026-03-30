@@ -442,11 +442,10 @@ impl Merge<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicField {
         // by `load_dynamic_field()` in the handler when the read mask
         // requests them — they require loading the actual field object.
 
-        if mask.contains(Self::CHILD_ID_FIELD.name) {
-            if let Some(dynamic_object_id) = info.dynamic_object_id {
+        if mask.contains(Self::CHILD_ID_FIELD.name)
+            && let Some(dynamic_object_id) = info.dynamic_object_id {
                 self.child_id = Some(object_id_proto(&dynamic_object_id));
             }
-        }
 
         if mask.contains(Self::NAME_FIELD.name) {
             self.name = Some(BcsData::default().with_data(info.name_value));

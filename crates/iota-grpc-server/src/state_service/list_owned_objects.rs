@@ -70,11 +70,10 @@ pub(crate) fn list_owned_objects(
     let max_message_size = validate_max_message_size(max_message_size_bytes)?;
 
     let page_token: Option<PageToken> = decode_page_token(&page_token)?;
-    if let Some(ref t) = page_token {
-        if t.owner != owner_address || t.object_type != type_filter {
+    if let Some(ref t) = page_token
+        && (t.owner != owner_address || t.object_type != type_filter) {
             return Err(page_token_mismatch());
         }
-    }
 
     let cursor = page_token.as_ref().map(|t| &t.cursor);
 
@@ -133,15 +132,14 @@ pub(crate) fn list_owned_objects(
     let has_more = iter.next().transpose().map_err(RpcError::from)?.is_some();
 
     let mut response = ListOwnedObjectsResponse::default().with_objects(objects);
-    if has_more {
-        if let Some(cursor) = last_cursor {
+    if has_more
+        && let Some(cursor) = last_cursor {
             response = response.with_next_page_token(encode_page_token(&PageToken {
                 owner: owner_address,
                 object_type: type_filter,
                 cursor,
             }));
         }
-    }
 
     Ok(response)
 }

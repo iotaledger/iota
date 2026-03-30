@@ -4537,16 +4537,12 @@ impl AuthorityState {
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
-            {
-                if let Some(object) = self
+                && let Some(object) = self
                     .get_object_store()
                     .get_object_by_key(&object_id, version)
-                {
-                    if object.is_coin() {
+                    && object.is_coin() {
                         input_coin_objects.insert(object_id, object);
                     }
-                }
-            }
         }
 
         Some((input_coin_objects, written_coin_objects))
