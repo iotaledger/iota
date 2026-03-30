@@ -12,6 +12,7 @@ import { MonitorNetworkModule } from './monitor-network/monitorNetwork.module';
 import { PricesModule } from './prices/prices.module';
 import { RestrictedModule } from './restricted/restricted.module';
 import { HealthModule } from './health/health.module';
+import { InfoModule } from './info/info.module';
 
 @Module({
     imports: [
@@ -23,7 +24,7 @@ import { HealthModule } from './health/health.module';
         ScheduleModule.forRoot(),
         ConfigModule.forRoot({
             isGlobal: true,
-            envFilePath: '.env',
+            envFilePath: process.env.CI === 'true' ? [] : ['.env', '.env.defaults'],
             expandVariables: true,
         }),
         CacheModule.register({
@@ -32,6 +33,7 @@ import { HealthModule } from './health/health.module';
             max: 100,
         }),
         HealthModule,
+        InfoModule,
     ],
 })
 export class AppModule {}
