@@ -14,7 +14,6 @@ use aws_sdk_dynamodb::{Client, config::Credentials, primitives::Blob, types::Att
 use bytes::Bytes;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_storage::http_key_value_store::{Key, TaggedKey};
-use iota_types::storage::ObjectKey;
 use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -349,8 +348,7 @@ impl KvStoreClient {
             Key::TransactionToCheckpoint(transaction_digest) => {
                 self.get_from_dynamodb(transaction_digest, item_type).await
             }
-            Key::ObjectKey(object_id, sequence_number) => {
-                let object_key = ObjectKey(object_id, sequence_number);
+            Key::ObjectKey(object_key) => {
                 let serialized_object_key = bcs::to_bytes(&object_key)?;
                 self.get_from_dynamodb(serialized_object_key, item_type)
                     .await

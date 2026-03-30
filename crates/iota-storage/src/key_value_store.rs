@@ -17,6 +17,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::Object,
+    storage::ObjectKey,
     transaction::Transaction,
 };
 use tracing::instrument;
@@ -334,6 +335,13 @@ impl TransactionKeyValueStore {
         self.inner.get_object(object_id, version).await
     }
 
+    pub async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        self.inner.multi_get_objects(object_keys).await
+    }
+
     pub async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
@@ -383,6 +391,9 @@ pub trait TransactionKeyValueStoreTrait {
         object_id: ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>>;
+
+    async fn multi_get_objects(&self, object_keys: &[ObjectKey])
+    -> IotaResult<Vec<Option<Object>>>;
 
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
@@ -534,6 +545,26 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
         if res.is_none() {
             res = self.fallback.get_object(object_id, version).await?;
         }
+        Ok(res)
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        let mut res = self.primary.multi_get_objects(object_keys).await?;
+
+        let (fallback, indices) = find_fallback(&res, object_keys);
+
+        if fallback.is_empty() {
+            return Ok(res);
+        }
+
+        let secondary_res = self.fallback.multi_get_objects(&fallback).await?;
+
+        merge_res(&mut res, secondary_res, &indices);
+
         Ok(res)
     }
 
