@@ -1,0 +1,62 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package iota.validator.v2;
+
+service ValidatorV2 {
+  // Submit transaction(s) and stream all status updates until finality
+  rpc SubmitTx(SubmitTxRequest) returns (stream TxStatus);
+
+  // Stream status updates for a previously submitted transaction
+  rpc GetTxStatus(TxDigest) returns (stream TxStatus);
+}
+
+// Wraps one or more transactions (BCS-encoded payloads)
+message SubmitTxRequest {
+  repeated bytes tx = 1; // Each entry is a BCS-serialized Transaction
+}
+
+// Digest identifying a transaction
+message TxDigest {
+  bytes digest = 1;
+}
+
+// Status update streamed back to the client
+message TxStatus {
+  TxDigest tx_digest = 1;
+  StatusDetail status = 2;
+}
+
+// Detailed transaction status with per-variant payloads.
+message StatusDetail {
+  oneof kind {
+    SubmittedStatus submitted = 1;
+    ExecutedStatus executed = 2;
+    RejectedStatus rejected = 3;
+    ExpiredStatus expired = 4;
+  }
+}
+
+// Transaction passed pre-flight checks and was submitted to consensus.
+message SubmittedStatus {}
+
+// Transaction was executed and finalized by consensus.
+message ExecutedStatus {
+  // BCS-serialized TransactionEffectsDigest.
+  bytes effects_digest = 1;
+  // Optional BCS-serialized execution details (effects, events, objects).
+  // Present when the client requested detailed results.
+  optional bytes details = 2;
+}
+
+// Transaction was rejected during validation or by white-flag conflict resolution.
+message RejectedStatus {
+  // Optional BCS-serialized IotaError describing the rejection reason.
+  optional bytes error = 1;
+}
+
+// Transaction status has expired from the validator's cache.
+message ExpiredStatus {
+  uint64 epoch = 1;
+}
