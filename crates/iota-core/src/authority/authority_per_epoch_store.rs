@@ -2307,24 +2307,6 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    /// Check whether any user transactions were processed by consensus.
-    /// This handles multiple transactions at once (white-flag / soft-bundle
-    /// path).
-    pub fn is_any_user_tx_consensus_message_processed<'a>(
-        &self,
-        transactions: impl Iterator<Item = &'a Transaction>,
-    ) -> IotaResult<bool> {
-        let keys = transactions.map(|tx| {
-            SequencedConsensusTransactionKey::External(ConsensusTransactionKey::UserTransaction(
-                *tx.digest(),
-            ))
-        });
-        Ok(self
-            .check_consensus_messages_processed(keys)?
-            .into_iter()
-            .any(|processed| processed))
-    }
-
     /// Check whether any certificates were processed by consensus.
     /// This handles multiple certificates at once.
     pub fn is_any_tx_certs_consensus_message_processed<'a>(
