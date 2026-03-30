@@ -107,7 +107,6 @@ impl EffectsCertifier {
         };
 
         let mut retrier = RequestRetrier::new(authority_aggregator, client_monitor, &[], &[]);
-        let ping_type = tx_digest.is_none();
 
         // Channel for wait_for_acknowledgments to notify which validators have acked.
         // These validators are known to have executed the transaction, making them good
@@ -164,8 +163,7 @@ impl EffectsCertifier {
         loop {
             let display_name = authority_aggregator.get_display_name(&current_target);
             let feedback_builder =
-                OperationFeedback::builder(current_target, display_name, OperationType::Effects)
-                    .ping(ping_type);
+                OperationFeedback::builder(current_target, display_name, OperationType::Effects);
             match full_effects_result {
                 Ok((effects_digest, executed_data)) => {
                     if effects_digest != certified_digest {
@@ -425,7 +423,6 @@ impl EffectsCertifier {
                         // TODO: shouldn't Ok response be also recorded?
                         let feedback =
                             OperationFeedback::builder(name, display_name, OperationType::Effects)
-                                .ping(ping_type)
                                 .err_now();
                         client_monitor.record_interaction_result(feedback);
                         (name, Err(IotaError::Timeout))
@@ -671,15 +668,13 @@ impl EffectsCertifier {
         let effects_start = Instant::now();
         let backoff =
             ExponentialBackoff::new(Duration::from_millis(100), MAX_WAIT_FOR_EFFECTS_RETRY_DELAY);
-        let is_ping = request.queries.is_empty();
         // This loop should only retry errors that are retriable without new submission.
         for (attempt, delay) in backoff.enumerate() {
             let result = client
                 .get_tx_status(request.clone(), options.forwarded_client_addr)
                 .await;
             let feedback_builder =
-                OperationFeedback::builder(name, display_name.clone(), OperationType::Effects)
-                    .ping(is_ping);
+                OperationFeedback::builder(name, display_name.clone(), OperationType::Effects);
             match result {
                 Ok(response) => {
                     let latency = effects_start.elapsed();

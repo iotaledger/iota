@@ -791,9 +791,7 @@ impl AuthorityAPI for ScoringTestAuthorityApi {
         )
     }
 
-    /// Handles submit_transactions, distinguishing ping from real transactions.
-    /// Pings (`req.is_ping() == true`) always respond immediately with
-    /// `Submitted`. Real transactions sleep for `real_submit_delay` and return
+    /// Handles submit_transactions, sleep for `real_submit_delay` and return
     /// an error if `real_submit_fail` is set.
     async fn handle_submit_transactions(
         &self,
@@ -801,15 +799,6 @@ impl AuthorityAPI for ScoringTestAuthorityApi {
         _client_addr: Option<SocketAddr>,
     ) -> Result<SubmitTransactionsResponse, IotaError> {
         use iota_types::messages_grpc::{SubmitTransactionResult, SubmitTransactionsResponse};
-
-        if request.is_ping() {
-            self.inner
-                .ping_calls
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            return Ok(SubmitTransactionsResponse {
-                result: SubmitTransactionResult::Submitted,
-            });
-        }
 
         self.inner
             .real_submit_calls

@@ -47,8 +47,6 @@ pub struct OperationFeedback {
     pub display_name: String,
     /// The operation type
     pub operation: OperationType,
-    /// The ping type. If it's not a ping request, then this is None.
-    pub ping: bool,
     /// Result of the operation: Ok(latency) if successful, Err(()) if failed.
     pub result: Result<Duration, ()>,
     /// The timestamp when the operation feedback was received.
@@ -65,7 +63,6 @@ impl OperationFeedback {
             authority_name,
             display_name,
             operation,
-            ping: false,
         }
     }
 }
@@ -78,16 +75,9 @@ pub struct OperationFeedbackBuilder {
     pub display_name: String,
     /// The operation type
     pub operation: OperationType,
-    /// The ping type. If it's not a ping request, then this is None.
-    pub ping: bool,
 }
 
 impl OperationFeedbackBuilder {
-    pub fn ping(mut self, ping: bool) -> Self {
-        self.ping = ping;
-        self
-    }
-
     pub fn result_at(
         self,
         result: Result<Duration, ()>,
@@ -97,7 +87,6 @@ impl OperationFeedbackBuilder {
             authority_name: self.authority_name,
             display_name: self.display_name,
             operation: self.operation,
-            ping: self.ping,
             result,
             timestamp,
         }

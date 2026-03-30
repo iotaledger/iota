@@ -197,8 +197,7 @@ impl TransactionSubmitter {
         A: AuthorityAPI + Send + Sync + 'static,
     {
         let feedback_builder =
-            &OperationFeedback::builder(validator, display_name, OperationType::Submit)
-                .ping(request.transactions.is_empty());
+            &OperationFeedback::builder(validator, display_name, OperationType::Submit);
         let submit_start = Instant::now();
         let is_ping = transaction.is_none();
 

@@ -41,7 +41,7 @@ impl ValidatorClientMetrics {
             observed_latency: register_histogram_vec_with_registry!(
                 "validator_client_observed_latency",
                 "Client-observed latency of operations per validator",
-                &["validator", "operation_type", "ping"],
+                &["validator", "operation_type"],
                 SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
@@ -50,7 +50,7 @@ impl ValidatorClientMetrics {
             operation_success: register_int_counter_vec_with_registry!(
                 "validator_client_operation_success_total",
                 "Total successful operations observed by client per validator",
-                &["validator", "operation_type", "ping"],
+                &["validator", "operation_type"],
                 registry,
             )
             .unwrap(),
@@ -58,7 +58,7 @@ impl ValidatorClientMetrics {
             operation_failure: register_int_counter_vec_with_registry!(
                 "validator_client_operation_failure_total",
                 "Total failed operations observed by client per validator",
-                &["validator", "operation_type", "ping"],
+                &["validator", "operation_type"],
                 registry,
             )
             .unwrap(),
@@ -108,12 +108,7 @@ impl ValidatorClientMetrics {
         score: Option<(f64, f64)>,
     ) {
         let operation_str = feedback.operation.as_str();
-        let ping_label = feedback.ping.to_string();
-        let labels = &[
-            feedback.display_name.as_str(),
-            operation_str,
-            ping_label.as_str(),
-        ];
+        let labels = &[feedback.display_name.as_str(), operation_str];
         match feedback.result {
             Ok(latency) => {
                 self.observed_latency

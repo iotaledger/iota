@@ -146,7 +146,7 @@ where
     /// - The transaction is finalized.
     /// - The transaction observes a non-retriable error.
     /// - Timeout is reached.
-    #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest()), ping = %transaction.is_none()))]
+    #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest())))]
     pub async fn drive_transaction(
         &self,
         transaction: Option<Transaction>,
@@ -289,7 +289,6 @@ where
             amplification_factor.min(auth_agg.committee.num_members() as u64);
         let start_time = Instant::now();
         let tx_digest = transaction.as_ref().map(|t| *t.digest());
-        let is_ping = transaction.is_none();
 
         let (name, submit_txn_result) = self
             .submitter
@@ -336,8 +335,7 @@ where
             name,
             auth_agg.get_display_name(&name),
             OperationType::Consensus,
-        )
-        .ping(is_ping);
+        );
         if result.is_ok() {
             let latency = start_time.elapsed();
             self.client_monitor
