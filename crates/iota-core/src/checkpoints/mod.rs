@@ -74,7 +74,9 @@ use crate::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
-    authority_client::{AuthorityAPI, make_network_authority_clients_with_network_config},
+    authority_client::{
+        make_network_authority_clients_with_network_config, validator::ValidatorAPI,
+    },
     checkpoints::{
         causal_order::CausalOrder,
         checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput},
