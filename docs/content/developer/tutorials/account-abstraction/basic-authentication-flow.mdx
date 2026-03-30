@@ -1,6 +1,6 @@
 ---
 title: "Basic Authentication Flow"
-description: "Build and deploy your first abstract account on a local IOTA network or devnet step by step, covering the authenticator function, account creation, and sending AA transactions entirely from the CLI."
+description: "Build and deploy your first abstract account step by step, covering the authenticator function, account creation, and sending AA transactions entirely from the CLI."
 tags:
   - tutorial
   - move-sc
@@ -14,12 +14,12 @@ import AccountAbstraction from '../../../_snippets/developer/move/aa.mdx';
 
 ## Introduction
 
-In this tutorial you will build a minimal abstract account on a local network or devnet
+In this tutorial you will build a minimal abstract account
 
 By the end you will have:
 
 - Written a Move package containing an **authenticator function** and an **abstract account** type.
-- Published the package to the local network.
+- Published the package.
 - Created an `AuthenticatorFunctionRefV1` that links your authenticator function to your account type.
 - Created and shared a `HelloAccount` object whose `ObjectID` becomes its on-chain address.
 - Sent an AA transaction **from** that account.
@@ -41,12 +41,31 @@ For a full visual overview of how the components interact from package publicati
 ## Prerequisites
 
 - [IOTA CLI installed](../../getting-started/install-iota.mdx)
-- A running network — either a **local network** ([Start a Local Network](../../getting-started/local-network.mdx)) or access to **devnet**
 - Familiarity with Move and account abstraction concepts (see [Account Abstraction introduction](../../move/explanations/account-abstraction/introduction.mdx))
 
 ## 1. Set Up Your Network Environment
 
 <Tabs groupId="network" queryString>
+<TabItem value="devnet" label="Devnet">
+
+Configure the CLI to use devnet and fund your address from the public faucet:
+
+```bash
+# Switch to devnet
+iota client switch --env devnet
+```
+
+</TabItem>
+<TabItem value="testnet" label="Testnet">
+
+Configure the CLI to use testnet and fund your address from the public faucet:
+
+```bash
+# Switch to testnet
+iota client switch --env testnet
+```
+
+</TabItem>
 <TabItem value="localnet" label="Local Network">
 
 Start a local IOTA network with a built-in faucet (run this in a separate terminal and keep it running):
@@ -55,19 +74,27 @@ Start a local IOTA network with a built-in faucet (run this in a separate termin
 RUST_LOG="off,iota_node=info" iota start --force-regenesis --with-faucet
 ```
 
+:::tip Full local network setup guide
+
+For more details on starting and configuring a local network, see [Start a Local Network](../../getting-started/local-network.mdx).
+
+:::
+
 Once the network is up, configure the CLI to point at it and fund your address with test tokens:
 
 ```bash
-# Add localnet to your client config (skip if it already exists)
-iota client new-env --alias localnet --rpc http://127.0.0.1:9000
-
 # Switch to localnet
 iota client switch --env localnet
+```
 
+</TabItem>
+</Tabs>
+
+```bash
 # Confirm your active address
 iota client active-address
 
-# Request test tokens from the local faucet
+# Request test tokens from the faucet
 iota client faucet --url http://127.0.0.1:9123/gas
 ```
 
@@ -78,40 +105,6 @@ iota client balance
 ```
 
 You should see a non-zero IOTA balance before proceeding.
-
-:::tip Full local network setup guide
-For more details on starting and configuring a local network, see [Start a Local Network](../../getting-started/local-network.mdx).
-:::
-
-</TabItem>
-<TabItem value="devnet" label="Devnet">
-
-Configure the CLI to use devnet and fund your address from the public faucet:
-
-```bash
-# Add devnet to your client config (skip if it already exists)
-iota client new-env --alias devnet --rpc https://api.devnet.iota.cafe
-
-# Switch to devnet
-iota client switch --env devnet
-
-# Confirm your active address
-iota client active-address
-
-# Request test tokens from the devnet faucet
-iota client faucet
-```
-
-Verify the faucet credited your account:
-
-```bash
-iota client balance
-```
-
-You should see a non-zero IOTA balance before proceeding.
-
-</TabItem>
-</Tabs>
 
 :::note Using an existing wallet address (recommended)
 If you already have an address in the IOTA Wallet browser extension, you can export its private key and import it into the CLI so you use the same address throughout this tutorial:
@@ -254,7 +247,7 @@ Build the package to check for errors:
 iota move build
 ```
 
-If the build succeeds, publish to the local network and capture the output as JSON:
+If the build succeeds, publish to the network and capture the output as JSON:
 
 ```bash
 iota client publish --json
