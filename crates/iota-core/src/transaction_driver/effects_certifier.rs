@@ -17,7 +17,8 @@ use iota_types::{
     effects::TransactionEffectsAPI as _,
     error::{IotaError, IotaResult},
     messages_grpc::{
-        ExecutedData, SubmitTransactionResult, WaitForEffectsRequest, WaitForEffectsResponse,
+        ExecutedData, SubmitTransactionResult, WaitForEffectRequest, WaitForEffectResponse,
+        WaitForEffectsRequest, WaitForEffectsResponse,
     },
     transaction_driver_types::{EffectsFinalityInfo, FinalizedEffects},
 };
@@ -231,11 +232,16 @@ impl EffectsCertifier {
     where
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
-        let ping_type = tx_digest.is_none();
-        let request = WaitForEffectsRequest {
-            transaction_digest: tx_digest,
-            include_details: true,
-            ping_type,
+        let request = if let Some(digest) = tx_digest {
+            WaitForEffectsRequest {
+                requests: vec![WaitForEffectRequest {
+                    transaction_digest: digest,
+                    include_details: true,
+                }],
+            }
+        } else {
+            // Ping: empty requests vec.
+            WaitForEffectsRequest { requests: vec![] }
         };
 
         match timeout(
@@ -244,11 +250,11 @@ impl EffectsCertifier {
         )
         .await
         {
-            Ok(Ok(response)) => match response {
-                WaitForEffectsResponse::Executed {
+            Ok(Ok(response)) => match response.results.into_iter().next() {
+                Some(WaitForEffectResponse::Executed {
                     effects_digest,
                     details,
-                } => {
+                }) => {
                     if let Some(details) = details {
                         tracing::Span::current()
                             .record("ret_effects_digest", format!("{effects_digest:?}"));
@@ -260,16 +266,19 @@ impl EffectsCertifier {
                         ))
                     }
                 }
-                WaitForEffectsResponse::Rejected { error } => match error {
+                Some(WaitForEffectResponse::Rejected { error }) => match error {
                     Some(e) => Err(TransactionRequestError::RejectedAtValidator(e)),
                     // Even though this response is not an error, returning an error which is
                     // required by the function signature. This will get ignored
                     // by the caller as a retriable error.
                     None => Err(TransactionRequestError::RejectedByConsensus),
                 },
-                WaitForEffectsResponse::Expired { epoch } => {
+                Some(WaitForEffectResponse::Expired { epoch }) => {
                     Err(TransactionRequestError::StatusExpired(epoch))
                 }
+                None => Err(TransactionRequestError::ValidatorInternal(
+                    "Empty response from validator".to_string(),
+                )),
             },
             Ok(Err(e)) => Err(TransactionRequestError::Aborted(e)),
             Err(_) => Err(TransactionRequestError::TimedOutGettingFullEffectsAtValidator),
@@ -391,10 +400,15 @@ impl EffectsCertifier {
             let name = *name;
             let display_name = authority_aggregator.get_display_name(&name);
 
-            let request = WaitForEffectsRequest {
-                transaction_digest: tx_digest,
-                include_details: false,
-                ping_type,
+            let request = if let Some(digest) = tx_digest {
+                WaitForEffectsRequest {
+                    requests: vec![WaitForEffectRequest {
+                        transaction_digest: digest,
+                        include_details: false,
+                    }],
+                }
+            } else {
+                WaitForEffectsRequest { requests: vec![] }
             };
 
             let future = async move {
@@ -447,11 +461,13 @@ impl EffectsCertifier {
         let mut reason_not_found_aggregator = StatusAggregator::<()>::new(committee.clone());
         // Every validator returns at most one WaitForEffectsResponse.
         while let Some((name, response)) = futures.next().await {
-            match response {
-                Ok(WaitForEffectsResponse::Executed {
+            // Extract the first per-item result from the batch response.
+            let single_result = response.map(|r| r.results.into_iter().next());
+            match single_result {
+                Ok(Some(WaitForEffectResponse::Executed {
                     effects_digest,
                     details: _,
-                }) => {
+                })) => {
                     // Notify that this validator has successfully executed the transaction.
                     let _ = acked_validators_tx.try_send(name);
 
@@ -486,7 +502,7 @@ impl EffectsCertifier {
                         return Ok(effects_digest);
                     }
                 }
-                Ok(WaitForEffectsResponse::Rejected { error }) => {
+                Ok(Some(WaitForEffectResponse::Rejected { error })) => {
                     if let Some(e) = error {
                         tracing::trace!(name = ?name.concise(), "Rejected at validator: {:?}", e);
                         let error = TransactionRequestError::RejectedAtValidator(e);
@@ -504,7 +520,7 @@ impl EffectsCertifier {
                         .with_label_values(&[ping_label.as_str()])
                         .inc();
                 }
-                Ok(WaitForEffectsResponse::Expired { epoch }) => {
+                Ok(Some(WaitForEffectResponse::Expired { epoch })) => {
                     let error = TransactionRequestError::StatusExpired(epoch);
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
@@ -512,6 +528,13 @@ impl EffectsCertifier {
                         .expiration_acks
                         .with_label_values(&[ping_label.as_str()])
                         .inc();
+                }
+                Ok(None) => {
+                    // Empty response from validator — treat as retriable error.
+                    let error = TransactionRequestError::ValidatorInternal(
+                        "Empty response from validator".to_string(),
+                    );
+                    retriable_errors_aggregator.insert(name, error);
                 }
                 Err(error) => {
                     let error = TransactionRequestError::Aborted(error);
@@ -649,7 +672,7 @@ impl EffectsCertifier {
         let effects_start = Instant::now();
         let backoff =
             ExponentialBackoff::new(Duration::from_millis(100), MAX_WAIT_FOR_EFFECTS_RETRY_DELAY);
-        let is_ping = request.ping_type;
+        let is_ping = request.is_ping();
         // This loop should only retry errors that are retriable without new submission.
         for (attempt, delay) in backoff.enumerate() {
             let result = client

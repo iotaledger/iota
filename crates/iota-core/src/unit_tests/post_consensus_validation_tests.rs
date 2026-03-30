@@ -6,7 +6,7 @@
 
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::ObjectId;
 use iota_types::{
     base_types::IotaAddress,
     crypto::{AccountKeyPair, get_key_pair},
@@ -14,7 +14,7 @@ use iota_types::{
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
-    transaction::{TransactionDataAPI, VerifiedTransaction},
+    transaction::VerifiedTransaction,
 };
 
 use crate::{
@@ -795,7 +795,8 @@ async fn test_winner_blocks_multiple_losers() {
     let gas2 = authority.get_object(&gas2_id).await.unwrap();
     let gas3 = authority.get_object(&gas3_id).await.unwrap();
 
-    use iota_types::transaction::{CallArg, TransactionData};
+    use iota_sdk_types::Identifier;
+    use iota_types::transaction::{CallArg, TransactionData, TransactionDataAPI};
 
     let tx1_data = TransactionData::new_move_call(
         sender,

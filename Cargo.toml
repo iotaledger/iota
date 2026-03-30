@@ -360,6 +360,7 @@ toml = { version = "0.7.4", features = ["preserve_order"] }
 tonic = { version = "0.14", features = ["zstd", "transport"] }
 tonic-build = "0.14"
 tonic-health = "0.14"
+tonic-prost = "0.14"
 tower = { version = "0.4.12", features = ["util", "timeout", "load-shed", "limit"] }
 tower-http = { version = "0.5", features = ["cors", "timeout", "trace", "set-header", "propagate-header"] }
 tracing = "0.1.44"
