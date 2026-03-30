@@ -14,6 +14,7 @@ bcs.workspace = true
 bincode.workspace = true
 collectable = "0.0.2"
 eyre.workspace = true
+fastcrypto.workspace = true
 fdlimit = "0.2.1"
 hdrhistogram.workspace = true
 once_cell.workspace = true
@@ -28,7 +29,9 @@ tokio = { workspace = true, features = ["full", "test-util"] }
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
+iota-metrics.workspace = true
 typed-store-derive.workspace = true
 typed-store-error.workspace = true
 
