@@ -7,9 +7,8 @@ use async_graphql::{
     *,
 };
 use iota_types::{
-    digests::TransactionDigest,
-    object::Object as NativeObject,
-    transaction::{GenesisObject, GenesisTransaction as NativeGenesisTransaction},
+    digests::TransactionDigest, object::Object as NativeObject,
+    transaction::GenesisTransaction as NativeGenesisTransaction,
 };
 
 use crate::{
@@ -58,9 +57,12 @@ impl GenesisTransaction {
         connection.has_next_page = consistent_page.has_next_page;
 
         for cursor in consistent_page.cursors {
-            let GenesisObject::RawObject { data, owner } = self.native.objects[cursor.ix].clone();
-            let native =
-                NativeObject::new_from_genesis(data, owner, TransactionDigest::GENESIS_MARKER);
+            let genesis_object = self.native.objects[cursor.ix].clone();
+            let native = NativeObject::new_from_genesis(
+                genesis_object.data,
+                genesis_object.owner,
+                TransactionDigest::GENESIS_MARKER,
+            );
 
             let object =
                 Object::from_native(IotaAddress::from(native.id()), native, cursor.c, None);
