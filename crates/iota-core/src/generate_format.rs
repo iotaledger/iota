@@ -382,10 +382,10 @@ fn get_registry() -> Result<Registry> {
             &TransactionKind::ProgrammableTransaction(sample_pt),
         )
         .unwrap();
-    let sample_genesis_obj = GenesisObject::RawObject {
-        data: Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
-        owner: Owner::Address(IotaAddress::ZERO),
-    };
+    let sample_genesis_obj = GenesisObject::new(
+        Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
+        Owner::Address(IotaAddress::ZERO),
+    );
     tracer
         .trace_value(
             &mut samples,

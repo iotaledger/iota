@@ -2733,8 +2733,8 @@ mod tests {
 
         let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
         let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
-            vec![GenesisObject::RawObject {
-                data: object::Data::Package(
+            vec![GenesisObject::new(
+                object::Data::Package(
                     MovePackage::new(
                         ObjectID::random(),
                         SequenceNumber::default(),
@@ -2749,8 +2749,8 @@ mod tests {
                     )
                     .unwrap(),
                 ),
-                owner: object::Owner::Immutable,
-            }],
+                object::Owner::Immutable,
+            )],
             vec![],
         );
         for i in 0..15 {
