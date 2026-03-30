@@ -400,16 +400,16 @@ impl GasPriceFeedbackTester {
             let gas_data = GasDataForTests::new(self.gas_object_ids[index], data.0, data.1);
 
             let transaction = match (data.2, data.3) {
-                (Some(data_2), Some(data_3)) => {
-                    self.build_access_both_counters_transaction(gas_data, data_2, data_3)
+                (Some(counter_1), Some(counter_2)) => {
+                    self.build_access_both_counters_transaction(gas_data, counter_1, counter_2)
                         .await
                 }
-                (Some(data_2), None) => {
-                    self.build_access_one_counter_transaction(gas_data, data_2, true)
+                (Some(counter_1), None) => {
+                    self.build_access_one_counter_transaction(gas_data, counter_1, true)
                         .await
                 }
-                (None, Some(data_3)) => {
-                    self.build_access_one_counter_transaction(gas_data, data_3, false)
+                (None, Some(counter_2)) => {
+                    self.build_access_one_counter_transaction(gas_data, counter_2, false)
                         .await
                 }
                 _ => panic!("At least one counter must be accessed in transactions."),
