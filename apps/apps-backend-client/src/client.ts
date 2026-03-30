@@ -76,10 +76,6 @@ export class AppsBackendClient {
         return this.snapshot;
     }
 
-    async getApps(network: string): Promise<AppsResponse> {
-        return this.request('api/features/apps', { network });
-    }
-
     async getCoinPrice(coin: string): Promise<CoinPriceResponse> {
         return this.request(`coin-price/${coin}`);
     }
