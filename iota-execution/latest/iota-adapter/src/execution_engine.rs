@@ -1192,17 +1192,13 @@ mod checked {
                 }
 
                 for genesis_object in objects {
-                    match genesis_object {
-                        iota_types::transaction::GenesisObject::RawObject { data, owner } => {
-                            let object = ObjectInner {
-                                data,
-                                owner,
-                                previous_transaction: tx_ctx.borrow().digest(),
-                                storage_rebate: 0,
-                            };
-                            temporary_store.create_object(object.into());
-                        }
-                    }
+                    let object = ObjectInner {
+                        data: genesis_object.data,
+                        owner: genesis_object.owner,
+                        previous_transaction: tx_ctx.borrow().digest(),
+                        storage_rebate: 0,
+                    };
+                    temporary_store.create_object(object.into());
                 }
 
                 temporary_store.record_execution_results(ExecutionResults::V1(
