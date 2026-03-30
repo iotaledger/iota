@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_type: ${{ steps.resolve.outputs.deploy_type }}
-      environment: ${{ steps.resolve.outputs.environment }}
     steps:
       - name: Resolve deploy type
         id: resolve
@@ -30,19 +29,12 @@ jobs:
             DEPLOY_TYPE="${{ inputs.deploy_type }}"
           fi
 
-          case "$DEPLOY_TYPE" in
-            staging)    ENVIRONMENT="Staging – apps-backend" ;;
-            rc)         ENVIRONMENT="RC – apps-backend" ;;
-            production) ENVIRONMENT="Production – apps-backend" ;;
-          esac
-
           echo "deploy_type=$DEPLOY_TYPE" >> "$GITHUB_OUTPUT"
-          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
   build-and-deploy:
     needs: resolve-deploy-type
     runs-on: ubuntu-latest
-    environment: ${{ needs.resolve-deploy-type.outputs.environment }}
+    environment: apps-backend
 
     permissions:
       contents: read
