@@ -660,10 +660,10 @@ pub struct AuthorityPerEpochStore {
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
 
-    /// Notifies waiters when a transaction is dropped by white-flag conflict
-    /// resolution. This allows `wait_for_effects` to return immediately with a
+    /// In-memory bounded cache for transactions dropped by white-flag conflict
+    /// resolution. Allows `wait_for_effects` to return immediately with a
     /// `Rejected` response instead of waiting for the gRPC deadline.
-    dropped_tx_notify_read: NotifyRead<TransactionDigest, IotaError>,
+    dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,
@@ -1205,7 +1205,7 @@ impl AuthorityPerEpochStore {
             checkpoint_state_notify_read: NotifyRead::new(),
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
-            dropped_tx_notify_read: NotifyRead::new(),
+            dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1733,8 +1733,9 @@ impl AuthorityPerEpochStore {
     /// Callers should race this against `notify_read_executed_effects_digests`
     /// to determine whether the transaction was executed or dropped.
     pub async fn notify_read_dropped_digests(&self, digest: TransactionDigest) -> IotaError {
-        let registration = self.dropped_tx_notify_read.register_one(&digest);
-        registration.await
+        self.dropped_tx_status_cache
+            .notify_read_dropped(digest)
+            .await
     }
 
     pub async fn notify_read_running_root(
@@ -3320,9 +3321,7 @@ impl AuthorityPerEpochStore {
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
-                for (digest, error) in &dropped {
-                    self.dropped_tx_notify_read.notify(digest, error);
-                }
+                self.dropped_tx_status_cache.insert_and_notify(&dropped);
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
