@@ -220,6 +220,25 @@ mod checked {
         Ok(authenticator_input_objects.into_checked())
     }
 
+    /// A function to aggregate the checked authenticator input objects for
+    /// multiple `MoveAuthenticators` into one `CheckedInputObjects` to be used
+    /// for execution.
+    pub fn aggregate_authenticator_input_objects(
+        auth_checked_input_objects: &[&CheckedInputObjects],
+    ) -> IotaResult<CheckedInputObjects> {
+        let mut aggregated_authenticator_input_objects =
+            CheckedInputObjects::new_with_checked_transaction_inputs(InputObjects::new(vec![]));
+
+        for auth_checked_input_objects in auth_checked_input_objects.iter() {
+            aggregated_authenticator_input_objects = checked_input_objects_union(
+                aggregated_authenticator_input_objects,
+                auth_checked_input_objects,
+            )?;
+        }
+
+        Ok(aggregated_authenticator_input_objects)
+    }
+
     /// A function to check the `MoveAuthenticator` inputs for execution and
     /// then for certificate execution.
     /// To be used instead of check_certificate_input when there is a Move

@@ -946,6 +946,11 @@ impl AuthorityState {
             "Move authenticators amount must match the number of checked authenticator inputs"
         );
 
+        let aggregated_authenticator_input_objects =
+            iota_transaction_checks::aggregate_authenticator_input_objects(
+                &auth_checked_input_objects,
+            )?;
+
         let move_authenticators = move_authenticators
             .into_iter()
             .zip(auth_checked_inputs)
@@ -978,6 +983,7 @@ impl AuthorityState {
             gas_data,
             gas_status,
             move_authenticators,
+            aggregated_authenticator_input_objects,
             kind,
             signer,
             transaction.digest().to_owned(),

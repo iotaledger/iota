@@ -502,6 +502,7 @@ mod checked {
             AuthenticatorFunctionRef,
             CheckedInputObjects,
         )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
@@ -534,20 +535,18 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            aggregated_authenticator_input_objects.into_inner(),
+            vec![],
+            transaction_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
         // Run each authenticator in sequence; return on first failure.
         authenticators.into_iter().try_for_each(
             |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                let input_objects = authenticator_input_objects.into_inner();
-
-                let mut temporary_store = TemporaryStore::new(
-                    store,
-                    input_objects.clone(),
-                    vec![],
-                    transaction_digest,
-                    protocol_config,
-                    *epoch_id,
-                );
-
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
                         authenticate_transaction_inner(
@@ -557,7 +556,7 @@ mod checked {
                             &mut gas_charger,
                             authenticator,
                             authenticator_function_ref_v1,
-                            &input_objects,
+                            &authenticator_input_objects.into_inner(),
                             transaction_kind.clone(),
                             transaction_digest,
                             tx_ctx.clone(),

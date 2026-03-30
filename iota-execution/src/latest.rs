@@ -243,6 +243,7 @@ impl executor::Executor for Executor {
             AuthenticatorFunctionRef,
             CheckedInputObjects,
         )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
@@ -259,6 +260,7 @@ impl executor::Executor for Executor {
             gas_data,
             gas_status,
             move_authenticators,
+            aggregated_authenticator_input_objects,
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,

@@ -135,6 +135,7 @@ pub trait Executor {
             AuthenticatorFunctionRef,
             CheckedInputObjects,
         )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
