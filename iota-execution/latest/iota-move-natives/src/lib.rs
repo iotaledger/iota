@@ -160,6 +160,7 @@ pub struct NativesCostTable {
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
+    pub auth_context_tx_data_bytes_cost_params: auth_context::AuthContextTxDataBytesCostParams,
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
@@ -474,6 +475,11 @@ impl NativesCostTable {
             auth_context_digest_cost_params: AuthContextDigestCostParams {
                 auth_context_digest_cost_base: protocol_config
                     .auth_context_digest_cost_base_as_option()
+                    .map(Into::into),
+            },
+            auth_context_tx_data_bytes_cost_params: auth_context::AuthContextTxDataBytesCostParams {
+                auth_context_tx_data_bytes_cost_base: protocol_config
+                    .auth_context_tx_data_bytes_cost_base_as_option()
                     .map(Into::into),
             },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
@@ -941,6 +947,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "auth_context",
             "native_digest",
             make_native!(auth_context::native_digest),
+        ),
+        (
+            "auth_context",
+            "native_tx_data_bytes",
+            make_native!(auth_context::native_tx_data_bytes),
         ),
         (
             "auth_context",

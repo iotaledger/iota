@@ -956,6 +956,9 @@ impl AuthorityState {
             let authenticator_function_ref = authenticator_function_ref
                 .expect("AuthenticatorFunctionRefV1 object must be provided");
 
+            // Serialize the TransactionData for the auth context before decomposing.
+            let tx_data_bytes = bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+
             let (kind, signer, gas_data) = tx_data.execution_parts();
 
             // Execute the Move authenticator.
@@ -976,6 +979,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
+                tx_data_bytes,
                 &mut None,
             );
 
@@ -1643,6 +1647,9 @@ impl AuthorityState {
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
 
+        // Serialize the TransactionData for the auth context before decomposing.
+        let tx_data_bytes = bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+
         let (kind, signer, gas_data) = tx_data.execution_parts();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
@@ -1723,6 +1730,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
+                    tx_data_bytes,
                     &mut None,
                 )
         } else {

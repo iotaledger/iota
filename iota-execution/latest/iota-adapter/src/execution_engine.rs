@@ -322,6 +322,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -420,6 +421,7 @@ mod checked {
                     &authenticator_input_objects.into_inner(),
                     transaction_kind.clone(),
                     transaction_digest,
+                    transaction_data_bytes,
                     tx_ctx.clone(),
                     trace_builder_opt,
                     move_vm,
@@ -481,6 +483,7 @@ mod checked {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -534,6 +537,7 @@ mod checked {
                     &input_objects,
                     transaction_kind,
                     transaction_digest,
+                    transaction_data_bytes,
                     tx_ctx,
                     trace_builder_opt,
                     move_vm,
@@ -566,6 +570,7 @@ mod checked {
         // Transaction
         transaction_kind: TransactionKind,
         transaction_digest: TransactionDigest,
+        tx_data_bytes: Vec<u8>,
         tx_ctx: Rc<RefCell<TxContext>>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
@@ -600,7 +605,7 @@ mod checked {
             let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), ptb)
+            AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
         };
         let auth_ctx = Rc::new(RefCell::new(auth_ctx));
 

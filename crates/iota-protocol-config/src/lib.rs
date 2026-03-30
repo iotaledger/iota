@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 23;
+pub const MAX_PROTOCOL_VERSION: u64 = 24;
 
 // Record history of protocol version allocations here:
 //
@@ -133,6 +133,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 23;
 //             instead of being deserialized from a BCS-encoded struct.
 //             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
 //             Move.
+// Version 24: Add AuthContext native functions cost for reading tx_data_bytes.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1292,6 +1293,8 @@ pub struct ProtocolConfig {
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
     auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_data_bytes(): &vector<u8>`
+    auth_context_tx_data_bytes_cost_base: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
     auth_context_tx_commands_cost_per_byte: Option<u64>,
@@ -1299,7 +1302,7 @@ pub struct ProtocolConfig {
     auth_context_tx_inputs_cost_base: Option<u64>,
     auth_context_tx_inputs_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
-    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
 }
@@ -2223,6 +2226,7 @@ impl ProtocolConfig {
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
+            auth_context_tx_data_bytes_cost_base: None,
             auth_context_tx_commands_cost_base: None,
             auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
@@ -2678,6 +2682,11 @@ impl ProtocolConfig {
                     cfg.tx_context_gas_budget_cost_base = Some(30);
                     cfg.tx_context_ids_created_cost_base = Some(30);
                     cfg.tx_context_replace_cost_base = Some(30);
+                }
+                24 => {
+                    // Add tx_data_bytes to AuthContext for intent-based signature
+                    // verification in account abstraction.
+                    cfg.auth_context_tx_data_bytes_cost_base = Some(30);
                 }
 
                 // Use this template when making changes:
