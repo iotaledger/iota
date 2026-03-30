@@ -11,8 +11,13 @@ use iota_types::{
     digests::TransactionDigest,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
-use move_core_types::{account_address::AccountAddress, vm_status::StatusCode};
+use move_core_types::{
+    account_address::AccountAddress, runtime_value::MoveTypeLayout, vm_status::StatusCode,
+};
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
+use move_vm_types::values::{GlobalValue, StructRef, Value};
+
+use crate::utils;
 
 // TransactionContext is a wrapper around TxContext that is exposed to
 // NativeContextExtensions in order to provide transaction context information
@@ -22,6 +27,10 @@ use move_vm_runtime::native_extensions::NativeExtensionMarker;
 pub struct TransactionContext {
     pub(crate) tx_context: Rc<RefCell<TxContext>>,
     test_only: bool,
+
+    /// Cached `GlobalValue` containing TxContext data. Caching is used to
+    /// avoid redundant conversions and allocations.
+    cached_digest: Option<GlobalValue>,
 }
 
 impl NativeExtensionMarker<'_> for TransactionContext {}
@@ -31,6 +40,7 @@ impl TransactionContext {
         Self {
             tx_context,
             test_only: false,
+            cached_digest: None,
         }
     }
 
@@ -38,6 +48,7 @@ impl TransactionContext {
         Self {
             tx_context,
             test_only: true,
+            cached_digest: None,
         }
     }
 
@@ -55,6 +66,32 @@ impl TransactionContext {
 
     pub fn digest(&self) -> TransactionDigest {
         self.tx_context.borrow().digest()
+    }
+
+    /// Returns a `Value` containing a transaction digest ref.
+    /// Caches the result to avoid redundant conversions and allocations on
+    /// subsequent calls.
+    pub fn digest_ref(&mut self) -> PartialVMResult<Value> {
+        if self.cached_digest.is_none() {
+            let tx_context = self.tx_context.borrow();
+
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct TxContext {
+            //     digest: vector<u8>
+            // }`
+            let rust_value = (tx_context.digest(),);
+            let digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
+
+            self.cached_digest = Some(utils::to_global_value(&rust_value, digest_move_layout)?.0);
+        }
+
+        self.cached_digest
+            .as_ref()
+            .unwrap()
+            .borrow_global()
+            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+            .value_as::<StructRef>()?
+            .borrow_field(0)
     }
 
     pub fn sponsor(&self) -> Option<IotaAddress> {
@@ -83,7 +120,7 @@ impl TransactionContext {
 
     // Test only function: replace all fields of the wrapped TxContext.
     pub fn replace(
-        &self,
+        &mut self,
         sender: AccountAddress,
         tx_hash: Vec<u8>,
         epoch: u64,
@@ -111,6 +148,11 @@ impl TransactionContext {
             gas_budget,
             sponsor,
         );
+
+        // Drop cached values to ensure they are recreated with the updated TxContext
+        // data
+        self.cached_digest = None;
+
         Ok(())
     }
 }

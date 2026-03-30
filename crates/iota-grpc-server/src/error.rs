@@ -89,6 +89,12 @@ impl From<RpcError> for Status {
 
 impl From<anyhow::Error> for RpcError {
     fn from(value: anyhow::Error) -> Self {
+        if value
+            .chain()
+            .any(|e| e.downcast_ref::<MissingIndexesError>().is_some())
+        {
+            return Self::new(Code::FailedPrecondition, value.to_string());
+        }
         Self::internal().with_context(value)
     }
 }
@@ -239,6 +245,58 @@ impl std::error::Error for TransactionNotFoundError {}
 impl From<TransactionNotFoundError> for RpcError {
     fn from(value: TransactionNotFoundError) -> Self {
         Self::not_found().with_context(value)
+    }
+}
+
+/// Returned when an index table has not yet finished its background backfill.
+/// Clients should retry after the suggested delay.
+#[derive(Debug, Clone)]
+pub struct IndexBackfillInProgressError {
+    pub index_name: &'static str,
+}
+
+impl std::fmt::Display for IndexBackfillInProgressError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} index backfill in progress, try again later",
+            self.index_name
+        )
+    }
+}
+
+impl std::error::Error for IndexBackfillInProgressError {}
+
+impl From<IndexBackfillInProgressError> for RpcError {
+    fn from(e: IndexBackfillInProgressError) -> Self {
+        let details = ErrorDetails::new().with_retry_info(RetryInfo {
+            retry_delay: Some(prost_types::Duration {
+                seconds: 30,
+                nanos: 0,
+            }),
+        });
+        RpcError {
+            code: Code::Unavailable,
+            message: Some(e.to_string()),
+            details: Some(Box::new(details)),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MissingIndexesError;
+
+impl std::fmt::Display for MissingIndexesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "indexes are not available on this node")
+    }
+}
+
+impl std::error::Error for MissingIndexesError {}
+
+impl From<MissingIndexesError> for RpcError {
+    fn from(value: MissingIndexesError) -> Self {
+        Self::new(Code::FailedPrecondition, value)
     }
 }
 

@@ -136,6 +136,39 @@ pub fn sender(
 }
 
 #[derive(Clone)]
+pub struct TxContextDigestCostParams {
+    pub tx_context_digest_cost_base: InternalGas,
+}
+/// ****************************************************************************
+/// ********************* native fun native_digest
+/// Implementation of the Move native function `fun native_digest():
+/// &vector<u8>` ***************************************************************
+/// ************* *******************
+pub fn digest(
+    context: &mut NativeContext,
+    ty_args: Vec<Type>,
+    args: VecDeque<Value>,
+) -> PartialVMResult<NativeResult> {
+    debug_assert!(ty_args.is_empty());
+    debug_assert!(args.is_empty());
+
+    let tx_context_digest_cost_params = context
+        .extensions_mut()
+        .get::<NativesCostTable>()?
+        .tx_context_digest_cost_params
+        .clone();
+    native_charge_gas_early_exit!(
+        context,
+        tx_context_digest_cost_params.tx_context_digest_cost_base
+    );
+
+    let transaction_context: &mut TransactionContext = context.extensions_mut().get_mut()?;
+    let digest_ref = transaction_context.digest_ref()?;
+
+    Ok(NativeResult::ok(context.gas_used(), smallvec![digest_ref]))
+}
+
+#[derive(Clone)]
 pub struct TxContextEpochCostParams {
     pub tx_context_epoch_cost_base: InternalGas,
 }

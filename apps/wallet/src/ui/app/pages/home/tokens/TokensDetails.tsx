@@ -238,12 +238,12 @@ export function TokenDetails() {
                                 isCopyable
                                 copyText={activeAccountAddress}
                                 onCopySuccess={() => {
-                                    ampli.elementCopied({
+                                    ampli.copiedElement({
                                         type: 'address',
                                     });
                                     toast('Address copied');
                                 }}
-                                onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
+                                onOpen={() => ampli.openedLink({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>

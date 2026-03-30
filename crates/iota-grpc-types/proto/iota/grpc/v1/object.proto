@@ -1,0 +1,26 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.object;
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/types.proto";
+
+// An object on the IOTA blockchain.
+message Object {
+  // Reference to this object.
+  optional iota.grpc.v1.types.ObjectReference reference = 1;
+  // This Object serialized as BCS.
+  optional iota.grpc.v1.bcs.BcsData bcs = 2;
+}
+
+// A list of objects.
+message Objects {
+  option (iota.grpc.field_mask_transparent) = true;
+
+  repeated Object objects = 1;
+}

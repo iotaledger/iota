@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
+use std::{env, time::Duration};
 
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
@@ -20,7 +20,8 @@ use crate::{
     errors::IndexerError,
     historical_fallback::reader::HistoricalFallbackReader,
     ingestion::{
-        primary::orchestration::PrimaryPipeline, snapshot::orchestration::SnapshotPipelineBuilder,
+        common::connection::resolve_remote_url, primary::orchestration::PrimaryPipeline,
+        snapshot::orchestration::SnapshotPipelineBuilder,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
@@ -28,6 +29,9 @@ use crate::{
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
+
+/// Maximum timeout for resolving the remote checkpoint source.
+const MAX_URL_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Indexer;
 
@@ -53,16 +57,9 @@ impl Indexer {
             data_limit: config.checkpoint_download_queue_size_bytes,
             ..Default::default()
         };
-        let data_ingestion_path = config
-            .sources
-            .data_ingestion_path
-            .clone()
-            .unwrap_or(tempfile::tempdir().unwrap().keep());
-        let remote_store_url = config
-            .sources
-            .remote_store_url
-            .as_ref()
-            .map(|url| url.as_str().to_owned());
+
+        let remote_store_url =
+            resolve_remote_url(&config.sources, MAX_URL_RESOLUTION_TIMEOUT).await?;
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
@@ -129,7 +126,7 @@ impl Indexer {
         info!("Starting data ingestion executor...");
         let mut primary_pipeline_handle = primary_pipeline
             .run(
-                data_ingestion_path.clone(),
+                config.sources.data_ingestion_path.clone(),
                 remote_store_url.clone(),
                 extra_reader_options.clone(),
             )

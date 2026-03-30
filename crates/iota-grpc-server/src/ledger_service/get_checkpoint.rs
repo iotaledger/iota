@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of the `get_checkpoint` and `stream_checkpoint_data` methods
+//! Implementation of the `get_checkpoint` and `stream_checkpoints` methods
 //! of the LedgerService.
 //!
 //! # Available Read Mask Fields
@@ -83,9 +83,9 @@
 
 use futures::Stream;
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil, MessageField, MessageFields},
+    field::{FieldMaskTree, MessageField, MessageFields},
     read_masks::GET_CHECKPOINT_READ_MASK,
-    v0::{
+    v1::{
         checkpoint::Checkpoint, event::Event, ledger_service as grpc_ledger_service,
         transaction::ExecutedTransaction,
     },
@@ -96,14 +96,14 @@ use tracing::debug;
 use super::LedgerGrpcService;
 use crate::{
     error::RpcError, event_filter::EventFilter, transaction_filter::TransactionFilter,
-    types::CheckpointStreamResult,
+    types::CheckpointStreamResult, validation::validate_read_mask,
 };
 
 /// Helper function to convert proto filters to internal filters and validate
 /// their complexity
 fn convert_and_validate_filters(
-    transactions_filter: Option<iota_grpc_types::v0::filter::TransactionFilter>,
-    events_filter: Option<iota_grpc_types::v0::filter::EventFilter>,
+    transactions_filter: Option<iota_grpc_types::v1::filter::TransactionFilter>,
+    events_filter: Option<iota_grpc_types::v1::filter::EventFilter>,
 ) -> Result<(Option<TransactionFilter>, Option<EventFilter>), Status> {
     // Convert proto filters to internal filters
     let transaction_filter = transactions_filter
@@ -177,16 +177,9 @@ impl MessageFields for CheckpointDataResponse {
 /// transactions, and events.
 fn parse_checkpoint_read_mask(
     read_mask: Option<prost_types::FieldMask>,
-) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), Status> {
-    let field_mask =
-        read_mask.unwrap_or_else(|| prost_types::FieldMask::from_str(GET_CHECKPOINT_READ_MASK));
-
-    // Validate the read_mask paths
-    FieldMaskUtil::validate::<CheckpointDataResponse>(&field_mask)
-        .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;
-
-    // Convert to FieldMaskTree after validation
-    let read_mask = FieldMaskTree::from(field_mask);
+) -> Result<(FieldMaskTree, Option<FieldMaskTree>, Option<FieldMaskTree>), RpcError> {
+    let read_mask =
+        validate_read_mask::<CheckpointDataResponse>(read_mask, GET_CHECKPOINT_READ_MASK)?;
 
     // Extract checkpoint-related fields mask
     let checkpoint_mask = read_mask.subtree("checkpoint").unwrap_or_default();
@@ -222,19 +215,17 @@ fn parse_checkpoint_read_mask(
 ///   - `sequence_number` - the sequence number of the checkpoint to fetch
 ///   - `digest` - the digest of the checkpoint to fetch
 ///   - `latest` - if set, fetches the latest checkpoint
-pub(crate) fn get_checkpoint_data(
+pub(crate) fn get_checkpoint(
     service: &LedgerGrpcService,
-    request: Request<grpc_ledger_service::GetCheckpointDataRequest>,
+    request: Request<grpc_ledger_service::GetCheckpointRequest>,
 ) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
     let req = request.into_inner();
 
     // determine if we need to get the checkpoint based on the sequential number,
     // digest or the latest one.
     let sequence_number = match req.checkpoint_id {
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::SequenceNumber(
-            seq,
-        )) => seq,
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Digest(digest)) => {
+        Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::SequenceNumber(seq)) => seq,
+        Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::Digest(digest)) => {
             let sdk_digest: iota_sdk_types::Digest = (&digest)
                 .try_into()
                 .map_err(|e| Status::invalid_argument(format!("invalid checkpoint digest: {e}")))?;
@@ -245,7 +236,7 @@ pub(crate) fn get_checkpoint_data(
                 .map_err(|e| Status::internal(format!("failed to get checkpoint by digest: {e}")))?
                 .ok_or(Status::not_found("checkpoint not found"))?
         }
-        Some(grpc_ledger_service::get_checkpoint_data_request::CheckpointId::Latest(_)) => service
+        Some(grpc_ledger_service::get_checkpoint_request::CheckpointId::Latest(_)) => service
             .reader
             .get_latest_checkpoint_sequence_number()
             .map_err(|e| Status::internal(format!("failed to get latest checkpoint: {e}")))?
@@ -257,6 +248,18 @@ pub(crate) fn get_checkpoint_data(
             return Err(Status::invalid_argument("unknown checkpoint_id type").into());
         }
     };
+
+    // Check if the requested checkpoint has been pruned
+    let lowest_available = service
+        .reader
+        .get_lowest_available_checkpoint()
+        .map_err(|e| Status::internal(format!("failed to get lowest available checkpoint: {e}")))?;
+    if sequence_number < lowest_available {
+        return Err(Status::not_found(format!(
+            "Requested checkpoint {sequence_number} is below the lowest available checkpoint {lowest_available}"
+        ))
+        .into());
+    }
 
     let client_max_message_size_bytes = req.max_message_size_bytes;
 
@@ -330,9 +333,9 @@ pub(crate) fn get_checkpoint_data(
 /// * `max_message_size_bytes` - Optional maximum message size in bytes that the
 ///   client can handle. The server will use this to limit the size of the
 ///   response and avoid sending messages that are too large.
-pub(crate) fn stream_checkpoint_data(
+pub(crate) fn stream_checkpoints(
     service: &LedgerGrpcService,
-    request: Request<grpc_ledger_service::CheckpointDataStreamRequest>,
+    request: Request<grpc_ledger_service::StreamCheckpointsRequest>,
 ) -> Result<impl Stream<Item = CheckpointStreamResult> + Send, RpcError> {
     let req = request.into_inner();
     let start_sequence_number = req.start_sequence_number;
@@ -365,6 +368,23 @@ pub(crate) fn stream_checkpoint_data(
         transactions_mask.is_some(),
         events_mask.is_some()
     );
+
+    // Check if the requested checkpoint has been pruned
+    if let Some(start) = start_sequence_number {
+        let lowest_available = service
+            .reader
+            .get_lowest_available_checkpoint()
+            .map_err(|e| {
+                Status::internal(format!("failed to get lowest available checkpoint: {e}"))
+            })?;
+        if start < lowest_available {
+            return Err(Status::not_found(format!(
+                "Requested checkpoint {} is below the lowest available checkpoint {}",
+                start, lowest_available
+            ))
+            .into());
+        }
+    }
 
     // Convert proto filters to internal filters and validate complexity
     let (transaction_filter, event_filter) =

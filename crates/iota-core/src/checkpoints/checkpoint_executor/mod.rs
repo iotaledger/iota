@@ -498,7 +498,7 @@ impl CheckpointExecutor {
         // Currently this code only runs on validators, where this method call does
         // nothing. But in the future, fullnodes may follow the mysticeti dag
         // and build their own checkpoints.
-        self.insert_finalized_transactions(&tx_digests, sequence_number);
+        self.insert_finalized_transactions(&tx_digests, sequence_number, checkpoint.timestamp_ms);
 
         pipeline_handle.skip_to(PipelineStage::BuildDbBatch).await;
 
@@ -555,7 +555,11 @@ impl CheckpointExecutor {
             );
         }
 
-        self.insert_finalized_transactions(&ckpt_state.data.tx_digests, sequence_number);
+        self.insert_finalized_transactions(
+            &ckpt_state.data.tx_digests,
+            sequence_number,
+            ckpt_state.data.checkpoint.timestamp_ms,
+        );
 
         // The early versions of the accumulator (prior to effectsv2) rely on db
         // state, so we must wait until all transactions have been executed
@@ -585,9 +589,10 @@ impl CheckpointExecutor {
         &self,
         tx_digests: &[TransactionDigest],
         sequence_number: CheckpointSequenceNumber,
+        timestamp_ms: u64,
     ) {
         self.epoch_store
-            .insert_finalized_transactions(tx_digests, sequence_number)
+            .insert_finalized_transactions(tx_digests, sequence_number, timestamp_ms)
             .expect("failed to insert finalized transactions");
 
         if self.state.is_fullnode(&self.epoch_store) {

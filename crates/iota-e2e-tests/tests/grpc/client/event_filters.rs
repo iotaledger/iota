@@ -10,19 +10,15 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_types::v0::{filter as grpc_filter, types as grpc_types};
+use iota_grpc_types::v1::{filter as grpc_filter, types as grpc_types};
 use iota_macros::sim_test;
-use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
+use iota_types::transaction::CallArg;
 use tokio::time::timeout;
 
-use super::super::utils::setup_grpc_test;
-
-const NFT_PACKAGE: &str = "nft";
-const BASICS_PACKAGE: &str = "basics";
-const NFT_MODULE: &str = "testnet_nft";
-const CLOCK_MODULE: &str = "clock";
-const CLOCK_ACCESS_FUNCTION: &str = "access";
-const NFT_MINTED_EVENT: &str = "NFTMinted";
+use super::super::utils::{
+    BASICS_PACKAGE, CLOCK_ACCESS_FUNCTION, CLOCK_MODULE, NFT_MINTED_EVENT, NFT_MODULE, NFT_PACKAGE,
+    publish_example_package, setup_grpc_test,
+};
 
 /// Single test exercising multiple event filter scenarios.
 ///
@@ -54,40 +50,10 @@ async fn test_event_filter_scenarios() {
     // --- Setup: publish packages and execute event-producing transactions ---
 
     // 1. Publish NFT package
-    let nft_tx = cluster
-        .test_transaction_builder_with_sender(sender_1)
-        .await
-        .publish_examples(NFT_PACKAGE)
-        .build();
-    let signed_tx = cluster.sign_transaction(&nft_tx);
-    let (effects, _) = cluster
-        .execute_transaction_return_raw_effects(signed_tx)
-        .await
-        .expect("NFT publishing should succeed");
-    let nft_package_id = effects
-        .created()
-        .iter()
-        .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
-        .expect("Should have created NFT package");
+    let nft_package_id = publish_example_package(&cluster, sender_1, NFT_PACKAGE).await;
 
     // 2. Publish Basics package
-    let basics_tx = cluster
-        .test_transaction_builder_with_sender(sender_1)
-        .await
-        .publish_examples(BASICS_PACKAGE)
-        .build();
-    let signed_tx = cluster.sign_transaction(&basics_tx);
-    let (effects, _) = cluster
-        .execute_transaction_return_raw_effects(signed_tx)
-        .await
-        .expect("Basics publishing should succeed");
-    let basics_package_id = effects
-        .created()
-        .iter()
-        .find(|obj| obj.1.is_immutable())
-        .map(|obj| obj.0.0)
-        .expect("Should have created basics package");
+    let basics_package_id = publish_example_package(&cluster, sender_1, BASICS_PACKAGE).await;
 
     // 3. Mint 2 NFTs from sender_1
     for _ in 0..2 {
@@ -192,7 +158,7 @@ async fn test_event_filter_scenarios() {
     let basics_clock_filter = grpc_filter::EventFilter::default().with_move_package_and_module(
         grpc_filter::MovePackageAndModuleFilter::default()
             .with_package_id(
-                grpc_types::Address::default().with_address(basics_package_id.to_vec()),
+                grpc_types::ObjectId::default().with_object_id(basics_package_id.to_vec()),
             )
             .with_module(CLOCK_MODULE.to_string()),
     );

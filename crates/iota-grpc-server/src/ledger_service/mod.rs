@@ -11,7 +11,7 @@ mod get_transactions;
 use std::sync::Arc;
 
 use iota_config::node::GrpcApiConfig;
-use iota_grpc_types::v0::ledger_service::{self as grpc_ledger_service};
+use iota_grpc_types::v1::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
@@ -51,8 +51,8 @@ impl LedgerGrpcService {
 impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcService {
     type GetObjectsStream = crate::types::GetObjectsStream;
     type GetTransactionsStream = crate::types::GetTransactionsStream;
-    type GetCheckpointDataStream = crate::types::GetCheckpointDataStream;
-    type StreamCheckpointDataStream = crate::types::StreamCheckpointDataStream;
+    type GetCheckpointStream = crate::types::GetCheckpointStream;
+    type StreamCheckpointsStream = crate::types::StreamCheckpointsStream;
 
     async fn get_health(
         &self,
@@ -83,7 +83,7 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         &self,
         request: tonic::Request<grpc_ledger_service::GetObjectsRequest>,
     ) -> std::result::Result<tonic::Response<Self::GetObjectsStream>, tonic::Status> {
-        let response = get_objects::get_objects((*self.reader).clone(), request.into_inner())
+        let response = get_objects::get_objects(self.reader.clone(), request.into_inner())
             .map(|stream| Response::new(Box::pin(stream) as Self::GetObjectsStream))
             .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
@@ -104,22 +104,22 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     }
 
     /// Checkpoint operations
-    async fn get_checkpoint_data(
+    async fn get_checkpoint(
         &self,
-        request: tonic::Request<grpc_ledger_service::GetCheckpointDataRequest>,
-    ) -> std::result::Result<tonic::Response<Self::GetCheckpointDataStream>, tonic::Status> {
-        let response = get_checkpoint::get_checkpoint_data(self, request)
-            .map(|stream| Response::new(Box::pin(stream) as Self::GetCheckpointDataStream))
+        request: tonic::Request<grpc_ledger_service::GetCheckpointRequest>,
+    ) -> std::result::Result<tonic::Response<Self::GetCheckpointStream>, tonic::Status> {
+        let response = get_checkpoint::get_checkpoint(self, request)
+            .map(|stream| Response::new(Box::pin(stream) as Self::GetCheckpointStream))
             .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }
 
-    async fn stream_checkpoint_data(
+    async fn stream_checkpoints(
         &self,
-        request: tonic::Request<grpc_ledger_service::CheckpointDataStreamRequest>,
-    ) -> std::result::Result<tonic::Response<Self::StreamCheckpointDataStream>, tonic::Status> {
-        let response = get_checkpoint::stream_checkpoint_data(self, request)
-            .map(|stream| Response::new(Box::pin(stream) as Self::StreamCheckpointDataStream))
+        request: tonic::Request<grpc_ledger_service::StreamCheckpointsRequest>,
+    ) -> std::result::Result<tonic::Response<Self::StreamCheckpointsStream>, tonic::Status> {
+        let response = get_checkpoint::stream_checkpoints(self, request)
+            .map(|stream| Response::new(Box::pin(stream) as Self::StreamCheckpointsStream))
             .map_err(tonic::Status::from)?;
         Ok(append_info_headers!(response, self.reader.clone()))
     }

@@ -6,8 +6,10 @@ use std::{path::PathBuf, pin::Pin, sync::Arc};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
-use iota_rest_api::CheckpointData;
-use iota_types::{committee::EpochId, messages_checkpoint::CheckpointSequenceNumber};
+use iota_types::{
+    committee::EpochId, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 use prometheus::Registry;
 use tokio::{
     sync::{mpsc, oneshot},
@@ -543,10 +545,10 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 /// async fn main() {
 ///     let (executor, _) = setup_single_workflow(
 ///         CustomWorker,
-///         "http://127.0.0.1:9000/api/v1".to_string(), // fullnode REST API
-///         0,                                          // initial checkpoint number.
-///         5,                                          // concurrency.
-///         None,                                       // extra reader options.
+///         "http://127.0.0.1:50051".to_string(), // fullnode gRPC API
+///         0,                                    // initial checkpoint number.
+///         5,                                    // concurrency.
+///         None,                                 // extra reader options.
 ///     )
 ///     .await
 ///     .unwrap();
