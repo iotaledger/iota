@@ -25,9 +25,8 @@
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^2.32.2",
-        "@growthbook/growthbook": "^1.0.0",
-        "@growthbook/growthbook-react": "^1.0.0",
         "@hookform/resolvers": "^3.9.0",
+        "@iota/apps-backend-client": "workspace:*",
         "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/bcs": "workspace:*",

@@ -1,0 +1,48 @@
+{
+    "name": "@iota/apps-backend-client",
+    "version": "0.1.0",
+    "sideEffects": false,
+    "author": "IOTA Foundation <info@iota.org>",
+    "description": "Client library for the IOTA apps-backend service",
+    "repository": "https://github.com/iotaledger/iota",
+    "license": "Apache-2.0",
+    "files": [
+        "CHANGELOG.md",
+        "src",
+        "dist"
+    ],
+    "scripts": {
+        "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "prettier:fix": "prettier -w --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
+        "build": "tsc && vite build"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.es.js",
+            "require": "./dist/index.umd.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "types": "./dist/index.d.ts",
+    "dependencies": {},
+    "peerDependencies": {
+        "react": "^18 || ^19"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/react": "^18.3.3",
+        "@vitejs/plugin-react-swc": "^3.3.2",
+        "react": "^18.3.1",
+        "typescript": "^5.5.3",
+        "vite": "^5.4.12",
+        "vite-plugin-dts": "^4.3.0"
+    }
+}

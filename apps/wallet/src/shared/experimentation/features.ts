@@ -2,38 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GrowthBook } from '@growthbook/growthbook';
+import { AppsBackendClient } from '@iota/apps-backend-client';
 import { getAppsBackend } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
-const GROWTHBOOK_ENVIRONMENTS = {
-    production: {
-        clientKey: 'production',
-    },
-    rc: {
-        clientKey: 'staging',
-    },
-    nightly: {
-        clientKey: 'staging',
-    },
-    development: {
-        clientKey: 'staging',
-        enableDevMode: true,
-        disableCache: true,
-    },
-};
-
-const environment =
-    (process.env.BUILD_ENV as keyof typeof GROWTHBOOK_ENVIRONMENTS) || 'development';
-
-export const getEnvironmentKey = () => {
-    return GROWTHBOOK_ENVIRONMENTS[environment].clientKey;
-};
-
-export const growthbook = new GrowthBook({
-    apiHost: getAppsBackend(),
-    ...GROWTHBOOK_ENVIRONMENTS[environment],
+export const appsBackendClient = new AppsBackendClient({
+    url: getAppsBackend(),
 });
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
@@ -43,12 +18,12 @@ export function setAttributes(network?: { network: Network; customRpc?: string |
             : network.network.toUpperCase()
         : null;
 
-    growthbook.setAttributes({
+    appsBackendClient.setAttributes({
         network: activeNetwork,
         version: Browser.runtime.getManifest().version,
         rc: process.env.IS_RC || false,
     });
 }
 
-// Initialize growthbook to default attributes:
+// Initialize to default attributes:
 setAttributes();
