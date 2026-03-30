@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::traits::KeyPair;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities};
 use iota_types::{
@@ -34,12 +35,18 @@ use move_core_types::ident_str;
 use super::*;
 use crate::{
     authority::{
+        AuthorityState,
         authority_test_utils::init_certified_transaction,
         authority_tests::{init_state_with_ids_and_object_basics, init_state_with_object_id},
         test_authority_builder::TestAuthorityBuilder,
     },
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
-    consensus_adapter::MockConsensusClient,
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
+    authority_server::{AuthorityServer, ValidatorServiceMetrics, make_tonic_request_for_testing},
+    checkpoints::CheckpointStore,
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+        MockConsensusClient,
+    },
 };
 
 /// Helper to make a tonic request with a native SubmitTransactionsRequest
