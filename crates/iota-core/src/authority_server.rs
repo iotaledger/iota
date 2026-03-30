@@ -1610,6 +1610,8 @@ impl ValidatorService {
         )
         .await;
 
+        // The select! produces Either<Vec<EffectsDigest>, IotaError>.
+        // Unpack the three outcomes: executed, dropped, or timeout.
         match result {
             Ok(Either::Left(effects_digests)) => {
                 if let Some(effects_digest) = effects_digests.into_iter().next() {
