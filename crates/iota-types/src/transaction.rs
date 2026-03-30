@@ -18,8 +18,8 @@ use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, ChangeEpoch, ChangeEpochV2,
     ChangeEpochV3, ChangeEpochV4, Command, EndOfEpochTransactionKind, GasPayment as GasData,
-    GenesisObject, MakeMoveVector, MergeCoins, MoveCall as ProgrammableMoveCall,
-    ProgrammableTransaction, Publish, RandomnessStateUpdate,
+    GenesisObject, GenesisTransaction, MakeMoveVector, MergeCoins,
+    MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
     SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
     TransferObjects, Upgrade,
 };
@@ -142,12 +142,6 @@ pub fn type_tag_validity_check(
         }
     }
     Ok(())
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct GenesisTransaction {
-    pub objects: Vec<GenesisObject>,
-    pub events: Vec<Event>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
