@@ -25,6 +25,7 @@ fn main() -> Result<()> {
     };
 
     let codec_path = "iota_network_stack::codec::BcsCodec";
+    let prost_codec_path = "tonic_prost::ProstCodec";
 
     let validator_service = Service::builder()
         .name("Validator")
@@ -115,27 +116,27 @@ fn main() -> Result<()> {
             Method::builder()
                 .name("handle_submit_transactions")
                 .route_name("SubmitTransactionsV1")
-                .input_type("iota_types::messages_grpc::SubmitTransactionsRequest")
-                .output_type("iota_types::messages_grpc::SubmitTransactionsResponse")
-                .codec_path(codec_path)
+                .input_type("iota_types::messages_grpc::RawSubmitTransactionsRequest")
+                .output_type("iota_types::messages_grpc::RawSubmitTransactionsResponse")
+                .codec_path(prost_codec_path)
                 .build(),
         )
         .method(
             Method::builder()
                 .name("handle_wait_for_effects")
                 .route_name("WaitForEffectsV1")
-                .input_type("iota_types::messages_grpc::WaitForEffectsRequest")
-                .output_type("iota_types::messages_grpc::WaitForEffectsResponse")
-                .codec_path(codec_path)
+                .input_type("iota_types::messages_grpc::RawWaitForEffectsRequest")
+                .output_type("iota_types::messages_grpc::RawWaitForEffectsResponse")
+                .codec_path(prost_codec_path)
                 .build(),
         )
         .method(
             Method::builder()
                 .name("handle_validator_health")
                 .route_name("ValidatorHealthV1")
-                .input_type("iota_types::messages_grpc::ValidatorHealthRequest")
-                .output_type("iota_types::messages_grpc::ValidatorHealthResponse")
-                .codec_path(codec_path)
+                .input_type("iota_types::messages_grpc::RawValidatorHealthRequest")
+                .output_type("iota_types::messages_grpc::RawValidatorHealthResponse")
+                .codec_path(prost_codec_path)
                 .build(),
         )
         .build();
