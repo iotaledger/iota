@@ -392,6 +392,11 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
+        // Prepare the authenticators for execution.
+        // Store the loaded object metadata in the `TemporaryStore` before the
+        // authenticators are executed.
+        // The temporary store must contain all the required information at this
+        // point.
         let authenticators = authenticators
             .into_iter()
             .map(
