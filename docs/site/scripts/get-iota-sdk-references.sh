@@ -21,7 +21,8 @@ process() {
 process "python" "3.0"
 # Ignore Go until we found a better solution to produce reference docs for it
 #process "go" "0.0"
-process "kotlin" "0.0"
+# Ignore Kotlin until we found a solution to produce references without broken links
+#process "kotlin" "0.0"
 
 # Return to root and cleanup
 cd - || exit
