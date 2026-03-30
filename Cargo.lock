@@ -7544,6 +7544,7 @@ dependencies = [
  "tokio",
  "tonic 0.14.2",
  "tonic-build 0.14.2",
+ "tonic-prost",
  "tower 0.4.13",
  "tracing",
 ]
@@ -8533,6 +8534,7 @@ dependencies = [
  "better_any",
  "bincode",
  "byteorder",
+ "bytes",
  "consensus-config",
  "coset",
  "criterion",
@@ -8573,6 +8575,7 @@ dependencies = [
  "prometheus",
  "proptest",
  "proptest-derive",
+ "prost 0.14.1",
  "prost-types 0.14.1",
  "rand 0.8.5",
  "roaring",
