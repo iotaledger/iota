@@ -68,7 +68,8 @@ use iota_types::{
         timelocked_staked_iota::TimelockedStakedIota,
     },
     transaction::{
-        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
+        CallArg, CheckedInputObjects, Command, GenesisObject, InputObjectKind, ObjectReadResult,
+        Transaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1315,10 +1316,7 @@ fn create_genesis_transaction(
                 }
 
                 let object = object.into_inner();
-                iota_types::transaction::GenesisObject::RawObject {
-                    data: object.data,
-                    owner: object.owner,
-                }
+                GenesisObject::new(object.data, object.owner)
             })
             .collect();
 

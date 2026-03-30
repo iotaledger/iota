@@ -26,7 +26,7 @@ use iota_sdk_types::{
     events::TransactionEvents,
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
-    object::{GenesisObject, Object},
+    object::Object,
     transaction::{
         GasPayment, GenesisTransaction, RandomnessStateUpdate, SignedTransaction, Transaction,
         TransactionKind, TransactionV1,
@@ -178,15 +178,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
             }
             InternalTxnKind::Genesis(genesis_transaction) => {
                 TransactionKind::Genesis(GenesisTransaction {
-                    objects: genesis_transaction
-                        .objects
-                        .into_iter()
-                        .map(|obj| match obj {
-                            crate::transaction::GenesisObject::RawObject { data, owner } => {
-                                GenesisObject { data, owner }
-                            }
-                        })
-                        .collect(),
+                    objects: genesis_transaction.objects,
                     events: genesis_transaction.events,
                 })
             }
@@ -225,14 +217,7 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
             }
             TransactionKind::Genesis(genesis_transaction) => {
                 Self::Genesis(crate::transaction::GenesisTransaction {
-                    objects: genesis_transaction
-                        .objects
-                        .into_iter()
-                        .map(|obj| crate::transaction::GenesisObject::RawObject {
-                            data: obj.data,
-                            owner: obj.owner,
-                        })
-                        .collect(),
+                    objects: genesis_transaction.objects,
                     events: genesis_transaction.events,
                 })
             }
