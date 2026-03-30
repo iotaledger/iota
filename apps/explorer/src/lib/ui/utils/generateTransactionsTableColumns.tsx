@@ -2,7 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getTotalGasUsed, getTransactionAction, TransactionAction, TransactionIcon, TransactionIconSize } from '@iota/core';
+import {
+    getTotalGasUsed,
+    getTransactionAction,
+    TransactionAction,
+    TransactionIcon,
+    TransactionIconSize,
+} from '@iota/core';
 import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
@@ -30,7 +36,6 @@ const ACTION_LABELS: Record<TransactionAction, string> = {
     [TransactionAction.PersonalMessage]: 'Personal Message',
 };
 
-
 /**
  * Generate table columns renderers for the transactions data.
  */
@@ -55,7 +60,11 @@ export function generateTransactionsTableColumns(
                                 copyText={digest}
                                 label={
                                     <div className="flex items-center gap-xs">
-                                        <TransactionIcon variant={action} txnFailed={!isSuccess} size={TransactionIconSize.Small}/>
+                                        <TransactionIcon
+                                            variant={action}
+                                            txnFailed={!isSuccess}
+                                            size={TransactionIconSize.Small}
+                                        />
                                         <div className="flex flex-col">
                                             <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                                                 {isSuccess ? ACTION_LABELS[action] : 'Failed'}
