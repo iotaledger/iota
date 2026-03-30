@@ -28,7 +28,7 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                 <KeyValueInfo
                     keyText="Type"
                     value={objectLinkLabel}
-                    copyText={objectLinkLabel}
+                    copyText={[address, module, name].join('::')}
                     fullwidth
                     isTruncated
                 />
