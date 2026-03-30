@@ -150,8 +150,25 @@ fn main() -> Result<()> {
 
     build_anemo_services(&out_dir);
 
+    build_proto_services(&out_dir)?;
+
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=proto/");
     println!("cargo:rerun-if-env-changed=DUMP_GENERATED_GRPC");
+
+    Ok(())
+}
+
+fn build_proto_services(out_dir: &Path) -> Result<()> {
+    tonic_prost_build::configure()
+        .build_client(true)
+        .build_server(true)
+        .bytes(".")
+        .out_dir(out_dir)
+        .compile_protos(
+            &["proto/validator_v2.proto", "proto/validator_peer.proto"],
+            &["proto/"],
+        )?;
 
     Ok(())
 }

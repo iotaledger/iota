@@ -5,21 +5,21 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_types::{
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{
-        transaction_non_shared_input_object_keys, transaction_receiving_object_keys, ObjectKey,
+        ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
     transaction::{SenderSignedData, SharedInputObject, TransactionKey},
-    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 use tracing::trace;
 
 use crate::{
     authority::{
-        authority_per_epoch_store::CancelConsensusTransactionReason, AuthorityPerEpochStore,
+        AuthorityPerEpochStore, authority_per_epoch_store::CancelConsensusTransactionReason,
     },
     execution_cache::ObjectCacheRead,
 };
@@ -262,6 +262,7 @@ mod tests {
 
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
+        IOTA_RANDOMNESS_STATE_OBJECT_ID,
         base_types::{IotaAddress, ObjectID, SequenceNumber},
         crypto::RandomnessRound,
         digests::ObjectDigest,
@@ -272,7 +273,6 @@ mod tests {
         object::{Object, Owner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{ObjectArg, SenderSignedData, VerifiedTransaction},
-        IOTA_RANDOMNESS_STATE_OBJECT_ID,
     };
 
     use super::*;
