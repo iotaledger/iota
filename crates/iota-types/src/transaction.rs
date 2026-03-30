@@ -19,10 +19,10 @@ use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
     Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, MakeMoveVector, MergeCoins,
-    MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-    SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
-    TransferObjects, Upgrade,
+    EndOfEpochTransactionKind, GasPayment as GasData, GenesisObject, GenesisTransaction,
+    MakeMoveVector, MergeCoins, MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish,
+    RandomnessStateUpdate, SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage,
+    TransactionExpiration, TransferObjects, Upgrade,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -140,12 +140,6 @@ pub fn type_tag_validity_check(
         }
     }
     Ok(())
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct GenesisTransaction {
-    pub objects: Vec<GenesisObject>,
-    pub events: Vec<Event>,
 }
 
 #[iota_proc_macros::allow_deprecated_for_derives]
