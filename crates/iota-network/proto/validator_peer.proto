@@ -1,0 +1,30 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package iota.validator.peer;
+
+// Authenticated validator-to-validator service for read-only queries.
+// Requires the same mutual authentication as consensus gRPC services.
+service ValidatorPeer {
+  // Fetch a checkpoint by sequence number or the latest available.
+  rpc GetCheckpoint(GetCheckpointRequest) returns (GetCheckpointResponse);
+}
+
+message GetCheckpointRequest {
+  // If set, return the checkpoint with this sequence number;
+  // otherwise return the latest checkpoint.
+  optional uint64 sequence_number = 1;
+  // When true, also include the checkpoint contents.
+  bool request_content = 2;
+  // When true, return a certified checkpoint; otherwise return a pending one.
+  bool certified = 3;
+}
+
+// BCS-encoded checkpoint data returned to the caller.
+message GetCheckpointResponse {
+  // BCS-serialized CheckpointSummaryResponse (signed or certified), if found.
+  optional bytes checkpoint = 1;
+  // BCS-serialized CheckpointContents, present when request_content was true.
+  optional bytes contents = 2;
+}
