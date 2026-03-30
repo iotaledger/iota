@@ -95,8 +95,8 @@ impl AnalyticsHandler<DynamicFieldEntry> for DynamicFieldHandler {
 }
 
 impl DynamicFieldHandler {
-    pub fn new(store_path: &Path, rest_uri: &str) -> Self {
-        let package_store = LocalDBPackageStore::new(&store_path.join("dynamic_field"), rest_uri);
+    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+        let package_store = LocalDBPackageStore::new(&store_path.join("dynamic_field"), client);
         let state = State {
             dynamic_fields: vec![],
             package_store: package_store.clone(),

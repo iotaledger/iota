@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
@@ -122,9 +122,7 @@ pub async fn get_verified_effects_and_events(
             .await
             .context("Cannot get full checkpoint")?
     } else {
-        // try REST API (for custom networks)
-        let client = iota_rest_api::Client::new(&config.rpc_url);
-        client.get_full_checkpoint(seq).await?
+        bail!("No checkpoint store configured to fetch checkpoint data")
     };
 
     // Load the list of stored checkpoints

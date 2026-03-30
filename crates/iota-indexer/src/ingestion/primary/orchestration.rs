@@ -79,8 +79,8 @@ impl PrimaryPipeline {
 
     pub async fn run(
         self,
-        data_ingestion_path: std::path::PathBuf,
-        remote_store_url: Option<String>,
+        data_ingestion_path: Option<std::path::PathBuf>,
+        remote_store_url: Option<RemoteUrl>,
         reader_options: iota_data_ingestion_core::ReaderOptions,
     ) -> JoinHandle<IndexerResult<()>> {
         let writer_cancel = self.cancel.clone();
@@ -97,9 +97,9 @@ impl PrimaryPipeline {
             info!("Starting primary executor...");
             let mut executor_handle =
                 tokio::spawn(self.executor.run_with_config(CheckpointReaderConfig {
+                    ingestion_path: data_ingestion_path,
+                    remote_store_url,
                     reader_options,
-                    ingestion_path: Some(data_ingestion_path),
-                    remote_store_url: remote_store_url.map(RemoteUrl::Fullnode),
                 }));
 
             let mut executor_done = false;

@@ -2012,12 +2012,16 @@ impl AuthorityState {
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
-                    .map_err(|e| IotaError::TransactionSerialization {
-                        error: format!(
-                            "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                        ),
-                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
+                input: IotaTransactionBlockData::try_from_with_module_cache(
+                    transaction,
+                    &module_cache,
+                    tx_digest,
+                )
+                .map_err(|e| IotaError::TransactionSerialization {
+                    error: format!(
+                        "Failed to convert transaction to IotaTransactionBlockData: {e}",
+                    ),
+                })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
                 effects: effects.clone().try_into()?,
                 events: IotaTransactionBlockEvents::try_from(
                     inner_temp_store.events.clone(),
@@ -3618,6 +3622,43 @@ impl AuthorityState {
         Ok(self
             .checkpoint_store
             .get_checkpoint_by_sequence_number(sequence_number)?)
+    }
+
+    /// Wait for the given transactions to be included in a checkpoint.
+    ///
+    /// Returns a mapping from transaction digest to
+    /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
+    /// On timeout, returns partial results for any transactions that were
+    /// already checkpointed.
+    pub async fn wait_for_checkpoint_inclusion(
+        &self,
+        digests: &[TransactionDigest],
+        timeout: Duration,
+    ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+
+        // Local cache so multiple transactions in the same checkpoint only
+        // trigger a single checkpoint summary lookup.
+        let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
+
+        let results = epoch_store
+            .wait_for_transactions_in_checkpoint_with_timeout(digests, timeout, |seq| {
+                *checkpoint_timestamp_cache.entry(seq).or_insert_with(|| {
+                    self.get_checkpoint_by_sequence_number(seq)
+                        .ok()
+                        .flatten()
+                        .map(|c| c.timestamp_ms)
+                        .unwrap_or(0)
+                })
+            })
+            .await?;
+
+        Ok(digests
+            .iter()
+            .copied()
+            .zip(results)
+            .filter_map(|(digest, opt)| opt.map(|seq_and_ts| (digest, seq_and_ts)))
+            .collect())
     }
 
     #[instrument(level = "trace", skip_all)]

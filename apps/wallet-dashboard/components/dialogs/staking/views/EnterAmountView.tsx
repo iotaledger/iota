@@ -106,7 +106,7 @@ export function EnterAmountView({
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
 
-                    ampli.iotaStaked({
+                    ampli.stakedIota({
                         stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: selectedValidator,
                         validatorAPY: validatorApy,
