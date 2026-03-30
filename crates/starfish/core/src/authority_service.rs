@@ -190,7 +190,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .metrics
                 .node_metrics
                 .bundles_with_invalid_parts
-                .with_label_values(&[peer_hostname, "header", e.clone().name()])
+                .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
@@ -296,7 +296,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "header", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "header", e.name()])
                     .inc();
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
@@ -356,7 +356,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -378,7 +378,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);

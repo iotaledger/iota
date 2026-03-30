@@ -25,7 +25,7 @@ class Iota < Formula
 
     sha256 checksums[@@arch]
 
-    depends_on "postgresql@14"
+    depends_on "postgresql@15"
 
     if @@arch == "source"
         depends_on "cmake" => :build

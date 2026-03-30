@@ -22,7 +22,7 @@ use tracing::instrument;
 use typed_store::{
     DBMapUtils,
     rocks::{DBMap, MetricConf},
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use crate::mutex_table::MutexTable;

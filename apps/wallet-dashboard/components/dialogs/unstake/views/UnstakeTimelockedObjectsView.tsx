@@ -6,8 +6,12 @@ import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout
 import { ExtendedDelegatedTimelockedStake, Validator } from '@iota/core';
 import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import { Collapsible, TimeUnit, useFormatCoin, useTimeAgo, toast } from '@iota/core';
-import { TimelockedStakedObjectsGrouped, isSizeExceededError } from '@/lib/utils';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import {
+    trackElementCopied,
+    TimelockedStakedObjectsGrouped,
+    isSizeExceededError,
+} from '@/lib/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import {
     Panel,
     LoadingIndicator,
@@ -27,7 +31,7 @@ import {
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { ampli } from '@/lib/utils/analytics';
 import { Warning } from '@iota/apps-ui-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -85,13 +89,20 @@ export function UnstakeTimelockedObjectsView({
         balance: totalStakedAmount,
     });
 
+    const [totalStakedAmountFormattedPlain] = useFormatCoin({
+        balance: totalStakedAmount,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+
     const [rewardsPoolFormatted, rewardsToken] = useFormatCoin({
         balance: validatorInfo?.rewardsPool,
     });
 
-    function handleCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         toast('Copied to clipboard');
-    }
+        trackElementCopied('stake-id');
+    }, []);
 
     async function handleUnstake(): Promise<void> {
         if (!unstakeData) return;
@@ -106,7 +117,7 @@ export function UnstakeTimelockedObjectsView({
                     onSuccess(tx);
                     ampli.timelockUnstake({
                         validatorAddress: groupedTimelockedObjects.validatorAddress,
-                        stakedAmount: Number(totalStakedAmountFormatted),
+                        stakedAmount: Number(totalStakedAmountFormattedPlain),
                     });
                 },
             },
@@ -176,7 +187,7 @@ export function UnstakeTimelockedObjectsView({
                             title={`Stake Nº${index + 1}`}
                             key={stake.timelockedStakedIotaId}
                             stake={stake}
-                            handleCopySuccess={handleCopySuccess}
+                            handleCopySuccess={onCopySuccess}
                         />
                     ))}
                 </div>

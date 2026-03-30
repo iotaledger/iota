@@ -177,8 +177,8 @@ mod tests {
         assert_eq!(info_length, 2);
         assert_eq!(parity_length, 0);
 
-        let mut encoder = create_encoder(&context.clone());
-        let mut decoder = create_decoder(&context.clone());
+        let mut encoder = create_encoder(&context);
+        let mut decoder = create_decoder(&context);
 
         for count in 1..8 {
             for max_len in 0..64 {

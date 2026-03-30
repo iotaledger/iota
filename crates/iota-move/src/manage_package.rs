@@ -60,7 +60,7 @@ impl ManagePackage {
             bail!(NO_LOCK_FILE)
         };
         let install_dir = build_config.install_dir.unwrap_or(PathBuf::from("."));
-        let mut lock = LockFile::from(install_dir.clone(), &lock_file)?;
+        let mut lock = LockFile::from(install_dir, &lock_file)?;
 
         // Updating managed packages in the Move.lock file is controlled by distinct
         // `Published` and `Upgraded` commands. To set all relevant values, we

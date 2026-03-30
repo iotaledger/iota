@@ -11,6 +11,7 @@ use std::{
 use diesel::{QueryDsl, RunQueryDsl};
 use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
+use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
     config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
@@ -43,6 +44,7 @@ use jsonrpsee::{
     types::ErrorObject,
 };
 use simulacrum::Simulacrum;
+use simulacrum_server::start_simulacrum_grpc_server;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
@@ -113,7 +115,7 @@ impl SimulacrumTestSetup {
 
             let db_name = format!("simulacrum_env_db_{unique_env_name}");
             let (_, store, _, client) =
-                runtime.block_on(start_simulacrum_rest_api_with_read_write_indexer(
+                runtime.block_on(start_simulacrum_grpc_with_read_write_indexer(
                     sim.clone(),
                     data_ingestion_path,
                     Some(&db_name),
@@ -132,11 +134,12 @@ impl SimulacrumTestSetup {
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
 /// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
-    database_name: Option<&str>,
+    database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
     pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
-    let mut builder = TestClusterBuilder::new();
+    let database_name = database_name.into();
+    let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
@@ -150,14 +153,14 @@ pub async fn start_test_cluster_with_read_write_indexer(
         // reset the existing db
         true,
         None,
-        cluster.rpc_url().to_string(),
+        cluster.grpc_url(),
         IndexerTypeConfig::writer_mode(None, pruning_options),
         None,
     )
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(cluster.rpc_url().to_owned(), database_name);
+    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -417,31 +420,36 @@ pub fn rpc_call_error_msg_matches<T>(
     })
 }
 
-/// Set up a test indexer fetching from a REST endpoint served by the given
+/// Set up a test indexer fetching from a gRPC endpoint served by the given
 /// Simulacrum.
-pub async fn start_simulacrum_rest_api_with_write_indexer(
+pub async fn start_simulacrum_grpc_with_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
     server_url: Option<SocketAddr>,
     database_name: Option<&str>,
     db_init_hook: Option<DBInitHook>,
 ) -> (
-    JoinHandle<()>,
+    GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
 ) {
-    let server_url = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
-    let server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(sim)
-            .start_service(server_url)
-            .await;
-    });
+    let address = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
+
+    let config = iota_config::node::GrpcApiConfig {
+        address,
+        ..Default::default()
+    };
+
+    let server_handle = start_simulacrum_grpc_server(sim, config, Default::default())
+        .await
+        .unwrap();
+
     // Starts indexer
     let (pg_store, pg_handle, _) = start_test_indexer(
         db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
-        format!("http://{server_url}"),
+        format!("http://{address}"),
         IndexerTypeConfig::writer_mode(
             Some(SnapshotLagConfig {
                 snapshot_min_lag: 5,
@@ -455,18 +463,18 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     (server_handle, pg_store, pg_handle)
 }
 
-pub async fn start_simulacrum_rest_api_with_read_write_indexer(
+pub async fn start_simulacrum_grpc_with_read_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
     database_name: Option<&str>,
 ) -> (
-    JoinHandle<()>,
+    GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {
     let simulacrum_server_url = new_local_tcp_socket_for_testing();
-    let (server_handle, pg_store, pg_handle) = start_simulacrum_rest_api_with_write_indexer(
+    let (server_handle, pg_store, pg_handle) = start_simulacrum_grpc_with_write_indexer(
         sim,
         data_ingestion_path.clone(),
         Some(simulacrum_server_url),

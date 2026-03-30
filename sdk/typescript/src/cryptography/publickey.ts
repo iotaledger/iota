@@ -82,7 +82,7 @@ export abstract class PublicKey {
      */
     verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         return this.verifyWithIntent(
-            bcs.vector(bcs.u8()).serialize(message).toBytes(),
+            bcs.byteVector().serialize(message).toBytes(),
             signature,
             'PersonalMessage',
         );
