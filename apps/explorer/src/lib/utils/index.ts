@@ -6,7 +6,7 @@ export * from './api';
 
 export * from './getStorageFundFlow';
 export * from './getValidatorMoveEvent';
-export * from './growthbook';
+export * from './apps-backend';
 export * from './numberUtils';
 export * from './objectUtils';
 export * from './queryClient';

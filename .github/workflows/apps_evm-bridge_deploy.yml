@@ -86,9 +86,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Pull Vercel Environment and Deploy
-        env:
-          TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
+          VERCEL_FLAGS="--token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_SCOPE }}"
+
           if [ "$DEPLOY_TYPE" = "production" ]; then
             if [ "${{ matrix.network }}" = "mainnet" ]; then
               VERCEL_ENV="production"
@@ -101,24 +101,24 @@ jobs:
 
           echo "Deploy type: ${DEPLOY_TYPE}, Network: ${{ matrix.network }}, Vercel environment: ${VERCEL_ENV}"
 
-          vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
+          vercel pull --yes --environment="$VERCEL_ENV" $VERCEL_FLAGS
 
           if [ "$DEPLOY_TYPE" = "production" ]; then
             if [ "${{ matrix.network }}" = "mainnet" ]; then
-              vercel build --prod --token="$TOKEN"
-              vercel deploy --prod --prebuilt --token="$TOKEN"
+              vercel build --prod $VERCEL_FLAGS
+              vercel deploy --prod --prebuilt $VERCEL_FLAGS
             else
-              vercel build --target=production-testnet --token="$TOKEN"
-              vercel deploy --prebuilt --target=production-testnet --token="$TOKEN"
+              vercel build --target=production-testnet $VERCEL_FLAGS
+              vercel deploy --prebuilt --target=production-testnet $VERCEL_FLAGS
             fi
           else
-            vercel build --token="$TOKEN"
-            DEPLOY_URL=$(vercel deploy --prebuilt --token="$TOKEN")
+            vercel build $VERCEL_FLAGS
+            DEPLOY_URL=$(vercel deploy --prebuilt $VERCEL_FLAGS)
 
             ALIAS_PREFIX=""
             if [ "${{ matrix.network }}" = "testnet" ]; then
               ALIAS_PREFIX="testnet-"
             fi
 
-            vercel alias "$DEPLOY_URL" "${ALIAS_PREFIX}evm-bridge-${DEPLOY_TYPE}-iota1.vercel.app" --token="$TOKEN"
+            vercel alias "$DEPLOY_URL" "${ALIAS_PREFIX}evm-bridge-${DEPLOY_TYPE}-iota1.vercel.app" $VERCEL_FLAGS
           fi
