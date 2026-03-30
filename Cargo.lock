@@ -7357,6 +7357,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-types",
  "prometheus",
+ "prost 0.14.1",
  "rand 0.8.5",
  "serde",
  "tap",
@@ -7366,6 +7367,7 @@ dependencies = [
  "tonic 0.14.2",
  "tonic-build",
  "tonic-prost",
+ "tonic-prost-build",
  "tower 0.4.13",
  "tracing",
 ]
