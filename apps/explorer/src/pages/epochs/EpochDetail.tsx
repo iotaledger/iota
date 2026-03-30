@@ -152,7 +152,7 @@ export function EpochDetail() {
                                             aria-label="Go to previous epoch"
                                         />
                                     </LinkWithQuery>
-                                    <Link to={`/epoch/${Number(epochData.epoch) + 1}`}>
+                                    <LinkWithQuery to={`/epoch/${Number(epochData.epoch) + 1}`}>
                                         <Button
                                             type={ButtonType.Secondary}
                                             size={ButtonSize.Small}
@@ -160,7 +160,7 @@ export function EpochDetail() {
                                             disabled={!epochData?.endOfEpochInfo}
                                             aria-label="Go to next epoch"
                                         />
-                                    </Link>
+                                    </LinkWithQuery>
                                 </div>
                             }
                         >
