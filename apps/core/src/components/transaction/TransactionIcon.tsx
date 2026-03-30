@@ -14,6 +14,12 @@ import {
 } from '@iota/apps-ui-icons';
 import { TransactionAction } from '../../interfaces';
 
+export enum TransactionIconSize {
+    Small = 'small',
+    Medium = 'medium',
+    Large = 'large',
+}
+
 const ICON_COLORS = {
     primary: 'text-iota-primary-30 dark:text-iota-primary-80',
     error: 'text-iota-error-30 dark:text-iota-error-80',
@@ -32,18 +38,22 @@ const icons = {
     [TransactionAction.TimelockedCollect]: <Vesting />,
 };
 
+const ICON_SIZES: Record<TransactionIconSize, string> = {
+    [TransactionIconSize.Small]: '[&_svg]:h-4 [&_svg]:w-4',
+    [TransactionIconSize.Medium]: '[&_svg]:h-5 [&_svg]:w-5',
+    [TransactionIconSize.Large]: '[&_svg]:h-6 [&_svg]:w-6',
+};
+
 interface TransactionIconProps {
     txnFailed?: boolean;
     variant: TransactionAction;
+    size?: TransactionIconSize;
 }
 
-export function TransactionIcon({ txnFailed, variant }: TransactionIconProps) {
+export function TransactionIcon({ txnFailed, variant, size = TransactionIconSize.Medium }: TransactionIconProps) {
     return (
         <div
-            className={clsx(
-                '[&_svg]:h-5 [&_svg]:w-5',
-                txnFailed ? ICON_COLORS.error : ICON_COLORS.primary,
-            )}
+            className={clsx(ICON_SIZES[size], txnFailed ? ICON_COLORS.error : ICON_COLORS.primary)}
         >
             {txnFailed ? <Info /> : icons[variant]}
         </div>

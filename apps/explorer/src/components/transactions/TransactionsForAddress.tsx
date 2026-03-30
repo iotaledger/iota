@@ -123,6 +123,7 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
                     showEffects: true,
                     showInput: true,
                     showBalanceChanges: true,
+                    showEvents: true,
                 },
                 cursor,
                 limit,

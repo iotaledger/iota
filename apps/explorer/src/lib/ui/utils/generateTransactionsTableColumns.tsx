@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getTotalGasUsed } from '@iota/core';
+import { getTotalGasUsed, getTransactionAction, TransactionAction, TransactionIcon, TransactionIconSize } from '@iota/core';
 import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
@@ -17,6 +17,20 @@ import {
 } from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
+const ACTION_LABELS: Record<TransactionAction, string> = {
+    [TransactionAction.Send]: 'Sent',
+    [TransactionAction.Receive]: 'Received',
+    [TransactionAction.Transaction]: 'Transaction',
+    [TransactionAction.Staked]: 'Stake',
+    [TransactionAction.Unstaked]: 'Unstake',
+    [TransactionAction.TimelockedStaked]: 'Stake Vesting',
+    [TransactionAction.TimelockedUnstaked]: 'Unstake Vesting',
+    [TransactionAction.TimelockedCollect]: 'Collect Vesting',
+    [TransactionAction.Migration]: 'Migration',
+    [TransactionAction.PersonalMessage]: 'Personal Message',
+};
+
+
 /**
  * Generate table columns renderers for the transactions data.
  */
@@ -25,10 +39,38 @@ export function generateTransactionsTableColumns(
 ): ColumnDef<IotaTransactionBlockResponse>[] {
     const columns: ColumnDef<IotaTransactionBlockResponse>[] = [
         {
-            header: 'Digest',
-            accessorKey: 'digest',
-            cell: ({ getValue }) => {
-                const digest = getValue<string>();
+            header: address ? 'Type' : 'Digest',
+            accessorKey: address ? 'Type' : 'digest',
+            cell: ({ row }) => {
+                const txn = row.original;
+                const digest = txn.digest;
+
+                if (address) {
+                    const isSuccess = txn.effects?.status.status === 'success';
+                    const action = getTransactionAction(txn, address);
+                    return (
+                        <TableCellBase>
+                            <TransactionLink
+                                digest={digest}
+                                copyText={digest}
+                                label={
+                                    <div className="flex items-center gap-xs">
+                                        <TransactionIcon variant={action} txnFailed={!isSuccess} size={TransactionIconSize.Small}/>
+                                        <div className="flex flex-col">
+                                            <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
+                                                {isSuccess ? ACTION_LABELS[action] : 'Failed'}
+                                            </span>
+                                            <span className="text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
+                                                {formatDigest(digest)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                }
+                            />
+                        </TableCellBase>
+                    );
+                }
+
                 return (
                     <TableCellBase>
                         <TransactionLink
