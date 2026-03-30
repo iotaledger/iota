@@ -55,7 +55,13 @@ function HomeDashboardPage(): JSX.Element {
                         </span>
                     </div>
                     <div className="[&_button]:!bg-iota-neutral-90 [&_button]:dark:!bg-iota-neutral-20">
-                        <ConnectButton connectText="Connect" iotaNamesEnabled={iotaNamesEnabled} />
+                        <ConnectButton
+                            connectText="Connect"
+                            iotaNamesEnabled={iotaNamesEnabled}
+                            onConnected={(args) => {
+                                ampli.connectedWallet({ wallet: args.wallet.name });
+                            }}
+                        />
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-iota-neutral-60">

@@ -10,13 +10,14 @@ use iota_indexer::{
     store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
     test_utils::{TestDatabase, db_url},
 };
-use iota_json::{call_args, type_args};
+use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, TransactionFilterV2,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, ObjectChange,
+    TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
@@ -26,7 +27,7 @@ use iota_test_transaction_builder::{
 };
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -40,10 +41,11 @@ use rand::{SeedableRng, rngs::StdRng};
 use serde_json::Value;
 
 use crate::{
+    coin_api::execute_move_call,
     common::{
         ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer_checkpoint,
         indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-        indexer_wait_for_transaction, rpc_call_error_msg_matches,
+        indexer_wait_for_transaction, publish_test_move_package, rpc_call_error_msg_matches,
         start_test_cluster_with_read_write_indexer,
     },
     write_api::{create_basic_object, deploy_basics_pkg},
@@ -2577,4 +2579,106 @@ fn is_transaction_present() {
                 .unwrap()
         );
     });
+}
+
+#[test]
+fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = IotaKeyPair::Ed25519(keypair);
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_object_id = gas.0;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let ((package_id, _, _), publish_tx_response) =
+            publish_test_move_package(client, address, &keypair, "wrap_unwrap").await?;
+        indexer_wait_for_transaction(publish_tx_response.digest, store, client).await;
+
+        let create_wrapped_res = execute_move_call(
+            client,
+            address,
+            &keypair,
+            package_id,
+            "wrap_unwrap".to_string(),
+            "create_and_wrap".to_string(),
+            vec![],
+            vec![],
+            Some(gas_object_id),
+        )
+        .await?;
+
+        let wrapper_object_id = create_wrapped_res
+            .effects
+            .as_ref()
+            .unwrap()
+            .created()
+            .first()
+            .expect("expected created object")
+            .reference
+            .object_id;
+
+        let unwrap_res = execute_move_call(
+            client,
+            address,
+            &keypair,
+            package_id,
+            "wrap_unwrap".to_string(),
+            "unwrap".to_string(),
+            vec![],
+            vec![IotaJsonValue::from_object_id(wrapper_object_id)],
+            Some(gas_object_id),
+        )
+        .await?;
+        indexer_wait_for_transaction(unwrap_res.digest, store, client).await;
+
+        let options = IotaTransactionBlockResponseOptions::default().with_object_changes();
+        let fullnode_tx = cluster
+            .rpc_client()
+            .get_transaction_block(unwrap_res.digest, Some(options.clone()))
+            .await
+            .unwrap();
+        let indexer_tx = client
+            .get_transaction_block(unwrap_res.digest, Some(options.clone()))
+            .await
+            .unwrap();
+
+        assert!(
+            fullnode_tx
+                .object_changes
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|change| matches!(change, ObjectChange::Unwrapped { .. })),
+            "fullnode response should contain Unwrapped object change"
+        );
+        assert!(
+            indexer_tx
+                .object_changes
+                .as_ref()
+                .unwrap()
+                .iter()
+                .any(|change| matches!(change, ObjectChange::Unwrapped { .. })),
+            "indexer response should contain Unwrapped object change"
+        );
+
+        assert_eq!(
+            fullnode_tx, indexer_tx,
+            "fullnode and indexer responses should match"
+        );
+
+        Ok(())
+    })
 }

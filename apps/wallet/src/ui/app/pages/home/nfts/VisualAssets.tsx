@@ -31,7 +31,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
         event.stopPropagation();
         hideAsset(object.objectId);
 
-        ampli.hidCollectible({
+        ampli.clickedHideAsset({
             collectibleType: object.type!,
         });
 
