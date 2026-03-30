@@ -88,8 +88,6 @@ proptest! {
         );
     }
 
-    // garbage_inputs moved outside proptest! macro to run with a larger stack size.
-
     #[test]
     fn valid_generated_constants(module in CompiledModule::valid_strategy(20)) {
         prop_assert!(constants::verify_module(&module).is_ok());
