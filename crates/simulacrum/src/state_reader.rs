@@ -14,7 +14,7 @@ use iota_types::{
     TypeTag,
     base_types::{ObjectID, VersionNumber},
     committee::Committee,
-    digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
+    digests::{ChainIdentifier, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
@@ -240,7 +240,7 @@ impl GrpcStateReader for SimulacrumGrpcReader {
 
     fn get_transaction_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>> {
         Ok(self
             .simulacrum
@@ -285,6 +285,60 @@ impl GrpcStateReader for SimulacrumGrpcReader {
         }))
     }
 
+    fn account_owned_objects_info_iter(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
+        _cursor: Option<ObjectID>,
+        _object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectIterItem> + '_>> {
+        // Simulacrum does not have index support for owned objects
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        _owner: iota_types::base_types::IotaAddress,
+        _cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
+        _object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectV2IterItem> + '_>> {
+        // Simulacrum does not have index support for owned objects
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        _parent: ObjectID,
+        _cursor: Option<ObjectID>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::DynamicFieldIterItem> + '_>> {
+        // Simulacrum does not have index support for dynamic fields
+        Ok(Box::new(std::iter::empty()))
+    }
+
+    fn get_coin_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<iota_types::storage::CoinInfo>> {
+        // Simulacrum does not have index support for coin info
+        Ok(None)
+    }
+
+    fn get_coin_v2_info(
+        &self,
+        _coin_type: &move_core_types::language_storage::StructTag,
+    ) -> Result<Option<iota_types::storage::CoinInfoV2>> {
+        // Simulacrum does not have index support for coin_v2 info
+        Ok(None)
+    }
+
+    fn package_versions_iter(
+        &self,
+        _original_package_id: ObjectID,
+        _cursor: Option<u64>,
+    ) -> Result<Box<dyn Iterator<Item = iota_grpc_server::PackageVersionIterItem> + '_>> {
+        // Simulacrum does not have index support for package versions
+        Ok(Box::new(std::iter::empty()))
+    }
+
     fn stream_checkpoint_transactions(
         &self,
         checkpoint_contents: CheckpointContents,
@@ -309,9 +363,13 @@ impl GrpcStateReader for SimulacrumGrpcReader {
                         .clone();
 
                     // Get events from effects if they exist
-                    let events = effects.events_digest().and_then(|events_digest| {
-                        store.get_transaction_events(events_digest).cloned()
-                    });
+                    let events = if effects.events_digest().is_some() {
+                        store
+                            .get_transaction_events(effects.transaction_digest())
+                            .cloned()
+                    } else {
+                        None
+                    };
 
                     // Extract input and output objects with proper error propagation
                     let input_objects = get_transaction_input_objects(store, &effects)?;

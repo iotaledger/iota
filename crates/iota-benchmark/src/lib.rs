@@ -284,7 +284,7 @@ impl LocalValidatorAggregatorProxy {
             (aggregator, reconfig_observer)
         };
         let qd_handler_builder =
-            QuorumDriverHandlerBuilder::new(aggregator.clone(), quorum_driver_metrics.clone())
+            QuorumDriverHandlerBuilder::new(aggregator, quorum_driver_metrics.clone())
                 .with_reconfig_observer(reconfig_observer.clone());
         let qd_handler = qd_handler_builder.start();
         let qd = qd_handler.clone_quorum_driver();

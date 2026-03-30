@@ -1171,24 +1171,25 @@ done"#
                     parameters.benchmark_dir = self.benchmark_dir.join(format!("{parameters:?}"));
 
                     if !self.skip_monitoring
-                        && let Some(metrics) = &self.metrics_instance {
-                            let host_ip = if generator.use_internal_ip_address {
-                                metrics.private_ip
-                            } else {
-                                metrics.main_ip
-                            };
+                        && let Some(metrics) = &self.metrics_instance
+                    {
+                        let host_ip = if generator.use_internal_ip_address {
+                            metrics.private_ip
+                        } else {
+                            metrics.main_ip
+                        };
 
-                            parameters.otel.get_or_insert(crate::benchmark::OtelConfig {
-                                otlp_endpoint: format!(
-                                    "http://{}:{}",
-                                    host_ip,
-                                    crate::monitor::Tempo::OTLP_GRPC_PORT
-                                ),
-                                protocol: "grpc".to_string(),
-                                sampler: "parentbased_traceidratio".to_string(),
-                                sampler_arg: "0.1".to_string(),
-                            });
-                        }
+                        parameters.otel.get_or_insert(crate::benchmark::OtelConfig {
+                            otlp_endpoint: format!(
+                                "http://{}:{}",
+                                host_ip,
+                                crate::monitor::Tempo::OTLP_GRPC_PORT
+                            ),
+                            protocol: "grpc".to_string(),
+                            sampler: "parentbased_traceidratio".to_string(),
+                            sampler_arg: "0.1".to_string(),
+                        });
+                    }
 
                     // Cleanup the testbed (in case the previous run was not completed).
                     self.cleanup(true).await?;

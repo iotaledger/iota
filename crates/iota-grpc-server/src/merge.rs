@@ -4,9 +4,10 @@
 
 use iota_grpc_types::{
     field::FieldMaskTree,
-    v0::{
+    v1::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
+        dynamic_field::DynamicField,
         epoch::{ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
         event::{Event, Events},
         object::{Object, Objects},
@@ -17,9 +18,13 @@ use iota_grpc_types::{
     },
 };
 use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
-use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
+use iota_types::{
+    base_types::ObjectID,
+    iota_sdk_types_conversions::SdkTypeConversionError,
+    storage::{DynamicFieldIndexInfo, DynamicFieldKey},
+};
 
-use crate::error::RpcError;
+use crate::{error::RpcError, validation::object_id_proto};
 
 pub trait Merge<T> {
     type Error;
@@ -249,8 +254,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.package_id =
-                Some(Address::default().with_address(source.package_id.as_bytes().to_vec()));
+            self.package_id = Some(object_id_proto(&ObjectID::from(source.package_id)));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
@@ -319,7 +323,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 let mut ref_builder = ObjectReference::default();
 
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    ref_builder = ref_builder.with_object_id(source.object_id().to_string());
+                    ref_builder = ref_builder.with_object_id(source.object_id());
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
@@ -334,7 +338,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
             } else {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
-                    .with_object_id(source.object_id().to_string())
+                    .with_object_id(source.object_id())
                     .with_version(source.version())
                     .with_digest(source.digest())
             };
@@ -392,6 +396,61 @@ impl Merge<&Objects> for Objects {
             .iter()
             .map(|obj| Object::merge_from(obj, mask))
             .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(())
+    }
+}
+
+// DynamicField implementations
+
+impl Merge<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicField {
+    type Error = RpcError;
+
+    fn merge(
+        &mut self,
+        source: (DynamicFieldKey, DynamicFieldIndexInfo),
+        mask: &FieldMaskTree,
+    ) -> Result<(), Self::Error> {
+        let (key, info) = source;
+
+        if mask.contains(Self::KIND_FIELD.name) {
+            use iota_grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
+            self.kind = Some(match info.dynamic_field_type {
+                iota_types::dynamic_field::DynamicFieldType::DynamicField => {
+                    DynamicFieldKind::Field.into()
+                }
+                iota_types::dynamic_field::DynamicFieldType::DynamicObject => {
+                    DynamicFieldKind::Object.into()
+                }
+            });
+        }
+
+        if mask.contains(Self::PARENT_FIELD.name) {
+            self.parent = Some(object_id_proto(&key.parent));
+        }
+
+        if mask.contains(Self::FIELD_ID_FIELD.name) {
+            self.field_id = Some(object_id_proto(&key.field_id));
+        }
+
+        // Note: The index stores `name_type: TypeTag` but `BcsData`
+        // proto has no type field (it would need `name` + `value`).
+        // Clients must know the name type out-of-band to decode
+        // the BCS payload.
+        //
+        // value, value_type, field_object, and child_object are populated
+        // by `load_dynamic_field()` in the handler when the read mask
+        // requests them — they require loading the actual field object.
+
+        if mask.contains(Self::CHILD_ID_FIELD.name) {
+            if let Some(dynamic_object_id) = info.dynamic_object_id {
+                self.child_id = Some(object_id_proto(&dynamic_object_id));
+            }
+        }
+
+        if mask.contains(Self::NAME_FIELD.name) {
+            self.name = Some(BcsData::default().with_data(info.name_value));
+        }
 
         Ok(())
     }
@@ -834,7 +893,7 @@ impl Merge<&Transaction> for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_types::{field::FieldMaskUtil, v0::epoch::ProtocolConfig};
+    use iota_grpc_types::{field::FieldMaskUtil, v1::epoch::ProtocolConfig};
     use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
     use prost_types::FieldMask;
 

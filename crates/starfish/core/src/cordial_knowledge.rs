@@ -316,7 +316,7 @@ impl CordialKnowledge {
             connection_knowledges,
             cordial_knowledge_sender,
             eviction_rounds_sender,
-        ) = CordialKnowledge::new(context.clone(), dag_state.clone());
+        ) = CordialKnowledge::new(context, dag_state.clone());
         // Spawn the main CordialKnowledge loop
         let cordial_knowledge_handle = tokio::spawn(async move {
             cordial_knowledge.run().await;
@@ -324,7 +324,7 @@ impl CordialKnowledge {
 
         dag_state.write().set_cordial_knowledge_senders(
             cordial_knowledge_sender.clone(),
-            eviction_rounds_sender.clone(),
+            eviction_rounds_sender,
         );
 
         // Return handle with all pieces assembled
@@ -624,7 +624,7 @@ impl CordialKnowledge {
         // Insert block into cordial knowledge
         let ancestors: Ancestors = Arc::from(header.ancestors());
         let who_knows_this_block = SubsetAuthorities::new_with(block_author, own_index);
-        round_map.insert(block_digest, (ancestors.clone(), who_knows_this_block));
+        round_map.insert(block_digest, (ancestors, who_knows_this_block));
 
         // 2) Notify all *other* authorities (except self and block_author) about new
         //    header
@@ -1526,11 +1526,7 @@ mod tests {
         let verified_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(last_round + 1, our_index.value() as u8).build(),
         );
-        let bundle = {
-            connection_knowledge
-                .write()
-                .create_bundle(verified_block.clone())
-        };
+        let bundle = { connection_knowledge.write().create_bundle(verified_block) };
         let BlockBundle {
             verified_headers: headers,
             serialized_shards: shards,

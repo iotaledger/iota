@@ -31,3 +31,6 @@ iota-types.workspace = true
 ignored = [
   "iota-open-rpc", # imported through a procedural macro
 ]
+
+[lints]
+workspace = true

@@ -46,7 +46,7 @@ use iota_types::{
     },
     committee::EpochId,
     crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
-    digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
     execution_status::ExecutionStatus,
@@ -2716,7 +2716,7 @@ async fn init_sim_executor(
             key_pair: Some(default_account_kp.1),
             gas: o.id(),
         };
-        objects.push(o.clone());
+        objects.push(o);
 
         if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
             let o = store.owned_objects(v_addr).next().unwrap();
@@ -2891,9 +2891,9 @@ impl ReadStore for IotaTestAdapter {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.executor.try_get_events(event_digest)
+        self.executor.try_get_events(digest)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(

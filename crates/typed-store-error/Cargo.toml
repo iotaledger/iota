@@ -10,3 +10,6 @@ description = "error types for typed-store crate"
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
+
+[lints]
+workspace = true

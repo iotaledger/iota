@@ -372,7 +372,7 @@ impl LeaderSwapTable {
         // Reverse the sorted authorities to score ascending so we get the first
         // low scorers up to the provided stake threshold.
         let bad_nodes = Self::retrieve_first_nodes(
-            context.clone(),
+            context,
             authorities_by_score.iter().rev(),
             swap_stake_threshold,
         )
@@ -628,7 +628,7 @@ mod tests {
         let expected_scores = ReputationScores::new((11..=11).into(), vec![0, 0, 0, 0]);
         assert_eq!(recovered_scores, expected_scores);
 
-        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
         // Check that LeaderSchedule recovery from stored CommitInfo worked correctly
         let leader_swap_table = leader_schedule.leader_swap_table.read();
@@ -668,7 +668,7 @@ mod tests {
         );
         assert_eq!(0, dag_state.read().scoring_subdags_count());
 
-        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
         // Check that LeaderSchedule recovery from stored CommitInfo worked correctly
         let leader_swap_table = leader_schedule.leader_swap_table.read();
@@ -731,7 +731,7 @@ mod tests {
         let expected_scores = ReputationScores::new((1..=2).into(), vec![0, 0, 0, 0]);
         assert_eq!(recovered_scores, expected_scores);
 
-        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let leader_schedule = LeaderSchedule::from_store(context, dag_state);
 
         // Check that LeaderSchedule recovery from stored CommitInfo worked correctly
         let leader_swap_table = leader_schedule.leader_swap_table.read();
@@ -759,7 +759,7 @@ mod tests {
         dag_state.write().add_scoring_subdags(unscored_subdags);
 
         let commits_until_leader_schedule_update =
-            leader_schedule.commits_until_leader_schedule_update(dag_state.clone());
+            leader_schedule.commits_until_leader_schedule_update(dag_state);
         assert_eq!(commits_until_leader_schedule_update, 299);
     }
 
@@ -940,7 +940,7 @@ mod tests {
         assert_eq!(1, dag_state.read().unscored_committed_subdags_count());
         let actual_subdag = actual_unscored_subdags[0].clone();
         assert_eq!(*subdags.last().unwrap(), actual_subdag);
-        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let leader_schedule = LeaderSchedule::from_store(context, dag_state);
         // Check that LeaderSchedule recovery from stored CommitInfo worked correctly
         let leader_swap_table = leader_schedule.leader_swap_table.read();
         assert_eq!(leader_swap_table.good_nodes.len(), 1);
@@ -978,7 +978,7 @@ mod tests {
             dag_state.read().last_committed_rounds()
         );
         assert_eq!(0, dag_state.read().unscored_committed_subdags_count());
-        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let leader_schedule = LeaderSchedule::from_store(context, dag_state);
         // Check that LeaderSchedule recovery from stored CommitInfo worked correctly
         let leader_swap_table = leader_schedule.leader_swap_table.read();
         assert_eq!(leader_swap_table.good_nodes.len(), 0);
@@ -1039,7 +1039,7 @@ mod tests {
             let actual_subdag = actual_unscored_subdags[idx].clone();
             assert_eq!(expected_subdag, actual_subdag);
         }
-        let leader_schedule = LeaderSchedule::from_store(context.clone(), dag_state.clone());
+        let leader_schedule = LeaderSchedule::from_store(context, dag_state);
         // Check that LeaderSchedule recovery from stored CommitInfo worked correctly
         let leader_swap_table = leader_schedule.leader_swap_table.read();
         assert_eq!(leader_swap_table.good_nodes.len(), 0);
@@ -1070,7 +1070,7 @@ mod tests {
             .write()
             .add_unscored_committed_subdags(unscored_subdags);
         let commits_until_leader_schedule_update =
-            leader_schedule.commits_until_leader_schedule_update(dag_state.clone());
+            leader_schedule.commits_until_leader_schedule_update(dag_state);
         assert_eq!(commits_until_leader_schedule_update, 299);
     }
 
@@ -1222,7 +1222,7 @@ mod tests {
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
         let leader_swap_table =
-            LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
+            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
 
         // Test swapping a bad leader
         let leader = AuthorityIndex::new_for_test(0);
@@ -1309,17 +1309,17 @@ mod tests {
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
 
         // Update leader from brand new schedule to first real schedule
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table(leader_swap_table);
 
         let reputation_scores = ReputationScores::new(
             (11..=20).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
         let leader_swap_table =
-            LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
+            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
 
         // Update leader from old swap table to new valid swap table
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table(leader_swap_table);
     }
 
     #[tokio::test]
@@ -1341,7 +1341,7 @@ mod tests {
         let leader_schedule = LeaderSchedule::new(context.clone(), LeaderSwapTable::default());
 
         // Update leader from brand new schedule to first real schedule
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table(leader_swap_table);
 
         let reputation_scores = ReputationScores::new(
             (11..=20).into(),
@@ -1351,16 +1351,16 @@ mod tests {
             LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
 
         // Update leader from old swap table to new valid swap table
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table(leader_swap_table);
 
         let reputation_scores = ReputationScores::new(
             (21..=25).into(),
             (0..4).map(|i| i as u64).collect::<Vec<_>>(),
         );
         let leader_swap_table =
-            LeaderSwapTable::new_inner(context.clone(), swap_stake_threshold, 0, reputation_scores);
+            LeaderSwapTable::new_inner(context, swap_stake_threshold, 0, reputation_scores);
 
         // Update leader from old swap table to new invalid swap table
-        leader_schedule.update_leader_swap_table(leader_swap_table.clone());
+        leader_schedule.update_leader_swap_table(leader_swap_table);
     }
 }

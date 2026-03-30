@@ -24,3 +24,6 @@ iota-test-transaction-builder.workspace = true
 iota-types.workspace = true
 move-disassembler.workspace = true
 test-cluster.workspace = true
+
+[lints]
+workspace = true

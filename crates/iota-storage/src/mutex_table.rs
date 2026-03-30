@@ -393,7 +393,7 @@ async fn test_read_locks() {
     let locks2 = mutex_table.acquire_read_locks(vec![lock.clone()]);
     drop(locks1);
     drop(locks2);
-    assert!(mutex_table.try_acquire_lock(lock.clone()).is_ok());
+    assert!(mutex_table.try_acquire_lock(lock).is_ok());
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]

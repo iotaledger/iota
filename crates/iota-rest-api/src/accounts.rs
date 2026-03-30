@@ -57,7 +57,7 @@ async fn list_account_objects(
     let start = parameters.start();
 
     let mut object_info = indexes
-        .account_owned_objects_info_iter(address.into(), start)?
+        .account_owned_objects_info_iter(address.into(), start, None)?
         .take(limit + 1)
         .map(|result| {
             result

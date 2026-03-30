@@ -566,7 +566,6 @@ impl DagState {
             .map(|r| {
                 self.get_block(r)
                     .unwrap_or_else(|| panic!("Block {r:?} should exist in DAG!"))
-                    .clone()
             })
             .collect()
     }
@@ -1280,7 +1279,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
         let own_index = AuthorityIndex::new_for_test(0);
 
         // Populate test blocks for round 1 ~ 10, authorities 0 ~ 2.
@@ -1391,7 +1390,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store);
 
         // Populate DagState.
 
@@ -1445,7 +1444,7 @@ mod test {
             VerifiedBlock::new_for_test(
                 TestBlock::new(11, 3)
                     .set_timestamp_ms(1130)
-                    .set_ancestors(round_10_refs.clone())
+                    .set_ancestors(round_10_refs)
                     .build(),
             ),
         ];
@@ -1472,7 +1471,7 @@ mod test {
             VerifiedBlock::new_for_test(
                 TestBlock::new(12, 3)
                     .set_timestamp_ms(1230)
-                    .set_ancestors(ancestors_for_round_12.clone())
+                    .set_ancestors(ancestors_for_round_12)
                     .build(),
             ),
         ];
@@ -1500,7 +1499,7 @@ mod test {
             VerifiedBlock::new_for_test(
                 TestBlock::new(12, 3)
                     .set_timestamp_ms(1330)
-                    .set_ancestors(ancestors_for_round_13.clone())
+                    .set_ancestors(ancestors_for_round_13)
                     .build(),
             ),
         ];
@@ -1552,7 +1551,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store.clone());
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -1614,7 +1613,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -1684,7 +1683,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store);
 
         // Create test blocks for round 1 ~ 10 for authority 0
         let mut blocks = Vec::new();
@@ -1735,11 +1734,11 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create for rounds 1..=6. Skip creating blocks for authority 0 for rounds 4 -
         // 6.
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=3).build();
         dag_builder
             .layers(4..=6)
@@ -1800,7 +1799,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store.clone());
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -1898,7 +1897,7 @@ mod test {
 
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
-        for commit in temp_commits.clone() {
+        for commit in temp_commits {
             dag_state.add_commit(commit);
         }
 
@@ -1927,7 +1926,7 @@ mod test {
         drop(dag_state);
 
         // Recover the state from the store
-        let dag_state = DagState::new(context.clone(), store.clone());
+        let dag_state = DagState::new(context, store);
 
         // Blocks of first 5 rounds should be found in DagState.
         let blocks = dag_builder.blocks(1..=5);
@@ -2000,7 +1999,7 @@ mod test {
 
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
-        for commit in temp_commits.clone() {
+        for commit in temp_commits {
             dag_state.add_commit(commit);
         }
 
@@ -2028,7 +2027,7 @@ mod test {
         drop(dag_state);
 
         // Recover the state from the store
-        let dag_state = DagState::new(context.clone(), store.clone());
+        let dag_state = DagState::new(context, store);
 
         // Blocks of first 5 rounds should be found in DagState.
         let blocks = dag_builder.blocks(1..=5);
@@ -2128,7 +2127,7 @@ mod test {
 
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(9..=num_rounds));
-        for commit in temp_commits.clone() {
+        for commit in temp_commits {
             dag_state.add_commit(commit);
         }
 
@@ -2156,7 +2155,7 @@ mod test {
         drop(dag_state);
 
         // Recover the state from the store
-        let dag_state = DagState::new(context.clone(), store.clone());
+        let dag_state = DagState::new(context.clone(), store);
 
         // Blocks of first 5 rounds should be found in DagState.
         let blocks = dag_builder.blocks(1..=5);
@@ -2246,7 +2245,7 @@ mod test {
         let context = Arc::new(context);
 
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store);
 
         // Accept a block
         let block = VerifiedBlock::new_for_test(
@@ -2284,7 +2283,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no blocks for authority 0
         // Create one block (round 10) for authority 1
@@ -2419,7 +2418,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no blocks for authority 0
         // Create one block (round 1) for authority 1
@@ -2559,13 +2558,13 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no blocks for authority 0
         // Create one block (round 1) for authority 1
         // Create two blocks (rounds 1,2) for authority 2
         // Create three blocks (rounds 1,2,3) for authority 3
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=1)
             .authorities(vec![AuthorityIndex::new_for_test(0)])
@@ -2616,7 +2615,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no blocks exist then genesis should be returned
         {
@@ -2628,7 +2627,7 @@ mod test {
         // WHEN a fully connected DAG up to round 4 is created, then round 4 blocks
         // should be returned as quorum
         {
-            let mut dag_builder = DagBuilder::new(context.clone());
+            let mut dag_builder = DagBuilder::new(context);
             dag_builder
                 .layers(1..=4)
                 .build()
@@ -2670,7 +2669,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
 
         // WHEN no blocks exist then genesis should be returned
         {
@@ -2726,7 +2725,7 @@ mod test {
             .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(false);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Set a timestamp for the block that is ahead of the current time
         let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
@@ -2752,7 +2751,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context.clone(), store);
 
         // Set a timestamp for the block that is ahead of the current time
         let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;

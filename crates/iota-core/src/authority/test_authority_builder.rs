@@ -348,7 +348,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Some(Arc::new(
                 RestIndexStore::new(
                     path.join("rest_index"),
-                    &authority_store,
+                    Arc::clone(&authority_store),
                     &checkpoint_store,
                     &epoch_store,
                     &cache_traits.backing_package_store,
@@ -430,9 +430,15 @@ impl<'a> TestAuthorityBuilder<'a> {
                 )
                 .unwrap();
 
-            state
+            let batch = state
                 .get_cache_commit()
-                .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+                .build_db_batch(epoch_store.epoch(), &[*genesis.transaction().digest()]);
+
+            state.get_cache_commit().commit_transaction_outputs(
+                epoch_store.epoch(),
+                batch,
+                &[*genesis.transaction().digest()],
+            );
         }
 
         // We want to insert these objects directly instead of relying on genesis

@@ -1,11 +1,11 @@
 ---
-description: 'The `governance` contract defines the set of identities that constitute the state controller, access nodes,
-who is the chain owner, and the fees for request execution.'
+description: "The `governance` contract defines the set of identities that constitute the state controller, access nodes,
+  who is the chain owner, and the fees for request execution."
 image: /img/logo/WASP_logo_dark.png
 tags:
-- core-contract
-- core-contract-governance
-- reference
+  - core-contract
+  - core-contract-governance
+  - reference
 ---
 
 # The `governance` Contract

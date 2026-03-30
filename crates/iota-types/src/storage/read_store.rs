@@ -15,10 +15,7 @@ use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
-    digests::{
-        ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest,
-        TransactionEventsDigest,
-    },
+    digests::{ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     dynamic_field::DynamicFieldType,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -251,33 +248,26 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>>;
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>>;
 
     /// Non-fallible version of `try_get_events`.
-    fn get_events(&self, event_digest: &TransactionEventsDigest) -> Option<TransactionEvents> {
-        self.try_get_events(event_digest)
-            .expect("storage access failed")
+    fn get_events(&self, digest: &TransactionDigest) -> Option<TransactionEvents> {
+        self.try_get_events(digest).expect("storage access failed")
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        event_digests
+        digests
             .iter()
             .map(|digest| self.try_get_events(digest))
             .collect::<Result<Vec<_>, _>>()
     }
 
     /// Non-fallible version of `try_multi_get_events`.
-    fn multi_get_events(
-        &self,
-        event_digests: &[TransactionEventsDigest],
-    ) -> Vec<Option<TransactionEvents>> {
-        self.try_multi_get_events(event_digests)
+    fn multi_get_events(&self, digests: &[TransactionDigest]) -> Vec<Option<TransactionEvents>> {
+        self.try_multi_get_events(digests)
             .expect("storage access failed")
     }
 
@@ -332,47 +322,40 @@ pub trait ReadStore: ObjectStore {
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        // Batch read all effects and collect with event digests
-        let effects_with_events_digests: Vec<(
-            TransactionEffects,
-            Option<TransactionEventsDigest>,
-        )> = self
+        // Batch read all effects
+        let effects = self
             .try_multi_get_transaction_effects(&transaction_digests)?
             .into_iter()
             .map(|maybe_effects| maybe_effects.ok_or_else(|| anyhow::anyhow!("missing effects")))
-            .collect::<anyhow::Result<Vec<_>>>()?
-            .into_iter()
-            .map(|fx| {
-                let events_digest = fx.events_digest().copied();
-                (fx, events_digest)
-            })
-            .collect();
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
-        // Extract event digests for batch reading
-        let event_digests: Vec<TransactionEventsDigest> = effects_with_events_digests
+        // Extract transaction digests for transactions that have events
+        let event_tx_digests = transaction_digests
             .iter()
-            .filter_map(|(_, events_digest)| *events_digest)
-            .collect();
+            .zip(effects.iter())
+            .filter_map(|(tx_digest, fx)| fx.events_digest().map(|_| *tx_digest))
+            .collect::<Vec<_>>();
 
         // Batch read all events
         let events = self
-            .try_multi_get_events(&event_digests)?
+            .try_multi_get_events(&event_tx_digests)?
             .into_iter()
-            .map(|maybe_event| maybe_event.ok_or_else(|| anyhow::anyhow!("missing event")))
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        // Create a HashMap for fast event lookup
-        let events_map = event_digests
-            .into_iter()
-            .zip(events)
-            .collect::<HashMap<_, _>>();
+            .zip(event_tx_digests)
+            .map(|(maybe_event, tx_digest)| {
+                maybe_event
+                    .ok_or_else(|| anyhow::anyhow!("missing event"))
+                    .map(|event| (tx_digest, event))
+            })
+            .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
         // Collect the final result
         let result = transactions
             .into_iter()
-            .zip(effects_with_events_digests)
-            .map(|(transaction, (effects, event_digest))| {
-                let events = event_digest.and_then(|d| events_map.get(&d).cloned());
+            .zip(effects)
+            .map(|(transaction, effects)| {
+                let events = effects
+                    .events_digest()
+                    .and_then(|_| events.get(effects.transaction_digest()).cloned());
 
                 TransactionWithEffectsAndEvents {
                     transaction,
@@ -557,18 +540,15 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_multi_get_transaction_effects(tx_digests)
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
-        (*self).try_get_events(event_digest)
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
+        (*self).try_get_events(digest)
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        (*self).try_multi_get_events(event_digests)
+        (*self).try_multi_get_events(digests)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -679,18 +659,15 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_multi_get_transaction_effects(tx_digests)
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
-        (**self).try_get_events(event_digest)
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
+        (**self).try_get_events(digest)
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        (**self).try_multi_get_events(event_digests)
+        (**self).try_multi_get_events(digests)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -801,18 +778,15 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).try_multi_get_transaction_effects(tx_digests)
     }
 
-    fn try_get_events(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>> {
-        (**self).try_get_events(event_digest)
+    fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
+        (**self).try_get_events(digest)
     }
 
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        digests: &[TransactionDigest],
     ) -> Result<Vec<Option<TransactionEvents>>> {
-        (**self).try_multi_get_events(event_digests)
+        (**self).try_multi_get_events(digests)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(
@@ -886,14 +860,44 @@ pub trait RestIndexes: Send + Sync {
     // used in both "grpc-server" and "rest-api"
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
+    /// Returns an iterator over objects owned by `owner`, optionally filtered
+    /// by `object_type`.
+    ///
+    /// The `cursor` bound is **inclusive**: if `Some(id)` is provided, the
+    /// iterator starts *at* that object ID. Callers that wish to paginate past
+    /// a previously-seen cursor must `.skip(1)` on the returned iterator to
+    /// avoid re-returning the cursor item.
     // only used in "rest-api"
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
+        object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
 
-    // only used in "rest-api"
+    /// Returns an iterator over objects owned by `owner`, optionally filtered
+    /// by `object_type`.
+    ///
+    /// Each item includes an [`OwnedObjectV2Cursor`] that can be stored in an
+    /// opaque page token for seek-based cursor resumption.
+    ///
+    /// The `cursor` bound is **inclusive**: the iterator starts *at* the cursor
+    /// position. Callers must `.skip(1)` to get exclusive semantics.
+    // only used in "grpc-server"
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
+        object_type: Option<StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>>;
+
+    /// Returns an iterator over the dynamic fields of `parent`.
+    ///
+    /// The `cursor` bound is **inclusive**: if `Some(id)` is provided, the
+    /// iterator starts *at* that object ID. Callers that wish to paginate past
+    /// a previously-seen cursor must `.skip(1)` on the returned iterator to
+    /// avoid re-returning the cursor item.
+    // used in both "grpc-server" and "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -902,14 +906,72 @@ pub trait RestIndexes: Send + Sync {
 
     // only used in "rest-api"
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
+
+    /// Returns unified coin info from the `coin_v2` table (merges
+    /// `coin` + `regulated_coin`).
+    // only used in "grpc-server"
+    fn get_coin_v2_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
+
+    /// Returns an iterator over the versions of a package identified by
+    /// `original_package_id`.
+    // only used in "grpc-server"
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
+
+    /// Returns `true` once the `owner_v2` backfill has completed.
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_owner_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `coin_v2` backfill has completed.
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_coin_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `package_version` backfill has completed and the
+    /// index is ready to serve queries.  Defaults to `true` so that
+    /// implementations without a backfill concept (e.g. simulacrum) are
+    /// unaffected.
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_package_version_index_ready(&self) -> bool {
+        true
+    }
 }
 
+pub type PackageVersionIteratorItem =
+    Result<(PackageVersionKey, PackageVersionInfo), TypedStoreError>;
+
+#[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
     pub version: SequenceNumber,
     pub type_: MoveObjectType,
 }
+
+/// Opaque cursor for seeking in the `owner_v2` index.
+///
+/// Mirrors the non-owner components of the v2 composite key so that
+/// pagination can resume with a direct RocksDB seek instead of scanning
+/// from the start.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OwnedObjectV2Cursor {
+    pub object_type_identifier: u64,
+    pub object_type_params: u64,
+    pub inverted_balance: Option<u64>,
+    pub object_id: ObjectID,
+}
+
+pub type OwnedObjectV2IteratorItem =
+    Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {
@@ -947,6 +1009,26 @@ pub struct DynamicFieldIndexInfo {
 pub struct CoinInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
+}
+
+/// Extended coin info from the `coin_v2` table — merges `coin` +
+/// `regulated_coin` into a single lookup.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct CoinInfoV2 {
+    pub coin_metadata_object_id: Option<ObjectID>,
+    pub treasury_object_id: Option<ObjectID>,
+    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct PackageVersionKey {
+    pub original_package_id: ObjectID,
+    pub version: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct PackageVersionInfo {
+    pub storage_id: ObjectID,
 }
 
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]

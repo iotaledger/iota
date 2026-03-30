@@ -121,6 +121,7 @@ function SendTokenDialogBody({
                 toast.success('Transfer transaction has been sent');
                 ampli.sentCoins({
                     coinType: selectedCoin.coinType,
+                    amount: Number(formik.values.amount),
                 });
             },
             onError: (error) => {

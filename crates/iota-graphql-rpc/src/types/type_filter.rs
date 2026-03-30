@@ -481,11 +481,11 @@ mod tests {
         assert_eq!(iota.clone().intersect(iota.clone()), Some(iota.clone()));
         assert_eq!(iota.clone().intersect(coin.clone()), Some(coin.clone()));
         assert_eq!(iota.clone().intersect(take.clone()), Some(take.clone()));
-        assert_eq!(take.clone().intersect(coin.clone()), Some(take.clone()));
+        assert_eq!(take.clone().intersect(coin.clone()), Some(take));
 
-        assert_eq!(iota.clone().intersect(std.clone()), None);
-        assert_eq!(iota.clone().intersect(string.clone()), None);
-        assert_eq!(utf8.clone().intersect(coin.clone()), None);
+        assert_eq!(iota.clone().intersect(std), None);
+        assert_eq!(iota.intersect(string), None);
+        assert_eq!(utf8.intersect(coin), None);
     }
 
     #[test]
@@ -503,7 +503,7 @@ mod tests {
         );
 
         assert_eq!(
-            coin_type.clone().intersect(coin_mod.clone()),
+            coin_type.clone().intersect(coin_mod),
             Some(coin_type.clone())
         );
 
@@ -512,9 +512,9 @@ mod tests {
             Some(coin_iota.clone())
         );
 
-        assert_eq!(iota.clone().intersect(std_utf8.clone()), None);
-        assert_eq!(coin_iota.clone().intersect(coin_usd.clone()), None);
-        assert_eq!(coin_type.clone().intersect(std_utf8.clone()), None);
-        assert_eq!(coin_iota.clone().intersect(std_utf8.clone()), None);
+        assert_eq!(iota.intersect(std_utf8.clone()), None);
+        assert_eq!(coin_iota.clone().intersect(coin_usd), None);
+        assert_eq!(coin_type.intersect(std_utf8.clone()), None);
+        assert_eq!(coin_iota.intersect(std_utf8), None);
     }
 }

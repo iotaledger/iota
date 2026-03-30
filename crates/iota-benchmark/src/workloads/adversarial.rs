@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail};
 use async_trait::async_trait;
@@ -36,7 +36,10 @@ use crate::{
     drivers::Interval,
     in_memory_wallet::{InMemoryWallet, move_call_pt_impl},
     system_state_observer::{SystemState, SystemStateObserver},
-    workloads::{Gas, GasCoinConfig, payload::Payload, workload::ExpectedFailureType},
+    workloads::{
+        Gas, GasCoinConfig, benchmark_move_base_dir, payload::Payload,
+        workload::ExpectedFailureType,
+    },
 };
 
 /// Number of vectors to create in LargeTransientRuntimeVectors workload
@@ -250,7 +253,7 @@ impl AdversarialTestPayload {
                 to_sender_signed_transaction(data, account.key())
             }
             AdversarialPayloadType::MaxPackagePublish => {
-                let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+                let mut path = benchmark_move_base_dir();
                 path.push("src/workloads/data/max_package");
                 TestTransactionBuilder::new(self.sender, account.gas, gas_price)
                     .publish(path)
@@ -468,7 +471,7 @@ impl Workload<dyn Payload> for AdversarialWorkload {
         system_state_observer: Arc<SystemStateObserver>,
     ) {
         let gas = &self.init_gas;
-        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let mut path = benchmark_move_base_dir();
         path.push("src/workloads/data/adversarial");
         let SystemState {
             reference_gas_price,

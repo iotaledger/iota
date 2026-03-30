@@ -153,7 +153,7 @@ impl TrafficController {
         Self {
             tally_channel: Some(tx),
             acl: Acl::Blocklists(blocklists),
-            metrics: metrics.clone(),
+            metrics,
             dry_run_mode,
         }
     }

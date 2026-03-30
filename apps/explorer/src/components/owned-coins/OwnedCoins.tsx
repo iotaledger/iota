@@ -288,7 +288,12 @@ function CoinsFilter({ filterOptions }: CoinsFilterProps) {
 
     return (
         <div className="relative z-10">
-            <Button type={ButtonType.Ghost} onClick={toggleFilterDropdown} icon={<FilterList />} />
+            <Button
+                type={ButtonType.Ghost}
+                onClick={toggleFilterDropdown}
+                icon={<FilterList />}
+                aria-label="Filter coins"
+            />
             {areFiltersVisible && (
                 <div className="absolute right-0">
                     <Dropdown>

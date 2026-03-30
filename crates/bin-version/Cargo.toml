@@ -8,3 +8,6 @@ publish = false
 [dependencies]
 const-str.workspace = true
 git-version.workspace = true
+
+[lints]
+workspace = true

@@ -1222,7 +1222,7 @@ impl Core {
         // And always include own last proposed block first among ancestors.
         // Start by only including the high scoring ancestors. Low scoring ancestors
         // will be included in a second pass below.
-        let included_ancestors = iter::once(self.last_proposed_block().clone())
+        let included_ancestors = iter::once(self.last_proposed_block())
             .chain(
                 all_ancestors
                     .into_iter()
@@ -1564,8 +1564,8 @@ impl CoreTextFixture {
         own_index: AuthorityIndex,
         sync_last_known_own_block: bool,
     ) -> Self {
-        let (committee, mut signers) = local_committee_and_keys(0, authorities.clone());
-        let mut context = context.clone();
+        let (committee, mut signers) = local_committee_and_keys(0, authorities);
+        let mut context = context;
         context = context
             .with_committee(committee)
             .with_authority_index(own_index);
@@ -1595,7 +1595,7 @@ impl CoreTextFixture {
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(commit_sender.clone(), 0),
+            CommitConsumer::new(commit_sender, 0),
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
@@ -2331,7 +2331,7 @@ mod test {
             dag_state.clone(),
         ));
         let (sender, _receiver) = unbounded_channel("consensus_output");
-        let commit_consumer = CommitConsumer::new(sender.clone(), 0);
+        let commit_consumer = CommitConsumer::new(sender, 0);
         let commit_observer = CommitObserver::new(
             context.clone(),
             commit_consumer,
@@ -2358,7 +2358,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             true,
         );
         // We set the last known round to 4 so we avoid creating new blocks until then -
@@ -2420,9 +2420,9 @@ mod test {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            store.clone(),
+            store,
             leader_schedule.clone(),
         );
 
@@ -2435,7 +2435,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             true,
         );
 
@@ -3084,9 +3084,9 @@ mod test {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            store.clone(),
+            store,
             leader_schedule.clone(),
         );
 
@@ -3100,7 +3100,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             false,
         );
 
@@ -3149,9 +3149,9 @@ mod test {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            store.clone(),
+            store,
             leader_schedule.clone(),
         );
 
@@ -3165,7 +3165,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             false,
         );
 
@@ -3512,9 +3512,7 @@ mod test {
             .map(|(_, c)| c.clone())
             .collect::<Vec<_>>();
 
-        let certified_commits = core
-            .validate_certified_commits(certified_commits.clone())
-            .unwrap();
+        let certified_commits = core.validate_certified_commits(certified_commits).unwrap();
 
         // The certified commit of index 5 should be processed.
         assert_eq!(certified_commits.len(), 1);
@@ -3533,7 +3531,7 @@ mod test {
             .collect::<Vec<_>>();
 
         let err = core
-            .validate_certified_commits(certified_commits.clone())
+            .validate_certified_commits(certified_commits)
             .unwrap_err();
         match err {
             ConsensusError::UnexpectedCertifiedCommitIndex {
@@ -3625,7 +3623,7 @@ mod test {
 
         // The corresponding blocks of the certified commits should be accepted and
         // stored before linearizing and committing the DAG.
-        core.add_certified_commits(CertifiedCommits::new(certified_commits.clone(), vec![]))
+        core.add_certified_commits(CertifiedCommits::new(certified_commits, vec![]))
             .expect("Should not fail");
 
         let commits = store.scan_commits((6..=10).into()).unwrap();
@@ -3675,12 +3673,12 @@ mod test {
         let _block_receiver = signal_receivers.block_broadcast_receiver();
 
         let (sender, _receiver) = unbounded_channel("consensus_output");
-        let commit_consumer = CommitConsumer::new(sender.clone(), 0);
+        let commit_consumer = CommitConsumer::new(sender, 0);
         let commit_observer = CommitObserver::new(
             context.clone(),
             commit_consumer,
             dag_state.clone(),
-            store.clone(),
+            store,
             leader_schedule.clone(),
         );
 
@@ -3693,7 +3691,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             true,
         );
 
@@ -4232,7 +4230,7 @@ mod test {
         let core = CoreTextFixture::new(context.clone(), vec![1, 1, 1, 1], authority_index, true);
         let mut core = core.core;
 
-        let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
+        let mut dag_builder = DagBuilder::new(Arc::new(context));
         dag_builder.layers(1..=12).build();
 
         let limit = 2;

@@ -1,0 +1,124 @@
+name: Deploy IOTA EVM Bridge
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      deploy_type:
+        description: "Deployment type"
+        required: true
+        type: choice
+        options:
+          - staging
+          - rc
+          - production
+
+env:
+  VERCEL_PROJECT_ID: ${{ secrets.EVM_BRIDGE_VERCEL_PROJECT_ID }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
+
+jobs:
+  resolve-deploy-type:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_type: ${{ steps.resolve.outputs.deploy_type }}
+      environment: ${{ steps.resolve.outputs.environment }}
+    steps:
+      - name: Resolve deploy type
+        id: resolve
+        run: |
+          DEPLOY_TYPE="${{ inputs.deploy_type || 'staging' }}"
+          case "$DEPLOY_TYPE" in
+            staging)
+              echo "deploy_type=staging" >> "$GITHUB_OUTPUT"
+              echo "environment=Staging – evm-bridge" >> "$GITHUB_OUTPUT"
+              ;;
+            rc)
+              echo "deploy_type=rc" >> "$GITHUB_OUTPUT"
+              echo "environment=RC – evm-bridge" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "deploy_type=production" >> "$GITHUB_OUTPUT"
+              echo "environment=Production – evm-bridge" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+  deploy:
+    needs: resolve-deploy-type
+    permissions:
+      contents: read
+    environment: ${{ needs.resolve-deploy-type.outputs.environment }}
+    runs-on: [self-hosted-x64]
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [mainnet, testnet]
+    steps:
+      - name: Set deployment variables
+        run: |
+          DEPLOY_TYPE="${{ needs.resolve-deploy-type.outputs.deploy_type }}"
+          NETWORK="${{ matrix.network }}"
+
+          echo "DEPLOY_TYPE=${DEPLOY_TYPE}" >> "$GITHUB_ENV"
+
+          if [ "$NETWORK" = "mainnet" ]; then
+            echo "VITE_EVM_BRIDGE_DEFAULT_NETWORK=${{ secrets.EVM_BRIDGE_PROD_DEFAULT_NETWORK }}" >> "$GITHUB_ENV"
+          else
+            echo "VITE_EVM_BRIDGE_DEFAULT_NETWORK=${{ secrets.EVM_BRIDGE_PROD_TESTNET_DEFAULT_NETWORK }}" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "24"
+          cache: "pnpm"
+
+      - name: Install Vercel CLI
+        run: pnpm add --global vercel@canary
+
+      - name: Install Project Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel Environment and Deploy
+        env:
+          TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "$DEPLOY_TYPE" = "production" ]; then
+            if [ "${{ matrix.network }}" = "mainnet" ]; then
+              VERCEL_ENV="production"
+            else
+              VERCEL_ENV="production-testnet"
+            fi
+          else
+            VERCEL_ENV="preview"
+          fi
+
+          echo "Deploy type: ${DEPLOY_TYPE}, Network: ${{ matrix.network }}, Vercel environment: ${VERCEL_ENV}"
+
+          vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
+
+          if [ "$DEPLOY_TYPE" = "production" ]; then
+            if [ "${{ matrix.network }}" = "mainnet" ]; then
+              vercel build --prod --token="$TOKEN"
+              vercel deploy --prod --prebuilt --token="$TOKEN"
+            else
+              vercel build --target=production-testnet --token="$TOKEN"
+              vercel deploy --prebuilt --target=production-testnet --token="$TOKEN"
+            fi
+          else
+            vercel build --token="$TOKEN"
+            DEPLOY_URL=$(vercel deploy --prebuilt --token="$TOKEN")
+
+            ALIAS_PREFIX=""
+            if [ "${{ matrix.network }}" = "testnet" ]; then
+              ALIAS_PREFIX="testnet-"
+            fi
+
+            vercel alias "$DEPLOY_URL" "${ALIAS_PREFIX}evm-bridge-${DEPLOY_TYPE}-iota1.vercel.app" --token="$TOKEN"
+          fi

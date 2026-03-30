@@ -110,7 +110,7 @@ flowchart LR
   B-->External
 ```
 
-In this example, we'll explore a simple custom indexer that can ingest data from multiple sources: the `historical` and `live` endpoints, or directly from a local fullnode REST API. The [`RemoteUrl`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html) enum provides flexible configuration options for these different data sources, including hybrid configurations that combine multiple sources.
+In this example, we'll explore a simple custom indexer that can ingest data from multiple sources: the `historical` and `live` endpoints, or directly from a local fullnode gRPC API. The [`RemoteUrl`](https://iotaledger.github.io/iota/iota_data_ingestion_core/reader/v2/enum.RemoteUrl.html) enum provides flexible configuration options for these different data sources, including hybrid configurations that combine multiple sources.
 
 ```rust file=<rootDir>/examples/custom-indexer/rust/remote_reader.rs
 ```

@@ -228,7 +228,7 @@ fn generate_accessors_functions_for_field(
     accessor_map: &AccessorMap,
 ) -> TokenStream {
     // Extract the simple message name from the fully qualified type name
-    // e.g., ".iota.grpc.v0.ledger_service.ObjectRequest" -> "ObjectRequest"
+    // e.g., ".iota.grpc.v1.ledger_service.ObjectRequest" -> "ObjectRequest"
     let message_name = message
         .type_name
         .rsplit('.')
@@ -396,7 +396,7 @@ fn generate_selective_accessors_for_field(
         let storage_type = if is_enum {
             TokenStream::from_str("i32").unwrap()
         } else {
-            field_type_path.clone()
+            field_type_path
         };
 
         if accessor_types.contains(AccessorTypes::GETTER) {
@@ -619,13 +619,25 @@ fn generate_selective_accessors_for_field(
         }
 
         if accessor_types.contains(AccessorTypes::WITH) {
-            accessors.extend(quote! {
-                #( #[doc = #set_name_comments] )*
-                pub fn #with_name #with_param_type -> Self {
-                    self.#name = Some(#setter_assignment_value);
-                    self
-                }
-            });
+            // For optional enum fields, prost stores as Option<i32>.
+            // Take the enum type and convert via .into().
+            if field.is_enum() {
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #with_name(mut self, field: #field_type_path) -> Self {
+                        self.#name = Some(field.into());
+                        self
+                    }
+                });
+            } else {
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #with_name #with_param_type -> Self {
+                        self.#name = Some(#setter_assignment_value);
+                        self
+                    }
+                });
+            }
         }
 
         accessors
@@ -633,6 +645,33 @@ fn generate_selective_accessors_for_field(
         // maybe required or implicit optional
 
         let mut accessors = TokenStream::new();
+
+        // For enum fields, prost stores the value as i32 but
+        // field_type_path resolves to the enum type. We need special
+        // handling: take the enum type as parameter and convert via
+        // .into() for assignment.
+        if field.is_enum() {
+            if accessor_types.contains(AccessorTypes::SET) {
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #set_name(&mut self, field: #field_type_path) {
+                        self.#name = field.into();
+                    }
+                });
+            }
+
+            if accessor_types.contains(AccessorTypes::WITH) {
+                accessors.extend(quote! {
+                    #( #[doc = #set_name_comments] )*
+                    pub fn #with_name(mut self, field: #field_type_path) -> Self {
+                        self.#name = field.into();
+                        self
+                    }
+                });
+            }
+
+            return accessors;
+        }
 
         if field.inner.r#type() != Type::Bytes && accessor_types.contains(AccessorTypes::MUT) {
             accessors.extend(quote! {

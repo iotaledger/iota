@@ -21,7 +21,7 @@ fastcrypto.workspace = true
 flate2.workspace = true
 hex.workspace = true
 itertools.workspace = true
-num-rational.workspace = true
+num-rational = "0.4"
 packable.workspace = true
 prefix-hex.workspace = true
 primitive-types.workspace = true
@@ -31,7 +31,6 @@ rand_pcg = "0.3"
 rand_seeder = "0.3"
 regex.workspace = true
 reqwest.workspace = true
-schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
@@ -78,7 +77,7 @@ test-outputs = ["dep:iota-sdk-crypto"]
 
 [target.'cfg(not(msim))'.dependencies]
 # iota-sdk-crypto is only used when compiling test-outputs feature
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d", optional = true, features = ["ed25519", "mnemonic"] }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e19c78a1bee17e0bf85fcd5b16a2f080cef26274", optional = true, features = ["ed25519", "mnemonic"] }
 
 [[example]]
 name = "snapshot_add_test_outputs"

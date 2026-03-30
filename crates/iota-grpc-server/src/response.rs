@@ -19,8 +19,8 @@ pub fn append_info_headers<T>(
     let headers = response.metadata_mut();
 
     if let Ok(chain_id) = grpc_reader.get_chain_identifier() {
-        if let Ok(chain_id) = chain_id.to_string().parse() {
-            headers.insert(headers::X_IOTA_CHAIN_ID, chain_id);
+        if let Ok(chain_id_value) = chain_id.digest().base58_encode().parse() {
+            headers.insert(headers::X_IOTA_CHAIN_ID, chain_id_value);
         }
 
         if let Ok(chain) = chain_id.chain().as_str().parse() {
