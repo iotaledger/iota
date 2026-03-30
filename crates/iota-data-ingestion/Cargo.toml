@@ -26,7 +26,6 @@ serde_yaml.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
-tonic = { workspace = true, features = ["tls-native-roots"] }
 tracing.workspace = true
 
 # internal dependencies

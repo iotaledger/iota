@@ -42,7 +42,7 @@ tokio = { workspace = true, features = ["full"] }
 tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
-tonic = { workspace = true, features = ["tls-native-roots"] }
+tonic.workspace = true
 tracing.workspace = true
 url.workspace = true
 
