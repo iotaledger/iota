@@ -3,7 +3,6 @@
 
 import type {
     AppsBackendClientOptions,
-    AppsResponse,
     CoinPriceResponse,
     FeatureDefinition,
     FeaturesResponse,

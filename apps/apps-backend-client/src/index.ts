@@ -4,8 +4,6 @@
 export { AppsBackendClient } from './client';
 export type {
     AppsBackendClientOptions,
-    AppListItem,
-    AppsResponse,
     CoinPriceResponse,
     FeatureDefinition,
     FeaturesResponse,

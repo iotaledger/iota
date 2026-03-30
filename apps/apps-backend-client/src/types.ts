@@ -15,20 +15,6 @@ export interface FeaturesResponse {
     dateUpdated: string;
 }
 
-export interface AppListItem {
-    name: string;
-    description: string;
-    link: string;
-    icon: string;
-    tags: string[];
-}
-
-export interface AppsResponse {
-    status: number;
-    apps: AppListItem[];
-    dataUpdated: string;
-}
-
 export interface CoinPriceResponse {
     price: string | null;
 }
