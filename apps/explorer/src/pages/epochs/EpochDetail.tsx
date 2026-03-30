@@ -20,7 +20,7 @@ import {
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
 import { CheckpointsTable, PageLayout } from '~/components';
-import { Link, LinkWithQuery, TableCard } from '~/components/ui';
+import { LinkWithQuery, TableCard } from '~/components/ui';
 import { useEnhancedRpcClient } from '~/hooks/useEnhancedRpc';
 import { EpochStats, EpochStatsGrid } from './stats/EpochStats';
 import { ValidatorStatus } from './stats/ValidatorStatus';
