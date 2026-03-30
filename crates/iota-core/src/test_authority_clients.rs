@@ -33,7 +33,9 @@ use tracing::info;
 
 use crate::{
     authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
-    authority_client::AuthorityAPI,
+    authority_client::{
+        validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
+    },
 };
 
 #[derive(Clone, Copy, Default)]
@@ -57,8 +59,10 @@ pub struct LocalAuthorityClient {
     pub fault_config: LocalAuthorityClientFaultConfig,
 }
 
+impl ValidatorPeerAPI for LocalAuthorityClient {}
+impl ValidatorV2API for LocalAuthorityClient {}
 #[async_trait]
-impl AuthorityAPI for LocalAuthorityClient {
+impl ValidatorAPI for LocalAuthorityClient {
     async fn handle_transaction(
         &self,
         transaction: Transaction,
@@ -115,7 +119,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         state.handle_object_info_request(request).await
     }
 
-    /// Handle Object information requests for this account.
+    /// Handle Object information requests .
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
@@ -308,8 +312,10 @@ impl MockAuthorityApi {
     }
 }
 
+impl ValidatorPeerAPI for MockAuthorityApi {}
+impl ValidatorV2API for MockAuthorityApi {}
 #[async_trait]
-impl AuthorityAPI for MockAuthorityApi {
+impl ValidatorAPI for MockAuthorityApi {
     /// Initiate a new transaction to an IOTA or Primary account.
     async fn handle_transaction(
         &self,
@@ -335,7 +341,7 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!()
     }
 
-    /// Handle Object information requests for this account.
+    /// Handle Object information requests .
     async fn handle_object_info_request(
         &self,
         _request: ObjectInfoRequest,
@@ -343,7 +349,7 @@ impl AuthorityAPI for MockAuthorityApi {
         self.handle_object_info_request_result.clone().unwrap()
     }
 
-    /// Handle Object information requests for this account.
+    /// Handle Object information requests .
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
@@ -423,8 +429,11 @@ pub struct HandleTransactionTestAuthorityClient {
     pub sleep_duration_before_responding: Option<Duration>,
 }
 
+impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {}
+impl ValidatorV2API for HandleTransactionTestAuthorityClient {}
+
 #[async_trait]
-impl AuthorityAPI for HandleTransactionTestAuthorityClient {
+impl ValidatorAPI for HandleTransactionTestAuthorityClient {
     async fn handle_transaction(
         &self,
         _transaction: Transaction,

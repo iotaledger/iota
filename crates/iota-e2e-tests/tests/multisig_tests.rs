@@ -5,7 +5,7 @@
 use std::net::SocketAddr;
 
 use fastcrypto::traits::EncodeDecodeBase64;
-use iota_core::authority_client::AuthorityAPI;
+use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::crypto::{Intent, IntentMessage};
