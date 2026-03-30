@@ -21,7 +21,7 @@ export function isUnlockTimelockedObjectTransaction(
     return isUnlockTimelockedObject;
 }
 
-// Detects a collect-all-vesting/timelocks transaction (MoveCall to unlock_with_clock)
+// Detects a collect all vesting transaction
 export function isCollectAllTimelocksTransaction(
     transaction: IotaTransactionBlockResponse['transaction'],
 ): boolean {
