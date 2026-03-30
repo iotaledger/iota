@@ -678,9 +678,7 @@ impl AuthorityStorePruner {
         let num_intervals = epoch_duration_ms
             .checked_div(Self::pruning_tick_duration_ms(epoch_duration_ms))
             .unwrap_or(1);
-        let delta = max_eligible_checkpoint
-            .checked_sub(pruned_checkpoint)
-            .unwrap_or_default()
+        let delta = max_eligible_checkpoint.saturating_sub(pruned_checkpoint)
             .checked_div(num_intervals)
             .unwrap_or(1);
         Ok(pruned_checkpoint + delta)
