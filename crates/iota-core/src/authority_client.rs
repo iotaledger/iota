@@ -284,14 +284,18 @@ impl AuthorityAPI for NetworkAuthorityClient {
         request: SubmitTransactionsRequest,
         client_addr: Option<SocketAddr>,
     ) -> Result<SubmitTransactionsResponse, IotaError> {
-        let mut grpc_request = request.into_request();
+        use iota_types::messages_grpc::RawSubmitTransactionsRequest;
+        let raw_request: RawSubmitTransactionsRequest = request.try_into()?;
+        let mut grpc_request = raw_request.into_request();
         insert_metadata(&mut grpc_request, client_addr);
 
-        self.client()?
+        let raw_response = self
+            .client()?
             .handle_submit_transactions(grpc_request)
             .await
             .map(tonic::Response::into_inner)
-            .map_err(Into::into)
+            .map_err(IotaError::from)?;
+        raw_response.try_into()
     }
 
     async fn handle_wait_for_effects(
@@ -299,22 +303,32 @@ impl AuthorityAPI for NetworkAuthorityClient {
         request: WaitForEffectsRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<WaitForEffectsResponse, IotaError> {
-        self.client()?
-            .handle_wait_for_effects(request.into_request())
+        use iota_types::messages_grpc::RawWaitForEffectsRequest;
+        let raw_request: RawWaitForEffectsRequest = request.try_into()?;
+
+        let raw_response = self
+            .client()?
+            .handle_wait_for_effects(raw_request.into_request())
             .await
             .map(tonic::Response::into_inner)
-            .map_err(Into::into)
+            .map_err(IotaError::from)?;
+        raw_response.try_into()
     }
 
     async fn handle_validator_health(
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
-        self.client()?
-            .handle_validator_health(request.into_request())
+        use iota_types::messages_grpc::RawValidatorHealthRequest;
+        let raw_request: RawValidatorHealthRequest = request.try_into()?;
+
+        let raw_response = self
+            .client()?
+            .handle_validator_health(raw_request.into_request())
             .await
             .map(tonic::Response::into_inner)
-            .map_err(Into::into)
+            .map_err(IotaError::from)?;
+        raw_response.try_into()
     }
 }
 

@@ -25,6 +25,7 @@ serde.workspace = true
 tap.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tonic.workspace = true
+tonic-prost.workspace = true
 tower.workspace = true
 tracing.workspace = true
 
