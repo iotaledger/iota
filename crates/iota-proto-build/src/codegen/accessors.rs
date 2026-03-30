@@ -228,7 +228,7 @@ fn generate_accessors_functions_for_field(
     accessor_map: &AccessorMap,
 ) -> TokenStream {
     // Extract the simple message name from the fully qualified type name
-    // e.g., ".iota.grpc.v0.ledger_service.ObjectRequest" -> "ObjectRequest"
+    // e.g., ".iota.grpc.v1.ledger_service.ObjectRequest" -> "ObjectRequest"
     let message_name = message
         .type_name
         .rsplit('.')

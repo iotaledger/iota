@@ -520,6 +520,16 @@ pub enum IndexedObjectChange {
         object_id: ObjectID,
         version: SequenceNumber,
     },
+    /// Unwrapped object
+    Unwrapped {
+        sender: IotaAddress,
+        owner: Owner,
+        #[serde_as(as = "IotaStructTag")]
+        object_type: StructTag,
+        object_id: ObjectID,
+        version: SequenceNumber,
+        digest: ObjectDigest,
+    },
     /// New object creation
     Created {
         sender: IotaAddress,
@@ -599,6 +609,21 @@ impl From<ObjectChange> for IndexedObjectChange {
                 object_type,
                 object_id,
                 version,
+            },
+            ObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
             },
             ObjectChange::Created {
                 sender,
@@ -687,6 +712,21 @@ impl From<IndexedObjectChange> for ObjectChange {
                 object_id,
                 version,
             },
+            IndexedObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => ObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
             IndexedObjectChange::Created {
                 sender,
                 owner,
@@ -750,7 +790,7 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
 /// Provides conversion methods from gRPC types to iota core types.
 pub(crate) mod grpc_conversion {
 
-    use iota_grpc_types::v0::{
+    use iota_grpc_types::v1::{
         command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
         object::Objects as GrpcObjects,
     };

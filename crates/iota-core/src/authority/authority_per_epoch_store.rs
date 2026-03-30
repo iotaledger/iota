@@ -18,8 +18,9 @@ use fastcrypto_zkp::bn254::{
     zk_login_api::ZkLoginEnv,
 };
 use futures::{
-    FutureExt,
+    FutureExt, StreamExt,
     future::{Either, join_all, select},
+    stream::FuturesUnordered,
 };
 use iota_common::{
     fatal,
@@ -600,8 +601,9 @@ pub struct AuthorityPerEpochStore {
     consensus_notify_read: NotifyRead<SequencedConsensusTransactionKey, ()>,
 
     // Subscribers will get notified when a transaction is executed via checkpoint execution.
+    // The value is (checkpoint_sequence_number, checkpoint_timestamp_ms).
     executed_transactions_to_checkpoint_notify_read:
-        NotifyRead<TransactionDigest, CheckpointSequenceNumber>,
+        NotifyRead<TransactionDigest, (CheckpointSequenceNumber, u64)>,
 
     /// Batch verifier for certificates - also caches certificates and tx sigs
     /// that are known to have valid signatures. Lives in per-epoch store
@@ -1753,6 +1755,7 @@ impl AuthorityPerEpochStore {
         &self,
         digests: &[TransactionDigest],
         sequence: CheckpointSequenceNumber,
+        timestamp_ms: u64,
     ) -> IotaResult {
         let _metrics_scope =
             iota_metrics::monitored_scope("AuthorityPerEpochStore::insert_finalized_transactions");
@@ -1769,7 +1772,7 @@ impl AuthorityPerEpochStore {
         // checkpoint execution.
         for digest in digests {
             self.executed_transactions_to_checkpoint_notify_read
-                .notify(digest, &sequence);
+                .notify(digest, &(sequence, timestamp_ms));
         }
 
         Ok(())
@@ -2397,6 +2400,87 @@ impl AuthorityPerEpochStore {
 
         join_all(unprocessed_keys_registrations).await;
         Ok(())
+    }
+
+    /// Wait for the given transactions to be included in a checkpoint, with a
+    /// timeout.
+    ///
+    /// Returns a vec parallel to `digests` with `Some((seq, timestamp_ms))` for
+    /// each transaction that was checkpointed within the timeout, and `None`
+    /// for any that were not.
+    ///
+    /// For transactions not yet checkpointed, the `(seq, timestamp_ms)` comes
+    /// directly from the notification. For transactions already in the DB,
+    /// the seq comes from the DB table and `get_timestamp` is called to
+    /// resolve the timestamp for each unique checkpoint.
+    pub async fn wait_for_transactions_in_checkpoint_with_timeout(
+        &self,
+        digests: &[TransactionDigest],
+        timeout: std::time::Duration,
+        mut get_timestamp: impl FnMut(CheckpointSequenceNumber) -> u64,
+    ) -> IotaResult<Vec<Option<(CheckpointSequenceNumber, u64)>>> {
+        // First register for notifications and read the DB in afterwards, to avoid a
+        // race where a transaction gets checkpointed after we read the DB but
+        // before we register for notifications.
+        let registrations = self
+            .executed_transactions_to_checkpoint_notify_read
+            .register_all(digests);
+
+        // Now read the DB to see if any of the transactions were already checkpointed
+        // before we registered. For any that were, we can resolve the timestamp
+        // immediately via the callback. For any that weren't, we will wait for the
+        // notification to fire, which guarantees that the timestamp is included.
+        let already_checkpointed: Vec<Option<CheckpointSequenceNumber>> = self
+            .tables()?
+            .executed_transactions_to_checkpoint
+            .multi_get(digests)?;
+
+        let mut results: Vec<Option<(CheckpointSequenceNumber, u64)>> = vec![None; digests.len()];
+        let mut pending = Vec::new();
+
+        for (i, (registration, existing)) in registrations
+            .into_iter()
+            .zip(already_checkpointed)
+            .enumerate()
+        {
+            if let Some(seq) = existing {
+                // Transaction was already checkpointed before we started waiting.
+                // The notification has already fired so the registration won't
+                // resolve. Resolve the timestamp via the callback.
+                results[i] = Some((seq, get_timestamp(seq)));
+            } else {
+                pending.push((i, registration));
+            }
+        }
+
+        // Await pending notifications concurrently. Collect results as they
+        // arrive until the deadline.
+        if !pending.is_empty() {
+            let deadline = tokio::time::sleep(timeout);
+            tokio::pin!(deadline);
+
+            let mut in_flight: FuturesUnordered<_> = pending
+                .into_iter()
+                .map(|(i, reg)| async move { (i, reg.await) })
+                .collect();
+
+            loop {
+                tokio::select! {
+                    Some((i, seq_and_ts)) = in_flight.next() => {
+                        results[i] = Some(seq_and_ts);
+                    }
+                    () = &mut deadline => {
+                        break;
+                    }
+                    else => {
+                        // All futures completed before the deadline.
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(results)
     }
 
     pub fn has_sent_end_of_publish(&self, authority: &AuthorityName) -> IotaResult<bool> {

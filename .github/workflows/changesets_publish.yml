@@ -3,21 +3,20 @@ name: Changesets Publish
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag (e.g., latest, experimental, dev)"
+      release_type:
+        description: "Release type"
         required: true
-        type: string
-      create_snapshot:
-        description: "Create snapshot release (when true, uses --snapshot)."
-        required: true
-        type: boolean
+        type: choice
+        options:
+          - experimental
+          - next
+          - latest
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.tag }}
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.release_type }}
 
 env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
-  NPM_TOKEN: ""
 
 permissions:
   id-token: write
@@ -41,9 +40,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Update npm
+        if: github.event.inputs.release_type != 'latest'
         run: npm install -g npm@latest
 
       - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792
+        if: github.event.inputs.release_type != 'latest'
         run: |
           YARN_PATH=$(which yarn || true)
           if [ -n "$YARN_PATH" ]; then
@@ -52,50 +53,63 @@ jobs:
           fi
 
       - name: Install dependencies
+        if: github.event.inputs.release_type != 'latest'
         run: pnpm install --frozen-lockfile
 
+      - name: Create snapshot versions
+        if: github.event.inputs.release_type == 'experimental'
+        run: pnpm changeset version --snapshot experimental
+
       - name: Build packages
+        if: github.event.inputs.release_type != 'latest'
         run: |
           pnpm --filter @iota/iota-sdk codegen:version
           pnpm sdk-packages build
 
-      - name: Create versions
-        run: |
-          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
-            pnpm changeset version --snapshot ${{ github.event.inputs.tag }}
-          else
-            pnpm changeset version
-          fi
-
       - name: Publish packages
+        if: github.event.inputs.release_type != 'latest'
+        run: pnpm changeset publish --tag ${{ github.event.inputs.release_type }}
+
+      - name: Promote next to latest
+        if: github.event.inputs.release_type == 'latest'
         run: |
-          pnpm changeset publish --tag ${{ github.event.inputs.tag }}
+          PACKAGES=$(pnpm ls -r --depth -1 --json | jq -r '.[] | select(.private != true) | .name')
+          for NAME in $PACKAGES; do
+            NEXT_VERSION=$(npm view "$NAME" dist-tags.next 2>/dev/null || true)
+            if [ -n "$NEXT_VERSION" ]; then
+              echo "Promoting $NAME@$NEXT_VERSION from next to latest"
+              npm dist-tag add "$NAME@$NEXT_VERSION" latest
+            else
+              echo "No next tag found for $NAME, skipping"
+            fi
+          done
 
       - name: Create summary
         run: |
           echo "## Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "**Tag:** \`${{ github.event.inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Snapshot:** \`${{ github.event.inputs.create_snapshot }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Release type:** \`${{ github.event.inputs.release_type }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
-          echo "Check the workflow logs for detailed package versions." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Installation" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
+          if [ "${{ github.event.inputs.release_type }}" = "experimental" ]; then
+            echo "### Snapshot Packages" >> $GITHUB_STEP_SUMMARY
             echo "Install snapshot packages using:" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-            echo "npm install @iota/iota-sdk@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
-            echo "npm install @iota/dapp-kit@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/iota-sdk@experimental" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/dapp-kit@experimental" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ github.event.inputs.release_type }}" = "next" ]; then
+            echo "### Next Packages" >> $GITHUB_STEP_SUMMARY
+            echo "Install next packages using:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/iota-sdk@next" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/dapp-kit@next" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "Published packages are official releases; install via the published versions." >> $GITHUB_STEP_SUMMARY
+            echo "### Production Release" >> $GITHUB_STEP_SUMMARY
+            echo "Promoted \`next\` packages to \`latest\`." >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/iota-sdk@latest" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/dapp-kit@latest" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: No changes detected
-        run: |
-          echo "## No Pending Changesets" >> $GITHUB_STEP_SUMMARY
-          echo "No pending changesets found. Snapshot release skipped." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To create a changeset, run \`pnpm changeset\` and select the packages you want to release."

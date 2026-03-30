@@ -83,11 +83,10 @@
 use std::pin::Pin;
 
 use futures::{Stream, StreamExt};
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     checkpoint, event, filter as grpc_filter,
     ledger_service::{
-        CheckpointDataStreamRequest, GetCheckpointDataRequest, checkpoint_data,
-        get_checkpoint_data_request,
+        GetCheckpointRequest, StreamCheckpointsRequest, checkpoint_data, get_checkpoint_request,
     },
     signatures::ValidatorAggregatedSignature as ProtoValidatorAggregatedSignature,
     transaction::ExecutedTransaction,
@@ -98,7 +97,7 @@ use crate::{
     Client, Error,
     api::{
         CheckpointResponse, CheckpointStreamItem, GET_CHECKPOINT_READ_MASK, MetadataEnvelope,
-        Result, TryFromProtoError, field_mask_with_default,
+        Result, TryFromProtoError, field_mask_with_default, saturating_usize_to_u32,
     },
 };
 
@@ -135,7 +134,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
-            get_checkpoint_data_request::CheckpointId::Latest(true),
+            get_checkpoint_request::CheckpointId::Latest(true),
             read_mask,
             transactions_filter,
             events_filter,
@@ -179,7 +178,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
-            get_checkpoint_data_request::CheckpointId::SequenceNumber(sequence_number),
+            get_checkpoint_request::CheckpointId::SequenceNumber(sequence_number),
             read_mask,
             transactions_filter,
             events_filter,
@@ -225,7 +224,7 @@ impl Client {
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         self.get_checkpoint_internal(
-            get_checkpoint_data_request::CheckpointId::Digest(digest.into()),
+            get_checkpoint_request::CheckpointId::Digest(digest.into()),
             read_mask,
             transactions_filter,
             events_filter,
@@ -236,20 +235,20 @@ impl Client {
     /// Internal helper to fetch checkpoint by any ID type.
     async fn get_checkpoint_internal(
         &self,
-        checkpoint_id: get_checkpoint_data_request::CheckpointId,
+        checkpoint_id: get_checkpoint_request::CheckpointId,
         read_mask: Option<&str>,
         transactions_filter: Option<grpc_filter::TransactionFilter>,
         events_filter: Option<grpc_filter::EventFilter>,
     ) -> Result<MetadataEnvelope<CheckpointResponse>> {
         let mut request = match checkpoint_id {
-            get_checkpoint_data_request::CheckpointId::Latest(val) => {
-                GetCheckpointDataRequest::default().with_latest(val)
+            get_checkpoint_request::CheckpointId::Latest(val) => {
+                GetCheckpointRequest::default().with_latest(val)
             }
-            get_checkpoint_data_request::CheckpointId::SequenceNumber(val) => {
-                GetCheckpointDataRequest::default().with_sequence_number(val)
+            get_checkpoint_request::CheckpointId::SequenceNumber(val) => {
+                GetCheckpointRequest::default().with_sequence_number(val)
             }
-            get_checkpoint_data_request::CheckpointId::Digest(val) => {
-                GetCheckpointDataRequest::default().with_digest(val)
+            get_checkpoint_request::CheckpointId::Digest(val) => {
+                GetCheckpointRequest::default().with_digest(val)
             }
             _ => {
                 return Err(Error::Protocol("Invalid checkpoint ID type".into()));
@@ -263,12 +262,15 @@ impl Client {
         if let Some(ef) = events_filter {
             request = request.with_events_filter(ef);
         }
-        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+        if let Some(max_size) = self
+            .max_decoding_message_size()
+            .map(saturating_usize_to_u32)
+        {
             request = request.with_max_message_size_bytes(max_size);
         }
 
         let mut client = self.ledger_service_client();
-        let response = client.get_checkpoint_data(request).await?;
+        let response = client.get_checkpoint(request).await?;
         let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         let reassembled = Self::reassemble_checkpoint_data_stream(stream);
@@ -409,7 +411,7 @@ impl Client {
     ///
     /// ```no_run
     /// # use iota_grpc_client::{Client, CheckpointStreamItem};
-    /// # use iota_grpc_types::v0::filter as grpc_filter;
+    /// # use iota_grpc_types::v1::filter as grpc_filter;
     /// # use futures::StreamExt;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let client = Client::connect("http://localhost:9000").await?;
@@ -469,7 +471,7 @@ impl Client {
         progress_interval_ms: Option<u32>,
     ) -> Result<MetadataEnvelope<Pin<Box<dyn Stream<Item = Result<CheckpointStreamItem>> + Send>>>>
     {
-        let mut request = CheckpointDataStreamRequest::default()
+        let mut request = StreamCheckpointsRequest::default()
             .with_read_mask(field_mask_with_default(read_mask, GET_CHECKPOINT_READ_MASK));
 
         if let Some(start) = start_sequence_number {
@@ -490,12 +492,15 @@ impl Client {
         if let Some(ms) = progress_interval_ms {
             request = request.with_progress_interval_ms(ms);
         }
-        if let Some(max_size) = self.max_decoding_message_size().map(|s| s as u32) {
+        if let Some(max_size) = self
+            .max_decoding_message_size()
+            .map(saturating_usize_to_u32)
+        {
             request = request.with_max_message_size_bytes(max_size);
         }
 
         let mut client = self.ledger_service_client();
-        let response = client.stream_checkpoint_data(request).await?;
+        let response = client.stream_checkpoints(request).await?;
         let (stream, metadata) = MetadataEnvelope::from(response).into_parts();
 
         Ok(MetadataEnvelope::new(
@@ -522,7 +527,7 @@ impl Client {
     ) -> impl Stream<Item = Result<CheckpointStreamItem>>
     where
         S: Stream<
-            Item = std::result::Result<iota_grpc_types::v0::ledger_service::CheckpointData, E>,
+            Item = std::result::Result<iota_grpc_types::v1::ledger_service::CheckpointData, E>,
         >,
         E: Into<Error>,
     {

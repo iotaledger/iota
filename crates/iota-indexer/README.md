@@ -124,6 +124,11 @@ It supports following backfill options:
 This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes transactions that either wrapped or deleted given objects.
 Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode gRPC API URL used to fetch checkpoint data.
 
+#### Backfill job: `object-changes-unwrapped`
+
+This job backfills the information about unwrapped objects to the `transactions` table.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
+
 ```sh
 cargo run --bin iota-indexer -- --database-url <DATABASE_URL> run-backfill <START> <END> ingestion tx-wrapped-or-deleted-objects --remote-store-url <REMOTE_STORE_URL>
 ```

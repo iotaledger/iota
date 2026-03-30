@@ -1,5 +1,25 @@
 # @iota/bcs
 
+## 1.6.0
+
+### Minor Changes
+
+-   1a2b37f: Use bcs.byteVector and bcs.bytes instead of bcs.vector(bcs.u8()) and bcs.fixedArray(n,
+    bcs.u8()) to improve performance
+-   045acb2: Add generic inference for bcs type names
+-   bd1fa0b: Removed deprecated APIs. (toHEX, fromHEX, toB64, fromB64)
+-   1a2b37f: improve perf of bcs.byteVector
+-   045acb2: Update generics for vector, option, fixedArray, and map to prefer bcs types over input
+    and output values
+-   045acb2: Export new BcsStruct, BcsEnum and BcsTuple classes
+
+### Patch Changes
+
+-   adea573: Enable declarationMap in TS packages
+-   c74bcc2: Fix encoding/decoding large uleb128 values Work around bug in turbopack thatbreaks
+    uleb128 encoding in next@16
+-   045acb2: Fix name in bcs error message
+
 ## 1.5.0
 
 ### Minor Changes

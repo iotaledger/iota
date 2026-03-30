@@ -1,0 +1,69 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.types;
+
+import "iota/grpc/options.proto";
+
+// 32-byte address type for IOTA account addresses.
+message Address {
+  option (iota.grpc.message_accessors) = "with";
+
+  bytes address = 1;
+}
+
+// 32-byte identifier for on-chain objects and packages.
+message ObjectId {
+  option (iota.grpc.message_accessors) = "with";
+
+  bytes object_id = 1;
+}
+
+// Generic 32-byte digest (used for transactions, objects, etc.)
+message Digest {
+  option (iota.grpc.message_accessors) = "with";
+
+  bytes digest = 1;
+}
+
+// Reference to an object.
+message ObjectReference {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The object id of this object.
+  optional ObjectId object_id = 1;
+  // The version of this object.
+  optional uint64 version = 2;
+  // The digest of this object.
+  optional Digest digest = 3;
+}
+
+message TypeTagVector {
+  TypeTag inner_type = 1;
+}
+
+message TypeTagStruct {
+  string struct_tag = 1;
+}
+
+message TypeTag {
+  oneof type_tag {
+    bool bool_tag = 1;
+    bool u8_tag = 2;
+    bool u16_tag = 3;
+    bool u32_tag = 4;
+    bool u64_tag = 5;
+    bool u128_tag = 6;
+    bool u256_tag = 7;
+    bool address_tag = 8;
+    bool signer_tag = 9;
+    TypeTagVector vector_tag = 10;
+    TypeTagStruct struct_tag = 11;
+  }
+}
+
+message TypeTags {
+  repeated TypeTag type_tags = 1;
+}

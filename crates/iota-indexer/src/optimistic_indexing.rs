@@ -11,7 +11,7 @@ use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
 use iota_grpc_client::Client as GrpcClient;
 use iota_grpc_types::{
     field::{FieldMask, FieldMaskUtil},
-    v0::transaction::ExecutedTransaction,
+    v1::transaction::ExecutedTransaction,
 };
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
 use iota_types::{
@@ -229,7 +229,11 @@ impl OptimisticTransactionExecutor {
 
         let response = self
             .rpc_client
-            .execute_transaction(transaction.clone().try_into()?, Some(readmask.as_str()))
+            .execute_transaction(
+                transaction.clone().try_into()?,
+                Some(readmask.as_str()),
+                None,
+            )
             .await;
 
         let executed_transaction = match response {

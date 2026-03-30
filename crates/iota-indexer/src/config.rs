@@ -172,11 +172,33 @@ impl Default for HistoricFallbackOptions {
 #[derive(Args, Debug, Default, Clone)]
 #[group(required = true, multiple = true)]
 pub struct IngestionSources {
+    /// Ingest checkpoints from the given path.
     #[arg(long)]
     pub data_ingestion_path: Option<PathBuf>,
 
+    /// Primary remote checkpoint source.
+    ///
+    /// Accepts either a fullnode gRPC URL (e.g. `http://0.0.0.0:50051`) or an
+    /// S3-compatible object store URL hosting batched checkpoint files
+    /// (e.g. `https://checkpoints.mainnet.iota.cafe/ingestion/historical`).
+    ///
+    /// When pointing to an object store, this provides complete checkpoint
+    /// coverage from genesis. When pointing to a fullnode, checkpoint
+    /// availability depends on the node's pruning configuration.
     #[arg(long)]
     pub remote_store_url: Option<Url>,
+
+    /// Optional live checkpoint store for low-latency ingestion at the network
+    /// tip.
+    ///
+    /// S3-compatible object store URL serving individual checkpoint files for
+    /// the current epoch only
+    /// (e.g. `https://checkpoints.mainnet.iota.cafe/ingestion/live`).
+    ///
+    /// Use alongside `--remote-store-url` pointing to a historical store for
+    /// complete coverage with minimal tip latency.
+    #[arg(long, requires = "remote_store_url")]
+    pub live_checkpoints_store_url: Option<Url>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -654,6 +676,7 @@ pub mod deprecated {
                             remote_store_url: old_conf.remote_store_url.map(|url| {
                                 url.parse().expect("remote store url should be correct")
                             }),
+                            live_checkpoints_store_url: None,
                         },
                         checkpoint_download_queue_size: download_queue_size,
                         checkpoint_download_timeout: ingestion_reader_timeout_secs,
@@ -750,6 +773,19 @@ mod test {
             "--remote-store-url=http://example.com",
         ])
         .unwrap();
+
+        // live-checkpoints-store-url can be provided if remote-store-url is also
+        // provided
+        parse_args::<IngestionSources>([
+            "--remote-store-url=http://example.com",
+            "--live-checkpoints-store-url=http://example.com",
+        ])
+        .unwrap();
+
+        // live-checkpoints-store-url can't be provided if remote-store-url is not
+        // provided
+        parse_args::<IngestionSources>(["--live-checkpoints-store-url=http://example.com"])
+            .unwrap_err();
 
         // At least one must be present
         parse_args::<IngestionSources>([]).unwrap_err();

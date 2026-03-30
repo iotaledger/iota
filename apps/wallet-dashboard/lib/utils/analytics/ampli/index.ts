@@ -92,6 +92,10 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
+export interface ConnectedWalletProperties {
+    wallet: string;
+}
+
 export interface CopiedElementProperties {
     type?: string;
 }
@@ -234,6 +238,14 @@ export class ClickedUnstakeIota implements BaseEvent {
     event_type = 'clicked unstake IOTA';
 
     constructor(public event_properties?: ClickedUnstakeIotaProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ConnectedWallet implements BaseEvent {
+    event_type = 'connected wallet';
+
+    constructor(public event_properties: ConnectedWalletProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -510,6 +522,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedUnstakeIota(properties), options);
+  }
+
+  /**
+   * connected wallet
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet%20Dashboard/events/main/latest/connected%20wallet)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. wallet)
+   * @param options Amplitude event options.
+   */
+  connectedWallet(
+    properties: ConnectedWalletProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ConnectedWallet(properties), options);
   }
 
   /**
