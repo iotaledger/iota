@@ -225,7 +225,13 @@ impl TransactionSubmitter {
             TransactionRequestError::RejectedAtValidator(error)
         })?;
 
-        let result = resp.result;
+        let result = resp
+            .results
+            .into_iter()
+            .next()
+            .unwrap_or(SubmitTransactionResult::Rejected {
+                error: iota_types::error::IotaError::Unknown("No result returned".to_string()),
+            });
 
         // Since only one transaction is submitted, it is ok to return error when the
         // submission is rejected.

@@ -13,7 +13,7 @@ use std::{
 use anyhow::Result;
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair;
-use futures::future::Either;
+use futures::future::{Either, join_all};
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use iota_metrics::spawn_monitored_task;
 use iota_network::{
@@ -22,7 +22,6 @@ use iota_network::{
 };
 use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
-    base_types::TransactionEffectsDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::*,
     fp_ensure,
@@ -34,8 +33,7 @@ use iota_types::{
         HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
         HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
         HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitCertificateResponse, SubmitTransactionResult,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
+        ObjectInfoResponse, SubmitCertificateResponse, SubmitTransactionResult, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     },
     multiaddr::Multiaddr,
@@ -1298,115 +1296,14 @@ impl ValidatorService {
         ))
     }
 
-    /// Validates a batch of transactions that arrive together as a soft bundle
-    /// (white-flag flow). Enforces the same invariants as
-    /// [`Self::soft_bundle_validity_check`] but operates on raw
-    /// [`Transaction`]s instead of [`CertifiedTransaction`]s.
-    ///
-    /// Checks (all-or-nothing — any failure rejects the entire bundle):
-    /// * Count ≤ `max_soft_bundle_size`
-    /// * Total serialized size ≤ half of
-    ///   `consensus_max_transactions_in_block_bytes`
-    /// * Every transaction accesses at least one shared object
-    /// * No transaction has already been executed
-    /// * All transactions share the same gas price
-    /// * No transaction has already been processed by consensus
-    async fn submit_transactions_bundle_validity_check(
-        &self,
-        transactions: &[Transaction],
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        total_size_bytes: u64,
-    ) -> Result<(), tonic::Status> {
-        let protocol_config = epoch_store.protocol_config();
-
-        // Enforce these checks:
-        // - All certs must access at least one shared object.
-        // - All certs must not be already executed.
-        // - All certs must have the same gas price.
-        // - Number of certs must not exceed the max allowed.
-        // - Total size of all certs must not exceed the max allowed.
-        fp_ensure!(
-            transactions.len() as u64 <= protocol_config.max_soft_bundle_size(),
-            IotaError::UserInput {
-                error: UserInputError::TooManyTransactionsInSoftBundle {
-                    limit: protocol_config.max_soft_bundle_size(),
-                },
-            }
-            .into()
-        );
-
-        // We set the soft bundle max size to be half of the consensus max transactions
-        // in block size. We do this to account for serialization overheads and
-        // to ensure that the soft bundle is not too large when is attempted to be
-        // posted via consensus. Although half the block size is on the extreme
-        // side, it's should be good enough for now.
-        let soft_bundle_max_size_bytes =
-            protocol_config.consensus_max_transactions_in_block_bytes() / 2;
-        fp_ensure!(
-            total_size_bytes <= soft_bundle_max_size_bytes,
-            IotaError::UserInput {
-                error: UserInputError::SoftBundleTooLarge {
-                    size: total_size_bytes,
-                    limit: soft_bundle_max_size_bytes,
-                },
-            }
-            .into()
-        );
-
-        let mut gas_price: Option<u64> = None;
-        for transaction in transactions {
-            let tx_digest = *transaction.digest();
-
-            fp_ensure!(
-                transaction.contains_shared_object(),
-                IotaError::UserInput {
-                    error: UserInputError::NoSharedObject { digest: tx_digest },
-                }
-                .into()
-            );
-            fp_ensure!(
-                !self.state.try_is_tx_already_executed(&tx_digest)?,
-                IotaError::UserInput {
-                    error: UserInputError::AlreadyExecuted { digest: tx_digest },
-                }
-                .into()
-            );
-
-            if let Some(gas) = gas_price {
-                fp_ensure!(
-                    gas == transaction.gas_price(),
-                    IotaError::UserInput {
-                        error: UserInputError::GasPriceMismatch {
-                            digest: tx_digest,
-                            expected: gas,
-                            actual: transaction.gas_price(),
-                        },
-                    }
-                    .into()
-                );
-            } else {
-                gas_price = Some(transaction.gas_price());
-            }
-        }
-
-        // Reject the entire bundle if any transaction has already been sequenced by
-        // consensus. This is a best-effort check — a race is possible but
-        // harmless (consensus deduplicates).
-        fp_ensure!(
-            !epoch_store.is_any_user_tx_consensus_message_processed(transactions.iter())?,
-            IotaError::UserInput {
-                error: UserInputError::CertificateAlreadyProcessed,
-            }
-            .into()
-        );
-
-        Ok(())
-    }
-
     async fn handle_submit_transactions_impl(
         &self,
-        request: tonic::Request<SubmitTransactionsRequest>,
-    ) -> WrappedServiceResponse<SubmitTransactionsResponse> {
+        request: tonic::Request<iota_types::messages_grpc::RawSubmitTransactionsRequest>,
+    ) -> WrappedServiceResponse<iota_types::messages_grpc::RawSubmitTransactionsResponse> {
+        use iota_types::messages_grpc::{
+            RawSubmitTransactionResult, RawSubmitTransactionsResponse,
+        };
+
         let Self {
             state,
             consensus_adapter,
@@ -1430,33 +1327,44 @@ impl ValidatorService {
             .into()
         );
 
-        let request = request.into_inner();
+        let raw_request = request.into_inner();
 
-        // Handle ping.
-        if request.is_ping() {
-            // TODO: handle ping response better. Do we even need ping requests?
+        // Handle ping (empty request → empty response).
+        if raw_request.transactions.is_empty() {
             return Ok((
-                tonic::Response::new(SubmitTransactionsResponse {
-                    result: SubmitTransactionResult::Submitted,
-                }),
+                tonic::Response::new(RawSubmitTransactionsResponse { results: vec![] }),
                 Weight::zero(),
             ));
         }
 
-        let transactions = request.transactions;
-        // is_ping() = len() == 0 (handled above); is_soft_bundle() = len() > 1; else =
-        // len() == 1.
-        let is_soft_bundle = transactions.len() > 1;
+        let tx_count = raw_request.transactions.len();
 
-        // Per-tx validity checks. For soft bundles this also accumulates total
-        // serialized size for the bundle size limit.
-        let mut total_size_bytes: u64 = 0;
-        for tx in &transactions {
-            total_size_bytes +=
-                tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())? as u64;
+        // Pre-allocate a results vector aligned 1:1 with the input transactions.
+        let mut results: Vec<Option<SubmitTransactionResult>> = vec![None; tx_count];
 
-            // System overload check per transaction: check_execution_overload examines
-            // per-transaction input objects (shared objects, object queue depth).
+        // Deserialize, validate, and check overload in a single pass.
+        // Per-tx failures (BCS, validity, overload) are stored per-tx rather
+        // than aborting the whole batch, so valid transactions can still proceed.
+        let mut valid_transactions: Vec<(usize, Transaction)> = Vec::with_capacity(tx_count);
+
+        for (idx, tx_bytes) in raw_request.transactions.iter().enumerate() {
+            let tx: Transaction = match bcs::from_bytes(tx_bytes) {
+                Ok(tx) => tx,
+                Err(e) => {
+                    results[idx] = Some(SubmitTransactionResult::Rejected {
+                        error: IotaError::TransactionSerialization {
+                            error: e.to_string(),
+                        },
+                    });
+                    continue;
+                }
+            };
+
+            if let Err(e) = tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch()) {
+                results[idx] = Some(SubmitTransactionResult::Rejected { error: e });
+                continue;
+            }
+
             if let Err(e) = state.check_system_overload(
                 &consensus_adapter,
                 tx.data(),
@@ -1465,228 +1373,217 @@ impl ValidatorService {
                 metrics
                     .num_rejected_tx_during_overload
                     .with_label_values(&[e.as_ref()])
-                    .inc_by(transactions.len() as u64);
-                return Err(e.into());
+                    .inc();
+                results[idx] = Some(SubmitTransactionResult::Rejected { error: e });
+                continue;
             }
+
+            valid_transactions.push((idx, tx));
         }
 
         // Latency timer starts after pre-flight checks, mirroring handle_transaction
         // where the timer also starts after the overload check.
         let _handle_tx_metrics_guard = metrics.handle_transaction_latency.start_timer();
 
-        if is_soft_bundle {
-            // ── Soft-bundle path (all-or-nothing) ──────────────────────────────
+        // Process each valid transaction independently in parallel.
+        let epoch_store_ref = &epoch_store;
+        let futures = valid_transactions.into_iter().map(|(idx, tx)| async move {
+            let result = self
+                .handle_submit_transaction_impl(tx, epoch_store_ref)
+                .await;
+            (idx, result)
+        });
+        let futures_result = join_all(futures).await;
 
-            // Bundle-level validity checks (shared-object, size, gas price, already
-            // processed).
-            self.submit_transactions_bundle_validity_check(
-                &transactions,
-                &epoch_store,
-                total_size_bytes,
-            )
-            .await?;
+        // Fill in results for transactions that passed pre-flight checks.
+        for (idx, result) in futures_result {
+            results[idx] = Some(
+                result.unwrap_or_else(|e| SubmitTransactionResult::Rejected { error: e.into() }),
+            );
+        }
 
-            // Verify each transaction's user signature individually.
-            // TODO: switch to batch verification once a parallel helper exists.
-            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-            let mut verified_transactions = Vec::with_capacity(transactions.len());
-            for tx in &transactions {
-                match epoch_store.verify_transaction(tx.clone()) {
-                    Ok(verified) => verified_transactions.push(verified),
-                    Err(e) => {
-                        metrics.signature_errors.inc();
-                        return Err(e.into());
-                    }
-                }
-            }
-            drop(tx_verif_guard);
+        // Convert each native result to its Raw protobuf representation.
+        let results: Vec<RawSubmitTransactionResult> = results
+            .into_iter()
+            .map(|r| r.expect("every transaction slot must be filled"))
+            .map(|r| r.try_into())
+            .collect::<Result<Vec<_>, IotaError>>()
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
 
-            // Early bail-out during epoch boundary, before running expensive deny checks.
-            if !epoch_store
-                .get_reconfig_state_read_lock_guard()
-                .should_accept_user_certs()
-            {
-                metrics
-                    .num_rejected_tx_in_epoch_boundary
-                    .inc_by(transactions.len() as u64);
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
+        Ok((
+            tonic::Response::new(RawSubmitTransactionsResponse { results }),
+            Weight::one(),
+        ))
+    }
 
-            // Content validation: deny checks + owned object version validation.
-            for verified_tx in &verified_transactions {
-                let owned_objects = state
-                    .handle_transaction_validation_checks(verified_tx, &epoch_store)
-                    .await
-                    .map_err(tonic::Status::from)?;
-                state
-                    .get_cache_writer()
-                    .validate_owned_object_versions(&owned_objects)
-                    .map_err(tonic::Status::from)?;
-            }
+    /// Handles submission of a single transaction. Validates, checks for prior
+    /// execution, verifies signature, runs deny checks, and submits to
+    /// consensus. Returns the per-transaction result.
+    async fn handle_submit_transaction_impl(
+        &self,
+        transaction: Transaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Result<SubmitTransactionResult, tonic::Status> {
+        let state = &self.state;
+        let consensus_adapter = &self.consensus_adapter;
+        let metrics = &self.metrics;
 
-            // Acquire the reconfiguration lock once for the whole bundle so that
-            // all transactions are either accepted or rejected together.
-            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-            if !reconfiguration_lock.should_accept_user_certs() {
-                // NOTE: `handle_transaction` increments the same counter on the signing path.
-                // But since `handle_transaction` and `submit_transaction_impl` are mutually
-                // exclusive based on the `enable_white_flag_flow` protocol parameter,
-                // it is fine to use `num_rejected_tx_in_epoch_boundary` here.
-                metrics
-                    .num_rejected_tx_in_epoch_boundary
-                    .inc_by(transactions.len() as u64);
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
+        let tx_digest = *transaction.digest();
 
-            // Build consensus messages and submit as an atomic batch.
-            let consensus_txs: Vec<_> = transactions
-                .into_iter()
-                .map(ConsensusTransaction::new_user_transaction)
-                .collect();
-
-            self.consensus_adapter
-                .submit_batch(&consensus_txs, Some(&reconfiguration_lock), &epoch_store)
-                .map_err(tonic::Status::from)?;
-
-            Ok((
-                tonic::Response::new(SubmitTransactionsResponse {
-                    result: SubmitTransactionResult::Submitted,
-                }),
-                Weight::one(),
-            ))
-        } else {
-            // ── Single-transaction path ─────────────────────────────────────────
-            let transaction = transactions
-                .into_iter()
-                .next()
-                .expect("single transaction expected: ping and soft-bundle cases already handled");
-            let tx_digest = *transaction.digest();
-
-            // Helper to build an Executed response from transaction effects.
-            let build_executed_response =
-                |effects: TransactionEffects| -> Result<_, tonic::Status> {
-                    let effects_digest = effects.digest();
-                    let events = if effects.events_digest().is_some() {
-                        state
-                            .get_transaction_events(effects.transaction_digest())
-                            .ok()
-                    } else {
-                        None
-                    };
-                    let input_objects = state.get_transaction_input_objects(&effects).ok();
-                    let output_objects = state.get_transaction_output_objects(&effects).ok();
-                    let details = Box::new(ExecutedData {
-                        effects,
-                        events,
-                        input_objects: input_objects.unwrap_or_default(),
-                        output_objects: output_objects.unwrap_or_default(),
-                    });
-                    Ok((
-                        tonic::Response::new(SubmitTransactionsResponse {
-                            result: SubmitTransactionResult::Executed {
-                                effects_digest,
-                                details,
-                            },
-                        }),
-                        Weight::one(),
-                    ))
+        // Helper to build an Executed result from transaction effects.
+        let build_executed_result =
+            |effects: TransactionEffects| -> Result<SubmitTransactionResult, tonic::Status> {
+                let effects_digest = effects.digest();
+                let events = if effects.events_digest().is_some() {
+                    state
+                        .get_transaction_events(effects.transaction_digest())
+                        .ok()
+                } else {
+                    None
                 };
+                let input_objects = state.get_transaction_input_objects(&effects).ok();
+                let output_objects = state.get_transaction_output_objects(&effects).ok();
+                let details = Box::new(ExecutedData {
+                    effects,
+                    events,
+                    input_objects: input_objects.unwrap_or_default(),
+                    output_objects: output_objects.unwrap_or_default(),
+                });
+                Ok(SubmitTransactionResult::Executed {
+                    effects_digest,
+                    details,
+                })
+            };
 
-            // Check if already executed.
+        // Check if already executed.
+        if let Some(effects) = state
+            .get_transaction_cache_reader()
+            .try_get_executed_effects(&tx_digest)
+            .map_err(tonic::Status::from)?
+        {
+            return build_executed_result(effects);
+        }
+
+        // Verify user signature.
+        let tx_verif_guard = metrics.tx_verification_latency.start_timer();
+        let verified_tx = match epoch_store.verify_transaction(transaction.clone()) {
+            Ok(verified) => verified,
+            Err(e) => {
+                metrics.signature_errors.inc();
+                return Err(e.into());
+            }
+        };
+        drop(tx_verif_guard);
+
+        // Early bail-out during epoch boundary, before running expensive deny checks.
+        if !epoch_store
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_user_certs()
+        {
+            metrics.num_rejected_tx_in_epoch_boundary.inc();
+            return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+        }
+
+        // Content validation: deny checks + owned object version validation.
+        let owned_objects = state
+            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .await
+            .map_err(tonic::Status::from)?;
+        if let Err(e) = state
+            .get_cache_writer()
+            .validate_owned_object_versions(&owned_objects)
+        {
+            // Check if the transaction was executed while being validated, and that's why
+            // the owned object version validation failed. This is an edge
+            // case so checking executed effects twice is acceptable.
             if let Some(effects) = state
                 .get_transaction_cache_reader()
                 .try_get_executed_effects(&tx_digest)?
             {
-                return build_executed_response(effects);
+                return build_executed_result(effects);
             }
-
-            // Verify user signature.
-            let tx_verif_guard = metrics.tx_verification_latency.start_timer();
-            let verified_tx = match epoch_store.verify_transaction(transaction.clone()) {
-                Ok(verified) => verified,
-                Err(e) => {
-                    metrics.signature_errors.inc();
-                    return Err(e.into());
-                }
-            };
-            drop(tx_verif_guard);
-
-            // Early bail-out during epoch boundary, before running expensive deny checks.
-            if !epoch_store
-                .get_reconfig_state_read_lock_guard()
-                .should_accept_user_certs()
-            {
-                metrics.num_rejected_tx_in_epoch_boundary.inc();
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
-
-            // Content validation: deny checks + owned object version validation.
-            let owned_objects = state
-                .handle_transaction_validation_checks(&verified_tx, &epoch_store)
-                .await
-                .map_err(tonic::Status::from)?;
-            if let Err(e) = state
-                .get_cache_writer()
-                .validate_owned_object_versions(&owned_objects)
-            {
-                // Check if the transaction was executed while being validated, and that's why
-                // the owned object version validation failed. This is an edge
-                // case so checking executed effects twice is acceptable.
-                if let Some(effects) = state
-                    .get_transaction_cache_reader()
-                    .try_get_executed_effects(&tx_digest)?
-                {
-                    return build_executed_response(effects);
-                }
-                return Err(tonic::Status::from(e));
-            }
-
-            // Reconfig check.
-            let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
-            if !reconfiguration_lock.should_accept_user_certs() {
-                metrics.num_rejected_tx_in_epoch_boundary.inc();
-                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
-            }
-
-            // Submit to consensus.
-            consensus_adapter
-                .submit(
-                    ConsensusTransaction::new_user_transaction(transaction),
-                    Some(&reconfiguration_lock),
-                    &epoch_store,
-                )
-                .map_err(tonic::Status::from)?;
-
-            Ok((
-                tonic::Response::new(SubmitTransactionsResponse {
-                    result: SubmitTransactionResult::Submitted,
-                }),
-                Weight::one(),
-            ))
+            return Err(tonic::Status::from(e));
         }
+
+        // Reconfig check.
+        let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
+        if !reconfiguration_lock.should_accept_user_certs() {
+            metrics.num_rejected_tx_in_epoch_boundary.inc();
+            return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+        }
+
+        // Submit to consensus.
+        consensus_adapter
+            .submit(
+                ConsensusTransaction::new_user_transaction(transaction),
+                Some(&reconfiguration_lock),
+                epoch_store,
+            )
+            .map_err(tonic::Status::from)?;
+
+        Ok(SubmitTransactionResult::Submitted)
     }
 
     async fn handle_wait_for_effects_impl(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
-    ) -> WrappedServiceResponse<iota_types::messages_grpc::WaitForEffectsResponse> {
-        use iota_types::messages_grpc::WaitForEffectsResponse;
+        request: tonic::Request<iota_types::messages_grpc::RawWaitForEffectsRequest>,
+    ) -> WrappedServiceResponse<iota_types::messages_grpc::RawWaitForEffectsResponse> {
+        use iota_types::messages_grpc::{
+            RawWaitForEffectResponse, RawWaitForEffectsResponse, WaitForEffectRequest,
+        };
 
-        let wait_request = request.into_inner();
+        let raw_request = request.into_inner();
 
-        // Handle ping requests
-        if wait_request.transaction_digest.is_none() || wait_request.ping_type {
-            // For ping, return a dummy response with zeroed digest
+        // Handle ping (empty request → empty response).
+        if raw_request.requests.is_empty() {
             return Ok((
-                tonic::Response::new(WaitForEffectsResponse::Executed {
-                    effects_digest: TransactionEffectsDigest::ZERO,
-                    details: None,
-                }),
+                tonic::Response::new(RawWaitForEffectsResponse { results: vec![] }),
                 Weight::one(),
             ));
         }
 
-        let tx_digest = wait_request.transaction_digest.unwrap();
+        // Deserialize each item's fields lazily and construct native requests.
+        let mut native_requests = Vec::with_capacity(raw_request.requests.len());
+        for raw_item in &raw_request.requests {
+            let transaction_digest =
+                bcs::from_bytes(&raw_item.transaction_digest).map_err(|e| {
+                    tonic::Status::invalid_argument(format!(
+                        "Failed to deserialize transaction_digest: {e}"
+                    ))
+                })?;
+            native_requests.push(WaitForEffectRequest {
+                transaction_digest,
+                include_details: raw_item.include_details,
+            });
+        }
+
+        let futures = native_requests
+            .into_iter()
+            .map(|req| self.handle_wait_for_effect_impl(req));
+        let native_results = join_all(futures).await;
+
+        // Convert each native result to its Raw protobuf representation.
+        let results: Vec<RawWaitForEffectResponse> = native_results
+            .into_iter()
+            .map(|r| r.try_into())
+            .collect::<Result<Vec<_>, IotaError>>()
+            .map_err(|e| tonic::Status::internal(e.to_string()))?;
+
+        Ok((
+            tonic::Response::new(RawWaitForEffectsResponse { results }),
+            Weight::one(),
+        ))
+    }
+
+    /// Handles a single wait-for-effects request. Waits for the transaction to
+    /// be executed or dropped, and returns the per-item response.
+    async fn handle_wait_for_effect_impl(
+        &self,
+        request: iota_types::messages_grpc::WaitForEffectRequest,
+    ) -> iota_types::messages_grpc::WaitForEffectResponse {
+        use iota_types::messages_grpc::WaitForEffectResponse;
+
+        let tx_digest = request.transaction_digest;
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
         // Wait for the transaction to be executed and get the effects digest.
@@ -1716,8 +1613,8 @@ impl ValidatorService {
         match result {
             Ok(Either::Left(effects_digests)) => {
                 if let Some(effects_digest) = effects_digests.into_iter().next() {
-                    // Fetch detailed execution data if requested
-                    let details = if wait_request.include_details {
+                    // Fetch detailed execution data if requested.
+                    let details = if request.include_details {
                         if let Some(effects) = cache.get_executed_effects(&tx_digest) {
                             let events = if effects.events_digest().is_some() {
                                 self.state
@@ -1743,48 +1640,36 @@ impl ValidatorService {
                         None
                     };
 
-                    Ok((
-                        tonic::Response::new(WaitForEffectsResponse::Executed {
-                            effects_digest,
-                            details,
-                        }),
-                        Weight::one(),
-                    ))
+                    WaitForEffectResponse::Executed {
+                        effects_digest,
+                        details,
+                    }
                 } else {
-                    // Empty effects list — should not happen, but treat as expired
-                    Ok((
-                        tonic::Response::new(WaitForEffectsResponse::Expired {
-                            epoch: epoch_store.epoch(),
-                        }),
-                        Weight::one(),
-                    ))
+                    // Empty effects list — should not happen, but treat as expired.
+                    WaitForEffectResponse::Expired {
+                        epoch: epoch_store.epoch(),
+                    }
                 }
             }
             Ok(Either::Right(dropped_error)) => {
-                // Transaction was dropped by white-flag conflict resolution
-                Ok((
-                    tonic::Response::new(WaitForEffectsResponse::Rejected {
-                        error: Some(dropped_error),
-                    }),
-                    Weight::one(),
-                ))
+                // Transaction was dropped by white-flag conflict resolution.
+                WaitForEffectResponse::Rejected {
+                    error: Some(dropped_error),
+                }
             }
             Err(_timeout) => {
-                // Timed out waiting for effects
-                Ok((
-                    tonic::Response::new(WaitForEffectsResponse::Expired {
-                        epoch: epoch_store.epoch(),
-                    }),
-                    Weight::one(),
-                ))
+                // Timed out waiting for effects.
+                WaitForEffectResponse::Expired {
+                    epoch: epoch_store.epoch(),
+                }
             }
         }
     }
 
     async fn handle_validator_health_impl(
         &self,
-        _request: tonic::Request<iota_types::messages_grpc::ValidatorHealthRequest>,
-    ) -> WrappedServiceResponse<iota_types::messages_grpc::ValidatorHealthResponse> {
+        _request: tonic::Request<iota_types::messages_grpc::RawValidatorHealthRequest>,
+    ) -> WrappedServiceResponse<iota_types::messages_grpc::RawValidatorHealthResponse> {
         use iota_types::messages_grpc::ValidatorHealthResponse;
 
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
@@ -1796,20 +1681,20 @@ impl ValidatorService {
             .map(|(seq, _)| seq)
             .unwrap_or(0);
 
-        Ok((
-            tonic::Response::new(ValidatorHealthResponse {
-                num_inflight_execution_transactions: self
-                    .state
-                    .transaction_manager()
-                    .inflight_queue_len()
-                    as u64,
-                num_inflight_consensus_transactions: self
-                    .consensus_adapter
-                    .num_inflight_transactions(),
-                last_locally_built_checkpoint,
-            }),
-            Weight::zero(),
-        ))
+        let typed_response = ValidatorHealthResponse {
+            num_inflight_execution_transactions: self
+                .state
+                .transaction_manager()
+                .inflight_queue_len() as u64,
+            num_inflight_consensus_transactions: self.consensus_adapter.num_inflight_transactions(),
+            last_locally_built_checkpoint,
+        };
+
+        let raw_response = typed_response
+            .try_into()
+            .map_err(|e: IotaError| tonic::Status::internal(e.to_string()))?;
+
+        Ok((tonic::Response::new(raw_response), Weight::zero()))
     }
 }
 
@@ -1959,8 +1844,11 @@ impl Validator for ValidatorService {
 
     async fn handle_submit_transactions(
         &self,
-        request: tonic::Request<SubmitTransactionsRequest>,
-    ) -> Result<tonic::Response<SubmitTransactionsResponse>, tonic::Status> {
+        request: tonic::Request<iota_types::messages_grpc::RawSubmitTransactionsRequest>,
+    ) -> Result<
+        tonic::Response<iota_types::messages_grpc::RawSubmitTransactionsResponse>,
+        tonic::Status,
+    > {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
             handle_with_decoration!(validator_service, handle_submit_transactions_impl, request)
@@ -1971,8 +1859,8 @@ impl Validator for ValidatorService {
 
     async fn handle_wait_for_effects(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::WaitForEffectsRequest>,
-    ) -> Result<tonic::Response<iota_types::messages_grpc::WaitForEffectsResponse>, tonic::Status>
+        request: tonic::Request<iota_types::messages_grpc::RawWaitForEffectsRequest>,
+    ) -> Result<tonic::Response<iota_types::messages_grpc::RawWaitForEffectsResponse>, tonic::Status>
     {
         let validator_service = self.clone();
         spawn_monitored_task!(async move {
@@ -1984,8 +1872,8 @@ impl Validator for ValidatorService {
 
     async fn handle_validator_health(
         &self,
-        request: tonic::Request<iota_types::messages_grpc::ValidatorHealthRequest>,
-    ) -> Result<tonic::Response<iota_types::messages_grpc::ValidatorHealthResponse>, tonic::Status>
+        request: tonic::Request<iota_types::messages_grpc::RawValidatorHealthRequest>,
+    ) -> Result<tonic::Response<iota_types::messages_grpc::RawValidatorHealthResponse>, tonic::Status>
     {
         handle_with_decoration!(self, handle_validator_health_impl, request)
     }
