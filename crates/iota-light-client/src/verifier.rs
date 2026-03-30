@@ -412,17 +412,13 @@ mod tests {
         let tx0 = &mut full_checkpoint.transactions[0];
         let tx_digest_0 = *tx0.transaction.digest();
 
-        if tx0.events.is_none() {
+        if let Some(events) = tx0.events.as_mut() {
+            events.data.push(Event::random_for_testing());
+        } else {
             // if there are no events yet, add them
             tx0.events = Some(TransactionEvents {
                 data: vec![Event::random_for_testing()],
             });
-        } else {
-            tx0.events
-                .as_mut()
-                .unwrap()
-                .data
-                .push(Event::random_for_testing());
         }
 
         assert!(
