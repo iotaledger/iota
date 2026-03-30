@@ -2681,11 +2681,11 @@ impl SenderSignedData {
             .collect::<Vec<_>>()
             .into();
 
-        let auth_objects =
+        let per_authenticator_inputs =
             self.move_authenticators()
                 .into_iter()
                 .map(|move_authenticator| {
-                    let auth_input_objects = move_authenticator
+                    let authenticator_input_objects = move_authenticator
                         .input_objects()
                         .iter()
                         .map(|k| {
@@ -2714,7 +2714,7 @@ impl SenderSignedData {
                     );
 
                     (
-                        auth_input_objects,
+                        authenticator_input_objects,
                         account_objects
                             .into_iter()
                             .next()
@@ -2723,7 +2723,7 @@ impl SenderSignedData {
                 })
                 .collect();
 
-        Ok((tx_input_objects, auth_objects))
+        Ok((tx_input_objects, per_authenticator_inputs))
     }
 
     /// Checks if `SenderSignedData` contains at least one shared object.

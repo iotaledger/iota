@@ -224,15 +224,15 @@ mod checked {
     /// multiple `MoveAuthenticators` into one `CheckedInputObjects` to be used
     /// for execution.
     pub fn aggregate_authenticator_input_objects(
-        auth_checked_input_objects: &[&CheckedInputObjects],
+        per_authenticator_checked_input_objects: &[&CheckedInputObjects],
     ) -> IotaResult<CheckedInputObjects> {
         let mut aggregated_authenticator_input_objects =
             CheckedInputObjects::new_with_checked_transaction_inputs(InputObjects::new(vec![]));
 
-        for auth_checked_input_objects in auth_checked_input_objects.iter() {
+        for authenticator_checked_input_objects in per_authenticator_checked_input_objects.iter() {
             aggregated_authenticator_input_objects = checked_input_objects_union(
                 aggregated_authenticator_input_objects,
-                auth_checked_input_objects,
+                authenticator_checked_input_objects,
             )?;
         }
 
@@ -254,13 +254,13 @@ mod checked {
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
-        authenticator_input_objects: Vec<InputObjects>,
+        per_authenticator_input_objects: Vec<InputObjects>,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, Vec<CheckedInputObjects>, CheckedInputObjects)> {
         // Check Move authenticator inputs first
-        authenticator_input_objects
+        per_authenticator_input_objects
             .iter()
             .try_for_each(check_move_authenticator_objects)?;
 
@@ -276,18 +276,22 @@ mod checked {
             true,
         )?;
 
-        let mut input_objects_union = tx_input_objects.into_checked();
-
-        // Create checked a union of input objects
-        let authenticator_input_objects = authenticator_input_objects
+        let per_authenticator_checked_input_objects = per_authenticator_input_objects
             .into_iter()
             .map(|objects| objects.into_checked())
             .collect::<Vec<_>>();
-        for objects in authenticator_input_objects.iter() {
+
+        // Create a checked union of input objects
+        let mut input_objects_union = tx_input_objects.into_checked();
+        for objects in per_authenticator_checked_input_objects.iter() {
             input_objects_union = checked_input_objects_union(input_objects_union, objects)?;
         }
 
-        Ok((gas_status, authenticator_input_objects, input_objects_union))
+        Ok((
+            gas_status,
+            per_authenticator_checked_input_objects,
+            input_objects_union,
+        ))
     }
 
     // Common checks performed for transactions and certificates.

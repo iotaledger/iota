@@ -909,7 +909,7 @@ impl AuthorityState {
         // Load all transaction-related input objects.
         // Authenticator input objects and the account objects are loaded in the same
         // call if there are `MoveAuthenticator` signatures present in the transaction.
-        let (tx_input_objects, tx_receiving_objects, auth_input_objects) =
+        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
             self.read_objects_for_signing(&transaction, epoch)?;
 
         // Get the `MoveAuthenticator`s, if any.
@@ -920,7 +920,7 @@ impl AuthorityState {
         // account objects are also checked and must be provided.
         // It is also checked if there is enough gas to execute the transaction and its
         // authenticators.
-        let (gas_status, tx_checked_input_objects, auth_checked_inputs) = self
+        let (gas_status, tx_checked_input_objects, per_authenticator_checked_inputs) = self
             .check_transaction_inputs_for_signing(
                 protocol_config,
                 reference_gas_price,
@@ -928,38 +928,44 @@ impl AuthorityState {
                 tx_input_objects,
                 &tx_receiving_objects,
                 &move_authenticators,
-                auth_input_objects,
+                per_authenticator_inputs,
             )?;
 
-        let auth_checked_input_objects = auth_checked_inputs.iter().map(|i| &i.0).collect();
+        let per_authenticator_checked_input_objects = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
         check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
             &tx_checked_input_objects,
             &tx_receiving_objects,
-            &auth_checked_input_objects,
+            &per_authenticator_checked_input_objects,
             &self.get_object_store(),
         )?;
 
+        let aggregated_authenticator_input_objects =
+            iota_transaction_checks::aggregate_authenticator_input_objects(
+                &per_authenticator_checked_input_objects,
+            )?;
+
         debug_assert_eq!(
             move_authenticators.len(),
-            auth_checked_inputs.len(),
+            per_authenticator_checked_inputs.len(),
             "Move authenticators amount must match the number of checked authenticator inputs"
         );
 
-        let aggregated_authenticator_input_objects =
-            iota_transaction_checks::aggregate_authenticator_input_objects(
-                &auth_checked_input_objects,
-            )?;
-
         let move_authenticators = move_authenticators
             .into_iter()
-            .zip(auth_checked_inputs)
+            .zip(per_authenticator_checked_inputs)
             .map(
-                |(move_authenticator, (auth_checked_input_objects, authenticator_function_ref))| {
+                |(
+                    move_authenticator,
+                    (authenticator_checked_input_objects, authenticator_function_ref),
+                )| {
                     (
                         move_authenticator.to_owned(),
                         authenticator_function_ref,
-                        auth_checked_input_objects,
+                        authenticator_checked_input_objects,
                     )
                 },
             )
@@ -1217,7 +1223,7 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
-        let (tx_input_objects, authenticator_inputs) =
+        let (tx_input_objects, per_authenticator_inputs) =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
 
         // If no expected_effects_digest was provided, try to get it from storage.
@@ -1232,7 +1238,7 @@ impl AuthorityState {
             tx_guard,
             certificate,
             tx_input_objects,
-            authenticator_inputs,
+            per_authenticator_inputs,
             expected_effects_digest,
             epoch_store,
         )
@@ -1347,7 +1353,7 @@ impl AuthorityState {
         tx_guard: CertTxGuard,
         certificate: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
-        authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(TransactionEffects, Option<ExecutionError>)> {
@@ -1396,7 +1402,7 @@ impl AuthorityState {
             &execution_guard,
             certificate,
             tx_input_objects,
-            authenticator_inputs,
+            per_authenticator_inputs,
             epoch_store,
         ) {
             Err(e) => {
@@ -1619,7 +1625,7 @@ impl AuthorityState {
         _execution_guard: &ExecutionLockReadGuard<'_>,
         certificate: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
-        authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
+        per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<(
         InnerTemporaryStore,
@@ -1699,15 +1705,15 @@ impl AuthorityState {
 
             debug_assert_eq!(
                 move_authenticators.len(),
-                authenticator_inputs.len(),
+                per_authenticator_inputs.len(),
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            let authenticator_inputs = move_authenticators
+            let per_authenticator_inputs = move_authenticators
                 .iter()
-                .zip(authenticator_inputs)
+                .zip(per_authenticator_inputs)
                 .map(
-                    |(move_authenticator, (auth_input_objects, account_object))| {
+                    |(move_authenticator, (authenticator_input_objects, account_object))| {
                         // Check basic `object_to_authenticate` preconditions and get its
                         // components.
                         let (
@@ -1726,14 +1732,17 @@ impl AuthorityState {
                             &signer,
                         )?;
 
-                        Ok((auth_input_objects, authenticator_function_ref_for_execution))
+                        Ok((
+                            authenticator_input_objects,
+                            authenticator_function_ref_for_execution,
+                        ))
                     },
                 )
                 .collect::<IotaResult<Vec<_>>>()?;
 
-            let move_authenticator_input_objects = authenticator_inputs
+            let per_authenticator_input_objects = per_authenticator_inputs
                 .iter()
-                .map(|(auth_input_objects, _)| auth_input_objects.clone())
+                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
                 .collect::<Vec<_>>();
 
             // Check the `MoveAuthenticator` input objects.
@@ -1743,12 +1752,12 @@ impl AuthorityState {
             let authenticator_gas_budget = protocol_config.max_auth_gas();
             let (
                 gas_status,
-                authenticator_checked_input_objects,
+                per_authenticator_checked_input_objects,
                 authenticator_and_tx_checked_input_objects,
             ) = iota_transaction_checks::check_certificate_and_move_authenticator_input(
                 certificate,
                 tx_input_objects,
-                move_authenticator_input_objects,
+                per_authenticator_input_objects,
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
@@ -1756,14 +1765,14 @@ impl AuthorityState {
 
             debug_assert_eq!(
                 move_authenticators.len(),
-                authenticator_checked_input_objects.len(),
+                per_authenticator_checked_input_objects.len(),
                 "Move authenticators amount must match the number of checked authenticator inputs"
             );
 
             let move_authenticators = move_authenticators
                 .into_iter()
-                .zip(authenticator_inputs)
-                .zip(authenticator_checked_input_objects)
+                .zip(per_authenticator_inputs)
+                .zip(per_authenticator_checked_input_objects)
                 .map(
                     |(
                         (move_authenticator, (_, authenticator_function_ref_for_execution)),
@@ -5483,8 +5492,12 @@ impl AuthorityState {
 
         transaction
             .split_input_objects_into_groups_for_reading(input_objects)
-            .map(|(tx_input_objects, auth_input_objects)| {
-                (tx_input_objects, tx_receiving_objects, auth_input_objects)
+            .map(|(tx_input_objects, per_authenticator_inputs)| {
+                (
+                    tx_input_objects,
+                    tx_receiving_objects,
+                    per_authenticator_inputs,
+                )
             })
     }
 
@@ -5497,7 +5510,7 @@ impl AuthorityState {
         tx_input_objects: InputObjects,
         tx_receiving_objects: &ReceivingObjects,
         move_authenticators: &Vec<&MoveAuthenticator>,
-        auth_input_objects: Vec<(InputObjects, ObjectReadResult)>,
+        per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
     ) -> IotaResult<(
         IotaGasStatus,
         CheckedInputObjects,
@@ -5513,15 +5526,15 @@ impl AuthorityState {
 
         debug_assert_eq!(
             move_authenticators.len(),
-            auth_input_objects.len(),
+            per_authenticator_inputs.len(),
             "Move authenticators amount must match the number of authenticator inputs"
         );
 
-        let auth_checked_inputs = move_authenticators
+        let per_authenticator_checked_inputs = move_authenticators
             .iter()
-            .zip(auth_input_objects)
+            .zip(per_authenticator_inputs)
             .map(
-                |(move_authenticator, (auth_input_objects, account_object))| {
+                |(move_authenticator, (authenticator_input_objects, account_object))| {
                     // Check basic `object_to_authenticate` preconditions and get its components.
                     let (
                         auth_account_object_id,
@@ -5544,12 +5557,15 @@ impl AuthorityState {
                     )?;
 
                     // Check the MoveAuthenticator input objects.
-                    let auth_checked_input_objects =
+                    let authenticator_checked_input_objects =
                         iota_transaction_checks::check_move_authenticator_input_for_signing(
-                            auth_input_objects,
+                            authenticator_input_objects,
                         )?;
 
-                    Ok((auth_checked_input_objects, authenticator_function_ref))
+                    Ok((
+                        authenticator_checked_input_objects,
+                        authenticator_function_ref,
+                    ))
                 },
             )
             .collect::<IotaResult<Vec<_>>>()?;
@@ -5567,7 +5583,11 @@ impl AuthorityState {
                 authenticator_gas_budget,
             )?;
 
-        Ok((gas_status, tx_checked_input_objects, auth_checked_inputs))
+        Ok((
+            gas_status,
+            tx_checked_input_objects,
+            per_authenticator_checked_inputs,
+        ))
     }
 
     #[cfg(test)]
