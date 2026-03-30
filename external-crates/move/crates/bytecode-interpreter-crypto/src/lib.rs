@@ -13,6 +13,8 @@
 //! diem-framework) and be passed into the VM for execution. In this way we no
 //! longer need to worry about depending on diem-crypto.
 
+// Triggering CI
+
 use std::cmp::Ordering;
 
 use anyhow::{Result, bail};
