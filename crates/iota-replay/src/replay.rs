@@ -1502,9 +1502,11 @@ impl LocalExec {
         let raw_tx_bytes = tx_info.clone().raw_transaction;
         let orig_tx: SenderSignedData = bcs::from_bytes(&raw_tx_bytes).unwrap();
         let input_objs = orig_tx
-            .transaction_data()
-            .input_objects()
-            .map_err(|e| ReplayEngineError::UserInputError { err: e })?;
+            .collect_all_input_object_kind_for_reading()
+            .map_err(|e| match e {
+                IotaError::UserInput { error } => ReplayEngineError::UserInputError { err: error },
+                other => ReplayEngineError::GeneralError { err: other.to_string() },
+            })?;
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
         // Download the objects at the version right before the execution of this TX
