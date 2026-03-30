@@ -129,7 +129,7 @@ export function TransactionBlocksForAddress({
                         <PlaceholderTable
                             rowCount={DEFAULT_TRANSACTIONS_LIMIT}
                             rowHeight="16px"
-                            colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                            colHeadings={['Type', 'Sender', 'Txns', 'Gas', 'Time']}
                         />
                     ) : (
                         <div>

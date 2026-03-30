@@ -53,7 +53,7 @@ export function TransactionsForAddressTable({
                 <PlaceholderTable
                     rowCount={limit}
                     rowHeight="16px"
-                    colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                    colHeadings={['Type', 'Sender', 'Txns', 'Gas', 'Time']}
                 />
                 <Placeholder width="w-full" height="h-5" />
             </div>

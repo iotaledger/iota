@@ -69,7 +69,7 @@ export function TransactionsActivityTable({
                         <PlaceholderTable
                             rowCount={limit}
                             rowHeight="16px"
-                            colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                            colHeadings={['Type', 'Sender', 'Txns', 'Gas', 'Time']}
                         />
                     ) : (
                         <TableCard

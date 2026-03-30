@@ -34,6 +34,7 @@ export function useGetTransactionBlocks(
                     showEffects: true,
                     showInput: true,
                     showBalanceChanges: true,
+                    showEvents: true,
                 },
             }),
         initialPageParam: null,

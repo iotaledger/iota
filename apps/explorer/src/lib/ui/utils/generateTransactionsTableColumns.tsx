@@ -44,48 +44,36 @@ export function generateTransactionsTableColumns(
 ): ColumnDef<IotaTransactionBlockResponse>[] {
     const columns: ColumnDef<IotaTransactionBlockResponse>[] = [
         {
-            header: address ? 'Type' : 'Digest',
-            accessorKey: address ? 'Type' : 'digest',
+            header: 'Type',
+            accessorKey: 'Type',
             cell: ({ row }) => {
                 const txn = row.original;
                 const digest = txn.digest;
-
-                if (address) {
-                    const isSuccess = txn.effects?.status.status === 'success';
-                    const action = getTransactionAction(txn, address);
-                    return (
-                        <TableCellBase>
-                            <TransactionLink
-                                digest={digest}
-                                copyText={digest}
-                                label={
-                                    <div className="flex items-center gap-xs">
-                                        <TransactionIcon
-                                            variant={action}
-                                            txnFailed={!isSuccess}
-                                            size={TransactionIconSize.Small}
-                                        />
-                                        <div className="flex flex-col">
-                                            <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
-                                                {isSuccess ? ACTION_LABELS[action] : 'Failed'}
-                                            </span>
-                                            <span className="text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
-                                                {formatDigest(digest)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                }
-                            />
-                        </TableCellBase>
-                    );
-                }
-
+                const actionAddress = address ?? txn.transaction?.data.sender;
+                const isSuccess = txn.effects?.status.status === 'success';
+                const action = getTransactionAction(txn, actionAddress);
                 return (
                     <TableCellBase>
                         <TransactionLink
                             digest={digest}
-                            label={<TableCellText>{formatDigest(digest)}</TableCellText>}
                             copyText={digest}
+                            label={
+                                <div className="flex items-center gap-xs">
+                                    <TransactionIcon
+                                        variant={action}
+                                        txnFailed={!isSuccess}
+                                        size={TransactionIconSize.Small}
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
+                                            {isSuccess ? ACTION_LABELS[action] : 'Failed'}
+                                        </span>
+                                        <span className="text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
+                                            {formatDigest(digest)}
+                                        </span>
+                                    </div>
+                                </div>
+                            }
                         />
                     </TableCellBase>
                 );

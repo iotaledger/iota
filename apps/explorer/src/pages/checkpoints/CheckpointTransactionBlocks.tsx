@@ -32,7 +32,7 @@ export function CheckpointTransactionBlocks({ id }: { id: string }): JSX.Element
                 <PlaceholderTable
                     rowCount={20}
                     rowHeight="16px"
-                    colHeadings={['Digest', 'Sender', 'Txns', 'Gas', 'Time']}
+                    colHeadings={['Type', 'Sender', 'Txns', 'Gas', 'Time']}
                 />
             ) : (
                 <div>
