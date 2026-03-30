@@ -74,7 +74,7 @@ The gas price is specified by the user and must be at least a protocol-defined b
 - The **tip** is an optional additional fee paid by users to prioritize their transactions. Any amount above the reference gas price is transferred to validators as part of their rewards.
 
 During normal network conditions, most transactions use the reference gas price with no tip, ensuring predictable and stable fees.
-Instead, during periods of congestion, users can request an estimated minimum gas price for successful execution through a transaction dry run.
+However, during periods of congestion, users can request an estimated minimum gas price for successful execution through a transaction dry run.
 This estimation is computed using a [predictive gas pricing algorithm](#gas-price-prediction), which helps users determine an appropriate tip.
 The algorithm leverages historical congestion data and dynamically adjusts weights for shared objects accessed by transactions using an online gradient descent method.
 
