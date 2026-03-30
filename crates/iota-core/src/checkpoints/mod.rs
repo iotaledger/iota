@@ -2527,6 +2527,7 @@ impl CheckpointService {
         tasks.spawn(monitored_future!(accumulator.run()));
 
         // If this times out, the validator may still start up. The worst that can
+        // TODO: Explain why it will crash later on.
         // happen is that we will crash later on instead of immediately. The eventual
         // crash would occur because we may be missing transactions that are below the
         // highest_synced_checkpoint watermark, which can cause a crash in
@@ -2547,7 +2548,10 @@ impl CheckpointService {
 
 impl CheckpointService {
     /// Waits until all checkpoints had been built before the node restarted
-    /// are rebuilt. This is required to preserve the invariant that all
+    /// are rebuilt.
+    /// TODO: Add comments explain why we need to wait for checkpoints to be
+    /// rebuilt.
+    /// This is required to preserve the invariant that all
     /// checkpoints (and their transactions) below the
     /// highest_synced_checkpoint watermark are available. Once the
     /// checkpoints are constructed, we can be sure that the transactions
