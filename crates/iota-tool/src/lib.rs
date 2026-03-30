@@ -38,7 +38,7 @@ use iota_config::{
 };
 use iota_core::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,

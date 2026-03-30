@@ -64,7 +64,7 @@ use crate::{
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder, transaction_deferral::DeferralKey,
     },
-    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    authority_client::{NetworkAuthorityClient, validator::ValidatorAPI},
     authority_server::AuthorityServer,
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,

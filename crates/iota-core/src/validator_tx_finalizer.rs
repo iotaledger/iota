@@ -325,7 +325,9 @@ mod tests {
     use crate::{
         authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
         authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        authority_client::AuthorityAPI,
+        authority_client::{
+            validator::ValidatorAPI, validator_peer::ValidatorPeerAPI, validator_v2::ValidatorV2API,
+        },
         validator_tx_finalizer::ValidatorTxFinalizer,
     };
 
@@ -335,8 +337,11 @@ mod tests {
         inject_fault: Arc<AtomicBool>,
     }
 
+    impl ValidatorPeerAPI for MockAuthorityClient {}
+    impl ValidatorV2API for MockAuthorityClient {}
+
     #[async_trait]
-    impl AuthorityAPI for MockAuthorityClient {
+    impl ValidatorAPI for MockAuthorityClient {
         async fn handle_transaction(
             &self,
             transaction: Transaction,
