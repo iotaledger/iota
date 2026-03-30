@@ -850,6 +850,9 @@ impl IotaError {
             IotaError::TooManyTransactionsPendingConsensus => true,
             IotaError::ValidatorOverloadedRetryAfter { .. } => true,
 
+            // Transient consensus failure — other validators likely unaffected
+            IotaError::FailedToSubmitToConsensus(..) => true,
+
             // Non retryable error
             IotaError::Execution(..) => false,
             IotaError::ByzantineAuthoritySuspicion { .. } => false,
@@ -862,6 +865,21 @@ impl IotaError {
             // limit / blocking of a client. It must be non-retryable otherwise
             // we will make the threat worse through automatic retries.
             IotaError::TooManyRequests => false,
+
+            // Signature errors — non-retryable, invalid input
+            IotaError::InvalidSignature { .. } => false,
+            IotaError::SignerSignatureAbsent { .. } => false,
+            IotaError::SignerSignatureNumberMismatch { .. } => false,
+            IotaError::IncorrectSigner { .. } => false,
+            IotaError::UnknownSigner { .. } => false,
+            IotaError::InvalidAuthenticator => false,
+
+            // Transaction lifecycle — non-retryable
+            IotaError::TransactionExpired => false,
+
+            // Fullnode-internal aggregation errors — non-retryable
+            IotaError::StakeAggregatorRepeatedSigner { .. } => false,
+            IotaError::CertificateRequiresQuorum => false,
 
             // For all un-categorized errors, return here with categorized = false.
             _ => return (false, false),
