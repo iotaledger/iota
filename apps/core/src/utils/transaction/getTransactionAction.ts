@@ -5,7 +5,11 @@
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionAction } from '../../interfaces';
 import { checkIfIsTimelockedStaking } from '../stake';
-import { isMigrationTransaction, isUnlockTimelockedObjectTransaction, isCollectAllTimelocksTransaction } from '..';
+import {
+    isMigrationTransaction,
+    isUnlockTimelockedObjectTransaction,
+    isCollectAllTimelocksTransaction,
+} from '..';
 
 export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
@@ -19,18 +23,16 @@ export const getTransactionAction = (
         unstakeTypeTransaction,
     } = checkIfIsTimelockedStaking(transaction?.events);
 
-
     const isMigration = isMigrationTransaction(transaction.transaction);
     const isCollectAllVesting = isCollectAllTimelocksTransaction(transaction.transaction);
-    const isSupplyIncreaseVestingCollect = !isCollectAllVesting && isUnlockTimelockedObjectTransaction(
-        transaction.transaction,
-    );
+    const isSupplyIncreaseVestingCollect =
+        !isCollectAllVesting && isUnlockTimelockedObjectTransaction(transaction.transaction);
 
     if (isMigration) {
         return TransactionAction.Migration;
     } else if (isCollectAllVesting || isSupplyIncreaseVestingCollect) {
-    return TransactionAction.TimelockedCollect;
-} else if (stakeTypeTransaction) {
+        return TransactionAction.TimelockedCollect;
+    } else if (stakeTypeTransaction) {
         return isTimelockedStaking ? TransactionAction.TimelockedStaked : TransactionAction.Staked;
     } else if (unstakeTypeTransaction) {
         return isTimelockedUnstaking

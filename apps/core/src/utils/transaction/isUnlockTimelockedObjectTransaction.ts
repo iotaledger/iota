@@ -32,7 +32,8 @@ export function isCollectAllTimelocksTransaction(
         .filter((tx) => tx.MoveCall.module === TIMELOCK_MODULE);
     // At least one call to unlock_with_clock
     const isCollectAll =
-        moveCallTxs.length > 0 && moveCallTxs.some((tx) => tx.MoveCall.function === 'unlock_with_clock');
+        moveCallTxs.length > 0 &&
+        moveCallTxs.some((tx) => tx.MoveCall.function === 'unlock_with_clock');
     return isCollectAll;
 }
 

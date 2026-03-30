@@ -50,7 +50,11 @@ interface TransactionIconProps {
     size?: TransactionIconSize;
 }
 
-export function TransactionIcon({ txnFailed, variant, size = TransactionIconSize.Medium }: TransactionIconProps) {
+export function TransactionIcon({
+    txnFailed,
+    variant,
+    size = TransactionIconSize.Medium,
+}: TransactionIconProps) {
     return (
         <div
             className={clsx(ICON_SIZES[size], txnFailed ? ICON_COLORS.error : ICON_COLORS.primary)}
