@@ -206,7 +206,8 @@ mod tests {
             }))],
         };
 
-        let ctx = AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb, vec![]);
+        let ctx =
+            AuthContext::new_from_components(MoveAuthenticatorDigest::default(), &ptb, vec![]);
 
         assert_eq!(ctx.tx_inputs().len(), 1);
         assert_eq!(ctx.tx_commands().len(), 1);

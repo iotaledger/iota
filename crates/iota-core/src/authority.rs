@@ -957,7 +957,8 @@ impl AuthorityState {
                 .expect("AuthenticatorFunctionRefV1 object must be provided");
 
             // Serialize the TransactionData for the auth context before decomposing.
-            let tx_data_bytes = bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+            let tx_data_bytes =
+                bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
 
             let (kind, signer, gas_data) = tx_data.execution_parts();
 
@@ -1648,7 +1649,8 @@ impl AuthorityState {
         tx_data.validity_check(protocol_config)?;
 
         // Serialize the TransactionData for the auth context before decomposing.
-        let tx_data_bytes = bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+        let tx_data_bytes =
+            bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
         let (kind, signer, gas_data) = tx_data.execution_parts();
 

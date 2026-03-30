@@ -219,9 +219,12 @@ impl AuthenticationContext {
                     .with_message(err.to_string())
             })?;
 
-        self.auth_context
-            .borrow_mut()
-            .replace(auth_digest, tx_inputs, tx_commands, tx_data_bytes_value);
+        self.auth_context.borrow_mut().replace(
+            auth_digest,
+            tx_inputs,
+            tx_commands,
+            tx_data_bytes_value,
+        );
 
         // Drop cached values to ensure they are recreated with the updated AuthContext
         // data

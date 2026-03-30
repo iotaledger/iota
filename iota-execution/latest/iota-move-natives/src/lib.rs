@@ -477,11 +477,12 @@ impl NativesCostTable {
                     .auth_context_digest_cost_base_as_option()
                     .map(Into::into),
             },
-            auth_context_tx_data_bytes_cost_params: auth_context::AuthContextTxDataBytesCostParams {
-                auth_context_tx_data_bytes_cost_base: protocol_config
-                    .auth_context_tx_data_bytes_cost_base_as_option()
-                    .map(Into::into),
-            },
+            auth_context_tx_data_bytes_cost_params:
+                auth_context::AuthContextTxDataBytesCostParams {
+                    auth_context_tx_data_bytes_cost_base: protocol_config
+                        .auth_context_tx_data_bytes_cost_base_as_option()
+                        .map(Into::into),
+                },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
                 auth_context_tx_commands_cost_base: protocol_config
                     .auth_context_tx_commands_cost_base_as_option()
