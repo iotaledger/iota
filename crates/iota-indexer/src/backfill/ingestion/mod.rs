@@ -18,7 +18,7 @@ pub(crate) trait IngestionBackfill: Send + Sync {
     type ProcessedType: Send + Sync;
 
     /// Converts a `CheckpointData` into zero-or-more items (`ProcessedType`).
-    fn process_checkpoint(
+    async fn process_checkpoint(
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Vec<Self::ProcessedType>, IndexerError>;
 

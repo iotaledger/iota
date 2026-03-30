@@ -120,7 +120,7 @@ impl Pruner {
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
         let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone()).unwrap();
-        let partition_manager = PgPartitionManager::new(blocking_cp.clone())?;
+        let partition_manager = PgPartitionManager::new(blocking_cp)?;
         let epochs_to_keep = retention_config.epochs_to_keep;
         let retention_policies = retention_config.retention_policies();
 

@@ -55,7 +55,16 @@ impl FieldMaskUtil for FieldMask {
         // matches a field and that field is a message type (which can have its
         // own set of fields), attempt to match the remainder of the path
         // against a field in the sub_message.
-        fn is_valid_path(mut fields: &[&MessageField], mut path: &str) -> bool {
+        //
+        // `oneofs` lists oneof group names for the current message level.
+        // A oneof name acts as a virtual parent: `"execution_result"` alone is
+        // valid (selects all variants), and `"execution_result.command_results"`
+        // is validated by recursing into the same `fields` array.
+        fn is_valid_path(
+            mut fields: &[&MessageField],
+            mut oneofs: &[&str],
+            mut path: &str,
+        ) -> bool {
             loop {
                 let (field_name, remainder) = path
                     .split_once(FIELD_SEPARATOR)
@@ -70,6 +79,26 @@ impl FieldMaskUtil for FieldMask {
                         (None, Some(_)) => return false,
                         (Some(sub_message_fields), Some(remainder)) => {
                             fields = sub_message_fields;
+                            // Nested messages have their own oneofs (from their
+                            // own MessageFields impl), but we don't have access
+                            // to those here.  Oneof-as-parent only applies at
+                            // the top level of each message, and nested oneofs
+                            // in read masks are uncommon, so this is acceptable.
+                            oneofs = &[];
+                            path = remainder;
+                        }
+                    }
+                } else if oneofs.contains(&field_name) {
+                    // The path segment matches a oneof group name.
+                    // Bare oneof name (no remainder) means "all variants".
+                    // With a remainder, validate the rest against the same
+                    // fields (oneof variants are top-level fields).
+                    match remainder {
+                        None => return true,
+                        Some(remainder) => {
+                            // Don't recurse through oneofs again at the same
+                            // level — the remainder should match a real field.
+                            oneofs = &[];
                             path = remainder;
                         }
                     }
@@ -83,7 +112,7 @@ impl FieldMaskUtil for FieldMask {
             if path == FIELD_PATH_WILDCARD {
                 continue;
             }
-            if !is_valid_path(M::FIELDS, path) {
+            if !is_valid_path(M::FIELDS, M::ONEOFS, path) {
                 return Err(path);
             }
         }
@@ -271,5 +300,76 @@ mod tests {
         // Non-existent top-level field is rejected
         let mask = FieldMask::from_str("no_such_field");
         assert_eq!(mask.validate::<Outer>(), Err("no_such_field"));
+    }
+
+    #[test]
+    fn test_validate_oneof() {
+        // Simulates SimulatedTransaction-like structure:
+        //   oneof execution_result { CommandResults command_results = 3; ExecutionError
+        // execution_error = 4; }
+        struct Msg;
+        struct CmdResults;
+        struct ExecError;
+
+        impl MessageFields for CmdResults {
+            const FIELDS: &'static [&'static MessageField] = &[&MessageField::new("bcs")];
+        }
+
+        impl MessageFields for ExecError {
+            const FIELDS: &'static [&'static MessageField] = &[
+                &MessageField::new("source"),
+                &MessageField::new("command_index"),
+            ];
+        }
+
+        impl MessageFields for Msg {
+            const FIELDS: &'static [&'static MessageField] = &[
+                &MessageField::new("executed_transaction"),
+                &MessageField::new("command_results").with_message_fields(CmdResults::FIELDS),
+                &MessageField::new("execution_error").with_message_fields(ExecError::FIELDS),
+            ];
+            const ONEOFS: &'static [&'static str] = &["execution_result"];
+        }
+
+        // Bare oneof name is valid (selects all variants)
+        let mask = FieldMask::from_str("execution_result");
+        assert_eq!(mask.validate::<Msg>(), Ok(()));
+
+        // Oneof name + variant field is valid
+        let mask = FieldMask::from_str("execution_result.command_results");
+        assert_eq!(mask.validate::<Msg>(), Ok(()));
+
+        // Oneof name + variant field + nested field is valid
+        let mask = FieldMask::from_str("execution_result.command_results.bcs");
+        assert_eq!(mask.validate::<Msg>(), Ok(()));
+
+        let mask = FieldMask::from_str("execution_result.execution_error.source");
+        assert_eq!(mask.validate::<Msg>(), Ok(()));
+
+        // Oneof name + non-existent field is invalid
+        let mask = FieldMask::from_str("execution_result.no_such_field");
+        assert_eq!(
+            mask.validate::<Msg>(),
+            Err("execution_result.no_such_field")
+        );
+
+        // Oneof name + variant + invalid nested field is invalid
+        let mask = FieldMask::from_str("execution_result.execution_error.bad");
+        assert_eq!(
+            mask.validate::<Msg>(),
+            Err("execution_result.execution_error.bad")
+        );
+
+        // Direct variant field (without oneof prefix) is still valid
+        let mask = FieldMask::from_str("command_results");
+        assert_eq!(mask.validate::<Msg>(), Ok(()));
+
+        // Non-existent top-level field is still invalid
+        let mask = FieldMask::from_str("no_such_field");
+        assert_eq!(mask.validate::<Msg>(), Err("no_such_field"));
+
+        // Regular field is still valid
+        let mask = FieldMask::from_str("executed_transaction");
+        assert_eq!(mask.validate::<Msg>(), Ok(()));
     }
 }

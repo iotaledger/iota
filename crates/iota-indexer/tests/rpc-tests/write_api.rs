@@ -82,7 +82,6 @@ fn dry_run_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
@@ -125,7 +124,10 @@ fn dry_run_transaction_block() {
                 Some(
                     IotaTransactionBlockResponseOptions::new()
                         .with_effects()
-                        .with_object_changes(),
+                        .with_object_changes()
+                        .with_balance_changes()
+                        .with_events()
+                        .with_input(),
                 ),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
@@ -136,18 +138,32 @@ fn dry_run_transaction_block() {
             *indexer_tx_response.effects.as_ref().unwrap().status(),
             IotaExecutionStatus::Success
         );
-
-        assert_eq!(
-            indexer_tx_response.object_changes.unwrap(),
-            dry_run_tx_block_resp.object_changes
-        );
-
         assert!(
             dry_run_tx_block_resp
                 .effects
                 .mutated()
                 .iter()
                 .any(|obj| obj.reference.object_id == object_to_transfer.0)
+        );
+
+        assert_eq!(
+            indexer_tx_response.object_changes.unwrap(),
+            dry_run_tx_block_resp.object_changes
+        );
+
+        assert_eq!(
+            indexer_tx_response.balance_changes.unwrap(),
+            dry_run_tx_block_resp.balance_changes
+        );
+
+        assert_eq!(
+            indexer_tx_response.events.unwrap(),
+            dry_run_tx_block_resp.events
+        );
+
+        assert_eq!(
+            indexer_tx_response.transaction.unwrap().data,
+            dry_run_tx_block_resp.input
         );
     });
 }
@@ -257,7 +273,6 @@ fn execute_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 

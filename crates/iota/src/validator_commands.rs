@@ -221,7 +221,7 @@ impl IotaValidatorCommand {
 
                 if let StoredKey::KeyPair(keypair) = account_key {
                     let account_key_file_name = dir.join("account.key");
-                    make_key_files(account_key_file_name.clone(), false, Some(keypair.clone()))?;
+                    make_key_files(account_key_file_name, false, Some(keypair.clone()))?;
                 }
 
                 let network_key_file_name = dir.join("network.key");

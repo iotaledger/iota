@@ -33,7 +33,7 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
 import { ampli } from '@/lib/utils/analytics';
@@ -78,6 +78,11 @@ export function DetailsView({
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [totalStakeFormattedPlain] = useFormatCoin({
+        balance: totalStake,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
     const validatorName =
@@ -99,7 +104,7 @@ export function DetailsView({
         if (handleUnstake) {
             handleUnstake();
             ampli.clickedUnstakeIota({
-                stakedAmount: Number(totalStakeFormatted),
+                stakedAmount: Number(totalStakeFormattedPlain),
                 validatorAddress: stakedDetails?.validatorAddress,
             });
         }

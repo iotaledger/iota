@@ -91,7 +91,7 @@ export function ConnectLedgerModal({
                             <Link
                                 to={LEDGER_SUPPORT_LINK}
                                 onClick={() =>
-                                    ampli.externalLinkOpened({
+                                    ampli.openedLink({
                                         type: 'ledger support',
                                     })
                                 }

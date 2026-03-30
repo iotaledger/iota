@@ -11,7 +11,10 @@ use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use crate::{
     backfill::{
         ingestion::{
-            jobs::tx_wrapped_or_deleted_objects::TxWrappedOrDeletedObjectsBackfill,
+            jobs::{
+                object_changes_unwrapped::ObjectChangesUnwrappedBackfill,
+                tx_wrapped_or_deleted_objects::TxWrappedOrDeletedObjectsBackfill,
+            },
             task::IngestionBackfillTask,
         },
         sql::sql_backfill::SqlBackfill,
@@ -66,7 +69,7 @@ pub enum BackfillKind {
     Ingestion {
         kind: IngestionBackfillKind,
         #[command(flatten)]
-        config: IngestionConfig,
+        config: Box<IngestionConfig>,
     },
 }
 
@@ -78,6 +81,7 @@ pub enum BackfillKind {
 pub enum IngestionBackfillKind {
     /// Backfills the `tx_wrapped_or_deleted_objects` table.
     TxWrappedOrDeletedObjects,
+    ObjectChangesUnwrapped,
 }
 
 pub(crate) async fn get_backfill(
@@ -89,7 +93,14 @@ pub(crate) async fn get_backfill(
         BackfillKind::Ingestion { kind, config } => match kind {
             IngestionBackfillKind::TxWrappedOrDeletedObjects => Ok(Arc::new(
                 IngestionBackfillTask::<TxWrappedOrDeletedObjectsBackfill>::new(
-                    config,
+                    *config,
+                    range_start as CheckpointSequenceNumber,
+                )
+                .await?,
+            )),
+            IngestionBackfillKind::ObjectChangesUnwrapped => Ok(Arc::new(
+                IngestionBackfillTask::<ObjectChangesUnwrappedBackfill>::new(
+                    *config,
                     range_start as CheckpointSequenceNumber,
                 )
                 .await?,

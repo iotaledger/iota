@@ -7,12 +7,15 @@
 //! transaction execution and simulation via gRPC without requiring quorum
 //! consensus.
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_types::{
+    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
+    error::IotaError,
+    messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, FinalizedEffects,
         QuorumDriverError,
@@ -125,5 +128,21 @@ impl TransactionExecutorTrait for TransactionExecutor {
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, iota_types::error::IotaError> {
         self.simulacrum.simulate_transaction(transaction, checks)
+    }
+
+    /// Wait for the given transactions to be included in a checkpoint.
+    ///
+    /// Returns a mapping from transaction digest to
+    /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
+    /// On timeout, returns partial results for any transactions that were
+    /// already checkpointed.
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        _digests: &[TransactionDigest],
+        _timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        Err(IotaError::UnsupportedFeature {
+            error: "wait_for_checkpoint_inclusion not supported by this executor".into(),
+        })
     }
 }

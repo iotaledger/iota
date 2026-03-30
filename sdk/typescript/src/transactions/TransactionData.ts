@@ -15,11 +15,13 @@ import type {
     GasData,
     TransactionExpiration,
 } from './data/internal.js';
-import { TransactionData } from './data/internal.js';
+import { Argument as ArgumentSchema, TransactionData } from './data/internal.js';
 import { transactionDataFromV1 } from './data/v1.js';
 import type { SerializedTransactionDataV1 } from './data/v1.js';
 import type { SerializedTransactionDataV2 } from './data/v2.js';
 import { hashTypedData } from './hash.js';
+import { getIdFromCallArg, remapCommandArguments } from './utils.js';
+import type { TransactionResult } from './Transaction.js';
 
 function prepareIotaAddress(address: string) {
     return normalizeIotaAddress(address).replace('0x', '');
@@ -203,81 +205,226 @@ export class TransactionDataBuilder implements TransactionData {
         });
     }
 
-    mapArguments(fn: (arg: Argument, command: Command) => Argument) {
-        for (const command of this.commands) {
-            switch (command.$kind) {
-                case 'MoveCall':
-                    command.MoveCall.arguments = command.MoveCall.arguments.map((arg) =>
-                        fn(arg, command),
-                    );
-                    break;
-                case 'TransferObjects':
-                    command.TransferObjects.objects = command.TransferObjects.objects.map((arg) =>
-                        fn(arg, command),
-                    );
-                    command.TransferObjects.address = fn(command.TransferObjects.address, command);
-                    break;
-                case 'SplitCoins':
-                    command.SplitCoins.coin = fn(command.SplitCoins.coin, command);
-                    command.SplitCoins.amounts = command.SplitCoins.amounts.map((arg) =>
-                        fn(arg, command),
-                    );
-                    break;
-                case 'MergeCoins':
-                    command.MergeCoins.destination = fn(command.MergeCoins.destination, command);
-                    command.MergeCoins.sources = command.MergeCoins.sources.map((arg) =>
-                        fn(arg, command),
-                    );
-                    break;
-                case 'MakeMoveVec':
-                    command.MakeMoveVec.elements = command.MakeMoveVec.elements.map((arg) =>
-                        fn(arg, command),
-                    );
-                    break;
-                case 'Upgrade':
-                    command.Upgrade.ticket = fn(command.Upgrade.ticket, command);
-                    break;
-                case '$Intent':
-                    const inputs = command.$Intent.inputs;
-                    command.$Intent.inputs = {};
+    mapCommandArguments(
+        index: number,
+        fn: (arg: Argument, command: Command, commandIndex: number) => Argument,
+    ) {
+        const command = this.commands[index];
 
-                    for (const [key, value] of Object.entries(inputs)) {
-                        command.$Intent.inputs[key] = Array.isArray(value)
-                            ? value.map((arg) => fn(arg, command))
-                            : fn(value, command);
-                    }
+        switch (command.$kind) {
+            case 'MoveCall':
+                command.MoveCall.arguments = command.MoveCall.arguments.map((arg) =>
+                    fn(arg, command, index),
+                );
+                break;
+            case 'TransferObjects':
+                command.TransferObjects.objects = command.TransferObjects.objects.map((arg) =>
+                    fn(arg, command, index),
+                );
+                command.TransferObjects.address = fn(
+                    command.TransferObjects.address,
+                    command,
+                    index,
+                );
+                break;
+            case 'SplitCoins':
+                command.SplitCoins.coin = fn(command.SplitCoins.coin, command, index);
+                command.SplitCoins.amounts = command.SplitCoins.amounts.map((arg) =>
+                    fn(arg, command, index),
+                );
+                break;
+            case 'MergeCoins':
+                command.MergeCoins.destination = fn(command.MergeCoins.destination, command, index);
+                command.MergeCoins.sources = command.MergeCoins.sources.map((arg) =>
+                    fn(arg, command, index),
+                );
+                break;
+            case 'MakeMoveVec':
+                command.MakeMoveVec.elements = command.MakeMoveVec.elements.map((arg) =>
+                    fn(arg, command, index),
+                );
+                break;
+            case 'Upgrade':
+                command.Upgrade.ticket = fn(command.Upgrade.ticket, command, index);
+                break;
+            case '$Intent':
+                const inputs = command.$Intent.inputs;
+                command.$Intent.inputs = {};
 
-                    break;
-                case 'Publish':
-                    break;
-                default:
-                    throw new Error(
-                        `Unexpected transaction kind: ${(command as { $kind: unknown }).$kind}`,
-                    );
-            }
+                for (const [key, value] of Object.entries(inputs)) {
+                    command.$Intent.inputs[key] = Array.isArray(value)
+                        ? value.map((arg) => fn(arg, command, index))
+                        : fn(value, command, index);
+                }
+
+                break;
+            case 'Publish':
+                break;
+            default:
+                throw new Error(
+                    `Unexpected transaction kind: ${(command as { $kind: unknown }).$kind}`,
+                );
         }
     }
 
-    replaceCommand(index: number, replacement: Command | Command[]) {
+    mapArguments(fn: (arg: Argument, command: Command, commandIndex: number) => Argument) {
+        for (const commandIndex of this.commands.keys()) {
+            this.mapCommandArguments(commandIndex, fn);
+        }
+    }
+
+    replaceCommand(
+        index: number,
+        replacement: Command | Command[],
+        resultIndex: number | { Result: number } | { NestedResult: [number, number] } = index,
+    ) {
         if (!Array.isArray(replacement)) {
             this.commands[index] = replacement;
             return;
         }
 
         const sizeDiff = replacement.length - 1;
-        this.commands.splice(index, 1, ...replacement);
 
-        if (sizeDiff !== 0) {
-            this.mapArguments((arg) => {
+        this.commands.splice(index, 1, ...structuredClone(replacement));
+
+        this.mapArguments((arg, _command, commandIndex) => {
+            if (commandIndex < index + replacement.length) {
+                return arg;
+            }
+
+            if (typeof resultIndex !== 'number') {
+                if (
+                    (arg.$kind === 'Result' && arg.Result === index) ||
+                    (arg.$kind === 'NestedResult' && arg.NestedResult[0] === index)
+                ) {
+                    if (!('NestedResult' in arg) || arg.NestedResult[1] === 0) {
+                        return parse(ArgumentSchema, structuredClone(resultIndex));
+                    } else {
+                        throw new Error(
+                            `Cannot replace command ${index} with a specific result type: NestedResult[${index}, ${arg.NestedResult[1]}] references a nested element that cannot be mapped to the replacement result`,
+                        );
+                    }
+                }
+            }
+
+            // Handle adjustment of other references
+            switch (arg.$kind) {
+                case 'Result':
+                    if (arg.Result === index && typeof resultIndex === 'number') {
+                        arg.Result = resultIndex;
+                    }
+                    if (arg.Result > index) {
+                        arg.Result += sizeDiff;
+                    }
+                    break;
+
+                case 'NestedResult':
+                    if (arg.NestedResult[0] === index && typeof resultIndex === 'number') {
+                        return {
+                            $kind: 'NestedResult',
+                            NestedResult: [resultIndex, arg.NestedResult[1]],
+                        };
+                    }
+                    if (arg.NestedResult[0] > index) {
+                        arg.NestedResult[0] += sizeDiff;
+                    }
+                    break;
+            }
+            return arg;
+        });
+    }
+
+    replaceCommandWithTransaction(
+        index: number,
+        otherTransaction: TransactionData,
+        result: TransactionResult,
+    ) {
+        if (result.$kind !== 'Result' && result.$kind !== 'NestedResult') {
+            throw new Error('Result must be of kind Result or NestedResult');
+        }
+
+        this.insertTransaction(index, otherTransaction);
+
+        this.replaceCommand(
+            index + otherTransaction.commands.length,
+            [],
+            'Result' in result
+                ? { NestedResult: [result.Result + index, 0] }
+                : {
+                      NestedResult: [
+                          (result as { NestedResult: [number, number] }).NestedResult[0] + index,
+                          (result as { NestedResult: [number, number] }).NestedResult[1],
+                      ] as [number, number],
+                  },
+        );
+    }
+
+    insertTransaction(atCommandIndex: number, otherTransaction: TransactionData) {
+        const inputMapping = new Map<number, number>();
+        const commandMapping = new Map<number, number>();
+
+        for (let i = 0; i < otherTransaction.inputs.length; i++) {
+            const otherInput = otherTransaction.inputs[i];
+            const id = getIdFromCallArg(otherInput);
+
+            let existingIndex = -1;
+            if (id !== undefined) {
+                existingIndex = this.inputs.findIndex((input) => getIdFromCallArg(input) === id);
+
+                if (
+                    existingIndex !== -1 &&
+                    this.inputs[existingIndex].Object?.SharedObject &&
+                    otherInput.Object?.SharedObject
+                ) {
+                    this.inputs[existingIndex].Object!.SharedObject!.mutable =
+                        this.inputs[existingIndex].Object!.SharedObject!.mutable ||
+                        otherInput.Object.SharedObject.mutable;
+                }
+            }
+
+            if (existingIndex !== -1) {
+                inputMapping.set(i, existingIndex);
+            } else {
+                const newIndex = this.inputs.length;
+                this.inputs.push(otherInput);
+                inputMapping.set(i, newIndex);
+            }
+        }
+
+        for (let i = 0; i < otherTransaction.commands.length; i++) {
+            commandMapping.set(i, atCommandIndex + i);
+        }
+
+        const remappedCommands: Command[] = [];
+        for (let i = 0; i < otherTransaction.commands.length; i++) {
+            const command = structuredClone(otherTransaction.commands[i]);
+
+            remapCommandArguments(command, inputMapping, commandMapping);
+
+            remappedCommands.push(command);
+        }
+
+        this.commands.splice(atCommandIndex, 0, ...remappedCommands);
+
+        const sizeDiff = remappedCommands.length;
+        if (sizeDiff > 0) {
+            this.mapArguments((arg, _command, commandIndex) => {
+                if (
+                    commandIndex >= atCommandIndex &&
+                    commandIndex < atCommandIndex + remappedCommands.length
+                ) {
+                    return arg;
+                }
+
                 switch (arg.$kind) {
                     case 'Result':
-                        if (arg.Result > index) {
+                        if (arg.Result >= atCommandIndex) {
                             arg.Result += sizeDiff;
                         }
                         break;
 
                     case 'NestedResult':
-                        if (arg.NestedResult[0] > index) {
+                        if (arg.NestedResult[0] >= atCommandIndex) {
                             arg.NestedResult[0] += sizeDiff;
                         }
                         break;
