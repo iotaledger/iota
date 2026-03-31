@@ -902,6 +902,8 @@ pub struct CoinInfo {
     pub treasury_object_id: Option<ObjectID>,
 }
 
+/// Extended coin info from the `coin_v2` table — merges `coin` +
+/// `regulated_coin` into a single lookup.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct CoinInfoV2 {
     pub coin_metadata_object_id: Option<ObjectID>,
