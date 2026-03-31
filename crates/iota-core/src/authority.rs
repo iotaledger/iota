@@ -5004,42 +5004,6 @@ impl AuthorityState {
         total_weight
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn create_authenticator_state_tx(
-        &self,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> Option<EndOfEpochTransactionKind> {
-        if !epoch_store.protocol_config().enable_jwk_consensus_updates() {
-            info!("authenticator state transactions not enabled");
-            return None;
-        }
-
-        let authenticator_state_exists = epoch_store.authenticator_state_exists();
-        let tx = if authenticator_state_exists {
-            let next_epoch = epoch_store.epoch().checked_add(1).expect("epoch overflow");
-            let min_epoch =
-                next_epoch.saturating_sub(epoch_store.protocol_config().max_age_of_jwk_in_epochs());
-            let authenticator_obj_initial_shared_version = epoch_store
-                .epoch_start_config()
-                .authenticator_obj_initial_shared_version()
-                .expect("initial version must exist");
-
-            let tx = EndOfEpochTransactionKind::new_authenticator_state_expire(
-                min_epoch,
-                authenticator_obj_initial_shared_version,
-            );
-
-            info!(?min_epoch, "Creating AuthenticatorStateExpire tx",);
-
-            tx
-        } else {
-            let tx = EndOfEpochTransactionKind::new_authenticator_state_create();
-            info!("Creating AuthenticatorStateCreate tx");
-            tx
-        };
-        Some(tx)
-    }
-
     /// Creates and execute the advance epoch transaction to effects without
     /// committing it to the database. The effects of the change epoch tx
     /// are only written to the database after a certified checkpoint has been
@@ -5066,10 +5030,6 @@ impl AuthorityState {
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
-
-        if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
-            txns.push(tx);
-        }
 
         let next_epoch = epoch_store.epoch() + 1;
 

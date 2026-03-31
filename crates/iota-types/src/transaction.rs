@@ -405,8 +405,8 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpochV4(ChangeEpochV4),
     // IMPORTANT: new enum variants should be added at the end to preserve serialization
     // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
-    // AuthenticatorStateCreate and AuthenticatorStateExpire can be left at the end as long as
-    // `enable_jwk_consensus_updates` is not enabled in the protocol config.
+    // Deprecated: AuthenticatorStateCreate and AuthenticatorStateExpire are no longer used
+    // after ZkLogin removal. Kept for serialization compatibility.
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
 }

@@ -1126,12 +1126,6 @@ impl AuthorityPerEpochStore {
         self.tables.store(None);
     }
 
-    pub fn authenticator_state_exists(&self) -> bool {
-        self.epoch_start_configuration
-            .authenticator_obj_initial_shared_version()
-            .is_some()
-    }
-
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {
         self.randomness_reporter.get().cloned()
     }
@@ -2851,6 +2845,7 @@ impl AuthorityPerEpochStore {
             }) => {
                 // JWK consensus updates are no longer supported after ZkLogin
                 // removal
+                return None;
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes),

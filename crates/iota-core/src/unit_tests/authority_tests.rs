@@ -17,8 +17,8 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_types::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
     base_types::{AuthorityName, dbg_addr},
     crypto::{
         AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
@@ -2922,59 +2922,6 @@ async fn test_invalid_mutable_clock_parameter() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpected {
             object_id: IOTA_CLOCK_OBJECT_ID
-        }
-    );
-}
-
-#[tokio::test]
-#[ignore = "https://github.com/iotaledger/iota/issues/1777"]
-// If "enable_jwk_consensus_updates" is set to false, the AuthorityState is
-// never created and therefore the test will fail.
-async fn test_invalid_authenticator_state_parameter() {
-    // User transactions that take the singleton AuthenticatorState object at `0x7`
-    // by mutable reference will fail to sign, to prevent transactions
-    // bottlenecking on it.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_object_id = ObjectID::random();
-    let (authority_state, package_object_ref) =
-        init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
-    let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let gas_ref = gas_object.compute_object_reference();
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-
-    let tx_data = TransactionData::new_move_call(
-        sender,
-        package_object_ref.0,
-        ident_str!("object_basics").to_owned(),
-        ident_str!("use_auth_state").to_owned(),
-        // type_args
-        vec![],
-        gas_ref,
-        vec![CallArg::Object(ObjectArg::SharedObject {
-            id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-            initial_shared_version: SequenceNumber::from(1),
-            mutable: true,
-        })],
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-        rgp,
-    )
-    .unwrap();
-    let transaction = to_sender_signed_transaction(tx_data, &sender_key);
-    let transaction = epoch_store.verify_transaction(transaction).unwrap();
-
-    let Err(e) = authority_state
-        .handle_transaction(&epoch_store, transaction)
-        .await
-    else {
-        panic!(
-            "Expected handling transaction to fail due to mutable AuthenticatorState parameter."
-        );
-    };
-    assert_eq!(
-        UserInputError::try_from(e).unwrap(),
-        UserInputError::InaccessibleSystemObject {
-            object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID
         }
     );
 }

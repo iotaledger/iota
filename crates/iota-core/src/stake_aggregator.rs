@@ -115,11 +115,6 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
         self.total_votes
     }
 
-    #[allow(dead_code)]
-    pub fn has_quorum(&self) -> bool {
-        self.total_votes >= self.committee.threshold::<STRENGTH>()
-    }
-
     pub fn validator_sig_count(&self) -> usize {
         self.data.len()
     }
