@@ -196,7 +196,7 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
-        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
+        let is_epoch_change = transaction_kind.is_end_of_epoch();
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
 
         let (gas_cost_summary, execution_result) = execute_transaction::<Mode>(
@@ -745,7 +745,7 @@ mod checked {
         );
 
         let is_genesis_or_epoch_change_tx = matches!(transaction_kind, TransactionKind::Genesis(_))
-            || transaction_kind.is_end_of_epoch_tx();
+            || transaction_kind.is_end_of_epoch();
 
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 

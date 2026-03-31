@@ -731,16 +731,8 @@ fn left_union_shared_input_objects(
 }
 
 pub trait TransactionKindExt {
-    /// Create a `TransactionKind::ProgrammableTransaction` from a
-    /// `ProgrammableTransaction`. Present to make migrations to programmable
-    /// transactions easier. Will be removed.
-    fn programmable(pt: ProgrammableTransaction) -> TransactionKind;
     /// Returns `true` if this is a system transaction.
     fn is_system_tx(&self) -> bool;
-    /// Returns `true` if this is an end-of-epoch transaction.
-    fn is_end_of_epoch_tx(&self) -> bool;
-    /// Returns `true` if this is a programmable transaction.
-    fn is_programmable_transaction(&self) -> bool;
     /// If this is an advance epoch transaction, returns (total gas charged,
     /// total gas rebated). TODO: We should use `GasCostSummary` directly in
     /// `ChangeEpoch` struct, and return that directly.
@@ -775,10 +767,6 @@ pub trait TransactionKindExt {
 }
 
 impl TransactionKindExt for TransactionKind {
-    fn programmable(pt: ProgrammableTransaction) -> Self {
-        TransactionKind::ProgrammableTransaction(pt)
-    }
-
     fn is_system_tx(&self) -> bool {
         // Keep this as an exhaustive match so that we can't forget to update it.
         match self {
@@ -792,14 +780,6 @@ impl TransactionKindExt for TransactionKind {
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
         }
-    }
-
-    fn is_end_of_epoch_tx(&self) -> bool {
-        matches!(self, TransactionKind::EndOfEpoch(_))
-    }
-
-    fn is_programmable_transaction(&self) -> bool {
-        matches!(self, TransactionKind::ProgrammableTransaction(_))
     }
 
     fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
