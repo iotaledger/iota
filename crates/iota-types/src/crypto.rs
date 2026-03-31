@@ -1318,7 +1318,13 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
             .get_mut(message_index)
             .ok_or(IotaError::InvalidAuthenticator)?;
 
+        let mut seen = std::collections::BTreeSet::new();
         for authority_index in self.signers_map.iter() {
+            if !seen.insert(authority_index) {
+                continue;
+            }
+
+            // Update weight when seeing the authority for the first time.
             let authority = committee
                 .authority_by_index(authority_index)
                 .ok_or_else(|| IotaError::UnknownSigner {
@@ -1326,8 +1332,6 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
                     index: Some(authority_index),
                     committee: Box::new(committee.clone()),
                 })?;
-
-            // Update weight.
             let voting_rights = committee.weight(authority);
             fp_ensure!(
                 voting_rights > 0,
