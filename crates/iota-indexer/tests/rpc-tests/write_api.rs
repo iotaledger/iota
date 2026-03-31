@@ -32,7 +32,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionKind, TransactionKindExt},
+    transaction::TransactionKind,
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -197,7 +197,7 @@ fn dev_inspect_transaction_block() {
         let indexer_devinspect_results = client
             .dev_inspect_transaction_block(
                 sender,
-                Base64::from_bytes(&bcs::to_bytes(&TransactionKind::programmable(ptb)).unwrap()),
+                Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable_transaction(ptb)).unwrap()),
                 None,
                 None,
                 None,

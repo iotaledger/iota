@@ -12,7 +12,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        Argument, CallArg, SharedObjectRef, TransactionData, TransactionKind, TransactionKindExt,
+        Argument, CallArg, SharedObjectRef, TransactionData, TransactionKind,
     },
 };
 
@@ -33,7 +33,7 @@ impl TransactionBuilder {
             builder.transfer_arg(sender, upgrade_cap);
             builder.finish()
         };
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable_transaction(pt))
     }
 
     /// Publish a new move package.
@@ -123,7 +123,7 @@ impl TransactionBuilder {
             builder.finish()
         };
 
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable_transaction(pt))
     }
 
     /// Upgrade an existing move package.

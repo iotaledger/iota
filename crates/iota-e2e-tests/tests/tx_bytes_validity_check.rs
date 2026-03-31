@@ -9,7 +9,7 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::Identifier;
 use iota_types::{
     base_types::ObjectID,
-    transaction::{CallArg, ProgrammableTransaction, TransactionKind, TransactionKindExt},
+    transaction::{CallArg, ProgrammableTransaction, TransactionKind},
 };
 use jsonrpsee::{core::ClientError, types::ErrorCode};
 use test_cluster::TestClusterBuilder;
@@ -47,7 +47,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
         vec![iota_types::transaction::Argument::Input(0)],
     )];
     let pt = ProgrammableTransaction { inputs, commands };
-    let tx = TransactionKind::programmable(pt);
+    let tx = TransactionKind::new_programmable_transaction(pt);
 
     Base64::from_bytes(&bcs::to_bytes(&tx).unwrap())
 }
