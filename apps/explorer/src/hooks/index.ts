@@ -15,6 +15,7 @@ export * from './useGetTransactionBlocks';
 export * from './useMediaQuery';
 export * from './useNetwork';
 export * from './useNormalizedMoveModule';
+export * from './usePackageUpgradePolicy';
 export * from './useSearch';
 export * from './useVerifiedSourceCode';
 export * from './useEndOfEpochTransactionFromCheckpoint';
