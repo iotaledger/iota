@@ -1777,6 +1777,9 @@ app_id_consensus
 iota_transaction
 	public fun
 	0x2::intent
+iota_personal_message
+	public fun
+	0x2::intent
 to_bytes
 	public fun
 	0x2::intent

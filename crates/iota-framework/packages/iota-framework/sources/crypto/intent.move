@@ -89,7 +89,12 @@ public fun app_id_consensus(): u8 { 1 }
 
 /// Returns the standard IOTA transaction intent (scope=0, version=0, app_id=0).
 public fun iota_transaction(): Intent {
-    Intent { scope: 0, version: 0, app_id: 0 }
+    Intent { scope: scope_transaction_data(), version: version_v0(), app_id: app_id_iota() }
+}
+
+/// Returns the standard IOTA personal message intent (scope=3, version=0, app_id=0).
+public fun iota_personal_message(): Intent {
+    Intent { scope: scope_personal_message(), version: version_v0(), app_id: app_id_iota() }
 }
 
 /// Returns the intent bytes as a 3-byte vector.
