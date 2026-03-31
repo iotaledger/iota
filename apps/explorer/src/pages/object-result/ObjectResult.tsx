@@ -65,7 +65,7 @@ export function ObjectResult(): JSX.Element {
                     {isPageError || !data || !resp ? (
                         <InfoBox
                             title="Invalid Object ID"
-                            supportingText={`No object found matching ID ${objID}. The provided ID may be invalid or does not correspond to any existing object on the network. Please verify the ID and try again.`}
+                            supportingText={`No object found matching ID: ${objID} on this network. Please verify the ID and try again.`}
                             icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}
