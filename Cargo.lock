@@ -12949,7 +12949,7 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.6.2",
- "tokio-macros 2.6.0",
+ "tokio-macros 2.6.0 (git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=6b1da10b18f9a4b1d42b1432415a0b3092908c77)",
  "windows-sys 0.61.2",
 ]
 
@@ -15419,9 +15419,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.50.0"
+version = "1.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27ad5e34374e03cfffefc301becb44e9dc3c17584f414349ebe29ed26661822d"
+checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "bytes",
  "libc",
@@ -15430,7 +15430,7 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.6.2",
- "tokio-macros 2.6.1",
+ "tokio-macros 2.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing",
  "windows-sys 0.61.2",
 ]
@@ -15438,7 +15438,8 @@ dependencies = [
 [[package]]
 name = "tokio-macros"
 version = "2.6.0"
-source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=6b1da10b18f9a4b1d42b1432415a0b3092908c77#6b1da10b18f9a4b1d42b1432415a0b3092908c77"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -15447,9 +15448,8 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c55a2eff8b69ce66c84f85e1da1c233edc36ceb85a2058d11b0d6a3c7e7569c"
+version = "2.6.0"
+source = "git+https://github.com/iotaledger/tokio-madsim-fork.git?rev=6b1da10b18f9a4b1d42b1432415a0b3092908c77#6b1da10b18f9a4b1d42b1432415a0b3092908c77"
 dependencies = [
  "proc-macro2",
  "quote",
