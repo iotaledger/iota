@@ -907,6 +907,7 @@ impl IotaNode {
             state.clone(),
             state_sync_store.clone(),
             executor,
+            &prometheus_registry,
             server_version,
         )
         .await?;
@@ -2448,6 +2449,7 @@ async fn build_grpc_server(
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    prometheus_registry: &Registry,
     server_version: ServerVersion,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
@@ -2473,13 +2475,16 @@ async fn build_grpc_server(
         Some(server_version.to_string()),
     ));
 
+    // Create gRPC server metrics
+    let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
+
     let handle = start_grpc_server(
         grpc_reader,
         executor,
         grpc_config.clone(),
         shutdown_token,
         chain_id,
-        None,
+        Some(grpc_server_metrics),
     )
     .await?;
 
