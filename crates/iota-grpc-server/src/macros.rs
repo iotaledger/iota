@@ -4,6 +4,11 @@
 /// Creates a lazy batching stream that fetches and batches items on-demand
 /// based on message size limits.
 ///
+/// The `has_next` field is a batching signal: `true` means more stream
+/// messages follow (current batch hit `max_message_size`), `false` means
+/// this is the final message. It does not indicate whether more data
+/// exists in storage beyond the requested items.
+///
 /// # Example
 /// ```ignore
 /// create_batching_stream!(
@@ -44,17 +49,24 @@ macro_rules! create_batching_stream {
                         // Process the item using the provided block
                         let (result_item, item_size) = $process_block;
 
+                        // Account for per-item protobuf repeated field overhead
+                        let item_size_with_overhead = item_size
+                            + $crate::utils::repeated_field_item_overhead(item_size);
+
                         // Check if a single item exceeds the message size limit
-                        if item_size > $max_message_size {
+                        // (item + has_next: true overhead for intermediate batches)
+                        if item_size_with_overhead + $crate::utils::HAS_NEXT_TRUE_OVERHEAD > $max_message_size {
                             Err($crate::error::RpcError::new(
                                 tonic::Code::InvalidArgument,
                                 format!("Single item size ({} bytes) exceeds max message size ({} bytes)",
-                                    item_size, $max_message_size)
+                                    item_size_with_overhead + $crate::utils::HAS_NEXT_TRUE_OVERHEAD, $max_message_size)
                             ))?;
                         }
 
                         // Check if adding this item would exceed the limit
-                        if current_size + item_size > $max_message_size && !current_batch.is_empty() {
+                        // (content + has_next: true for intermediate batches)
+                        let candidate_size = current_size + item_size_with_overhead;
+                        if candidate_size + $crate::utils::HAS_NEXT_TRUE_OVERHEAD > $max_message_size && !current_batch.is_empty() {
                             // Current batch is full, yield it
                             has_yielded = true;
                             yield paste::paste! {
@@ -64,11 +76,11 @@ macro_rules! create_batching_stream {
                             };
                             // Start new batch with current item
                             current_batch = vec![result_item];
-                            current_size = item_size;
+                            current_size = item_size_with_overhead;
                         } else {
                             // Item fits, add to current batch
                             current_batch.push(result_item);
-                            current_size += item_size;
+                            current_size += item_size_with_overhead;
                         }
                     }
                     None => {

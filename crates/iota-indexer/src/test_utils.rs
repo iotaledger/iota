@@ -67,7 +67,6 @@ pub enum IndexerTypeConfig {
     Writer {
         snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
-        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -90,8 +89,6 @@ impl IndexerTypeConfig {
                     .epochs_to_keep
                     .map(RetentionConfig::new_with_default_retention_only_for_testing)
             }),
-            optimistic_pruner_batch_size: pruning_options
-                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -171,15 +168,10 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::Writer {
             snapshot_config,
             retention_config,
-            optimistic_pruner_batch_size,
         } => {
             let fullnode_rpc_url = rpc_url.parse::<Url>().unwrap();
             let store_clone = store.clone();
-            let mut ingestion_config = IngestionConfig {
-                checkpoint_download_timeout: 60, /* Increase the timeout in tests in order for
-                                                  * the node to report healthy via gRPC. */
-                ..Default::default()
-            };
+            let mut ingestion_config = IngestionConfig::default();
             ingestion_config.sources.remote_store_url =
                 data_ingestion_path.is_none().then_some(fullnode_rpc_url);
             ingestion_config.sources.data_ingestion_path = data_ingestion_path;
@@ -191,7 +183,6 @@ pub async fn start_test_indexer_impl(
                     indexer_metrics,
                     snapshot_config,
                     retention_config,
-                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await

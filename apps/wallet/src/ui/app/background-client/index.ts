@@ -32,7 +32,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { toBase64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
-import { growthbook } from '../experimentation/featureGating';
+import { appsBackendClient } from '../experimentation/featureGating';
 import { ACCOUNTS_QUERY_KEY } from '../helpers/queryClientKeys';
 import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
@@ -700,8 +700,8 @@ export class BackgroundClient {
         } else if (isUpdateActiveOrigin(payload)) {
             action = setActiveOrigin(payload);
         } else if (isLoadedFeaturesPayload(payload)) {
-            growthbook.setAttributes(payload.attributes);
-            await growthbook.setPayload({ features: payload.features });
+            appsBackendClient.setAttributes(payload.attributes as Record<string, unknown>);
+            await appsBackendClient.setPayload({ features: payload.features });
         } else if (isSetNetworkPayload(payload)) {
             action = changeActiveNetwork({
                 network: payload.network,

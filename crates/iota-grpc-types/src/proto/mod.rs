@@ -4,9 +4,10 @@
 
 #![allow(clippy::large_enum_variant)]
 #![allow(clippy::doc_overindented_list_items)]
+#![allow(clippy::module_inception)]
 
 use google::rpc::bad_request::FieldViolation;
-use iota::grpc::v0::error_reason::ErrorReason;
+use iota::grpc::v1::error_reason::ErrorReason;
 
 pub(crate) mod google;
 pub(crate) mod iota;
