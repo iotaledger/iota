@@ -179,7 +179,7 @@ mod checked {
         _receiving_objects: ReceivingObjects,
     ) -> IotaResult<CheckedInputObjects> {
         kind.validity_check(config)?;
-        if kind.is_system_tx() {
+        if kind.is_system() {
             return Err(UserInputError::Unsupported(format!(
                 "Transaction kind {kind} is not supported in dev-inspect"
             ))

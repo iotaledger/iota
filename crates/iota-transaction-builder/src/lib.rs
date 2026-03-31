@@ -119,7 +119,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::TransferObjects`].
     pub async fn transfer_object_tx_kind(
         &self,
@@ -170,7 +170,7 @@ impl TransactionBuilder {
         Ok(())
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::SplitCoins`] if some amount is provided and then transfers
     /// the split amount or the whole gas object with
     /// [`Command::TransferObjects`] to the recipient.
@@ -207,7 +207,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::MergeCoins`] if multiple inputs coins are provided and then a
     /// [`Command::SplitCoins`] together with [`Command::TransferObjects`] for
     /// each recipient + amount.
@@ -317,7 +317,7 @@ impl TransactionBuilder {
         )
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::TransferObjects`] that sends the gas coin to the recipient.
     pub fn pay_all_iota_tx_kind(&self, recipient: IotaAddress) -> TransactionKind {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -363,7 +363,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::MoveCall`].
     pub async fn move_call_tx_kind(
         &self,
@@ -387,7 +387,7 @@ impl TransactionBuilder {
         Ok(TransactionKind::new_programmable(pt))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::MoveCall`] to a Move View Function.
     /// The method verifies that the signature of the function passed as input
     /// complies with the Move View Function definition.
@@ -690,7 +690,7 @@ impl TransactionBuilder {
         )
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`Command::MergeCoins`] with the provided coins.
     pub async fn merge_coins_tx_kind(
         &self,

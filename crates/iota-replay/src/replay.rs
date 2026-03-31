@@ -40,7 +40,7 @@ use iota_types::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         SenderSignedData, Transaction, TransactionDataAPI,
         TransactionKind::{self, Programmable},
-        TransactionKindExt, VerifiedTransaction,
+        VerifiedTransaction,
     },
 };
 use move_binary_format::CompiledModule;
@@ -754,7 +754,7 @@ impl LocalExec {
         let expensive_checks = true;
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
-        let gas_status = if tx_info.kind.is_system_tx() {
+        let gas_status = if tx_info.kind.is_system() {
             IotaGasStatus::new_unmetered()
         } else {
             IotaGasStatus::new(

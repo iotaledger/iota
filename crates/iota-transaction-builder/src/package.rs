@@ -17,7 +17,7 @@ use iota_types::{
 use crate::TransactionBuilder;
 
 impl TransactionBuilder {
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
@@ -57,7 +57,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`iota_types::transaction::Command::Upgrade`] for the provided package.
     pub async fn upgrade_tx_kind(
         &self,

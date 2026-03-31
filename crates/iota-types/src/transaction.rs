@@ -731,8 +731,6 @@ fn left_union_shared_input_objects(
 }
 
 pub trait TransactionKindExt {
-    /// Returns `true` if this is a system transaction.
-    fn is_system_tx(&self) -> bool;
     /// If this is an advance epoch transaction, returns (total gas charged,
     /// total gas rebated). TODO: We should use `GasCostSummary` directly in
     /// `ChangeEpoch` struct, and return that directly.
@@ -762,21 +760,6 @@ pub trait TransactionKindExt {
 }
 
 impl TransactionKindExt for TransactionKind {
-    fn is_system_tx(&self) -> bool {
-        // Keep this as an exhaustive match so that we can't forget to update it.
-        match self {
-            TransactionKind::Genesis(_)
-            | TransactionKind::ConsensusCommitPrologueV1(_)
-            | TransactionKind::AuthenticatorStateUpdateV1(_)
-            | TransactionKind::RandomnessStateUpdate(_)
-            | TransactionKind::EndOfEpoch(_) => true,
-            TransactionKind::Programmable(_) => false,
-            _ => unimplemented!(
-                "a new TransactionKind enum variant was added and needs to be handled"
-            ),
-        }
-    }
-
     fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
         match self {
             Self::EndOfEpoch(txns) => {
@@ -983,7 +966,7 @@ pub struct TransactionDataV1 {
 impl TransactionData {
     fn new_system_transaction(kind: TransactionKind) -> Self {
         // assert transaction kind if a system transaction
-        assert!(kind.is_system_tx());
+        assert!(kind.is_system());
         let sender = IotaAddress::ZERO;
         TransactionData::V1(TransactionDataV1 {
             kind,
@@ -1536,7 +1519,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
         let mut inputs = self.kind.input_objects()?;
 
-        if !self.kind.is_system_tx() {
+        if !self.kind.is_system() {
             inputs.extend(
                 self.gas()
                     .iter()
@@ -1592,7 +1575,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     fn is_system_tx(&self) -> bool {
-        self.kind.is_system_tx()
+        self.kind.is_system()
     }
 
     fn is_genesis_tx(&self) -> bool {
