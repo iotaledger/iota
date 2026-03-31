@@ -1597,11 +1597,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
         // Look for CoinMetadata<T> and TreasuryCap<T> objects
         if let Some((key, value)) = try_create_coin_index_info(&object) {
-            merge_coin_into_v2(
-                &mut self.coin_v2_index.lock().unwrap(),
-                key,
-                value,
-            );
+            merge_coin_into_v2(&mut self.coin_v2_index.lock().unwrap(), key, value);
         }
 
         // Package version index
@@ -1695,11 +1691,7 @@ impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
         }
         if self.backfill_coin_v2 {
             if let Some((key, value)) = try_create_coin_index_info(&object) {
-                merge_coin_into_v2(
-                    &mut self.coin_v2_index.lock().unwrap(),
-                    key,
-                    value,
-                );
+                merge_coin_into_v2(&mut self.coin_v2_index.lock().unwrap(), key, value);
             }
             if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {
                 merge_coin_into_v2(
