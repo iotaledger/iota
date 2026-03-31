@@ -112,6 +112,18 @@ public fun authenticate_secp256r1(
 #[authenticator]
 public fun authenticate_free_access(_: &AbstractAccount, _: &AuthContext, _: &TxContext) {}
 
+/// An authenticator that checks both the sender and sponsor of the transaction against the provided accounts.
+#[authenticator]
+public fun authenticate_with_sponsor_and_sender(
+    sponsor: &AbstractAccount,
+    sender: &AbstractAccount,
+    _: &AuthContext,
+    ctx: &TxContext,
+) {
+    assert!(ctx.sender() == sender.account_address());
+    assert!(ctx.sponsor().borrow() == sponsor.account_address());
+}
+
 // === View Functions ===
 
 /// An utility function to borrow the account-related public key.

@@ -63,6 +63,8 @@ const AA_DELAYED_CREATE_MODULE_NAME: &str = "delayed_abstract_account";
 const AA_DELAYED_AUTHENTICATE_MODULE_NAME: &str = "delayed_abstract_account_keyed";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
+const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
+    "authenticate_with_sponsor_and_sender";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -1002,23 +1004,27 @@ async fn test_sponsor_only_move_auth_succeeded_with_enabled_move_auth_for_sponso
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
-/// A TX where the sender (AA) and the sponsor (AA) is the same account must
+/// A sponsored TX where both the sender (AA) and the sponsor (AA) carry a
+/// MoveAuthenticator and use the same shared object must
 /// succeed(enable_move_authentication_for_sponsor = true).
 #[sim_test]
-async fn test_aa_sender_equals_aa_sponsor_succeeded_with_enabled_move_auth_for_sponsor()
+async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with_enabled_move_auth_for_sponsor()
 -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
 
     // Build the test environment and create the sender AA.
     let mut test_env = TestEnvironment::new().await;
     test_env
-        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: IotaAddress = sender_aa_ref.0.into();
 
-    // The sponsor is the same as the sender.
-    let sponsor_addr: IotaAddress = sender_aa_ref.0.into();
+    // Create a second AA that will act as the sponsor.
+    let sponsor_aa_ref = test_env
+        .create_extra_abstract_account_with(AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER)
+        .await?;
+    let sponsor_addr: IotaAddress = sponsor_aa_ref.0.into();
 
     // Fund the sponsor AA so it can provide gas.
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
@@ -1032,14 +1038,15 @@ async fn test_aa_sender_equals_aa_sponsor_succeeded_with_enabled_move_auth_for_s
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
 
-    // Only the sender provides a MoveAuthenticator because the sponsor is the same
-    // as the sender.
-    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig]);
+    // Both sender and sponsor provide MoveAuthenticators.
+    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    // The sender object is used in both MoveAuthenticators.
+    let sponsor_aa_sig =
+        test_env.create_move_authenticator_with_sponsor_and_sender(sponsor_aa_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_aa_sig, sponsor_aa_sig]);
 
-    // The TX must succeed when the sender and sponsor are the same account.
+    // The TX must succeed with both AA sender and AA sponsor.
     test_env.execute_and_check_tx_correctness(tx).await
 }
 
@@ -1476,24 +1483,13 @@ impl TestEnvironment {
             anyhow::bail!("Owner or authenticate function name or package id not set");
         };
 
-        let transaction = if let Some(transaction) = &self.aa_create_transaction {
-            transaction.clone()
-        } else {
-            self.craft_create_abstract_account(
-                owner,
-                authenticate_fn_name,
-                aa_package_id,
-                aa_package_metadata_ref,
-            )
-            .await?
-        };
-
-        let (effects, _) = self
-            .test_cluster
-            .execute_transaction_return_raw_effects(transaction)
-            .await?;
-
-        Ok(effects)
+        self.create_abstract_account_with(
+            owner,
+            authenticate_fn_name,
+            aa_package_id,
+            aa_package_metadata_ref,
+        )
+        .await
     }
 
     /// Create the delayed abstract account object, which is not yet an account.
@@ -1686,6 +1682,28 @@ impl TestEnvironment {
         };
 
         self.create_move_authenticator_for_free_access_for_ref(aa_ref)
+    }
+
+    fn create_move_authenticator_with_sponsor_and_sender(
+        &self,
+        aa_sponsor_ref: ObjectRef,
+    ) -> anyhow::Result<GenericSignature> {
+        let Some(aa_ref) = self.aa_ref else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: aa_ref.0,
+            initial_shared_version: aa_ref.1,
+            mutable: false,
+        });
+        let sponsor_call_arg = CallArg::Object(ObjectArg::SharedObject {
+            id: aa_sponsor_ref.0,
+            initial_shared_version: aa_sponsor_ref.1,
+            mutable: false,
+        });
+        Ok(GenericSignature::MoveAuthenticator(
+            MoveAuthenticator::new_v1(vec![self_call_arg], vec![], sponsor_call_arg),
+        ))
     }
 
     // -----------------------------------------------
@@ -1915,6 +1933,60 @@ impl TestEnvironment {
         Ok(abstract_account_from_all_changed_objects(
             &effects.all_changed_objects(),
         ))
+    }
+
+    /// Creates an extra AA with the specified parameters (not stored in
+    /// `aa_ref`) and returns its object ref.
+    /// This requires if it is necessary to create more AAs in a test.
+    async fn create_extra_abstract_account_with(
+        &self,
+        authenticate_fn_name: &str,
+    ) -> anyhow::Result<ObjectRef> {
+        let (Some(owner), Some(aa_package_id), Some(aa_package_metadata_ref)) =
+            (self.owner, self.aa_package_id, self.aa_package_metadata_ref)
+        else {
+            anyhow::bail!("Owner or authenticate function name or package id not set");
+        };
+
+        let effects = self
+            .create_abstract_account_with(
+                owner,
+                authenticate_fn_name,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?;
+        Ok(abstract_account_from_all_changed_objects(
+            &effects.all_changed_objects(),
+        ))
+    }
+
+    /// Create an Abstract Account on the ledger with the specified parameters.
+    async fn create_abstract_account_with(
+        &self,
+        owner: IotaAddress,
+        authenticate_fn_name: &str,
+        aa_package_id: ObjectID,
+        aa_package_metadata_ref: ObjectRef,
+    ) -> anyhow::Result<TransactionEffects> {
+        let transaction = if let Some(transaction) = &self.aa_create_transaction {
+            transaction.clone()
+        } else {
+            self.craft_create_abstract_account(
+                owner,
+                authenticate_fn_name,
+                aa_package_id,
+                aa_package_metadata_ref,
+            )
+            .await?
+        };
+
+        let (effects, _) = self
+            .test_cluster
+            .execute_transaction_return_raw_effects(transaction)
+            .await?;
+
+        Ok(effects)
     }
 
     /// Create a free-access MoveAuthenticator for an explicit object reference
