@@ -547,8 +547,6 @@ impl Builder {
             }
         };
 
-        let protocol_config = get_genesis_protocol_config(ProtocolVersion::new(protocol_version));
-
         assert!(unsigned_genesis.authenticator_state_object().is_none());
         assert!(unsigned_genesis.has_randomness_state_object());
 

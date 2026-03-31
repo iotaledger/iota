@@ -278,6 +278,7 @@ pub struct DecodedMultiSigOutput {
 
 #[derive(Serialize)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum DecodedSigOutput {
     Signature {
         scheme: String,
