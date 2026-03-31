@@ -3,7 +3,15 @@
 
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
+import {
+    type ApyByValidator,
+    formatPercentageDisplay,
+    ImageIcon,
+    ImageIconSize,
+    useCopyToClipboard,
+    useIsValidatorCommitteeMember,
+} from '@iota/core';
+import { Copy } from '@iota/apps-ui-icons';
 import {
     ampli,
     getValidatorMoveEvent,
@@ -31,10 +39,54 @@ interface GenerateValidatorsTableColumnsArgs {
 function ValidatorWithImage({
     validator,
     highlightValidatorName,
+    committeeMembers = [],
 }: {
     validator: IotaValidatorSummaryExtended;
     highlightValidatorName?: boolean;
+    committeeMembers?: string[];
 }) {
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
+
+    const validatorAddress = validator.iotaAddress;
+    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+    const truncatedAddress = `${validatorAddress.slice(0, 8)}\u2026${validatorAddress.slice(-6)}`;
+    const copyToClipboard = useCopyToClipboard();
+
+    const validatorNameContainer = (
+        <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
+                <span
+                    className={clsx('truncate text-label-lg', {
+                        'text-iota-neutral-10 dark:text-iota-neutral-92': highlightValidatorName,
+                        'text-iota-neutral-40 dark:text-iota-neutral-60': !highlightValidatorName,
+                    })}
+                >
+                    {validator.name}
+                </span>
+                {isValidatorCommitteeMember && (
+                    <Badge type={BadgeType.PrimarySoft} label="Committee" />
+                )}
+            </div>
+            <div className="flex items-center gap-1">
+                <span className="text-label-sm tabular-nums text-iota-neutral-40 dark:text-iota-neutral-60">
+                    {truncatedAddress}
+                </span>
+                <button
+                    type="button"
+                    aria-label="Copy address"
+                    className="flex items-center text-iota-neutral-40 transition-colors hover:text-iota-neutral-10 dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        copyToClipboard(validatorAddress);
+                    }}
+                >
+                    <Copy className="h-3 w-3" />
+                </button>
+            </div>
+        </div>
+    );
+
     return validator.isPending ? (
         <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
             <div className="h-8 w-8 shrink-0">
@@ -46,13 +98,7 @@ function ValidatorWithImage({
                     rounded
                 />
             </div>
-            <span
-                className={clsx('text-label-lg', {
-                    'text-iota-neutral-10 dark:text-iota-neutral-92': highlightValidatorName,
-                })}
-            >
-                {validator.name}
-            </span>
+            {validatorNameContainer}
         </div>
     ) : (
         <ValidatorLink
@@ -76,14 +122,7 @@ function ValidatorWithImage({
                             rounded
                         />
                     </div>
-                    <span
-                        className={clsx('text-label-lg', {
-                            'text-iota-neutral-10 dark:text-iota-neutral-92':
-                                highlightValidatorName,
-                        })}
-                    >
-                        {validator.name}
-                    </span>
+                    {validatorNameContainer}
                 </div>
             }
         />
@@ -107,7 +146,7 @@ export function generateValidatorsTableColumns({
 
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
-            header: 'Name',
+            header: 'Validator',
             id: 'name',
             accessorKey: 'name',
             enableSorting: true,
@@ -123,6 +162,7 @@ export function generateValidatorsTableColumns({
                             <ValidatorWithImage
                                 validator={validator}
                                 highlightValidatorName={highlightValidatorName}
+                                committeeMembers={committeeMembers}
                             />
                         ) : (
                             <TableCellText>

@@ -32,7 +32,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
     const tableColumns = generateValidatorsTableColumns({
         showValidatorIcon: showIcon,
-        includeColumns: ['Name', 'Address', 'Stake'],
+        includeColumns: ['Validator', 'Stake'],
     });
 
     return (
@@ -76,7 +76,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                         <PlaceholderTable
                             rowCount={limit || NUMBER_OF_VALIDATORS}
                             rowHeight="13px"
-                            colHeadings={['Name', 'Address', 'Stake']}
+                            colHeadings={['Validator', 'Stake']}
                         />
                     )}
 

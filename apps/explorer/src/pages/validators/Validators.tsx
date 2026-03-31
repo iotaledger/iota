@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type JSX, useMemo } from 'react';
+import { type JSX, useMemo, useState, useCallback } from 'react';
 import {
     roundFloat,
     useFormatCoin,
@@ -14,8 +14,6 @@ import {
     useMaxCommitteeSize,
 } from '@iota/core';
 import {
-    Badge,
-    BadgeType,
     DisplayStats,
     DisplayStatsSize,
     DisplayStatsType,
@@ -34,6 +32,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { ValidatorFilters, ValidatorSearch } from '~/components/validator';
+import type { ValidatorStatus } from '~/components/validator';
+import type { IotaValidatorSummaryExtended } from '~/lib/types/validator.types';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -45,6 +46,17 @@ function ValidatorPageResult(): JSX.Element {
     } = useMaxCommitteeSize();
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
+
+    const [currentValidatorStatus, setCurrentValidatorStatus] = useState<ValidatorStatus>('All');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const handleStatusChange = useCallback((status: ValidatorStatus) => {
+        setCurrentValidatorStatus(status);
+    }, []);
+
+    const onSearchTermChange = useCallback((term: string) => {
+        setSearchTerm(term);
+    }, []);
 
     const {
         data: validatorEvents,
@@ -129,34 +141,65 @@ function ValidatorPageResult(): JSX.Element {
         return formatPercentageDisplay(ratio);
     })();
 
-    const activeAndPendingValidators = data
-        ? Number(data.pendingActiveValidatorsSize) > 0
-            ? activeValidators?.concat(sanitizedPendingValidatorsData)
-            : activeValidators
-        : [];
+    const activeAndPendingValidators = useMemo(() => {
+        if (!data) return [];
+        return Number(data.pendingActiveValidatorsSize) > 0
+            ? (activeValidators?.concat(sanitizedPendingValidatorsData) ?? [])
+            : (activeValidators ?? []);
+    }, [data, activeValidators, sanitizedPendingValidatorsData]);
 
-    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
-    const hasEffectiveCommissionRate = Number(data?.protocolVersion ?? 0) >= 20;
+    const atRiskAddresses = useMemo(
+        () => new Set(data?.atRiskValidators?.map(([address]) => address) ?? []),
+        [data],
+    );
+    const validatorCounts = useMemo(() => {
+        let active = 0;
+        let pending = 0;
+        let atRisk = 0;
+        for (const validator of activeAndPendingValidators as IotaValidatorSummaryExtended[]) {
+            if (validator.isPending) pending++;
+            else if (atRiskAddresses.has(validator.iotaAddress)) atRisk++;
+            else active++;
+        }
+        return { all: activeAndPendingValidators.length, active, pending, atRisk };
+    }, [activeAndPendingValidators, atRiskAddresses]);
+
+    const filteredValidators = useMemo(
+        () =>
+            activeAndPendingValidators.filter((validator: IotaValidatorSummaryExtended) => {
+                if (currentValidatorStatus !== 'All') {
+                    const isAtRisk = atRiskAddresses.has(validator.iotaAddress);
+                    if (currentValidatorStatus === 'Active' && (validator.isPending || isAtRisk))
+                        return false;
+                    if (currentValidatorStatus === 'Pending' && !validator.isPending) return false;
+                    if (currentValidatorStatus === 'At Risk' && !isAtRisk) return false;
+                }
+                if (searchTerm) {
+                    const lower = searchTerm.toLowerCase();
+                    return (
+                        validator.name.toLowerCase().includes(lower) ||
+                        validator.iotaAddress.toLowerCase().includes(lower)
+                    );
+                }
+                return true;
+            }),
+        [activeAndPendingValidators, atRiskAddresses, currentValidatorStatus, searchTerm],
+    );
 
     const tableColumns = useMemo(() => {
         if (!data || !maxCommitteeSize || !validatorEvents) return null;
         const includeColumns = [
-            'Name',
+            'Validator',
             'Stake',
             'APY',
             'Commission',
-            'Next Epoch Commission',
-            ...(hasEffectiveCommissionRate ? ['Effective Commission'] : []),
-            'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
             'Status',
-            'Current Epoch Rewards',
-            'Next Epoch Rewards',
         ];
 
         return generateValidatorsTableColumns({
-            allValidators: activeAndPendingValidators,
+            allValidators: filteredValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             maxCommitteeSize,
@@ -166,14 +209,7 @@ function ValidatorPageResult(): JSX.Element {
             includeColumns,
             currentEpoch: data.epoch,
         });
-    }, [
-        data,
-        activeAndPendingValidators,
-        validatorEvents,
-        validatorsApy,
-        maxCommitteeSize,
-        hasEffectiveCommissionRate,
-    ]);
+    }, [data, filteredValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
 
     const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
@@ -230,7 +266,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="pt-md--rs text-display-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                        <div className="dark:text-iota-neutral-92 pt-md--rs text-display-sm text-iota-neutral-10">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
@@ -247,18 +283,19 @@ function ValidatorPageResult(): JSX.Element {
                                 />
                             ))}
                         </div>
+
                         <Panel>
-                            <Title
-                                title="All Validators"
-                                supportingElement={
-                                    <span className="ml-1">
-                                        <Badge
-                                            type={BadgeType.PrimarySoft}
-                                            label={numberOfValidators.toString()}
-                                        />
-                                    </span>
-                                }
-                            />
+                            <Title title="All Validators" />
+                            <div className="flex flex-col gap-md p-md">
+                                <ValidatorSearch onSearch={onSearchTermChange} />
+                                <div className="flex">
+                                    <ValidatorFilters
+                                        selectedStatus={currentValidatorStatus}
+                                        onStatusChange={handleStatusChange}
+                                        validatorCounts={validatorCounts}
+                                    />
+                                </div>
+                            </div>
                             <div className="p-md">
                                 <ErrorBoundary>
                                     {(isPending ||
@@ -268,29 +305,26 @@ function ValidatorPageResult(): JSX.Element {
                                             rowCount={20}
                                             rowHeight="13px"
                                             colHeadings={[
-                                                'Name',
+                                                'Validator',
                                                 'Stake',
                                                 'APY',
                                                 'Commission',
                                                 'Last Epoch Rewards',
-                                                'Next Epoch Stake',
                                                 'Voting Power',
                                                 'Status',
-                                                'Current Epoch Rewards',
-                                                'Next Epoch Rewards',
                                             ]}
                                         />
                                     )}
                                     {isSuccess &&
                                         isMaxCommitteeSizeSuccess &&
-                                        activeAndPendingValidators &&
+                                        filteredValidators &&
                                         tableColumns && (
                                             <TableCard
                                                 sortTable
                                                 defaultSorting={[
                                                     { id: 'stakingPoolIotaBalance', desc: true },
                                                 ]}
-                                                data={activeAndPendingValidators}
+                                                data={filteredValidators}
                                                 columns={tableColumns}
                                                 areHeadersCentered={false}
                                             />
