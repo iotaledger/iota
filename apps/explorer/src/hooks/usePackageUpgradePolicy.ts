@@ -40,6 +40,19 @@ const IMMUTABLE_POLICY: UpgradePolicyInfo = {
     isImmutable: true,
 };
 
+const CUSTOM_POLICY: UpgradePolicyInfo = {
+    label: 'Custom',
+    description:
+        'The UpgradeCap is wrapped inside a custom policy object. The package may still be upgradeable under custom conditions.',
+    isImmutable: false,
+};
+
+const MAKE_IMMUTABLE_FUNCTION = {
+    package: '0x2',
+    module: 'package',
+    function: 'make_immutable',
+} as const;
+
 export function usePackageUpgradePolicy(txDigest: string | null | undefined): {
     upgradePolicy: UpgradePolicyInfo | null;
     isPending: boolean;
@@ -70,33 +83,86 @@ export function usePackageUpgradePolicy(txDigest: string | null | undefined): {
         },
     );
 
+    // When the UpgradeCap is not accessible (deleted or wrapped), check whether
+    // it was destroyed via `make_immutable` or wrapped in a custom policy object.
+    const upgradeCapMissing =
+        !!upgradeCapObjectId &&
+        !isUpgradeCapPending &&
+        (!!upgradeCapData?.error || !upgradeCapData?.data);
+
+    const { data: lastCapTxData, isPending: isLastCapTxPending } = useIotaClientQuery(
+        'queryTransactionBlocks',
+        {
+            filter: { InputObject: upgradeCapObjectId! },
+            options: { showInput: true },
+            order: 'descending',
+            limit: 1,
+        },
+        {
+            enabled: upgradeCapMissing,
+        },
+    );
+
     const upgradePolicy = useMemo<UpgradePolicyInfo | null>(() => {
         const isUpgradeCapLoading = !!upgradeCapObjectId && isUpgradeCapPending;
+        const isLastCapTxLoading = upgradeCapMissing && isLastCapTxPending;
 
-        if (!txDigest || isTxPending || isUpgradeCapLoading) {
+        if (!txDigest || isTxPending || isUpgradeCapLoading || isLastCapTxLoading) {
             return null;
         }
 
-        if (!upgradeCapObjectId || upgradeCapData?.error || !upgradeCapData?.data) {
+        if (!upgradeCapObjectId) {
             return IMMUTABLE_POLICY;
         }
 
-        const content = upgradeCapData.data.content;
-        if (content?.dataType === 'moveObject' && content.fields) {
-            const fields = content.fields as Record<string, unknown>;
-            const policy = Number(fields.policy);
-            const policyInfo = UPGRADE_POLICIES[policy];
-            return {
-                label: policyInfo?.label ?? `Unknown (${policy})`,
-                description: policyInfo?.description ?? '',
-                isImmutable: false,
-            };
+        // UpgradeCap exists and is accessible: read the policy field
+        if (upgradeCapData?.data) {
+            const content = upgradeCapData.data.content;
+            if (content?.dataType === 'moveObject' && content.fields) {
+                const fields = content.fields as Record<string, unknown>;
+                const policy = Number(fields.policy);
+                const policyInfo = UPGRADE_POLICIES[policy];
+                return {
+                    label: policyInfo?.label ?? `Unknown (${policy})`,
+                    description: policyInfo?.description ?? '',
+                    isImmutable: false,
+                };
+            }
+            return null;
         }
 
-        return null;
-    }, [txDigest, upgradeCapObjectId, upgradeCapData, isTxPending, isUpgradeCapPending]);
+        // UpgradeCap is missing: determine if it was destroyed or wrapped
+        const lastTx = lastCapTxData?.data?.[0];
+        if (lastTx?.transaction?.data?.transaction?.kind === 'ProgrammableTransaction') {
+            const transactions = lastTx.transaction.data.transaction.transactions;
+            const wasMadeImmutable = transactions.some(
+                (tx) =>
+                    'MoveCall' in tx &&
+                    tx.MoveCall.package === MAKE_IMMUTABLE_FUNCTION.package &&
+                    tx.MoveCall.module === MAKE_IMMUTABLE_FUNCTION.module &&
+                    tx.MoveCall.function === MAKE_IMMUTABLE_FUNCTION.function,
+            );
+            return wasMadeImmutable ? IMMUTABLE_POLICY : CUSTOM_POLICY;
+        }
 
-    const isPending = !!txDigest && (isTxPending || (!!upgradeCapObjectId && isUpgradeCapPending));
+        // Fallback: couldn't determine
+        return IMMUTABLE_POLICY;
+    }, [
+        txDigest,
+        upgradeCapObjectId,
+        upgradeCapData,
+        upgradeCapMissing,
+        lastCapTxData,
+        isTxPending,
+        isUpgradeCapPending,
+        isLastCapTxPending,
+    ]);
+
+    const isPending =
+        !!txDigest &&
+        (isTxPending ||
+            (!!upgradeCapObjectId && isUpgradeCapPending) ||
+            (upgradeCapMissing && isLastCapTxPending));
 
     return {
         upgradePolicy,

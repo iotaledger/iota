@@ -11,12 +11,12 @@ import {
     CheckpointSequenceLink,
     EpochLink,
     ErrorBoundary,
-    Link,
+    // Link,
     ObjectLink,
     PkgModulesWrapper,
     TransactionBlocksForAddress,
 } from '~/components';
-import { usePackageUpgradePolicy, UPGRADE_DOCS_URL } from '~/hooks';
+import { usePackageUpgradePolicy /*, UPGRADE_DOCS_URL*/ } from '~/hooks';
 import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
@@ -148,14 +148,16 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                                 <KeyValueInfo
                                     keyText="Upgrade Policy"
                                     tooltipText={
-                                        <>
-                                            {upgradePolicy.description}{' '}
-                                            <Link href={UPGRADE_DOCS_URL} variant="textHeroDark">
-                                                Read more
-                                            </Link>
-                                        </>
+                                        upgradePolicy.description
+
+                                        // <>
+                                        //     {upgradePolicy.description}{' '}
+                                        //     <Link href={UPGRADE_DOCS_URL} variant="textHeroDark">
+                                        //         Read more
+                                        //     </Link>
+                                        // </>
                                     }
-                                    tooltipPosition={TooltipPosition.Right}
+                                    tooltipPosition={TooltipPosition.Bottom}
                                     value={upgradePolicy.label}
                                 />
                             )}
