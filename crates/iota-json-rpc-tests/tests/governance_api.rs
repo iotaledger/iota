@@ -63,7 +63,7 @@ async fn execute_add_validator_transactions(
         match system_state {
             IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
             IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
-            _ => unimplemented!(),
+            _ => unimplemented!("a new IotaSystemStateSummary variant was added and needs to be handled"),
         }
     });
     let address = (&new_validator.account_key_pair.public()).into();
@@ -92,7 +92,7 @@ async fn execute_add_validator_transactions(
         let validator_candidates_size = match system_state {
             IotaSystemStateSummary::V1(inner) => inner.validator_candidates_size,
             IotaSystemStateSummary::V2(inner) => inner.validator_candidates_size,
-            _ => unimplemented!(),
+            _ => unimplemented!("a new IotaSystemStateSummary variant was added and needs to be handled"),
         };
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
