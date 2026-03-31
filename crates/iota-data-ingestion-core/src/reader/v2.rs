@@ -36,12 +36,12 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
-        fetch::{LocalRead, ReadSource, fetch_from_object_store},
+        fetch::{
+            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
+        },
         v1::{DataLimiter, ReaderOptions},
     },
 };
-
-const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
 
 /// Available sources for checkpoint streams supported by the ingestion
 /// framework.
@@ -102,12 +102,9 @@ impl RemoteStore {
     ) -> IngestionResult<Self> {
         let store = match remote_url {
             RemoteUrl::Fullnode(ref url) => {
-                let grpc_client = GrpcClient::connect(url).await?;
-                // check if we can make gRPC request to client
-                grpc_client.get_service_info(None).await?;
-                let grpc_client = grpc_client
-                    .with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES);
-                info!("using gRPC as checkpoint stream");
+                let grpc_client = GrpcClient::connect(url).await.map(|client| {
+                    client.with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES)
+                })?;
                 RemoteStore::Fullnode(grpc_client)
             }
             RemoteUrl::HybridHistoricalStore {

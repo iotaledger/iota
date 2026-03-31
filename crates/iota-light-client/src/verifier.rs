@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
@@ -122,20 +122,7 @@ pub async fn get_verified_effects_and_events(
             .await
             .context("Cannot get full checkpoint")?
     } else {
-        // use gRPC API (for custom networks)
-        let grpc_url = config
-            .grpc_url()
-            .context("gRPC URL must be configured for custom networks")?;
-        let client = iota_grpc_client::Client::connect(grpc_url.as_str()).await?;
-        client
-            .get_checkpoint_by_sequence_number(seq, Some("checkpoint,transactions"), None, None)
-            .await
-            .context(format!("gRPC call failed for checkpoint {seq}"))?
-            .into_inner()
-            .checkpoint_data()
-            .context(format!("Failed to parse checkpoint data for {seq}"))?
-            .try_into()
-            .context(format!("Failed to convert checkpoint types for {seq}"))?
+        bail!("No checkpoint store configured to fetch checkpoint data")
     };
 
     // Load the list of stored checkpoints
