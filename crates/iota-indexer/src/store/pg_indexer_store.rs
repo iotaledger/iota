@@ -32,7 +32,7 @@ use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     blocking_call_is_ok_or_panic,
     db::ConnectionPool,
-    errors::{Context, IndexerError, IndexerResult},
+    errors::{Context, IndexerError},
     ingestion::{
         common::{
             persist::{CommitterWatermark, ObjectsSnapshotHandlerTables},
@@ -56,9 +56,7 @@ use crate::{
             StoredObjects,
         },
         packages::StoredPackage,
-        transactions::{
-            CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
-        },
+        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
         tx_indices::TxIndexSplit,
         watermarks::StoredWatermark,
     },
@@ -182,23 +180,6 @@ impl PgIndexerStore {
         self.blocking_cp.clone()
     }
 
-    pub(crate) async fn get_latest_epoch_id_in_blocking_worker(
-        &self,
-    ) -> Result<Option<u64>, IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.get_latest_epoch_id())
-            .await
-    }
-
-    pub fn get_latest_epoch_id(&self) -> Result<Option<u64>, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            epochs::dsl::epochs
-                .select(max(epochs::epoch))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as u64))
-        })
-        .context("Failed reading latest epoch id from PostgresDB")
-    }
-
     /// Get the range of the protocol versions that need to be indexed.
     pub fn get_protocol_version_index_range(&self) -> Result<(i64, i64), IndexerError> {
         // We start indexing from the next protocol version after the latest one stored
@@ -275,139 +256,15 @@ impl PgIndexerStore {
         .context("Failed reading min and max epoch numbers from PostgresDB")
     }
 
-    fn get_min_prunable_checkpoint(&self) -> Result<u64, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            pruner_cp_watermark::dsl::pruner_cp_watermark
-                .select(min(pruner_cp_watermark::checkpoint_sequence_number))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.unwrap_or_default() as u64)
-        })
-        .context("Failed reading min prunable checkpoint sequence number from PostgresDB")
-    }
-
-    fn get_checkpoint_range_for_epoch(
-        &self,
-        epoch: u64,
-    ) -> Result<(u64, Option<u64>), IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            epochs::dsl::epochs
-                .select((epochs::first_checkpoint_id, epochs::last_checkpoint_id))
-                .filter(epochs::epoch.eq(epoch as i64))
-                .first::<(i64, Option<i64>)>(conn)
-                .map(|(min, max)| (min as u64, max.map(|v| v as u64)))
-        })
-        .context(
-            format!("failed reading checkpoint range from PostgresDB for epoch {epoch}").as_str(),
-        )
-    }
-
-    fn get_transaction_range_for_checkpoint(
-        &self,
-        checkpoint: u64,
-    ) -> Result<(u64, u64), IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            pruner_cp_watermark::dsl::pruner_cp_watermark
-                .select((
-                    pruner_cp_watermark::min_tx_sequence_number,
-                    pruner_cp_watermark::max_tx_sequence_number,
-                ))
-                .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(checkpoint as i64))
-                .first::<(i64, i64)>(conn)
-                .map(|(min, max)| (min as u64, max as u64))
-        })
-        .context(
-            format!("failed reading transaction range from PostgresDB for checkpoint {checkpoint}")
-                .as_str(),
-        )
-    }
-
-    pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
-        &self,
-        tx_seq: i64,
-    ) -> Result<TxGlobalOrderCursor, IndexerError> {
-        self.execute_in_blocking_worker(move |this| this.get_global_order_for_tx_seq(tx_seq))
-            .await
-    }
-
-    fn get_global_order_for_tx_seq(
-        &self,
-        tx_seq: i64,
-    ) -> Result<TxGlobalOrderCursor, IndexerError> {
-        let result = read_only_blocking!(&self.blocking_cp, |conn| {
-            tx_global_order::dsl::tx_global_order
-                .select((
-                    tx_global_order::global_sequence_number,
-                    tx_global_order::optimistic_sequence_number,
-                ))
-                .filter(tx_global_order::chk_tx_sequence_number.eq(tx_seq))
-                .first::<(i64, i64)>(conn)
-        })
-        .context(
-            format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
-                .as_str(),
-        )?;
-        let (global_sequence_number, optimistic_sequence_number) = result;
-        Ok(TxGlobalOrderCursor {
-            global_sequence_number,
-            optimistic_sequence_number,
-        })
-    }
-
-    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
-        &self,
-        to: TxGlobalOrderCursor,
-        limit: i64,
-    ) -> IndexerResult<usize> {
-        self.execute_in_blocking_worker(move |this| {
-            this.prune_optimistic_transactions_up_to(to, limit)
-        })
-        .await
-    }
-
-    fn prune_optimistic_transactions_up_to(
-        &self,
-        to: TxGlobalOrderCursor,
-        limit: i64,
-    ) -> IndexerResult<usize> {
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                let sql = r#"
-                    WITH ids_to_delete AS (
-                         SELECT global_sequence_number, optimistic_sequence_number
-                         FROM optimistic_transactions
-                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2)
-                         ORDER BY global_sequence_number, optimistic_sequence_number
-                         FOR UPDATE LIMIT $3
-                     )
-                     DELETE FROM optimistic_transactions otx
-                     USING ids_to_delete
-                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
-                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
-                "#;
-                diesel::sql_query(sql)
-                    .bind::<BigInt, _>(to.global_sequence_number)
-                    .bind::<BigInt, _>(to.optimistic_sequence_number)
-                    .bind::<BigInt, _>(limit)
-                    .execute(conn)
-                    .map_err(IndexerError::from)
-                    .context(
-                        format!("failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
-                    )
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-    }
-
     fn get_latest_object_snapshot_watermark(
         &self,
     ) -> Result<Option<CommitterWatermark>, IndexerError> {
         read_only_blocking!(&self.blocking_cp, |conn| {
             watermarks::table
                 .select((
-                    watermarks::epoch_hi_inclusive,
-                    watermarks::checkpoint_hi_inclusive,
-                    watermarks::tx_hi,
+                    watermarks::current_epoch,
+                    watermarks::max_committed_cp,
+                    watermarks::max_committed_tx,
                 ))
                 .filter(
                     watermarks::entity
@@ -418,9 +275,9 @@ impl PgIndexerStore {
                 .optional()
                 .map(|v| {
                     v.map(|(epoch, cp, tx)| CommitterWatermark {
-                        epoch_hi_inclusive: epoch as u64,
-                        checkpoint_hi_inclusive: cp as u64,
-                        tx_hi: tx as u64,
+                        current_epoch: epoch as u64,
+                        max_committed_cp: cp as u64,
+                        max_committed_tx: tx as u64,
                     })
                 })
         })
@@ -475,7 +332,8 @@ impl PgIndexerStore {
                 serialized_object,
                 coin_type,
                 coin_balance,
-                df_kind
+                df_kind,
+                finalized_in_cp
             )
             SELECT
                 u.object_id,
@@ -490,7 +348,8 @@ impl PgIndexerStore {
                 u.serialized_object,
                 u.coin_type,
                 u.coin_balance,
-                u.df_kind
+                u.df_kind,
+                u.finalized_in_cp
             FROM UNNEST(
                 $1::BYTEA[],
                 $2::BIGINT[],
@@ -505,10 +364,11 @@ impl PgIndexerStore {
                 $11::TEXT[],
                 $12::BIGINT[],
                 $13::SMALLINT[],
-                $14::BYTEA[]
-            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest)
+                $14::BYTEA[],
+                $15::BIGINT[]
+            ) AS u(object_id, object_version, object_digest, owner_type, owner_id, object_type, object_type_package, object_type_module, object_type_name, serialized_object, coin_type, coin_balance, df_kind, tx_digest, finalized_in_cp)
             LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
-            WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
+            WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = -1
             ON CONFLICT (object_id) DO UPDATE
             SET
                 object_version = EXCLUDED.object_version,
@@ -522,7 +382,9 @@ impl PgIndexerStore {
                 serialized_object = EXCLUDED.serialized_object,
                 coin_type = EXCLUDED.coin_type,
                 coin_balance = EXCLUDED.coin_balance,
-                df_kind = EXCLUDED.df_kind
+                df_kind = EXCLUDED.df_kind,
+                finalized_in_cp = EXCLUDED.finalized_in_cp
+            WHERE EXCLUDED.object_version > objects.object_version
         "#;
         let (objects, tx_digests): (StoredObjects, Vec<_>) = objects
             .into_iter()
@@ -548,7 +410,8 @@ impl PgIndexerStore {
             .bind::<Array<Nullable<Text>>, _>(objects.coin_types)
             .bind::<Array<Nullable<BigInt>>, _>(objects.coin_balances)
             .bind::<Array<Nullable<SmallInt>>, _>(objects.df_kinds)
-            .bind::<Array<Bytea>, _>(tx_digests);
+            .bind::<Array<Bytea>, _>(tx_digests)
+            .bind::<Array<Nullable<BigInt>>, _>(objects.finalized_in_cps);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
@@ -574,27 +437,32 @@ impl PgIndexerStore {
         let len = objects.len();
         let raw_query = r#"
             DELETE FROM objects
-            WHERE object_id IN (
-                SELECT u.object_id
+            USING (
+                SELECT u.object_id, u.object_version
                 FROM UNNEST(
                     $1::BYTEA[],
-                    $2::BYTEA[]
-                ) AS u(object_id, tx_digest)
+                    $2::BIGINT[],
+                    $3::BYTEA[]
+                ) AS u(object_id, object_version, tx_digest)
                 LEFT JOIN tx_global_order o ON o.tx_digest = u.tx_digest
-                WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = 0
-            )
+                WHERE o.optimistic_sequence_number IS NULL OR o.optimistic_sequence_number = -1
+            ) AS to_delete
+            WHERE objects.object_id = to_delete.object_id
+            AND objects.object_version < to_delete.object_version
         "#;
-        let (object_ids, tx_digests): (Vec<_>, Vec<_>) = objects
+        let (object_ids, versions, tx_digests): (Vec<_>, Vec<_>, Vec<_>) = objects
             .into_iter()
             .map(|removed_object| {
                 (
                     removed_object.object_id().to_vec(),
+                    removed_object.version() as i64,
                     removed_object.transaction_digest.into_inner().to_vec(),
                 )
             })
-            .unzip();
+            .multiunzip();
         let query = diesel::sql_query(raw_query)
             .bind::<Array<Bytea>, _>(object_ids)
+            .bind::<Array<BigInt>, _>(versions)
             .bind::<Array<Bytea>, _>(tx_digests);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
@@ -618,7 +486,7 @@ impl PgIndexerStore {
         conn: &mut PgConnection,
         mutated_object_mutation_chunk: Vec<StoredObject>,
     ) -> Result<(), IndexerError> {
-        on_conflict_do_update!(
+        on_conflict_do_update_with_condition!(
             objects::table,
             mutated_object_mutation_chunk,
             objects::object_id,
@@ -633,7 +501,9 @@ impl PgIndexerStore {
                 objects::coin_type.eq(excluded(objects::coin_type)),
                 objects::coin_balance.eq(excluded(objects::coin_balance)),
                 objects::df_kind.eq(excluded(objects::df_kind)),
+                objects::finalized_in_cp.eq(excluded(objects::finalized_in_cp)),
             ),
+            excluded(objects::object_version).gt(objects::object_version),
             conn
         );
         Ok::<(), IndexerError>(())
@@ -644,20 +514,22 @@ impl PgIndexerStore {
         conn: &mut PgConnection,
         deleted_objects_chunk: Vec<StoredDeletedObject>,
     ) -> Result<(), IndexerError> {
-        diesel::delete(
-            objects::table.filter(
-                objects::object_id.eq_any(
-                    deleted_objects_chunk
-                        .iter()
-                        .map(|o| o.object_id.clone())
-                        .collect::<Vec<_>>(),
-                ),
-            ),
-        )
-        .execute(conn)
-        .map_err(IndexerError::from)
-        .context("Failed to write object deletion to PostgresDB")?;
-
+        let (object_ids, object_versions): (Vec<_>, Vec<_>) = deleted_objects_chunk
+            .iter()
+            .map(|o| (o.object_id.clone(), o.object_version))
+            .unzip();
+        let raw_query = r#"
+            DELETE FROM objects
+            USING UNNEST($1::BYTEA[], $2::BIGINT[]) AS to_delete(object_id, object_version)
+            WHERE objects.object_id = to_delete.object_id
+            AND objects.object_version < to_delete.object_version
+        "#;
+        diesel::sql_query(raw_query)
+            .bind::<Array<Bytea>, _>(object_ids)
+            .bind::<Array<BigInt>, _>(object_versions)
+            .execute(conn)
+            .map_err(IndexerError::from)
+            .context("Failed to write object deletion to PostgresDB")?;
         Ok::<(), IndexerError>(())
     }
 
@@ -933,7 +805,7 @@ impl PgIndexerStore {
 
     fn persist_tx_global_order_chunk(
         &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -944,7 +816,18 @@ impl PgIndexerStore {
             &self.blocking_cp,
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                    insert_or_ignore_into!(tx_global_order::table, tx_order_chunk, conn);
+                    // Upsert: on conflict (row already inserted by optimistic path),
+                    // set `chk_tx_sequence_number` so checkpoint data is available
+                    // immediately.
+                    on_conflict_do_update_with_condition!(
+                        tx_global_order::table,
+                        tx_order_chunk,
+                        tx_global_order::tx_digest,
+                        tx_global_order::chk_tx_sequence_number
+                            .eq(excluded(tx_global_order::chk_tx_sequence_number)),
+                        tx_global_order::chk_tx_sequence_number.is_null(),
+                        conn
+                    );
                 }
                 Ok::<(), IndexerError>(())
             },
@@ -960,58 +843,6 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("failed to persist txs insertion order with error: {e}");
-        })
-    }
-
-    /// We enforce index-status semantics for checkpointed transactions
-    /// in `tx_global_order`.
-    ///
-    /// Namely, checkpointed transactions (i.e. with `optimistic_sequence_number
-    /// == 0`) are updated to `optimistic_sequence_number == -1` to indicate
-    /// that they have been persisted in the database.
-    fn update_status_for_checkpoint_transactions_chunk(
-        &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_insertion_order_chunks
-            .start_timer();
-
-        let num_transactions = tx_order.len();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                on_conflict_do_update_with_condition!(
-                    tx_global_order::table,
-                    tx_order.clone(),
-                    tx_global_order::tx_digest,
-                    tx_global_order::optimistic_sequence_number.eq(IndexStatus::Completed),
-                    tx_global_order::optimistic_sequence_number.eq(IndexStatus::Started),
-                    conn
-                );
-                on_conflict_do_update_with_condition!(
-                    tx_global_order::table,
-                    tx_order.clone(),
-                    tx_global_order::tx_digest,
-                    tx_global_order::chk_tx_sequence_number
-                        .eq(excluded(tx_global_order::chk_tx_sequence_number)),
-                    tx_global_order::chk_tx_sequence_number.is_null(),
-                    conn
-                );
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(
-                elapsed,
-                "Updated {} chunked values of `tx_global_order`", num_transactions
-            );
-        })
-        .tap_err(|e| {
-            tracing::error!("failed to update `tx_global_order` with error: {e}");
         })
     }
 
@@ -1383,16 +1214,21 @@ impl PgIndexerStore {
         Ok(())
     }
 
-    fn prune_checkpoints_table(&self, cp: u64) -> Result<(), IndexerError> {
+    fn prune_checkpoints_table_by_range(
+        &self,
+        min_cp: u64,
+        max_cp: u64,
+    ) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
                 diesel::delete(
-                    checkpoints::table.filter(checkpoints::sequence_number.eq(cp as i64)),
+                    checkpoints::table
+                        .filter(checkpoints::sequence_number.between(min_cp as i64, max_cp as i64)),
                 )
                 .execute(conn)
                 .map_err(IndexerError::from)
-                .context("Failed to prune checkpoints table")?;
+                .context("Failed to prune checkpoints table by range")?;
 
                 Ok::<(), IndexerError>(())
             },
@@ -1400,155 +1236,294 @@ impl PgIndexerStore {
         )
     }
 
-    fn prune_event_indices_table(&self, min_tx: u64, max_tx: u64) -> Result<(), IndexerError> {
+    /// Prunes tx_global_order table by transaction range using
+    /// chk_tx_sequence_number
+    fn prune_tx_global_order(
+        &self,
+        conn: &mut PgConnection,
+        min_tx: i64,
+        max_tx: i64,
+    ) -> Result<(), IndexerError> {
+        diesel::delete(
+            tx_global_order::table
+                .filter(tx_global_order::chk_tx_sequence_number.between(min_tx, max_tx)),
+        )
+        .execute(conn)
+        .map_err(IndexerError::from)
+        .context("Failed to prune tx_global_order table")
+        .map(|_| ())
+    }
+
+    /// Prunes a single transaction or event index table by transaction range
+    fn prune_single_tx_or_event_table(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
         let (min_tx, max_tx) = (min_tx as i64, max_tx as i64);
+
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                prune_tx_or_event_indice_table!(
-                    event_emit_module,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_emit_module table"
-                );
-                prune_tx_or_event_indice_table!(
-                    event_emit_package,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_emit_package table"
-                );
-                prune_tx_or_event_indice_table![
-                    event_senders,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_senders table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_instantiation,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_instantiation table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_module,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_module table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_name,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_name table"
-                ];
-                prune_tx_or_event_indice_table![
-                    event_struct_package,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune event_struct_package table"
-                ];
+                match table {
+                    // Event index tables
+                    PrunableTable::EventEmitModule => {
+                        prune_tx_or_event_indice_table!(
+                            event_emit_module,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_emit_module table"
+                        );
+                    }
+                    PrunableTable::EventEmitPackage => {
+                        prune_tx_or_event_indice_table!(
+                            event_emit_package,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_emit_package table"
+                        );
+                    }
+                    PrunableTable::EventSenders => {
+                        prune_tx_or_event_indice_table!(
+                            event_senders,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_senders table"
+                        );
+                    }
+                    PrunableTable::EventStructInstantiation => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_instantiation,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_instantiation table"
+                        );
+                    }
+                    PrunableTable::EventStructModule => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_module,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_module table"
+                        );
+                    }
+                    PrunableTable::EventStructName => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_name,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_name table"
+                        );
+                    }
+                    PrunableTable::EventStructPackage => {
+                        prune_tx_or_event_indice_table!(
+                            event_struct_package,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune event_struct_package table"
+                        );
+                    }
+
+                    // Transaction index tables
+                    PrunableTable::TxSenders => {
+                        prune_tx_or_event_indice_table!(
+                            tx_senders,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_senders table"
+                        );
+                    }
+                    PrunableTable::TxRecipients => {
+                        prune_tx_or_event_indice_table!(
+                            tx_recipients,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_recipients table"
+                        );
+                    }
+                    PrunableTable::TxInputObjects => {
+                        prune_tx_or_event_indice_table!(
+                            tx_input_objects,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_input_objects table"
+                        );
+                    }
+                    PrunableTable::TxChangedObjects => {
+                        prune_tx_or_event_indice_table!(
+                            tx_changed_objects,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_changed_objects table"
+                        );
+                    }
+                    PrunableTable::TxWrappedOrDeletedObjects => {
+                        prune_tx_or_event_indice_table!(
+                            tx_wrapped_or_deleted_objects,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_wrapped_or_deleted_objects table"
+                        );
+                    }
+                    PrunableTable::TxCallsPkg => {
+                        prune_tx_or_event_indice_table!(
+                            tx_calls_pkg,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_calls_pkg table"
+                        );
+                    }
+                    PrunableTable::TxCallsMod => {
+                        prune_tx_or_event_indice_table!(
+                            tx_calls_mod,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_calls_mod table"
+                        );
+                    }
+                    PrunableTable::TxCallsFun => {
+                        prune_tx_or_event_indice_table!(
+                            tx_calls_fun,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_calls_fun table"
+                        );
+                    }
+                    PrunableTable::TxDigests => {
+                        prune_tx_or_event_indice_table!(
+                            tx_digests,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_digests table"
+                        );
+                    }
+                    PrunableTable::TxKinds => {
+                        prune_tx_or_event_indice_table!(
+                            tx_kinds,
+                            conn,
+                            min_tx,
+                            max_tx,
+                            "Failed to prune tx_kinds table"
+                        );
+                    }
+                    PrunableTable::TxGlobalOrder => {
+                        self.prune_tx_global_order(conn, min_tx, max_tx)?;
+                    }
+                    _ => {
+                        return Err(IndexerError::InvalidArgument(format!(
+                            "table {} is not a transaction or event index table",
+                            table.as_ref()
+                        )));
+                    }
+                }
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
     }
 
-    fn prune_tx_indices_table(&self, min_tx: u64, max_tx: u64) -> Result<(), IndexerError> {
-        let (min_tx, max_tx) = (min_tx as i64, max_tx as i64);
+    /// Prune optimistic_transactions table by global_sequence_number range.
+    /// Prunes at most `limit` rows and returns the number of rows deleted.
+    fn prune_optimistic_tx_by_global_seq(
+        &self,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use diesel::prelude::*;
+
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                prune_tx_or_event_indice_table!(
-                    tx_senders,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_senders table"
-                );
-                prune_tx_or_event_indice_table!(
-                    tx_recipients,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_recipients table"
-                );
-                prune_tx_or_event_indice_table![
-                    tx_input_objects,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_input_objects table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_changed_objects,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_changed_objects table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_wrapped_or_deleted_objects,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_wrapped_or_deleted_objects table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_calls_pkg,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_calls_pkg table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_calls_mod,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_calls_mod table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_calls_fun,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_calls_fun table"
-                ];
-                prune_tx_or_event_indice_table![
-                    tx_digests,
-                    conn,
-                    min_tx,
-                    max_tx,
-                    "Failed to prune tx_digests table"
-                ];
-                Ok::<(), IndexerError>(())
+                let sql = r#"
+                    WITH ids_to_delete AS (
+                         SELECT global_sequence_number, optimistic_sequence_number
+                         FROM optimistic_transactions
+                         WHERE global_sequence_number BETWEEN $1 AND $2
+                         ORDER BY global_sequence_number, optimistic_sequence_number
+                         FOR UPDATE
+                         LIMIT $3
+                     )
+                     DELETE FROM optimistic_transactions otx
+                     USING ids_to_delete
+                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
+                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
+                "#;
+                diesel::sql_query(sql)
+                    .bind::<diesel::sql_types::BigInt, _>(start as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(end as i64)
+                    .bind::<diesel::sql_types::BigInt, _>(limit)
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context(
+                        format!(
+                            "failed to prune optimistic_transactions table by global_sequence_number range [{start}..={end}] with limit {limit}"
+                        )
+                        .as_str(),
+                    )
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
     }
 
-    fn prune_cp_tx_table(&self, cp: u64) -> Result<(), IndexerError> {
+    fn prune_cp_tx_table_by_range(&self, min_cp: u64, max_cp: u64) -> Result<(), IndexerError> {
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
                 diesel::delete(
-                    pruner_cp_watermark::table
-                        .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(cp as i64)),
+                    pruner_cp_watermark::table.filter(
+                        pruner_cp_watermark::checkpoint_sequence_number
+                            .between(min_cp as i64, max_cp as i64),
+                    ),
                 )
                 .execute(conn)
                 .map_err(IndexerError::from)
-                .context("Failed to prune pruner_cp_watermark table")?;
+                .context("Failed to prune pruner_cp_watermark table by range")?;
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
+    }
+
+    fn prune_table_by_checkpoint_range(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_checkpoint: u64,
+        max_checkpoint: u64,
+    ) -> Result<(), IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        match table {
+            PrunableTable::Checkpoints => {
+                self.prune_checkpoints_table_by_range(min_checkpoint, max_checkpoint)
+            }
+            PrunableTable::PrunerCpWatermark => {
+                self.prune_cp_tx_table_by_range(min_checkpoint, max_checkpoint)
+            }
+            _ => Err(IndexerError::InvalidArgument(format!(
+                "table {} is not pruned by checkpoint",
+                table.as_ref()
+            ))),
+        }
     }
 
     fn get_network_total_transactions_by_end_of_epoch(
@@ -1590,6 +1565,8 @@ impl PgIndexerStore {
     where
         E::Iterator: Iterator<Item: AsRef<str>>,
     {
+        use diesel::query_dsl::methods::FilterDsl;
+
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_watermarks
@@ -1607,11 +1584,13 @@ impl PgIndexerStore {
                     .on_conflict(watermarks::entity)
                     .do_update()
                     .set((
-                        watermarks::epoch_hi_inclusive.eq(excluded(watermarks::epoch_hi_inclusive)),
-                        watermarks::checkpoint_hi_inclusive
-                            .eq(excluded(watermarks::checkpoint_hi_inclusive)),
-                        watermarks::tx_hi.eq(excluded(watermarks::tx_hi)),
+                        watermarks::current_epoch.eq(excluded(watermarks::current_epoch)),
+                        watermarks::max_committed_cp.eq(excluded(watermarks::max_committed_cp)),
+                        watermarks::max_committed_tx.eq(excluded(watermarks::max_committed_tx)),
                     ))
+                    .filter(excluded(watermarks::max_committed_cp).ge(watermarks::max_committed_cp))
+                    .filter(excluded(watermarks::max_committed_tx).ge(watermarks::max_committed_tx))
+                    .filter(excluded(watermarks::current_epoch).ge(watermarks::current_epoch))
                     .execute(conn)
                     .map_err(IndexerError::from)
                     .context("Failed to update watermarks upper bound")?;
@@ -1670,7 +1649,8 @@ impl PgIndexerStore {
                 Ok(StoredWatermark::from_lower_bound_update(
                     table.as_ref(),
                     epoch,
-                    table.select_reader_lo(*checkpoint, *tx),
+                    *checkpoint,
+                    *tx,
                 ))
             })
             .collect();
@@ -1687,19 +1667,27 @@ impl PgIndexerStore {
                     .on_conflict(watermarks::entity)
                     .do_update()
                     .set((
-                        watermarks::reader_lo.eq(excluded(watermarks::reader_lo)),
-                        watermarks::epoch_lo.eq(excluded(watermarks::epoch_lo)),
-                        watermarks::timestamp_ms.eq(sql::<diesel::sql_types::BigInt>(
+                        watermarks::min_available_cp.eq(excluded(watermarks::min_available_cp)),
+                        watermarks::min_available_tx.eq(excluded(watermarks::min_available_tx)),
+                        watermarks::min_available_epoch
+                            .eq(excluded(watermarks::min_available_epoch)),
+                        watermarks::min_bounds_updated_at_timestamp_ms.eq(sql::<
+                            diesel::sql_types::BigInt,
+                        >(
                             "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
                         )),
                     ))
-                    .filter(excluded(watermarks::reader_lo).gt(watermarks::reader_lo))
-                    .filter(excluded(watermarks::epoch_lo).gt(watermarks::epoch_lo))
+                    .filter(excluded(watermarks::min_available_cp).gt(watermarks::min_available_cp))
+                    .filter(excluded(watermarks::min_available_tx).gt(watermarks::min_available_tx))
+                    .filter(
+                        excluded(watermarks::min_available_epoch)
+                            .gt(watermarks::min_available_epoch),
+                    )
                     .filter(
                         diesel::dsl::sql::<diesel::sql_types::BigInt>(
                             "(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP) * 1000)::bigint",
                         )
-                        .gt(watermarks::timestamp_ms),
+                        .gt(watermarks::min_bounds_updated_at_timestamp_ms),
                     )
                     .execute(conn)
             },
@@ -1707,7 +1695,7 @@ impl PgIndexerStore {
         )
         .tap_ok(|_| {
             let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted watermarks");
+            tracing::info!(elapsed, "Persisted watermarks lower bounds");
         })
         .tap_err(|e| {
             tracing::error!("Failed to persist watermarks with error: {}", e);
@@ -1732,6 +1720,43 @@ impl PgIndexerStore {
                 .map_err(Into::into)
                 .context("Failed reading current timestamp from PostgresDB")?;
                 Ok::<_, IndexerError>((stored, timestamp))
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    fn update_watermark_lowest_unpruned_key(
+        &self,
+        table: &PrunableTable,
+        lowest_unpruned_key: u64,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::update(watermarks::table.filter(watermarks::entity.eq(table.as_ref())))
+                    .set(watermarks::lowest_unpruned_key.eq(lowest_unpruned_key as i64))
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context("failed to update watermark lowest_unpruned_key")?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+    }
+
+    fn get_watermark_by_entity(
+        &self,
+        entity: &str,
+    ) -> Result<Option<StoredWatermark>, IndexerError> {
+        run_query_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                watermarks::table
+                    .filter(watermarks::entity.eq(entity))
+                    .first::<StoredWatermark>(conn)
+                    .optional()
+                    .map_err(Into::into)
+                    .context("failed reading watermark by entity from PostgresDB")
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )
@@ -1861,13 +1886,13 @@ impl IndexerStore for PgIndexerStore {
         let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
         let objects_snapshot = indexed_mutations
             .into_iter()
-            .map(StoredObjectSnapshot::from)
+            .map(StoredObjectSnapshot::try_from)
             .chain(
                 indexed_deletions
                     .into_iter()
-                    .map(StoredObjectSnapshot::from),
+                    .map(|o| Ok(StoredObjectSnapshot::from(o))),
             )
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         let len = objects_snapshot.len();
         let chunks = chunk!(objects_snapshot, self.config.parallel_objects_chunk_size);
         let futures = chunks
@@ -1907,7 +1932,7 @@ impl IndexerStore for PgIndexerStore {
         if object_changes.is_empty() {
             return Ok(());
         }
-        let objects = make_objects_history_to_commit(object_changes);
+        let objects = make_objects_history_to_commit(object_changes)?;
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_objects_history
@@ -2146,78 +2171,6 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn prune_epoch(&self, epoch: u64) -> Result<(), IndexerError> {
-        let (mut min_cp, max_cp) = match self.get_checkpoint_range_for_epoch(epoch)? {
-            (min_cp, Some(max_cp)) => Ok((min_cp, max_cp)),
-            _ => Err(IndexerError::PostgresRead(format!(
-                "Failed to get checkpoint range for epoch {epoch}"
-            ))),
-        }?;
-
-        // NOTE: for disaster recovery, min_cp is the min cp of the current epoch, which
-        // is likely partially pruned already. min_prunable_cp is the min cp to
-        // be pruned. By std::cmp::max, we will resume the pruning process from
-        // the next checkpoint, instead of the first cp of the current epoch.
-        let min_prunable_cp = self.get_min_prunable_checkpoint()?;
-        min_cp = std::cmp::max(min_cp, min_prunable_cp);
-        for cp in min_cp..=max_cp {
-            // NOTE: the order of pruning tables is crucial:
-            // 1. prune checkpoints table, checkpoints table is the source table of
-            //    available range,
-            // we prune it first to make sure that we always have full data for checkpoints
-            // within the available range;
-            // 2. then prune tx_* tables;
-            // 3. then prune pruner_cp_watermark table, which is the checkpoint pruning
-            //    watermark table and also tx seq source
-            // of a checkpoint to prune tx_* tables;
-            // 4. lastly we prune epochs table when all checkpoints of the epoch have been
-            //    pruned.
-            info!(
-                "Pruning checkpoint {} of epoch {} (min_prunable_cp: {})",
-                cp, epoch, min_prunable_cp
-            );
-            self.execute_in_blocking_worker(move |this| this.prune_checkpoints_table(cp))
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::error!("failed to prune checkpoint {cp}: {e}");
-                });
-
-            let (min_tx, max_tx) = self.get_transaction_range_for_checkpoint(cp)?;
-            self.execute_in_blocking_worker(move |this| {
-                this.prune_tx_indices_table(min_tx, max_tx)
-            })
-            .await
-            .unwrap_or_else(|e| {
-                tracing::error!("failed to prune transactions for cp {cp}: {e}");
-            });
-            info!(
-                "Pruned transactions for checkpoint {} from tx {} to tx {}",
-                cp, min_tx, max_tx
-            );
-            self.execute_in_blocking_worker(move |this| {
-                this.prune_event_indices_table(min_tx, max_tx)
-            })
-            .await
-            .unwrap_or_else(|e| {
-                tracing::error!("failed to prune events of transactions for cp {cp}: {e}");
-            });
-            info!(
-                "Pruned events of transactions for checkpoint {cp} from tx {min_tx} to tx {max_tx}"
-            );
-            self.metrics.last_pruned_transaction.set(max_tx as i64);
-
-            self.execute_in_blocking_worker(move |this| this.prune_cp_tx_table(cp))
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::error!("failed to prune pruner_cp_watermark table for cp {cp}: {e}");
-                });
-            info!("Pruned checkpoint {} of epoch {}", cp, epoch);
-            self.metrics.last_pruned_checkpoint.set(cp as i64);
-        }
-
-        Ok(())
-    }
-
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
@@ -2398,49 +2351,9 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn update_status_for_checkpoint_transactions(
-        &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_insertion_order
-            .start_timer();
-        let len = tx_order.len();
-
-        let chunks = chunk!(tx_order, self.config.parallel_chunk_size);
-        let futures = chunks.into_iter().map(|c| {
-            self.spawn_blocking_task(move |this| {
-                this.update_status_for_checkpoint_transactions_chunk(c)
-            })
-        });
-
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "failed to join update_status_for_checkpoint_transactions_chunk futures: {e}",
-                );
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to update all `tx_global_order` chunks: {e:?}",
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(
-            elapsed,
-            "Updated index status for {len} txs insertion orders"
-        );
-        Ok(())
-    }
-
     async fn persist_tx_global_order(
         &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError> {
         let guard = self
             .metrics
@@ -2483,11 +2396,79 @@ impl IndexerStore for PgIndexerStore {
         self.execute_in_blocking_worker(move |this| this.get_watermarks())
             .await
     }
+
+    async fn prune_table_by_checkpoint_range(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_checkpoint: u64,
+        max_checkpoint: u64,
+    ) -> Result<(), IndexerError> {
+        let table_clone = *table;
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_table_by_checkpoint_range(&table_clone, min_checkpoint, max_checkpoint)
+        })
+        .await
+    }
+
+    async fn prune_table_by_tx_range(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError> {
+        let table_clone = *table;
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_single_tx_or_event_table(&table_clone, min_tx, max_tx)
+        })
+        .await
+    }
+
+    async fn prune_table_by_global_seq_with_limit(
+        &self,
+        table: &crate::pruning::pruner::PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError> {
+        use crate::pruning::pruner::PrunableTable;
+
+        if !matches!(table, PrunableTable::OptimisticTransactions) {
+            return Err(IndexerError::InvalidArgument(format!(
+                "table {} does not support pruning by global order with limit",
+                table.as_ref()
+            )));
+        }
+
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_optimistic_tx_by_global_seq(start, end, limit)
+        })
+        .await
+    }
+
+    async fn update_watermark_lowest_unpruned_key(
+        &self,
+        table: &PrunableTable,
+        lowest_unpruned_key: u64,
+    ) -> Result<(), IndexerError> {
+        let table = *table;
+        self.execute_in_blocking_worker(move |this| {
+            this.update_watermark_lowest_unpruned_key(&table, lowest_unpruned_key)
+        })
+        .await
+    }
+
+    async fn get_watermark_by_entity(
+        &self,
+        entity: String,
+    ) -> Result<Option<StoredWatermark>, IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.get_watermark_by_entity(&entity))
+            .await
+    }
 }
 
 fn make_objects_history_to_commit(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
-) -> Vec<StoredHistoryObject> {
+) -> Result<Vec<StoredHistoryObject>, IndexerError> {
     let deleted_objects: Vec<StoredHistoryObject> = tx_object_changes
         .clone()
         .into_iter()
@@ -2497,9 +2478,9 @@ fn make_objects_history_to_commit(
     let mutated_objects: Vec<StoredHistoryObject> = tx_object_changes
         .into_iter()
         .flat_map(|changes| changes.changed_objects)
-        .map(|o| o.into())
-        .collect();
-    deleted_objects.into_iter().chain(mutated_objects).collect()
+        .map(StoredHistoryObject::try_from)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(deleted_objects.into_iter().chain(mutated_objects).collect())
 }
 
 /// Partitions object changes into deletions and mutations.

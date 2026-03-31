@@ -1,10 +1,6 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export interface AppsBackendClientOptions {
-    url: string;
-}
-
 export interface FeatureDefinition<T = unknown> {
     defaultValue?: T;
 }

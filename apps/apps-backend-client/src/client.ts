@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
-    AppsBackendClientOptions,
     CoinPriceResponse,
     FeatureDefinition,
     FeaturesResponse,
@@ -11,14 +10,19 @@ import type {
 } from './types';
 
 export class AppsBackendClient {
-    private url: string;
     private features: Record<string, FeatureDefinition> = {};
     private attributes: Record<string, unknown> = {};
     private listeners: Set<() => void> = new Set();
     private snapshot: Record<string, FeatureDefinition> = this.features;
 
-    constructor(options: AppsBackendClientOptions) {
-        this.url = options.url;
+    constructor(url?: string) {
+        if (url) {
+            this.attributes.url = url;
+        }
+    }
+
+    private get url(): string {
+        return (this.attributes.url as string) ?? '';
     }
 
     async init(): Promise<void> {
@@ -52,7 +56,7 @@ export class AppsBackendClient {
     }
 
     setAttributes(attrs: Record<string, unknown>): void {
-        this.attributes = attrs;
+        this.attributes = { ...this.attributes, ...attrs };
     }
 
     getAttributes(): Record<string, unknown> {

@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_type: ${{ steps.resolve.outputs.deploy_type }}
+      environment: ${{ steps.resolve.outputs.environment }}
     steps:
       - name: Resolve deploy type
         id: resolve
@@ -29,12 +30,19 @@ jobs:
             DEPLOY_TYPE="${{ inputs.deploy_type }}"
           fi
 
+          if [ "$DEPLOY_TYPE" = "staging" ]; then
+            ENVIRONMENT="pre-production - apps-backend"
+          else
+            ENVIRONMENT="production - apps-backend"
+          fi
+
           echo "deploy_type=$DEPLOY_TYPE" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
   build-and-deploy:
     needs: resolve-deploy-type
     runs-on: ubuntu-latest
-    environment: apps-backend
+    environment: ${{ needs.resolve-deploy-type.outputs.environment }}
 
     permissions:
       contents: read

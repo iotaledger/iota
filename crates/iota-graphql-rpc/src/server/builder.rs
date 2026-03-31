@@ -432,7 +432,7 @@ impl ServerBuilder {
             config.connection.clone(),
             config.service.clone(),
             metrics.clone(),
-            cancellation_token,
+            cancellation_token.clone(),
             *version,
         );
         let mut builder = ServerBuilder::new(state);
@@ -446,6 +446,8 @@ impl ServerBuilder {
             // utilisation (in the worst case we will use 2x the request timeout time in DB wall
             // time).
             config.service.limits.request_timeout_ms.into(),
+            indexer_metrics.clone(),
+            cancellation_token,
         )
         .map_err(|e| Error::ServerInit(format!("Failed to create pg connection pool: {e}")))?;
 
@@ -815,11 +817,14 @@ pub mod tests {
             connection_config.db_url.clone(),
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
+            IndexerMetrics::new(&prometheus::Registry::new()),
+            CancellationToken::new(),
         )
         .expect("failed to create pg connection pool");
 
         let version = Version::for_testing();
         let metrics = metrics();
+
         let db = Db::new(
             reader.clone(),
             service_config.limits.clone(),
@@ -918,7 +923,10 @@ pub mod tests {
         let store = &cluster.indexer_store;
         let fn_grpc_url = &cluster.validator_fullnode_handle.grpc_url();
         let indexer_metrics = store.get_metrics();
-        let indexer_reader = iota_indexer::read::IndexerReader::new(store.blocking_cp());
+
+        // Use reader without watermark cache, test doesn't check pruning behaviour
+        let indexer_reader =
+            iota_indexer::read::IndexerReader::new_without_watermark_cache(store.blocking_cp());
         let fullnode_gpc_client = GrpcClient::connect(fn_grpc_url).await.unwrap();
 
         let optimistic_tx_executor =

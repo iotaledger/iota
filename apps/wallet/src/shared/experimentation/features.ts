@@ -7,9 +7,7 @@ import { getAppsBackend } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 
-export const appsBackendClient = new AppsBackendClient({
-    url: getAppsBackend(),
-});
+export const appsBackendClient = new AppsBackendClient(getAppsBackend());
 
 export function setAttributes(network?: { network: Network; customRpc?: string | null }) {
     const activeNetwork = network
