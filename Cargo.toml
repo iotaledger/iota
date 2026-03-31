@@ -274,7 +274,6 @@ dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
 derive_more = { version = "1.0", default-features = false }
 diesel = "2.3.5"
-diffy = { version = "0.3" }
 dirs = "5.0"
 downcast = "0.11.0"
 duration-str = "0.5.0"
@@ -309,7 +308,6 @@ itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
 lru = "0.12"
-mime = "0.3"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
 more-asserts = "0.3.1"
