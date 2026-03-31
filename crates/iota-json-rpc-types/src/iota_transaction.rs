@@ -2878,7 +2878,9 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
             TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
             TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
-            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }

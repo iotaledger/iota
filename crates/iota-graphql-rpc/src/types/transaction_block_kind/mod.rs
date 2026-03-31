@@ -67,7 +67,9 @@ impl TransactionBlockKind {
                 native: rsu,
                 checkpoint_viewed_at,
             }),
-            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }
