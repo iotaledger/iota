@@ -169,7 +169,7 @@ mod test {
 
         register_fail_point_if("correlated-crash-after-consensus-commit-boundary", || true);
         // TODO: enable this - right now it causes rocksdb errors when re-opening DBs
-        // register_fail_point_if("correlated-crash-process-certificate", || true);
+        // register_fail_point_if("correlated-crash-process-transaction", || true);
 
         let test_cluster = build_test_cluster(4, 10000, 1).await;
         test_simulated_load(test_cluster, 60).await;

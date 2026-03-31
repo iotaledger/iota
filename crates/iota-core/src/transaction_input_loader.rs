@@ -19,7 +19,7 @@ use once_cell::unsync::OnceCell;
 use tracing::instrument;
 
 use crate::{
-    authority::authority_per_epoch_store::{AuthorityPerEpochStore, CertLockGuard},
+    authority::authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
     execution_cache::ObjectCacheRead,
 };
 
@@ -144,7 +144,7 @@ impl TransactionInputLoader {
         // Important to hold the _tx_lock, otherwise it would be possible for a concurrent
         // execution of the same tx to enter this point after the first execution has
         // finished and the shared locks have been deleted.
-        _tx_lock: &CertLockGuard,
+        _tx_lock: &TxLockGuard,
         input_object_kinds: &[InputObjectKind],
         epoch_id: EpochId,
     ) -> IotaResult<InputObjects> {
