@@ -32,7 +32,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionKind,
+    transaction::{TransactionKind, TransactionKindExt},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;

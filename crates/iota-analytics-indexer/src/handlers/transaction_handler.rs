@@ -10,7 +10,7 @@ use iota_data_ingestion_core::Worker;
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{Command, TransactionDataAPI, TransactionKind},
+    transaction::{Command, TransactionDataAPI, TransactionKind, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;

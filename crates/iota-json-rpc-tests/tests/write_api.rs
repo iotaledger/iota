@@ -10,7 +10,7 @@ use iota_macros::sim_test;
 use iota_simulator::fastcrypto::encoding::Base64;
 use iota_types::{
     object::Owner, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionKind,
+    transaction::{TransactionKind, TransactionKindExt},
 };
 use test_cluster::TestClusterBuilder;
 

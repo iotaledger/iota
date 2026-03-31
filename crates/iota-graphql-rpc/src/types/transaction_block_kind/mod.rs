@@ -59,7 +59,7 @@ impl TransactionBlockKind {
                     checkpoint_viewed_at,
                 })
             }
-            K::EndOfEpochTransaction(eoe) => T::EndOfEpoch(EndOfEpochTransaction {
+            K::EndOfEpoch(eoe) => T::EndOfEpoch(EndOfEpochTransaction {
                 native: eoe,
                 checkpoint_viewed_at,
             }),
@@ -67,6 +67,7 @@ impl TransactionBlockKind {
                 native: rsu,
                 checkpoint_viewed_at,
             }),
+            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
         }
     }
 }

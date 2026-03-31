@@ -287,7 +287,7 @@ async fn test_zklogin_conflicting_jwks() {
                     .get_transaction_block(&digest)
                     .unwrap();
                 match &tx.data().intent_message().value.kind() {
-                    TransactionKind::EndOfEpochTransaction(_) => (),
+                    TransactionKind::EndOfEpoch(_) => (),
                     TransactionKind::AuthenticatorStateUpdateV1(update) => {
                         let jwks = &mut *jwks_clone.lock().unwrap();
                         for jwk in &update.new_active_jwks {

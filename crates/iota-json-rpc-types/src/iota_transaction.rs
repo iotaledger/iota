@@ -535,7 +535,7 @@ impl IotaTransactionBlockKind {
                     random_bytes: update.random_bytes,
                 })
             }
-            TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
+            TransactionKind::EndOfEpoch(end_of_epoch_tx) => {
                 Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
                         .into_iter()
@@ -569,6 +569,7 @@ impl IotaTransactionBlockKind {
                         .collect(),
                 })
             }
+            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
         })
     }
 
@@ -623,7 +624,7 @@ impl IotaTransactionBlockKind {
                     random_bytes: update.random_bytes,
                 })
             }
-            TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
+            TransactionKind::EndOfEpoch(end_of_epoch_tx) => {
                 Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
                         .into_iter()
@@ -657,6 +658,7 @@ impl IotaTransactionBlockKind {
                         .collect(),
                 })
             }
+            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
         })
     }
 
@@ -2874,8 +2876,9 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
             TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
-            TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
+            TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
             TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
+            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
         }
     }
 }

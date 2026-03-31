@@ -57,6 +57,7 @@ mod checked {
             ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
             EndOfEpochTransactionKind, GenesisTransaction, InputObjects, ProgrammableTransaction,
             RandomnessStateUpdate, SharedObjectRef, SystemPackage, TransactionKind,
+            TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;
@@ -1176,7 +1177,7 @@ mod checked {
                     trace_builder_opt,
                 )
             }
-            TransactionKind::EndOfEpochTransaction(txns) => {
+            TransactionKind::EndOfEpoch(txns) => {
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
                 for (i, tx) in txns.into_iter().enumerate() {
@@ -1287,6 +1288,7 @@ mod checked {
                 )?;
                 Ok(Mode::empty_results())
             }
+            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
         }?;
         temporary_store.check_execution_results_consistency()?;
         Ok(result)

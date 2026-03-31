@@ -548,7 +548,7 @@ impl TestCluster {
                             .get_transaction_block(&digest)
                             .unwrap();
                         match &tx.data().intent_message().value.kind() {
-                            TransactionKind::EndOfEpochTransaction(_) => (),
+                            TransactionKind::EndOfEpoch(_) => (),
                             TransactionKind::AuthenticatorStateUpdateV1(_) => break,
                             _ => panic!("received unexpected transaction kind: {tx:?}"),
                         }

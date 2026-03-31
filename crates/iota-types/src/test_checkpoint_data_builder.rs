@@ -481,7 +481,7 @@ impl TestCheckpointDataBuilder {
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
-            TransactionKind::EndOfEpochTransaction(vec![tx_kind]),
+            TransactionKind::EndOfEpoch(vec![tx_kind]),
             IotaAddress::ZERO,
             random_object_ref(),
             1,
@@ -602,7 +602,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, TransactionDataAPI},
+        transaction::{Command, TransactionDataAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {

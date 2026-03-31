@@ -28,6 +28,7 @@ mod checked {
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
             ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKind,
+            TransactionKindExt,
         },
     };
     use tracing::{error, instrument};

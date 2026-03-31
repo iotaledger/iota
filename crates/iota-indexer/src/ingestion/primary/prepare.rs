@@ -23,7 +23,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::{Object, Owner},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{TransactionData, TransactionDataAPI, TransactionKindExt},
 };
 use itertools::Itertools;
 use tracing::{info, warn};

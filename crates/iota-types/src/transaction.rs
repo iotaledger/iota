@@ -21,7 +21,7 @@ pub use iota_sdk_types::{
     GenesisObject, GenesisTransaction, MakeMoveVector, MergeCoins,
     MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
     SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
-    TransferObjects, Upgrade,
+    TransactionKind, TransferObjects, Upgrade,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -30,7 +30,6 @@ use iota_sdk_types::{
 use itertools::Either;
 use nonempty::{NonEmpty, nonempty};
 use serde::{Deserialize, Serialize};
-use strum::IntoStaticStr;
 use tap::Pipe;
 use tracing::{instrument, trace};
 
@@ -142,27 +141,6 @@ pub fn type_tag_validity_check(
         }
     }
     Ok(())
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, IntoStaticStr)]
-pub enum TransactionKind {
-    /// A transaction that allows the interleaving of native commands and Move
-    /// calls
-    ProgrammableTransaction(ProgrammableTransaction),
-    Genesis(GenesisTransaction),
-    ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
-    AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1),
-
-    /// EndOfEpochTransaction contains a list of transactions
-    /// that are allowed to run at the end of the epoch.
-    EndOfEpochTransaction(Vec<EndOfEpochTransactionKind>),
-
-    RandomnessStateUpdate(RandomnessStateUpdate),
-    // .. more transaction types go here
-    // TODO: When introducing `ConsensusCommitPrologueV2`, please add
-    // and use a new variant for `ConsensusDeterminedVersionAssignments`.
-    // See https://github.com/iotaledger/iota/issues/7692 and
-    // https://github.com/iotaledger/iota/pull/7697 for detail.
 }
 
 /// Extension trait for [`EndOfEpochTransactionKind`] that adds methods
@@ -752,39 +730,81 @@ fn left_union_shared_input_objects(
     Ok(())
 }
 
-impl TransactionKind {
-    /// present to make migrations to programmable transactions easier.
-    /// Will be removed
-    pub fn programmable(pt: ProgrammableTransaction) -> Self {
+pub trait TransactionKindExt {
+    /// Create a `TransactionKind::ProgrammableTransaction` from a
+    /// `ProgrammableTransaction`. Present to make migrations to programmable
+    /// transactions easier. Will be removed.
+    fn programmable(pt: ProgrammableTransaction) -> TransactionKind;
+    /// Returns `true` if this is a system transaction.
+    fn is_system_tx(&self) -> bool;
+    /// Returns `true` if this is an end-of-epoch transaction.
+    fn is_end_of_epoch_tx(&self) -> bool;
+    /// Returns `true` if this is a programmable transaction.
+    fn is_programmable_transaction(&self) -> bool;
+    /// If this is an advance epoch transaction, returns (total gas charged,
+    /// total gas rebated). TODO: We should use `GasCostSummary` directly in
+    /// `ChangeEpoch` struct, and return that directly.
+    fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)>;
+    /// Returns `true` if the transaction contains at least one shared object.
+    fn contains_shared_object(&self) -> bool;
+    /// Returns an iterator of all shared input objects used by this
+    /// transaction.
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
+    /// Returns the move calls made by this transaction as a list of
+    /// (package, module, function) tuples.
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
+    /// Returns the objects received by this transaction.
+    fn receiving_objects(&self) -> Vec<ObjectRef>;
+    /// Return the metadata of each of the input objects for the transaction.
+    /// For a Move object, we attach the object reference;
+    /// for a Move package, we provide the object id only since they never
+    /// change on chain. TODO: use an iterator over references here instead
+    /// of a `Vec` to avoid allocations.
+    fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
+    /// Validates the transaction against the given protocol config.
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
+    /// Returns the number of commands, or 0 if it is a system transaction.
+    fn num_commands(&self) -> usize;
+    /// Returns an iterator over the commands in this transaction.
+    fn iter_commands(&self) -> impl Iterator<Item = &Command>;
+    /// Returns the number of transactions, or 1 if it is a system
+    /// transaction.
+    fn tx_count(&self) -> usize;
+    /// Returns a human-readable name for this transaction kind.
+    fn name(&self) -> &'static str;
+}
+
+impl TransactionKindExt for TransactionKind {
+    fn programmable(pt: ProgrammableTransaction) -> Self {
         TransactionKind::ProgrammableTransaction(pt)
     }
 
-    pub fn is_system_tx(&self) -> bool {
+    fn is_system_tx(&self) -> bool {
         // Keep this as an exhaustive match so that we can't forget to update it.
         match self {
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
-            | TransactionKind::EndOfEpochTransaction(_) => true,
+            | TransactionKind::EndOfEpoch(_) => true,
             TransactionKind::ProgrammableTransaction(_) => false,
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    pub fn is_end_of_epoch_tx(&self) -> bool {
-        matches!(self, TransactionKind::EndOfEpochTransaction(_))
+    fn is_end_of_epoch_tx(&self) -> bool {
+        matches!(self, TransactionKind::EndOfEpoch(_))
     }
 
-    pub fn is_programmable_transaction(&self) -> bool {
+    fn is_programmable_transaction(&self) -> bool {
         matches!(self, TransactionKind::ProgrammableTransaction(_))
     }
 
-    /// If this is advance epoch transaction, returns (total gas charged, total
-    /// gas rebated). TODO: We should use GasCostSummary directly in
-    /// ChangeEpoch struct, and return that directly.
-    pub fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
+    fn get_advance_epoch_tx_gas_summary(&self) -> Option<(u64, u64)> {
         match self {
-            Self::EndOfEpochTransaction(txns) => {
+            Self::EndOfEpoch(txns) => {
                 match txns.last().expect("at least one end-of-epoch txn required") {
                     EndOfEpochTransactionKind::ChangeEpoch(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
@@ -805,13 +825,11 @@ impl TransactionKind {
         }
     }
 
-    pub fn contains_shared_object(&self) -> bool {
+    fn contains_shared_object(&self) -> bool {
         self.shared_input_objects().next().is_some()
     }
 
-    /// Returns an iterator of all shared input objects used by this
-    /// transaction.
-    pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
+    fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_ {
         match &self {
             Self::ConsensusCommitPrologueV1(_) => {
                 Either::Left(Either::Left(iter::once(SharedObjectRef {
@@ -834,7 +852,7 @@ impl TransactionKind {
                     mutable: true,
                 })))
             }
-            Self::EndOfEpochTransaction(txns) => Either::Left(Either::Right(
+            Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
             Self::ProgrammableTransaction(pt) => {
@@ -851,23 +869,21 @@ impl TransactionKind {
         }
     }
 
-    pub fn receiving_objects(&self) -> Vec<ObjectRef> {
+    fn receiving_objects(&self) -> Vec<ObjectRef> {
         match &self {
             TransactionKind::Genesis(_)
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
-            | TransactionKind::EndOfEpochTransaction(_) => vec![],
+            | TransactionKind::EndOfEpoch(_) => vec![],
             TransactionKind::ProgrammableTransaction(pt) => pt.receiving_objects(),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 
-    /// Return the metadata of each of the input objects for the transaction.
-    /// For a Move object, we attach the object reference;
-    /// for a Move package, we provide the object id only since they never
-    /// change on chain. TODO: use an iterator over references here instead
-    /// of a Vec to avoid allocations.
-    pub fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
+    fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
         let input_objects = match &self {
             Self::Genesis(_) => {
                 vec![]
@@ -893,7 +909,7 @@ impl TransactionKind {
                     mutable: true,
                 }]
             }
-            Self::EndOfEpochTransaction(txns) => {
+            Self::EndOfEpoch(txns) => {
                 // Dedup since transactions may have an overlap in input objects.
                 // Note: it's critical to ensure the order of inputs are deterministic.
                 let before_dedup: Vec<_> =
@@ -908,6 +924,9 @@ impl TransactionKind {
                 after_dedup
             }
             Self::ProgrammableTransaction(p) => return p.input_objects(),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         };
         // Ensure that there are no duplicate inputs. This cannot be removed because:
         // In [`AuthorityState::check_locks`], we check that there are no duplicate
@@ -923,13 +942,13 @@ impl TransactionKind {
         Ok(input_objects)
     }
 
-    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+    fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
             TransactionKind::ProgrammableTransaction(p) => p.validity_check(config)?,
             // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
             TransactionKind::Genesis(_) | TransactionKind::ConsensusCommitPrologueV1(_) => (),
-            TransactionKind::EndOfEpochTransaction(txns) => {
+            TransactionKind::EndOfEpoch(txns) => {
                 for tx in txns {
                     tx.validity_check(config)?;
                 }
@@ -943,77 +962,46 @@ impl TransactionKind {
                 }
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         };
         Ok(())
     }
 
-    /// number of commands, or 0 if it is a system transaction
-    pub fn num_commands(&self) -> usize {
+    fn num_commands(&self) -> usize {
         match self {
             TransactionKind::ProgrammableTransaction(pt) => pt.commands.len(),
             _ => 0,
         }
     }
 
-    pub fn iter_commands(&self) -> impl Iterator<Item = &Command> {
+    fn iter_commands(&self) -> impl Iterator<Item = &Command> {
         match self {
             TransactionKind::ProgrammableTransaction(pt) => pt.commands.iter(),
             _ => [].iter(),
         }
     }
 
-    /// number of transactions, or 1 if it is a system transaction
-    pub fn tx_count(&self) -> usize {
+    fn tx_count(&self) -> usize {
         match self {
             TransactionKind::ProgrammableTransaction(pt) => pt.commands.len(),
             _ => 1,
         }
     }
 
-    pub fn name(&self) -> &'static str {
+    fn name(&self) -> &'static str {
         match self {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
-            Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
+            Self::EndOfEpoch(_) => "EndOfEpochTransaction",
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
-    }
-}
-
-impl Display for TransactionKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut writer = String::new();
-        match &self {
-            Self::Genesis(_) => {
-                writeln!(writer, "Transaction Kind : Genesis")?;
-            }
-            Self::ConsensusCommitPrologueV1(p) => {
-                writeln!(writer, "Transaction Kind : Consensus Commit Prologue V1")?;
-                writeln!(writer, "Timestamp : {}", p.commit_timestamp_ms)?;
-                writeln!(writer, "Consensus Digest: {}", p.consensus_commit_digest)?;
-                writeln!(
-                    writer,
-                    "Consensus determined version assignment: {:?}",
-                    p.consensus_determined_version_assignments
-                )?;
-            }
-            Self::ProgrammableTransaction(p) => {
-                writeln!(writer, "Transaction Kind : Programmable")?;
-                p.fmt_display(&mut writer)?;
-            }
-            Self::AuthenticatorStateUpdateV1(_) => {
-                writeln!(writer, "Transaction Kind : Authenticator State Update")?;
-            }
-            Self::RandomnessStateUpdate(_) => {
-                writeln!(writer, "Transaction Kind : Randomness State Update")?;
-            }
-            Self::EndOfEpochTransaction(_) => {
-                writeln!(writer, "Transaction Kind : End of Epoch Transaction")?;
-            }
-        }
-        write!(f, "{writer}")
     }
 }
 
@@ -1641,7 +1629,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     fn is_end_of_epoch_tx(&self) -> bool {
-        matches!(self.kind, TransactionKind::EndOfEpochTransaction(_))
+        matches!(self.kind, TransactionKind::EndOfEpoch(_))
     }
 
     fn is_system_tx(&self) -> bool {
@@ -2367,7 +2355,7 @@ impl VerifiedTransaction {
     }
 
     pub fn new_end_of_epoch_transaction(txns: Vec<EndOfEpochTransactionKind>) -> Self {
-        TransactionKind::EndOfEpochTransaction(txns).pipe(Self::new_system_transaction)
+        TransactionKind::EndOfEpoch(txns).pipe(Self::new_system_transaction)
     }
 
     fn new_system_transaction(system_transaction: TransactionKind) -> Self {

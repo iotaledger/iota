@@ -9,7 +9,7 @@ use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::Identifier;
 use iota_types::{
     base_types::ObjectID,
-    transaction::{CallArg, ProgrammableTransaction, TransactionKind},
+    transaction::{CallArg, ProgrammableTransaction, TransactionKind, TransactionKindExt},
 };
 use jsonrpsee::{core::ClientError, types::ErrorCode};
 use test_cluster::TestClusterBuilder;

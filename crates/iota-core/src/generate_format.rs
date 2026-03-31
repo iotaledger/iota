@@ -585,9 +585,7 @@ fn get_registry() -> Result<Registry> {
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
-            TransactionKind::EndOfEpochTransaction(vec![
-                EndOfEpochTransactionKind::AuthenticatorStateCreate,
-            ]),
+            TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::AuthenticatorStateCreate]),
             IotaAddress::ZERO,
             vec![iota_types::base_types::ObjectRef::new(
                 ObjectID::ZERO,

@@ -47,12 +47,13 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1(_) => {
                 TransactionKind::AuthenticatorStateUpdateV1
             }
-            iota_types::transaction::TransactionKind::EndOfEpochTransaction(_) => {
+            iota_types::transaction::TransactionKind::EndOfEpoch(_) => {
                 TransactionKind::EndOfEpochTransaction
             }
             iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
+            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
         }
     }
 }

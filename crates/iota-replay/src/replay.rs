@@ -39,7 +39,7 @@ use iota_types::{
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKind::{self, ProgrammableTransaction},
+        TransactionKind::{self, ProgrammableTransaction}, TransactionKindExt,
         VerifiedTransaction,
     },
 };
