@@ -231,7 +231,8 @@ pub fn native_replace(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     debug_assert!(ty_args.len() == 2);
-    debug_assert!(args.len() == 4);
+    let args_len = args.len();
+    debug_assert!(args_len == 3 || args_len == 4);
 
     let auth_context_replace_cost_params = get_extension!(context, NativesCostTable)?
         .auth_context_replace_cost_params
@@ -260,7 +261,11 @@ pub fn native_replace(
             * args_size.into()
     );
 
-    let tx_data_bytes_value = pop_arg!(args, Vec<u8>);
+    let tx_data_bytes_opt: Option<Vec<u8>> = if args_len == 4 {
+        Some(pop_arg!(args, Vec<u8>))
+    } else {
+        None
+    };
 
     let command_type = ty_args.pop().unwrap();
     let command_move_layout = resolve_move_layout(context, &command_type)?;
@@ -280,7 +285,7 @@ pub fn native_replace(
         input_move_layout,
         tx_commands_value,
         command_move_layout,
-        tx_data_bytes_value,
+        tx_data_bytes_opt,
     )?;
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))

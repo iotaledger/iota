@@ -194,7 +194,7 @@ impl AuthenticationContext {
         input_move_layout: MoveTypeLayout,
         tx_commands_value: Vec<Value>,
         command_move_layout: MoveTypeLayout,
-        tx_data_bytes_value: Vec<u8>,
+        tx_data_bytes_opt: Option<Vec<u8>>,
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
@@ -219,12 +219,12 @@ impl AuthenticationContext {
                     .with_message(err.to_string())
             })?;
 
-        self.auth_context.borrow_mut().replace(
-            auth_digest,
-            tx_inputs,
-            tx_commands,
-            tx_data_bytes_value,
-        );
+        let tx_data_bytes =
+            tx_data_bytes_opt.unwrap_or_else(|| self.auth_context.borrow().tx_data_bytes().clone());
+
+        self.auth_context
+            .borrow_mut()
+            .replace(auth_digest, tx_inputs, tx_commands, tx_data_bytes);
 
         // Drop cached values to ensure they are recreated with the updated AuthContext
         // data
