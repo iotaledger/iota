@@ -6,7 +6,10 @@
 use iota_types::{
     digests::TransactionDigest,
     error::IotaError,
-    messages_grpc::{ExecutedData, SubmitTransactionResult, WaitForEffectResponse},
+    messages_grpc::{
+        ExecutedData, SubmitTransactionResult, SubmitTransactionsRequest, WaitForEffectResponse,
+    },
+    transaction::Transaction,
 };
 
 use super::{bcs_deserialize, bcs_serialize};
@@ -174,6 +177,49 @@ impl TryFrom<StatusDetail> for WaitForEffectResponse {
             }
             Kind::Expired(e) => Ok(WaitForEffectResponse::Expired { epoch: e.epoch }),
         }
+    }
+}
+
+// --- SubmitTxRequest ↔ SubmitTransactionsRequest ---
+
+impl TryFrom<api::SubmitTxRequest> for SubmitTransactionsRequest {
+    type Error = IotaError;
+
+    fn try_from(value: api::SubmitTxRequest) -> Result<Self, Self::Error> {
+        let transactions = value
+            .tx
+            .iter()
+            .map(|t| bcs_deserialize::<Transaction>(t, "SubmitTxRequest.tx"))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(SubmitTransactionsRequest { transactions })
+    }
+}
+
+impl TryFrom<SubmitTransactionsRequest> for api::SubmitTxRequest {
+    type Error = IotaError;
+
+    fn try_from(value: SubmitTransactionsRequest) -> Result<Self, Self::Error> {
+        let tx = value
+            .transactions
+            .iter()
+            .map(|t| bcs_serialize(t, "SubmitTxRequest.tx"))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(api::SubmitTxRequest { tx })
+    }
+}
+
+// --- TxStatus ← (TransactionDigest, SubmitTransactionResult) ---
+
+impl TryFrom<(TransactionDigest, SubmitTransactionResult)> for api::TxStatus {
+    type Error = IotaError;
+
+    fn try_from(
+        (digest, result): (TransactionDigest, SubmitTransactionResult),
+    ) -> Result<Self, Self::Error> {
+        Ok(api::TxStatus {
+            tx_digest: Some(digest.try_into()?),
+            status: Some(result.try_into()?),
+        })
     }
 }
 

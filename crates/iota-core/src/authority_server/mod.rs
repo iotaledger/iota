@@ -15,7 +15,6 @@ use std::{
     sync::Arc,
     time::SystemTime,
 };
-use tokio_stream::StreamExt;
 
 use iota_network::{
     tonic,
@@ -28,6 +27,7 @@ use iota_types::{
 pub use metrics::ValidatorServiceMetrics;
 #[cfg(test)]
 pub use test_server::{AuthorityServer, AuthorityServerHandle};
+use tokio_stream::StreamExt;
 use tonic::transport::server::TcpConnectInfo;
 use tracing::error;
 
@@ -40,9 +40,8 @@ use crate::{
 };
 type WrappedServiceResponse<T> = Result<(tonic::Response<T>, Weight), tonic::Status>;
 
-type StreamResponse<T> = std::pin::Pin<
-    Box<dyn tokio_stream::Stream<Item = Result<T, tonic::Status>> + Send>,
->;
+type StreamResponse<T> =
+    std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<T, tonic::Status>> + Send>>;
 
 /// The validator service.
 #[derive(Clone)]
@@ -98,7 +97,7 @@ impl ValidatorService {
         &self.state
     }
 
-    pub fn get_client_ip_addr<T>(
+    pub(crate) fn get_client_ip_addr<T>(
         &self,
         request: &tonic::Request<T>,
         source: &ClientIdSource,
@@ -109,9 +108,7 @@ impl ValidatorService {
 
                 // We will hit this case if the IO type used does not
                 // implement Connected or when using a unix domain socket.
-                // TODO: once we have confirmed that no legitimate traffic
-                // is hitting this case, we should reject such requests that
-                // hit this case.
+                // TODO(#11095): reject requests without a peer address.
                 if let Some(socket_addr) = socket_addr {
                     Some(socket_addr.ip())
                 } else {
@@ -167,9 +164,7 @@ impl ValidatorService {
                             })
                         }
                         Err(e) => {
-                            // TODO: once we have confirmed that no legitimate traffic
-                            // is hitting this case, we should reject such requests that
-                            // hit this case.
+                            // TODO(#11095): reject requests with invalid x-forwarded-for.
                             self.metrics.forwarded_header_invalid.inc();
                             error!("Invalid UTF-8 in x-forwarded-for header: {:?}", e);
                             None
@@ -191,7 +186,7 @@ impl ValidatorService {
         }
     }
 
-    async fn handle_traffic_req(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
+    async fn check_traffic(&self, client: Option<IpAddr>) -> Result<(), tonic::Status> {
         if let Some(traffic_controller) = &self.traffic_controller {
             if !traffic_controller.check(&client, &None).await {
                 // Entity in blocklist
@@ -204,45 +199,24 @@ impl ValidatorService {
         }
     }
 
-    fn handle_traffic_resp<T>(
+    fn extract_client_ip_and_request<DomainReq, ProtoReq>(
         &self,
-        client: Option<IpAddr>,
-        wrapped_response: WrappedServiceResponse<T>,
-    ) -> Result<tonic::Response<T>, tonic::Status> {
-        let (error, spam_weight, unwrapped_response) = match wrapped_response {
-            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
-            Err(status) => (
-                Some(IotaError::from(status.clone())),
-                Weight::zero(),
-                Err(status),
-            ),
-        };
-
-        if let Some(traffic_controller) = self.traffic_controller.clone() {
-            traffic_controller.tally(TrafficTally {
-                direct: client,
-                through_fullnode: None,
-                error_info: error.map(|e| {
-                    let error_type = String::from(e.as_ref());
-                    let error_weight = normalize(e);
-                    (error_weight, error_type)
-                }),
-                spam_weight,
-                timestamp: SystemTime::now(),
-            })
-        }
-        unwrapped_response
-    }
-
-    fn extract_client_ip_and_request<T, MappedT>(&self, request: tonic::Request<MappedT>) -> (T, Option<IpAddr>)
-    where MappedT: Into<T>
+        request: tonic::Request<ProtoReq>,
+    ) -> Result<(DomainReq, Option<IpAddr>), tonic::Status>
+    where
+        ProtoReq: TryInto<DomainReq>,
+        ProtoReq::Error: std::fmt::Display,
     {
-        if self.client_id_source.is_none() {
-            (request.into_inner().into(), None)
-        } else {
-            let ip = self.get_client_ip_addr(&request, self.client_id_source.as_ref().unwrap());
-            (request.into_inner().into(), ip)
-        }
+        let ip = self
+            .client_id_source
+            .as_ref()
+            .and_then(|source| self.get_client_ip_addr(&request, source));
+        // TODO(#11095): move deserialization off the critical path (spawn_blocking).
+        let domain_req = request
+            .into_inner()
+            .try_into()
+            .map_err(|e| tonic::Status::internal(format!("request conversion failed: {e}")))?;
+        Ok((domain_req, ip))
     }
 
     fn tally_traffic<T>(
@@ -250,7 +224,11 @@ impl ValidatorService {
         client: Option<IpAddr>,
         response: Result<(T, Weight), tonic::Status>,
     ) -> Result<T, tonic::Status> {
-        let (error, spam_weight, unwrapped_response): (Option<IotaError>, Weight, Result<T, tonic::Status>) = match response {
+        let (error, spam_weight, unwrapped_response): (
+            Option<IotaError>,
+            Weight,
+            Result<T, tonic::Status>,
+        ) = match response {
             Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
             Err(status) => (
                 Some(IotaError::from(status.clone())),
@@ -282,10 +260,11 @@ impl ValidatorService {
         request: tonic::Request<ProtoReq>,
     ) -> Result<(DomainReq, Option<IpAddr>), tonic::Status>
     where
-        ProtoReq: Into<DomainReq>,
+        ProtoReq: TryInto<DomainReq>,
+        ProtoReq::Error: std::fmt::Display,
     {
-        let (domain_req, ip) = self.extract_client_ip_and_request(request);
-        self.handle_traffic_req(ip).await?;
+        let (domain_req, ip) = self.extract_client_ip_and_request(request)?;
+        self.check_traffic(ip).await?;
         Ok((domain_req, ip))
     }
 
@@ -309,6 +288,7 @@ impl ValidatorService {
 
     /// Tallies traffic and maps each domain stream item into its proto
     /// equivalent.
+    // TODO(#11080): tally traffic per-item, not just once at stream creation.
     fn post_handle_stream<S, DomainItem, ProtoItem>(
         &self,
         ip: Option<IpAddr>,
@@ -344,7 +324,7 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
     request
 }
 
-// TODO: refine error matching here
+// TODO(#11095): refine error-to-weight mapping.
 fn normalize(err: IotaError) -> Weight {
     match err {
         IotaError::UserInput {
@@ -373,10 +353,10 @@ macro_rules! handle_with_decoration {
         let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
 
         // check if either IP is blocked, in which case return early
-        $self.handle_traffic_req(client.clone()).await?;
+        $self.check_traffic(client.clone()).await?;
 
         // handle traffic tallying
         let wrapped_response = $self.$func_name($request).await;
-        $self.handle_traffic_resp(client, wrapped_response)
+        $self.tally_traffic(client, wrapped_response)
     }};
 }
