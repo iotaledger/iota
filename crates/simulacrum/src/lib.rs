@@ -847,10 +847,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         Box<
             dyn Iterator<
                     Item = Result<
-                        (
-                            iota_types::storage::DynamicFieldKey,
-                            iota_types::storage::DynamicFieldIndexInfo,
-                        ),
+                        iota_types::storage::DynamicFieldKey,
                         typed_store_error::TypedStoreError,
                     >,
                 > + '_,

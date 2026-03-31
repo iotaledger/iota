@@ -695,8 +695,6 @@ impl IotaNode {
                     config.db_path().join(GRPC_INDEXES_DIR),
                     Arc::clone(&store),
                     &checkpoint_store,
-                    &epoch_store,
-                    &cache_traits.backing_package_store,
                 )
                 .await,
             ))

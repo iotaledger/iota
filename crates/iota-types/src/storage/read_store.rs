@@ -4,7 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use move_core_types::language_storage::TypeTag;
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
@@ -13,7 +12,6 @@ use crate::{
     base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
-    dynamic_field::DynamicFieldType,
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
@@ -870,8 +868,7 @@ pub struct OwnedObjectV2Cursor {
 pub type OwnedObjectV2IteratorItem =
     Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
 
-pub type DynamicFieldIteratorItem =
-    Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>;
+pub type DynamicFieldIteratorItem = Result<DynamicFieldKey, TypedStoreError>;
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {
@@ -886,14 +883,6 @@ impl DynamicFieldKey {
             field_id,
         }
     }
-}
-
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct DynamicFieldIndexInfo {
-    pub dynamic_field_type: DynamicFieldType,
-    pub name_type: TypeTag,
-    pub name_value: Vec<u8>,
-    pub dynamic_object_id: Option<ObjectID>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]

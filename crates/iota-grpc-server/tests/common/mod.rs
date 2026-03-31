@@ -431,10 +431,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         Box<
             dyn Iterator<
                     Item = Result<
-                        (
-                            iota_types::storage::DynamicFieldKey,
-                            iota_types::storage::DynamicFieldIndexInfo,
-                        ),
+                        iota_types::storage::DynamicFieldKey,
                         typed_store_error::TypedStoreError,
                     >,
                 > + '_,

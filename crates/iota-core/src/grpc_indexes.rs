@@ -17,18 +17,15 @@ use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
     digests::TransactionDigest,
-    dynamic_field::visitor as DFV,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
-    layout_resolver::LayoutResolver,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     object::{Object, Owner},
     storage::{
-        AccountOwnedObjectInfo, BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey,
-        EpochInfo, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, PackageVersionInfo,
-        PackageVersionIteratorItem, PackageVersionKey, TransactionInfo,
-        error::Error as StorageError,
+        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectV2Cursor,
+        OwnedObjectV2IteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
+        PackageVersionKey, TransactionInfo, error::Error as StorageError,
     },
 };
 use move_core_types::language_storage::StructTag;
@@ -43,7 +40,7 @@ use typed_store::{
 };
 
 use crate::{
-    authority::{AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::AuthorityStore,
     checkpoints::CheckpointStore,
     par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
 };
@@ -421,11 +418,20 @@ struct IndexStoreTables {
     // TODO: Rename to `owner` once the deprecated `owner` CF has been dropped
     owner_v2: DBMap<OwnerIndexKeyV2, OwnerIndexInfoV2>,
 
+    /// Deprecated: was the dynamic field index with full field metadata.
+    /// Replaced by `dynamic_field_v2` which stores only keys.
+    #[allow(dead_code)]
+    #[deprecated_db_map(migration = "migrate_dynamic_field_to_v2")]
+    dynamic_field: Option<DBMap<DynamicFieldKey, LegacyDynamicFieldIndexInfo>>,
+
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
-    /// a particular ObjectID.
-    dynamic_field: DBMap<DynamicFieldKey, DynamicFieldIndexInfo>,
+    /// a particular ObjectID. Only the key is stored; field metadata is loaded
+    /// on demand from the object store.
+    // TODO: Rename to `dynamic_field` once the deprecated `dynamic_field` CF
+    // has been dropped
+    dynamic_field_v2: DBMap<DynamicFieldKey, ()>,
 
     /// Deprecated: was used by the removed REST API for coin info queries.
     #[allow(dead_code)]
@@ -447,6 +453,58 @@ struct IndexStoreTables {
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
     // - are prune-able and have corresponding logic in the `prune` function
+}
+
+/// Retained only for deserializing legacy `dynamic_field` CF entries during
+/// migration to `dynamic_field_v2`.
+#[derive(Serialize, Deserialize)]
+struct LegacyDynamicFieldIndexInfo {
+    #[allow(dead_code)]
+    dynamic_field_type: iota_types::dynamic_field::DynamicFieldType,
+    #[allow(dead_code)]
+    name_type: move_core_types::language_storage::TypeTag,
+    #[allow(dead_code)]
+    name_value: Vec<u8>,
+    #[allow(dead_code)]
+    dynamic_object_id: Option<ObjectID>,
+}
+
+/// Migration: copy keys from the old `dynamic_field` table (which stored full
+/// field metadata) into `dynamic_field_v2` (keys only, unit value).
+fn migrate_dynamic_field_to_v2(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
+    use typed_store::traits::Map;
+
+    let old = DBMap::<DynamicFieldKey, LegacyDynamicFieldIndexInfo>::reopen(
+        db,
+        Some("dynamic_field"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        true,
+    )?;
+    let new = DBMap::<DynamicFieldKey, ()>::reopen(
+        db,
+        Some("dynamic_field_v2"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        false,
+    )?;
+
+    const BATCH_SIZE: usize = 10_000;
+    let mut batch = new.batch();
+    let mut count = 0usize;
+    for item in old.safe_iter() {
+        let (key, _) = item?;
+        batch.insert_batch(&new, std::iter::once((key, ())))?;
+        count += 1;
+        if count.is_multiple_of(BATCH_SIZE) {
+            batch.write()?;
+            batch = new.batch();
+        }
+    }
+    if !count.is_multiple_of(BATCH_SIZE) {
+        batch.write()?;
+    }
+
+    info!("migrated dynamic_field -> dynamic_field_v2 ({count} entries)");
+    Ok(())
 }
 
 /// Migration: copy checkpoint numbers from old `transactions` table into
@@ -522,8 +580,6 @@ impl IndexStoreTables {
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
-        epoch_store: &AuthorityPerEpochStore,
-        package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
     ) -> Result<(), StorageError> {
         info!("Initializing gRPC indexes");
 
@@ -559,8 +615,6 @@ impl IndexStoreTables {
         let make_live_object_indexer = GrpcParLiveObjectSetIndexer {
             tables: self,
             coin_v2_index: &coin_v2_index,
-            epoch_store,
-            package_store,
         };
 
         crate::par_index_live_object_set::par_index_live_object_set(
@@ -653,7 +707,6 @@ impl IndexStoreTables {
     fn index_checkpoint(
         &self,
         checkpoint: &CheckpointData,
-        resolver: &mut dyn LayoutResolver,
     ) -> Result<typed_store::rocks::DBBatch, StorageError> {
         debug!(
             checkpoint = checkpoint.checkpoint_summary.sequence_number,
@@ -664,7 +717,7 @@ impl IndexStoreTables {
 
         self.index_epoch(checkpoint, &mut batch)?;
         self.index_transactions(checkpoint, &mut batch)?;
-        self.index_objects(checkpoint, resolver, &mut batch)?;
+        self.index_objects(checkpoint, &mut batch)?;
 
         batch.insert_batch(
             &self.watermark,
@@ -828,7 +881,6 @@ impl IndexStoreTables {
     fn index_objects(
         &self,
         checkpoint: &CheckpointData,
-        resolver: &mut dyn LayoutResolver,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
         let mut coin_v2_index: HashMap<CoinIndexKey, CoinIndexInfoV2> = HashMap::new();
@@ -845,7 +897,7 @@ impl IndexStoreTables {
                     }
                     Owner::ObjectOwner(object_id) => {
                         batch.delete_batch(
-                            &self.dynamic_field,
+                            &self.dynamic_field_v2,
                             [DynamicFieldKey::new(*object_id, removed_object.id())],
                         )?;
                     }
@@ -867,7 +919,7 @@ impl IndexStoreTables {
                         Owner::ObjectOwner(object_id) => {
                             if old_object.owner() != object.owner() {
                                 batch.delete_batch(
-                                    &self.dynamic_field,
+                                    &self.dynamic_field_v2,
                                     [DynamicFieldKey::new(*object_id, old_object.id())],
                                 )?;
                             }
@@ -884,10 +936,9 @@ impl IndexStoreTables {
                         }
                     }
                     Owner::ObjectOwner(parent) => {
-                        if let Some(field_info) = try_create_dynamic_field_info(object, resolver)? {
+                        if should_index_dynamic_field(object) {
                             let field_key = DynamicFieldKey::new(*parent, object.id());
-
-                            batch.insert_batch(&self.dynamic_field, [(field_key, field_info)])?;
+                            batch.insert_batch(&self.dynamic_field_v2, [(field_key, ())])?;
                         }
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
@@ -987,15 +1038,14 @@ impl IndexStoreTables {
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
-    ) -> Result<
-        impl Iterator<Item = Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>> + '_,
-        TypedStoreError,
-    > {
+    ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
+    {
         let lower_bound = DynamicFieldKey::new(parent, cursor.unwrap_or(ObjectID::ZERO));
         let upper_bound = DynamicFieldKey::new(parent, ObjectID::MAX);
         let iter = self
-            .dynamic_field
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound));
+            .dynamic_field_v2
+            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
+            .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
 
@@ -1076,8 +1126,6 @@ impl GrpcIndexesStore {
         path: PathBuf,
         authority_store: Arc<AuthorityStore>,
         checkpoint_store: &CheckpointStore,
-        epoch_store: &AuthorityPerEpochStore,
-        package_store: &Arc<dyn BackingPackageStore + Send + Sync>,
     ) -> Self {
         let tables = {
             let tables = IndexStoreTables::open(&path);
@@ -1094,12 +1142,7 @@ impl GrpcIndexesStore {
                 };
 
                 tables
-                    .init(
-                        &authority_store,
-                        checkpoint_store,
-                        epoch_store,
-                        package_store,
-                    )
+                    .init(&authority_store, checkpoint_store)
                     .expect("unable to initialize gRPC index");
                 tables
             } else {
@@ -1223,12 +1266,9 @@ impl GrpcIndexesStore {
         skip_all,
         fields(checkpoint = checkpoint.checkpoint_summary.sequence_number)
     )]
-    pub fn index_checkpoint(&self, checkpoint: &CheckpointData, resolver: &mut dyn LayoutResolver) {
+    pub fn index_checkpoint(&self, checkpoint: &CheckpointData) {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-        let batch = self
-            .tables
-            .index_checkpoint(checkpoint, resolver)
-            .expect("db error");
+        let batch = self.tables.index_checkpoint(checkpoint).expect("db error");
 
         self.pending_updates
             .lock()
@@ -1284,10 +1324,8 @@ impl GrpcIndexesStore {
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
-    ) -> Result<
-        impl Iterator<Item = Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>> + '_,
-        TypedStoreError,
-    > {
+    ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
+    {
         self.tables.dynamic_field_iter(parent, cursor)
     }
 
@@ -1380,10 +1418,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
         parent: ObjectID,
         cursor: Option<ObjectID>,
     ) -> iota_types::storage::error::Result<
-        Box<
-            dyn Iterator<Item = Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>>
-                + '_,
-        >,
+        Box<dyn Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_>,
     > {
         let iter = self
             .tables
@@ -1432,47 +1467,13 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
 // Helper functions
 // ---------------------------------------------------------------------------
 
-fn try_create_dynamic_field_info(
-    object: &Object,
-    resolver: &mut dyn LayoutResolver,
-) -> Result<Option<DynamicFieldIndexInfo>, StorageError> {
-    // Skip if not a move object
-    let Some(move_object) = object.data.try_as_move() else {
-        return Ok(None);
-    };
-
-    // Skip any objects that aren't of type `Field<Name, Value>`
-    //
-    // All dynamic fields are of type:
-    //   - Field<Name, Value> for dynamic fields
-    //   - Field<Wrapper<Name, ID>> for dynamic field objects where the ID is the id
-    //     of the pointed
-    //   to object
-    //
-    if !move_object.type_().is_dynamic_field() {
-        return Ok(None);
-    }
-
-    let layout = resolver
-        .get_annotated_layout(&move_object.type_().clone().into())
-        .map_err(StorageError::custom)?
-        .into_layout();
-
-    let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
-        .map_err(StorageError::custom)?;
-
-    let value_metadata = field.value_metadata().map_err(StorageError::custom)?;
-
-    Ok(Some(DynamicFieldIndexInfo {
-        name_type: field.name_layout.into(),
-        name_value: field.name_bytes.to_owned(),
-        dynamic_field_type: field.kind,
-        dynamic_object_id: if let DFV::ValueMetadata::DynamicObjectField(id) = value_metadata {
-            Some(id)
-        } else {
-            None
-        },
-    }))
+/// Returns `true` if `object` is a `Field<Name, Value>` and should be
+/// indexed in the dynamic field table.
+fn should_index_dynamic_field(object: &Object) -> bool {
+    object
+        .data
+        .try_as_move()
+        .is_some_and(|move_object| move_object.type_().is_dynamic_field())
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfoV2)> {
@@ -1543,15 +1544,12 @@ fn try_create_package_version_info(
 struct GrpcParLiveObjectSetIndexer<'a> {
     tables: &'a IndexStoreTables,
     coin_v2_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfoV2>>,
-    epoch_store: &'a AuthorityPerEpochStore,
-    package_store: &'a Arc<dyn BackingPackageStore + Send + Sync>,
 }
 
 struct GrpcLiveObjectIndexer<'a> {
     tables: &'a IndexStoreTables,
     batch: typed_store::rocks::DBBatch,
     coin_v2_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfoV2>>,
-    resolver: Box<dyn LayoutResolver + 'a>,
 }
 
 impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
@@ -1562,10 +1560,6 @@ impl<'a> ParMakeLiveObjectIndexer for GrpcParLiveObjectSetIndexer<'a> {
             tables: self.tables,
             batch: self.tables.owner_v2.batch(),
             coin_v2_index: self.coin_v2_index,
-            resolver: self
-                .epoch_store
-                .executor()
-                .type_layout_resolver(Box::new(self.package_store)),
         }
     }
 }
@@ -1582,13 +1576,10 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
             // Dynamic Field Index
             Owner::ObjectOwner(parent) => {
-                if let Some(field_info) =
-                    try_create_dynamic_field_info(&object, self.resolver.as_mut())?
-                {
+                if should_index_dynamic_field(&object) {
                     let field_key = DynamicFieldKey::new(parent, object.id());
-
                     self.batch
-                        .insert_batch(&self.tables.dynamic_field, [(field_key, field_info)])?;
+                        .insert_batch(&self.tables.dynamic_field_v2, [(field_key, ())])?;
                 }
             }
 

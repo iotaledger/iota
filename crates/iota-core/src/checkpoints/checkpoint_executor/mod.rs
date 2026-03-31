@@ -628,13 +628,7 @@ impl CheckpointExecutor {
         // committed to the DB until later (committing must be done
         // in-order)
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
-            let mut layout_resolver = self.epoch_store.executor().type_layout_resolver(Box::new(
-                iota_types::inner_temporary_store::PackageStoreWithFallback::new(
-                    self.state.get_backing_package_store(),
-                    &checkpoint_data,
-                ),
-            ));
-            grpc_indexes_store.index_checkpoint(&checkpoint_data, layout_resolver.as_mut());
+            grpc_indexes_store.index_checkpoint(&checkpoint_data);
         }
 
         if let Some(path) = &self.config.data_ingestion_dir {

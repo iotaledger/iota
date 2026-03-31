@@ -136,11 +136,8 @@ pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, St
 // so that different storage backends (RocksDB, mock, simulacrum) can map
 // their concrete errors into a uniform error type.
 
-/// A dynamic-field index entry (key + index info).
-pub type DynamicFieldIterItem = anyhow::Result<(
-    iota_types::storage::DynamicFieldKey,
-    iota_types::storage::DynamicFieldIndexInfo,
-)>;
+/// A dynamic-field index key (parent + field_id).
+pub type DynamicFieldIterItem = anyhow::Result<iota_types::storage::DynamicFieldKey>;
 
 /// An owned-object from the legacy `owner` (v1) index.
 pub type OwnedObjectIterItem = anyhow::Result<iota_types::storage::AccountOwnedObjectInfo>;
