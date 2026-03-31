@@ -108,7 +108,6 @@ mod object_cost_tests {
     use typed_store::{
         DBMapUtils, Map,
         rocks::{DBMap, MetricConf},
-        traits::{TableSummary, TypedStoreDebug},
     };
 
     use super::*;

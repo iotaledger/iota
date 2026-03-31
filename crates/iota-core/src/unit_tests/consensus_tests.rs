@@ -150,7 +150,11 @@ pub fn make_consensus_adapter_for_test(
                 if let Some(transaction_digest) = tx.transaction.executable_transaction_digest() {
                     if self.process_via_checkpoint.contains(&transaction_digest) {
                         epoch_store
-                            .insert_finalized_transactions(vec![transaction_digest].as_slice(), 10)
+                            .insert_finalized_transactions(
+                                vec![transaction_digest].as_slice(),
+                                10,
+                                0,
+                            )
                             .expect("Should not fail");
                         executed_via_checkpoint += 1;
                     } else {

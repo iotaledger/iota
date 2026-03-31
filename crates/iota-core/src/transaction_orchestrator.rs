@@ -6,7 +6,9 @@
 // submit transactions to validators for finality, and proactively executes
 // finalized transactions locally, when possible.
 
-use std::{net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap, net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration,
+};
 
 use futures::{
     FutureExt,
@@ -22,6 +24,7 @@ use iota_types::{
     base_types::TransactionDigest,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
+    messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
         FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
@@ -732,5 +735,21 @@ where
     ) -> Result<SimulateTransactionResult, IotaError> {
         self.validator_state
             .simulate_transaction(transaction, checks)
+    }
+
+    /// Wait for the given transactions to be included in a checkpoint.
+    ///
+    /// Returns a mapping from transaction digest to
+    /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
+    /// On timeout, returns partial results for any transactions that were
+    /// already checkpointed.
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        digests: &[TransactionDigest],
+        timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError> {
+        self.validator_state
+            .wait_for_checkpoint_inclusion(digests, timeout)
+            .await
     }
 }
