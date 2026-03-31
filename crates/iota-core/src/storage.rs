@@ -7,7 +7,6 @@ use std::sync::Arc;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
     committee::{Committee, EpochId},
-    digests::TransactionEventsDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaError,
     messages_checkpoint::{
@@ -16,8 +15,9 @@ use iota_types::{
     },
     object::Object,
     storage::{
-        AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestIndexes, RestStateReader, WriteStore,
+        AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIndexInfo, DynamicFieldKey,
+        ObjectKey, ObjectStore, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, ReadStore,
+        RestIndexes, RestStateReader, TransactionInfo, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -26,13 +26,14 @@ use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use tap::Pipe;
 use tracing::instrument;
+use typed_store::TypedStoreError;
 
 use crate::{
     authority::AuthorityState,
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::ExecutionCacheTraitPointers,
-    rest_index::{CoinIndexInfo, OwnerIndexInfo, OwnerIndexKey, RestIndexStore},
+    rest_index::{CoinIndexInfo, OwnerIndexInfo, OwnerIndexKey, OwnerV2TypeFilter, RestIndexStore},
 };
 
 #[derive(Clone)]
@@ -114,15 +115,14 @@ impl ReadStore for RocksDbStore {
     fn try_get_lowest_available_checkpoint(
         &self,
     ) -> Result<CheckpointSequenceNumber, StorageError> {
-        let highest_pruned_cp = self
+        if let Some(highest_pruned_cp) = self
             .checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()
-            .map_err(Into::<StorageError>::into)?;
-
-        if highest_pruned_cp == 0 {
-            Ok(0)
-        } else {
+            .map_err(Into::<StorageError>::into)?
+        {
             Ok(highest_pruned_cp + 1)
+        } else {
+            Ok(0)
         }
     }
 
@@ -225,7 +225,7 @@ impl ReadStore for RocksDbStore {
 
     fn try_get_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, StorageError> {
         self.cache_traits
             .transaction_cache_reader
@@ -479,7 +479,7 @@ impl ReadStore for RestReadStore {
 
     fn try_get_events(
         &self,
-        digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.rocks.try_get_events(digest)
     }
@@ -504,17 +504,13 @@ impl RestStateReader for RestReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        let highest_pruned_cp = self
+        Ok(self
             .state
             .get_object_cache_reader()
             .try_get_highest_pruned_checkpoint()
-            .map_err(StorageError::custom)?;
-
-        if highest_pruned_cp == 0 {
-            Ok(0)
-        } else {
-            Ok(highest_pruned_cp + 1)
-        }
+            .map_err(StorageError::custom)?
+            .map(|cp| cp + 1)
+            .unwrap_or(0))
     }
 
     fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {
@@ -552,46 +548,114 @@ impl RestStateReader for RestReadStore {
 }
 
 impl RestIndexes for RestIndexStore {
-    fn get_transaction_checkpoint(
+    // only used in "grpc-server"
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<iota_types::storage::EpochInfo>> {
+        self.get_epoch_info(epoch).map_err(StorageError::custom)
+    }
+
+    // used in both "grpc-server" and "rest-api"
+    fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
         self.get_transaction_info(digest)
-            .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
             .map_err(StorageError::custom)
     }
 
+    /// **Performance note:** When `object_type` is `Some`, the filter is
+    /// applied as a post-filter on the iterator — it scans **all** objects
+    /// owned by `owner` (starting from `cursor`) and checks each one's type.
+    /// This is O(N) in the total number of owned objects, not O(result-set).
+    // only used in "rest-api"
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
-        let iter = self.owner_iter(owner, cursor)?.map(
-            |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
-                AccountOwnedObjectInfo {
-                    owner,
-                    object_id,
-                    version,
-                    type_,
+        object_type: Option<StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>
+    {
+        let iter = self
+            .owner_iter(owner, cursor)?
+            .map(|result| {
+                result.map(
+                    |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
+                        AccountOwnedObjectInfo {
+                            owner,
+                            object_id,
+                            version,
+                            type_,
+                        }
+                    },
+                )
+            })
+            .filter(move |result| match (&object_type, result) {
+                (None, _) => true,
+                (_, Err(_)) => true,
+                (Some(filter), Ok(info)) => {
+                    let obj_type: StructTag = info.type_.clone().into();
+                    if filter.type_params.is_empty() {
+                        obj_type.address == filter.address
+                            && obj_type.module == filter.module
+                            && obj_type.name == filter.name
+                    } else {
+                        obj_type == *filter
+                    }
                 }
-            },
-        );
+            });
 
         Ok(Box::new(iter) as _)
     }
 
+    /// Uses the `owner_v2` table which supports hash-based type narrowing.
+    /// When `object_type` is `Some`, the iterator only scans the hash
+    /// bucket for that type rather than all owned objects.
+    // only used in "grpc-server"
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
+        object_type: Option<StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>> {
+        let type_filter = OwnerV2TypeFilter::from_struct_tag(object_type.as_ref());
+        let iter = self
+            .owner_v2_iter(owner, cursor, type_filter)?
+            .map(|result| {
+                result.map(|(key, info)| {
+                    let cursor = OwnedObjectV2Cursor {
+                        object_type_identifier: key.object_type_identifier,
+                        object_type_params: key.object_type_params,
+                        inverted_balance: key.inverted_balance,
+                        object_id: key.object_id,
+                    };
+                    let owned = AccountOwnedObjectInfo {
+                        owner: key.owner,
+                        object_id: key.object_id,
+                        version: info.version,
+                        type_: info.object_type.into(),
+                    };
+                    (owned, cursor)
+                })
+            });
+
+        Ok(Box::new(iter) as _)
+    }
+
+    // used in both "grpc-server" and "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
     ) -> iota_types::storage::error::Result<
-        Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>,
+        Box<
+            dyn Iterator<Item = Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>>
+                + '_,
+        >,
     > {
         let iter = self.dynamic_field_iter(parent, cursor)?;
-
         Ok(Box::new(iter) as _)
     }
 
+    // only used in "rest-api"
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
@@ -607,5 +671,45 @@ impl RestIndexes for RestIndexStore {
                 },
             )
             .pipe(Ok)
+    }
+
+    // only used in "grpc-server"
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &StructTag,
+    ) -> iota_types::storage::error::Result<Option<CoinInfoV2>> {
+        self.get_coin_v2_info(coin_type)?
+            .map(CoinInfoV2::from)
+            .pipe(Ok)
+    }
+
+    // only used in "grpc-server"
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> iota_types::storage::error::Result<
+        Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,
+    > {
+        let iter = self.package_versions_iter(original_package_id, cursor)?;
+        Ok(Box::new(iter) as _)
+    }
+
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_owner_v2_index_ready(&self) -> bool {
+        self.is_owner_v2_index_ready()
+    }
+
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_coin_v2_index_ready(&self) -> bool {
+        self.is_coin_v2_index_ready()
+    }
+
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_package_version_index_ready(&self) -> bool {
+        self.is_package_version_index_ready()
     }
 }

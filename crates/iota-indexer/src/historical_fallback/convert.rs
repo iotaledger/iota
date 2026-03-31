@@ -11,10 +11,10 @@ use std::sync::Arc;
 
 use iota_json_rpc_types::IotaEvent;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_rest_api::CheckpointTransaction;
 use iota_types::{
     digests::TransactionDigest,
     effects::TransactionEvents,
+    full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
     object::Object,
 };
@@ -46,10 +46,7 @@ pub(crate) type HistoricalFallbackCheckpoint = (CertifiedCheckpointSummary, Chec
 impl From<HistoricalFallbackObject> for StoredObject {
     fn from(object: HistoricalFallbackObject) -> Self {
         let df_kind = extract_df_kind(&object);
-        // StoredObject::from implementation does not require a checkpoint sequence
-        // number, in this regard it is safe to hardcode the checkpoint sequence number
-        // to 0.
-        let indexed = IndexedObject::from_object(0, object, df_kind);
+        let indexed = IndexedObject::from_object(None, object, df_kind);
         StoredObject::from(indexed)
     }
 }
@@ -90,7 +87,7 @@ impl HistoricalFallbackEvents {
     /// [`IotaEvent`]s.
     pub(crate) async fn into_iota_events(
         self,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
         tx_digest: TransactionDigest,
     ) -> IndexerResult<Vec<IotaEvent>> {
         tx_events_to_iota_tx_events(

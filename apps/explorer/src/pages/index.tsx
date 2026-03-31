@@ -15,6 +15,7 @@ import { TransactionResult } from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components';
+import { IdentityResult } from './trust-framework/identity-result/IdentityResult';
 
 interface RedirectWithIdProps {
     base: string;
@@ -44,6 +45,7 @@ export const router = sentryCreateBrowserRouter([
             { path: 'address/:id', element: <AddressResultPage /> },
             { path: 'validators', element: <ValidatorPageResult /> },
             { path: 'validator/:id', element: <ValidatorDetails /> },
+            { path: 'identity/:id', element: <IdentityResult /> },
         ],
     },
     {

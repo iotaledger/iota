@@ -5,7 +5,7 @@ import { AccountType, type SerializedUIAccount } from '_src/background/accounts/
 import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { ExplorerLinkType, NicknameDialog, useUnlockAccount } from '_components';
+import { ExplorerLinkType, NicknameDialog } from '_components';
 import { useNavigate } from 'react-router-dom';
 import { useAccounts, useExplorerLink, useBackgroundClient } from '_hooks';
 import { toast, useGetDefaultIotaName } from '@iota/core';
@@ -13,10 +13,10 @@ import { Account, BadgeType, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
 import { RemoveDialog } from './RemoveDialog';
-import { isMainAccount } from '_src/background/accounts/isMainAccount';
 import { Portal } from '_app/shared/Portal';
 import { formatAccountName } from '_src/ui/app/helpers';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
+import { ampli, ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
 
 interface AccountGroupItemProps {
     account: SerializedUIAccount;
@@ -38,7 +38,6 @@ export function AccountGroupItem({
     const anchorRef = useRef<HTMLDivElement>(null);
     const [isDialogNicknameOpen, setDialogNicknameOpen] = useState(false);
     const [isDialogRemoveOpen, setDialogRemoveOpen] = useState(false);
-    const { unlockAccount, lockAccount } = useUnlockAccount();
     const navigate = useNavigate();
     const allAccounts = useAccounts();
     const backgroundClient = useBackgroundClient();
@@ -50,21 +49,16 @@ export function AccountGroupItem({
     });
 
     async function handleCopySuccess() {
+        ampli.copiedElement({
+            type: 'address',
+        });
         toast('Address copied');
     }
 
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
-    }
-
-    function handleToggleLock(e: React.MouseEvent<HTMLButtonElement>) {
-        e.stopPropagation();
-        if (account.isLocked) {
-            unlockAccount(account);
-        } else {
-            lockAccount(account);
-        }
+        ampli.openedLink({ type: 'address' });
     }
 
     function handleRename() {
@@ -72,6 +66,12 @@ export function AccountGroupItem({
     }
 
     function handleExportKeys() {
+        const accountType = account?.type;
+        if (accountType) {
+            ampli.exportedAccountKeys({
+                accountType: ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[accountType],
+            });
+        }
         navigate(`/accounts/export/${account!.id}`);
     }
 
@@ -109,28 +109,21 @@ export function AccountGroupItem({
         setDropdownOpen(true);
     }
 
-    const isMain = isMainAccount(account);
     const isLegacy = isLegacyAccount(account);
 
-    const badgeConfig = isMain
+    const badgeConfig = isLegacy
         ? {
-              type: BadgeType.PrimarySoft,
-              text: 'Main',
+              type: BadgeType.Neutral,
+              text: 'Legacy',
           }
-        : isLegacy
-          ? {
-                type: BadgeType.Neutral,
-                text: 'Legacy',
-            }
-          : {
-                type: undefined,
-                text: undefined,
-            };
+        : {
+              type: undefined,
+              text: undefined,
+          };
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
-            <div onClick={handleSelectAccount} ref={anchorRef}>
+            <div onClick={handleSelectAccount} ref={anchorRef} data-amp-mask>
                 <Account
-                    isLocked={account.isLocked}
                     isCopyable
                     isActive={isActive}
                     copyText={account.address}
@@ -143,8 +136,6 @@ export function AccountGroupItem({
                     subtitle={formatAddress(account.address)}
                     onCopy={handleCopySuccess}
                     onOptionsClick={handleOptionsClick}
-                    onLockAccountClick={handleToggleLock}
-                    onUnlockAccountClick={handleToggleLock}
                     badgeTooltipText={
                         isLegacy
                             ? 'Legacy address from the Chrysalis era. May not be supported by newer wallets, please consider migrating funds'
@@ -152,35 +143,42 @@ export function AccountGroupItem({
                     }
                 />
             </div>
-            <Portal containerId={'manage-account-item-portal-container'}>
-                {isDropdownOpen && (
+            {isDropdownOpen && (
+                <Portal containerId={'manage-account-item-portal-container'}>
                     <div
                         style={{
                             top: dropdownPosition.y,
                         }}
                         className={clsx(
-                            `absolute right-0 z-[99] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6`,
+                            'absolute right-0 z-[99]',
                             showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >
-                        <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                            <Dropdown>
-                                <ListItem hideBottomBorder onClick={handleRename}>
-                                    Rename
-                                </ListItem>
-                                <ListItem hideBottomBorder onClick={handleExportKeys}>
-                                    Export Account Keys
-                                </ListItem>
-                                {allAccounts.isPending ? null : (
-                                    <ListItem hideBottomBorder onClick={handleRemove}>
-                                        Delete
+                        <div
+                            className={clsx(
+                                'animate-dropdown-show rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6',
+                                showDropdownOptionsBottom ? 'origin-bottom' : 'origin-top',
+                            )}
+                        >
+                            <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                                <Dropdown>
+                                    <ListItem hideBottomBorder onClick={handleRename}>
+                                        Rename
                                     </ListItem>
-                                )}
-                            </Dropdown>
-                        </OutsideClickHandler>
+                                    <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                        Export Account Keys
+                                    </ListItem>
+                                    {allAccounts.isPending ? null : (
+                                        <ListItem hideBottomBorder onClick={handleRemove}>
+                                            Delete
+                                        </ListItem>
+                                    )}
+                                </Dropdown>
+                            </OutsideClickHandler>
+                        </div>
                     </div>
-                )}
-            </Portal>
+                </Portal>
+            )}
             <NicknameDialog
                 isOpen={isDialogNicknameOpen}
                 setOpen={setDialogNicknameOpen}
@@ -208,9 +206,7 @@ function AccountAvatar({ account }: { account: SerializedUIAccount }) {
         logo = <IotaLogoMark />;
     }
     return (
-        <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-neutral-100 ${account.isLocked ? 'bg-iota-neutral-90 dark:bg-iota-neutral-20 [&_svg]:dark:text-iota-neutral-50' : 'bg-iota-primary-30 '}`}
-        >
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-iota-neutral-100">
             {logo}
         </div>
     );

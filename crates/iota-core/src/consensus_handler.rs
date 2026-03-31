@@ -12,6 +12,7 @@ use std::{
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
 use consensus_core::{CommitConsumerMonitor, CommitIndex};
+use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
 use iota_types::{
@@ -166,7 +167,9 @@ impl<C> ConsensusHandler<C> {
             low_scoring_authorities,
             committee,
             metrics,
-            processed_cache: LruCache::new(NonZeroUsize::new(PROCESSED_CACHE_CAP).unwrap()),
+            processed_cache: LruCache::new(
+                NonZeroUsize::new(randomize_cache_capacity_in_tests(PROCESSED_CACHE_CAP)).unwrap(),
+            ),
             transaction_scheduler,
             backpressure_subscriber,
         }
@@ -601,6 +604,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
+        ConsensusTransactionKind::MisbehaviorReport(_, _, _) => "misbehavior_report",
         ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
             "signed_capability_notification_v1"
         }
@@ -763,7 +767,7 @@ impl SequencedConsensusTransaction {
         else {
             return false;
         };
-        certificate.transaction_data().uses_randomness()
+        certificate.uses_randomness()
     }
 
     pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {

@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
@@ -54,6 +52,13 @@ pub struct StoredObject {
     // TODO deal with overflow
     pub coin_balance: Option<i64>,
     pub df_kind: Option<i16>,
+    /// The checkpoint sequence number at which this object was, or will be,
+    /// indexed. Readers can consider the object finalized when this
+    /// checkpoint has been marked as fully indexed.
+    ///
+    /// `None` means the object is already finalized (default for existing
+    /// objects and objects written by the optimistic path).
+    pub finalized_in_cp: Option<i64>,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
@@ -76,13 +81,20 @@ pub struct StoredObjectSnapshot {
     pub df_kind: Option<i16>,
 }
 
-impl From<IndexedObject> for StoredObjectSnapshot {
-    fn from(o: IndexedObject) -> Self {
+impl TryFrom<IndexedObject> for StoredObjectSnapshot {
+    type Error = IndexerError;
+
+    fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
         let IndexedObject {
             checkpoint_sequence_number,
             object,
             df_kind,
         } = o;
+        let checkpoint_sequence_number = checkpoint_sequence_number.ok_or_else(|| {
+            IndexerError::InvalidArgument(
+                "checkpoint_sequence_number is required for StoredObjectSnapshot".to_string(),
+            )
+        })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
             .coin_type_maybe()
@@ -93,12 +105,12 @@ impl From<IndexedObject> for StoredObjectSnapshot {
             None
         };
 
-        Self {
+        Ok(Self {
             object_id: object.id().to_vec(),
             object_version: object.version().value() as i64,
             object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
-            checkpoint_sequence_number: checkpoint_sequence_number as i64,
+            checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.to_vec()),
             object_type: object
@@ -114,7 +126,7 @@ impl From<IndexedObject> for StoredObjectSnapshot {
                 DynamicFieldType::DynamicField => 0,
                 DynamicFieldType::DynamicObject => 1,
             }),
-        }
+        })
     }
 }
 
@@ -163,7 +175,7 @@ pub struct StoredHistoryObject {
 impl StoredHistoryObject {
     pub async fn try_into_past_object_read(
         self,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
     ) -> Result<PastObjectRead, IndexerError> {
         let object_status = ObjectStatus::try_from(self.object_status).map_err(|_| {
             IndexerError::PersistentStorageDataCorruption(format!(
@@ -236,13 +248,20 @@ impl TryFrom<StoredHistoryObject> for Object {
     }
 }
 
-impl From<IndexedObject> for StoredHistoryObject {
-    fn from(o: IndexedObject) -> Self {
+impl TryFrom<IndexedObject> for StoredHistoryObject {
+    type Error = IndexerError;
+
+    fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
         let IndexedObject {
             checkpoint_sequence_number,
             object,
             df_kind,
         } = o;
+        let checkpoint_sequence_number = checkpoint_sequence_number.ok_or_else(|| {
+            IndexerError::InvalidArgument(
+                "checkpoint_sequence_number is required for StoredHistoryObject".to_string(),
+            )
+        })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
             .coin_type_maybe()
@@ -253,12 +272,12 @@ impl From<IndexedObject> for StoredHistoryObject {
             None
         };
 
-        Self {
+        Ok(Self {
             object_id: object.id().to_vec(),
             object_version: object.version().value() as i64,
             object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
-            checkpoint_sequence_number: checkpoint_sequence_number as i64,
+            checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.to_vec()),
             object_type: object
@@ -274,7 +293,7 @@ impl From<IndexedObject> for StoredHistoryObject {
                 DynamicFieldType::DynamicField => 0,
                 DynamicFieldType::DynamicObject => 1,
             }),
-        }
+        })
     }
 }
 
@@ -328,7 +347,7 @@ pub(crate) struct StoredDeletedHistoryObject {
 impl From<IndexedObject> for StoredObject {
     fn from(o: IndexedObject) -> Self {
         let IndexedObject {
-            checkpoint_sequence_number: _,
+            checkpoint_sequence_number,
             object,
             df_kind,
         } = o;
@@ -360,6 +379,7 @@ impl From<IndexedObject> for StoredObject {
                 DynamicFieldType::DynamicField => 0,
                 DynamicFieldType::DynamicObject => 1,
             }),
+            finalized_in_cp: checkpoint_sequence_number.map(|cp| cp as i64),
         }
     }
 }
@@ -380,7 +400,7 @@ impl TryFrom<StoredObject> for Object {
 impl StoredObject {
     pub async fn try_into_object_read(
         self,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
     ) -> Result<ObjectRead, IndexerError> {
         let oref = self.get_object_ref()?;
         let object: iota_types::object::Object = self.try_into()?;
@@ -490,6 +510,7 @@ pub(crate) struct StoredObjects {
     pub(crate) coin_types: Vec<Option<String>>,
     pub(crate) coin_balances: Vec<Option<i64>>,
     pub(crate) df_kinds: Vec<Option<i16>>,
+    pub(crate) finalized_in_cps: Vec<Option<i64>>,
 }
 
 impl Extend<StoredObject> for StoredObjects {
@@ -508,6 +529,7 @@ impl Extend<StoredObject> for StoredObjects {
             self.coin_types.push(object.coin_type);
             self.coin_balances.push(object.coin_balance);
             self.df_kinds.push(object.df_kind);
+            self.finalized_in_cps.push(object.finalized_in_cp);
         }
     }
 }
@@ -592,7 +614,7 @@ mod tests {
     #[test]
     fn test_canonical_string_of_object_type_for_coin() {
         let test_obj = Object::new_gas_for_testing();
-        let indexed_obj = IndexedObject::from_object(1, test_obj, None);
+        let indexed_obj = IndexedObject::from_object(Some(1), test_obj, None);
 
         let stored_obj = StoredObject::from(indexed_obj);
 
@@ -612,7 +634,7 @@ mod tests {
     #[test]
     fn test_convert_stored_obj_to_iota_coin() {
         let test_obj = Object::new_gas_for_testing();
-        let indexed_obj = IndexedObject::from_object(1, test_obj, None);
+        let indexed_obj = IndexedObject::from_object(Some(1), test_obj, None);
 
         let stored_obj = StoredObject::from(indexed_obj);
 
@@ -623,7 +645,7 @@ mod tests {
     #[test]
     fn test_output_format_coin_balance() {
         let test_obj = Object::new_gas_for_testing();
-        let indexed_obj = IndexedObject::from_object(1, test_obj, None);
+        let indexed_obj = IndexedObject::from_object(Some(1), test_obj, None);
 
         let stored_obj = StoredObject::from(indexed_obj);
         let test_balance = CoinBalance {
@@ -674,7 +696,7 @@ mod tests {
         }
         .into();
 
-        let indexed_obj = IndexedObject::from_object(1, object, None);
+        let indexed_obj = IndexedObject::from_object(Some(1), object, None);
 
         let stored_obj = StoredObject::from(indexed_obj);
 

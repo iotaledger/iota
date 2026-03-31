@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import '@rainbow-me/rainbowkit/styles.css';
 import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
@@ -27,8 +30,8 @@ import {
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider, Disclaimer, handleConsentAccepted } from '@iota/core';
-import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
-import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { appsBackendClient, interceptProviderAnnouncements } from './lib/utils/index.ts';
+import { AppsBackendClientProvider } from '@iota/apps-backend-client';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 import { LEGAL_LINKS } from './lib/constants/routes.constants.ts';
@@ -39,7 +42,7 @@ import { initAmplitude } from './shared/analytics';
 // to only allow certain wallets (metamask) to be discovered
 interceptProviderAnnouncements();
 
-growthbook.init();
+appsBackendClient.init();
 
 // Load Amplitude as early as we can (respects opt-out based on consent status):
 initAmplitude();
@@ -60,7 +63,7 @@ const wagmiConfig = getDefaultConfig({
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <WagmiProvider config={wagmiConfig}>
-            <GrowthBookProvider growthbook={growthbook}>
+            <AppsBackendClientProvider client={appsBackendClient}>
                 <EvmRpcClientProvider baseUrl={L2_CHAIN_CONFIG.evmRpcUrl}>
                     <QueryClientProvider client={queryClient}>
                         <IotaClientProvider
@@ -111,7 +114,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                         </IotaClientProvider>
                     </QueryClientProvider>
                 </EvmRpcClientProvider>
-            </GrowthBookProvider>
+            </AppsBackendClientProvider>
         </WagmiProvider>
     </React.StrictMode>,
 );

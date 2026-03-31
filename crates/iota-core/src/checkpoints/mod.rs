@@ -17,7 +17,7 @@ use std::{
 };
 
 use diffy::create_patch;
-use iota_common::{debug_fatal, fatal, sync::notify_read::NotifyRead};
+use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::NotifyRead};
 use iota_macros::fail_point;
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
@@ -50,10 +50,10 @@ use iota_types::{
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use parking_lot::Mutex;
-use rand::{rngs::OsRng, seq::SliceRandom};
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use tokio::{
-    sync::{Notify, watch},
+    sync::{Notify, mpsc, watch},
     task::JoinSet,
     time::timeout,
 };
@@ -61,7 +61,6 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
     rocks::{DBMap, MetricConf},
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 pub use crate::checkpoints::{
@@ -71,7 +70,10 @@ pub use crate::checkpoints::{
     metrics::CheckpointMetrics,
 };
 use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityState,
+        authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+    },
     authority_client::{AuthorityAPI, make_network_authority_clients_with_network_config},
     checkpoints::{
         causal_order::CausalOrder,
@@ -149,13 +151,16 @@ pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
-    /// Maps checkpoint contents digest to checkpoint sequence number
+    /// Maps checkpoint contents digest to checkpoint sequence number.
+    /// Entries from this table are deleted after state accumulation has
+    /// completed together with the corresponding full_checkpoint_content.
     pub(crate) checkpoint_sequence_by_contents_digest:
         DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
 
     /// Stores entire checkpoint contents from state sync, indexed by sequence
     /// number, for efficient reads of full checkpoints. Entries from this
-    /// table are deleted after state accumulation has completed.
+    /// table are deleted after state accumulation has completed. See
+    /// NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
     full_checkpoint_content: DBMap<CheckpointSequenceNumber, FullCheckpointContents>,
 
     /// Stores certified checkpoints
@@ -208,7 +213,7 @@ impl CheckpointStore {
     }
 
     pub fn new_for_tests() -> Arc<Self> {
-        let ckpt_dir = tempfile::tempdir().unwrap();
+        let ckpt_dir = iota_common::tempdir().unwrap();
         CheckpointStore::new(ckpt_dir.path())
     }
 
@@ -296,6 +301,10 @@ impl CheckpointStore {
             .get(&sequence_number)
     }
 
+    /// Get checkpoint sequence number by contents digest.
+    ///
+    /// Entries from this table are deleted after state accumulation has
+    /// completed together with the corresponding full_checkpoint_content.
     pub fn get_sequence_number_by_contents_digest(
         &self,
         digest: &CheckpointContentsDigest,
@@ -435,13 +444,11 @@ impl CheckpointStore {
 
     pub fn get_highest_pruned_checkpoint_seq_number(
         &self,
-    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
-        Ok(self
-            .tables
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.tables
             .watermarks
-            .get(&CheckpointWatermark::HighestPruned)?
-            .unwrap_or_default()
-            .0)
+            .get(&CheckpointWatermark::HighestPruned)
+            .map(|watermark| watermark.map(|w| w.0))
     }
 
     pub fn get_checkpoint_contents(
@@ -749,6 +756,12 @@ impl CheckpointStore {
             .insert(contents.digest(), &contents)
     }
 
+    /// Inserts the full checkpoint contents along with the mapping from
+    /// contents digest to sequence number, and the checkpoint contents.
+    ///
+    /// The entries for mapping the contents digest to sequence number,
+    /// and the full_checkpoint_content are deleted after state accumulation has
+    /// completed. See NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
     pub fn insert_verified_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -868,7 +881,7 @@ impl CheckpointStore {
 
     pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
         self.delete_highest_executed_checkpoint_test_only()?;
-        self.tables.watermarks.rocksdb.flush()?;
+        self.tables.watermarks.db.flush()?;
         Ok(())
     }
 }
@@ -881,6 +894,43 @@ pub enum CheckpointWatermark {
     HighestPruned,
 }
 
+struct CheckpointAccumulator {
+    epoch_store: Arc<AuthorityPerEpochStore>,
+    accumulator: Weak<StateAccumulator>,
+    receive_from_builder: mpsc::Receiver<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
+}
+
+impl CheckpointAccumulator {
+    fn new(
+        epoch_store: Arc<AuthorityPerEpochStore>,
+        accumulator: Weak<StateAccumulator>,
+        receive_from_builder: mpsc::Receiver<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
+    ) -> Self {
+        Self {
+            epoch_store,
+            accumulator,
+            receive_from_builder,
+        }
+    }
+
+    async fn run(self) {
+        let Self {
+            epoch_store,
+            accumulator,
+            mut receive_from_builder,
+        } = self;
+        while let Some((seq, effects)) = receive_from_builder.recv().await {
+            let Some(accumulator) = accumulator.upgrade() else {
+                info!("Accumulator was dropped, stopping checkpoint accumulation");
+                break;
+            };
+            accumulator
+                .accumulate_checkpoint(&effects, seq, &epoch_store)
+                .expect("epoch ended while accumulating checkpoint");
+        }
+    }
+}
+
 pub struct CheckpointBuilder {
     state: Arc<AuthorityState>,
     store: Arc<CheckpointStore>,
@@ -890,6 +940,7 @@ pub struct CheckpointBuilder {
     last_built: watch::Sender<CheckpointSequenceNumber>,
     effects_store: Arc<dyn TransactionCacheRead>,
     accumulator: Weak<StateAccumulator>,
+    send_to_accumulator: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
     output: Box<dyn CheckpointOutput>,
     metrics: Arc<CheckpointMetrics>,
     max_transactions_per_checkpoint: usize,
@@ -925,7 +976,10 @@ impl CheckpointBuilder {
         epoch_store: Arc<AuthorityPerEpochStore>,
         notify: Arc<Notify>,
         effects_store: Arc<dyn TransactionCacheRead>,
+        // for synchronous accumulation of end-of-epoch checkpoint
         accumulator: Weak<StateAccumulator>,
+        // for asynchronous/concurrent accumulation of regular checkpoints
+        send_to_accumulator: mpsc::Sender<(CheckpointSequenceNumber, Vec<TransactionEffects>)>,
         output: Box<dyn CheckpointOutput>,
         notify_aggregator: Arc<Notify>,
         last_built: watch::Sender<CheckpointSequenceNumber>,
@@ -940,6 +994,7 @@ impl CheckpointBuilder {
             notify,
             effects_store,
             accumulator,
+            send_to_accumulator,
             output,
             notify_aggregator,
             last_built,
@@ -1055,6 +1110,7 @@ impl CheckpointBuilder {
         &self,
         pendings: Vec<PendingCheckpoint>,
     ) -> anyhow::Result<CheckpointSequenceNumber> {
+        let _scope = monitored_scope("CheckpointBuilder::make_checkpoint");
         let last_details = pendings.last().unwrap().details().clone();
 
         // Keeps track of the effects that are already included in the current
@@ -1093,6 +1149,8 @@ impl CheckpointBuilder {
         roots: Vec<TransactionKey>,
         effects_in_current_checkpoint: &mut BTreeSet<TransactionDigest>,
     ) -> IotaResult<Vec<TransactionEffects>> {
+        let _scope = monitored_scope("CheckpointBuilder::resolve_checkpoint_transactions");
+
         self.metrics
             .checkpoint_roots_count
             .inc_by(roots.len() as u64);
@@ -1107,8 +1165,6 @@ impl CheckpointBuilder {
             .try_notify_read_executed_effects(&root_digests)
             .in_monitored_scope("CheckpointNotifyRead")
             .await?;
-
-        let _scope = monitored_scope("CheckpointBuilder");
 
         let consensus_commit_prologue = {
             // If the roots contains consensus commit prologue transaction, we want to
@@ -1262,7 +1318,8 @@ impl CheckpointBuilder {
 
         batch.write()?;
 
-        // Send all checkpoint sigs to consensus.
+        // Send all checkpoint sigs to consensus. The messages including
+        // MisbehaviorReports are also sent in this step.
         for (summary, contents) in &new_checkpoints {
             self.output
                 .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
@@ -1377,6 +1434,7 @@ impl CheckpointBuilder {
         details: &PendingCheckpointInfo,
     ) -> anyhow::Result<NonEmpty<(CheckpointSummary, CheckpointContents)>> {
         let _scope = monitored_scope("CheckpointBuilder::create_checkpoints");
+
         let total = all_effects.len();
         let mut last_checkpoint =
             Self::load_last_built_checkpoint_summary(&self.epoch_store, &self.store)?;
@@ -1496,11 +1554,41 @@ impl CheckpointBuilder {
                 }
             }
 
+            if self
+                .epoch_store
+                .protocol_config()
+                .calculate_validator_scores()
+            {
+                // We update the validator scores based on the information contained in the
+                // Scorer. We choose this point in time to do so because we must guarantee that
+                // scores are up to date right before the epoch changes. It also provides a good
+                // update periodicity: updating scores each time a report is received could be
+                // too frequent and not needed, since scores are not used during the epoch
+                // (except for monitoring purposes, which does not need to be 100% exact)
+                self.epoch_store.scorer.update_scores();
+            }
+
             let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
 
             let end_of_epoch_data = if last_checkpoint_of_epoch {
+                let scores: Vec<u64> = if self
+                    .epoch_store
+                    .protocol_config()
+                    .pass_calculated_validator_scores_to_advance_epoch()
+                {
+                    self.epoch_store
+                        .scorer
+                        .current_scores
+                        .iter()
+                        .map(|x| x.load(std::sync::atomic::Ordering::Relaxed))
+                        .collect()
+                } else {
+                    // Give everyone in the committee the max score
+                    vec![MAX_SCORE; self.epoch_store.committee().num_members()]
+                };
+
                 let (system_state_obj, system_epoch_info_event) = self
                     .augment_epoch_last_checkpoint(
                         &epoch_rolling_gas_cost_summary,
@@ -1508,6 +1596,7 @@ impl CheckpointBuilder {
                         &mut effects,
                         &mut signatures,
                         sequence_number,
+                        scores,
                     )
                     .await?;
 
@@ -1566,6 +1655,9 @@ impl CheckpointBuilder {
                     epoch_supply_change,
                 })
             } else {
+                self.send_to_accumulator
+                    .send((sequence_number, effects.clone()))
+                    .await?;
                 None
             };
             let contents = CheckpointContents::new_with_digests_and_signatures(
@@ -1653,6 +1745,7 @@ impl CheckpointBuilder {
         checkpoint_effects: &mut Vec<TransactionEffects>,
         signatures: &mut Vec<Vec<GenericSignature>>,
         checkpoint: CheckpointSequenceNumber,
+        scores: Vec<u64>,
     ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
@@ -1661,6 +1754,7 @@ impl CheckpointBuilder {
                 epoch_total_gas_cost,
                 checkpoint,
                 epoch_start_timestamp_ms,
+                scores,
             )
             .await?;
         checkpoint_effects.push(effects);
@@ -1712,7 +1806,7 @@ impl CheckpointBuilder {
 
                 let existing_effects = self
                     .epoch_store
-                    .transactions_executed_in_cur_epoch(effect.dependencies().iter())?;
+                    .transactions_executed_in_cur_epoch(effect.dependencies())?;
 
                 for (dependency, effects_signature_exists) in
                     effect.dependencies().iter().zip(existing_effects.iter())
@@ -2112,7 +2206,7 @@ async fn diagnose_split_brain(
         .iter()
         .filter_map(|(digest, (validators, _))| {
             if *digest != local_summary.digest() {
-                let random_validator = validators.choose(&mut OsRng).unwrap();
+                let random_validator = validators.choose(&mut get_rng()).unwrap();
                 Some((*digest, *random_validator))
             } else {
                 None
@@ -2283,17 +2377,29 @@ pub trait CheckpointServiceNotify {
 }
 
 enum CheckpointServiceState {
-    Unstarted(Box<(CheckpointBuilder, CheckpointAggregator)>),
+    Unstarted(
+        Box<(
+            CheckpointBuilder,
+            CheckpointAggregator,
+            CheckpointAccumulator,
+        )>,
+    ),
     Started,
 }
 
 impl CheckpointServiceState {
-    fn take_unstarted(&mut self) -> (CheckpointBuilder, CheckpointAggregator) {
+    fn take_unstarted(
+        &mut self,
+    ) -> (
+        CheckpointBuilder,
+        CheckpointAggregator,
+        CheckpointAccumulator,
+    ) {
         let mut state = CheckpointServiceState::Started;
         std::mem::swap(self, &mut state);
 
         match state {
-            CheckpointServiceState::Unstarted(tup) => (tup.0, tup.1),
+            CheckpointServiceState::Unstarted(tup) => (tup.0, tup.1, tup.2),
             CheckpointServiceState::Started => panic!("CheckpointServiceState is already started"),
         }
     }
@@ -2359,13 +2465,22 @@ impl CheckpointService {
             metrics.clone(),
         );
 
+        let (send_to_accumulator, receive_from_builder) = mpsc::channel(16);
+
+        let ckpt_accumulator = CheckpointAccumulator::new(
+            epoch_store.clone(),
+            accumulator.clone(),
+            receive_from_builder,
+        );
+
         let builder = CheckpointBuilder::new(
-            state.clone(),
+            state,
             checkpoint_store.clone(),
             epoch_store.clone(),
             notify_builder.clone(),
             effects_store,
             accumulator,
+            send_to_accumulator,
             checkpoint_output,
             notify_aggregator.clone(),
             highest_currently_built_seq_tx.clone(),
@@ -2388,7 +2503,9 @@ impl CheckpointService {
             highest_previously_built_seq,
             metrics,
             state: Mutex::new(CheckpointServiceState::Unstarted(Box::new((
-                builder, aggregator,
+                builder,
+                aggregator,
+                ckpt_accumulator,
             )))),
         })
     }
@@ -2404,9 +2521,10 @@ impl CheckpointService {
     pub async fn spawn(&self) -> JoinSet<()> {
         let mut tasks = JoinSet::new();
 
-        let (builder, aggregator) = self.state.lock().take_unstarted();
+        let (builder, aggregator, accumulator) = self.state.lock().take_unstarted();
         tasks.spawn(monitored_future!(builder.run()));
         tasks.spawn(monitored_future!(aggregator.run()));
+        tasks.spawn(monitored_future!(accumulator.run()));
 
         // If this times out, the validator may still start up. The worst that can
         // happen is that we will crash later on instead of immediately. The eventual
@@ -2549,7 +2667,6 @@ mod tests {
     use iota_types::{
         base_types::{ObjectID, SequenceNumber, TransactionEffectsDigest},
         crypto::Signature,
-        digests::TransactionEventsDigest,
         effects::{TransactionEffects, TransactionEvents},
         messages_checkpoint::SignedCheckpointSummary,
         move_package::MovePackage,
@@ -2853,7 +2970,7 @@ mod tests {
 
         fn try_multi_get_events(
             &self,
-            _: &[TransactionEventsDigest],
+            _: &[TransactionDigest],
         ) -> IotaResult<Vec<Option<TransactionEvents>>> {
             unimplemented!()
         }
@@ -2925,7 +3042,7 @@ mod tests {
     ) {
         let epoch_store = state.epoch_store_for_testing();
         let effects = e(digest, dependencies, gas_used);
-        store.insert(digest, effects.clone());
+        store.insert(digest, effects);
         epoch_store
             .insert_tx_key_and_digest(&TransactionKey::Digest(digest), &digest)
             .expect("Inserting cert fx and sigs should not fail");

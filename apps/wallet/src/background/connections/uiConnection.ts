@@ -19,7 +19,7 @@ import { isTransactionRequestResponse } from '_src/shared/messaging/messages/pay
 import Permissions from '_src/background/permissions';
 import Tabs from '_src/background/tabs';
 import Transactions from '_src/background/transactions';
-import { growthbook } from '_src/shared/experimentation/features';
+import { appsBackendClient } from '_src/shared/experimentation/features';
 import {
     isMethodPayload,
     type MethodPayload,
@@ -56,13 +56,24 @@ import { isDeriveBipPathAccountsFinder, isPersistAccountsFinder } from '_payload
 import type { SerializedAccount } from '../accounts/account';
 import { LedgerAccount } from '../accounts/ledgerAccount';
 import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
+import { isSidepanelSetState } from '_src/shared/messaging/messages/payloads/tabs/sidepanelState';
+import { SidePanel } from '_src/polyfills/sidepanel';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
     private uiAppInitialized: BehaviorSubject<boolean> = new BehaviorSubject(false);
+    private isSidePanel: boolean = false;
 
     constructor(port: Runtime.Port) {
         super(port);
+
+        // Clean up sidepanel state when UI disconnects
+        this.onDisconnect.subscribe(() => {
+            if (this.isSidePanel) {
+                SidePanel._setOpen(false);
+            }
+        });
+
         this.uiAppInitialized
             .pipe(
                 filter((init) => init),
@@ -114,13 +125,13 @@ export class UiConnection extends Connection {
                 await Permissions.delete(payload.origin, payload.specificAccounts);
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isBasePayload(payload) && payload.type === 'get-features') {
-                await growthbook.loadFeatures();
+                await appsBackendClient.refreshFeatures();
                 this.send(
                     createMessage<LoadedFeaturesPayload>(
                         {
                             type: 'features-response',
-                            features: growthbook.getFeatures(),
-                            attributes: growthbook.getAttributes(),
+                            features: appsBackendClient.getFeatures(),
+                            attributes: appsBackendClient.getAttributes(),
                         },
                         id,
                     ),
@@ -262,9 +273,9 @@ export class UiConnection extends Connection {
                     }
                 });
                 await backupDB();
+                this.send(createMessage({ type: 'done' }, msg.id));
                 accountSourcesEvents.emit('accountSourcesChanged');
                 accountsEvents.emit('accountsChanged');
-                this.send(createMessage({ type: 'done' }, msg.id));
             } else if (isDeriveBipPathAccountsFinder(payload)) {
                 const accountSource = await getAccountSourceByID(payload.sourceID);
 
@@ -342,7 +353,20 @@ export class UiConnection extends Connection {
                 // Actually persist the accounts
                 await addNewAccounts(derivedAccountsNonExistent);
 
-                this.send(createMessage({ type: 'done' }, msg.id));
+                this.send(
+                    createMessage(
+                        {
+                            type: 'persist-accounts-finder-response',
+                            numberOfAccountsCreated: derivedAccountsNonExistent.length,
+                        },
+                        msg.id,
+                    ),
+                );
+                accountsEvents.emit('accountsChanged');
+            } else if (isSidepanelSetState(payload)) {
+                this.isSidePanel = true;
+                SidePanel._setOpen(payload.open);
+                this.send(createMessage({ type: 'done' }, id));
             } else {
                 throw new Error(
                     `Unhandled message ${msg.id}. (${JSON.stringify(

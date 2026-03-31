@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cell::RefCell,
     collections::{BTreeSet, HashMap},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -15,8 +17,9 @@ use iota_framework::BuiltInFramework;
 use iota_move_build::CompiledPackage;
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::types::block::output::{
-    AliasOutput, BasicOutput, FoundryOutput, NativeTokens, NftOutput, OutputId, TokenId,
+use iota_stardust_types::block::output::{
+    AliasOutput as StardustAliasOutput, BasicOutput as StardustBasicOutput, FoundryOutput,
+    NativeTokens, NftOutput as StardustNftOutput, OutputId, TokenId,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_PACKAGE_ID, TypeTag,
@@ -34,9 +37,8 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     stardust::{
         coin_type::CoinType,
-        output::{Nft, foundry::create_foundry_amount_coin},
+        output::{Alias, AliasOutput, BasicOutput, Nft, NftOutput},
     },
-    timelock::timelock,
     transaction::{
         Argument, CheckedInputObjects, Command, InputObjectKind, InputObjects, ObjectArg,
         ObjectReadResult, ProgrammableTransaction,
@@ -53,8 +55,16 @@ use crate::{
             verification::created_objects::CreatedObjects,
         },
         types::{
-            address_swap_map::AddressSwapMap, output_header::OutputHeader,
+            address_swap_map::AddressSwapMap,
+            output::{
+                alias::{AliasExt, AliasOutputExt},
+                basic::BasicOutputExt,
+                foundry::create_foundry_amount_coin,
+                nft::{NftExt, NftOutputExt},
+            },
+            output_header::OutputHeader,
             token_scheme::SimpleTokenSchemeU64,
+            vested_reward,
         },
     },
 };
@@ -64,7 +74,7 @@ use crate::{
 /// Internally uses an unmetered Move VM.
 pub(super) struct Executor {
     protocol_config: ProtocolConfig,
-    tx_context: TxContext,
+    tx_context: Rc<RefCell<TxContext>>,
     /// Stores all the migration objects.
     store: InMemoryStorage,
     /// Caches the system packages and init objects. Useful for evicting
@@ -88,14 +98,14 @@ impl Executor {
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
     ) -> Result<Self> {
-        let mut tx_context = create_migration_context(&coin_type, target_network);
-        // Use a throwaway metrics registry for transaction execution.
-        let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
-        let mut store = InMemoryStorage::new(Vec::new());
         // We don't know the chain ID here since we haven't yet created the genesis
         // checkpoint. However since we know there are no chain specific
         // protocol config options in genesis, we use Chain::Unknown here.
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
+        let tx_context = create_migration_context(&coin_type, target_network, &protocol_config);
+        // Use a throwaway metrics registry for transaction execution.
+        let metrics = Arc::new(LimitsMetrics::new(&prometheus::Registry::new()));
+        let mut store = InMemoryStorage::new(Vec::new());
         // Get the correct system packages for our protocol version. If we cannot find
         // the snapshot that means that we must be at the latest version and we
         // should use the latest version of the framework.
@@ -110,7 +120,7 @@ impl Executor {
             process_package(
                 &mut store,
                 executor.as_ref(),
-                &mut tx_context,
+                tx_context.clone(),
                 &system_package.modules(),
                 system_package.dependencies,
                 &protocol_config,
@@ -196,21 +206,22 @@ impl Executor {
     ) -> Result<InnerTemporaryStore> {
         let input_objects = input_objects.into_inner();
         let epoch_id = 0; // Genesis
+        let tx_digest = self.tx_context.borrow().digest();
         let mut temporary_store = TemporaryStore::new(
             &self.store,
             input_objects,
             vec![],
-            self.tx_context.digest(),
+            tx_digest,
             &self.protocol_config,
             epoch_id,
         );
-        let mut gas_charger = GasCharger::new_unmetered(self.tx_context.digest());
+        let mut gas_charger = GasCharger::new_unmetered(tx_digest);
         programmable_transactions::execution::execute::<execution_mode::Normal>(
             &self.protocol_config,
             self.metrics.clone(),
             &self.move_vm,
             &mut temporary_store,
-            &mut self.tx_context,
+            self.tx_context.clone(),
             &mut gas_charger,
             pt,
             &mut None,
@@ -285,7 +296,7 @@ impl Executor {
             let amount_coin = create_foundry_amount_coin(
                 &header.output_id(),
                 foundry,
-                &self.tx_context,
+                &self.tx_context.borrow(),
                 foundry_package.version(),
                 &self.protocol_config,
                 &self.coin_type,
@@ -308,7 +319,7 @@ impl Executor {
     pub(super) fn create_alias_objects(
         &mut self,
         header: &OutputHeader,
-        alias: &AliasOutput,
+        alias: &StardustAliasOutput,
         coin_type: CoinType,
         address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
@@ -317,7 +328,7 @@ impl Executor {
         // Take the Alias ID set in the output or, if its zeroized, compute it from the
         // Output ID.
         let alias_id = ObjectID::new(*alias.alias_id().or_from_output_id(&header.output_id()));
-        let move_alias = iota_types::stardust::output::Alias::try_from_stardust(alias_id, alias)?;
+        let move_alias = Alias::try_from_stardust(alias_id, alias)?;
 
         // TODO: We should ensure that no circular ownership exists.
         let alias_output_owner =
@@ -329,7 +340,7 @@ impl Executor {
         let move_alias_object = move_alias.to_genesis_object(
             alias_output_owner,
             &self.protocol_config,
-            &self.tx_context,
+            &self.tx_context.borrow(),
             version,
         )?;
         let move_alias_object_ref = move_alias_object.compute_object_reference();
@@ -339,18 +350,15 @@ impl Executor {
         let (bag, version, fields) = self.create_bag_with_pt(alias.native_tokens())?;
         created_objects.set_native_tokens(fields)?;
 
-        let move_alias_output = iota_types::stardust::output::AliasOutput::try_from_stardust(
-            self.tx_context.fresh_id(),
-            alias,
-            bag,
-        )?;
+        let move_alias_output =
+            AliasOutput::try_from_stardust(self.tx_context.borrow_mut().fresh_id(), alias, bag)?;
 
         // The bag will be wrapped into the alias output object, so
         // by equating their versions we emulate a ptb.
         let move_alias_output_object = move_alias_output.to_genesis_object(
             alias_output_owner,
             &self.protocol_config,
-            &self.tx_context,
+            &self.tx_context.borrow(),
             version,
             coin_type,
         )?;
@@ -560,13 +568,12 @@ impl Executor {
     pub(super) fn create_basic_objects(
         &mut self,
         header: &OutputHeader,
-        basic_output: &BasicOutput,
+        basic_output: &StardustBasicOutput,
         target_milestone_timestamp_sec: u32,
         coin_type: &CoinType,
         address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
-        let mut basic =
-            iota_types::stardust::output::BasicOutput::new(header.new_object_id(), basic_output)?;
+        let mut basic = BasicOutput::new_from_stardust(header.new_object_id(), basic_output)?;
 
         let basic_objects_owner =
             address_swap_map.swap_stardust_to_iota_address(basic_output.address())?;
@@ -586,7 +593,7 @@ impl Executor {
             let amount_coin = basic.into_genesis_coin_object(
                 basic_objects_owner,
                 &self.protocol_config,
-                &self.tx_context,
+                &self.tx_context.borrow(),
                 version,
                 coin_type,
             )?;
@@ -603,12 +610,12 @@ impl Executor {
             } else {
                 // Overwrite the default 0 UID of `Bag::default()`, since we won't
                 // be creating a new bag in this code path.
-                basic.native_tokens.id = UID::new(self.tx_context.fresh_id());
+                basic.native_tokens.id = UID::new(self.tx_context.borrow_mut().fresh_id());
             }
             let object = basic.to_genesis_object(
                 basic_objects_owner,
                 &self.protocol_config,
-                &self.tx_context,
+                &self.tx_context.borrow(),
                 version,
                 coin_type,
             )?;
@@ -626,7 +633,7 @@ impl Executor {
     pub(super) fn create_timelock_object(
         &mut self,
         output_id: OutputId,
-        basic_output: &BasicOutput,
+        basic_output: &StardustBasicOutput,
         target_milestone_timestamp: u32,
         address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
@@ -639,13 +646,13 @@ impl Executor {
         let version = package_deps.lamport_timestamp(&[]);
 
         let timelock =
-            timelock::try_from_stardust(output_id, basic_output, target_milestone_timestamp)?;
+            vested_reward::try_from_stardust(output_id, basic_output, target_milestone_timestamp)?;
 
-        let object = timelock::to_genesis_object(
+        let object = vested_reward::to_genesis_object(
             timelock,
             basic_output_owner,
             &self.protocol_config,
-            &self.tx_context,
+            &self.tx_context.borrow(),
             version,
         )?;
 
@@ -658,7 +665,7 @@ impl Executor {
     pub(super) fn create_nft_objects(
         &mut self,
         header: &OutputHeader,
-        nft: &NftOutput,
+        nft: &StardustNftOutput,
         coin_type: CoinType,
         address_swap_map: &mut AddressSwapMap,
     ) -> Result<CreatedObjects> {
@@ -681,7 +688,7 @@ impl Executor {
         let move_nft_object = move_nft.to_genesis_object(
             nft_output_owner,
             &self.protocol_config,
-            &self.tx_context,
+            &self.tx_context.borrow(),
             version,
         )?;
 
@@ -690,18 +697,15 @@ impl Executor {
 
         let (bag, version, fields) = self.create_bag_with_pt(nft.native_tokens())?;
         created_objects.set_native_tokens(fields)?;
-        let move_nft_output = iota_types::stardust::output::NftOutput::try_from_stardust(
-            self.tx_context.fresh_id(),
-            nft,
-            bag,
-        )?;
+        let move_nft_output =
+            NftOutput::try_from_stardust(self.tx_context.borrow_mut().fresh_id(), nft, bag)?;
 
         // The bag will be wrapped into the nft output object, so
         // by equating their versions we emulate a ptb.
         let move_nft_output_object = move_nft_output.to_genesis_object(
             nft_output_owner_address,
             &self.protocol_config,
-            &self.tx_context,
+            &self.tx_context.borrow(),
             version,
             coin_type,
         )?;
@@ -745,7 +749,7 @@ impl Executor {
 impl Executor {
     /// Set the [`TxContext`] of the [`Executor`].
     pub(crate) fn with_tx_context(mut self, tx_context: TxContext) -> Self {
-        self.tx_context = tx_context;
+        self.tx_context = Rc::new(RefCell::new(tx_context));
         self
     }
 

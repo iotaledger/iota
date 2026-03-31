@@ -2,17 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    fmt::{self, Display, Formatter, Write},
-    sync::Arc,
-};
+use std::fmt::{self, Display, Formatter, Write};
 
 use enum_dispatch::enum_dispatch;
-use fastcrypto::encoding::Base64;
+use fastcrypto::encoding::{Base64, Encoding};
 use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
-use iota_package_resolver::{PackageStore, Resolver};
+use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     authenticator_state::ActiveJwk,
@@ -22,7 +19,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    execution_status::ExecutionStatus,
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
     gas::GasCostSummary,
     iota_serde::{
         BigInt, IotaTypeTag as AsIotaTypeTag, Readable, SequenceNumber as AsSequenceNumber,
@@ -36,7 +33,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ObjectArg, ProgrammableMoveCall,
         ProgrammableTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
         TransactionKind,
@@ -498,9 +495,8 @@ impl Display for IotaTransactionBlockKind {
 }
 
 impl IotaTransactionBlockKind {
-    fn try_from(
+    fn try_from_inner(
         tx: TransactionKind,
-        module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(match tx {
@@ -524,9 +520,10 @@ impl IotaTransactionBlockKind {
                         .consensus_determined_version_assignments,
                 })
             }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
-                IotaProgrammableTransactionBlock::try_from(p, module_cache)?,
-            ),
+            TransactionKind::ProgrammableTransaction(_) => {
+                // This case is handled separately by the callers
+                unreachable!()
+            }
             TransactionKind::AuthenticatorStateUpdateV1(update) => {
                 Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
                     epoch: update.epoch,
@@ -557,6 +554,9 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
+                            EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
@@ -576,86 +576,34 @@ impl IotaTransactionBlockKind {
         })
     }
 
-    async fn try_from_with_package_resolver(
+    fn try_from_with_module_cache(
         tx: TransactionKind,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        Ok(match tx {
-            TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
-                objects: g.objects.iter().map(GenesisObject::id).collect(),
-                events: g
-                    .events
-                    .into_iter()
-                    .enumerate()
-                    .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
-                    .collect(),
-            }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
-                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
-                    epoch: p.epoch,
-                    round: p.round,
-                    sub_dag_index: p.sub_dag_index,
-                    commit_timestamp_ms: p.commit_timestamp_ms,
-                    consensus_commit_digest: p.consensus_commit_digest,
-                    consensus_determined_version_assignments: p
-                        .consensus_determined_version_assignments,
-                })
-            }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
+        match tx {
+            TransactionKind::ProgrammableTransaction(p) => Ok(Self::ProgrammableTransaction(
+                IotaProgrammableTransactionBlock::try_from_with_module_cache(p, module_cache)?,
+            )),
+            tx => Self::try_from_inner(tx, tx_digest),
+        }
+    }
+
+    async fn try_from_with_package_resolver(
+        tx: TransactionKind,
+        package_resolver: &Resolver<impl PackageStore>,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
+        match tx {
+            TransactionKind::ProgrammableTransaction(p) => Ok(Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_package_resolver(
                     p,
                     package_resolver,
                 )
                 .await?,
-            ),
-            TransactionKind::AuthenticatorStateUpdateV1(update) => {
-                Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
-                    epoch: update.epoch,
-                    round: update.round,
-                    new_active_jwks: update
-                        .new_active_jwks
-                        .into_iter()
-                        .map(IotaActiveJwk::from)
-                        .collect(),
-                })
-            }
-            TransactionKind::RandomnessStateUpdate(update) => {
-                Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
-                    epoch: update.epoch,
-                    randomness_round: update.randomness_round.0,
-                    random_bytes: update.random_bytes,
-                })
-            }
-            TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
-                Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
-                    transactions: end_of_epoch_tx
-                        .into_iter()
-                        .map(|tx| match tx {
-                            EndOfEpochTransactionKind::ChangeEpoch(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV2(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::ChangeEpochV3(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
-                            }
-                            EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                                IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
-                            }
-                            EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
-                                IotaEndOfEpochTransactionKind::AuthenticatorStateExpire(
-                                    IotaAuthenticatorStateExpire {
-                                        min_epoch: expire.min_epoch,
-                                    },
-                                )
-                            }
-                        })
-                        .collect(),
-                })
-            }
-        })
+            )),
+            tx => Self::try_from_inner(tx, tx_digest),
+        }
     }
 
     pub fn transaction_count(&self) -> usize {
@@ -734,6 +682,10 @@ pub struct IotaChangeEpochV2 {
     #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub eligible_active_validators: Option<Vec<u64>>,
+    #[schemars(with = "Option<Vec<BigInt<u64>>>")]
+    #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scores: Option<Vec<u64>>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -746,6 +698,7 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: None,
+            scores: None,
         }
     }
 }
@@ -760,6 +713,22 @@ impl From<ChangeEpochV3> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: Some(e.eligible_active_validators),
+            scores: None,
+        }
+    }
+}
+
+impl From<ChangeEpochV4> for IotaChangeEpochV2 {
+    fn from(e: ChangeEpochV4) -> Self {
+        Self {
+            epoch: e.epoch,
+            storage_charge: e.storage_charge,
+            computation_charge: e.computation_charge,
+            computation_charge_burned: e.computation_charge_burned,
+            storage_rebate: e.storage_rebate,
+            epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: Some(e.eligible_active_validators),
+            scores: Some(e.scores),
         }
     }
 }
@@ -990,51 +959,74 @@ impl IotaTransactionBlockEffects {
             dependencies: vec![],
         })
     }
+
+    /// Construct the RPC view of the transaction effects.
+    ///
+    /// This differs from the `TryFrom<TransactionEffects>` implementation
+    /// in that it tries to convert Move abort errors into human-readable form.
+    /// This is referred to as clever error.
+    pub async fn from_native_with_clever_error<S: PackageStore>(
+        native: TransactionEffects,
+        resolver: &Resolver<S>,
+    ) -> Self {
+        let clever_status =
+            IotaExecutionStatus::from_native_with_clever_error(native.status().clone(), resolver)
+                .await;
+        match native {
+            TransactionEffects::V1(inner) => {
+                let mut inner = IotaTransactionBlockEffectsV1::from(inner);
+                inner.status = clever_status;
+                inner.into()
+            }
+        }
+    }
 }
 
 impl TryFrom<TransactionEffects> for IotaTransactionBlockEffects {
     type Error = IotaError;
 
-    fn try_from(effect: TransactionEffects) -> Result<Self, Self::Error> {
-        Ok(IotaTransactionBlockEffects::V1(
-            IotaTransactionBlockEffectsV1 {
-                status: effect.status().clone().into(),
-                executed_epoch: effect.executed_epoch(),
-                modified_at_versions: effect
-                    .modified_at_versions()
+    fn try_from(native: TransactionEffects) -> Result<Self, Self::Error> {
+        Ok(IotaTransactionBlockEffects::V1(native.into()))
+    }
+}
+
+impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
+    fn from(native: T) -> Self {
+        Self {
+            status: native.status().clone().into(),
+            executed_epoch: native.executed_epoch(),
+            modified_at_versions: native
+                .modified_at_versions()
+                .into_iter()
+                .map(
+                    |(object_id, sequence_number)| IotaTransactionBlockEffectsModifiedAtVersions {
+                        object_id,
+                        sequence_number,
+                    },
+                )
+                .collect(),
+            gas_used: native.gas_cost_summary().clone(),
+            shared_objects: to_iota_object_ref(
+                native
+                    .input_shared_objects()
                     .into_iter()
-                    .map(|(object_id, sequence_number)| {
-                        IotaTransactionBlockEffectsModifiedAtVersions {
-                            object_id,
-                            sequence_number,
-                        }
-                    })
+                    .map(|kind| kind.object_ref())
                     .collect(),
-                gas_used: effect.gas_cost_summary().clone(),
-                shared_objects: to_iota_object_ref(
-                    effect
-                        .input_shared_objects()
-                        .into_iter()
-                        .map(|kind| kind.object_ref())
-                        .collect(),
-                ),
-                transaction_digest: *effect.transaction_digest(),
-                created: to_owned_ref(effect.created()),
-                mutated: to_owned_ref(effect.mutated().to_vec()),
-                unwrapped: to_owned_ref(effect.unwrapped().to_vec()),
-                deleted: to_iota_object_ref(effect.deleted().to_vec()),
-                unwrapped_then_deleted: to_iota_object_ref(
-                    effect.unwrapped_then_deleted().to_vec(),
-                ),
-                wrapped: to_iota_object_ref(effect.wrapped().to_vec()),
-                gas_object: OwnedObjectRef {
-                    owner: effect.gas_object().1,
-                    reference: effect.gas_object().0.into(),
-                },
-                events_digest: effect.events_digest().copied(),
-                dependencies: effect.dependencies().to_vec(),
+            ),
+            transaction_digest: *native.transaction_digest(),
+            created: to_owned_ref(native.created()),
+            mutated: to_owned_ref(native.mutated().to_vec()),
+            unwrapped: to_owned_ref(native.unwrapped().to_vec()),
+            deleted: to_iota_object_ref(native.deleted().to_vec()),
+            unwrapped_then_deleted: to_iota_object_ref(native.unwrapped_then_deleted().to_vec()),
+            wrapped: to_iota_object_ref(native.wrapped().to_vec()),
+            gas_object: OwnedObjectRef {
+                owner: native.gas_object().1,
+                reference: native.gas_object().0.into(),
             },
-        ))
+            events_digest: native.events_digest().copied(),
+            dependencies: native.dependencies().to_vec(),
+        }
     }
 }
 
@@ -1162,6 +1154,7 @@ pub struct DryRunTransactionBlockResponse {
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
     pub suggested_gas_price: Option<u64>,
+    pub execution_error_source: Option<String>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -1440,6 +1433,88 @@ pub enum IotaExecutionStatus {
     Failure { error: String },
 }
 
+impl IotaExecutionStatus {
+    /// Construct the RPC view of the execution status.
+    ///
+    /// This differs from the `From<ExecutionStatus>` implementation
+    /// in that it tries to convert Move abort errors into human-readable form.
+    /// This is referred to as clever error.
+    pub async fn from_native_with_clever_error<S: PackageStore>(
+        native: ExecutionStatus,
+        resolver: &Resolver<S>,
+    ) -> Self {
+        match native {
+            ExecutionStatus::Failure {
+                error,
+                command: Some(mut command_index),
+            } => {
+                let error = 'error: {
+                    let ExecutionFailureStatus::MoveAbort(loc, code) = &error else {
+                        break 'error error.to_string();
+                    };
+                    let fname_string = if let Some(fname) = &loc.function_name {
+                        format!("::{fname}'")
+                    } else {
+                        "'".to_string()
+                    };
+
+                    let Some(CleverError {
+                        module_id,
+                        source_line_number,
+                        error_info,
+                    }) = resolver
+                        .resolve_clever_error(loc.module.clone(), *code)
+                        .await
+                    else {
+                        break 'error format!(
+                            "from '{}{fname_string} (instruction {}), abort code: {code}",
+                            loc.module.to_canonical_display(true),
+                            loc.instruction,
+                        );
+                    };
+
+                    match error_info {
+                        ErrorConstants::Rendered {
+                            identifier,
+                            constant,
+                        } => {
+                            format!(
+                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {constant}",
+                                module_id.to_canonical_display(true)
+                            )
+                        }
+                        ErrorConstants::Raw { identifier, bytes } => {
+                            let const_str = Base64::encode(bytes);
+                            format!(
+                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {const_str}",
+                                module_id.to_canonical_display(true)
+                            )
+                        }
+                        ErrorConstants::None => {
+                            format!(
+                                "from '{}{fname_string} (line {source_line_number})",
+                                module_id.to_canonical_display(true)
+                            )
+                        }
+                    }
+                };
+                // Convert the command index into an ordinal.
+                command_index += 1;
+                let suffix = match command_index % 10 {
+                    1 => "st",
+                    2 => "nd",
+                    3 => "rd",
+                    _ => "th",
+                };
+                IotaExecutionStatus::Failure {
+                    error: format!("Error in {command_index}{suffix} command, {error}"),
+                }
+            }
+            _ => native.into(),
+        }
+    }
+}
+
 impl Display for IotaExecutionStatus {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -1466,13 +1541,13 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
                 error,
                 command: None,
             } => Self::Failure {
-                error: format!("{error:?}"),
+                error: error.to_string(),
             },
             ExecutionStatus::Failure {
                 error,
                 command: Some(idx),
             } => Self::Failure {
-                error: format!("{error:?} in command {idx}"),
+                error: format!("{error} in command {idx}"),
             },
         }
     }
@@ -1573,25 +1648,10 @@ impl IotaTransactionBlockData {
             },
         }
     }
-}
 
-impl Display for IotaTransactionBlockData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::V1(data) => {
-                writeln!(f, "Sender: {}", data.sender)?;
-                writeln!(f, "{}", self.gas_data())?;
-                writeln!(f, "{}", data.transaction)
-            }
-        }
-    }
-}
-
-impl IotaTransactionBlockData {
-    pub fn try_from(
+    fn try_from_inner(
         data: TransactionData,
-        module_cache: &impl GetModule,
-        tx_digest: TransactionDigest,
+        transaction: IotaTransactionBlockKind,
     ) -> Result<Self, anyhow::Error> {
         let message_version = data.message_version();
         let sender = data.sender();
@@ -1605,8 +1665,7 @@ impl IotaTransactionBlockData {
             price: data.gas_price(),
             budget: data.gas_budget(),
         };
-        let transaction =
-            IotaTransactionBlockKind::try_from(data.into_kind(), module_cache, tx_digest)?;
+
         match message_version {
             1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
                 transaction,
@@ -1620,38 +1679,42 @@ impl IotaTransactionBlockData {
         }
     }
 
-    pub async fn try_from_with_package_resolver(
+    pub fn try_from_with_module_cache(
         data: TransactionData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        let message_version = data.message_version();
-        let sender = data.sender();
-        let gas_data = IotaGasData {
-            payment: data
-                .gas()
-                .iter()
-                .map(|obj_ref| IotaObjectRef::from(*obj_ref))
-                .collect(),
-            owner: data.gas_owner(),
-            price: data.gas_price(),
-            budget: data.gas_budget(),
-        };
+        let transaction = IotaTransactionBlockKind::try_from_with_module_cache(
+            data.kind().clone(),
+            module_cache,
+            tx_digest,
+        )?;
+        Self::try_from_inner(data, transaction)
+    }
+
+    pub async fn try_from_with_package_resolver(
+        data: TransactionData,
+        package_resolver: &Resolver<impl PackageStore>,
+        tx_digest: TransactionDigest,
+    ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_package_resolver(
-            data.into_kind(),
+            data.kind().clone(),
             package_resolver,
             tx_digest,
         )
         .await?;
-        match message_version {
-            1 => Ok(IotaTransactionBlockData::V1(IotaTransactionBlockDataV1 {
-                transaction,
-                sender,
-                gas_data,
-            })),
-            _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {message_version} not implemented"
-            )),
+        Self::try_from_inner(data, transaction)
+    }
+}
+
+impl Display for IotaTransactionBlockData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::V1(data) => {
+                writeln!(f, "Sender: {}", data.sender)?;
+                writeln!(f, "{}", self.gas_data())?;
+                writeln!(f, "{}", data.transaction)
+            }
         }
     }
 }
@@ -1670,7 +1733,7 @@ impl IotaTransactionBlock {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            data: IotaTransactionBlockData::try_from(
+            data: IotaTransactionBlockData::try_from_with_module_cache(
                 data.intent_message().value.clone(),
                 module_cache,
                 tx_digest,
@@ -1684,7 +1747,7 @@ impl IotaTransactionBlock {
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
         data: SenderSignedData,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
@@ -1892,7 +1955,7 @@ impl Display for IotaProgrammableTransactionBlock {
 }
 
 impl IotaProgrammableTransactionBlock {
-    fn try_from(
+    fn try_from_with_module_cache(
         value: ProgrammableTransaction,
         module_cache: &impl GetModule,
     ) -> Result<Self, anyhow::Error> {
@@ -1910,7 +1973,7 @@ impl IotaProgrammableTransactionBlock {
 
     async fn try_from_with_package_resolver(
         value: ProgrammableTransaction,
-        package_resolver: Arc<Resolver<impl PackageStore>>,
+        package_resolver: &Resolver<impl PackageStore>,
     ) -> Result<Self, anyhow::Error> {
         // If the pure input layouts cannot be built, we will use `None` for the input
         // types.
@@ -2225,8 +2288,8 @@ impl From<ProgrammableMoveCall> for IotaProgrammableMoveCall {
         } = value;
         Self {
             package,
-            module: module.to_string(),
-            function: function.to_string(),
+            module,
+            function,
             type_arguments: type_arguments.into_iter().map(|t| t.to_string()).collect(),
             arguments: arguments.into_iter().map(IotaArgument::from).collect(),
         }

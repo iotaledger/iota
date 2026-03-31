@@ -37,6 +37,7 @@ use iota_types::{
 use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use move_core_types::identifier::Identifier;
+use rand::{SeedableRng, rngs::StdRng};
 use serde_json::Value;
 
 use crate::{
@@ -1950,15 +1951,20 @@ async fn failed_stored_tx_into_transaction_block() {
         failed_tx
             .try_into_iota_transaction_block_response(
                 IotaTransactionBlockResponseOptions::full_content(),
-                package_resolver
+                &package_resolver
             )
             .await
             .is_ok()
     );
+    // We have to drop the package resolver before dropping the test db because it
+    // holds a reference to the db pool and the active connection will prevent the
+    // db from being dropped.
+    drop(package_resolver);
     test_db.drop_if_exists();
 }
 
 #[test]
+#[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 fn get_chain_identifier_with_pruning_enabled() {
     let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
 
@@ -2516,6 +2522,63 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
         Ok(())
     })
+}
+
+#[test]
+fn is_transaction_not_present() {
+    let ApiTestSetup {
+        runtime,
+        store,
+        client,
+        ..
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        let rng = StdRng::from_seed([1; 32]);
+        let digest = TransactionDigest::generate(rng);
+
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        assert!(!client.is_transaction_indexed_on_node(digest).await.unwrap());
+    });
+}
+
+#[test]
+fn is_transaction_present() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let address = cluster.get_address_2();
+
+        let owned_objects = cluster.get_owned_objects(address, None).await.unwrap();
+
+        let gas = owned_objects.last().unwrap().object_id().unwrap();
+
+        let object_ids = owned_objects
+            .iter()
+            .take(owned_objects.len() - 1)
+            .map(|obj| obj.object_id().unwrap())
+            .collect::<Vec<_>>();
+
+        let transaction = cluster
+            .transfer_object(address, address, object_ids[0], gas, None)
+            .await
+            .unwrap();
+
+        assert!(
+            client
+                .is_transaction_indexed_on_node(transaction.digest)
+                .await
+                .unwrap()
+        );
+    });
 }
 
 #[test]

@@ -30,7 +30,7 @@ use tokio::{
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::{
     BlockAPI, CommitIndex, Round,
@@ -43,6 +43,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    scoring_metrics_store::ErrorSource,
 };
 
 /// The number of concurrent fetch blocks requests per authority
@@ -566,11 +567,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
-                                context.metrics.update_scoring_metrics_on_block_receival(
+                                context.scoring_metrics_store.update_scoring_metrics_on_block_receival(
                                     peer_index,
                                     peer_hostname,
                                     err.clone(),
-                                    "process_fetched_blocks",
+                                    ErrorSource::Synchronizer,
+                                    &context.metrics.node_metrics,
                                 );
                                 warn!("Error while processing fetched blocks from peer {peer_index} {peer_hostname}: {err}");
                                 context.metrics.node_metrics.synchronizer_process_fetched_failures_by_peer.with_label_values(&[peer_hostname.as_str(), "live"]).inc();
@@ -749,6 +751,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .collect::<Vec<_>>()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_blocks(
         serialized_blocks: Vec<Bytes>,
         block_verifier: Arc<V>,
@@ -781,7 +784,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .metrics
                     .node_metrics
                     .invalid_blocks
-                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -1809,7 +1812,7 @@ mod tests {
 
         // THEN authority 2 can now lock with Live sync
         let guard_2 = map
-            .lock_blocks(missing_block_refs.clone(), authority_2, SyncMethod::Live)
+            .lock_blocks(missing_block_refs, authority_2, SyncMethod::Live)
             .expect("Should successfully lock after authority 1 released");
 
         assert_eq!(guard_2.block_refs.len(), 2);
@@ -1867,11 +1870,7 @@ mod tests {
 
         // THEN authority 3 can now lock with Periodic sync
         let guard_3 = map
-            .lock_blocks(
-                missing_block_refs.clone(),
-                authority_3,
-                SyncMethod::Periodic,
-            )
+            .lock_blocks(missing_block_refs, authority_3, SyncMethod::Periodic)
             .expect("Should successfully lock after authority 1 released");
 
         assert_eq!(guard_3.block_refs.len(), 2);
@@ -1913,11 +1912,7 @@ mod tests {
         // BUT authority 2 CAN lock with Periodic sync (total would be 2, at Periodic
         // limit)
         let guard_2_periodic = map
-            .lock_blocks(
-                missing_block_refs.clone(),
-                authority_2,
-                SyncMethod::Periodic,
-            )
+            .lock_blocks(missing_block_refs, authority_2, SyncMethod::Periodic)
             .expect("Should successfully lock with Periodic - under Periodic limit of 2");
 
         assert_eq!(guard_2_periodic.block_refs.len(), 2);
@@ -1965,11 +1960,7 @@ mod tests {
         // AND authority 3 cannot lock with Periodic sync (would exceed Periodic limit
         // of 2)
         let authority_3 = AuthorityIndex::new_for_test(3);
-        let guard_3 = map.lock_blocks(
-            missing_block_refs.clone(),
-            authority_3,
-            SyncMethod::Periodic,
-        );
+        let guard_3 = map.lock_blocks(missing_block_refs, authority_3, SyncMethod::Periodic);
 
         assert!(
             guard_3.is_none(),
@@ -2099,11 +2090,7 @@ mod tests {
 
         // BUT authority 3 CAN lock with Periodic sync
         let guard_3_periodic = map
-            .lock_blocks(
-                missing_block_refs.clone(),
-                authority_3,
-                SyncMethod::Periodic,
-            )
+            .lock_blocks(missing_block_refs, authority_3, SyncMethod::Periodic)
             .expect("Should lock with Periodic");
         assert_eq!(guard_3_periodic.block_refs.len(), 2);
     }
@@ -2192,6 +2179,139 @@ mod tests {
 
         // Check blocks were unlocked
         assert_eq!(inflight_blocks_map.num_of_locked_blocks(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_process_fetched_blocks_duplicates() {
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let (commands_sender, _commands_receiver) =
+            monitored_mpsc::channel("consensus_synchronizer_commands", 1000);
+
+        // Create input test blocks:
+        // - Authority 0 block at round 60.
+        // - Authority 1 blocks from round 30 to 60.
+        let mut expected_blocks = vec![VerifiedBlock::new_for_test(TestBlock::new(60, 0).build())];
+        expected_blocks.extend(
+            (30..=60).map(|round| VerifiedBlock::new_for_test(TestBlock::new(round, 1).build())),
+        );
+        assert_eq!(
+            expected_blocks.len(),
+            context.parameters.max_blocks_per_sync
+        );
+
+        let expected_serialized_blocks = expected_blocks
+            .iter()
+            .map(|b| b.serialized().clone())
+            .collect::<Vec<_>>();
+
+        let expected_block_refs = expected_blocks
+            .iter()
+            .map(|b| b.reference())
+            .collect::<BTreeSet<_>>();
+
+        // GIVEN peer to fetch blocks from
+        let peer_index = AuthorityIndex::new_for_test(2);
+
+        // Create blocks_guard
+        let inflight_blocks_map = InflightBlocksMap::new();
+        let blocks_guard = inflight_blocks_map
+            .lock_blocks(expected_block_refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks");
+
+        assert_eq!(
+            inflight_blocks_map.num_of_locked_blocks(),
+            expected_block_refs.len()
+        );
+
+        // Create a shared LruCache that will be reused to verify duplicate prevention
+        let verified_cache = Arc::new(SyncMutex::new(LruCache::new(
+            NonZeroUsize::new(VERIFIED_BLOCKS_CACHE_CAP).unwrap(),
+        )));
+
+        // WHEN process fetched blocks for the first time
+        let result = Synchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_blocks(
+            expected_serialized_blocks.clone(),
+            peer_index,
+            blocks_guard,
+            core_dispatcher.clone(),
+            block_verifier.clone(),
+            verified_cache.clone(),
+            commit_vote_monitor.clone(),
+            context.clone(),
+            commands_sender.clone(),
+            "test",
+        )
+        .await;
+
+        // THEN
+        assert!(result.is_ok());
+
+        // Check blocks were sent to core
+        let added_blocks = core_dispatcher.get_add_blocks().await;
+        assert_eq!(
+            added_blocks
+                .iter()
+                .map(|b| b.reference())
+                .collect::<BTreeSet<_>>(),
+            expected_block_refs,
+        );
+
+        // Check blocks were unlocked
+        assert_eq!(inflight_blocks_map.num_of_locked_blocks(), 0);
+
+        // PART 2: Verify LruCache prevents duplicate processing
+        // Try to process the same blocks again (simulating duplicate fetch)
+        let blocks_guard_second = inflight_blocks_map
+            .lock_blocks(expected_block_refs.clone(), peer_index, SyncMethod::Live)
+            .expect("Failed to lock blocks for second call");
+
+        let result_second = Synchronizer::<
+            MockNetworkClient,
+            NoopBlockVerifier,
+            MockCoreThreadDispatcher,
+        >::process_fetched_blocks(
+            expected_serialized_blocks,
+            peer_index,
+            blocks_guard_second,
+            core_dispatcher.clone(),
+            block_verifier,
+            verified_cache.clone(),
+            commit_vote_monitor,
+            context.clone(),
+            commands_sender,
+            "test",
+        )
+        .await;
+
+        assert!(result_second.is_ok());
+
+        // Verify NO blocks were sent to core on the second call
+        // because they were already in the LruCache
+        let added_blocks_second_call = core_dispatcher.get_add_blocks().await;
+        assert!(
+            added_blocks_second_call.is_empty(),
+            "Expected no blocks to be added on second call due to LruCache, but got {} blocks",
+            added_blocks_second_call.len()
+        );
+
+        // Verify the cache contains all the block digests
+        let cache_size = verified_cache.lock().len();
+        assert_eq!(
+            cache_size,
+            expected_block_refs.len(),
+            "Expected {} entries in the LruCache, but got {}",
+            expected_block_refs.len(),
+            cache_size
+        );
     }
 
     #[tokio::test]

@@ -11,11 +11,25 @@ export interface ExternalLinkProps {
     children: ReactNode;
     title?: string;
     onClick?(): void;
+    type?: string; // e.g. 'documentation' | 'application' | 'address' | 'digest' | ...
+    trackEvent?: boolean;
 }
 
-export function ExternalLink({ href, className, children, title, onClick }: ExternalLinkProps) {
+export function ExternalLink({
+    href,
+    className,
+    children,
+    title,
+    onClick,
+    type,
+    trackEvent = true,
+}: ExternalLinkProps) {
     const handleClick = () => {
-        ampli.openedLink({ url: href });
+        if (trackEvent && type) {
+            ampli.openedLink({
+                type,
+            });
+        }
         onClick?.();
     };
 

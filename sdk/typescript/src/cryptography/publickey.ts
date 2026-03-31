@@ -82,7 +82,7 @@ export abstract class PublicKey {
      */
     verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         return this.verifyWithIntent(
-            bcs.vector(bcs.u8()).serialize(message).toBytes(),
+            bcs.byteVector().serialize(message).toBytes(),
             signature,
             'PersonalMessage',
         );
@@ -93,6 +93,13 @@ export abstract class PublicKey {
      */
     verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
         return this.verifyWithIntent(transaction, signature, 'TransactionData');
+    }
+
+    /**
+     * Verifies that the public key is associated with the provided address
+     */
+    verifyAddress(address: string): boolean {
+        return this.toIotaAddress() === address;
     }
 
     /**

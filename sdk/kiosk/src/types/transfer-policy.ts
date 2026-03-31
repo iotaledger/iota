@@ -5,6 +5,7 @@
 import type { ObjectOwner } from '@iota/iota-sdk/client';
 import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
+import type { KioskClient } from '../client/kiosk-client.js';
 import type { ObjectArgument } from './index.js';
 
 /** The Transfer Policy module. */
@@ -54,8 +55,6 @@ export type TransferPolicyCreated = {
 // e.g. `if(!'my_key' in ruleParams!) throw new Error("Can't resolve that rule!")`
 export type RuleResolvingParams = {
     transaction: Transaction;
-    /** @deprecated use transaction instead */
-    transactionBlock: Transaction;
     itemType: string;
     itemId: string;
     price: string;
@@ -67,4 +66,6 @@ export type RuleResolvingParams = {
     purchasedItem: TransactionObjectArgument;
     packageId: string;
     extraArgs: Record<string, any>; // extraParams contains more possible {key, values} to pass for custom rules.
+
+    kioskClient: KioskClient;
 };

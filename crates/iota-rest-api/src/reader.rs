@@ -92,9 +92,9 @@ impl StateReader {
             .inner()
             .try_get_transaction_effects(&transaction_digest)?
             .ok_or(TransactionNotFoundError(digest))?;
-        let events = if let Some(event_digest) = effects.events_digest() {
+        let events = if effects.events_digest().is_some() {
             self.inner()
-                .try_get_events(event_digest)?
+                .try_get_events(effects.transaction_digest())?
                 .ok_or(TransactionNotFoundError(digest))?
                 .pipe(Some)
         } else {
@@ -114,8 +114,9 @@ impl StateReader {
     ) -> Option<CheckpointSequenceNumber> {
         self.inner()
             .indexes()?
-            .get_transaction_checkpoint(digest)
+            .get_transaction_info(digest)
             .ok()?
+            .map(|info| info.checkpoint)
     }
 
     pub fn get_transaction_response(

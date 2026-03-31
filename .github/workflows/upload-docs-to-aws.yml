@@ -18,25 +18,22 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Build Rust documentation
-        run: cargo test --manifest-path crates/iota-framework/Cargo.toml
+        run: UPDATE=1 cargo test --manifest-path crates/iota-framework/Cargo.toml
 
       # ----------- Build TypeScript and GraphQL Docs with pnpm -----------
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
-          node-version: "22.x"
+          node-version: "24"
 
       - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@latest --activate
+        run: corepack enable && corepack prepare pnpm@10.30.0 --activate
 
       - name: Install dependencies
         run: pnpm install
 
       - name: Build SDK and BCS
         run: pnpm sdk build && pnpm bcs build
-
-      - name: Generate TypeScript docs
-        run: pnpm --filter iota-docs generate-ts-docs
 
       - name: Generate GraphQl docs
         run: pnpm --filter iota-docs generate-graphql-docs

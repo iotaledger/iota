@@ -25,8 +25,8 @@ use iota_types::{
         TransactionData, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
-        get_zklogin_user_address, make_zklogin_tx, to_sender_signed_transaction,
-        to_sender_signed_transaction_with_multi_signers,
+        get_zklogin_user_address, make_move_authenticator_tx, make_zklogin_tx,
+        to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
     },
 };
 use move_core_types::ident_str;
@@ -365,8 +365,14 @@ async fn test_package_denied() {
     .await
     .unwrap();
 
+    let batch = state.get_cache_commit().build_db_batch(
+        state.epoch_store_for_testing().epoch(),
+        &[tx_c, tx_b, tx_a, tx_c_prime, tx_b_prime],
+    );
+
     state.get_cache_commit().commit_transaction_outputs(
         state.epoch_store_for_testing().epoch(),
+        batch,
         &[tx_c, tx_b, tx_a, tx_c_prime, tx_b_prime],
     );
 
@@ -496,4 +502,77 @@ async fn test_certificate_deny() {
             ..
         }
     ));
+}
+
+#[tokio::test]
+async fn test_move_authenticator_disabled() {
+    let (network_config, state) = setup_test(
+        TransactionDenyConfigBuilder::new()
+            .disable_move_authenticator()
+            .build(),
+    )
+    .await;
+    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+    let tx = make_move_authenticator_tx(account);
+
+    let result = state
+        .handle_transaction(
+            &state.epoch_store_for_testing(),
+            VerifiedTransaction::new_from_verified(tx),
+        )
+        .await;
+
+    assert_denied(&result);
+}
+
+#[tokio::test]
+async fn test_move_account_denied() {
+    let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
+    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+
+    let state = reload_state_with_new_deny_config(
+        &network_config,
+        state,
+        TransactionDenyConfigBuilder::new()
+            .add_denied_address(account)
+            .build(),
+    )
+    .await;
+
+    let tx = make_move_authenticator_tx(account);
+
+    let result = state
+        .handle_transaction(
+            &state.epoch_store_for_testing(),
+            VerifiedTransaction::new_from_verified(tx),
+        )
+        .await;
+
+    assert_denied(&result);
+}
+
+#[tokio::test]
+async fn test_move_authenticator_input_denied() {
+    let (network_config, state) = setup_test(TransactionDenyConfigBuilder::new().build()).await;
+    let account = get_accounts_and_coins(&network_config, &state)[0].0;
+
+    let state = reload_state_with_new_deny_config(
+        &network_config,
+        state,
+        TransactionDenyConfigBuilder::new()
+            .add_denied_object(account.into())
+            .build(),
+    )
+    .await;
+
+    let tx = make_move_authenticator_tx(account);
+
+    let result = state
+        .handle_transaction(
+            &state.epoch_store_for_testing(),
+            VerifiedTransaction::new_from_verified(tx),
+        )
+        .await;
+
+    assert_denied(&result);
 }

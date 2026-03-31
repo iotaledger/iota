@@ -14,8 +14,8 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, lines 13-16:
 //# upgrade --package Test --upgrade-capability 1,1 --sender A --dry-run
-Error: Transaction Effects Status: PackageUpgradeError { upgrade_error: IncompatibleUpgrade } in command 1
-Execution Error: PackageUpgradeError { upgrade_error: IncompatibleUpgrade } in command 1
+Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version in command 1
+Execution Error: Invalid package upgrade. New package is incompatible with previous version in command 1
 
 task 3, lines 18-21:
 //# upgrade --package Test --upgrade-capability 1,1 --sender A

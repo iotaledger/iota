@@ -10,7 +10,9 @@ import {
     Header,
     Panel,
 } from '@iota/apps-ui-kit';
-import { QR, useCopyToClipboard, toast, useGetDefaultIotaName } from '@iota/core';
+import { QR, useGetDefaultIotaName, useCopyToClipboard } from '@iota/core';
+import { trackElementCopied } from '@/lib/utils';
+import { useCallback } from 'react';
 
 interface ReceiveFundsDialogProps {
     address: string;
@@ -23,22 +25,25 @@ export function ReceiveFundsDialog({
     open,
     setOpen,
 }: ReceiveFundsDialogProps): React.JSX.Element {
-    const copyToClipboard = useCopyToClipboard();
     const { data: iotaName } = useGetDefaultIotaName(address);
+    const copyToClipboard = useCopyToClipboard(
+        () => trackElementCopied('address'),
+        'Address copied',
+    );
 
-    async function handleCopyToClipboard() {
-        const success = await copyToClipboard(address);
-        if (success) {
-            toast('Address copied');
-        }
-    }
+    const handleCopyAddress = useCallback(() => {
+        copyToClipboard(address);
+    }, [copyToClipboard, address]);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent containerId="overlay-portal-container">
                 <Header title="Receive" onClose={() => setOpen(false)} />
                 <DialogBody>
-                    <div className="flex max-h-[500px] flex-col gap-lg overflow-y-auto text-center [&_span]:w-full [&_span]:break-words">
+                    <div
+                        className="flex max-h-[500px] flex-col gap-lg overflow-y-auto text-center [&_span]:w-full [&_span]:break-words"
+                        data-amp-mask
+                    >
                         <div className="self-center">
                             <QR value={address} size={130} marginSize={2} />
                         </div>
@@ -61,7 +66,7 @@ export function ReceiveFundsDialog({
                     </div>
                 </DialogBody>
                 <div className="flex w-full flex-row justify-center gap-2 px-md--rs pb-md--rs">
-                    <Button onClick={handleCopyToClipboard} fullWidth text="Copy Address" />
+                    <Button onClick={handleCopyAddress} fullWidth text="Copy Address" />
                 </div>
             </DialogContent>
         </Dialog>

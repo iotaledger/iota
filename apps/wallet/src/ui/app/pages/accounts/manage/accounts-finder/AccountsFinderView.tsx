@@ -17,11 +17,10 @@ import {
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
-import { getSourceId, getLedgerConnectionErrorMessage } from '_src/ui/app/helpers';
+import { getSourceId, getLedgerConnectionErrorMessage, isFirstAccount } from '_src/ui/app/helpers';
 import {
     useAccountSources,
     useAccounts,
-    useUnlockMutation,
     useAccountsFinder,
     useGetOwnedObjectsMultipleAddresses,
     useGetSharedObjectsMultipleAddresses,
@@ -34,13 +33,20 @@ import {
     TIMELOCK_STAKED_TYPE,
     toast,
 } from '@iota/core';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { MigrationDialog } from '../../../home/tokens/MigrationDialog';
 import { SupplyIncreaseVestingStakingDialog } from '../../../home/tokens/SupplyIncreaseVestingStakingDialog';
+import { ampli } from '_src/shared/analytics/ampli';
+import {
+    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE,
+    AmpliAccountOrigin,
+    AmpliSourceFlow,
+} from '_src/shared/analytics';
+import type { AddedAccountsProperties } from '_src/shared/analytics/ampli';
 
 function getAccountSourceType(
     accountSource?: AccountSourceSerializedUI,
@@ -55,6 +61,39 @@ function getAccountSourceType(
     }
 }
 
+/**
+ * Maps account source to Amplitude accountType for balanceFinderUsed event.
+ * Uses ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE for consistency across the app.
+ */
+function getAmplitudeAccountType(accountSource?: AccountSourceSerializedUI): string {
+    let ampliAccountSourceType: string | undefined = '';
+    if (accountSource) {
+        switch (accountSource.type) {
+            case AccountSourceType.Mnemonic: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.MnemonicDerived];
+                break;
+            }
+            case AccountSourceType.Seed: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.SeedDerived];
+                break;
+            }
+            case AccountSourceType.Keystone: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.KeystoneDerived];
+                break;
+            }
+            default: {
+                ampliAccountSourceType =
+                    ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[AccountType.LedgerDerived];
+                break;
+            }
+        }
+    }
+    return ampliAccountSourceType || 'unknown';
+}
+
 enum SearchPhase {
     Ready, // initialized and ready to start
     Ongoing, // search ongoing
@@ -64,6 +103,8 @@ enum SearchPhase {
 export function AccountsFinderView(): JSX.Element {
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
+    const [searchParams] = useSearchParams();
+    const mainPublicKey = searchParams.get('mainPublicKey');
     const { data: accountSources } = useAccountSources();
     const { data: accounts } = useAccounts();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceId);
@@ -77,7 +118,6 @@ export function AccountsFinderView(): JSX.Element {
     const [dialogMigrationOpen, setDialogMigrationOpen] = useState(false);
 
     const ledgerIotaClient = useIotaLedgerClient();
-    const unlockAccountSourceMutation = useUnlockMutation();
     const sourceStrategy: SourceStrategyToFind = useMemo(
         () =>
             accountSourceType == AllowedAccountSourceTypes.LedgerDerived
@@ -110,13 +150,38 @@ export function AccountsFinderView(): JSX.Element {
     async function runAccountsFinder() {
         try {
             setSearchPhase(SearchPhase.Ongoing);
-            await find();
+            ampli.usedBalanceFinder({
+                accountType: getAmplitudeAccountType(accountSource),
+            });
+            const numberOfAccountsCreated = await find();
+
+            // Fire accountsAdded event if accounts were created
+            if (numberOfAccountsCreated > 0) {
+                const accountType: AddedAccountsProperties['accountType'] =
+                    getAmplitudeAccountType(accountSource);
+
+                ampli.addedAccounts({
+                    accountType,
+                    accountOrigin: AmpliAccountOrigin.Import,
+                    numberOfAccounts: numberOfAccountsCreated,
+                    isFirstAccount: isFirstAccount(accounts),
+                    sourceFlow: AmpliSourceFlow.BalanceFinder,
+                });
+            }
         } finally {
             setSearchPhase(SearchPhase.Idle);
         }
     }
 
-    const persistedAccounts = accounts?.filter((acc) => getSourceId(acc) === accountSourceId);
+    function filterAccounts(acc: SerializedUIAccount): boolean {
+        if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived && mainPublicKey) {
+            return isLedgerAccountSerializedUI(acc) && acc.mainPublicKey === mainPublicKey;
+        } else {
+            return getSourceId(acc) === accountSourceId;
+        }
+    }
+
+    const persistedAccounts = accounts?.filter(filterAccounts);
     const isLocked =
         accountSource?.isLocked || (accountSourceId === AccountType.LedgerDerived && !password);
     const isLedgerLocked =
@@ -269,14 +334,7 @@ export function AccountsFinderView(): JSX.Element {
                         if (accountSourceType === AllowedAccountSourceTypes.LedgerDerived) {
                             // for ledger
                             setPassword(password);
-                        } else if (accountSourceId) {
-                            // unlock software account sources
-                            await unlockAccountSourceMutation.mutateAsync({
-                                id: accountSourceId,
-                                password,
-                            });
                         }
-
                         setPasswordModalVisible(false);
                     }}
                     onClose={() => setPasswordModalVisible(false)}

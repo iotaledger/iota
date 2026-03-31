@@ -19,12 +19,13 @@ use crate::{
         TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
         VerifiedTransactions, genesis_block_headers,
     },
-    commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
+    commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
-    dag_state::{DagState, TransactionSource},
+    dag_state::{DagState, DataSource},
     encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
+    transaction_ref::TransactionRef,
 };
 
 /// DagBuilder API
@@ -58,7 +59,7 @@ use crate::{
 /// };
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
-///     Arc::new(MemStore::new()),
+///     Arc::new(MemStore::new(context.clone())),
 /// )));
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
@@ -79,7 +80,7 @@ use crate::{
 /// let dag_builder = DagBuilder::new(context);
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
 ///     dag_builder.context.clone(),
-///     Arc::new(MemStore::new()),
+///     Arc::new(MemStore::new(context.clone())),
 /// )));
 ///
 /// dag_builder.layer(1).build();
@@ -306,6 +307,7 @@ impl DagBuilder {
             }
 
             let commit = TrustedCommit::new_for_test(
+                &self.context,
                 last_commit_ref.index + 1,
                 last_commit_ref.digest,
                 last_timestamp_ms,
@@ -322,6 +324,7 @@ impl DagBuilder {
             let sub_dag = CommittedSubDag::new(
                 leader_block_ref,
                 to_commit,
+                commit.block_headers().to_vec(),
                 vec![],
                 last_timestamp_ms,
                 commit.reference(),
@@ -412,13 +415,14 @@ impl DagBuilder {
     }
 
     pub(crate) fn persist_all_blocks(&self, dag_state: Arc<RwLock<DagState>>) {
-        dag_state
-            .write()
-            .accept_block_headers(self.block_headers.values().cloned().collect());
+        dag_state.write().accept_block_headers(
+            self.block_headers.values().cloned().collect(),
+            DataSource::Test,
+        );
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
-                .add_transactions(block_transactions.clone(), TransactionSource::Test);
+                .add_transactions(block_transactions.clone(), DataSource::Test);
         }
     }
 
@@ -618,8 +622,8 @@ impl DagBuilder {
 
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
-                block_ref,
-                commitment,
+                TransactionRef::new(block_ref, commitment),
+                Some(block_ref.digest),
                 serialized_transactions,
             );
             self.transactions.insert(block_ref, verified_transactions);
@@ -892,9 +896,9 @@ impl<'a> LayerBuilder<'a> {
             "Called to persist layers although no blocks have been created. Make sure you have called build before."
         );
         let mut dag_state = dag_state.write();
-        dag_state.accept_block_headers(self.block_headers.clone());
+        dag_state.accept_block_headers(self.block_headers.clone(), DataSource::Test);
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions, TransactionSource::Test);
+            dag_state.add_transactions(transactions, DataSource::Test);
         }
     }
 
@@ -1120,8 +1124,8 @@ impl<'a> LayerBuilder<'a> {
 
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
-                    block_header.reference(),
-                    commitment,
+                    block_header.transaction_ref(),
+                    Some(block_header.digest()),
                     serialized_transactions,
                 );
 
@@ -1160,12 +1164,13 @@ impl<'a> LayerBuilder<'a> {
         round: Round,
         num_block: u32,
     ) -> BlockTimestampMs {
-        if self.specified_authorities.is_some() && !self.timestamps.is_empty() {
-            let specified_authorities = self.specified_authorities.as_ref().unwrap();
-            if let Some(position) = specified_authorities.iter().position(|&x| x == authority) {
-                return self.timestamps[position]
-                    + (round + num_block) as u64
-                    + self.timestamp_delay_ms.unwrap_or_default();
+        if let Some(specified_authorities) = &self.specified_authorities {
+            if !self.timestamps.is_empty() {
+                if let Some(position) = specified_authorities.iter().position(|&x| x == authority) {
+                    return self.timestamps[position]
+                        + (round + num_block) as u64
+                        + self.timestamp_delay_ms.unwrap_or_default();
+                }
             }
         }
         let author = authority.value() as u32;

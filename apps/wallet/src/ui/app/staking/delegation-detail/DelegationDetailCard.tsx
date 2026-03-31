@@ -22,7 +22,7 @@ import {
     useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, CoinFormat } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
@@ -49,6 +49,8 @@ interface DelegationDetailCardProps {
     validatorAddress: string;
     stakedId: string;
 }
+
+const SOURCE_FLOW = 'Delegation detail card';
 
 export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationDetailCardProps) {
     const navigate = useNavigate();
@@ -110,6 +112,11 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
 
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [totalStakeFormattedPlain] = useFormatCoin({
+        balance: totalStake,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const delegationId = delegationData?.stakedIotaId;
 
@@ -133,18 +140,22 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     if (isError || errorValidators) {
         toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
+
+    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
+    const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
+
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);
         ampli.clickedStakeIota({
             isCurrentlyStaking: true,
-            sourceFlow: 'Delegation detail card',
+            sourceFlow: SOURCE_FLOW,
         });
     }
 
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
         ampli.clickedUnstakeIota({
-            stakedAmount: Number(totalStakeFormatted),
+            stakedAmount: Number(totalStakeFormattedPlain),
             validatorAddress,
         });
     }
@@ -192,9 +203,12 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                         />
                         <KeyValueInfo
                             keyText="Commission"
-                            value={getValidatorCommission(validatorData)}
+                            value={getValidatorCommission(
+                                validatorData,
+                                hasEffectiveCommissionRate,
+                            )}
                             fullwidth
-                            tooltipText="The charge imposed by the validator for their staking services."
+                            tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>

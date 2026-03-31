@@ -3,7 +3,8 @@
 
 use std::str::FromStr;
 
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
+    TransactionId,
     address::{AliasAddress, Ed25519Address},
     output::{
         AliasId, BasicOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, SimpleTokenScheme,
@@ -15,13 +16,10 @@ use iota_sdk::types::block::{
             TimelockUnlockCondition,
         },
     },
-    payload::transaction::TransactionId,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    stardust::{
-        coin_type::CoinType, output::basic::BASIC_OUTPUT_MODULE_NAME, stardust_to_iota_address,
-    },
+    stardust::{coin_type::CoinType, output::BASIC_OUTPUT_MODULE_NAME},
 };
 
 use crate::stardust::{
@@ -32,7 +30,10 @@ use crate::stardust::{
             random_output_header, unlock_object,
         },
     },
-    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
+    types::{
+        address::stardust_to_iota_address, address_swap_map::AddressSwapMap,
+        output_header::OutputHeader,
+    },
 };
 
 /// Test the id of a `BasicOutput` that is transformed to a simple coin.
@@ -57,7 +58,7 @@ fn basic_simple_coin_id() {
     )
     .unwrap();
     migration
-        .run_migration([(header.clone(), stardust_basic.clone().into())])
+        .run_migration([(header.clone(), stardust_basic.into())])
         .unwrap();
     let migrated_object_id = migration
         .output_objects_map
@@ -145,7 +146,7 @@ fn basic_id() {
     )
     .unwrap();
     migration
-        .run_migration([(header.clone(), stardust_basic.clone().into())])
+        .run_migration([(header.clone(), stardust_basic.into())])
         .unwrap();
     let migrated_object_id = migration
         .output_objects_map

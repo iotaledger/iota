@@ -86,6 +86,13 @@ async fn main() -> Result<(), IndexerError> {
                 }
             }
 
+            if pruning_options.optimistic_pruner_batch_size.is_some() {
+                warn!(
+                    "the --optimistic-pruner-batch-size argument is deprecated and no longer used. \
+                     Optimistic transactions are now pruned by the unified pruner."
+                );
+            }
+
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());
             Indexer::start_writer_with_config(
                 &ingestion_config,
@@ -93,7 +100,6 @@ async fn main() -> Result<(), IndexerError> {
                 indexer_metrics,
                 snapshot_config,
                 retention_config,
-                pruning_options.optimistic_pruner_batch_size,
                 CancellationToken::new(),
             )
             .await?;

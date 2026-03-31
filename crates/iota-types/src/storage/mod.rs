@@ -9,8 +9,10 @@ mod shared_in_memory_store;
 mod write_store;
 
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     fmt::{Display, Formatter},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -19,8 +21,10 @@ use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
-    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ReadStore,
-    RestIndexes, RestStateReader,
+    AccountOwnedObjectInfo, CoinInfo, CoinInfoV2, DynamicFieldIndexInfo, DynamicFieldKey,
+    EpochInfo, OwnedObjectV2Cursor, OwnedObjectV2IteratorItem, PackageVersionInfo,
+    PackageVersionIteratorItem, PackageVersionKey, ReadStore, RestIndexes, RestStateReader,
+    TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -28,12 +32,15 @@ pub use shared_in_memory_store::{SharedInMemoryStore, SingleCheckpointSharedInMe
 pub use write_store::WriteStore;
 
 use crate::{
+    auth_context::AuthContext,
     base_types::{ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
     committee::EpochId,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     move_package::MovePackage,
     object::Object,
+    storage::error::Error as StorageError,
     transaction::{SenderSignedData, TransactionDataAPI},
 };
 
@@ -220,6 +227,8 @@ pub trait Storage {
     /// Check coin denylist during execution,
     /// and the number of non-gas-coin owners.
     fn check_coin_deny_list(&self, written_objects: &BTreeMap<ObjectID, Object>) -> DenyListResult;
+
+    fn read_auth_context(&self) -> Option<Rc<RefCell<AuthContext>>>;
 }
 
 pub type PackageFetchResults<Package> = Result<Vec<Package>, Vec<ObjectID>>;
@@ -526,8 +535,6 @@ pub fn transaction_non_shared_input_object_keys(
 ) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
-        .intent_message()
-        .value
         .input_objects()?
         .into_iter()
         .filter_map(|object| match object {
@@ -569,4 +576,58 @@ where
     fn as_object_store(&self) -> &dyn ObjectStore {
         self
     }
+}
+
+pub fn get_transaction_input_objects(
+    object_store: &dyn ObjectStore,
+    effects: &TransactionEffects,
+) -> Result<Vec<Object>, StorageError> {
+    let input_object_keys = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|(object_id, version)| ObjectKey(object_id, version))
+        .collect::<Vec<_>>();
+
+    let input_objects = object_store
+        .multi_get_objects_by_key(&input_object_keys)
+        .into_iter()
+        .enumerate()
+        .map(|(idx, maybe_object)| {
+            maybe_object.ok_or_else(|| {
+                StorageError::custom(format!(
+                    "missing input object key {:?} from tx {}",
+                    input_object_keys[idx],
+                    effects.transaction_digest()
+                ))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(input_objects)
+}
+
+pub fn get_transaction_output_objects(
+    object_store: &dyn ObjectStore,
+    effects: &TransactionEffects,
+) -> Result<Vec<Object>, StorageError> {
+    let output_object_keys = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
+        .collect::<Vec<_>>();
+
+    let output_objects = object_store
+        .multi_get_objects_by_key(&output_object_keys)
+        .into_iter()
+        .enumerate()
+        .map(|(idx, maybe_object)| {
+            maybe_object.ok_or_else(|| {
+                StorageError::custom(format!(
+                    "missing output object key {:?} from tx {}",
+                    output_object_keys[idx],
+                    effects.transaction_digest()
+                ))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(output_objects)
 }

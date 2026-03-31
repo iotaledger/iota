@@ -185,6 +185,39 @@ export function generateValidatorsTableColumns({
             },
         },
         {
+            header: 'Effective Commission',
+            accessorKey: 'effectiveCommissionRate',
+            id: 'effectiveCommissionRate',
+            enableSorting: true,
+            sortingFn: (rowA, rowB) => {
+                // TODO: This function should be reverted to 'sortByNumber'
+                // once the effectiveCommission is available directly from validator data
+                const { original: validatorA } = rowA;
+                const { original: validatorB } = rowB;
+                const rowAEffectiveRate = Math.max(
+                    Number(validatorA.commissionRate),
+                    Number(validatorA.votingPower),
+                );
+                const rowBEffectiveRate = Math.max(
+                    Number(validatorB.commissionRate),
+                    Number(validatorB.votingPower),
+                );
+                return rowAEffectiveRate - rowBEffectiveRate > 0 ? 1 : -1;
+            },
+            cell({ row }) {
+                const { original: validator } = row;
+                const commissionRate = Number(validator.commissionRate);
+                const votingPower = Number(validator.votingPower);
+                const effectiveCommissionRate = Math.max(commissionRate, votingPower);
+
+                return (
+                    <TableCellBase>
+                        <TableCellText>{`${effectiveCommissionRate / 100}%`}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        },
+        {
             header: 'Commission',
             accessorKey: 'commissionRate',
             enableSorting: true,
@@ -314,6 +347,15 @@ export function generateValidatorsTableColumns({
             accessorKey: 'isEarningCurrent',
             id: 'isEarningCurrent',
             enableSorting: true,
+            sortingFn: (rowA, rowB) => {
+                const isCommitteeMemberA = committeeMembers.some(
+                    (address) => address === rowA.original.iotaAddress,
+                );
+                const isCommitteeMemberB = committeeMembers.some(
+                    (address) => address === rowB.original.iotaAddress,
+                );
+                return sortByBoolean(isCommitteeMemberA, isCommitteeMemberB);
+            },
             cell({ row }) {
                 const isCommitteeMember = committeeMembers.find(
                     (committeeMemberAddress) => committeeMemberAddress === row.original.iotaAddress,
@@ -334,6 +376,22 @@ export function generateValidatorsTableColumns({
             accessorKey: 'isEarningNext',
             id: 'isEarningNext',
             enableSorting: true,
+            sortingFn: (rowA, rowB) => {
+                const { atRisk: atRiskA } = determineRisk(committeeMembers, atRiskValidators, rowA);
+                const { atRisk: atRiskB } = determineRisk(committeeMembers, atRiskValidators, rowB);
+
+                const isInTopStakersA = topValidators.some(
+                    (v) => v.iotaAddress === rowA.original.iotaAddress,
+                );
+                const isInTopStakersB = topValidators.some(
+                    (v) => v.iotaAddress === rowB.original.iotaAddress,
+                );
+
+                const isEarningNextA = (atRiskA === null || atRiskA > 1) && isInTopStakersA;
+                const isEarningNextB = (atRiskB === null || atRiskB > 1) && isInTopStakersB;
+
+                return sortByBoolean(isEarningNextA, isEarningNextB);
+            },
             cell({ row }) {
                 const { atRisk } = determineRisk(committeeMembers, atRiskValidators, row);
 
@@ -371,6 +429,9 @@ export function generateValidatorsTableColumns({
 }
 function sortByString(value1: string, value2: string) {
     return value1.localeCompare(value2, undefined, { sensitivity: 'base' });
+}
+function sortByBoolean(value1: boolean, value2: boolean) {
+    return Number(value1) - Number(value2);
 }
 function sortByNumber(
     rowA: Row<IotaValidatorSummary>,

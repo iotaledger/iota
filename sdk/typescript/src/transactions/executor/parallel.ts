@@ -112,6 +112,7 @@ export class ParallelTransactionExecutor {
     async executeTransaction(
         transaction: Transaction,
         options?: IotaTransactionBlockResponseOptions,
+        additionalSignatures: string[] = [],
     ) {
         const { promise, resolve, reject } = promiseWithResolvers<{
             digest: string;
@@ -122,8 +123,12 @@ export class ParallelTransactionExecutor {
 
         const execute = () => {
             this.#executeQueue.runTask(() => {
-                const promise = this.#execute(transaction, usedObjects, options);
-
+                const promise = this.#execute(
+                    transaction,
+                    usedObjects,
+                    options,
+                    additionalSignatures,
+                );
                 return promise.then(resolve, reject);
             });
         };
@@ -187,6 +192,7 @@ export class ParallelTransactionExecutor {
         transaction: Transaction,
         usedObjects: Set<string>,
         options?: IotaTransactionBlockResponseOptions,
+        additionalSignatures: string[] = [],
     ) {
         let gasCoin!: CoinWithBalance;
         try {
@@ -222,7 +228,7 @@ export class ParallelTransactionExecutor {
 
             const results = await this.#cache.executeTransaction({
                 transaction: bytes,
-                signature,
+                signature: [signature, ...additionalSignatures],
                 options: {
                     ...options,
                     showEffects: true,
@@ -238,10 +244,10 @@ export class ParallelTransactionExecutor {
             if (gasCoin && gasUsed && gasResult.owner === this.#signer.toIotaAddress()) {
                 const totalUsed =
                     BigInt(gasUsed.computationCost) +
-                    BigInt(gasUsed.storageCost) +
                     BigInt(gasUsed.storageCost) -
                     BigInt(gasUsed.storageRebate);
 
+                const remainingBalance = gasCoin.balance - totalUsed;
                 let usesGasCoin = false;
                 new TransactionDataBuilder(transaction.getData()).mapArguments((arg) => {
                     if (arg.$kind === 'GasCoin') {
@@ -251,12 +257,12 @@ export class ParallelTransactionExecutor {
                     return arg;
                 });
 
-                if (!usesGasCoin && gasCoin.balance >= this.#minimumCoinBalance) {
+                if (!usesGasCoin && remainingBalance >= this.#minimumCoinBalance) {
                     this.#coinPool.push({
                         id: gasResult.ref.objectId,
                         version: gasResult.ref.version,
                         digest: gasResult.ref.digest,
-                        balance: gasCoin.balance - totalUsed,
+                        balance: remainingBalance,
                     });
                 } else {
                     if (!this.#sourceCoins) {

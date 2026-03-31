@@ -19,7 +19,6 @@ use typed_store::{
     DBMapUtils, Map,
     rocks::{DBMap, DBOptions, MetricConf, default_db_options},
     rocksdb::Options,
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 pub struct CommitteeStore {
@@ -51,7 +50,10 @@ impl CommitteeStore {
             tables,
             cache: RwLock::new(HashMap::new()),
         };
-        if store.database_is_empty() {
+        if store
+            .database_is_empty()
+            .expect("CommitteeStore initialization failed")
+        {
             store
                 .init_genesis_committee(genesis_committee.clone())
                 .expect("Init genesis committee data must not fail");
@@ -133,7 +135,13 @@ impl CommitteeStore {
             .map_err(Into::into)
     }
 
-    fn database_is_empty(&self) -> bool {
-        self.tables.committee_map.unbounded_iter().next().is_none()
+    fn database_is_empty(&self) -> IotaResult<bool> {
+        Ok(self
+            .tables
+            .committee_map
+            .safe_iter()
+            .next()
+            .transpose()?
+            .is_none())
     }
 }

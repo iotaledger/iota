@@ -11,7 +11,7 @@ use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, UserInputError},
     messages_checkpoint::{
@@ -34,7 +34,6 @@ use typed_store::{
     DBMapUtils, Map,
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 use super::SimulatorStore;
@@ -60,11 +59,13 @@ pub struct PersistedStoreInner {
     // Transaction data
     transactions: DBMap<TransactionDigest, iota_types::transaction::TrustedTransaction>,
     effects: DBMap<TransactionDigest, TransactionEffects>,
-    events: DBMap<TransactionEventsDigest, TransactionEvents>,
-    events_tx_digest_index: DBMap<TransactionDigest, TransactionEventsDigest>,
+    events: DBMap<TransactionDigest, TransactionEvents>,
 
     // Committee data
-    epoch_to_committee: DBMap<(), Vec<Committee>>,
+    epoch_to_committee: DBMap<EpochId, Committee>,
+
+    // Epoch data
+    last_checkpoints_per_epoch: DBMap<EpochId, CheckpointSequenceNumber>,
 
     // Object data
     live_objects: DBMap<ObjectID, SequenceNumber>,
@@ -76,7 +77,7 @@ impl PersistedStore {
         let samp: SamplingInterval = SamplingInterval::new(Duration::from_secs(60), 0);
         let read_write = PersistedStoreInner::open_tables_read_write(
             path.clone(),
-            MetricConf::new("persisted").with_sampling(samp.clone()),
+            MetricConf::new("persisted").with_sampling(samp),
             None,
             None,
         );
@@ -164,25 +165,6 @@ impl PersistedStore {
 }
 
 impl SimulatorStore for PersistedStore {
-    fn get_checkpoint_by_sequence_number(
-        &self,
-        sequence_number: CheckpointSequenceNumber,
-    ) -> Option<VerifiedCheckpoint> {
-        self.read_write
-            .checkpoints
-            .get(&sequence_number)
-            .expect("Fatal: DB read failed")
-            .map(|checkpoint| checkpoint.into())
-    }
-
-    fn get_checkpoint_by_digest(&self, digest: &CheckpointDigest) -> Option<VerifiedCheckpoint> {
-        self.read_write
-            .checkpoint_digest_to_sequence_number
-            .get(digest)
-            .expect("Fatal: DB read failed")
-            .and_then(|sequence_number| self.get_checkpoint_by_sequence_number(sequence_number))
-    }
-
     fn get_highest_checkpoint(&self) -> Option<VerifiedCheckpoint> {
         self.read_write
             .checkpoints
@@ -192,65 +174,6 @@ impl SimulatorStore for PersistedStore {
             .transpose()
             .expect("failed to fetch highest checkpoint")
             .map(|(_, checkpoint)| checkpoint.into())
-    }
-
-    fn get_checkpoint_contents(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> Option<CheckpointContents> {
-        self.read_write
-            .checkpoint_contents
-            .get(digest)
-            .expect("Fatal: DB read failed")
-    }
-
-    fn get_committee_by_epoch(&self, epoch: EpochId) -> Option<Committee> {
-        self.read_write
-            .epoch_to_committee
-            .get(&())
-            .expect("Fatal: DB read failed")
-            .and_then(|committees| committees.get(epoch as usize).cloned())
-    }
-
-    fn get_transaction(&self, digest: &TransactionDigest) -> Option<VerifiedTransaction> {
-        self.read_write
-            .transactions
-            .get(digest)
-            .expect("Fatal: DB read failed")
-            .map(|transaction| transaction.into())
-    }
-
-    fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects> {
-        self.read_write
-            .effects
-            .get(digest)
-            .expect("Fatal: DB read failed")
-    }
-
-    fn get_transaction_events(
-        &self,
-        digest: &TransactionEventsDigest,
-    ) -> Option<TransactionEvents> {
-        self.read_write
-            .events
-            .get(digest)
-            .expect("Fatal: DB read failed")
-    }
-
-    fn get_transaction_events_by_tx_digest(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Option<TransactionEvents> {
-        self.read_write
-            .events_tx_digest_index
-            .get(tx_digest)
-            .expect("Fatal: DB read failed")
-            .and_then(|x| {
-                self.read_write
-                    .events
-                    .get(&x)
-                    .expect("Fatal: DB read failed")
-            })
     }
 
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
@@ -281,9 +204,25 @@ impl SimulatorStore for PersistedStore {
             .expect("clock object should deserialize")
     }
 
+    fn get_last_checkpoint_of_epoch(&self, epoch: EpochId) -> Option<CheckpointSequenceNumber> {
+        self.read_write
+            .last_checkpoints_per_epoch
+            .get(&epoch)
+            .expect("Fatal: DB read failed")
+    }
+
+    fn get_system_state_by_epoch(
+        &self,
+        _epoch: EpochId,
+    ) -> Option<&iota_types::iota_system_state::IotaSystemState> {
+        // PersistedStore doesn't currently support historical system state storage
+        None
+    }
+
     fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_> {
         Box::new(self.read_write.live_objects
-            .unbounded_iter()
+            .safe_iter()
+            .map(|result| result.expect("rocksdb iteration failed"))
             .flat_map(|(id, version)| self.get_object_at_version(&id, version))
             .filter(
                 move |object| matches!(object.owner, Owner::AddressOwner(addr) if addr == owner),
@@ -309,27 +248,21 @@ impl SimulatorStore for PersistedStore {
     }
 
     fn insert_committee(&mut self, committee: Committee) {
-        let epoch = committee.epoch as usize;
+        let epoch = committee.epoch();
 
-        let mut committees = self
+        let committees = self
             .read_write
             .epoch_to_committee
-            .get(&())
-            .expect("Fatal: DB read failed")
-            .unwrap_or_default();
+            .get(&epoch)
+            .expect("Fatal: DB read failed");
 
-        if committees.get(epoch).is_some() {
+        if committees.is_some() {
             return;
         }
 
-        if committees.len() == epoch {
-            committees.push(committee);
-        } else {
-            panic!("committee was inserted into EpochCommitteeMap out of order");
-        }
         self.read_write
             .epoch_to_committee
-            .insert(&(), &committees)
+            .insert(&epoch, &committee)
             .expect("Fatal: DB write failed");
     }
 
@@ -364,12 +297,8 @@ impl SimulatorStore for PersistedStore {
 
     fn insert_events(&mut self, tx_digest: &TransactionDigest, events: TransactionEvents) {
         self.read_write
-            .events_tx_digest_index
-            .insert(tx_digest, &events.digest())
-            .expect("Fatal: DB write failed");
-        self.read_write
             .events
-            .insert(&events.digest(), &events)
+            .insert(tx_digest, &events)
             .expect("Fatal: DB write failed");
     }
 
@@ -407,6 +336,17 @@ impl SimulatorStore for PersistedStore {
 
     fn backing_store(&self) -> &dyn iota_types::storage::BackingStore {
         self
+    }
+
+    fn update_last_checkpoint_of_epoch(
+        &mut self,
+        epoch: EpochId,
+        last_checkpoint: CheckpointSequenceNumber,
+    ) {
+        self.read_write
+            .last_checkpoints_per_epoch
+            .insert(&epoch, &last_checkpoint)
+            .expect("Fatal: DB write failed");
     }
 }
 
@@ -516,6 +456,148 @@ impl ObjectStore for PersistedStore {
     }
 }
 
+impl ReadStore for PersistedStore {
+    fn try_get_committee(
+        &self,
+        epoch: EpochId,
+    ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
+        Ok(self
+            .read_write
+            .epoch_to_committee
+            .get(&epoch)
+            .expect("Fatal: DB read failed")
+            .map(std::sync::Arc::new))
+    }
+
+    fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.read_write
+            .checkpoints
+            .reversed_safe_iter_with_bounds(None, None)
+            .expect("failed to fetch highest checkpoint")
+            .next()
+            .transpose()
+            .expect("failed to fetch highest checkpoint")
+            .map(|(_, checkpoint)| checkpoint.into())
+            .ok_or(IotaError::UserInput {
+                error: UserInputError::LatestCheckpointSequenceNumberNotFound,
+            })
+            .map_err(iota_types::storage::error::Error::custom)
+    }
+
+    fn try_get_highest_verified_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.try_get_latest_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
+        self.try_get_latest_checkpoint()
+    }
+
+    fn try_get_lowest_available_checkpoint(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        Ok(0)
+    }
+
+    fn try_get_checkpoint_by_digest(
+        &self,
+        digest: &CheckpointDigest,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        Ok(self
+            .read_write
+            .checkpoint_digest_to_sequence_number
+            .get(digest)
+            .expect("Fatal: DB read failed")
+            .and_then(|sequence_number| self.get_checkpoint_by_sequence_number(sequence_number)))
+    }
+
+    fn try_get_checkpoint_by_sequence_number(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
+        Ok(self
+            .read_write
+            .checkpoints
+            .get(&sequence_number)
+            .expect("Fatal: DB read failed")
+            .map(|checkpoint| checkpoint.into()))
+    }
+
+    fn try_get_checkpoint_contents_by_digest(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
+        Ok(self
+            .read_write
+            .checkpoint_contents
+            .get(digest)
+            .expect("Fatal: DB read failed"))
+    }
+
+    fn try_get_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
+        unimplemented!()
+    }
+
+    fn try_get_transaction(
+        &self,
+        tx_digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
+        let tx = self
+            .read_write
+            .transactions
+            .get(tx_digest)
+            .expect("Fatal: DB read failed")
+            .map(|transaction| transaction.into());
+        Ok(tx.map(Arc::new))
+    }
+
+    fn try_get_transaction_effects(
+        &self,
+        tx_digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
+        Ok(self
+            .read_write
+            .effects
+            .get(tx_digest)
+            .expect("Fatal: DB read failed"))
+    }
+
+    fn try_get_events(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
+        Ok(self
+            .read_write
+            .events
+            .get(digest)
+            .expect("Fatal: DB read failed"))
+    }
+
+    fn try_get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        _sequence_number: CheckpointSequenceNumber,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
+    > {
+        unimplemented!()
+    }
+
+    fn try_get_full_checkpoint_contents(
+        &self,
+        _digest: &CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<
+        Option<iota_types::messages_checkpoint::FullCheckpointContents>,
+    > {
+        unimplemented!()
+    }
+}
+
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_object(
         &self,
@@ -551,9 +633,14 @@ impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
 impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     fn try_get_committee(
         &self,
-        _epoch: EpochId,
+        epoch: EpochId,
     ) -> iota_types::storage::error::Result<Option<std::sync::Arc<Committee>>> {
-        todo!()
+        Ok(self
+            .inner
+            .epoch_to_committee
+            .get(&epoch)
+            .expect("Fatal: DB read failed")
+            .map(std::sync::Arc::new))
     }
 
     fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
@@ -657,14 +744,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.sync();
 
         Ok(self
             .inner
             .events
-            .get(event_digest)
+            .get(digest)
             .expect("Fatal: DB read failed"))
     }
 
@@ -760,9 +847,7 @@ mod tests {
             None,
         );
         let genesis_checkpoint_digest1 = *chain1
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).unwrap())
             .digest();
 
         let rng = StdRng::from_seed([9; 32]);
@@ -774,9 +859,7 @@ mod tests {
             None,
         );
         let genesis_checkpoint_digest2 = *chain2
-            .store()
-            .get_checkpoint_by_sequence_number(0)
-            .unwrap()
+            .with_store(|store| store.get_checkpoint_by_sequence_number(0).unwrap())
             .digest();
 
         assert_eq!(genesis_checkpoint_digest1, genesis_checkpoint_digest2);
@@ -792,8 +875,8 @@ mod tests {
         );
 
         assert_ne!(
-            chain1.store().get_committee_by_epoch(0),
-            chain3.store().get_committee_by_epoch(0),
+            chain1.with_store(|store| store.get_committee(0)),
+            chain3.with_store(|store| store.get_committee(0)),
         );
     }
 }

@@ -1,0 +1,13 @@
+[package]
+name = "dynamic_multisig_account"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+dynamic_multisig_account = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]

@@ -7,7 +7,10 @@ use std::{ops::Range, path::PathBuf, sync::Arc};
 use anyhow::{Result, anyhow, bail};
 use arrow_array::Int32Array;
 use clap::*;
-use gcp_bigquery_client::{Client, model::query_request::QueryRequest};
+use gcp_bigquery_client::{
+    Client,
+    model::{query_request::QueryRequest, query_response::ResultSet},
+};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
 use iota_storage::object_store::util::{
@@ -71,7 +74,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 pub struct AnalyticsIndexerConfig {
     /// The url of the checkpoint client to connect to.
     #[arg(long)]
-    pub rest_url: String,
+    pub grpc_url: String,
     /// The url of the metrics client to connect to.
     #[arg(long, default_value = "127.0.0.1", global = true)]
     pub client_metric_host: String,
@@ -241,11 +244,12 @@ impl BQMaxCheckpointReader {
 #[async_trait::async_trait]
 impl MaxCheckpointReader for BQMaxCheckpointReader {
     async fn max_checkpoint(&self) -> Result<i64> {
-        let mut result = self
+        let query_response = self
             .client
             .job()
             .query(&self.project_id, QueryRequest::new(&self.query))
             .await?;
+        let mut result = ResultSet::new_from_query_response(query_response);
         if result.next_row() {
             let max_checkpoint = result.get_i64(0)?.ok_or(anyhow!("no rows returned"))?;
             Ok(max_checkpoint)
@@ -682,10 +686,9 @@ pub async fn make_object_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let handler: Box<dyn AnalyticsHandler<ObjectEntry>> = Box::new(ObjectHandler::new(
-        &config.package_cache_path,
-        &config.rest_url,
-    ));
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let handler: Box<dyn AnalyticsHandler<ObjectEntry>> =
+        Box::new(ObjectHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::Object).await?;
     let writer = make_writer::<ObjectEntry>(
@@ -709,10 +712,9 @@ pub async fn make_event_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let handler: Box<dyn AnalyticsHandler<EventEntry>> = Box::new(EventHandler::new(
-        &config.package_cache_path,
-        &config.rest_url,
-    ));
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let handler: Box<dyn AnalyticsHandler<EventEntry>> =
+        Box::new(EventHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::Event).await?;
     let writer =
@@ -807,9 +809,10 @@ pub async fn make_dynamic_field_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::DynamicField).await?;
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<DynamicFieldEntry>> = Box::new(DynamicFieldHandler::new(
         &config.package_cache_path,
-        &config.rest_url,
+        grpc_client,
     ));
     let writer = make_writer::<DynamicFieldEntry>(
         config.clone(),
@@ -834,8 +837,9 @@ pub async fn make_wrapped_object_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::WrappedObject).await?;
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<WrappedObjectEntry>> = Box::new(
-        WrappedObjectHandler::new(&config.package_cache_path, &config.rest_url),
+        WrappedObjectHandler::new(&config.package_cache_path, grpc_client),
     );
     let writer = make_writer::<WrappedObjectEntry>(
         config.clone(),
@@ -909,7 +913,7 @@ pub async fn make_analytics_processor(
 
 pub fn join_paths(base: Option<Path>, child: &Path) -> Path {
     base.map(|p| {
-        let mut out_path = p.clone();
+        let mut out_path = p;
         for part in child.parts() {
             out_path = out_path.child(part)
         }

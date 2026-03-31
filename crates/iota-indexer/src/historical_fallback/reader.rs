@@ -13,12 +13,12 @@ use std::collections::HashMap;
 
 use futures::future;
 use iota_json_rpc_types::{CheckpointId, IotaEvent};
-use iota_rest_api::CheckpointTransaction;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     event::EventID,
+    full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
@@ -282,7 +282,7 @@ impl HistoricalFallbackReader {
         };
 
         HistoricalFallbackEvents::new(events, summary)
-            .into_iota_events(self.package_resolver.clone(), tx_digest)
+            .into_iota_events(&self.package_resolver, tx_digest)
             .await
     }
 

@@ -276,6 +276,13 @@ impl AuthorityStore {
             // because the genesis tx hasn't but will be executed. This is
             // important for fullnodes to be able to generate indexing data
             // right now.
+            if genesis.effects().events_digest().is_some() {
+                store
+                    .perpetual_tables
+                    .events_2
+                    .insert(transaction.digest(), genesis.events())
+                    .unwrap();
+            }
             let event_digests = genesis.events().digest();
             let events = genesis
                 .events()
@@ -326,12 +333,25 @@ impl AuthorityStore {
                         .effects
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
-                    let events = events
+                    let events_iter = events
                         .data
                         .iter()
                         .enumerate()
                         .map(|(i, e)| ((events.digest(), i), e));
-                    store.perpetual_tables.events.multi_insert(events).unwrap();
+                    store
+                        .perpetual_tables
+                        .events
+                        .multi_insert(events_iter)
+                        .unwrap();
+
+                    // Insert to events_2 table
+                    if effects.events_digest().is_some() {
+                        store
+                            .perpetual_tables
+                            .events_2
+                            .insert(transaction.digest(), events)
+                            .unwrap();
+                    }
                 }
             }
         }
@@ -379,6 +399,24 @@ impl AuthorityStore {
 
     pub fn get_events(
         &self,
+        digest: &TransactionDigest,
+    ) -> Result<Option<TransactionEvents>, TypedStoreError> {
+        // For now, during this transition period, if we don't find events for a
+        // particular Transaction we need to fallback to try and read from the
+        // older table. Once the migration has finished and we've removed the
+        // older events table we can stop doing the fallback
+        if let Some(events) = self.perpetual_tables.events_2.get(digest)? {
+            return Ok(Some(events));
+        }
+
+        self.get_executed_effects(digest)?
+            .and_then(|effects| effects.events_digest().copied())
+            .and_then(|events_digest| self.get_events_by_events_digest(&events_digest).transpose())
+            .transpose()
+    }
+
+    pub fn get_events_by_events_digest(
+        &self,
         event_digest: &TransactionEventsDigest,
     ) -> Result<Option<TransactionEvents>, TypedStoreError> {
         let data = self
@@ -392,7 +430,7 @@ impl AuthorityStore {
 
     pub fn multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        event_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         Ok(event_digests
             .iter()
@@ -403,14 +441,14 @@ impl AuthorityStore {
     pub fn multi_get_effects<'a>(
         &self,
         effects_digests: impl Iterator<Item = &'a TransactionEffectsDigest>,
-    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
-        Ok(self.perpetual_tables.effects.multi_get(effects_digests)?)
+    ) -> Result<Vec<Option<TransactionEffects>>, TypedStoreError> {
+        self.perpetual_tables.effects.multi_get(effects_digests)
     }
 
     pub fn get_executed_effects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> IotaResult<Option<TransactionEffects>> {
+    ) -> Result<Option<TransactionEffects>, TypedStoreError> {
         let effects_digest = self.perpetual_tables.executed_effects.get(tx_digest)?;
         match effects_digest {
             Some(digest) => Ok(self.perpetual_tables.effects.get(&digest)?),
@@ -424,8 +462,8 @@ impl AuthorityStore {
     pub fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
-        Ok(self.perpetual_tables.executed_effects.multi_get(digests)?)
+    ) -> Result<Vec<Option<TransactionEffectsDigest>>, TypedStoreError> {
+        self.perpetual_tables.executed_effects.multi_get(digests)
     }
 
     /// Given a list of transaction digests, returns a list of the corresponding
@@ -434,7 +472,7 @@ impl AuthorityStore {
     pub fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
+    ) -> Result<Vec<Option<TransactionEffects>>, TypedStoreError> {
         let executed_effects_digests = self.perpetual_tables.executed_effects.multi_get(digests)?;
         let effects = self.multi_get_effects(executed_effects_digests.iter().flatten())?;
         let mut tx_to_effects_map = effects
@@ -783,11 +821,11 @@ impl AuthorityStore {
     /// version, and then writes objects, certificates, parents and clean up
     /// locks atomically.
     #[instrument(level = "debug", skip_all)]
-    pub fn write_transaction_outputs(
+    pub fn build_db_batch(
         &self,
         epoch_id: EpochId,
         tx_outputs: &[Arc<TransactionOutputs>],
-    ) -> IotaResult {
+    ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
         for outputs in tx_outputs {
             written.extend(outputs.written.values().cloned());
@@ -800,9 +838,8 @@ impl AuthorityStore {
         // test crashing before writing the batch
         fail_point!("crash");
 
-        write_batch.write()?;
         trace!(
-            "committed transactions: {:?}",
+            "built batch for committed transactions: {:?}",
             tx_outputs
                 .iter()
                 .map(|tx| tx.transaction.digest())
@@ -812,7 +849,7 @@ impl AuthorityStore {
         // test crashing before notifying
         fail_point!("crash");
 
-        Ok(())
+        Ok(write_batch)
     }
 
     fn write_one_transaction_outputs(
@@ -870,6 +907,15 @@ impl AuthorityStore {
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
 
+        // Write events into the new table keyed off of transaction_digest
+        if effects.events_digest().is_some() {
+            write_batch.insert_batch(
+                &self.perpetual_tables.events_2,
+                [(transaction_digest, events)],
+            )?;
+        }
+
+        // Continue writing events into the old table for now keyed off of events digest
         let event_digest = events.digest();
         let events = events
             .data
@@ -1168,6 +1214,7 @@ impl AuthorityStore {
             iter::once(tx_digest),
         )?;
         if let Some(events_digest) = effects.events_digest() {
+            write_batch.delete_batch(&self.perpetual_tables.events_2, [tx_digest])?;
             write_batch.schedule_delete_range(
                 &self.perpetual_tables.events,
                 &(*events_digest, usize::MIN),
@@ -1357,12 +1404,11 @@ impl AuthorityStore {
     pub fn multi_get_transaction_blocks(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
-        Ok(self
-            .perpetual_tables
+    ) -> Result<Vec<Option<VerifiedTransaction>>, TypedStoreError> {
+        self.perpetual_tables
             .transactions
             .multi_get(tx_digests)
-            .map(|v| v.into_iter().map(|v| v.map(|v| v.into())).collect())?)
+            .map(|v| v.into_iter().map(|v| v.map(|v| v.into())).collect())
     }
 
     pub fn get_transaction_block(
@@ -1653,18 +1699,6 @@ impl AuthorityStore {
         )?;
         wb.write()?;
         Ok(())
-    }
-
-    #[cfg(msim)]
-    pub fn remove_all_versions_of_object(&self, object_id: ObjectID) {
-        let entries: Vec<_> = self
-            .perpetual_tables
-            .objects
-            .unbounded_iter()
-            .filter_map(|(key, _)| if key.0 == object_id { Some(key) } else { None })
-            .collect();
-        info!("Removing all versions of object: {:?}", entries);
-        self.perpetual_tables.objects.multi_remove(entries).unwrap();
     }
 
     // Counts the number of versions exist in object store for `object_id`. This

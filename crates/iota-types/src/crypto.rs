@@ -746,6 +746,7 @@ impl Signature {
         Signer::sign(secret, hashed_msg)
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Signature>) -> Self
     where
         T: Serialize,
@@ -1010,6 +1011,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         S::PubKey::SIGNATURE_SCHEME
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
@@ -1096,6 +1098,7 @@ pub struct AuthoritySignInfo {
 }
 
 impl AuthoritySignInfoTrait for AuthoritySignInfo {
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T: Serialize>(
         &self,
         data: &T,
@@ -1269,6 +1272,7 @@ static_assertions::assert_not_impl_any!(AuthorityStrongQuorumSignInfo: Hash, Eq,
 impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
     for AuthorityQuorumSignInfo<STRONG_THRESHOLD>
 {
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T: Serialize>(
         &self,
         data: &T,
@@ -1475,6 +1479,7 @@ mod bcs_signable {
     impl BcsSignable for crate::committee::Committee {}
     impl BcsSignable for crate::messages_checkpoint::CheckpointSummary {}
     impl BcsSignable for crate::messages_checkpoint::CheckpointContents {}
+    impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
@@ -1499,6 +1504,36 @@ where
         // Note: This assumes that names never contain the separator `::`.
         write!(writer, "{name}::").expect("Hasher should not fail");
         bcs::serialize_into(writer, &self).expect("Message serialization should not fail");
+    }
+}
+
+/// Manual [`Signable`] impl for MoveAuthenticator.
+///
+/// `serde_name::trace_name` returns `None` for types that carry
+/// `#[serde(flatten)]`, so the blanket impl via `BcsSignable` panics.
+/// We hardcode the tag and serialise via `self.inner` — the same
+/// representation that `AsRef<[u8]>` already uses.
+impl<W> Signable<W> for crate::move_authenticator::MoveAuthenticator
+where
+    W: std::io::Write,
+{
+    fn write(&self, writer: &mut W) {
+        let name = "MoveAuthenticator";
+        write!(writer, "{name}::").expect("Hasher should not fail");
+        bcs::serialize_into(writer, &self.inner).expect("Message serialization should not fail");
+    }
+}
+
+impl SignableBytes for crate::move_authenticator::MoveAuthenticator {
+    fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let name = "MoveAuthenticator";
+        let name_byte_len = format!("{name}::").bytes().len();
+        let inner = bcs::from_bytes(
+            bytes
+                .get(name_byte_len..)
+                .ok_or_else(|| anyhow!("Failed to deserialize to {name}."))?,
+        )?;
+        Ok(Self::from_inner(inner))
     }
 }
 
@@ -1588,6 +1623,7 @@ impl<'a> VerificationObligation<'a> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_all(self) -> IotaResult<()> {
         let mut pks = Vec::with_capacity(self.public_keys.len());
         for pk in self.public_keys.clone() {
@@ -1691,6 +1727,7 @@ pub enum SignatureScheme {
     MultiSig,
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
+    MoveAuthenticator,
 }
 
 impl SignatureScheme {
@@ -1704,6 +1741,7 @@ impl SignatureScheme {
             // Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
+            SignatureScheme::MoveAuthenticator => 0x07,
         }
     }
 
@@ -1732,6 +1770,7 @@ impl SignatureScheme {
             0x04 => Ok(SignatureScheme::BLS12381),
             0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
             0x06 => Ok(SignatureScheme::PasskeyAuthenticator),
+            0x07 => Ok(SignatureScheme::MoveAuthenticator),
             _ => Err(IotaError::KeyConversion("Invalid key scheme".to_string())),
         }
     }
@@ -1745,6 +1784,7 @@ pub enum CompressedSignature {
     Secp256r1(Secp256r1SignatureAsBytes),
     ZkLogin(ZkLoginAuthenticatorAsBytes),
     Passkey(PasskeyAuthenticatorAsBytes),
+    Move(MoveAuthenticatorAsBytes),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
@@ -1752,6 +1792,9 @@ pub struct ZkLoginAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>)
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub struct PasskeyAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
+pub struct MoveAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
 
 impl AsRef<[u8]> for CompressedSignature {
     fn as_ref(&self) -> &[u8] {
@@ -1761,6 +1804,7 @@ impl AsRef<[u8]> for CompressedSignature {
             CompressedSignature::Secp256r1(sig) => &sig.0,
             CompressedSignature::ZkLogin(sig) => &sig.0,
             CompressedSignature::Passkey(sig) => &sig.0,
+            CompressedSignature::Move(sig) => &sig.0,
         }
     }
 }

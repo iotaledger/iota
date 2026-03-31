@@ -6,10 +6,11 @@
 import { ConnectButton } from '@iota/dapp-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 import { Feature, Theme, ThemeSwitcher, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
-import Link from 'next/link';
 import { Network } from '@iota/iota-sdk/client';
 import { usePersistedNetwork } from '@/hooks';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
+import { ExternalLink } from '@/components/ExternalLink';
+import { ampli } from '@/lib/utils/analytics';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();
@@ -40,7 +41,7 @@ function HomeDashboardPage(): JSX.Element {
             </div>
             <div className="relative flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
                 <div className="absolute right-2 top-2 sm:right-8 sm:top-8">
-                    <ThemeSwitcher />
+                    <ThemeSwitcher onThemeChange={(theme) => ampli.changedTheme({ theme })} />
                 </div>
                 <IotaLogoWeb width={130} height={32} />
                 <div className="flex max-w-sm flex-col items-center gap-8 text-center">
@@ -54,7 +55,13 @@ function HomeDashboardPage(): JSX.Element {
                         </span>
                     </div>
                     <div className="[&_button]:!bg-iota-neutral-90 [&_button]:dark:!bg-iota-neutral-20">
-                        <ConnectButton connectText="Connect" iotaNamesEnabled={iotaNamesEnabled} />
+                        <ConnectButton
+                            connectText="Connect"
+                            iotaNamesEnabled={iotaNamesEnabled}
+                            onConnected={(args) => {
+                                ampli.connectedWallet({ wallet: args.wallet.name });
+                            }}
+                        />
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-iota-neutral-60">
@@ -62,15 +69,14 @@ function HomeDashboardPage(): JSX.Element {
                     <span>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</span>
                     <div className="flex gap-md">
                         {LEGAL_LINKS.map(({ title, href }) => (
-                            <Link
+                            <ExternalLink
                                 key={href}
                                 href={href}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                type="legal"
                                 className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
                             >
                                 {title}
-                            </Link>
+                            </ExternalLink>
                         ))}
                     </div>
                 </div>

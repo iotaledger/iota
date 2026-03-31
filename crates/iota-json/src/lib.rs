@@ -455,11 +455,38 @@ fn is_move_option_type(tag: &StructTag) -> bool {
 impl FromStr for IotaJsonValue {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, anyhow::Error> {
+        /// Split a string by commas, but only at the top level (not inside
+        /// brackets). This allows nested arrays like `[[a,b],[c,d]]` to be
+        /// split correctly into `[a,b]` and `[c,d]`.
+        fn split_top_level_commas(s: &str) -> Vec<&str> {
+            let mut parts = Vec::new();
+            let mut depth = 0usize;
+            let mut start = 0;
+            for (i, ch) in s.char_indices() {
+                match ch {
+                    '[' => depth += 1,
+                    ']' => depth = depth.saturating_sub(1),
+                    ',' if depth == 0 => {
+                        parts.push(&s[start..i]);
+                        start = i + 1;
+                    }
+                    _ => {}
+                }
+            }
+            parts.push(&s[start..]);
+            parts
+        }
+
         fn try_escape_array(s: &str) -> JsonValue {
             let s = s.trim();
             if s.starts_with('[') && s.ends_with(']') {
-                if let Some(s) = s.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-                    return JsonValue::Array(s.split(',').map(try_escape_array).collect());
+                if let Some(inner) = s.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+                    return JsonValue::Array(
+                        split_top_level_commas(inner)
+                            .into_iter()
+                            .map(try_escape_array)
+                            .collect(),
+                    );
                 }
             }
             json!(s)
@@ -720,14 +747,9 @@ fn resolve_call_arg(
     // (depth == 1) vectors of objects (but not, for example, vectors of
     // references)
     match param {
-        SignatureToken::Datatype(_)
-        | SignatureToken::DatatypeInstantiation(_)
-        | SignatureToken::TypeParameter(_)
-        | SignatureToken::Reference(_)
-        | SignatureToken::MutableReference(_) => Ok(ResolvedCallArg::Object(resolve_object_arg(
-            idx,
-            &arg.to_json_value(),
-        )?)),
+        SignatureToken::Reference(inner) | SignatureToken::MutableReference(inner) => {
+            resolve_call_arg(view, type_args, idx, arg, inner)
+        }
         SignatureToken::Vector(inner) => match &**inner {
             SignatureToken::Datatype(_) | SignatureToken::DatatypeInstantiation(_) => {
                 Ok(ResolvedCallArg::ObjVec(resolve_object_vec_arg(idx, arg)?))
@@ -741,6 +763,12 @@ fn resolve_call_arg(
                 );
             }
         },
+        SignatureToken::Datatype(_)
+        | SignatureToken::DatatypeInstantiation(_)
+        | SignatureToken::TypeParameter(_) => Ok(ResolvedCallArg::Object(resolve_object_arg(
+            idx,
+            &arg.to_json_value(),
+        )?)),
         _ => bail!(
             "Unexpected non-primitive arg {:?} at {} with value {:?}",
             param,

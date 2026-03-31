@@ -144,7 +144,7 @@ mod tests {
     async fn good_examples_within_limits() {
         let rng = StdRng::from_seed([12; 32]);
         let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let sim = Simulacrum::new_with_rng(rng);
         let (mut max_nodes, mut max_output_nodes, mut max_depth, mut max_payload) = (0, 0, 0, 0);
 
         sim.set_data_ingestion_path(data_ingestion_path.clone());
@@ -211,7 +211,7 @@ mod tests {
     async fn bad_examples_fail() {
         let rng = StdRng::from_seed([12; 32]);
         let data_ingestion_path = tempdir().unwrap().keep();
-        let mut sim = Simulacrum::new_with_rng(rng);
+        let sim = Simulacrum::new_with_rng(rng);
         let (mut max_nodes, mut max_output_nodes, mut max_depth, mut max_payload) = (0, 0, 0, 0);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 

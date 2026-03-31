@@ -7,13 +7,14 @@ use std::{
 };
 
 use anyhow::anyhow;
-use iota_sdk::types::block::{
-    address::{AliasAddress, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
+use iota_stardust_types::block::{
+    address::{AliasAddress, Bech32Address, Ed25519Address, Hrp, NftAddress, ToBech32Ext},
     output::{
         AliasId, AliasOutputBuilder, Feature, FoundryOutputBuilder, NativeToken, NftId,
         NftOutput as StardustNft, NftOutputBuilder, SimpleTokenScheme, TokenScheme,
         feature::{
-            Attribute, Irc30Metadata, IssuerFeature, MetadataFeature, SenderFeature, TagFeature,
+            Attribute, Irc27Metadata as StardustIrc27, Irc30Metadata, IssuerFeature,
+            MetadataFeature, SenderFeature, TagFeature,
         },
         unlock_condition::{
             AddressUnlockCondition, ExpirationUnlockCondition, GovernorAddressUnlockCondition,
@@ -32,10 +33,9 @@ use iota_types::{
     stardust::{
         coin_type::CoinType,
         output::{
-            ALIAS_OUTPUT_MODULE_NAME, FixedPoint32, Irc27Metadata, NFT_DYNAMIC_OBJECT_FIELD_KEY,
+            ALIAS_OUTPUT_MODULE_NAME, FixedPoint32, NFT_DYNAMIC_OBJECT_FIELD_KEY,
             NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE, NFT_OUTPUT_MODULE_NAME, Nft, NftOutput,
         },
-        stardust_to_iota_address,
     },
 };
 use move_core_types::ident_str;
@@ -45,7 +45,11 @@ use crate::stardust::{
         ExpectedAssets, UnlockObjectTestResult, extract_native_tokens_from_bag,
         object_migration_with_object_owner, random_output_header, run_migration, unlock_object,
     },
-    types::output_header::OutputHeader,
+    types::{
+        address::stardust_to_iota_address,
+        output::nft::{FixedPoint32Ext, NftExt, default_irc27_metadata},
+        output_header::OutputHeader,
+    },
 };
 
 fn migrate_nft(
@@ -232,10 +236,7 @@ fn nft_migration_with_alias_owner() {
         alias_header.output_id(),
         nft_header.output_id(),
         3_000_000,
-        [
-            (nft_header.clone(), nft.into()),
-            (alias_header.clone(), alias.into()),
-        ],
+        [(nft_header, nft.into()), (alias_header, alias.into())],
         ALIAS_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_nft"),
@@ -267,10 +268,7 @@ fn nft_migration_with_nft_owner() {
         nft1_header.output_id(),
         nft2_header.output_id(),
         2_000_000,
-        [
-            (nft1_header.clone(), nft1.into()),
-            (nft2_header.clone(), nft2.into()),
-        ],
+        [(nft1_header, nft1.into()), (nft2_header, nft2.into())],
         NFT_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_nft"),
@@ -338,19 +336,15 @@ fn nft_migration_with_valid_irc27_metadata() {
     attributes.insert(Attribute::new("languages", vec!["english", "rust"]));
 
     let mut royalties = BTreeMap::new();
-    royalties.insert(random_address.to_bech32(hrp), 10.0);
-    royalties.insert(random_address2.to_bech32(hrp), 5.0);
+    royalties.insert(random_address.to_bech32(hrp).to_string(), 10.0);
+    royalties.insert(random_address2.to_bech32(hrp).to_string(), 5.0);
 
-    let metadata = iota_sdk::types::block::output::feature::Irc27Metadata::new(
-        "image/png",
-        "https://nft.org/nft.png".parse().unwrap(),
-        "NFT",
-    )
-    .with_issuer_name("issuer_name")
-    .with_collection_name("collection_name")
-    .with_royalties(royalties)
-    .with_description("description")
-    .with_attributes(attributes);
+    let metadata = StardustIrc27::new("image/png", "https://nft.org/nft.png", "NFT")
+        .with_issuer_name("issuer_name")
+        .with_collection_name("collection_name")
+        .with_royalties(royalties)
+        .with_description("description")
+        .with_attributes(attributes);
 
     let stardust_nft = NftOutputBuilder::new_with_amount(1_000_000, NftId::new(rand::random()))
         .add_unlock_condition(AddressUnlockCondition::new(random_address))
@@ -363,11 +357,11 @@ fn nft_migration_with_valid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
 
     let immutable_metadata = nft.immutable_metadata;
     assert_eq!(&immutable_metadata.media_type, metadata.media_type());
-    assert_eq!(immutable_metadata.uri.url(), metadata.uri().to_string());
+    assert_eq!(&immutable_metadata.uri.url(), metadata.uri());
     assert_eq!(&immutable_metadata.name, metadata.name());
     assert_eq!(&immutable_metadata.issuer_name, metadata.issuer_name());
     assert_eq!(
@@ -386,9 +380,11 @@ fn nft_migration_with_valid_irc27_metadata() {
         .royalties()
         .iter()
         .map(|entry| {
+            // The address is a bech32-encoded string, parse it and convert
+            let bech32_addr: Bech32Address = entry.0.parse().unwrap();
             (
-                IotaAddress::from_bytes(entry.0.as_ed25519().as_slice()).unwrap(),
-                FixedPoint32::try_from(*entry.1).unwrap(),
+                stardust_to_iota_address(bech32_addr.inner()).unwrap(),
+                FixedPoint32::try_from_f64(*entry.1).unwrap(),
             )
         })
         .collect::<BTreeMap<_, _>>();
@@ -416,11 +412,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
     let random_address = Ed25519Address::from(rand::random::<[u8; Ed25519Address::LENGTH]>());
     let header = random_output_header();
 
-    let metadata = iota_sdk::types::block::output::feature::Irc27Metadata::new(
-        "image/png",
-        "https://nft.org/nft.png".parse().unwrap(),
-        "NFT",
-    );
+    let metadata = StardustIrc27::new("image/png", "https://nft.org/nft.png", "NFT");
 
     let mut metadata = serde_json::to_value(&metadata).unwrap();
     // Make the IRC-27 Metadata invalid by changing the type of the `uri` key.
@@ -439,7 +431,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -467,7 +459,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
 
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
-    assert_eq!(immutable_metadata, Irc27Metadata::default());
+    assert_eq!(immutable_metadata, default_irc27_metadata());
 }
 
 #[test]
@@ -484,7 +476,7 @@ fn nft_migration_with_non_json_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -510,7 +502,7 @@ fn nft_migration_with_non_json_metadata() {
 
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
-    assert_eq!(immutable_metadata, Irc27Metadata::default());
+    assert_eq!(immutable_metadata, default_irc27_metadata());
 }
 
 #[test]
@@ -524,14 +516,14 @@ fn nft_migration_without_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
     let immutable_metadata = nft.immutable_metadata;
 
     assert_eq!(immutable_metadata.non_standard_fields.contents.len(), 0);
 
     // Since we removed non_standard_fields, the other fields of immutable_metadata
     // should be the defaults.
-    assert_eq!(immutable_metadata, Irc27Metadata::default());
+    assert_eq!(immutable_metadata, default_irc27_metadata());
 }
 
 #[test]
@@ -722,7 +714,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header.clone(), stardust_nft.clone().into())],
+        [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,

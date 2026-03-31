@@ -34,7 +34,9 @@ export type PayloadType =
     | 'method-payload'
     | 'derive-bip-path-accounts-finder'
     | 'derive-bip-path-accounts-finder-response'
-    | 'persist-accounts-finder';
+    | 'persist-accounts-finder'
+    | 'persist-accounts-finder-response'
+    | 'sidepanel-set-state';
 
 export interface BasePayload {
     type: PayloadType;

@@ -4,15 +4,17 @@
 //! Contains the logic for the migration process.
 
 use std::{
+    cell::RefCell,
     cmp::Reverse,
     collections::{HashMap, HashSet},
     io::{BufWriter, prelude::Write},
+    rc::Rc,
 };
 
 use anyhow::Result;
 use iota_move_build::CompiledPackage;
-use iota_protocol_config::ProtocolVersion;
-use iota_sdk::types::block::output::{FoundryOutput, Output, OutputId};
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_stardust_types::block::output::{FoundryOutput, Output, OutputId};
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, STARDUST_PACKAGE_ID,
     balance::Balance,
@@ -20,7 +22,7 @@ use iota_types::{
     epoch_data::EpochData,
     object::Object,
     stardust::coin_type::CoinType,
-    timelock::timelock::{self, TimeLock, is_timelocked_balance},
+    timelock::timelock::{TimeLock, is_timelocked_balance},
 };
 use move_binary_format::file_format_common::VERSION_MAX;
 use tracing::info;
@@ -35,7 +37,7 @@ use crate::stardust::{
     process_outputs::process_outputs_for_iota,
     types::{
         address_swap_map::AddressSwapMap, address_swap_split_map::AddressSwapSplitMap,
-        output_header::OutputHeader,
+        output_header::OutputHeader, vested_reward::is_timelocked_vested_reward,
     },
 };
 
@@ -231,7 +233,7 @@ impl Migration {
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
-                    if timelock::is_timelocked_vested_reward(
+                    if is_timelocked_vested_reward(
                         header.output_id(),
                         basic,
                         self.target_milestone_timestamp_sec,
@@ -446,12 +448,20 @@ pub(super) fn package_module_bytes(pkg: &CompiledPackage) -> Result<Vec<Vec<u8>>
 pub(super) fn create_migration_context(
     coin_type: &CoinType,
     target_network: MigrationTargetNetwork,
-) -> TxContext {
-    TxContext::new(
+    protocol_config: &ProtocolConfig,
+) -> Rc<RefCell<TxContext>> {
+    let tx_ctx = TxContext::new(
         &IotaAddress::default(),
         &target_network.migration_transaction_digest(coin_type),
         &EpochData::new_genesis(0),
-    )
+        0,
+        0,
+        0,
+        None,
+        protocol_config,
+    );
+
+    Rc::new(RefCell::new(tx_ctx))
 }
 
 #[cfg(test)]
@@ -463,10 +473,11 @@ mod tests {
         gas_coin::GasCoin,
         id::UID,
         object::{Data, Owner},
-        timelock::timelock::{TimeLock, to_genesis_object},
+        timelock::timelock::TimeLock,
     };
 
     use super::*;
+    use crate::stardust::types::vested_reward::to_genesis_object;
 
     #[test]
     fn migration_objects_get_timelocks() {

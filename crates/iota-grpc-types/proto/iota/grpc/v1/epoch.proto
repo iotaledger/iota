@@ -1,0 +1,87 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.epoch;
+
+import "google/protobuf/timestamp.proto";
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+
+// A member of a validator committee.
+message ValidatorCommitteeMember {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The 96-byte Bls12381 public key for this validator.
+  optional bytes public_key = 1;
+
+  // voting weight this validator possesses.
+  optional uint64 weight = 2;
+}
+
+message ValidatorCommitteeMembers {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated ValidatorCommitteeMember members = 1;
+}
+
+// The validator set for a particular epoch.
+message ValidatorCommittee {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The epoch where this committee governs.
+  optional uint64 epoch = 1;
+
+  // The committee members.
+  optional ValidatorCommitteeMembers members = 2;
+}
+
+message ProtocolFeatureFlags {
+  option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
+
+  map<string, bool> flags = 1;
+}
+
+message ProtocolAttributes {
+  option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
+
+  map<string, string> attributes = 1;
+}
+
+message ProtocolConfig {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional uint64 protocol_version = 1;
+  optional ProtocolFeatureFlags feature_flags = 2;
+  optional ProtocolAttributes attributes = 3;
+}
+
+message Epoch {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional uint64 epoch = 1;
+
+  // The committee governing this epoch.
+  optional ValidatorCommittee committee = 2;
+
+  // Snapshot of IOTA's SystemState (`0x3::iota_system::SystemState`) at the
+  // beginning of the epoch, for past epochs, or the current state for the
+  // current epoch.
+  optional iota.grpc.v1.bcs.BcsData bcs_system_state = 3;
+
+  optional uint64 first_checkpoint = 4;
+  optional uint64 last_checkpoint = 5;
+
+  optional google.protobuf.Timestamp start = 6;
+  optional google.protobuf.Timestamp end = 7;
+
+  // Reference gas price denominated in NANOS
+  optional uint64 reference_gas_price = 8;
+
+  optional ProtocolConfig protocol_config = 9;
+}

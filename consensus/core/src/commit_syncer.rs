@@ -48,7 +48,7 @@ use tokio::{
     task::{JoinHandle, JoinSet},
     time::{MissedTickBehavior, sleep},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
@@ -64,6 +64,7 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     network::NetworkClient,
+    scoring_metrics_store::ErrorSource,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
 
@@ -512,12 +513,13 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .clone();
                         inner
                             .context
-                            .metrics
+                            .scoring_metrics_store
                             .update_scoring_metrics_on_block_receival(
                                 authority,
                                 hostname.as_str(),
                                 e.clone(),
-                                "fetch_once",
+                                ErrorSource::CommitSyncer,
+                                &inner.context.metrics.node_metrics,
                             );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
                         let error: &'static str = e.into();
@@ -782,6 +784,7 @@ impl<C: NetworkClient> Inner<C> {
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the votes as verified blocks.
+    #[instrument(level = "trace", skip_all)]
     fn verify_commits(
         &self,
         peer: AuthorityIndex,

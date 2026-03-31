@@ -58,12 +58,21 @@ pub(crate) struct BlockSuspender {
 impl BlockSuspender {
     pub(crate) fn new(context: Arc<Context>) -> Self {
         Self {
-            context: context.clone(),
+            context,
             suspended_headers: BTreeMap::new(),
             missing_ancestors: BTreeMap::new(),
             headers_to_fetch: BTreeMap::new(),
         }
     }
+
+    /// Reinitialize BlockSuspender after fast sync completes.
+    /// Clears all suspended blocks, missing ancestors, and fetch queues.
+    pub(crate) fn reinitialize(&mut self) {
+        self.suspended_headers.clear();
+        self.missing_ancestors.clear();
+        self.headers_to_fetch.clear();
+    }
+
     /// Accept or suspend a batch of received block headers based on their
     /// missing ancestors.
     ///

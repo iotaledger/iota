@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk::types::block::{
+use iota_stardust_types::block::{
     address::{Address, AliasAddress, Ed25519Address},
     output::{
         AliasId, AliasOutput as StardustAlias, AliasOutputBuilder, Feature, FoundryOutputBuilder,
@@ -27,7 +27,6 @@ use iota_types::{
             ALIAS_DYNAMIC_OBJECT_FIELD_KEY, ALIAS_DYNAMIC_OBJECT_FIELD_KEY_TYPE,
             ALIAS_OUTPUT_MODULE_NAME, Alias, AliasOutput, NFT_OUTPUT_MODULE_NAME,
         },
-        stardust_to_iota_address,
     },
 };
 use move_core_types::ident_str;
@@ -37,7 +36,9 @@ use crate::stardust::{
         ExpectedAssets, extract_native_tokens_from_bag, object_migration_with_object_owner,
         random_output_header, run_migration,
     },
-    types::output_header::OutputHeader,
+    types::{
+        address::stardust_to_iota_address, output::alias::AliasExt, output_header::OutputHeader,
+    },
 };
 
 fn migrate_alias(
@@ -218,8 +219,8 @@ fn alias_migration_with_alias_owner() {
         alias2_header.output_id(),
         3_000_000,
         [
-            (alias1_header.clone(), stardust_alias1.into()),
-            (alias2_header.clone(), stardust_alias2.into()),
+            (alias1_header, stardust_alias1.into()),
+            (alias2_header, stardust_alias2.into()),
         ],
         ALIAS_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
@@ -256,10 +257,7 @@ fn alias_migration_with_nft_owner() {
         nft_header.output_id(),
         alias_header.output_id(),
         3_000_000,
-        [
-            (nft_header.clone(), nft.into()),
-            (alias_header.clone(), alias.into()),
-        ],
+        [(nft_header, nft.into()), (alias_header, alias.into())],
         NFT_OUTPUT_MODULE_NAME,
         ALIAS_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_alias"),

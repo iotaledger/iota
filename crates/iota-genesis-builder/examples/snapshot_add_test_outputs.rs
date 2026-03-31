@@ -52,8 +52,7 @@ fn parse_snapshot<const VERIFY: bool>(
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let (current_path, coin_type) = match cli.snapshot {
         Snapshot::Iota { snapshot_path } => (snapshot_path, CoinType::Iota),
@@ -80,8 +79,7 @@ async fn main() -> anyhow::Result<()> {
         randomness_seed,
         None,
         false,
-    )
-    .await?;
+    )?;
 
     parse_snapshot::<false>(&current_path, coin_type)?;
 

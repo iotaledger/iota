@@ -10,7 +10,8 @@ mod ingestion_tests {
     use std::{sync::Arc, time::Duration};
 
     use diesel::{
-        ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper, connection::BoxableConnection,
+        BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, SelectableHelper,
+        connection::BoxableConnection,
     };
     use iota_indexer::{
         db::get_pool_connection,
@@ -38,7 +39,7 @@ mod ingestion_tests {
     use tempfile::tempdir;
 
     use crate::common::{
-        indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_write_indexer,
+        indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer,
         wait_for_objects_snapshot,
     };
 
@@ -56,11 +57,11 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -80,7 +81,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -93,7 +94,7 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -131,7 +132,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn object_type() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -144,7 +145,7 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let _ = sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -184,7 +185,7 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn objects_snapshot() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -200,7 +201,7 @@ mod ingestion_tests {
             let _ = sim.create_checkpoint();
         }
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -260,7 +261,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -273,7 +274,7 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -316,7 +317,7 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -349,7 +350,7 @@ mod ingestion_tests {
                 .unwrap()
             };
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -390,11 +391,11 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -427,11 +428,11 @@ mod ingestion_tests {
     #[tokio::test]
     pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -455,9 +456,55 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
+    pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
+        let sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().keep();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none());
+
+        sim.create_checkpoint();
+
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&pg_store, 1).await;
+
+        let max_cp = IndexerStore::get_latest_checkpoint_sequence_number(&pg_store)
+            .await?
+            .unwrap() as i64;
+        let non_finalized_count: i64 = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            objects::table
+                .filter(
+                    objects::finalized_in_cp
+                        .is_not_null()
+                        .and(objects::finalized_in_cp.gt(max_cp)),
+                )
+                .count()
+                .get_result::<i64>(conn)
+        })
+        .context("Failed reading objects from PostgresDB")?;
+
+        assert_eq!(
+            non_finalized_count, 0,
+            "All objects should be finalized after checkpoint indexing"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
         let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
+        let sim = Simulacrum::new();
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -474,7 +521,7 @@ mod ingestion_tests {
         sim.create_checkpoint(); // checkpoint 3
         assert!(err.is_none());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,

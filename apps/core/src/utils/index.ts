@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './calculateStakeShare';
+export * from './apps-backend';
 export * from './chunkArray';
 export * from './formatDate';
 export * from './formatPercentageDisplay';
@@ -30,6 +31,8 @@ export * from './nftMediaUtils';
 export * from './mapTimelockObjects';
 export * from './formatDelegatedTimelockedStake';
 export * from './formatIotaName';
+export * from './isLegacyBrowser';
+export * from './formatUIErrors';
 
 export * from './stake';
 export * from './transaction';

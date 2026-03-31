@@ -38,6 +38,7 @@ env:
   # from transient network timeouts or other issues.
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
+  # Path to temporary build directory. If this gets changed the chocolatey nuspec files needs to be updated
   TMP_BUILD_DIR: "./tmp/release"
   RELEASE_NOTES_FILE: "release_notes.txt"
 
@@ -81,8 +82,10 @@ jobs:
             os_type: macos-arm64
           - os: windows-latest
             os_type: windows-x86_64
+            continue-on-error: true
       fail-fast: false
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.continue-on-error == true }}
     needs: generate-tag
 
     steps:
@@ -117,31 +120,28 @@ jobs:
         run: |
           echo "extension=$(echo ".exe")" >> $GITHUB_ENV
 
-      - name: Setup caching
-        # Fork of 'Swatinem/rust-cache' which allows caching additional paths
-        uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
-
       - name: Install postgres (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
         run: |
-          choco install postgresql16 --force --params '/Password:root'
-          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
-          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
-          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
+          choco install postgresql15 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\15\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\15\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\15\lib" >> $GITHUB_ENV
           echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
       - name: Install postgres (MacOS arm64)
         if: ${{ matrix.os_type == 'macos-arm64' }}
         shell: bash
-        env:
-          PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
-          LIBRARY_PATH: "/opt/homebrew/lib:$LIBRARY_PATH"
-          PKG_CONFIG_PATH: "/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH"
-          PATH: "/opt/homebrew/bin:$PATH"
         run: |
-          brew install postgresql
+          brew install postgresql@15
+
+          PQ_PREFIX="$(brew --prefix libpq)"
+          echo "PQ_LIB_DIR=${PQ_PREFIX}/lib" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=${PQ_PREFIX}/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=${PQ_PREFIX}/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> $GITHUB_ENV
+          echo "${PQ_PREFIX}/bin" >> $GITHUB_PATH
 
       - name: Install protoc (Windows)
         if: ${{ matrix.os_type == 'windows-x86_64' }}
@@ -191,27 +191,6 @@ jobs:
 
           tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
-      #      - name: Publish Windows iota binary to Chocolatey
-      #        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' &&  && contains(env.iota_ref, '-rc') }}
-      #        shell: bash
-      #        run: |
-      #          choco install checksum
-      #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
-      #          cd chocolatey
-      #
-      #          cat <<EOF >>VERIFICATION.txt
-      #          IOTA Binary verification steps
-      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_ref }}/${{ env.artifact_name }}.tgz
-      #          2. Extract iota.exe
-      #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
-      #
-      #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
-      #          EOF
-      #
-      #          choco pack --version ${{ env.iota_ref }} configuration=release
-      #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-      #          choco push iota.${{ env.iota_ref }}.nupkg --source https://push.chocolatey.org/
-
       - name: Upload artifacts for ${{ matrix.os_type }} platform
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
@@ -250,7 +229,13 @@ jobs:
           echo "iota_tag = $iota_tag"
           trl=$(echo "$iota_tag" | sed -n 's/^[^-]*\(-.*\)/\1/p')
           echo "trl = $trl"
-          previous_tag=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$trl$" | grep -Fv $iota_tag | head -n 1)
+
+          current_minor=$(echo "$iota_tag" | sed -E 's/^v[0-9]+\.([0-9]+)\..*/\1/')
+          current_major=$(echo "$iota_tag" | sed -E 's/^v([0-9]+)\..*/\1/')
+          previous_minor=$((current_minor - 1))
+          echo "Current major: $current_major, current minor: $current_minor, previous minor: $previous_minor"
+
+          previous_tag=$(git tag --sort=-version:refname | grep -E "^v${current_major}\.${previous_minor}\.[0-9]+${trl}$" | head -n 1)
           echo "Previous tag: $previous_tag"
           previous_commit_hash=$(git rev-list -n 1 "${previous_tag}")
           echo "Previous commit hash: $previous_commit_hash"
@@ -275,7 +260,8 @@ jobs:
     name: Update the homebrew-tap formula
     needs: release-build
     runs-on: ubuntu-latest
-    # Releasing iota cli on Testnet and Mainnet releases which are equally stable
+    # Releasing iota cli on Testnet and Mainnet releases which are equally stable.
+    # Windows uses continue-on-error so its failure won't affect the matrix result.
     if: ${{ github.event_name == 'release' && !contains(github.ref, '-alpha') && !contains(github.ref, '-beta')}}
     steps:
       - name: Install Homebrew

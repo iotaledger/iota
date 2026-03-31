@@ -69,6 +69,25 @@ impl ReputationScores {
             }
         }
     }
+
+    /// Creates ReputationScores from reputation_scores_desc (as stored in
+    /// commits). The reputation_scores_desc is Vec<(AuthorityIndex, u64)>
+    /// sorted by score descending. This converts it to scores_per_authority
+    /// indexed by authority.
+    pub(crate) fn from_scores_desc(
+        num_authorities: usize,
+        commit_range: CommitRange,
+        reputation_scores_desc: &[(AuthorityIndex, u64)],
+    ) -> Self {
+        let mut scores_per_authority = vec![0u64; num_authorities];
+        for (authority_index, score) in reputation_scores_desc {
+            scores_per_authority[*authority_index] = *score;
+        }
+        Self {
+            scores_per_authority,
+            commit_range,
+        }
+    }
 }
 
 /// ScoringSubdag represents the scoring votes in a collection of subdags across
@@ -110,15 +129,14 @@ impl ScoringSubdag {
             .with_label_values(&["ScoringSubdag::add_unscored_committed_subdags"])
             .start_timer();
         for subdag in committed_subdags {
-            // If the commit range is not set, then set it to the range of the first
-            // committed subdag index.
-            if self.commit_range.is_none() {
+            if let Some(commit_range) = self.commit_range.as_mut() {
+                commit_range.extend_to(subdag.commit_ref.index);
+            } else {
+                // If the commit range is not set, then set it to the range of the first
+                // committed subdag index.
                 self.commit_range = Some(CommitRange::new(
                     subdag.commit_ref.index..=subdag.commit_ref.index,
                 ));
-            } else {
-                let commit_range = self.commit_range.as_mut().unwrap();
-                commit_range.extend_to(subdag.commit_ref.index);
             }
             // Add the committed leader to the list of leaders we will be scoring.
             tracing::trace!("Adding new committed leader {} for scoring", subdag.leader);
@@ -300,7 +318,7 @@ mod tests {
             .skip_block()
             .build();
 
-        let mut scoring_subdag = ScoringSubdag::new(context.clone());
+        let mut scoring_subdag = ScoringSubdag::new(context);
 
         for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
             scoring_subdag.add_subdags(vec![sub_dag.base]);

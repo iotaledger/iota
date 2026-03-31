@@ -4,10 +4,10 @@
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import type { GrowthBook } from '@growthbook/growthbook';
+import type { FeatureDefinition } from '@iota/apps-backend-client';
 
-export type LoadedFeatures = Parameters<GrowthBook['setFeatures']>['0'];
-export type LoadedAttributes = Parameters<GrowthBook['setAttributes']>['0'];
+export type LoadedFeatures = Record<string, FeatureDefinition>;
+export type LoadedAttributes = Record<string, unknown>;
 
 export interface LoadedFeaturesPayload extends BasePayload {
     type: 'features-response';

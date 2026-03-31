@@ -20,7 +20,7 @@ use iota_test_transaction_builder::{
 use iota_types::{
     effects::TransactionEffectsAPI,
     event::Event,
-    execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
+    execution_status::ExecutionStatus,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
     transaction::{CallArg, ObjectArg},
 };
@@ -460,16 +460,12 @@ async fn call_shared_object_contract() {
         .effects
         .unwrap();
     // Transaction fails
-    assert_eq!(
-        effects.status(),
-        &ExecutionStatus::Failure {
-            error: ExecutionFailureStatus::CommandArgumentError {
-                arg_idx: 0,
-                kind: CommandArgumentError::InvalidObjectByMutRef,
-            },
-            command: Some(0),
-        }
-        .into()
+    assert!(effects.status().is_err(),);
+    assert!(
+        effects
+            .status()
+            .to_string()
+            .contains("Immutable objects cannot be passed by mutable reference")
     );
     assert!(
         effects

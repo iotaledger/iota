@@ -30,6 +30,8 @@ import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
+const SOURCE_FLOW = 'Validator card';
+
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
     const {
@@ -81,7 +83,7 @@ export function ValidatorsCard() {
     const handleNewStake = () => {
         ampli.clickedStakeIota({
             isCurrentlyStaking: true,
-            sourceFlow: 'Validator card',
+            sourceFlow: SOURCE_FLOW,
         });
         navigate('new');
     };
@@ -123,7 +125,7 @@ export function ValidatorsCard() {
                 />
             </div>
             <Title title="In progress" size={TitleSize.Small} />
-            <div className="flex max-h-[420px] w-full flex-1 flex-col items-start overflow-auto">
+            <div className="flex w-full flex-1 flex-col items-start overflow-auto">
                 <div className="w-full gap-2">
                     {system &&
                         delegations

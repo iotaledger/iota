@@ -10,6 +10,10 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
 
+    if (!configService.get('DEPLOY_TYPE')) {
+        throw new Error('DEPLOY_TYPE environment variable is not set');
+    }
+
     app.enableCors({
         origin: '*',
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',

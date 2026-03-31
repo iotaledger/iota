@@ -18,10 +18,47 @@ import {
 } from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { useNetwork } from './useNetwork';
+import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
+import { useFeatureIsOn } from '@iota/apps-backend-client';
+import {
+    tryGenerateDidFromObjectId,
+    tryDIDParse,
+    tryEncodeDidToUrl,
+} from '~/lib/utils/trust-framework/identity';
+import { useIdentityClient } from '~/contexts';
 
 const isGenesisLibAddress = (value: string): boolean => /^(0x|0X)0{0,39}[12]$/.test(value);
 
 type Results = { id: string; label: string; type: string }[];
+
+const getResultsForDid = async (
+    identityClient: IdentityClientReadOnly | null,
+    isIdentityEnabled: boolean,
+    query: string,
+): Promise<Results | null> => {
+    if (identityClient == null) return null; // client not available
+    if (!isIdentityEnabled) return null; // feature flag disabled
+
+    const didParsed = await tryDIDParse(query);
+    const did = didParsed ?? (await tryGenerateDidFromObjectId(query, identityClient.network()));
+    if (did == null) return null; // either invalid parsing or invalid objectId
+
+    const didDocument = await identityClient.resolveDid(did!);
+    const didUrlEncoded = await tryEncodeDidToUrl(didDocument.id());
+    if (didUrlEncoded == null) {
+        throw new Error(
+            'failed to encode a resolved DID to its URL representation, this should never happen!',
+        );
+    }
+
+    return [
+        {
+            id: didUrlEncoded,
+            label: didDocument.id().toString(),
+            type: 'identity',
+        },
+    ];
+};
 
 const getResultsForTransaction = async (
     client: IotaClient,
@@ -58,19 +95,45 @@ const getResultsForCheckpoint = async (
     client: IotaClient,
     query: string,
 ): Promise<Results | null> => {
+    // Check if query is a sequence number (numeric string)
+    const isSequenceNumber = /^\d+$/.test(query);
+
     // Checkpoint digests have the same format as transaction digests:
-    if (!isValidTransactionDigest(query)) return null;
+    if (!isSequenceNumber && !isValidTransactionDigest(query)) return null;
 
-    const { digest } = await client.getCheckpoint({ id: query });
-    if (!digest) return null;
+    try {
+        const checkpoint = await client.getCheckpoint({ id: query });
+        if (!checkpoint?.digest) return null;
 
-    return [
-        {
-            id: digest,
-            label: digest,
-            type: 'checkpoint',
-        },
-    ];
+        return [
+            {
+                id: checkpoint.sequenceNumber,
+                label: `Checkpoint ${checkpoint.sequenceNumber}`,
+                type: 'checkpoint',
+            },
+        ];
+    } catch (error) {
+        return null;
+    }
+};
+
+const getResultsForEpoch = async (client: IotaClient, query: string): Promise<Results | null> => {
+    if (!/^\d+$/.test(query)) return null;
+
+    try {
+        const committeeInfo = await client.getCommitteeInfo({ epoch: query });
+        if (!committeeInfo?.epoch || committeeInfo.epoch !== query) return null;
+
+        return [
+            {
+                id: committeeInfo.epoch,
+                label: `Epoch ${committeeInfo.epoch}`,
+                type: 'epoch',
+            },
+        ];
+    } catch (error) {
+        return null;
+    }
 };
 
 const getResultsForAddress = async (
@@ -174,11 +237,13 @@ const getResultsForValidatorByPoolIdOrIotaAddress = async (
 
 export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
+    const identityClient = useIdentityClient();
     const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
     const [networkId] = useNetwork();
     const network = getNetwork(networkId).id;
 
     const isNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
+    const isTFIdentityEnabled = useFeatureIsOn(Feature.ExplorerTFIdentity as string);
     const { iotaNamesClient } = useIotaNamesClient();
 
     return useQuery<Results, Error>({
@@ -189,7 +254,9 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                 await Promise.allSettled([
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
+                    getResultsForEpoch(client, query),
                     getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
+                    getResultsForDid(identityClient, isTFIdentityEnabled, query),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
                 ])

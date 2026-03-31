@@ -15,7 +15,7 @@ use iota_storage::object_store::util::{
     copy_recursively, find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs,
     path_to_filesystem, put, run_manifest_update_loop, write_snapshot_manifest,
 };
-use object_store::{DynObjectStore, path::Path};
+use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tracing::{debug, error, info};
 
@@ -146,13 +146,13 @@ impl DBCheckpointHandler {
     /// remote store configuration.
     pub fn start(self: Arc<Self>) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
-        if self.output_object_store.is_some() {
+        if let Some(output_object_store) = &self.output_object_store {
             tokio::task::spawn(Self::run_db_checkpoint_upload_loop(
                 self.clone(),
                 kill_sender.subscribe(),
             ));
             tokio::task::spawn(run_manifest_update_loop(
-                self.output_object_store.as_ref().unwrap().clone(),
+                output_object_store.clone(),
                 kill_sender.subscribe(),
             ));
         } else {

@@ -64,7 +64,8 @@ pub fn derive_key_pair_from_path(
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
         | SignatureScheme::ZkLoginAuthenticator
-        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeature {
+        | SignatureScheme::PasskeyAuthenticator
+        | SignatureScheme::MoveAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {key_scheme:?}"),
         }),
     }
@@ -165,7 +166,8 @@ pub fn validate_path(
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
         | SignatureScheme::ZkLoginAuthenticator
-        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeature {
+        | SignatureScheme::PasskeyAuthenticator
+        | SignatureScheme::MoveAuthenticator => Err(IotaError::UnsupportedFeature {
             error: format!("key derivation not supported {key_scheme:?}"),
         }),
     }

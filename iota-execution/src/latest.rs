@@ -2,18 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, path::PathBuf, rc::Rc, sync::Arc};
 
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
-    execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
+    execution_engine::{
+        authenticate_then_execute_transaction_to_effects, authenticate_transaction,
+        execute_genesis_state_update, execute_transaction_to_effects,
+    },
     execution_mode,
     type_layout_resolver::TypeLayoutResolver,
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, TxContext},
+    account_abstraction::authenticator_function::{
+        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+    },
+    base_types::{IotaAddress, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -23,8 +29,9 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+    move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
+    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction, TransactionKind},
 };
 use iota_verifier_latest::meter::IotaVerifierMeter;
 use move_binary_format::CompiledModule;
@@ -73,7 +80,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_coins: Vec<ObjectRef>,
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
@@ -88,7 +95,7 @@ impl executor::Executor for Executor {
         execute_transaction_to_effects::<execution_mode::Normal>(
             store,
             input_objects,
-            gas_coins,
+            gas_data,
             gas_status,
             transaction_kind,
             transaction_signer,
@@ -114,7 +121,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
-        gas_coins: Vec<ObjectRef>,
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
@@ -130,7 +137,7 @@ impl executor::Executor for Executor {
             execute_transaction_to_effects::<execution_mode::DevInspect<true>>(
                 store,
                 input_objects,
-                gas_coins,
+                gas_data,
                 gas_status,
                 transaction_kind,
                 transaction_signer,
@@ -148,7 +155,7 @@ impl executor::Executor for Executor {
             execute_transaction_to_effects::<execution_mode::DevInspect<false>>(
                 store,
                 input_objects,
-                gas_coins,
+                gas_data,
                 gas_status,
                 transaction_kind,
                 transaction_signer,
@@ -165,12 +172,107 @@ impl executor::Executor for Executor {
         }
     }
 
+    fn authenticate_then_execute_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_data: GasData,
+        gas_status: IotaGasStatus,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
+        authenticator_input_objects: CheckedInputObjects,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<(), ExecutionError>,
+    ) {
+        authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
+            store,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            certificate_deny_set,
+            epoch_id,
+            epoch_timestamp_ms,
+            gas_data,
+            gas_status,
+            authenticator,
+            authenticator_function_ref_for_execution,
+            authenticator_input_objects,
+            authenticator_and_transaction_input_objects,
+            transaction_kind,
+            transaction_signer,
+            transaction_digest,
+            trace_builder_opt,
+            &self.0,
+        )
+    }
+
+    fn authenticate_transaction(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_data: GasData,
+        gas_status: IotaGasStatus,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_function_ref: AuthenticatorFunctionRef,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        authenticate_transaction(
+            store,
+            protocol_config,
+            metrics,
+            epoch_id,
+            epoch_timestamp_ms,
+            gas_data,
+            gas_status,
+            authenticator,
+            authenticator_function_ref,
+            authenticator_input_objects,
+            authenticated_transaction_kind,
+            authenticated_transaction_signer,
+            authenticated_transaction_digest,
+            trace_builder_opt,
+            &self.0,
+        )
+    }
+
     fn update_genesis_state(
         &self,
         store: &dyn BackingStore,
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
-        tx_context: &mut TxContext,
+        tx_context: Rc<RefCell<TxContext>>,
         input_objects: CheckedInputObjects,
         pt: ProgrammableTransaction,
     ) -> Result<InnerTemporaryStore, ExecutionError> {

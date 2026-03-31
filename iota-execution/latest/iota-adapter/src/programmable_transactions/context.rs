@@ -8,7 +8,9 @@ pub use checked::*;
 mod checked {
     use std::{
         borrow::Borrow,
+        cell::RefCell,
         collections::{BTreeMap, BTreeSet, HashMap},
+        rc::Rc,
         sync::Arc,
     };
 
@@ -25,7 +27,7 @@ mod checked {
         execution::{ExecutionResults, ExecutionResultsV1},
         execution_status::CommandArgumentError,
         metrics::LimitsMetrics,
-        move_package::MovePackage,
+        move_package::{MovePackage, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, ObjectArg},
@@ -80,11 +82,11 @@ mod checked {
         pub state_view: &'state dyn ExecutionState,
         /// A shared transaction context, contains transaction digest
         /// information and manages the creation of new object IDs
-        pub tx_context: &'a mut TxContext,
+        pub tx_context: Rc<RefCell<TxContext>>,
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
         /// Additional transfers not from the Move runtime
-        additional_transfers: Vec<(/* new owner */ IotaAddress, ObjectValue)>,
+        additional_transfers: Vec<(/* new owner */ Owner, ObjectValue)>,
         /// Newly published packages
         new_packages: Vec<MovePackage>,
         /// User events are claimed after each Move call
@@ -146,7 +148,7 @@ mod checked {
             metrics: Arc<LimitsMetrics>,
             vm: &'vm MoveVM,
             state_view: &'state dyn ExecutionState,
-            tx_context: &'a mut TxContext,
+            tx_context: Rc<RefCell<TxContext>>,
             gas_charger: &'a mut GasCharger,
             inputs: Vec<CallArg>,
         ) -> Result<Self, ExecutionError>
@@ -213,7 +215,8 @@ mod checked {
                 !gas_charger.is_unmetered(),
                 protocol_config,
                 metrics.clone(),
-                tx_context.epoch(),
+                tx_context.clone(),
+                state_view.read_auth_context(),
             );
 
             // Set the profiler if in CLI
@@ -222,7 +225,8 @@ mod checked {
                 use move_vm_profiler::GasProfiler;
                 use move_vm_types::gas::GasMeter;
 
-                let tx_digest = tx_context.digest();
+                let ref_context: &RefCell<TxContext> = tx_context.borrow();
+                let tx_digest = ref_context.borrow().digest();
                 let remaining_gas: u64 =
                     move_vm_types::gas::GasMeter::remaining_gas(&IotaGasMeter(gas_charger.move_gas_status_mut()))
                         .into();
@@ -261,7 +265,21 @@ mod checked {
 
         /// Create a new ID and update the state
         pub fn fresh_id(&mut self) -> Result<ObjectID, ExecutionError> {
-            let object_id = self.tx_context.fresh_id();
+            let object_id = self.tx_context.borrow_mut().fresh_id();
+            self.native_extensions
+                .get_mut()
+                .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
+                .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))?;
+            Ok(object_id)
+        }
+
+        /// Create a new ID and update the state
+        pub(crate) fn package_derived_metadata_id(
+            &mut self,
+            package_storage_id: ObjectID,
+        ) -> Result<ObjectID, ExecutionError> {
+            let object_id = derive_package_metadata_id(package_storage_id);
+
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
@@ -629,7 +647,14 @@ mod checked {
             obj: ObjectValue,
             addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
-            self.additional_transfers.push((addr, obj));
+            self.additional_transfers
+                .push((Owner::AddressOwner(addr), obj));
+            Ok(())
+        }
+
+        /// Freeze the object
+        pub fn freeze_object(&mut self, obj: ObjectValue) -> Result<(), ExecutionError> {
+            self.additional_transfers.push((Owner::Immutable, obj));
             Ok(())
         }
 
@@ -705,7 +730,9 @@ mod checked {
                 state_view,
                 ..
             } = self;
-            let tx_digest = tx_context.digest();
+            let ref_context: &RefCell<TxContext> = tx_context.borrow();
+            let tx_digest = ref_context.borrow().digest();
+
             let gas_id_opt = gas.object_metadata.as_ref().map(|info| info.id());
             let mut loaded_runtime_objects = BTreeMap::new();
             let mut additional_writes = BTreeMap::new();
@@ -790,8 +817,7 @@ mod checked {
                 }
             }
             // add transfers from TransferObjects command
-            for (recipient, object_value) in additional_transfers {
-                let owner = Owner::AddressOwner(recipient);
+            for (owner, object_value) in additional_transfers {
                 add_additional_write(&mut additional_writes, owner, object_value)?;
             }
             // Refund unused gas
@@ -922,7 +948,7 @@ mod checked {
                     Event::new(
                         module_id.address(),
                         module_id.name(),
-                        tx_context.sender(),
+                        ref_context.borrow().sender(),
                         tag,
                         contents,
                     )

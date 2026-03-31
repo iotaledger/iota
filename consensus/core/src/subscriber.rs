@@ -12,7 +12,7 @@ use tokio::{
     task::JoinHandle,
     time::{sleep, timeout},
 };
-use tracing::{debug, error, info};
+use tracing::{Instrument, debug, error, info, trace_span};
 
 use crate::{
     Round,
@@ -21,6 +21,7 @@ use crate::{
     dag_state::DagState,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
+    scoring_metrics_store::ErrorSource,
 };
 
 /// Subscriber manages the block stream subscriptions to other peers, taking
@@ -228,14 +229,18 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .inc();
                         let result = authority_service
                             .handle_send_block(peer, block.clone())
+                            .instrument(trace_span!("handle_send_block"))
                             .await;
                         if let Err(e) = result {
-                            context.metrics.update_scoring_metrics_on_block_receival(
-                                peer,
-                                peer_hostname,
-                                e.clone(),
-                                "handle_send_block",
-                            );
+                            context
+                                .scoring_metrics_store
+                                .update_scoring_metrics_on_block_receival(
+                                    peer,
+                                    peer_hostname,
+                                    e.clone(),
+                                    ErrorSource::Subscriber,
+                                    &context.metrics.node_metrics,
+                                );
                             match e {
                                 ConsensusError::BlockRejected { block_ref, reason } => {
                                     debug!(

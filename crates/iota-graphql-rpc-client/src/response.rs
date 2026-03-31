@@ -99,7 +99,7 @@ impl GraphqlResponse {
     /// Returns the HTTP headers without the `Date` header.
     /// The `Date` header is removed because it is not deterministic.
     pub fn http_headers_without_date(&self) -> HeaderMap {
-        let mut headers = self.http_headers().clone();
+        let mut headers = self.http_headers();
         headers.remove(HeaderName::from_static("date"));
         headers
     }

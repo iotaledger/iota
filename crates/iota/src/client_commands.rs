@@ -18,7 +18,8 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::ToFromBytes,
+    hash::HashFunction,
+    traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
@@ -34,15 +35,15 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    BuildConfig, CompiledPackage, build_from_resolution_graph, check_invalid_dependencies,
-    check_unpublished_dependencies, gather_published_ids, implicit_deps,
+    BuildConfig, CompiledPackage, build_from_resolution_graph, check_conflicting_addresses,
+    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
+    implicit_deps,
 };
 use iota_package_management::{
     LockCommand, PublishedAtError,
     system_package_versions::{latest_system_packages, system_packages_for_protocol},
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_replay::ReplayToolCommand;
 use iota_sdk::{
     IOTA_COIN_TYPE, IOTA_DEVNET_GAS_URL, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_GAS_URL,
     IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0, IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL,
@@ -51,31 +52,40 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
+use iota_sdk_types::crypto::{Intent, IntentMessage};
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
+    account_abstraction::{
+        account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
+    },
     base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
-    crypto::{EmptySignInfo, SignatureScheme},
+    crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
+    dynamic_field::{self, Field},
     error::IotaError,
     gas::{GasCostSummary, get_gas_balance},
     gas_coin::GasCoin,
     iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
+    move_authenticator::MoveAuthenticator,
     move_package::{MovePackage, UpgradeCap},
     object::Owner,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        InputObjectKind, SenderSignedData, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKind,
+        CallArg, InputObjectKind, SenderSignedData, Transaction, TransactionData,
+        TransactionDataAPI, TransactionKind,
     },
+    type_input::TypeInput,
 };
 use json_to_table::json_to_table;
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Scope;
-use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::TypeTag,
+};
 use move_package::{BuildConfig as MoveBuildConfig, source_package::parsed_manifest::Dependencies};
 use move_symbol_pool::Symbol;
 use prometheus::Registry;
@@ -100,16 +110,12 @@ use crate::{
     clever_error_rendering::render_clever_error_opt,
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
-    key_identity::{KeyIdentity, get_identity_address},
+    key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
     keytool::Key,
-    signing::sign_transaction,
+    signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
-
-#[path = "unit_tests/profiler_tests.rs"]
-#[cfg(test)]
-mod profiler_tests;
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 
@@ -122,6 +128,15 @@ pub enum IotaClientCommands {
     ActiveAddress,
     /// Default environment used for commands when none specified
     ActiveEnv,
+    /// Add an existing account address to the keystore
+    AddAccount {
+        /// The object ID of the account
+        address: IotaAddress,
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, hyphens (-), or underscores (_)
+        #[arg(long)]
+        alias: Option<String>,
+    },
     /// Obtain the Addresses managed by the client.
     Addresses {
         /// Sort by alias instead of address
@@ -198,7 +213,7 @@ pub enum IotaClientCommands {
         tx_bytes: String,
         /// A list of Base64 encoded signatures `flag || signature || pubkey`,
         /// separated by space.
-        #[arg(long, num_args(1..))]
+        #[arg(long, num_args(1..), required = true)]
         signatures: Vec<String>,
     },
     /// Execute a combined serialized SenderSignedData string.
@@ -208,6 +223,26 @@ pub enum IotaClientCommands {
         /// --serialize-signed-transaction.
         #[arg(long)]
         signed_tx_bytes: String,
+    },
+    /// Create signature using the private key for the given address (or its
+    /// alias) in iota keystore or the auth args for a MoveAuthenticator. Any
+    /// signature commits to a [struct IntentMessage] consisting of the
+    /// Base64 encoded of the BCS serialized transaction bytes itself and
+    /// its intent. If intent is absent, default will be used.
+    Sign {
+        #[arg(long)]
+        address: KeyIdentity,
+        #[arg(long)]
+        data: String,
+        #[arg(long)]
+        intent: Option<Intent>,
+        /// Auth input objects or primitive values for the Move authenticate
+        /// function
+        #[arg(long, num_args = 1..)]
+        auth_call_args: Option<Vec<String>>,
+        /// Auth type arguments for the Move authenticate function
+        #[arg(long, num_args = 1..)]
+        auth_type_args: Option<Vec<String>>,
     },
     /// Request gas coin from faucet. By default, it will use the active address
     /// and the active network.
@@ -535,75 +570,10 @@ pub enum IotaClientCommands {
         #[arg(long)]
         address_override: Option<ObjectID>,
     },
-    /// Profile the gas usage of a transaction. Unless an output filepath is not
-    /// specified, outputs a file
-    /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
-    /// flamegraph tool such as speedscope.
-    ProfileTransaction {
-        /// The digest of the transaction to replay
-        #[arg(long, short)]
-        tx_digest: String,
-        /// If specified, overrides the filepath of the output profile, for
-        /// example -- /temp/my_profile_name.json will write output to
-        /// `/temp/my_profile_name_{tx_digest}_{unix_timestamp}.json` If
-        /// an output filepath is not specified, it will output a file
-        /// `gas_profile_{tx_digest}_{unix_timestamp}.json` to the working
-        /// directory
-        #[arg(long, short)]
-        profile_output: Option<PathBuf>,
-    },
     /// Remove an existing address by its alias or hexadecimal string.
     /// Warning: removes the private key from the keystore with no way to
     /// recover it if it was not backed up.
     RemoveAddress { address: KeyIdentity },
-    /// Replay a given transaction to view transaction effects. Set environment
-    /// variable MOVE_VM_STEP=1 to debug.
-    ReplayTransaction {
-        /// The digest of the transaction to replay
-        #[arg(long, short)]
-        tx_digest: String,
-        /// Log extra gas-related information
-        #[arg(long)]
-        gas_info: bool,
-        /// Log information about each programmable transaction command
-        #[arg(long)]
-        ptb_info: bool,
-        /// Optional version of the executor to use, if not specified defaults
-        /// to the one originally used for the transaction.
-        #[arg(long, short, allow_hyphen_values = true)]
-        executor_version: Option<i64>,
-        /// Optional protocol version to use, if not specified defaults to the
-        /// one originally used for the transaction.
-        #[arg(long, short, allow_hyphen_values = true)]
-        protocol_version: Option<i64>,
-    },
-    /// Replay transactions listed in a file.
-    ReplayBatch {
-        /// The path to the file of transaction digests to replay, with one
-        /// digest per line
-        #[arg(long, short)]
-        path: PathBuf,
-        /// If an error is encountered during a transaction, this specifies
-        /// whether to terminate or continue
-        #[arg(long, short)]
-        terminate_early: bool,
-    },
-    /// Replay all transactions in a range of checkpoints.
-    #[command(name = "replay-checkpoint")]
-    ReplayCheckpoints {
-        /// The starting checkpoint sequence number of the range of checkpoints
-        /// to replay
-        #[arg(long, short)]
-        start: u64,
-        /// The ending checkpoint sequence number of the range of checkpoints to
-        /// replay
-        #[arg(long, short)]
-        end: u64,
-        /// If an error is encountered during a transaction, this specifies
-        /// whether to terminate or continue
-        #[arg(long, short)]
-        terminate_early: bool,
-    },
 }
 
 /// Arguments used to provide coins for a gas payment
@@ -714,6 +684,13 @@ pub struct TxProcessingArgs {
     /// balance_changes.
     #[arg(long, required = false, num_args = 0.., value_parser = parse_display_option, default_value = "input,effects,events,object_changes,balance_changes")]
     pub display: HashSet<DisplayOption>,
+    /// Auth input objects or primitive values for the Move authenticate
+    /// function
+    #[arg(long, num_args = 1..)]
+    pub auth_call_args: Option<Vec<String>>,
+    /// Auth type arguments for the Move authenticate function
+    #[arg(long, num_args = 1..)]
+    pub auth_type_args: Option<Vec<String>>,
 }
 
 impl TxProcessingArgs {
@@ -772,30 +749,19 @@ impl IotaClientCommands {
         context: &mut WalletContext,
     ) -> Result<IotaClientCommandResult, anyhow::Error> {
         let ret = match self {
-            IotaClientCommands::ProfileTransaction {
-                tx_digest,
-                profile_output,
-            } => {
-                if !move_vm_profiler::is_tracing_feature_enabled() {
-                    bail!(
-                        "tracing feature is not enabled, rebuild or reinstall with \
-                        --features tracing"
-                    );
-                };
+            IotaClientCommands::AddAccount { address, alias } => {
+                let client = context.get_client().await?;
 
-                let cmd = ReplayToolCommand::ProfileTransaction {
-                    tx_digest,
-                    executor_version: None,
-                    protocol_version: None,
-                    profile_output,
-                    config_objects: None,
-                };
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
+                let _auth_info = fetch_auth_info(&client, address).await?;
+
+                context
+                    .config_mut()
+                    .keystore_mut()
+                    .add_key(alias, StoredKey::Account(address))?;
+
+                let alias = context.config().keystore().get_alias_by_address(&address)?;
+
+                IotaClientCommandResult::AddAccount(AddAccountOutput { address, alias })
             }
             IotaClientCommands::RemoveAddress { address } => {
                 let address = get_identity_address(Some(address), context).await?;
@@ -816,63 +782,6 @@ impl IotaClientCommands {
 
                 IotaClientCommandResult::RemoveAddress(address)
             }
-            IotaClientCommands::ReplayTransaction {
-                tx_digest,
-                gas_info: _,
-                ptb_info: _,
-                executor_version,
-                protocol_version,
-            } => {
-                let cmd = ReplayToolCommand::ReplayTransaction {
-                    tx_digest,
-                    show_effects: true,
-                    executor_version,
-                    protocol_version,
-                    config_objects: None,
-                };
-
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
-            }
-            IotaClientCommands::ReplayBatch {
-                path,
-                terminate_early,
-            } => {
-                let cmd = ReplayToolCommand::ReplayBatch {
-                    path,
-                    terminate_early,
-                    num_tasks: 16,
-                    persist_path: None,
-                };
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
-            }
-            IotaClientCommands::ReplayCheckpoints {
-                start,
-                end,
-                terminate_early,
-            } => {
-                let cmd = ReplayToolCommand::ReplayCheckpoints {
-                    start,
-                    end,
-                    terminate_early,
-                    max_tasks: 16,
-                };
-                let rpc = context.active_env()?.rpc().clone();
-                let _command_result =
-                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
-                        .await?;
-                // this will be displayed via trace info, so no output is needed here
-                IotaClientCommandResult::NoOutput
-            }
             IotaClientCommands::Addresses { sort_by_alias } => {
                 let active_address = context.active_address()?;
                 let mut addresses = context
@@ -881,10 +790,14 @@ impl IotaClientCommands {
                     .addresses_with_alias()
                     .into_iter()
                     .map(|(address, alias)| {
-                        let source = match context.config().keystore().get_key(address).unwrap() {
-                            StoredKey::KeyPair(_) => "keypair".to_string(),
-                            StoredKey::External { source, .. } => source.to_string(),
-                        };
+                        // Unwrap is safe here because the address comes from iterating the keystore
+                        let source = context
+                            .config()
+                            .keystore()
+                            .get_key(address)
+                            .unwrap()
+                            .source()
+                            .to_string();
                         (alias.alias.to_string(), *address, source)
                     })
                     .collect::<Vec<_>>();
@@ -1671,8 +1584,8 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
-                    public_base64_key: key.public_base64_key,
-                    public_base64_key_with_flag: key.public_base64_key_with_flag,
+                    public_base64_key: key.public_base64_key.unwrap(),
+                    public_base64_key_with_flag: key.public_base64_key_with_flag.unwrap(),
                     key_scheme: scheme,
                     recovery_phrase: phrase,
                 })
@@ -1949,6 +1862,55 @@ impl IotaClientCommands {
                 let response = context.execute_transaction_may_fail(transaction).await?;
                 IotaClientCommandResult::TransactionBlock(response)
             }
+            IotaClientCommands::Sign {
+                address,
+                data,
+                intent,
+                auth_call_args,
+                auth_type_args,
+            } => {
+                let address = get_identity_address_from_keystore(
+                    address,
+                    context.config_mut().keystore_mut(),
+                )?;
+                let intent = intent.unwrap_or_else(Intent::iota_transaction);
+                let msg: TransactionData =
+                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
+                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
+                    })?)?;
+                let intent_msg = IntentMessage::new(intent, msg.clone());
+                let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
+                let mut hasher = DefaultHash::default();
+                hasher.update(bcs::to_bytes(&intent_msg)?);
+                let digest = hasher.finalize().digest;
+
+                let iota_signature = if auth_call_args.is_some() || auth_type_args.is_some() {
+                    let client = context.get_client().await?;
+                    create_move_authenticator_signature(
+                        &client,
+                        address,
+                        auth_call_args.as_ref(),
+                        auth_type_args.as_ref(),
+                    )
+                    .await?
+                } else {
+                    GenericSignature::Signature(sign_secure(
+                        context.config_mut().keystore_mut(),
+                        &address,
+                        &intent_msg.value,
+                        intent_msg.intent,
+                    )?)
+                };
+
+                IotaClientCommandResult::Sign(SignData {
+                    iota_address: address,
+                    raw_tx_data: data,
+                    intent,
+                    raw_intent_msg,
+                    digest: Base64::encode(digest),
+                    iota_signature: iota_signature.encode_base64(),
+                })
+            }
             IotaClientCommands::NewEnv {
                 alias,
                 rpc,
@@ -1972,12 +1934,12 @@ impl IotaClientCommands {
                 context.config().save()?;
                 IotaClientCommandResult::NewEnv(env)
             }
-            IotaClientCommands::ActiveEnv => {
-                IotaClientCommandResult::ActiveEnv(context.config().active_env().clone())
-            }
+            IotaClientCommands::ActiveEnv => IotaClientCommandResult::ActiveEnv(
+                context.active_env().ok().map(|e| e.alias().clone()),
+            ),
             IotaClientCommands::Envs => IotaClientCommandResult::Envs(
                 context.config().envs().clone(),
-                context.config().active_env().clone(),
+                context.active_env().ok().map(|e| e.alias().clone()),
             ),
             IotaClientCommands::VerifySource {
                 package_path,
@@ -2141,11 +2103,10 @@ pub(crate) async fn upgrade_package(
                 "Conflicting published package address: `Move.toml` contains published-at address \
                  {id_manifest} but `Move.lock` file contains published-at address {id_lock}. \
                  You may want to:
-
-                 - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
-                 - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
-                 - check that your `iota active-env` {env_alias} corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
-                 - contact the maintainer if this package is a dependency and request resolving the conflict."
+ - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
+ - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
+ - check that your `iota active-env` {env_alias} corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
+ - contact the maintainer if this package is a dependency and request resolving the conflict."
             )
         }
     })?;
@@ -2198,7 +2159,10 @@ pub(crate) async fn compile_package(
     };
     let resolution_graph = config.resolution_graph(package_path, chain_id.clone())?;
     let (_, dependencies) = gather_published_ids(&resolution_graph, chain_id.clone());
+
+    check_conflicting_addresses(&dependencies.conflicting, false)?;
     check_invalid_dependencies(&dependencies.invalid)?;
+
     if !with_unpublished_dependencies {
         check_unpublished_dependencies(&dependencies.unpublished)?;
     };
@@ -2355,6 +2319,26 @@ impl Display for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
+            IotaClientCommandResult::AddAccount(new_account) => {
+                let mut builder = TableBuilder::default();
+                builder.push_record(vec!["address", new_account.address.to_string().as_str()]);
+                builder.push_record(vec!["alias", new_account.alias.as_str()]);
+
+                let mut table = builder.build();
+                table.with(TableStyle::rounded());
+                table.with(TablePanel::header("Added account to the keystore."));
+
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_bottom_right('┬')),
+                );
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_top_right('─')),
+                );
+
+                write!(f, "{table}")?
+            }
             IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
                 builder.set_header(vec!["alias", "address", "source", "active"]);
@@ -2687,6 +2671,29 @@ impl Display for IotaClientCommandResult {
 
                 writeln!(f, "{table}")?;
             }
+            IotaClientCommandResult::Sign(sign_data) => {
+                let mut builder = TableBuilder::default();
+                builder.push_record(vec![
+                    "iota_address",
+                    sign_data.iota_address.to_string().as_str(),
+                ]);
+                builder.push_record(vec!["raw_tx_data", sign_data.raw_tx_data.as_str()]);
+                builder.push_record(vec!["intent", &format!("{:?}", sign_data.intent)]);
+                builder.push_record(vec!["raw_intent_msg", sign_data.raw_intent_msg.as_str()]);
+                builder.push_record(vec!["digest", sign_data.digest.as_str()]);
+                builder.push_record(vec!["iota_signature", sign_data.iota_signature.as_str()]);
+
+                let mut table = builder.build();
+                table.with(TableStyle::rounded());
+                table.with(TablePanel::header("Signed transaction data."));
+
+                table.with(
+                    TableModify::new(TableCell::new(0, 0))
+                        .with(TableBorder::default().corner_bottom_right('┬')),
+                );
+
+                writeln!(f, "{table}")?;
+            }
             IotaClientCommandResult::NoOutput => {}
             IotaClientCommandResult::DryRun(response) => {
                 writeln!(f, "{}", Pretty(response))?;
@@ -2770,6 +2777,7 @@ impl IotaClientCommandResult {
             }) => (),
             IotaClientCommandResult::ActiveAddress(_)
             | IotaClientCommandResult::ActiveEnv(_)
+            | IotaClientCommandResult::AddAccount(_)
             | IotaClientCommandResult::Addresses(_)
             | IotaClientCommandResult::Balance(_, _)
             | IotaClientCommandResult::ComputeTransactionDigest(_)
@@ -2787,6 +2795,7 @@ impl IotaClientCommandResult {
             | IotaClientCommandResult::RemoveAddress(_)
             | IotaClientCommandResult::SerializedSignedTransaction(_)
             | IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            | IotaClientCommandResult::Sign(_)
             | IotaClientCommandResult::Switch(_)
             | IotaClientCommandResult::SyncClientState
             | IotaClientCommandResult::VerifyBytecodeMeter { .. }
@@ -2811,6 +2820,13 @@ pub struct DynamicFieldOutput {
     pub has_next_page: bool,
     pub next_cursor: Option<ObjectID>,
     pub data: Vec<DynamicFieldInfo>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddAccountOutput {
+    pub address: IotaAddress,
+    pub alias: String,
 }
 
 #[derive(Serialize)]
@@ -2925,6 +2941,7 @@ impl ObjectsOutput {
 pub enum IotaClientCommandResult {
     ActiveAddress(Option<IotaAddress>),
     ActiveEnv(Option<String>),
+    AddAccount(AddAccountOutput),
     Addresses(AddressesOutput),
     Balance(Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>, bool),
     ChainIdentifier(String),
@@ -2943,6 +2960,7 @@ pub enum IotaClientCommandResult {
     RemoveAddress(IotaAddress),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
+    Sign(SignData),
     Switch(SwitchResponse),
     SyncClientState,
     TransactionBlock(IotaTransactionBlockResponse),
@@ -3214,12 +3232,8 @@ pub async fn execute_dry_run(
         sponsor.unwrap_or(signer),
     );
     debug!("Executing dry run");
-    let response = client
-        .read_api()
-        .dry_run_transaction_block(tx_data)
-        .await
-        .context("Dry run failed")?;
-    debug!("Finished executing dry run");
+    let response = client.read_api().dry_run_transaction_block(tx_data).await?;
+    debug!("Finished executing dry run {response:?}");
     let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
@@ -3247,6 +3261,7 @@ pub async fn estimate_gas_budget(
     let client = context.get_client().await?;
     let dry_run =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
+
     if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
         let rgp = client.read_api().get_reference_gas_price().await?;
         Ok(estimate_gas_budget_from_gas_cost(
@@ -3311,6 +3326,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         serialize_signed_transaction,
         sender,
         display,
+        auth_call_args,
+        auth_type_args,
     } = processing;
     ensure!(
         !serialize_unsigned_transaction || !serialize_signed_transaction,
@@ -3414,15 +3431,38 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
+        let auth_args = if auth_call_args.is_some() || auth_type_args.is_some() {
+            let auth_info = fetch_auth_info(&client, signer).await?;
+            let (type_args, json_args) =
+                process_auth_args(auth_call_args.as_ref(), auth_type_args.as_ref(), signer)?;
+            let call_args = resolve_auth_call_args(
+                &client,
+                auth_info.value.package,
+                &auth_info.value.module,
+                &auth_info.value.function,
+                &type_args,
+                json_args,
+            )
+            .await?;
+            Some((
+                call_args,
+                type_args.into_iter().map(TypeInput::from).collect(),
+            ))
+        } else {
+            None
+        };
 
-        let mut signatures = vec![signature.into()];
+        let signature =
+            sign_transaction(context, &tx_data, &tx_data.sender(), auth_args.clone()).await?;
+
+        let mut signatures = vec![signature];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
-                let signature = sign_transaction(context, &tx_data, &gas_sponsor).await?;
+                let signature =
+                    sign_transaction(context, &tx_data, &gas_sponsor, auth_args).await?;
 
-                signatures.push(signature.into());
+                signatures.push(signature);
             }
         }
 
@@ -3697,4 +3737,251 @@ async fn select_coins_for_amount(
     }
 
     Ok(coins)
+}
+
+/// Resolves authentication call arguments, removing the signer arg added by the
+/// VM.
+pub(crate) async fn resolve_auth_call_args(
+    client: &IotaClient,
+    package: ObjectID,
+    module: &str,
+    function: &str,
+    type_args: &[TypeTag],
+    json_args: Vec<IotaJsonValue>,
+) -> Result<Vec<CallArg>, anyhow::Error> {
+    let mut call_args = client
+        .transaction_builder()
+        .resolve_and_check_json_args_to_call_args(
+            package,
+            &Identifier::from_str(module)?,
+            &Identifier::from_str(function)?,
+            type_args,
+            json_args,
+        )
+        .await?;
+    call_args.remove(0); // remove signer arg as it's added by the VM
+    Ok(call_args)
+}
+
+/// Fetches AuthenticatorFunctionRefV1 for a signer.
+pub(crate) async fn fetch_auth_info(
+    client: &IotaClient,
+    signer: IotaAddress,
+) -> Result<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>, anyhow::Error> {
+    let authenticator_function_ref_id = dynamic_field::derive_dynamic_field_id(
+        signer,
+        &AuthenticatorFunctionRefV1Key::tag().into(),
+        &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
+    )?;
+
+    let response = client
+        .read_api()
+        .get_object_with_options(
+            authenticator_function_ref_id,
+            IotaObjectDataOptions::new().with_bcs(),
+        )
+        .await?;
+
+    if let Some(error) = response.error {
+        bail!("Failed to fetch AuthenticatorFunctionRefV1 object {error}");
+    }
+
+    let auth_info = response
+        .into_object()?
+        .bcs
+        .ok_or_else(|| anyhow::anyhow!("missing bcs"))?
+        .try_into_move()
+        .ok_or_else(|| anyhow::anyhow!("invalid move type"))?
+        .deserialize::<Field<AuthenticatorFunctionRefV1Key, AuthenticatorFunctionRefV1>>()?;
+
+    Ok(auth_info)
+}
+
+/// Processes authentication arguments.
+pub(crate) fn process_auth_args(
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+    signer: IotaAddress,
+) -> Result<(Vec<TypeTag>, Vec<IotaJsonValue>), anyhow::Error> {
+    let type_args = auth_type_args
+        .as_ref()
+        .map(|args| {
+            args.iter()
+                .map(|arg| TypeTag::from_str(arg))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    let mut json_args: Vec<_> = auth_call_args
+        .as_ref()
+        .map(|args| {
+            args.iter()
+                .map(|arg| {
+                    // Use bracket-aware parsing only for array-like args
+                    // (e.g. "[0xAA,0xBBCC]"), so that nested vectors are
+                    // correctly split. Everything else is kept as a JSON
+                    // string, which the resolver handles for u64, hex
+                    // bytes, addresses, object IDs, etc.
+                    if arg.starts_with('[') {
+                        IotaJsonValue::from_str(arg).unwrap_or_else(|_| {
+                            IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap()
+                        })
+                    } else {
+                        IotaJsonValue::new(serde_json::to_value(arg).unwrap()).unwrap()
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    json_args.insert(
+        0,
+        IotaJsonValue::new(serde_json::to_value(signer).unwrap()).unwrap(),
+    );
+
+    Ok((type_args, json_args))
+}
+
+/// Creates a MoveAuthenticator signature for account addresses.
+async fn create_move_authenticator_signature(
+    client: &IotaClient,
+    address: IotaAddress,
+    auth_call_args: Option<&Vec<String>>,
+    auth_type_args: Option<&Vec<String>>,
+) -> Result<GenericSignature, anyhow::Error> {
+    let auth_info = fetch_auth_info(client, address).await?;
+
+    let (type_args, json_args) = process_auth_args(auth_call_args, auth_type_args, address)?;
+
+    let call_args = resolve_auth_call_args(
+        client,
+        auth_info.value.package,
+        &auth_info.value.module,
+        &auth_info.value.function,
+        &type_args,
+        json_args,
+    )
+    .await?;
+
+    let initial_shared_version = get_shared_object_version(client, &address).await?;
+
+    Ok(GenericSignature::MoveAuthenticator(
+        MoveAuthenticator::new_v1(
+            call_args,
+            type_args.into_iter().map(TypeInput::from).collect(),
+            CallArg::Object(iota_types::transaction::ObjectArg::SharedObject {
+                id: ObjectID::from(address),
+                initial_shared_version,
+                mutable: false,
+            }),
+        ),
+    ))
+}
+
+#[cfg(test)]
+mod tests_process_auth_args {
+    use iota_types::base_types::IotaAddress;
+    use serde_json::Value as JsonValue;
+
+    use super::process_auth_args;
+
+    #[test]
+    fn test_no_args() {
+        let signer = IotaAddress::ZERO;
+        let (type_args, json_args) = process_auth_args(None, None, signer).unwrap();
+        assert!(type_args.is_empty());
+        // Should only contain the signer
+        assert_eq!(json_args.len(), 1);
+    }
+
+    #[test]
+    fn test_simple_hex_arg() {
+        let signer = IotaAddress::ZERO;
+        let args = vec!["0xAABBCC".to_string()];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        // signer + 1 arg
+        assert_eq!(json_args.len(), 2);
+        assert_eq!(
+            json_args[1].to_json_value(),
+            JsonValue::String("0xAABBCC".to_string())
+        );
+    }
+
+    #[test]
+    fn test_vector_arg() {
+        let signer = IotaAddress::ZERO;
+        let args = vec!["[0xAABBCC,0xDDEE]".to_string()];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        assert_eq!(json_args.len(), 2);
+        let val = &json_args[1].to_json_value();
+        assert!(val.is_array());
+        let arr = val.as_array().unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[0].as_str().unwrap(), "0xAABBCC");
+        assert_eq!(arr[1].as_str().unwrap(), "0xDDEE");
+    }
+
+    #[test]
+    fn test_triple_nested_vector() {
+        let signer = IotaAddress::ZERO;
+        // Simulates: vector<vector<vector<u8>>> with nested brackets
+        let args = vec!["[[0xAA,0xBB],[0xCC]]".to_string()];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        assert_eq!(json_args.len(), 2);
+        let val = &json_args[1].to_json_value();
+        assert!(val.is_array());
+        let outer = val.as_array().unwrap();
+        assert_eq!(outer.len(), 2);
+        // First inner array: ["0xAA", "0xBB"]
+        assert!(outer[0].is_array());
+        let first = outer[0].as_array().unwrap();
+        assert_eq!(first.len(), 2);
+        assert_eq!(first[0].as_str().unwrap(), "0xAA");
+        assert_eq!(first[1].as_str().unwrap(), "0xBB");
+        // Second inner array: ["0xCC"]
+        assert!(outer[1].is_array());
+        let second = outer[1].as_array().unwrap();
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].as_str().unwrap(), "0xCC");
+    }
+
+    #[test]
+    fn test_multiple_args_with_nested_vector() {
+        let signer = IotaAddress::ZERO;
+        // Simulates: merkle_root, merkle_proof (vector<vector<u8>>), signature
+        let merkle_root = "0xABCD";
+        let proof = "[0x1234,0x5678]";
+        let signature = "0xEF01";
+        let args = vec![
+            merkle_root.to_string(),
+            proof.to_string(),
+            signature.to_string(),
+        ];
+        let (_, json_args) = process_auth_args(Some(&args), None, signer).unwrap();
+        // signer + 3 args
+        assert_eq!(json_args.len(), 4);
+        // merkle_root is a string
+        assert_eq!(
+            json_args[1].to_json_value(),
+            JsonValue::String(merkle_root.to_string())
+        );
+        // proof is an array
+        let proof_val = &json_args[2].to_json_value();
+        assert!(proof_val.is_array());
+        assert_eq!(proof_val.as_array().unwrap().len(), 2);
+        // signature is a string
+        assert_eq!(
+            json_args[3].to_json_value(),
+            JsonValue::String(signature.to_string())
+        );
+    }
+
+    #[test]
+    fn test_type_args() {
+        let signer = IotaAddress::ZERO;
+        let type_args = vec!["u64".to_string(), "bool".to_string()];
+        let (types, _) = process_auth_args(None, Some(&type_args), signer).unwrap();
+        assert_eq!(types.len(), 2);
+    }
 }

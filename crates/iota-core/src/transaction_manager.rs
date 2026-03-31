@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use iota_common::fatal;
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
 use iota_types::{
@@ -190,7 +190,7 @@ struct AvailableObjectsCache {
 
 impl AvailableObjectsCache {
     fn new(metrics: Arc<AuthorityMetrics>) -> Self {
-        Self::new_with_size(metrics, 100000)
+        Self::new_with_size(metrics, randomize_cache_capacity_in_tests(100000))
     }
 
     fn new_with_size(metrics: Arc<AuthorityMetrics>, size: usize) -> Self {
@@ -447,12 +447,10 @@ impl TransactionManager {
             certs
                 .into_iter()
                 .filter_map(|(cert, fx_digest)| {
-                    let input_object_kinds = cert
-                        .data()
-                        .intent_message()
-                        .value
-                        .input_objects()
-                        .expect("input_objects() cannot fail");
+                    // Check availability of all transaction associated input objects(transaction +
+                    // authenticators).
+                    let input_object_kinds =
+                        cert.input_objects().expect("input_objects() cannot fail");
                     let mut input_object_keys = match epoch_store
                         .get_input_object_keys(&cert.key(), &input_object_kinds)
                     {
@@ -756,11 +754,11 @@ impl TransactionManager {
         output_object_keys: Vec<InputKey>,
         epoch_store: &AuthorityPerEpochStore,
     ) {
+        let _scope = monitored_scope("TransactionManager::notify_commit");
         let reconfig_lock = self.inner.read();
         {
             let commit_time = Instant::now();
             let mut inner = reconfig_lock.write();
-            let _scope = monitored_scope("TransactionManager::notify_commit::wlock");
 
             if inner.epoch != epoch_store.epoch() {
                 warn!(
@@ -867,7 +865,6 @@ impl TransactionManager {
 
         for (object_id, queue_len, txn_age) in self.objects_queue_len_and_age(
             tx_data
-                .transaction_data()
                 .shared_input_objects()
                 .into_iter()
                 .filter_map(|r| r.mutable.then_some(r.id))

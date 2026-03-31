@@ -8,7 +8,6 @@ import { Card, CardBody, CardImage, CardType, ImageShape, ImageType } from '@iot
 import { useAccountByAddress } from '_hooks';
 import { AccountIcon } from './accounts/AccountIcon';
 import { AccountItem } from './accounts/AccountItem';
-import { useUnlockAccount } from './accounts/UnlockAccountContext';
 import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
 import { Link } from 'react-router-dom';
@@ -32,15 +31,7 @@ export function DAppInfoCard({
 }: DAppInfoCardProps) {
     const validDAppUrl = getValidDAppUrl(url);
     const { data: account } = useAccountByAddress(connectedAddress);
-    const { unlockAccount, lockAccount } = useUnlockAccount();
-    function handleLockAndUnlockClick() {
-        if (!account) return;
-        if (account?.isLocked) {
-            unlockAccount(account);
-        } else {
-            lockAccount(account);
-        }
-    }
+
     return (
         <div className="flex flex-col gap-y-md">
             <Card type={CardType.Default}>
@@ -68,8 +59,6 @@ export function DAppInfoCard({
                 <AccountItem
                     icon={<AccountIcon account={account} />}
                     accountID={account.id}
-                    onLockAccountClick={handleLockAndUnlockClick}
-                    onUnlockAccountClick={handleLockAndUnlockClick}
                     hideCopy
                     hideExplorerLink
                 />

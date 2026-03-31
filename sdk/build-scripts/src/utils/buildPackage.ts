@@ -61,7 +61,6 @@ async function embedIotaEnvVars() {
     return {
         'process.env.DEFAULT_NETWORK': JSON.stringify(process.env['DEFAULT_NETWORK']),
         'process.env.IOTA_NETWORKS': JSON.stringify(process.env['IOTA_NETWORKS']),
-        'process.env.APPS_BACKEND': JSON.stringify(process.env['APPS_BACKEND']),
         'process.env.SENTRY_AUTH_TOKEN': JSON.stringify(process.env['SENTRY_AUTH_TOKEN']),
     };
 }
@@ -133,7 +132,8 @@ async function buildESM(
 }
 
 async function buildTypes(config: string) {
-    execSync(`pnpm tsc --build ${config}`, {
+    const tsc = require.resolve('typescript/bin/tsc');
+    execSync(`node ${tsc} --build ${config}`, {
         stdio: 'inherit',
         cwd: process.cwd(),
     });
@@ -192,7 +192,7 @@ async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {
 
 async function createEmptyDir(path: string) {
     if (existsSync(path)) {
-        await fs.rm(path, { recursive: true });
+        await fs.rm(path, { recursive: true, maxRetries: 5 });
     }
 
     await fs.mkdir(path, { recursive: true });

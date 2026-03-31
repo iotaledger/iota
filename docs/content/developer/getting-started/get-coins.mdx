@@ -11,7 +11,7 @@ import FaucetButton from '@site/src/components/FaucetButton';
 
 # Get Test Tokens
 
-You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-iota/tokenomics/gas-in-iota.mdx) on the IOTA Devnet and Testnet networks. These test tokens have no real-world value.
+You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-iota/tokenomics/gas-pricing.mdx) on the IOTA Devnet and Testnet networks. These test tokens have no real-world value.
 
 ## Using the IOTA CLI
 
@@ -51,7 +51,7 @@ curl --location --request POST 'https://faucet.testnet.iota.cafe/gas' \
 If you're working with a local network, replace <code>{Networks.iota_testnet.faucet}</code> with the appropriate value based on which package runs your network:
 
 - `iota-faucet`: `http://127.0.0.1:5003/gas`
-- `iota start`: `http://127.0.0.1:9123/gas`
+- `iota-localnet start`: `http://127.0.0.1:9123/gas`
 
 You can also get tokens from your [local faucet](local-network.mdx#use-the-local-faucet).
 
@@ -62,10 +62,10 @@ You can also get tokens from your [local faucet](local-network.mdx#use-the-local
 You can also access the faucet using the IOTA TypeScript-SDK, as shown in the example below:
 
 ```typescript
-import { getFaucetHost, requestIOTAFromFaucetV0 } from '@iota/iota-sdk/faucet';
+import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
 
 // get tokens from the Devnet faucet server
-await requestIotaFromFaucetV0({
+await requestIotaFromFaucetV1({
   // connect to Devnet
 	host: getFaucetHost('devnet'),
 	recipient: '<YOUR IOTA ADDRESS>',

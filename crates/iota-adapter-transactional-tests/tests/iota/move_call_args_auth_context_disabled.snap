@@ -1,0 +1,15 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 3 tasks
+
+task 1, lines 6-12:
+//# publish
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4202800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, line 13:
+//# run Test::M::authenticate
+Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some("`iota::auth_context::AuthContext` can't be used as a parameter if the `move_authentication` feature is disabled"), command: Some(0) } }

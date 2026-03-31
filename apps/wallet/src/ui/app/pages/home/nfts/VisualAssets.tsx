@@ -29,19 +29,23 @@ export function VisualAssets({ items }: VisualAssetsProps) {
     ) {
         event.preventDefault();
         event.stopPropagation();
+        hideAsset(object.objectId);
+
         ampli.clickedHideAsset({
-            objectId: object.objectId,
             collectibleType: object.type!,
         });
-
-        await hideAsset(object.objectId);
 
         toast(
             (t) => (
                 <MovedAssetNotification
                     t={t}
                     destination="Hidden Assets"
-                    onUndo={() => showAsset(object.objectId)}
+                    onUndo={() => {
+                        showAsset(object.objectId);
+                        ampli.clickedShowAsset({
+                            collectibleType: object.type!,
+                        });
+                    }}
                 />
             ),
             {
@@ -65,7 +69,6 @@ export function VisualAssets({ items }: VisualAssetsProps) {
                     }
                     onClick={() => {
                         ampli.clickedCollectibleCard({
-                            objectId: object.objectId,
                             collectibleType: object.type!,
                         });
                     }}

@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature } from '@iota/core';
-import { prepareLinkToCompare } from '_src/shared/utils';
+import { prepareLinkToCompare, resolveApplicationName } from '_src/shared/utils';
 import { useEffect, useMemo } from 'react';
 import { permissionsSelectors } from '../redux/slices/permissions';
 import { useAppSelector, useBackgroundClient } from '.';
@@ -43,16 +43,14 @@ export function useConnectedApps() {
                             pageLinkAdj === anEcosystemAppLinkAdj
                         );
                     });
-                    let appNameFromOrigin = '';
-                    try {
-                        appNameFromOrigin = new URL(aPermission.origin).hostname
-                            .replace('www.', '')
-                            .split('.')[0];
-                    } catch (e) {
-                        // do nothing
-                    }
+
+                    const resolvedName = resolveApplicationName(
+                        aPermission.name,
+                        aPermission.origin,
+                    );
+
                     return {
-                        name: aPermission.name || appNameFromOrigin,
+                        name: resolvedName,
                         description: '',
                         icon: aPermission.favIcon || '',
                         link: aPermission.pagelink || aPermission.origin,

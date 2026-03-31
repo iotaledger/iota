@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { SerializedBcs } from '@iota/bcs';
-import { fromBase64, isSerializedBcs } from '@iota/bcs';
+import { fromBase64, isSerializedBcs, toHex } from '@iota/bcs';
 import type { InferInput } from 'valibot';
 import { is, parse } from 'valibot';
 
 import type { IotaClient } from '../client/index.js';
-import type { SignatureWithBytes, Signer } from '../cryptography/index.js';
+import { Signer } from '../cryptography/index.js';
+import type { SignatureWithBytes } from '../cryptography/index.js';
 import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { TransactionArgument } from './Commands.js';
 import { Commands } from './Commands.js';
 import type { CallArg, Command } from './data/internal.js';
 import { Argument, NormalizedCallArg, ObjectRef, TransactionExpiration } from './data/internal.js';
-import { serializeV1TransactionData } from './data/v1.js';
 import { SerializedTransactionDataV2 } from './data/v2.js';
 import { Inputs } from './Inputs.js';
 import type {
@@ -37,7 +37,7 @@ export type TransactionObjectArgument =
 export type TransactionResult = Extract<Argument, { Result: unknown }> &
     Extract<Argument, { NestedResult: unknown }>[];
 
-function createTransactionResult(index: number) {
+function createTransactionResult(index: number, length = Infinity): TransactionResult {
     const baseResult = { $kind: 'Result' as const, Result: index };
 
     const nestedResults: {
@@ -74,7 +74,7 @@ function createTransactionResult(index: number) {
             if (property === Symbol.iterator) {
                 return function* () {
                     let i = 0;
-                    while (true) {
+                    while (i < length) {
                         yield nestedResultFor(i);
                         i++;
                     }
@@ -175,16 +175,14 @@ export class Transaction {
         return newTransaction;
     }
 
-    /** @deprecated global plugins should be registered with a name */
-    static registerGlobalSerializationPlugin(step: TransactionPlugin): void;
     static registerGlobalSerializationPlugin(name: string, step: TransactionPlugin): void;
     static registerGlobalSerializationPlugin(
-        stepOrStep: TransactionPlugin | string,
+        stepOrName: TransactionPlugin | string,
         step?: TransactionPlugin,
     ) {
         getGlobalPluginRegistry().serializationPlugins.set(
-            stepOrStep,
-            step ?? (stepOrStep as TransactionPlugin),
+            stepOrName,
+            step ?? (stepOrName as TransactionPlugin),
         );
     }
 
@@ -192,16 +190,14 @@ export class Transaction {
         getGlobalPluginRegistry().serializationPlugins.delete(name);
     }
 
-    /** @deprecated global plugins should be registered with a name */
-    static registerGlobalBuildPlugin(step: TransactionPlugin): void;
     static registerGlobalBuildPlugin(name: string, step: TransactionPlugin): void;
     static registerGlobalBuildPlugin(
-        stepOrStep: TransactionPlugin | string,
+        stepOrName: TransactionPlugin | string,
         step?: TransactionPlugin,
     ) {
         getGlobalPluginRegistry().buildPlugins.set(
-            stepOrStep,
-            step ?? (stepOrStep as TransactionPlugin),
+            stepOrName,
+            step ?? (stepOrName as TransactionPlugin),
         );
     }
 
@@ -241,31 +237,26 @@ export class Transaction {
         this.#data.expiration = expiration ? parse(TransactionExpiration, expiration) : null;
     }
     setGasPrice(price: number | bigint) {
-        this.#data.gasConfig.price = String(price);
+        this.#data.gasData.price = String(price);
     }
     setGasBudget(budget: number | bigint) {
-        this.#data.gasConfig.budget = String(budget);
+        this.#data.gasData.budget = String(budget);
     }
 
     setGasBudgetIfNotSet(budget: number | bigint) {
         if (this.#data.gasData.budget == null) {
-            this.#data.gasConfig.budget = String(budget);
+            this.#data.gasData.budget = String(budget);
         }
     }
 
     setGasOwner(owner: string) {
-        this.#data.gasConfig.owner = owner;
+        this.#data.gasData.owner = owner;
     }
     setGasPayment(payments: ObjectRef[]) {
-        this.#data.gasConfig.payment = payments.map((payment) => parse(ObjectRef, payment));
+        this.#data.gasData.payment = payments.map((payment) => parse(ObjectRef, payment));
     }
 
     #data: TransactionDataBuilder;
-
-    /** @deprecated Use `getData()` instead. */
-    get blockData() {
-        return serializeV1TransactionData(this.#data.snapshot());
-    }
 
     /** Get a snapshot of the transaction data, in JSON form: */
     getData() {
@@ -416,23 +407,32 @@ export class Transaction {
 
     // Method shorthands:
 
-    splitCoins(
-        coin: TransactionObjectArgument | string,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        amounts: (TransactionArgument | SerializedBcs<any> | number | string | bigint)[],
-    ) {
-        return this.add(
-            Commands.SplitCoins(
-                typeof coin === 'string' ? this.object(coin) : this.#resolveArgument(coin),
-                amounts.map((amount) =>
-                    typeof amount === 'number' ||
-                    typeof amount === 'bigint' ||
-                    typeof amount === 'string'
-                        ? this.pure.u64(amount)
-                        : this.#normalizeTransactionArgument(amount),
-                ),
+    splitCoins<
+        const Amounts extends (
+            | TransactionArgument
+            | SerializedBcs<any>
+            | number
+            | string
+            | bigint
+        )[],
+    >(coin: TransactionObjectArgument | string, amounts: Amounts) {
+        const command = Commands.SplitCoins(
+            typeof coin === 'string' ? this.object(coin) : this.#resolveArgument(coin),
+            amounts.map((amount) =>
+                typeof amount === 'number' ||
+                typeof amount === 'bigint' ||
+                typeof amount === 'string'
+                    ? this.pure.u64(amount)
+                    : this.#normalizeTransactionArgument(amount),
             ),
         );
+        const index = this.#data.commands.push(command);
+        return createTransactionResult(index - 1, amounts.length) as Extract<
+            Argument,
+            { Result: unknown }
+        > & {
+            [K in keyof Amounts]: Extract<Argument, { NestedResult: unknown }>;
+        };
     }
     mergeCoins(
         destination: TransactionObjectArgument | string,
@@ -526,14 +526,6 @@ export class Transaction {
         );
     }
 
-    /**
-     * @deprecated Use toJSON instead.
-     * For synchronous serialization, you can use `getData()`
-     * */
-    serialize() {
-        return JSON.stringify(serializeV1TransactionData(this.#data.snapshot()));
-    }
-
     async toJSON(options: SerializeTransactionOptions = {}): Promise<string> {
         await this.prepareForSerialization(options);
         return JSON.stringify(
@@ -568,6 +560,16 @@ export class Transaction {
     ): Promise<string> {
         await this.#prepareBuild(options);
         return this.#data.getDigest();
+    }
+
+    /**
+     * Get the signing digest for transaction bytes.
+     * This is the Blake2b hash of the intent message that Ledger displays.
+     */
+    async getSigningDigest(): Promise<string> {
+        const transactionBytes = await this.build();
+        const digest = Signer.signingDigest(transactionBytes, 'TransactionData');
+        return '0x' + toHex(digest);
     }
 
     /**

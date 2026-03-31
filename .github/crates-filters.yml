@@ -90,6 +90,8 @@ iota-ledger-signer:
   - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
+iota-localnet:
+  - "crates/iota-localnet/**"
 iota-macros:
   - "crates/iota-macros/**"
 iota-mainnet-unlocks:
@@ -126,6 +128,8 @@ iota-package-resolver:
   - "crates/iota-package-resolver/**"
 iota-proc-macros:
   - "crates/iota-proc-macros/**"
+iota-proto-build:
+  - "crates/iota-proto-build/**"
 iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
@@ -138,8 +142,6 @@ iota-rest-api:
   - "crates/iota-rest-api/**"
 iota-rest-kv:
   - "crates/iota-rest-kv/**"
-iota-rosetta:
-  - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
 iota-sdk:
@@ -186,6 +188,8 @@ prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 simulacrum:
   - "crates/simulacrum/**"
+simulacrum-server:
+  - "crates/simulacrum-server/**"
 telemetry-subscribers:
   - "crates/telemetry-subscribers/**"
 test-cluster:
