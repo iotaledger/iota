@@ -1029,89 +1029,11 @@ impl<'a> PTBBuilder<'a> {
             }
             // Update this command to not do as many things. It should result in a single command.
             ParsedPTBCommand::Upgrade(sp!(path_loc, package_path), mut arg) => {
-                let package_path = Path::new(&package_path);
+                let (upgrade_cap_id, upgrade_cap_arg) = self.resolve_upgrade_cap(&mut arg).await?;
 
-                if !package_path.exists() {
-                    error!(
-                        path_loc,
-                        "Package path '{}' does not exist",
-                        package_path.display()
-                    );
-                }
-
-                let package_path = package_path
-                    .canonicalize()
-                    .map_err(|e| err!(path_loc, "Failed to canonicalize package path: {e}"))?;
-
-                if let sp!(loc, PTBArg::Identifier(id)) = arg {
-                    arg = self
-                        .arguments_to_resolve
-                        .get(&id)
-                        .and_then(|x| x.get_unresolved())
-                        .ok_or_else(|| err!(loc, "Unable to find object ID argument"))?
-                        .clone();
-                }
-                let (cap_loc, upgrade_cap_id) = match arg {
-                    sp!(loc, PTBArg::Address(id)) => (loc, id),
-                    sp!(loc, _) => {
-                        error!(loc, "Expected upgrade capability object ID");
-                    }
-                };
-
-                let upgrade_cap_arg = self
-                    .resolve(
-                        cap_loc.wrap(PTBArg::Address(upgrade_cap_id)),
-                        ToObject::default(),
-                    )
+                let (upgrade_policy, compiled_package) = self
+                    .compile_for_upgrade(path_loc, &package_path, upgrade_cap_id)
                     .await?;
-
-                let chain_id = self.reader.get_chain_identifier().await.ok();
-                let build_config = MoveBuildConfig::default();
-
-                // Save the initial current directory
-                let initial_dir = std::env::current_dir()
-                    .map_err(|e| err!(path_loc, "Failed to get current directory: {e}"))?;
-                let build_config =
-                    resolve_lock_file_path(build_config.clone(), Some(&package_path))
-                        .map_err(|e| err!(path_loc, "{e}"))?;
-                let previous_id = if let Some(ref chain_id) = chain_id {
-                    iota_package_management::set_package_id(
-                        &package_path,
-                        build_config.install_dir.clone(),
-                        chain_id,
-                        IotaAddress::ZERO,
-                    )
-                    .map_err(|e| err!(path_loc, "{e}"))?
-                } else {
-                    None
-                };
-
-                let (upgrade_policy, compiled_package) = upgrade_package(
-                    self.reader,
-                    build_config.clone(),
-                    &package_path,
-                    ObjectID::new(upgrade_cap_id.into_bytes()),
-                    false, // with_unpublished_dependencies
-                    true,  // skip_dependency_verification
-                    None,
-                )
-                .await
-                .map_err(|e| err!(path_loc, "{e}"))?;
-
-                // Restore original ID, then check result.
-                if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
-                    let _ = iota_package_management::set_package_id(
-                        &package_path,
-                        build_config.install_dir.clone(),
-                        &chain_id,
-                        previous_id,
-                    )
-                    .map_err(|e| err!(path_loc, "{e}"))?;
-                }
-
-                // Restore the initial directory so subsequent commands are not affected
-                std::env::set_current_dir(initial_dir)
-                    .map_err(|e| err!(path_loc, "Failed to restore initial directory: {e}"))?;
 
                 let package_digest = compiled_package.get_package_digest(false);
                 let package_id = compiled_package
@@ -1119,9 +1041,6 @@ impl<'a> PTBBuilder<'a> {
                     .as_ref()
                     .map_err(|e| err!(path_loc, "{e}"))?;
                 let compiled_modules = compiled_package.get_package_bytes(false);
-                // let (package_id, compiled_modules, dependencies, package_digest,
-                // upgrade_policy, _) =     upgrade_result.map_err(|e|
-                // err!(path_loc, "{e}"))?;
 
                 let upgrade_arg = self
                     .ptb
@@ -1178,8 +1097,15 @@ impl<'a> PTBBuilder<'a> {
                 self.last_command = Some(upgrade_receipt);
             }
             ParsedPTBCommand::UpgradeCompile(sp!(path_loc, package_path), mut cap_arg) => {
-                let (upgrade_cap_id, _upgrade_cap_arg) =
-                    self.resolve_upgrade_cap(&mut cap_arg).await?;
+                if self.stored_upgrade_compile.is_some() {
+                    return Err(err!(
+                        cmd_span,
+                        "A compiled package is already pending. \
+                         Use --execute-upgrade before calling --upgrade-compile again."
+                    ));
+                }
+
+                let upgrade_cap_id = self.resolve_upgrade_cap_id(&mut cap_arg)?;
 
                 let (_upgrade_policy, compiled_package) = self
                     .compile_for_upgrade(path_loc, &package_path, upgrade_cap_id)
@@ -1217,12 +1143,9 @@ impl<'a> PTBBuilder<'a> {
         Ok(())
     }
 
-    /// Resolve an upgrade capability argument to its object ID and PTB
-    /// argument.
-    async fn resolve_upgrade_cap(
-        &mut self,
-        arg: &mut Spanned<PTBArg>,
-    ) -> PTBResult<(NumericalAddress, Tx::Argument)> {
+    /// Resolve an upgrade capability argument to its object ID (address only,
+    /// no PTB input object created).
+    fn resolve_upgrade_cap_id(&self, arg: &mut Spanned<PTBArg>) -> PTBResult<NumericalAddress> {
         if let sp!(id_loc, PTBArg::Identifier(id)) = arg {
             *arg = self
                 .arguments_to_resolve
@@ -1231,13 +1154,23 @@ impl<'a> PTBBuilder<'a> {
                 .ok_or_else(|| err!(*id_loc, "Unable to find object ID argument"))?
                 .clone();
         }
-        let (cap_loc, upgrade_cap_id) = match arg {
-            sp!(loc, PTBArg::Address(id)) => (*loc, *id),
+        match arg {
+            sp!(_, PTBArg::Address(id)) => Ok(*id),
             sp!(loc, _) => {
                 error!(*loc, "Expected upgrade capability object ID");
             }
-        };
+        }
+    }
 
+    /// Resolve an upgrade capability argument to its object ID and PTB
+    /// argument.
+    async fn resolve_upgrade_cap(
+        &mut self,
+        arg: &mut Spanned<PTBArg>,
+    ) -> PTBResult<(NumericalAddress, Tx::Argument)> {
+        let upgrade_cap_id = self.resolve_upgrade_cap_id(arg)?;
+
+        let cap_loc = arg.span;
         let upgrade_cap_arg = self
             .resolve(
                 cap_loc.wrap(PTBArg::Address(upgrade_cap_id)),
@@ -1275,7 +1208,7 @@ impl<'a> PTBBuilder<'a> {
 
         let initial_dir = std::env::current_dir()
             .map_err(|e| err!(path_loc, "Failed to get current directory: {e}"))?;
-        let build_config = resolve_lock_file_path(build_config.clone(), Some(&package_path))
+        let build_config = resolve_lock_file_path(build_config, Some(&package_path))
             .map_err(|e| err!(path_loc, "{e}"))?;
         let previous_id = if let Some(ref chain_id) = chain_id {
             iota_package_management::set_package_id(
