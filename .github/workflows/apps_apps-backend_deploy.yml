@@ -31,9 +31,9 @@ jobs:
           fi
 
           if [ "$DEPLOY_TYPE" = "staging" ]; then
-            ENVIRONMENT="unprotected - apps-backend"
+            ENVIRONMENT="pre-production - apps-backend"
           else
-            ENVIRONMENT="protected - apps-backend"
+            ENVIRONMENT="production - apps-backend"
           fi
 
           echo "deploy_type=$DEPLOY_TYPE" >> "$GITHUB_OUTPUT"
