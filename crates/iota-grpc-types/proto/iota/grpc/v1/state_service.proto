@@ -1,0 +1,142 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.state_service;
+
+import "google/protobuf/field_mask.proto";
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/coin.proto";
+import "iota/grpc/v1/dynamic_field.proto";
+import "iota/grpc/v1/object.proto";
+import "iota/grpc/v1/types.proto";
+
+service StateService {
+  rpc ListDynamicFields(ListDynamicFieldsRequest) returns (ListDynamicFieldsResponse);
+  rpc ListOwnedObjects(ListOwnedObjectsRequest) returns (ListOwnedObjectsResponse);
+  rpc GetCoinInfo(GetCoinInfoRequest) returns (GetCoinInfoResponse);
+}
+
+// Request message for `StateService.ListDynamicFields`
+message ListDynamicFieldsRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Required. The `UID` of the parent, which owns the collections of dynamic fields.
+  optional iota.grpc.v1.types.ObjectId parent = 1;
+
+  // The maximum number of dynamic fields to return. The service may return fewer than this value.
+  // If unspecified, at most `50` entries will be returned.
+  // The maximum value is `1000`; values above `1000` will be coerced to `1000`.
+  optional uint32 page_size = 2;
+
+  // A page token, received from a previous `ListDynamicFields` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListDynamicFields` must
+  // match the call that provided the page token.
+  optional bytes page_token = 3;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `parent,field_id`.
+  optional google.protobuf.FieldMask read_mask = 4;
+
+  // Optional maximum message size the client can receive (1MB - 128MB).
+  // If not specified, server uses default chunking threshold (4MB).
+  optional uint32 max_message_size_bytes = 5;
+}
+
+// Response message for `StateService.ListDynamicFields`
+message ListDynamicFieldsResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Batch of dynamic fields owned by the specified parent.
+  repeated iota.grpc.v1.dynamic_field.DynamicField dynamic_fields = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  optional bytes next_page_token = 2;
+}
+
+message ListOwnedObjectsRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Required. The address of the account that owns the objects.
+  optional iota.grpc.v1.types.Address owner = 1;
+
+  // The maximum number of entries return. The service may return fewer than this value.
+  // If unspecified, at most `50` entries will be returned.
+  // The maximum value is `1000`; values above `1000` will be coerced to `1000`.
+  optional uint32 page_size = 2;
+
+  // A page token, received from a previous `ListOwnedObjects` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListOwnedObjects` must
+  // match the call that provided the page token.
+  optional bytes page_token = 3;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `reference,bcs`.
+  optional google.protobuf.FieldMask read_mask = 4;
+
+  // Optional type filter to limit the types of objects listed.
+  //
+  // Providing an object type with no type params will return objects of that
+  // type with any type parameter, e.g. `0x2::coin::Coin` will return all
+  // `Coin<T>` objects regardless of the type parameter `T`. Providing a type
+  // with a type param will restrict the returned objects to only those objects
+  // that match the provided type parameters, e.g.
+  // `0x2::coin::Coin<0x2::iota::IOTA>` will only return `Coin<IOTA>` objects.
+  optional string object_type = 5;
+
+  // Optional maximum message size the client can receive (1MB - 128MB).
+  // If not specified, server uses default chunking threshold (4MB).
+  optional uint32 max_message_size_bytes = 6;
+}
+
+message ListOwnedObjectsResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Batch of objects owned by the specified owner.
+  repeated iota.grpc.v1.object.Object objects = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  optional bytes next_page_token = 2;
+}
+
+// Request message for `StateService.GetCoinInfo`.
+message GetCoinInfoRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The coin type to request information about
+  optional string coin_type = 1;
+}
+
+// Response message for `StateService.GetCoinInfo`.
+message GetCoinInfoResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Required. The coin type.
+  optional string coin_type = 1;
+
+  // This field will be populated with information about this coin
+  // type's `0x2::coin::CoinMetadata` if it exists and has not been wrapped.
+  optional iota.grpc.v1.coin.CoinMetadata metadata = 2;
+
+  // This field will be populated with information about this coin
+  // type's `0x2::coin::TreasuryCap` if it exists and has not been wrapped.
+  optional iota.grpc.v1.coin.CoinTreasury treasury = 3;
+
+  // If this coin type is a regulated coin, this field will be
+  // populated with information either from its Currency object
+  // in the CoinRegistry, or from its `0x2::coin::RegulatedCoinMetadata`
+  // object for coins that have not been migrated to the CoinRegistry
+  //
+  // If this coin is not known to be regulated, only the
+  // coin_regulated_state field will be populated.
+  optional iota.grpc.v1.coin.RegulatedCoinMetadata regulated_metadata = 4;
+}

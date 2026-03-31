@@ -999,6 +999,7 @@ pub struct ProtocolConfig {
     tx_context_derive_id_cost_base: Option<u64>,
     tx_context_fresh_id_cost_base: Option<u64>,
     tx_context_sender_cost_base: Option<u64>,
+    tx_context_digest_cost_base: Option<u64>,
     tx_context_epoch_cost_base: Option<u64>,
     tx_context_epoch_timestamp_ms_cost_base: Option<u64>,
     tx_context_sponsor_cost_base: Option<u64>,
@@ -1965,6 +1966,7 @@ impl ProtocolConfig {
             tx_context_derive_id_cost_base: Some(52),
             tx_context_fresh_id_cost_base: None,
             tx_context_sender_cost_base: None,
+            tx_context_digest_cost_base: None,
             tx_context_epoch_cost_base: None,
             tx_context_epoch_timestamp_ms_cost_base: None,
             tx_context_sponsor_cost_base: None,
@@ -2667,6 +2669,7 @@ impl ProtocolConfig {
                     cfg.feature_flags.move_native_tx_context = true;
                     cfg.tx_context_fresh_id_cost_base = Some(52);
                     cfg.tx_context_sender_cost_base = Some(30);
+                    cfg.tx_context_digest_cost_base = Some(30);
                     cfg.tx_context_epoch_cost_base = Some(30);
                     cfg.tx_context_epoch_timestamp_ms_cost_base = Some(30);
                     cfg.tx_context_sponsor_cost_base = Some(30);

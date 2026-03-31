@@ -74,7 +74,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 pub struct AnalyticsIndexerConfig {
     /// The url of the checkpoint client to connect to.
     #[arg(long)]
-    pub rest_url: String,
+    pub grpc_url: String,
     /// The url of the metrics client to connect to.
     #[arg(long, default_value = "127.0.0.1", global = true)]
     pub client_metric_host: String,
@@ -686,10 +686,9 @@ pub async fn make_object_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let handler: Box<dyn AnalyticsHandler<ObjectEntry>> = Box::new(ObjectHandler::new(
-        &config.package_cache_path,
-        &config.rest_url,
-    ));
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let handler: Box<dyn AnalyticsHandler<ObjectEntry>> =
+        Box::new(ObjectHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::Object).await?;
     let writer = make_writer::<ObjectEntry>(
@@ -713,10 +712,9 @@ pub async fn make_event_processor(
     config: AnalyticsIndexerConfig,
     metrics: AnalyticsMetrics,
 ) -> Result<Processor> {
-    let handler: Box<dyn AnalyticsHandler<EventEntry>> = Box::new(EventHandler::new(
-        &config.package_cache_path,
-        &config.rest_url,
-    ));
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
+    let handler: Box<dyn AnalyticsHandler<EventEntry>> =
+        Box::new(EventHandler::new(&config.package_cache_path, grpc_client));
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::Event).await?;
     let writer =
@@ -811,9 +809,10 @@ pub async fn make_dynamic_field_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::DynamicField).await?;
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<DynamicFieldEntry>> = Box::new(DynamicFieldHandler::new(
         &config.package_cache_path,
-        &config.rest_url,
+        grpc_client,
     ));
     let writer = make_writer::<DynamicFieldEntry>(
         config.clone(),
@@ -838,8 +837,9 @@ pub async fn make_wrapped_object_processor(
 ) -> Result<Processor> {
     let starting_checkpoint_seq_num =
         get_starting_checkpoint_seq_num(config.clone(), FileType::WrappedObject).await?;
+    let grpc_client = iota_grpc_client::Client::connect(&config.grpc_url).await?;
     let handler: Box<dyn AnalyticsHandler<WrappedObjectEntry>> = Box::new(
-        WrappedObjectHandler::new(&config.package_cache_path, &config.rest_url),
+        WrappedObjectHandler::new(&config.package_cache_path, grpc_client),
     );
     let writer = make_writer::<WrappedObjectEntry>(
         config.clone(),

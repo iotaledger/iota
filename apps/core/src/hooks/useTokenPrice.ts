@@ -5,23 +5,21 @@
 import { useQuery } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 
-import { useAppsBackend } from './useAppsBackend';
+import { useAppsBackendClient } from '@iota/apps-backend-client';
 import { useCoinMetadata } from './useFormatCoin';
 import { Feature, FiatTokenName } from '../enums';
 import { COIN_TYPE_TO_FIAT_TOKEN_NAME } from '../constants';
 import { Network } from '@iota/iota-sdk/client';
 import { useFeatureEnabledByNetwork } from './useFeatureEnabledByNetwork';
 
-type TokenPriceResponse = { price: string | null };
-
 export function useTokenPrice(tokenName: FiatTokenName | null, network: Network) {
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
     const isFiatConversionEnabled = useFeatureEnabledByNetwork(Feature.FiatConversion, network);
     return useQuery({
         queryKey: ['apps-backend', 'token-price', isFiatConversionEnabled, network, tokenName],
         queryFn: () => {
             if (!isFiatConversionEnabled || !tokenName) return { price: null };
-            return request<TokenPriceResponse>(`coin-price/${tokenName}`);
+            return client.getCoinPrice(tokenName);
         },
 
         // These values are set to one minute to prevent displaying stale data, as token prices can change frequently.

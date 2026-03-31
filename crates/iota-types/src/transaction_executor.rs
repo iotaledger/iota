@@ -2,13 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use crate::{
     base_types::ObjectID,
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError},
     execution::ExecutionResult,
+    messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
@@ -31,6 +33,18 @@ pub trait TransactionExecutor: Send + Sync {
         transaction: TransactionData,
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError>;
+
+    /// Wait for the given transactions to be included in a checkpoint.
+    ///
+    /// Returns a mapping from transaction digest to
+    /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
+    /// On timeout, returns partial results for any transactions that were
+    /// already checkpointed.
+    async fn wait_for_checkpoint_inclusion(
+        &self,
+        digests: &[TransactionDigest],
+        timeout: Duration,
+    ) -> Result<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>, IotaError>;
 }
 
 pub struct SimulateTransactionResult {

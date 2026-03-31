@@ -164,17 +164,25 @@ impl PrimaryWriter {
             let mut persist_tasks = vec![
                 self.state.persist_transactions(tx_batch),
                 self.state.persist_tx_indices(tx_indices_batch),
-                self.state
-                    .persist_tx_global_order(tx_global_order_batch.clone()),
                 self.state.persist_events(events_batch),
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(display_updates_batch),
                 self.state.persist_packages(packages_batch),
-                self.state.persist_checkpoint_objects(object_changes_batch),
                 self.state
                     .persist_object_history(object_history_changes_batch.clone()),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
+                Box::pin(async {
+                    // We need to persist global order before writing objects, so that optimistic
+                    // indexing is blocked from overwriting objects table with old tx data
+                    // reference: https://github.com/iotaledger/iota/issues/10250
+                    self.state
+                        .persist_tx_global_order(tx_global_order_batch.clone())
+                        .await?;
+                    self.state
+                        .persist_checkpoint_objects(object_changes_batch)
+                        .await
+                }),
             ];
             if let Some(epoch_data) = epoch.clone() {
                 persist_tasks.push(self.state.persist_epoch(epoch_data));
@@ -191,14 +199,6 @@ impl PrimaryWriter {
                 .collect::<IndexerResult<Vec<_>>>()
                 .expect("persisting data into DB should not fail.");
         }
-
-        self.state
-            .update_status_for_checkpoint_transactions(tx_global_order_batch)
-            .await
-            .inspect_err(|e| {
-                error!("failed to update tx global order as indexed with error: {e}");
-            })
-            .expect("updating tx global order as indexed should not fail.");
 
         let is_epoch_end = epoch.is_some();
 
@@ -264,12 +264,12 @@ impl PrimaryWriter {
             elapsed,
             "Checkpoint {}-{} committed with {} transactions.",
             first_checkpoint_seq,
-            committer_watermark.checkpoint_hi_inclusive,
+            committer_watermark.max_committed_cp,
             tx_count,
         );
         self.metrics
             .latest_tx_checkpoint_sequence_number
-            .set(committer_watermark.checkpoint_hi_inclusive as i64);
+            .set(committer_watermark.max_committed_cp as i64);
         self.metrics
             .total_tx_checkpoint_committed
             .inc_by(checkpoint_num as u64);
@@ -278,7 +278,7 @@ impl PrimaryWriter {
             .inc_by(tx_count as u64);
         self.metrics.transaction_per_checkpoint.observe(
             tx_count as f64
-                / (committer_watermark.checkpoint_hi_inclusive - first_checkpoint_seq + 1) as f64,
+                / (committer_watermark.max_committed_cp - first_checkpoint_seq + 1) as f64,
         );
         // 1000.0 is not necessarily the batch size, it's to roughly map average tx
         // commit latency to [0.1, 1] seconds, which is well covered by

@@ -1,0 +1,68 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.checkpoint;
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/signatures.proto";
+import "iota/grpc/v1/types.proto";
+
+// A header for a checkpoint on the IOTA blockchain.
+//
+// On the IOTA network, checkpoints define the history of the blockchain. They are quite similar to
+// the concept of blocks used by other blockchains like Bitcoin or Ethereum. The IOTA blockchain,
+// however, forms checkpoints after transaction execution has already happened to provide a
+// certified history of the chain, instead of being formed before execution.
+//
+// Checkpoints commit to a variety of state, including but not limited to:
+// - The hash of the previous checkpoint.
+// - The set of transaction digests, their corresponding effects digests, as well as the set of
+//   user signatures that authorized its execution.
+// - The objects produced by a transaction.
+// - The set of live objects that make up the current state of the chain.
+// - On epoch transitions, the next validator committee.
+//
+// `CheckpointSummary`s themselves don't directly include all of the previous information but they
+// are the top-level type by which all the information is committed to transitively via cryptographic
+// hashes included in the summary. `CheckpointSummary`s are signed and certified by a quorum of
+// the validator committee in a given epoch to allow verification of the chain's state.
+message CheckpointSummary {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The digest of this CheckpointSummary.
+  optional iota.grpc.v1.types.Digest digest = 1;
+
+  // This CheckpointSummary serialized as BCS.
+  optional iota.grpc.v1.bcs.BcsData bcs = 2;
+}
+
+// The committed to contents of a checkpoint.
+message CheckpointContents {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The digest of this CheckpointContents.
+  optional iota.grpc.v1.types.Digest digest = 1;
+  // This CheckpointContents serialized as BCS.
+  optional iota.grpc.v1.bcs.BcsData bcs = 2;
+}
+
+message Checkpoint {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The height of this checkpoint.
+  optional uint64 sequence_number = 1;
+
+  // The `CheckpointSummary` for this checkpoint.
+  optional CheckpointSummary summary = 2;
+
+  // The `CheckpointContents` for this checkpoint.
+  optional CheckpointContents contents = 3;
+
+  // An aggregated quorum signature from the validator committee that
+  // certified this checkpoint.
+  optional iota.grpc.v1.signatures.ValidatorAggregatedSignature signature = 4;
+}

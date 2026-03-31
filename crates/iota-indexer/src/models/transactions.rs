@@ -4,14 +4,7 @@
 
 use std::sync::Arc;
 
-use diesel::{
-    backend::Backend,
-    deserialize::{FromSql, Result as DeserializeResult},
-    expression::AsExpression,
-    prelude::*,
-    serialize::{Output, Result as SerializeResult, ToSql},
-    sql_types::BigInt,
-};
+use diesel::prelude::*;
 use iota_json_rpc_types::{
     BalanceChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
@@ -55,80 +48,25 @@ pub struct TxGlobalOrder {
     /// Monotonically increasing number that represents the order
     /// of execution of optimistic transactions.
     ///
-    /// To maintain these semantics the value should be non-positive for
-    /// checkpointed transactions. More specifically we allow values
-    /// in the set `[0, -1]` to represent the index status of checkpointed
-    /// transactions.
-    ///
+    /// Checkpointed transactions use [`CHECKPOINT_TX_OPTIMISTIC_SEQ`] (-1).
     /// Optimistic transactions should set this value to `None`,
     /// so that it is auto-generated on the database.
     #[diesel(deserialize_as = i64)]
     pub optimistic_sequence_number: Option<i64>,
 }
 
-impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
+/// Value stored in `optimistic_sequence_number` for checkpointed
+/// transactions, to distinguish them from optimistic transactions
+/// which use positive auto-generated values.
+pub const CHECKPOINT_TX_OPTIMISTIC_SEQ: i64 = -1;
+
+impl From<&IndexedTransaction> for TxGlobalOrder {
     fn from(tx: &IndexedTransaction) -> Self {
         Self {
             chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
             global_sequence_number: tx.tx_sequence_number as i64,
             tx_digest: tx.tx_digest.into_inner().to_vec(),
-            index_status: Some(IndexStatus::Started),
-        }
-    }
-}
-
-/// Stored value for checkpointed transactions.
-///
-/// Differs from [`TxGlobalOrder`] in that it allows values
-/// for `optimistic_sequence_number` in the set `[0, -1]`
-/// that represent the index status.
-#[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
-#[diesel(table_name = tx_global_order)]
-pub struct CheckpointTxGlobalOrder {
-    pub(crate) chk_tx_sequence_number: Option<i64>,
-    pub(crate) global_sequence_number: i64,
-    pub(crate) tx_digest: Vec<u8>,
-    /// The index status of checkpointed transactions.
-    ///
-    /// This essentially reserves the values `[0, -1]` of the
-    /// `optimistic_sequence_number` stored in the table for checkpointed
-    /// transactions, to distinguish from optimistic transactions, and
-    /// assign semantics related to the index status.
-    #[diesel(deserialize_as = IndexStatus, column_name = "optimistic_sequence_number")]
-    pub(crate) index_status: Option<IndexStatus>,
-}
-
-/// Index status.
-#[derive(Clone, Debug, Copy, AsExpression, PartialEq, Eq)]
-#[diesel(sql_type = BigInt)]
-pub enum IndexStatus {
-    Started,
-    Completed,
-}
-
-impl<DB> ToSql<BigInt, DB> for IndexStatus
-where
-    DB: Backend,
-    i64: ToSql<BigInt, DB>,
-{
-    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, DB>) -> SerializeResult {
-        match *self {
-            IndexStatus::Started => 0.to_sql(out),
-            IndexStatus::Completed => (-1).to_sql(out),
-        }
-    }
-}
-
-impl<DB> FromSql<BigInt, DB> for IndexStatus
-where
-    DB: Backend,
-    i64: FromSql<BigInt, DB>,
-{
-    fn from_sql(bytes: DB::RawValue<'_>) -> DeserializeResult<Self> {
-        match i64::from_sql(bytes)? {
-            0 => Ok(IndexStatus::Started),
-            -1 => Ok(IndexStatus::Completed),
-            other => Err(format!("invalid index status {other}").into()),
+            optimistic_sequence_number: Some(CHECKPOINT_TX_OPTIMISTIC_SEQ),
         }
     }
 }

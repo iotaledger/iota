@@ -66,7 +66,6 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         setSelectedAsset(asset);
         if (selectedAssetCategory === AssetCategory.Visual) {
             ampli.clickedCollectibleCard({
-                objectId: asset.objectId,
                 collectibleType: asset.type!,
             });
         }
