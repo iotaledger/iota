@@ -830,9 +830,7 @@ impl TransactionKindExt for TransactionKind {
             Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
-            Self::Programmable(pt) => {
-                Either::Right(Either::Left(pt.shared_input_objects()))
-            }
+            Self::Programmable(pt) => Either::Right(Either::Left(pt.shared_input_objects())),
             _ => Either::Right(Either::Right(iter::empty())),
         }
     }
