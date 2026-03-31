@@ -103,7 +103,7 @@ impl LiveObject {
     ) -> IndexerResult<Self> {
         let df_kind = extract_df_kind(&object);
         let indexed_object =
-            IndexedObject::from_object(checkpoint_sequence_number, object, df_kind);
+            IndexedObject::from_object(Some(checkpoint_sequence_number), object, df_kind);
         Ok(Self {
             indexed_object,
             transaction_digest,

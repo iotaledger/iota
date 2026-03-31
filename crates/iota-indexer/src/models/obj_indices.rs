@@ -5,6 +5,7 @@
 use diesel::prelude::*;
 
 use crate::{
+    errors::IndexerError,
     schema::objects_version,
     types::{IndexedDeletedObject, IndexedObject},
 };
@@ -20,13 +21,19 @@ pub struct StoredObjectVersion {
     pub cp_sequence_number: i64,
 }
 
-impl From<&IndexedObject> for StoredObjectVersion {
-    fn from(o: &IndexedObject) -> Self {
-        Self {
+impl TryFrom<&IndexedObject> for StoredObjectVersion {
+    type Error = IndexerError;
+
+    fn try_from(o: &IndexedObject) -> Result<Self, Self::Error> {
+        Ok(Self {
             object_id: o.object.id().to_vec(),
             object_version: o.object.version().value() as i64,
-            cp_sequence_number: o.checkpoint_sequence_number as i64,
-        }
+            cp_sequence_number: o.checkpoint_sequence_number.ok_or_else(|| {
+                IndexerError::InvalidArgument(
+                    "checkpoint_sequence_number is required for StoredObjectVersion".to_string(),
+                )
+            })? as i64,
+        })
     }
 }
 

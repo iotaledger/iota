@@ -233,6 +233,7 @@ diesel::table! {
         coin_type -> Nullable<Text>,
         coin_balance -> Nullable<Int8>,
         df_kind -> Nullable<Int2>,
+        finalized_in_cp -> Nullable<Int8>,
     }
 }
 
@@ -444,13 +445,14 @@ diesel::table! {
 diesel::table! {
     watermarks (entity) {
         entity -> Text,
-        epoch_hi_inclusive -> Int8,
-        checkpoint_hi_inclusive -> Int8,
-        tx_hi -> Int8,
-        epoch_lo -> Int8,
-        reader_lo -> Int8,
-        timestamp_ms -> Int8,
-        pruner_hi -> Int8,
+        current_epoch -> Int8,
+        max_committed_cp -> Int8,
+        max_committed_tx -> Int8,
+        min_available_epoch -> Int8,
+        min_bounds_updated_at_timestamp_ms -> Int8,
+        lowest_unpruned_key -> Int8,
+        min_available_tx -> Int8,
+        min_available_cp -> Int8,
     }
 }
 
