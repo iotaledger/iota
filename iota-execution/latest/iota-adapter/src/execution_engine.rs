@@ -1288,7 +1288,9 @@ mod checked {
                 )?;
                 Ok(Mode::empty_results())
             }
-            _ => unimplemented!("a new TransactionKind enum variant was added and needs to be handled"),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }?;
         temporary_store.check_execution_results_consistency()?;
         Ok(result)
