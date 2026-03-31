@@ -1015,7 +1015,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     // Build the test environment and create the sender AA.
     let mut test_env = TestEnvironment::new().await;
     test_env
-        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
     let sender_aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: IotaAddress = sender_aa_ref.0.into();
@@ -1038,9 +1038,10 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
+    let tx_digest = tx_data.digest().into_inner();
 
     // Both sender and sponsor provide MoveAuthenticators.
-    let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
     // The sender object is used in both MoveAuthenticators.
     let sponsor_aa_sig =
         test_env.create_move_authenticator_with_sponsor_and_sender(sponsor_aa_ref)?;
