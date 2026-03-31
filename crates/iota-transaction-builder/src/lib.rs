@@ -129,7 +129,9 @@ impl TransactionBuilder {
         let obj_ref = self.get_object_ref(object_id).await?;
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_object(recipient, obj_ref)?;
-        Ok(TransactionKind::new_programmable_transaction(builder.finish()))
+        Ok(TransactionKind::new_programmable_transaction(
+            builder.finish(),
+        ))
     }
 
     /// Transfer an object to the specified recipient address.

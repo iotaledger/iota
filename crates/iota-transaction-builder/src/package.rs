@@ -11,9 +11,7 @@ use iota_types::{
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        Argument, CallArg, SharedObjectRef, TransactionData, TransactionKind,
-    },
+    transaction::{Argument, CallArg, SharedObjectRef, TransactionData, TransactionKind},
 };
 
 use crate::TransactionBuilder;
