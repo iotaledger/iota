@@ -152,7 +152,7 @@ jobs:
 
       - name: Build apps-backend
         id: build-apps-backend
-        if: (!cancelled() && !failure()) && steps.conditions.outputs.runAppsBackend == 'true'
+        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runAppsBackend == 'true' || steps.conditions.outputs.runDashboard == 'true')
         continue-on-error: ${{ inputs.isNightly }}
         run: pnpm turbo --filter apps-backend build
 
