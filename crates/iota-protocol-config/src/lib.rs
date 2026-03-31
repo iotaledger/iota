@@ -1295,6 +1295,7 @@ pub struct ProtocolConfig {
     auth_context_digest_cost_base: Option<u64>,
     // Cost params for the Move native function `native_tx_data_bytes(): &vector<u8>`
     auth_context_tx_data_bytes_cost_base: Option<u64>,
+    auth_context_tx_data_bytes_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
     auth_context_tx_commands_cost_per_byte: Option<u64>,
@@ -2227,6 +2228,7 @@ impl ProtocolConfig {
             // `auth_context` module
             auth_context_digest_cost_base: None,
             auth_context_tx_data_bytes_cost_base: None,
+            auth_context_tx_data_bytes_cost_per_byte: None,
             auth_context_tx_commands_cost_base: None,
             auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
@@ -2687,6 +2689,7 @@ impl ProtocolConfig {
                     // Add tx_data_bytes to AuthContext for intent-based signature
                     // verification in account abstraction.
                     cfg.auth_context_tx_data_bytes_cost_base = Some(30);
+                    cfg.auth_context_tx_data_bytes_cost_per_byte = Some(2);
                 }
 
                 // Use this template when making changes:

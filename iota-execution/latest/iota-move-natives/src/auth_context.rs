@@ -174,6 +174,7 @@ pub fn native_tx_inputs(
 #[derive(Clone)]
 pub struct AuthContextTxDataBytesCostParams {
     pub auth_context_tx_data_bytes_cost_base: Option<InternalGas>,
+    pub auth_context_tx_data_bytes_cost_per_byte: Option<InternalGas>,
 }
 
 /// ****************************************************************************
@@ -205,7 +206,19 @@ pub fn native_tx_data_bytes(
 
     let auth_context: &mut AuthenticationContext = get_extension_mut!(context)?;
 
-    let tx_data_bytes_ref = auth_context.tx_data_bytes_ref()?;
+    let (tx_data_bytes_ref, tx_data_bytes_value_size) = auth_context.tx_data_bytes_ref()?;
+
+    native_charge_gas_early_exit!(
+        context,
+        auth_context_tx_data_bytes_cost_params
+            .auth_context_tx_data_bytes_cost_per_byte
+            .ok_or_else(|| {
+                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                    "Gas cost per byte for native_tx_data_bytes not available".to_string(),
+                )
+            })?
+            * u64::from(tx_data_bytes_value_size).into()
+    );
 
     Ok(NativeResult::ok(
         context.gas_used(),

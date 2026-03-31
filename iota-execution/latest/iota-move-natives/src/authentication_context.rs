@@ -36,7 +36,7 @@ pub struct AuthenticationContext {
     cached_digest: Option<GlobalValue>,
     cached_tx_inputs: Option<(GlobalValue, AbstractMemorySize)>,
     cached_tx_commands: Option<(GlobalValue, AbstractMemorySize)>,
-    cached_tx_data_bytes: Option<GlobalValue>,
+    cached_tx_data_bytes: Option<(GlobalValue, AbstractMemorySize)>,
 }
 
 impl NativeExtensionMarker<'_> for AuthenticationContext {}
@@ -125,7 +125,7 @@ impl AuthenticationContext {
     /// Returns a `Value` containing tx data bytes ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
-    pub fn tx_data_bytes_ref(&mut self) -> PartialVMResult<Value> {
+    pub fn tx_data_bytes_ref(&mut self) -> PartialVMResult<(Value, AbstractMemorySize)> {
         if self.cached_tx_data_bytes.is_none() {
             let auth_context = self.auth_context.borrow();
 
@@ -137,16 +137,19 @@ impl AuthenticationContext {
             let bytes_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
 
             self.cached_tx_data_bytes =
-                Some(utils::to_global_value(&rust_value, bytes_move_layout)?.0);
+                Some(utils::to_global_value(&rust_value, bytes_move_layout)?);
         }
 
-        self.cached_tx_data_bytes
-            .as_ref()
-            .unwrap()
-            .borrow_global()
-            .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
-            .value_as::<StructRef>()?
-            .borrow_field(0)
+        let (cached_tx_data_bytes, move_value_size) = self.cached_tx_data_bytes.as_ref().unwrap();
+
+        Ok((
+            cached_tx_data_bytes
+                .borrow_global()
+                .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+                .value_as::<StructRef>()?
+                .borrow_field(0)?,
+            *move_value_size,
+        ))
     }
 
     /// Returns a `Value` containing an auth tx commands ref.
