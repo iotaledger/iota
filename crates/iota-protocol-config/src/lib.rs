@@ -1158,11 +1158,6 @@ pub struct ProtocolConfig {
     hmac_hmac_sha3_256_input_cost_per_byte: Option<u64>,
     hmac_hmac_sha3_256_input_cost_per_block: Option<u64>,
 
-    // zklogin::check_zklogin_id
-    check_zklogin_id_cost_base: Option<u64>,
-    // zklogin::check_zklogin_issuer
-    check_zklogin_issuer_cost_base: Option<u64>,
-
     vdf_verify_vdf_cost: Option<u64>,
     vdf_hash_to_input_cost: Option<u64>,
 
@@ -2137,11 +2132,6 @@ impl ProtocolConfig {
             group_ops_bls12381_uncompressed_g1_sum_base_cost: None,
             group_ops_bls12381_uncompressed_g1_sum_cost_per_term: None,
             group_ops_bls12381_uncompressed_g1_sum_max_terms: None,
-
-            // zklogin::check_zklogin_id
-            check_zklogin_id_cost_base: Some(200),
-            // zklogin::check_zklogin_issuer
-            check_zklogin_issuer_cost_base: Some(200),
 
             vdf_verify_vdf_cost: None,
             vdf_hash_to_input_cost: None,
