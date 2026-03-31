@@ -6,19 +6,26 @@ use std::{
     str::FromStr,
 };
 
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper,
+};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    config::PruningOptions, errors::IndexerError, models::transactions::TxGlobalOrder,
-    read_only_blocking, schema::tx_global_order, types::IndexerResult,
+    config::PruningOptions,
+    errors::IndexerError,
+    models::transactions::TxGlobalOrder,
+    read_only_blocking,
+    schema::{objects, tx_global_order},
+    store::indexer_store::IndexerStore,
+    types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
+    IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
@@ -43,9 +50,10 @@ use move_core_types::{identifier::IdentStr, language_storage::StructTag};
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object,
-        indexer_wait_for_optimistic_transactions_count, node_wait_for_object,
-        publish_test_move_package, start_test_cluster_with_read_write_indexer,
+        ApiTestSetup, force_new_epoch_and_wait, indexer_wait_for_checkpoint,
+        indexer_wait_for_object, indexer_wait_for_optimistic_transactions_count,
+        node_wait_for_object, publish_test_move_package,
+        start_test_cluster_with_read_write_indexer,
     },
 };
 
@@ -69,6 +77,16 @@ async fn prepare_and_sign_object_transfer_tx(
     let tx_data = tx_builder.transfer(object_to_transfer, receiver).build();
     let signed_transaction = to_sender_signed_transaction(tx_data, &sender_key_pair);
     signed_transaction.to_tx_bytes_and_signatures()
+}
+
+fn assert_transaction_success(res: &IotaTransactionBlockResponse) {
+    assert_eq!(
+        res.status_ok(),
+        Some(true),
+        "Transaction failed with status: {:?}, errors: {:?}",
+        res.effects.as_ref().map(|e| e.status()),
+        res.errors
+    );
 }
 
 #[test]
@@ -346,6 +364,100 @@ fn execute_transaction_block() {
 }
 
 #[test]
+fn optimistic_objects_are_finalized() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+
+        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let object_to_transfer = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, object_to_transfer.0, object_to_transfer.1).await;
+
+        let (tx_bytes, signatures) = prepare_and_sign_object_transfer_tx(
+            sender,
+            key_pair,
+            receiver,
+            object_to_transfer,
+            gas_ref,
+        )
+        .await;
+
+        let res = client
+            .execute_transaction_block(
+                tx_bytes,
+                signatures,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_transaction_success(&res);
+
+        // Objects changed by this transaction should be finalized in the DB.
+        // Finalized means `finalized_in_cp IS NULL` (optimistic/already finalized)
+        // or the checkpoint has been indexed.
+        let changed_object_ids: Vec<Vec<u8>> = res
+            .object_changes
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|o| match o {
+                ObjectChange::Created { object_id, .. }
+                | ObjectChange::Mutated { object_id, .. } => Some(object_id.to_vec()),
+                _ => None,
+            })
+            .collect();
+        let max_cp: i64 = store
+            .get_latest_checkpoint_sequence_number()
+            .await
+            .unwrap()
+            .unwrap() as i64;
+        let non_finalized_count: i64 = (|| -> Result<_, IndexerError> {
+            read_only_blocking!(&store.blocking_cp(), |conn| {
+                objects::table
+                    .filter(objects::object_id.eq_any(&changed_object_ids))
+                    .filter(
+                        objects::finalized_in_cp
+                            .is_not_null()
+                            .and(objects::finalized_in_cp.gt(max_cp)),
+                    )
+                    .count()
+                    .get_result::<i64>(conn)
+            })
+        })()
+        .unwrap();
+
+        assert_eq!(
+            non_finalized_count, 0,
+            "All objects should be finalized after optimistic or checkpoint indexing"
+        );
+    });
+}
+
+#[test]
 fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error> {
     let ApiTestSetup {
         runtime,
@@ -395,7 +507,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
                     None,
                 )
                 .await?;
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
         }
 
         let objects = client
@@ -451,7 +563,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
                 wrap_basic_object(sender, &sender_kp, client, &package_id, &basic_obj)
                     .await
                     .unwrap();
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let objects = client
                 .get_owned_objects(sender, None, None, None)
@@ -472,7 +584,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
             let res = unwrap_basic_object(sender, &sender_kp, client, &package_id, &wrapped_obj_id)
                 .await
                 .unwrap();
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let objects = client
                 .get_owned_objects(sender, None, None, None)
@@ -565,88 +677,102 @@ fn test_parallel_shared_object_updates() {
             }
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
                 .await
                 .unwrap();
 
-            let transaction_results: Vec<_> = gas_objs
-                .iter()
-                .map(|gas| {
-                    increment_counter(
-                        sender,
-                        &sender_kp,
-                        client,
-                        &package_id,
-                        &counter_obj,
-                        Some(gas.0),
-                    )
-                })
-                .collect::<FuturesUnordered<_>>()
-                .try_collect()
-                .await
-                .unwrap();
-
-            // Now we need to check if transaction ordering in the DB follows the ordering
-            // of transactions imposed by TX dependencies
-            {
-                let transaction_dependencies = transaction_results
+            for _ in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
+                let transaction_results: Vec<_> = gas_objs
                     .iter()
-                    .map(|res| {
-                        (
-                            res.digest,
-                            HashSet::from_iter(res.effects.as_ref().unwrap().dependencies()),
+                    .map(|gas| {
+                        increment_counter(
+                            sender,
+                            &sender_kp,
+                            client,
+                            &package_id,
+                            &counter_obj,
+                            Some(gas.0),
                         )
                     })
-                    .collect::<HashMap<_, _>>();
+                    .collect::<FuturesUnordered<_>>()
+                    .try_collect()
+                    .await
+                    .unwrap();
+                for res in &transaction_results {
+                    assert_transaction_success(res);
+                }
 
-                let executed_transactions_digests =
-                    transaction_dependencies.keys().collect::<HashSet<_>>();
-                let executed_transactions_digests_to_load = executed_transactions_digests
-                    .iter()
-                    .map(|digest| digest.inner().to_vec())
-                    .collect::<HashSet<_>>();
+                // Now we need to check if transaction ordering in the DB follows the ordering
+                // of transactions imposed by TX dependencies
+                {
+                    let transaction_dependencies = transaction_results
+                        .iter()
+                        .map(|res| {
+                            (
+                                res.digest,
+                                HashSet::from_iter(res.effects.as_ref().unwrap().dependencies()),
+                            )
+                        })
+                        .collect::<HashMap<_, _>>();
 
-                let mut stored_global_orders = read_only_blocking!(&store.blocking_cp(), |conn| {
-                    tx_global_order::table
-                        .filter(
-                            tx_global_order::tx_digest
-                                .eq_any(executed_transactions_digests_to_load),
+                    let executed_transactions_digests =
+                        transaction_dependencies.keys().collect::<HashSet<_>>();
+                    let executed_transactions_digests_to_load = executed_transactions_digests
+                        .iter()
+                        .map(|digest| digest.inner().to_vec())
+                        .collect::<HashSet<_>>();
+
+                    let mut stored_global_orders = read_only_blocking!(&store.blocking_cp(), |conn| {
+                        tx_global_order::table
+                            .filter(
+                                tx_global_order::tx_digest
+                                    .eq_any(executed_transactions_digests_to_load),
+                            )
+                            .select(TxGlobalOrder::as_select())
+                            .load::<TxGlobalOrder>(conn)
+                    })
+                    .unwrap();
+                    stored_global_orders.sort_by(|a, b| {
+                        (
+                            a.global_sequence_number,
+                            a.optimistic_sequence_number.unwrap(),
                         )
-                        .select(TxGlobalOrder::as_select())
-                        .load::<TxGlobalOrder>(conn)
-                })
-                .unwrap();
-                stored_global_orders.sort_by(|a, b| {
-                    (
-                        a.global_sequence_number,
-                        a.optimistic_sequence_number.unwrap(),
-                    )
-                        .cmp(&(
-                            b.global_sequence_number,
-                            b.optimistic_sequence_number.unwrap(),
-                        ))
-                });
+                            .cmp(&(
+                                b.global_sequence_number,
+                                b.optimistic_sequence_number.unwrap(),
+                            ))
+                    });
 
-                let mut seen_digests: HashSet<TransactionDigest> = HashSet::new();
-                for stored_global_order in stored_global_orders.iter() {
-                    let tx_digest =
-                        TransactionDigest::try_from(&stored_global_order.tx_digest[..]).unwrap();
-                    let tx_deps = &transaction_dependencies[&tx_digest];
-                    let relevant_deps: HashSet<_> = tx_deps
-                        .intersection(&executed_transactions_digests)
-                        .cloned()
-                        .cloned()
-                        .collect();
-                    assert!(
-                        relevant_deps.is_subset(&seen_digests),
-                        "tx: {tx_digest:?} should have bigger order than it's deps: {relevant_deps:?}",
+                    let mut seen_digests: HashSet<TransactionDigest> = HashSet::new();
+                    for stored_global_order in stored_global_orders.iter() {
+                        let tx_digest =
+                            TransactionDigest::try_from(&stored_global_order.tx_digest[..]).unwrap();
+                        let tx_deps = &transaction_dependencies[&tx_digest];
+                        let relevant_deps: HashSet<_> = tx_deps
+                            .intersection(&executed_transactions_digests)
+                            .cloned()
+                            .cloned()
+                            .collect();
+                        assert!(
+                            relevant_deps.is_subset(&seen_digests),
+                            "tx: {tx_digest:?} should have bigger order than it's deps: {relevant_deps:?}",
 
-                    );
-                    seen_digests.insert(tx_digest);
+                        );
+                        seen_digests.insert(tx_digest);
+                    }
                 }
             }
+
+            // NON_DETERMINISTIC_TESTS_REPETITIONS iterations, each with NON_DETERMINISTIC_TESTS_REPETITIONS increments
+            let expected_count = (NON_DETERMINISTIC_TESTS_REPETITIONS * NON_DETERMINISTIC_TESTS_REPETITIONS) as u64;
+            let counter_value = get_counter_value(counter_obj, client).await;
+            assert_eq!(
+                counter_value, expected_count,
+                "Counter value should be {} but was {}",
+                expected_count, counter_value
+            );
 
             Ok::<(), IndexerError>(())
         })
@@ -678,7 +804,7 @@ fn test_repeated_tx_execution() {
             indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
                 .await
@@ -756,7 +882,7 @@ fn test_parallel_repeated_tx_execution() {
             indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
 
             let (res, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
                 .await
@@ -869,7 +995,7 @@ fn test_repeatedly_update_display() {
             )
             .await
             .unwrap();
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let res = bump_display_object_version(
                 sender,
@@ -880,7 +1006,7 @@ fn test_repeatedly_update_display() {
             )
             .await
             .unwrap();
-            assert_eq!(res.status_ok(), Some(true));
+            assert_transaction_success(&res);
 
             let res = client
                 .get_object(bear_id, Some(IotaObjectDataOptions::new().with_display()))
@@ -898,20 +1024,18 @@ fn test_repeatedly_update_display() {
 #[tokio::test]
 #[ignore = "https://github.com/iotaledger/iota/issues/10291"]
 async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
-    let optimistic_pruner_batch_size = 5;
     let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
         Some("test_optimistic_tables_pruning"),
         None,
         Some(PruningOptions {
-            epochs_to_keep: Some(2),
+            epochs_to_keep: Some(1),
             pruning_config_path: None,
-            optimistic_pruner_batch_size: Some(optimistic_pruner_batch_size),
+            optimistic_pruner_batch_size: None,
         }),
     )
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
-    // arbitrary numbers, just need to be > optimistic_pruner_batch_size
     let txs_epoch_1 = 16;
     let txs_epoch_2 = 22;
     let txs_epoch_3 = 18;
@@ -931,39 +1055,39 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
     let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
         .await
         .unwrap();
-    cluster.force_new_epoch().await;
-
     // deploy pkg tx and create counter obj tx
     indexer_wait_for_optimistic_transactions_count(store, 2).await;
+    force_new_epoch_and_wait(store, cluster).await;
 
     for _ in 0..txs_epoch_1 {
         let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
             .await
             .unwrap();
-        assert_eq!(res.status_ok(), Some(true));
+        assert_transaction_success(&res);
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1 + 2).await;
-    cluster.force_new_epoch().await;
     indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1).await;
+    force_new_epoch_and_wait(store, cluster).await;
 
     for _ in 0..txs_epoch_2 {
         let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
             .await
             .unwrap();
-        assert_eq!(res.status_ok(), Some(true));
+        assert_transaction_success(&res);
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1 + txs_epoch_2).await;
-    cluster.force_new_epoch().await;
     indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2).await;
+    force_new_epoch_and_wait(store, cluster).await;
 
     for _ in 0..txs_epoch_3 {
         let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
             .await
             .unwrap();
-        assert_eq!(res.status_ok(), Some(true));
+        assert_transaction_success(&res);
     }
-    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2 + txs_epoch_3).await;
-    cluster.force_new_epoch().await;
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
+    force_new_epoch_and_wait(store, cluster).await;
+
+    // we are in epoch 4, but epoch 3 transactions will not be pruned until we have
+    // at least one new optimistic tx
     indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
 
     Ok(())
@@ -1427,4 +1551,34 @@ fn clever_errors() {
         };
         assert_eq!(error, &expected_error);
     });
+}
+
+async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64 {
+    let counter_content = client
+        .get_object(
+            counter_obj_id,
+            Some(IotaObjectDataOptions::new().with_content()),
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap()
+        .content
+        .unwrap();
+
+    let value_field = &counter_content
+        .try_as_move()
+        .unwrap()
+        .fields
+        .read_dynamic_field_value("value")
+        .unwrap();
+
+    if let IotaMoveValue::String(counter_value_str) = &value_field {
+        counter_value_str.parse().unwrap()
+    } else {
+        panic!(
+            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
+            value_field
+        );
+    }
 }

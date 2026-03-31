@@ -314,6 +314,8 @@ pub struct PruningOptions {
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
+    /// DEPRECATED: This parameter is no longer used. Optimistic transactions
+    /// are now pruned by the unified pruner with the same batching strategy.
     #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
     pub optimistic_pruner_batch_size: Option<u64>,
 }
@@ -864,7 +866,7 @@ mod test {
         let toml_content = r#"
         epochs_to_keep = 5
         [overrides]
-        tx_affected_addresses = 10
+        tx_senders = 10
         transactions = 20
         "#;
         temp_file.write_all(toml_content.as_bytes()).unwrap();
@@ -881,7 +883,7 @@ mod test {
         assert_eq!(
             retention_config
                 .overrides
-                .get(&PrunableTable::TxAffectedAddresses)
+                .get(&PrunableTable::TxSenders)
                 .copied(),
             Some(10)
         );
@@ -905,7 +907,7 @@ mod test {
                 PrunableTable::ObjectsHistory => {
                     assert_eq!(retention, OBJECTS_HISTORY_EPOCHS_TO_KEEP)
                 }
-                PrunableTable::TxAffectedAddresses => assert_eq!(retention, 10),
+                PrunableTable::TxSenders => assert_eq!(retention, 10),
                 PrunableTable::Transactions => assert_eq!(retention, 20),
                 _ => assert_eq!(retention, 5),
             };

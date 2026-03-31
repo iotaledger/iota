@@ -1,9 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{
-    collections::{BTreeMap, HashSet},
-    time::Duration,
-};
+use std::{collections::BTreeMap, time::Duration};
 
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
@@ -15,7 +12,7 @@ use iota_grpc_types::{
 };
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
 use iota_types::{
-    base_types::TransactionDigest,
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     full_checkpoint_content::CheckpointTransaction,
     signature::GenericSignature,
@@ -25,7 +22,10 @@ use iota_types::{
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::prepare::extract_df_kind,
+        common::{
+            persist::{CommitterWatermark, OptimisticIndexingTables},
+            prepare::extract_df_kind,
+        },
         primary::{
             persist::TransactionObjectChangesToCommit,
             prepare::{IndexedTransactionComponents, PrimaryWorker},
@@ -34,7 +34,7 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
-        transactions::{OptimisticTransaction, TxGlobalOrder},
+        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
     },
     read::IndexerReader,
     store::{IndexerStore, PgIndexerStore},
@@ -84,43 +84,47 @@ impl OptimisticTransactionExecutor {
         })
     }
 
-    /// Wait until all dependencies are indexed through the `tx_global_order`
-    /// table.
-    ///
-    /// It uses exponential backoff to retry the check.
-    ///
-    /// This does not cover old transactions that do not have
-    /// entries in `tx_global_order`.
-    pub(crate) async fn wait_for_tx_dependencies(
+    pub(crate) async fn wait_for_dependencies(
         &self,
-        effects: &TransactionEffects,
+        input_obj_keys: Vec<(ObjectID, SequenceNumber)>,
     ) -> Result<(), IndexerError> {
-        let expected_dependencies = effects
-            .dependencies()
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
+        let expected_count = input_obj_keys.len();
         let backoff = backoff::ExponentialBackoff {
+            initial_interval: Duration::from_millis(100),
             max_elapsed_time: Some(WAIT_FOR_DEPS_MAX_ELAPSED_TIME),
             ..Default::default()
         };
 
         backoff::future::retry(backoff, async || {
-            let digests: Vec<Vec<u8>> = expected_dependencies
-                .iter()
-                .map(|d| d.inner().to_vec())
-                .collect();
             let count = self
                 .read
-                .count_indexed_tx_global_orders_in_blocking_task(digests.into_iter())
+                .count_existing_object_keys_in_blocking_task(input_obj_keys.clone())
                 .await?;
-            if count as usize != expected_dependencies.len() {
+            if count as usize != expected_count {
                 return Err(IndexerError::TransactionDependenciesNotIndexed)?;
             }
             Ok(())
         })
         .await
         .or(Err(IndexerError::TransactionDependenciesNotIndexed))
+    }
+
+    async fn update_optimistic_watermark(
+        &self,
+        epoch: u64,
+        optimistic_tx: Option<&OptimisticTransaction>,
+    ) -> Result<(), IndexerError> {
+        if let Some(tx) = optimistic_tx {
+            self.store
+                .update_watermarks_upper_bound::<OptimisticIndexingTables>(CommitterWatermark {
+                    current_epoch: epoch,
+                    max_committed_cp: 0,
+                    max_committed_tx: tx.optimistic_sequence_number as u64,
+                })
+                .await
+        } else {
+            Ok(())
+        }
     }
 
     /// Index the executed transaction under the following conditions:
@@ -130,11 +134,15 @@ impl OptimisticTransactionExecutor {
     ///
     /// The latter is essential in avoiding race conditions while
     /// indexing checkpointed transactions.
+    ///
+    /// Returns `Some` with the indexed transaction on success, or `None` if
+    /// optimistic indexing was skipped — the checkpoint indexing path
+    /// should be relied upon in that case.
     pub(crate) async fn maybe_index_executed_transaction(
         &self,
         transaction: Transaction,
         executed_transaction: ExecutedTransaction,
-    ) -> Result<(), IndexerError> {
+    ) -> Result<Option<OptimisticTransaction>, IndexerError> {
         // The methods check for fields being Some. Based on the provided read mask,
         // all fields should be Some, the only exception should be `checkpoint` &
         // `timestamp` fields which are always None.
@@ -150,28 +158,28 @@ impl OptimisticTransactionExecutor {
                 "cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
             );
             self.metrics.optimistic_tx_with_missing_objects_counts.inc();
-            return Ok(());
+            return Ok(None);
         }
         let deps_timer = self
             .metrics
             .optimistic_tx_dependencies_wait_time
             .start_timer();
-        tokio::select! {
-            Ok(_) = self.wait_for_tx_dependencies(&effects) => {
-                deps_timer.stop_and_record();
-            },
-            Ok(true) = self.deep_check_all_dependencies_are_indexed(&effects) => {
-                deps_timer.stop_and_record();
-            },
-            else => {
-                deps_timer.stop_and_discard();
-                tracing::warn!(
-                    "transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
-                );
-                self.metrics.optimistic_tx_with_missing_dependencies_count.inc();
-                return Ok(());
-            }
-        };
+        let input_obj_keys = input_objects
+            .iter()
+            .map(|ob| (ob.id(), ob.version()))
+            .collect::<Vec<_>>();
+        if self.wait_for_dependencies(input_obj_keys).await.is_ok() {
+            deps_timer.stop_and_record();
+        } else {
+            deps_timer.stop_and_discard();
+            tracing::warn!(
+                "transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
+            );
+            self.metrics
+                .optimistic_tx_with_missing_dependencies_count
+                .inc();
+            return Ok(None);
+        }
         let full_tx_data = CheckpointTransaction {
             transaction,
             effects,
@@ -180,23 +188,17 @@ impl OptimisticTransactionExecutor {
             output_objects,
         };
 
-        self.index_transaction_in_blocking_task(&full_tx_data).await
-    }
+        let optimistic_tx = self
+            .index_transaction_in_blocking_task(&full_tx_data)
+            .await?;
 
-    /// Expensive operation that checks if all transactions
-    /// are indexed.
-    ///
-    /// This queries both `tx_global_order` which represents
-    /// the index status for newer transactions, and the `checkpoints`
-    /// table for older transactions that do not have entries
-    /// in `tx_global_order`.
-    pub(crate) async fn deep_check_all_dependencies_are_indexed(
-        &self,
-        effects: &TransactionEffects,
-    ) -> Result<bool, IndexerError> {
-        self.read
-            .deep_check_all_transactions_are_indexed_in_blocking_task(effects.dependencies())
-            .await
+        self.update_optimistic_watermark(
+            full_tx_data.effects.executed_epoch(),
+            optimistic_tx.as_ref(),
+        )
+        .await?;
+
+        Ok(optimistic_tx)
     }
 
     pub async fn execute_and_index_transaction(
@@ -251,15 +253,18 @@ impl OptimisticTransactionExecutor {
         let tx_digest = *TransactionEffects::try_from(executed_transaction.effects()?.effects()?)?
             .transaction_digest();
 
-        self.maybe_index_executed_transaction(transaction, executed_transaction)
+        let optimistic_tx = self
+            .maybe_index_executed_transaction(transaction, executed_transaction)
             .await?;
 
         let db_read_timer = self
             .metrics
             .optimistic_tx_db_wait_and_read_time
             .start_timer();
+        self.wait_for_read_write_consistency(&optimistic_tx, tx_digest)
+            .await?;
         let tx_block_response = self
-            .wait_for_local_indexing(tx_digest, options.clone())
+            .get_transaction_block_response(optimistic_tx, tx_digest, options.clone())
             .await?;
         db_read_timer.stop_and_record();
 
@@ -270,45 +275,120 @@ impl OptimisticTransactionExecutor {
         .into())
     }
 
-    async fn wait_for_local_indexing(
+    /// Waits until it is guaranteed that objects and display table are
+    /// persisted for given tx.
+    ///
+    /// This effectively waits only if we fell back to checkpoint path, as
+    /// optimistic path persists all this data at once.
+    async fn wait_for_read_write_consistency(
         &self,
+        optimistic_tx: &Option<OptimisticTransaction>,
+        tx_digest: TransactionDigest,
+    ) -> Result<(), IndexerError> {
+        if optimistic_tx.is_none() {
+            // When checkpoint indexing wins over optimistic indexing, the transaction row
+            // may be persisted before objects and other related tables. We wait until all
+            // such updates are completed.
+            self.wait_for_local_indexing(tx_digest).await?;
+        }
+        Ok(())
+    }
+
+    /// Returns the transaction block response, either by converting the
+    /// optimistic transaction directly (if optimistic indexing succeeded) or by
+    /// fetching checkpointed transaction from DB.
+    ///
+    /// It is a requirement that transaction passed to this function is
+    /// completely indexed either on checkpoint path or optimistic path.
+    async fn get_transaction_block_response(
+        &self,
+        optimistic_tx: Option<OptimisticTransaction>,
         tx_digest: TransactionDigest,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> Result<IotaTransactionBlockResponse, IndexerError> {
-        let backoff = backoff::ExponentialBackoff {
-            max_elapsed_time: Some(Duration::from_secs(30)),
-            ..Default::default()
-        };
-
-        backoff::future::retry(backoff, async || {
-            let tx_block_response = self
-                .read
+        if let Some(optimistic_tx) = optimistic_tx {
+            self.optimistic_transaction_to_block_response(
+                optimistic_tx,
+                options.unwrap_or_default(),
+            )
+            .await
+        } else {
+            self.read
                 .multi_get_transaction_block_response_in_blocking_task(
                     vec![tx_digest],
-                    options.clone().unwrap_or_default(),
+                    options.unwrap_or_default(),
                 )
-                .await
-                .map_err(|e| backoff::Error::Transient {
-                    err: e,
-                    retry_after: None,
-                })?
-                .pop();
+                .await?
+                .pop()
+                .ok_or_else(|| {
+                    IndexerError::PersistentStorageDataCorruption(format!(
+                        "transaction {tx_digest} not found in the DB after being marked as indexed."
+                    ))
+                })
+        }
+    }
 
-            match tx_block_response {
-                Some(tx_block_response) => Ok(tx_block_response),
-                None => Err(backoff::Error::Transient {
-                    err: IndexerError::PostgresRead("Transaction not present in DB".to_string()),
-                    retry_after: None,
-                }),
-            }
-        })
+    /// Waits until the transaction is fully indexed (via either the optimistic
+    /// or checkpoint path), ensuring all related data (objects, displays,
+    /// etc.) is persisted.
+    async fn wait_for_local_indexing(
+        &self,
+        tx_digest: TransactionDigest,
+    ) -> Result<(), IndexerError> {
+        backoff::future::retry(
+            backoff::ExponentialBackoff {
+                initial_interval: Duration::from_millis(100),
+                max_elapsed_time: Some(Duration::from_secs(30)),
+                ..Default::default()
+            },
+            || async {
+                if !self
+                    .read
+                    .is_transaction_fully_indexed(tx_digest)
+                    .await
+                    .map_err(backoff::Error::transient)?
+                {
+                    return Err(backoff::Error::transient(IndexerError::PostgresRead(
+                        "transaction not yet fully indexed".to_string(),
+                    )));
+                }
+                Ok(())
+            },
+        )
         .await
+        .map_err(|e| {
+            tracing::warn!("timed out waiting for transaction to be fully indexed: {e}");
+            IndexerError::PostgresRead(
+                "timeout waiting for transaction to be fully indexed".to_string(),
+            )
+        })
+    }
+
+    /// Converts an [`OptimisticTransaction`] (already persisted atomically)
+    /// directly into an [`IotaTransactionBlockResponse`] without unnecessary DB
+    /// round-trips.
+    async fn optimistic_transaction_to_block_response(
+        &self,
+        optimistic_tx: OptimisticTransaction,
+        options: IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<IotaTransactionBlockResponse> {
+        self.read
+            .stored_transaction_to_transaction_block(
+                vec![StoredTransaction::from(optimistic_tx)],
+                options,
+            )
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                IndexerError::Generic("expected a transaction block response".to_string())
+            })
     }
 
     async fn index_transaction_in_blocking_task(
         &self,
         full_tx_data: &CheckpointTransaction,
-    ) -> Result<(), IndexerError> {
+    ) -> Result<Option<OptimisticTransaction>, IndexerError> {
         let db_write_timer = self.metrics.optimistic_tx_db_write_time.start_timer();
         match tokio::task::spawn_blocking({
             let this: OptimisticTransactionExecutor = self.clone();
@@ -320,10 +400,10 @@ impl OptimisticTransactionExecutor {
             tracing::error!("failed to join optimistic index_transaction: {e}");
             IndexerError::from(e)
         })? {
-            Ok(_) => {
+            Ok(optimistic_tx) => {
                 db_write_timer.stop_and_record();
                 self.metrics.optimistic_tx_successful_db_writes_count.inc();
-                Ok(())
+                Ok(optimistic_tx)
             }
             // The unique violation error means that checkpoint indexing was faster than the
             // optimistic indexing. Let's just return and let checkpoint indexing handle
@@ -333,7 +413,7 @@ impl OptimisticTransactionExecutor {
                 self.metrics
                     .optimistic_tx_unique_global_order_violations_count
                     .inc();
-                Ok(())
+                Ok(None)
             }
             Err(e) => {
                 db_write_timer.stop_and_discard();
@@ -345,7 +425,10 @@ impl OptimisticTransactionExecutor {
         }
     }
 
-    fn index_transaction(&self, full_tx_data: &CheckpointTransaction) -> Result<(), IndexerError> {
+    fn index_transaction(
+        &self,
+        full_tx_data: &CheckpointTransaction,
+    ) -> Result<Option<OptimisticTransaction>, IndexerError> {
         let pool = self.store.blocking_cp();
         transactional_blocking_with_retry_with_conditional_abort!(
             &pool,
@@ -373,7 +456,8 @@ impl OptimisticTransactionExecutor {
                 let tx_data_to_commit = extractor
                     .to_transaction_data_to_commit(assigned_global_order.global_sequence_number)?;
 
-                self.persist_optimistic_tx(conn, tx_data_to_commit)
+                let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
+                Ok(Some(optimistic_tx))
             },
             |e: &IndexerError| matches!(*e, IndexerError::PostgresUniqueTxGlobalOrderViolation(_)),
             Duration::from_secs(3600)
@@ -407,7 +491,7 @@ impl OptimisticTransactionExecutor {
         &self,
         conn: &mut PgConnection,
         tx_data_to_commit: TransactionDataToCommit,
-    ) -> Result<(), IndexerError> {
+    ) -> Result<OptimisticTransaction, IndexerError> {
         let (optimistic_tx, indexed_displays, object_changes) = tx_data_to_commit;
 
         self.store
@@ -418,7 +502,8 @@ impl OptimisticTransactionExecutor {
         )?;
 
         self.store
-            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx)
+            .persist_optimistic_transaction_in_existing_transaction(conn, optimistic_tx.clone())?;
+        Ok(optimistic_tx)
     }
 }
 
@@ -458,11 +543,7 @@ impl<'a> TransactionExtractor<'a> {
             .iter()
             .map(|o| {
                 let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(
-                    0, // checkpoint sequence number, ignored in further processing
-                    o.clone(),
-                    df_kind,
-                )
+                IndexedObject::from_object(None, o.clone(), df_kind)
             })
             .collect::<Vec<_>>();
 
