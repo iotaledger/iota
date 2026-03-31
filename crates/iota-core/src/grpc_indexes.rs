@@ -112,28 +112,12 @@ pub struct CoinIndexKey {
     coin_type: StructTag,
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinIndexInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-}
-
 /// Extended coin index value that absorbs `regulated_coin` into a single table.
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct CoinIndexInfoV2 {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
     pub regulated_coin_metadata_object_id: Option<ObjectID>,
-}
-
-impl From<CoinIndexInfo> for CoinIndexInfoV2 {
-    fn from(info: CoinIndexInfo) -> Self {
-        Self {
-            coin_metadata_object_id: info.coin_metadata_object_id,
-            treasury_object_id: info.treasury_object_id,
-            regulated_coin_metadata_object_id: None,
-        }
-    }
 }
 
 impl From<CoinIndexInfoV2> for iota_types::storage::CoinInfoV2 {
@@ -917,7 +901,7 @@ impl IndexStoreTables {
             // overriding any older value that may exist in the database
             // (because there necessarily cannot be).
             for (key, value) in tx.created_objects().flat_map(try_create_coin_index_info) {
-                merge_coin_into_v2(&mut coin_v2_index, key, CoinIndexInfoV2::from(value));
+                merge_coin_into_v2(&mut coin_v2_index, key, value);
             }
         }
 
@@ -1491,7 +1475,7 @@ fn try_create_dynamic_field_info(
     }))
 }
 
-fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
+fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfoV2)> {
     use iota_types::coin::{CoinMetadata, TreasuryCap};
 
     let object_type = object.type_()?.other()?;
@@ -1499,9 +1483,9 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
     if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type).cloned() {
         return Some((
             CoinIndexKey { coin_type },
-            CoinIndexInfo {
+            CoinIndexInfoV2 {
                 coin_metadata_object_id: Some(object.id()),
-                treasury_object_id: None,
+                ..Default::default()
             },
         ));
     }
@@ -1509,9 +1493,9 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
     if let Some(coin_type) = TreasuryCap::is_treasury_with_coin_type(object_type).cloned() {
         return Some((
             CoinIndexKey { coin_type },
-            CoinIndexInfo {
-                coin_metadata_object_id: None,
+            CoinIndexInfoV2 {
                 treasury_object_id: Some(object.id()),
+                ..Default::default()
             },
         ));
     }
@@ -1616,7 +1600,7 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
             merge_coin_into_v2(
                 &mut self.coin_v2_index.lock().unwrap(),
                 key,
-                CoinIndexInfoV2::from(value),
+                value,
             );
         }
 
@@ -1714,7 +1698,7 @@ impl LiveObjectIndexer for BackfillBatchIndexer<'_> {
                 merge_coin_into_v2(
                     &mut self.coin_v2_index.lock().unwrap(),
                     key,
-                    CoinIndexInfoV2::from(value),
+                    value,
                 );
             }
             if let Some((key, object_id)) = try_create_regulated_coin_info(&object) {

@@ -221,6 +221,26 @@ mod simulator {
     }
 }
 
+#[derive(Clone)]
+pub struct ServerVersion {
+    pub bin: &'static str,
+    pub version: &'static str,
+}
+
+impl ServerVersion {
+    pub fn new(bin: &'static str, version: &'static str) -> Self {
+        Self { bin, version }
+    }
+}
+
+impl std::fmt::Display for ServerVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.bin)?;
+        f.write_str("/")?;
+        f.write_str(self.version)
+    }
+}
+
 pub struct IotaNode {
     config: NodeConfig,
     validator_components: Mutex<Option<ValidatorComponents>>,
@@ -284,7 +304,12 @@ impl IotaNode {
         config: NodeConfig,
         registry_service: RegistryService,
     ) -> Result<Arc<IotaNode>> {
-        Self::start_async(config, registry_service, "unknown").await
+        Self::start_async(
+            config,
+            registry_service,
+            ServerVersion::new("iota-node", "unknown"),
+        )
+        .await
     }
 
     /// Starts the JWK (JSON Web Key) updater tasks for the specified node
@@ -429,7 +454,7 @@ impl IotaNode {
     pub async fn start_async(
         config: NodeConfig,
         registry_service: RegistryService,
-        software_version: &'static str,
+        server_version: ServerVersion,
     ) -> Result<Arc<IotaNode>> {
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         let mut config = config.clone();
@@ -482,7 +507,7 @@ impl IotaNode {
                 } else {
                     "fullnode"
                 },
-                software_version,
+                server_version.version,
                 &chain_identifier.to_string(),
             ))
             .expect("Failed registering uptime metric");
@@ -877,8 +902,14 @@ impl IotaNode {
                 .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
+        let grpc_server_handle = build_grpc_server(
+            &config,
+            state.clone(),
+            state_sync_store.clone(),
+            executor,
+            server_version,
+        )
+        .await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -2417,6 +2448,7 @@ async fn build_grpc_server(
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    server_version: ServerVersion,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2438,7 +2470,7 @@ async fn build_grpc_server(
     // Create GrpcReader
     let grpc_reader = Arc::new(GrpcReader::new(
         grpc_read_store,
-        Some(env!("CARGO_PKG_VERSION").to_string()),
+        Some(server_version.to_string()),
     ));
 
     let handle = start_grpc_server(
