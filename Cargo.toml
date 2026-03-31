@@ -123,6 +123,7 @@ members = [
   "crates/iota-network",
   "crates/iota-network-stack",
   "crates/iota-node",
+  "crates/iota-node-storage",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
   "crates/iota-package-alt",
@@ -135,7 +136,6 @@ members = [
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
   "crates/iota-replay",
-  "crates/iota-rest-api",
   "crates/iota-rest-kv",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
@@ -449,6 +449,7 @@ iota-names = { path = "crates/iota-names" }
 iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }
+iota-node-storage = { path = "crates/iota-node-storage" }
 iota-open-rpc = { path = "crates/iota-open-rpc" }
 iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
 iota-package-dump = { path = "crates/iota-package-dump" }
@@ -459,7 +460,6 @@ iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
-iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }

@@ -16,8 +16,7 @@ use iota_config::{
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
-        default_zklogin_oauth_providers,
+        default_end_of_epoch_broadcast_channel_capacity, default_zklogin_oauth_providers,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
@@ -213,7 +212,6 @@ impl ValidatorConfigBuilder {
                 .to_socket_addr()
                 .unwrap(),
             consensus_config: Some(consensus_config),
-            enable_index_processing: default_enable_index_processing(),
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -238,11 +236,6 @@ impl ValidatorConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
@@ -259,6 +252,7 @@ impl ValidatorConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: None,
+            enable_index_processing: true,
             enable_grpc_api: false,
             grpc_api_config: None,
             chain_override_for_testing: self.chain_override,
@@ -573,7 +567,6 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            enable_index_processing: default_enable_index_processing(),
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -598,11 +591,6 @@ impl FullnodeConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
@@ -618,6 +606,7 @@ impl FullnodeConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
+            enable_index_processing: true,
             enable_grpc_api: self.enable_grpc_api,
             grpc_api_config,
             chain_override_for_testing: self.chain_override,

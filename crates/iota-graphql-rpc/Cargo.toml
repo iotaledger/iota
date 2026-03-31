@@ -50,6 +50,7 @@ uuid.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
+iota-config.workspace = true
 iota-graphql-config.workspace = true
 iota-graphql-rpc-client.workspace = true
 iota-graphql-rpc-headers.workspace = true
@@ -64,8 +65,8 @@ iota-json-rpc-types.workspace = true
 iota-metrics.workspace = true
 iota-names.workspace = true
 iota-network-stack.workspace = true
+iota-node-storage.workspace = true
 iota-package-resolver.workspace = true
-iota-rest-api.workspace = true
 iota-sdk-types.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

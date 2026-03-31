@@ -26,8 +26,6 @@ use crate::{
 
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
 
-pub(crate) const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
-
 /// Managing and processing checkpoint files in a directory.
 pub(crate) trait LocalRead {
     /// Path is used as the source for reading checkpoint files.

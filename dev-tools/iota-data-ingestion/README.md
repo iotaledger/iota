@@ -82,6 +82,7 @@ tasks:
       # Minimum allowed chunk size is 5MB
       #
       checkpoint-chunk-size-mb: 100
+      node-grpc-url: "http://localhost:50051"
 ```
 
 ## Usage

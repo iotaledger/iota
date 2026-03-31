@@ -75,13 +75,6 @@ pub struct NodeConfig {
     #[serde(default = "default_json_rpc_address")]
     pub json_rpc_address: SocketAddr,
 
-    /// Flag to enable the REST API under `/api/v1`
-    /// endpoint on the same interface as `json` `rpc` server.
-    #[serde(default)]
-    pub enable_rest_api: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rest: Option<iota_rest_api::Config>,
-
     /// The address for Prometheus metrics.
     #[serde(default = "default_metrics_address")]
     pub metrics_address: SocketAddr,

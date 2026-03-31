@@ -296,10 +296,37 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
         } else if config.checkpoint_store_config.is_some() {
             download_summaries_from_checkpoint_store(config, missing).await?;
         } else {
-            anyhow::bail!(
-                "No download source configured for missing checkpoint summaries. \
-                 Configure one of: archive_store_config or checkpoint_store_config."
-            );
+            info!("Downloading missing summaries from full node.");
+
+            // Download summaries from the full node via gRPC
+            let grpc_url = config
+                .grpc_url()
+                .context("gRPC URL must be configured to download summaries from full node")?;
+            let client = iota_grpc_client::Client::connect(grpc_url.as_str())
+                .await
+                .context("Failed to connect to gRPC server")?;
+
+            // Download all missing checkpoints
+            for seq in missing {
+                info!("Downloading summary: {seq}");
+
+                let response = client
+                    .get_checkpoint_by_sequence_number(
+                        seq,
+                        Some("checkpoint.summary,checkpoint.signature"),
+                        None,
+                        None,
+                    )
+                    .await
+                    .context(format!("Failed to download checkpoint summary '{seq}'"))?;
+                let response = response.into_inner();
+                let summary: CertifiedCheckpointSummary = iota_sdk_types::SignedCheckpointSummary {
+                    checkpoint: response.summary()?.summary()?,
+                    signature: response.signature()?.signature()?,
+                }
+                .try_into()?;
+                write_checkpoint_summary(config, &summary)?;
+            }
         }
     }
 
@@ -539,6 +566,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let config = Config {
             rpc_url: "http://localhost:9000".parse().unwrap(),
+            grpc_url: None,
             graphql_url: None,
             checkpoints_dir: temp_dir.path().to_path_buf(),
             sync_before_check: false,
