@@ -21,14 +21,14 @@ impl TransactionKindMutator for DropCommandSuffix {
         }
 
         self.num_mutations_per_base_left -= 1;
-        if let TransactionKind::ProgrammableTransaction(mut p) = transaction_kind.clone() {
+        if let TransactionKind::Programmable(mut p) = transaction_kind.clone() {
             if p.commands.is_empty() {
                 return None;
             }
             let slice_index = self.rng.gen_range(0..p.commands.len());
             p.commands.truncate(slice_index);
             info!("Mutation: Dropping command suffix");
-            Some(TransactionKind::ProgrammableTransaction(p))
+            Some(TransactionKind::Programmable(p))
         } else {
             // Other types not supported yet
             None

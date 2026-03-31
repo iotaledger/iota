@@ -51,7 +51,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .read_api()
         .dev_inspect_transaction_block(
             sender,
-            TransactionKind::new_programmable_transaction(programmable_transaction),
+            TransactionKind::new_programmable(programmable_transaction),
             None,
             None,
             None,

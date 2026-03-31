@@ -280,7 +280,7 @@ async fn touch_gas_coins(
         builder.transfer_object(recipient, coin_ref).unwrap();
     }
     let pt = builder.finish();
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let gas_object_ref = authority_state
         .get_object(&gas_object_id)
         .await
@@ -565,7 +565,7 @@ async fn test_transfer_iota_insufficient_gas() {
         builder.transfer_iota(recipient, None);
         builder.finish()
     };
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let data = TransactionData::new(
         kind,
         sender,
@@ -630,7 +630,7 @@ async fn test_invalid_gas_owners() {
             builder.transfer_iota(recipient, None);
             builder.finish()
         };
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         let data = TransactionData::new_with_gas_coins(
             kind,
             sender,
@@ -968,7 +968,7 @@ async fn test_tx_gas_coins_input_coins() {
             builder.command(Command::new_merge_coins(coin_arg, coin_args));
             builder.finish()
         };
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         let data = TransactionData::new_with_gas_coins(
             kind,
             sender,
@@ -1045,7 +1045,7 @@ async fn execute_transfer_with_price(
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let data = TransactionData::new(kind, sender, gas_object_ref, gas_budget, rgp);
     let tx = to_sender_signed_transaction(data, &sender_key);
 

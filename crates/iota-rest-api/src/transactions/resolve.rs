@@ -312,7 +312,7 @@ fn resolve_unresolved_transaction(
     let ptb = resolve_ptb(reader, called_packages, unresolved_transaction.ptb)?;
     Ok(TransactionData::V1(
         iota_types::transaction::TransactionDataV1 {
-            kind: iota_types::transaction::TransactionKind::ProgrammableTransaction(ptb),
+            kind: iota_types::transaction::TransactionKind::Programmable(ptb),
             sender,
             gas_data,
             expiration: unresolved_transaction.expiration,

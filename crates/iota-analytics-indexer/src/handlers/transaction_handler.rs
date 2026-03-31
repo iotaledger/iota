@@ -117,7 +117,7 @@ impl TransactionHandler {
         let is_system_txn = txn_data.is_system_tx();
         if !is_system_txn {
             let kind = txn_data.kind();
-            if let TransactionKind::ProgrammableTransaction(pt) = txn_data.kind() {
+            if let TransactionKind::Programmable(pt) = txn_data.kind() {
                 for cmd in &pt.commands {
                     match cmd {
                         Command::MoveCall(_) => move_calls_count += 1,

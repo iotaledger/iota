@@ -249,7 +249,7 @@ impl PTB {
         };
 
         // build the tx kind
-        let tx_kind = TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
+        let tx_kind = TransactionKind::Programmable(ProgrammableTransaction {
             inputs: ptb.inputs,
             commands: ptb.commands,
         });

@@ -129,7 +129,7 @@ impl TransactionBuilder {
         let obj_ref = self.get_object_ref(object_id).await?;
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_object(recipient, obj_ref)?;
-        Ok(TransactionKind::new_programmable_transaction(
+        Ok(TransactionKind::new_programmable(
             builder.finish(),
         ))
     }
@@ -152,7 +152,7 @@ impl TransactionBuilder {
             .await?;
 
         Ok(TransactionData::new(
-            TransactionKind::new_programmable_transaction(builder.finish()),
+            TransactionKind::new_programmable(builder.finish()),
             signer,
             gas,
             gas_budget,
@@ -184,7 +184,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(recipient, amount.into());
         let pt = builder.finish();
-        TransactionKind::new_programmable_transaction(pt)
+        TransactionKind::new_programmable(pt)
     }
 
     /// Transfer IOTA from the provided coin object to the recipient address.
@@ -224,7 +224,7 @@ impl TransactionBuilder {
         let coins = self.input_refs(&input_coins).await?;
         builder.pay(coins, recipients, amounts)?;
         let pt = builder.finish();
-        Ok(TransactionKind::new_programmable_transaction(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Take multiple coins and send to multiple addresses following the
@@ -277,7 +277,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_iota(recipients.clone(), amounts.clone())?;
         let pt = builder.finish();
-        let tx_kind = TransactionKind::new_programmable_transaction(pt);
+        let tx_kind = TransactionKind::new_programmable(pt);
         Ok(tx_kind)
     }
 
@@ -325,7 +325,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_all_iota(recipient);
         let pt = builder.finish();
-        TransactionKind::new_programmable_transaction(pt)
+        TransactionKind::new_programmable(pt)
     }
 
     /// Take multiple IOTA coins and send them to one recipient, after gas
@@ -386,7 +386,7 @@ impl TransactionBuilder {
         )
         .await?;
         let pt = builder.finish();
-        Ok(TransactionKind::new_programmable_transaction(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
@@ -412,7 +412,7 @@ impl TransactionBuilder {
         )
         .await?;
         let pt = builder.finish();
-        Ok(TransactionKind::new_programmable_transaction(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Call a move function from a published package.
@@ -459,7 +459,7 @@ impl TransactionBuilder {
             .await?;
 
         Ok(TransactionData::new(
-            TransactionKind::new_programmable_transaction(pt),
+            TransactionKind::new_programmable(pt),
             signer,
             gas,
             gas_budget,
@@ -612,7 +612,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.move_call(package, module, function, type_args, arguments)?;
         let pt = builder.finish();
-        let tx_kind = TransactionKind::new_programmable_transaction(pt);
+        let tx_kind = TransactionKind::new_programmable(pt);
         Ok(tx_kind)
     }
 
@@ -720,7 +720,7 @@ impl TransactionBuilder {
             builder.move_call(package, module, function, type_arguments, arguments)?;
             builder.finish()
         };
-        let tx_kind = TransactionKind::new_programmable_transaction(pt);
+        let tx_kind = TransactionKind::new_programmable(pt);
         Ok(tx_kind)
     }
 
@@ -819,7 +819,7 @@ impl TransactionBuilder {
             .await?;
 
         Ok(TransactionData::new(
-            TransactionKind::new_programmable_transaction(pt),
+            TransactionKind::new_programmable(pt),
             signer,
             gas,
             gas_budget,

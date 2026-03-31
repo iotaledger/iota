@@ -31,7 +31,7 @@ fn test_with_random_gas_data(
         builder.transfer_iota(recipient, None);
         builder.finish()
     };
-    let kind = TransactionKind::ProgrammableTransaction(pt);
+    let kind = TransactionKind::Programmable(pt);
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
     let tx = to_sender_signed_transaction(tx_data, &gas_data_test.sender_key);
 

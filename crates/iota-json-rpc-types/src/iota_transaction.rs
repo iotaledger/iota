@@ -514,7 +514,7 @@ impl IotaTransactionBlockKind {
                         .consensus_determined_version_assignments,
                 })
             }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
+            TransactionKind::Programmable(p) => Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from(p, module_cache)?,
             ),
             TransactionKind::AuthenticatorStateUpdateV1(update) => {
@@ -599,7 +599,7 @@ impl IotaTransactionBlockKind {
                         .consensus_determined_version_assignments,
                 })
             }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
+            TransactionKind::Programmable(p) => Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_package_resolver(
                     p,
                     package_resolver,
@@ -2877,7 +2877,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
             TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
-            TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
+            TransactionKind::Programmable(_) => Self::ProgrammableTransaction,
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),

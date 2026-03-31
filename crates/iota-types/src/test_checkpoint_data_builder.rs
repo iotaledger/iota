@@ -384,7 +384,7 @@ impl TestCheckpointDataBuilder {
         }
         let pt = pt_builder.finish();
         let tx_data = TransactionData::new(
-            TransactionKind::ProgrammableTransaction(pt),
+            TransactionKind::Programmable(pt),
             sender,
             gas,
             1,

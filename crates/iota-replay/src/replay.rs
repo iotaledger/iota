@@ -39,7 +39,7 @@ use iota_types::{
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ObjectReadResultKind,
         SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKind::{self, ProgrammableTransaction},
+        TransactionKind::{self, Programmable},
         TransactionKindExt, VerifiedTransaction,
     },
 };
@@ -823,7 +823,7 @@ impl LocalExec {
         trace!(target: "replay_gas_info", "{}", Pretty(gas_status));
 
         let skip_checks = true;
-        if let ProgrammableTransaction(pt) = transaction_kind {
+        if let Programmable(pt) = transaction_kind {
             trace!(
                 target: "replay_ptb_info",
                 "{}",

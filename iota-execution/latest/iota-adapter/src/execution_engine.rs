@@ -536,7 +536,7 @@ mod checked {
     {
         // Check the preconditions.
         debug_assert!(
-            transaction_kind.is_programmable_transaction(),
+            transaction_kind.is_programmable(),
             "Only programmable transactions are allowed"
         );
         debug_assert!(
@@ -558,7 +558,7 @@ mod checked {
 
         // Prepare the authentication context.
         let auth_ctx = {
-            let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
+            let TransactionKind::Programmable(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(authenticator.digest(), ptb)
@@ -1165,7 +1165,7 @@ mod checked {
                 .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ProgrammableTransaction(pt) => {
+            TransactionKind::Programmable(pt) => {
                 programmable_transactions::execution::execute::<Mode>(
                     protocol_config,
                     metrics,

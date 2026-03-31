@@ -23,7 +23,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::{Object, Owner},
-    transaction::{TransactionData, TransactionDataAPI, TransactionKindExt},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
 use tracing::{info, warn};
@@ -526,7 +526,7 @@ impl PrimaryWorker {
             timestamp_ms: checkpoint_timestamp_ms,
             sender_signed_data: tx.transaction.data().clone(),
             successful_tx_num: if tx.effects.status().is_success() {
-                tx_data.kind().tx_count() as u64
+                tx_data.kind().num_transactions() as u64
             } else {
                 0
             },

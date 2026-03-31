@@ -755,13 +755,8 @@ pub trait TransactionKindExt {
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
     /// Validates the transaction against the given protocol config.
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
-    /// Returns the number of commands, or 0 if it is a system transaction.
-    fn num_commands(&self) -> usize;
     /// Returns an iterator over the commands in this transaction.
     fn iter_commands(&self) -> impl Iterator<Item = &Command>;
-    /// Returns the number of transactions, or 1 if it is a system
-    /// transaction.
-    fn tx_count(&self) -> usize;
     /// Returns a human-readable name for this transaction kind.
     fn name(&self) -> &'static str;
 }
@@ -775,7 +770,7 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpoch(_) => true,
-            TransactionKind::ProgrammableTransaction(_) => false,
+            TransactionKind::Programmable(_) => false,
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -835,7 +830,7 @@ impl TransactionKindExt for TransactionKind {
             Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
-            Self::ProgrammableTransaction(pt) => {
+            Self::Programmable(pt) => {
                 Either::Right(Either::Left(pt.shared_input_objects()))
             }
             _ => Either::Right(Either::Right(iter::empty())),
@@ -844,7 +839,7 @@ impl TransactionKindExt for TransactionKind {
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
         match &self {
-            Self::ProgrammableTransaction(pt) => pt.move_calls(),
+            Self::Programmable(pt) => pt.move_calls(),
             _ => vec![],
         }
     }
@@ -856,7 +851,7 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::AuthenticatorStateUpdateV1(_)
             | TransactionKind::RandomnessStateUpdate(_)
             | TransactionKind::EndOfEpoch(_) => vec![],
-            TransactionKind::ProgrammableTransaction(pt) => pt.receiving_objects(),
+            TransactionKind::Programmable(pt) => pt.receiving_objects(),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -903,7 +898,7 @@ impl TransactionKindExt for TransactionKind {
                 }
                 after_dedup
             }
-            Self::ProgrammableTransaction(p) => return p.input_objects(),
+            Self::Programmable(p) => return p.input_objects(),
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -924,7 +919,7 @@ impl TransactionKindExt for TransactionKind {
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
         match self {
-            TransactionKind::ProgrammableTransaction(p) => p.validity_check(config)?,
+            TransactionKind::Programmable(p) => p.validity_check(config)?,
             // All transaction kinds below are assumed to be system,
             // and no validity or limit checks are performed.
             TransactionKind::Genesis(_) | TransactionKind::ConsensusCommitPrologueV1(_) => (),
@@ -949,24 +944,10 @@ impl TransactionKindExt for TransactionKind {
         Ok(())
     }
 
-    fn num_commands(&self) -> usize {
-        match self {
-            TransactionKind::ProgrammableTransaction(pt) => pt.commands.len(),
-            _ => 0,
-        }
-    }
-
     fn iter_commands(&self) -> impl Iterator<Item = &Command> {
         match self {
-            TransactionKind::ProgrammableTransaction(pt) => pt.commands.iter(),
+            TransactionKind::Programmable(pt) => pt.commands.iter(),
             _ => [].iter(),
-        }
-    }
-
-    fn tx_count(&self) -> usize {
-        match self {
-            TransactionKind::ProgrammableTransaction(pt) => pt.commands.len(),
-            _ => 1,
         }
     }
 
@@ -974,7 +955,7 @@ impl TransactionKindExt for TransactionKind {
         match self {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
-            Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
+            Self::Programmable(_) => "ProgrammableTransaction",
             Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpoch(_) => "EndOfEpochTransaction",
@@ -1375,7 +1356,7 @@ impl TransactionData {
         gas_price: u64,
         sponsor: IotaAddress,
     ) -> Self {
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         Self::new_with_gas_coins_allow_sponsor(
             kind,
             sender,
@@ -1602,7 +1583,7 @@ impl TransactionDataAPI for TransactionDataV1 {
         if self.gas_owner() == self.sender() {
             return Ok(());
         }
-        if matches!(&self.kind, TransactionKind::ProgrammableTransaction(_)) {
+        if matches!(&self.kind, TransactionKind::Programmable(_)) {
             return Ok(());
         }
         Err(UserInputError::UnsupportedSponsoredTransactionKind)
@@ -2103,7 +2084,7 @@ impl SenderSignedData {
             let tx_data = self.transaction_data();
 
             fp_ensure!(
-                tx_data.kind().is_programmable_transaction(),
+                tx_data.kind().is_programmable(),
                 UserInputError::Unsupported(
                     "SenderSignedData with MoveAuthenticator must be a programmable transaction"
                         .to_string(),

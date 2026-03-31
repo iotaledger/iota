@@ -877,7 +877,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     );
                     let sender_address = self.get_sender(sender).address;
                     let transaction =
-                        TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
+                        TransactionKind::Programmable(ProgrammableTransaction {
                             inputs,
                             commands,
                         });

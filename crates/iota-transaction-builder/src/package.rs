@@ -31,7 +31,7 @@ impl TransactionBuilder {
             builder.transfer_arg(sender, upgrade_cap);
             builder.finish()
         };
-        Ok(TransactionKind::new_programmable_transaction(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Publish a new move package.
@@ -121,7 +121,7 @@ impl TransactionBuilder {
             builder.finish()
         };
 
-        Ok(TransactionKind::new_programmable_transaction(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Upgrade an existing move package.

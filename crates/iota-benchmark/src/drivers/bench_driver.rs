@@ -26,7 +26,7 @@ use iota_types::{
     digests::TransactionDigest,
     gas::GasCostSummary,
     quorum_driver_types::QuorumDriverError,
-    transaction::{Transaction, TransactionDataAPI, TransactionKindExt},
+    transaction::{Transaction, TransactionDataAPI},
 };
 use prometheus::{
     CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGauge, Registry,

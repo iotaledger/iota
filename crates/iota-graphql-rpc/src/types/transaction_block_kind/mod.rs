@@ -39,7 +39,7 @@ impl TransactionBlockKind {
         use TransactionBlockKind as T;
 
         match kind {
-            K::ProgrammableTransaction(pt) => T::Programmable(ProgrammableTransactionBlock {
+            K::Programmable(pt) => T::Programmable(ProgrammableTransactionBlock {
                 native: pt,
                 checkpoint_viewed_at,
             }),

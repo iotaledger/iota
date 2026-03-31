@@ -856,7 +856,7 @@ mod checked {
             return Ok(());
         }
 
-        let TransactionKind::ProgrammableTransaction(pt) = transaction.kind() else {
+        let TransactionKind::Programmable(pt) = transaction.kind() else {
             return Ok(());
         };
 

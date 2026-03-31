@@ -47,7 +47,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
         vec![iota_types::transaction::Argument::Input(0)],
     )];
     let pt = ProgrammableTransaction { inputs, commands };
-    let tx = TransactionKind::new_programmable_transaction(pt);
+    let tx = TransactionKind::new_programmable(pt);
 
     Base64::from_bytes(&bcs::to_bytes(&tx).unwrap())
 }

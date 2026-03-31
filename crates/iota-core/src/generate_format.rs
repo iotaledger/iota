@@ -379,7 +379,7 @@ fn get_registry() -> Result<Registry> {
     tracer
         .trace_value(
             &mut samples,
-            &TransactionKind::ProgrammableTransaction(sample_pt),
+            &TransactionKind::Programmable(sample_pt),
         )
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
