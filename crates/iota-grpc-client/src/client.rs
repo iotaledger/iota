@@ -4,11 +4,13 @@
 
 use std::time::Duration;
 
-use iota_grpc_types::v0::{
+use iota_grpc_types::v1::{
     ledger_service::ledger_service_client::LedgerServiceClient,
+    move_package_service::move_package_service_client::MovePackageServiceClient,
+    state_service::state_service_client::StateServiceClient,
     transaction_execution_service::transaction_execution_service_client::TransactionExecutionServiceClient,
 };
-use tonic::{codec::CompressionEncoding, transport::channel::ClientTlsConfig};
+use tonic::codec::CompressionEncoding;
 
 use crate::{api::Result, interceptors::HeadersInterceptor};
 
@@ -45,10 +47,30 @@ impl Client {
 
         let mut endpoint = tonic::transport::Endpoint::from(uri.clone());
         if uri.scheme() == Some(&http::uri::Scheme::HTTPS) {
-            endpoint = endpoint
-                .tls_config(ClientTlsConfig::new().with_enabled_roots())
-                .map_err(Into::into)
-                .map_err(tonic::Status::from_error)?;
+            #[cfg(not(feature = "tls-ring"))]
+            return Err(tonic::Status::failed_precondition(
+                "the `tls-ring` feature must be enabled for HTTPS",
+            )
+            .into());
+
+            #[cfg(not(any(feature = "tls-native-roots", feature = "tls-webpki-roots")))]
+            return Err(tonic::Status::failed_precondition(
+                "the `tls-native-roots` or `tls-webpki-roots` feature must be enabled for HTTPS",
+            )
+            .into());
+
+            #[cfg(all(
+                feature = "tls-ring",
+                any(feature = "tls-native-roots", feature = "tls-webpki-roots")
+            ))]
+            {
+                endpoint = endpoint
+                    .tls_config(
+                        tonic::transport::channel::ClientTlsConfig::new().with_enabled_roots(),
+                    )
+                    .map_err(Into::into)
+                    .map_err(tonic::Status::from_error)?;
+            }
         }
 
         let channel = endpoint
@@ -112,6 +134,22 @@ impl Client {
         ))
     }
 
+    /// Get a state service client.
+    pub fn state_service_client(&self) -> StateServiceClient<InterceptedChannel> {
+        self.configure_client(StateServiceClient::with_interceptor(
+            self.channel.clone(),
+            self.headers.clone(),
+        ))
+    }
+
+    /// Get a move package service client.
+    pub fn move_package_service_client(&self) -> MovePackageServiceClient<InterceptedChannel> {
+        self.configure_client(MovePackageServiceClient::with_interceptor(
+            self.channel.clone(),
+            self.headers.clone(),
+        ))
+    }
+
     /// Apply common client configuration (compression, message size limits).
     fn configure_client<C: GrpcClientConfig>(&self, client: C) -> C {
         let client = client.accept_compressed(CompressionEncoding::Zstd);
@@ -152,4 +190,6 @@ macro_rules! impl_grpc_client_config {
 impl_grpc_client_config!(
     LedgerServiceClient<InterceptedChannel>,
     TransactionExecutionServiceClient<InterceptedChannel>,
+    StateServiceClient<InterceptedChannel>,
+    MovePackageServiceClient<InterceptedChannel>,
 );

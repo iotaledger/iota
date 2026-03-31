@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use iota_data_ingestion_core::{IndexerExecutor, WorkerPool};
+use iota_data_ingestion_core::{
+    IndexerExecutor, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
+};
 use iota_metrics::get_metrics;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::task::JoinHandle;
@@ -76,8 +79,8 @@ impl PrimaryPipeline {
 
     pub async fn run(
         self,
-        data_ingestion_path: std::path::PathBuf,
-        remote_store_url: Option<String>,
+        data_ingestion_path: Option<std::path::PathBuf>,
+        remote_store_url: Option<RemoteUrl>,
         reader_options: iota_data_ingestion_core::ReaderOptions,
     ) -> JoinHandle<IndexerResult<()>> {
         let writer_cancel = self.cancel.clone();
@@ -92,12 +95,12 @@ impl PrimaryPipeline {
             ));
 
             info!("Starting primary executor...");
-            let mut executor_handle = tokio::spawn(self.executor.run(
-                data_ingestion_path,
-                remote_store_url,
-                vec![],
-                reader_options,
-            ));
+            let mut executor_handle =
+                tokio::spawn(self.executor.run_with_config(CheckpointReaderConfig {
+                    ingestion_path: data_ingestion_path,
+                    remote_store_url,
+                    reader_options,
+                }));
 
             let mut executor_done = false;
             let mut writer_done = false;

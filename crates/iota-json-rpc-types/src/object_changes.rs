@@ -85,6 +85,20 @@ pub enum ObjectChange {
         #[serde_as(as = "AsSequenceNumber")]
         version: SequenceNumber,
     },
+    /// Unwrapped object
+    #[serde(rename_all = "camelCase")]
+    Unwrapped {
+        sender: IotaAddress,
+        owner: Owner,
+        #[schemars(with = "String")]
+        #[serde_as(as = "IotaStructTag")]
+        object_type: StructTag,
+        object_id: ObjectID,
+        #[schemars(with = "AsSequenceNumber")]
+        #[serde_as(as = "AsSequenceNumber")]
+        version: SequenceNumber,
+        digest: ObjectDigest,
+    },
     /// New object creation
     #[serde(rename_all = "camelCase")]
     Created {
@@ -109,6 +123,7 @@ impl ObjectChange {
             | ObjectChange::Mutated { object_id, .. }
             | ObjectChange::Deleted { object_id, .. }
             | ObjectChange::Wrapped { object_id, .. }
+            | ObjectChange::Unwrapped { object_id, .. }
             | ObjectChange::Created { object_id, .. } => *object_id,
         }
     }
@@ -128,6 +143,12 @@ impl ObjectChange {
                 ..
             }
             | ObjectChange::Mutated {
+                object_id,
+                version,
+                digest,
+                ..
+            }
+            | ObjectChange::Unwrapped {
                 object_id,
                 version,
                 digest,
@@ -157,6 +178,9 @@ impl ObjectChange {
                 version, digest, ..
             }
             | ObjectChange::Mutated {
+                version, digest, ..
+            }
+            | ObjectChange::Unwrapped {
                 version, digest, ..
             }
             | ObjectChange::Created {
@@ -257,6 +281,25 @@ impl Display for ObjectChange {
                     sender,
                     object_type,
                     u64::from(*version)
+                )
+            }
+            ObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => {
+                write!(
+                    f,
+                    " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
+                    object_id,
+                    sender,
+                    owner,
+                    object_type,
+                    u64::from(*version),
+                    digest
                 )
             }
             ObjectChange::Created {

@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -11,8 +9,6 @@ use iota_types::{
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
-
-use crate::GrpcStateReader;
 
 const MAX_FILTER_DEPTH: usize = 10;
 
@@ -58,11 +54,11 @@ pub enum EventFilter {
 }
 
 // Proto-to-internal filter conversion
-impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
+impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
     type Error = String;
 
-    fn try_from(proto: iota_grpc_types::v0::filter::EventFilter) -> Result<Self, Self::Error> {
-        use iota_grpc_types::v0::filter::event_filter::Filter as ProtoFilter;
+    fn try_from(proto: iota_grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
+        use iota_grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
 
         let filter = proto.filter.ok_or("event filter is missing")?;
 
@@ -98,7 +94,7 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
             }
             ProtoFilter::MovePackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
-                let package_bytes = filter.package_id.ok_or("package_id is missing")?.address;
+                let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {}", e))?;
                 let module = filter
@@ -112,7 +108,7 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
             }
             ProtoFilter::MoveEventPackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
-                let package_bytes = filter.package_id.ok_or("package_id is missing")?.address;
+                let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {}", e))?;
                 let module = filter
@@ -137,17 +133,13 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
 }
 
 impl EventFilter {
-    pub fn matches_event(&self, state_reader: Arc<dyn GrpcStateReader>, item: &Event) -> bool {
+    pub fn matches_event(&self, item: &Event) -> bool {
         let _scope = monitored_scope("EventFilter::matches_event");
 
         match self {
-            EventFilter::All(filters) => filters
-                .iter()
-                .all(|f| f.matches_event(state_reader.clone(), item)),
-            EventFilter::Any(filters) => filters
-                .iter()
-                .any(|f| f.matches_event(state_reader.clone(), item)),
-            EventFilter::Not(filter) => !filter.matches_event(state_reader.clone(), item),
+            EventFilter::All(filters) => filters.iter().all(|f| f.matches_event(item)),
+            EventFilter::Any(filters) => filters.iter().any(|f| f.matches_event(item)),
+            EventFilter::Not(filter) => !filter.matches_event(item),
 
             EventFilter::Sender(sender) => item.sender == *sender,
 

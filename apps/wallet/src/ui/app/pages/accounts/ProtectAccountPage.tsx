@@ -21,7 +21,7 @@ import {
 } from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature, toast } from '@iota/core';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 import { trackAutoLockUpdated } from '_src/shared/analytics/helpers';
