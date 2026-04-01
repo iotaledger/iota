@@ -2,7 +2,7 @@
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---
-version: 23
+version: 24
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   enable_poseidon: true
@@ -43,6 +43,7 @@ feature_flags:
   metadata_in_module_bytes: true
   publish_package_metadata: true
   enable_move_authentication: true
+  enable_move_authentication_for_sponsor: true
   pass_validator_scores_to_advance_epoch: true
   calculate_validator_scores: true
   adjust_rewards_by_score: true
