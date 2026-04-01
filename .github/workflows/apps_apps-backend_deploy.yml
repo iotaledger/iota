@@ -5,6 +5,8 @@ on:
     branches: [develop]
     paths:
       - "apps/apps-backend/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   workflow_dispatch:
     inputs:
       deploy_type:
