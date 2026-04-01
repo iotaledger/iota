@@ -60,9 +60,7 @@ export function getOwnerType(owner?: ObjectOwner | null): ObjectOwnerKeyVariants
         return 'Immutable';
     }
 
-    throw new Error(
-        'The provided owner do not match a type variation. It is either not an OwnerObject or the type list has grown.',
-    );
+    throw new Error(`Unsupported owner type: ${owner}.`);
 }
 
 /**
