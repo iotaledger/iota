@@ -6633,7 +6633,6 @@ dependencies = [
  "hyper 1.8.1",
  "im",
  "insta",
- "iota-config",
  "iota-framework",
  "iota-graphql-config",
  "iota-graphql-rpc-client",

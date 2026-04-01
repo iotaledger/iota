@@ -807,7 +807,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct TransactionInfo {
     pub checkpoint: u64,
     pub object_types: HashMap<ObjectID, ObjectType>,
@@ -849,6 +849,7 @@ pub struct EpochInfo {
     pub system_state: crate::iota_system_state::IotaSystemState,
 }
 
+#[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
