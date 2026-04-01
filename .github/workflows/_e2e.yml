@@ -152,7 +152,7 @@ jobs:
 
       - name: Build apps-backend
         id: build-apps-backend
-        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runAppsBackend == 'true' || steps.conditions.outputs.runDashboard == 'true')
+        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runAppsBackend == 'true' || steps.conditions.outputs.runDashboard == 'true'|| steps.conditions.outputs.runWallet == 'true')
         continue-on-error: ${{ inputs.isNightly }}
         run: pnpm turbo --filter apps-backend build
 
@@ -199,7 +199,7 @@ jobs:
 
       - name: Build Wallet
         id: build-wallet
-        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runDashboard == 'true' || steps.conditions.outputs.runWallet == 'true')
+        if: (!cancelled() && !failure()) && (steps.conditions.outputs.runDashboard == 'true' || steps.conditions.outputs.runWallet == 'true' || steps.conditions.outputs.runEvmBridge == 'true')
         continue-on-error: ${{ inputs.isNightly }}
         run: pnpm wallet build:rc
 
