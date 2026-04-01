@@ -28,7 +28,6 @@ import {
 import { StakeColumn } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
-import { type ReactNode } from 'react';
 import { ValidatorLink } from '~/components/ui';
 
 interface GenerateValidatorsTableColumnsArgs {
