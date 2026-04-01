@@ -8,10 +8,10 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::{IotaNode, ServerVersion, metrics};
+use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
-    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
-    supported_protocol_versions::SupportedProtocolVersions,
+    committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
+    multiaddr::Multiaddr, supported_protocol_versions::SupportedProtocolVersions,
 };
 #[cfg(all(feature = "flamegraph-alloc", nightly))]
 use telemetry_subscribers::flamegraph::CounterAlloc;
@@ -99,7 +99,16 @@ fn main() {
 
     {
         let _enter = runtimes.metrics.enter();
-        metrics::start_metrics_push_task(&config, registry_service.clone());
+        if let Some(metrics_config) = &config.metrics {
+            if let Some(push_url) = &metrics_config.push_url {
+                iota_metrics_push_client::start_metrics_push_task(
+                    metrics_config.push_interval_seconds,
+                    push_url.clone(),
+                    config.network_key_pair().copy(),
+                    registry_service.clone(),
+                );
+            }
+        }
     }
 
     if let Some(listen_address) = args.listen_address {
