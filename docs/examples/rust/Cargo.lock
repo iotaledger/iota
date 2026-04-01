@@ -1622,7 +1622,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version",
- "syn 2.0.115",
+ "syn 2.0.117",
  "unicode-xid",
 ]
 
@@ -2970,7 +2970,6 @@ dependencies = [
  "iota-genesis-common",
  "iota-keys",
  "iota-names",
- "iota-rest-api",
  "iota-types",
  "move-vm-config",
  "object_store",
@@ -3361,32 +3360,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-rest-api"
-version = "1.21.0-alpha"
-dependencies = [
- "anyhow",
- "axum",
- "bcs",
- "fastcrypto",
- "iota-network-stack",
- "iota-protocol-config",
- "iota-sdk-types",
- "iota-types",
- "itertools 0.13.0",
- "mime",
- "move-binary-format",
- "openapiv3",
- "prometheus",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "serde_with",
- "serde_yaml",
- "tap",
- "tokio",
-]
-
-[[package]]
 name = "iota-sdk"
 version = "1.21.0-alpha"
 dependencies = [
@@ -3423,7 +3396,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e19c78a1bee17e0bf85fcd5b16a2f080cef26274#e19c78a1bee17e0bf85fcd5b16a2f080cef26274"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=92bd778d6ce629f8377c76f23eb6f5eb937570b1#92bd778d6ce629f8377c76f23eb6f5eb937570b1"
 dependencies = [
  "base64ct",
  "bcs",
@@ -4845,17 +4818,6 @@ name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
-
-[[package]]
-name = "openapiv3"
-version = "2.0.0"
-source = "git+https://github.com/bmwill/openapiv3.git?rev=ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963#ca4b4845b7c159a39f5c68ad8f7f76cb6f4d6963"
-dependencies = [
- "indexmap 2.13.0",
- "schemars 0.8.22",
- "serde",
- "serde_json",
-]
 
 [[package]]
 name = "openssl-probe"
@@ -7912,32 +7874,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows-implement"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "windows-interface"
 version = "0.57.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29bee4b38ea3cde66011baa44dba677c432a78593e202392d1e9070cf2a7fca7"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "windows-interface"
-version = "0.59.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8271,7 +8211,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a90e88e4667264a994d34e6d1ab2d26d398dcdca8b7f52bec8668957517fc7d8"
 dependencies = [
- "wit-bindgen-rust-macro",
+ "memchr",
 ]
 
 [[package]]
