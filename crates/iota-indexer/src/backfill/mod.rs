@@ -105,13 +105,6 @@ pub(crate) async fn get_backfill(
                 )
                 .await?,
             )),
-            IngestionBackfillKind::ObjectChangesUnwrapped => Ok(Arc::new(
-                IngestionBackfillTask::<ObjectChangesUnwrappedBackfill>::new(
-                    config,
-                    range_start as CheckpointSequenceNumber,
-                )
-                .await?,
-            )),
         },
     }
 }
