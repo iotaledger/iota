@@ -17,3 +17,4 @@ export * from './search';
 export * from './card';
 export * from './display-stats';
 export * from './visual-asset-card';
+export * from './date-picker';

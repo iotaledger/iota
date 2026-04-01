@@ -267,4 +267,31 @@
 
     /* TABLE */
     --table-text-color: theme('colors.names-neutral.70');
+
+    /* DATE PICKER */
+    --date-picker-trigger-text-color: theme('colors.names-neutral.92');
+    --date-picker-trigger-placeholder-color: rgba(
+        136,
+        146,
+        161,
+        0.4
+    ); /* neutral.60 with 40% opacity */
+    --date-picker-trigger-border-color: theme('colors.names-neutral.20');
+    --date-picker-trigger-border-hover-color: theme('colors.names-neutral.60');
+    --date-picker-trigger-border-focus-color: theme('colors.names-primary.80');
+    --date-picker-trigger-border-error-color: theme('colors.names-error.80');
+    --date-picker-calendar-bg: theme('colors.names-neutral.6');
+    --date-picker-calendar-border-color: theme('colors.names-neutral.20');
+    --date-picker-header-text-color: theme('colors.names-neutral.92');
+    --date-picker-nav-icon-color: theme('colors.names-neutral.70');
+    --date-picker-nav-bg-hover: theme('colors.names-neutral.12');
+    --date-picker-weekday-text-color: theme('colors.names-neutral.70');
+    --date-picker-day-text-color: theme('colors.names-neutral.92');
+    --date-picker-day-text-color-hover: theme('colors.names-neutral.92');
+    --date-picker-day-bg-hover: theme('colors.names-neutral.12');
+    --date-picker-day-bg-selected: theme('colors.names-primary.30');
+    --date-picker-day-text-selected: theme('colors.names-primary.100');
+    --date-picker-day-today-ring-color: theme('colors.names-primary.80');
+    --date-picker-day-text-disabled: theme('colors.names-neutral.60');
+    --date-picker-day-text-outside-month: theme('colors.names-neutral.40');
 }
