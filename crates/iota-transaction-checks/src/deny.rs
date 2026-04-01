@@ -9,7 +9,9 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     signature::GenericSignature,
     storage::BackingPackageStore,
-    transaction::{Command, InputObjectKind, TransactionData, TransactionDataAPI},
+    transaction::{
+        Command, InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt,
+    },
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -214,9 +216,9 @@ fn check_package_dependencies(
                 dependencies.push(package.move_package().id());
             }
             Command::TransferObjects(..)
-            | &Command::SplitCoins(..)
-            | &Command::MergeCoins(..)
-            | &Command::MakeMoveVector(..) => {}
+            | Command::SplitCoins(..)
+            | Command::MergeCoins(..)
+            | Command::MakeMoveVector(..) => {}
             _ => unimplemented!("a new Command enum variant was added and needs to be handled"),
         }
     }

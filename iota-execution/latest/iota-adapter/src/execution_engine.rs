@@ -56,7 +56,7 @@ mod checked {
             ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, CheckedInputObjects, Command,
             EndOfEpochTransactionKind, GasData, GenesisTransaction, InputObjects,
             ProgrammableTransaction, RandomnessStateUpdate, SharedObjectRef, SystemPackage,
-            TransactionKind,
+            TransactionKind, TransactionKindExt,
         },
     };
     use move_binary_format::CompiledModule;
@@ -208,7 +208,7 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
-        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
+        let is_epoch_change = transaction_kind.is_end_of_epoch();
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
 
         let (gas_cost_summary, execution_result) = execute_transaction::<Mode>(
@@ -608,7 +608,7 @@ mod checked {
     {
         // Check the preconditions.
         debug_assert!(
-            transaction_kind.is_programmable_transaction(),
+            transaction_kind.is_programmable(),
             "Only programmable transactions are allowed"
         );
         debug_assert!(
@@ -630,7 +630,7 @@ mod checked {
 
         // Prepare the authentication context.
         let auth_ctx = {
-            let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
+            let TransactionKind::Programmable(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(authenticator.digest(), ptb, tx_data_bytes)
@@ -808,7 +808,7 @@ mod checked {
         );
 
         let is_genesis_or_epoch_change_tx = matches!(transaction_kind, TransactionKind::Genesis(_))
-            || transaction_kind.is_end_of_epoch_tx();
+            || transaction_kind.is_end_of_epoch();
 
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 
@@ -1230,7 +1230,7 @@ mod checked {
                 .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ProgrammableTransaction(pt) => {
+            TransactionKind::Programmable(pt) => {
                 programmable_transactions::execution::execute::<Mode>(
                     protocol_config,
                     metrics,
@@ -1242,7 +1242,7 @@ mod checked {
                     trace_builder_opt,
                 )
             }
-            TransactionKind::EndOfEpochTransaction(txns) => {
+            TransactionKind::EndOfEpoch(txns) => {
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
                 for (i, tx) in txns.into_iter().enumerate() {
@@ -1353,6 +1353,9 @@ mod checked {
                 )?;
                 Ok(Mode::empty_results())
             }
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }?;
         temporary_store.check_execution_results_consistency()?;
         Ok(result)

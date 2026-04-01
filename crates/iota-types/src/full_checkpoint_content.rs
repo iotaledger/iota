@@ -75,7 +75,7 @@ impl CheckpointData {
             let Some(transaction) = self.transactions.iter().find(|tx| {
                 matches!(
                     tx.transaction.intent_message().value.kind(),
-                    TransactionKind::EndOfEpochTransaction(_)
+                    TransactionKind::EndOfEpoch(_)
                 )
             }) else {
                 return Err(StorageError::custom(format!(

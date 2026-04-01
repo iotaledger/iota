@@ -35,7 +35,7 @@ async fn test_dry_run_publish_with_mocked_coin() -> Result<(), anyhow::Error> {
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.publish_immutable(compiled_modules_bytes, dependencies);
 
-    let publish = TransactionKind::programmable(builder.finish());
+    let publish = TransactionKind::new_programmable(builder.finish());
     let transaction_bytes =
         TransactionData::new_with_gas_coins(publish, address, vec![], 100000000, 1000);
 
