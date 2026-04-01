@@ -936,7 +936,7 @@ TransactionKind:
     3:
       AuthenticatorStateUpdateV1Deprecated: UNIT
     4:
-      EndOfEpochTransaction:
+      EndOfEpoch:
         NEWTYPE:
           SEQ:
             TYPENAME: EndOfEpochTransactionKind

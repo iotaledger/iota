@@ -49,7 +49,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
         builder.transfer_object(other_address, obj).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
 
     let devinspect_response = http_client
         .dev_inspect_transaction_block(

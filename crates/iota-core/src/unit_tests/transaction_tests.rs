@@ -233,7 +233,7 @@ async fn test_user_sends_consensus_commit_prologue_v1() {
 
 #[tokio::test]
 async fn test_user_sends_end_of_epoch_transaction() {
-    test_user_sends_system_transaction_impl(TransactionKind::EndOfEpochTransaction(vec![])).await;
+    test_user_sends_system_transaction_impl(TransactionKind::EndOfEpoch(vec![])).await;
 }
 
 async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKind) {

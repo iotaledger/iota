@@ -462,7 +462,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             builder.finish()
         };
 
-        let kind = iota_types::transaction::TransactionKind::ProgrammableTransaction(pt);
+        let kind = iota_types::transaction::TransactionKind::Programmable(pt);
         let tx_data =
             iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
         let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
@@ -903,7 +903,7 @@ impl Simulacrum {
             builder.finish()
         };
 
-        let kind = TransactionKind::ProgrammableTransaction(pt);
+        let kind = TransactionKind::Programmable(pt);
         let gas_data = GasData {
             objects: vec![object.compute_object_reference()],
             owner: sender,

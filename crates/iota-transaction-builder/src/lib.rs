@@ -23,7 +23,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, Command, InputObjectKind, ProgrammableTransactionExt, TransactionData,
-        TransactionKind,
+        TransactionKind, TransactionKindExt,
     },
 };
 
@@ -119,7 +119,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::TransferObjects`].
     pub async fn transfer_object_tx_kind(
         &self,
@@ -129,7 +129,7 @@ impl TransactionBuilder {
         let obj_ref = self.get_object_ref(object_id).await?;
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_object(recipient, obj_ref)?;
-        Ok(TransactionKind::programmable(builder.finish()))
+        Ok(TransactionKind::new_programmable(builder.finish()))
     }
 
     /// Transfer an object to the specified recipient address.
@@ -150,7 +150,7 @@ impl TransactionBuilder {
             .await?;
 
         Ok(TransactionData::new(
-            TransactionKind::programmable(builder.finish()),
+            TransactionKind::new_programmable(builder.finish()),
             signer,
             gas,
             gas_budget,
@@ -170,7 +170,7 @@ impl TransactionBuilder {
         Ok(())
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::SplitCoins`] if some amount is provided and then transfers
     /// the split amount or the whole gas object with
     /// [`Command::TransferObjects`] to the recipient.
@@ -182,7 +182,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(recipient, amount.into());
         let pt = builder.finish();
-        TransactionKind::programmable(pt)
+        TransactionKind::new_programmable(pt)
     }
 
     /// Transfer IOTA from the provided coin object to the recipient address.
@@ -207,7 +207,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::MergeCoins`] if multiple inputs coins are provided and then a
     /// [`Command::SplitCoins`] together with [`Command::TransferObjects`] for
     /// each recipient + amount.
@@ -222,7 +222,7 @@ impl TransactionBuilder {
         let coins = self.input_refs(&input_coins).await?;
         builder.pay(coins, recipients, amounts)?;
         let pt = builder.finish();
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Take multiple coins and send to multiple addresses following the
@@ -275,7 +275,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_iota(recipients, amounts)?;
         let pt = builder.finish();
-        let tx_kind = TransactionKind::programmable(pt);
+        let tx_kind = TransactionKind::new_programmable(pt);
         Ok(tx_kind)
     }
 
@@ -317,13 +317,13 @@ impl TransactionBuilder {
         )
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::TransferObjects`] that sends the gas coin to the recipient.
     pub fn pay_all_iota_tx_kind(&self, recipient: IotaAddress) -> TransactionKind {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.pay_all_iota(recipient);
         let pt = builder.finish();
-        TransactionKind::programmable(pt)
+        TransactionKind::new_programmable(pt)
     }
 
     /// Take multiple IOTA coins and send them to one recipient, after gas
@@ -363,7 +363,7 @@ impl TransactionBuilder {
         ))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::MoveCall`].
     pub async fn move_call_tx_kind(
         &self,
@@ -384,10 +384,10 @@ impl TransactionBuilder {
         )
         .await?;
         let pt = builder.finish();
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// Build a [`TransactionKind::Programmable`] that contains a
     /// [`Command::MoveCall`] to a Move View Function.
     /// The method verifies that the signature of the function passed as input
     /// complies with the Move View Function definition.
@@ -410,7 +410,7 @@ impl TransactionBuilder {
         )
         .await?;
         let pt = builder.finish();
-        Ok(TransactionKind::programmable(pt))
+        Ok(TransactionKind::new_programmable(pt))
     }
 
     /// Call a move function from a published package.
@@ -457,7 +457,7 @@ impl TransactionBuilder {
             .await?;
 
         Ok(TransactionData::new(
-            TransactionKind::programmable(pt),
+            TransactionKind::new_programmable(pt),
             signer,
             gas,
             gas_budget,
@@ -610,7 +610,7 @@ impl TransactionBuilder {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.move_call(package, module, function, type_args, arguments)?;
         let pt = builder.finish();
-        let tx_kind = TransactionKind::programmable(pt);
+        let tx_kind = TransactionKind::new_programmable(pt);
         Ok(tx_kind)
     }
 
@@ -690,7 +690,7 @@ impl TransactionBuilder {
         )
     }
 
-    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
+    /// Build a [`TransactionKind::Programmable`] that contains
     /// [`Command::MergeCoins`] with the provided coins.
     pub async fn merge_coins_tx_kind(
         &self,
@@ -718,7 +718,7 @@ impl TransactionBuilder {
             builder.move_call(package, module, function, type_arguments, arguments)?;
             builder.finish()
         };
-        let tx_kind = TransactionKind::programmable(pt);
+        let tx_kind = TransactionKind::new_programmable(pt);
         Ok(tx_kind)
     }
 
@@ -817,7 +817,7 @@ impl TransactionBuilder {
             .await?;
 
         Ok(TransactionData::new(
-            TransactionKind::programmable(pt),
+            TransactionKind::new_programmable(pt),
             signer,
             gas,
             gas_budget,

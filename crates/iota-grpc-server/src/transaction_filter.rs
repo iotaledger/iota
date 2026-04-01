@@ -34,7 +34,7 @@ pub enum TransactionKind {
 impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
     fn from(kind: &iota_types::transaction::TransactionKind) -> Self {
         match kind {
-            iota_types::transaction::TransactionKind::ProgrammableTransaction(_) => {
+            iota_types::transaction::TransactionKind::Programmable(_) => {
                 TransactionKind::ProgrammableTransaction
             }
             iota_types::transaction::TransactionKind::Genesis(_) => TransactionKind::Genesis,
@@ -45,12 +45,15 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
                 TransactionKind::SystemTransaction
             }
-            iota_types::transaction::TransactionKind::EndOfEpochTransaction(_) => {
+            iota_types::transaction::TransactionKind::EndOfEpoch(_) => {
                 TransactionKind::EndOfEpochTransaction
             }
             iota_types::transaction::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }
@@ -371,7 +374,7 @@ impl TransactionFilter {
                 .any(|obj_ref| &obj_ref.object_id == o),
 
             TransactionFilter::Command(cmd_filter) => match tx_data.kind() {
-                iota_types::transaction::TransactionKind::ProgrammableTransaction(pt) => {
+                iota_types::transaction::TransactionKind::Programmable(pt) => {
                     cmd_filter.matches_commands(&pt.commands)
                 }
                 _ => false,

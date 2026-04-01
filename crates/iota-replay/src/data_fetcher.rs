@@ -549,7 +549,7 @@ impl DataFetcher for RemoteFetcher {
         let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
         let tx_kind_orig = orig_tx.transaction_data().kind();
 
-        if let TransactionKind::EndOfEpochTransaction(kinds) = tx_kind_orig {
+        if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
             if let Some(kind) = kinds.iter().next() {
                 let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
                     EndOfEpochTransactionKind::ChangeEpoch(change) => {
