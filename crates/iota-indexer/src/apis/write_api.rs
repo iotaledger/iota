@@ -10,7 +10,9 @@ use futures::{FutureExt, TryFutureExt};
 use iota_grpc_client::Client as GrpcClient;
 use iota_grpc_types::field::{FieldMask, FieldMaskUtil};
 use iota_json::IotaJsonValue;
-use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc::{
+    IotaRpcModule, ObjectProvider, get_balance_changes_from_effect, get_object_changes,
+};
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
@@ -22,15 +24,17 @@ use iota_package_resolver::{PackageStore, Resolver};
 use iota_protocol_config::Chain;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::ExecutionError,
     iota_serde::BigInt,
+    object::Object,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
-        GasData, SenderSignedData, TransactionData, TransactionDataV1, TransactionExpiration,
-        TransactionKind,
+        GasData, SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1,
+        TransactionExpiration, TransactionKind,
     },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -38,13 +42,12 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use crate::{
     apis::error::Error as ApiError,
     errors::{IndexerError, IndexerResult},
-    ingestion::primary::prepare::InMemTxChanges,
-    metrics::IndexerMetrics,
+    ingestion::primary::prepare::InMemObjectCache,
     models::transactions::tx_events_to_iota_tx_events,
     optimistic_indexing::OptimisticTransactionExecutor,
     read::IndexerReader,
     store::package_resolver::IndexerStorePackageResolver,
-    types::{IotaTransactionBlockResponseWithOptions, grpc_conversion},
+    types::{IndexedObjectChange, IotaTransactionBlockResponseWithOptions, grpc_conversion},
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
@@ -79,6 +82,7 @@ pub struct WriteApi {
     fullnode_grpc_client: GrpcClient,
     transaction_builder: TransactionBuilder,
     package_resolver: Arc<Resolver<IndexerStorePackageResolver>>,
+    reader: Arc<IndexerReader>,
 }
 
 #[derive(Clone)]
@@ -92,6 +96,7 @@ impl WriteApi {
         let package_resolver = IndexerStorePackageResolver::new(reader.get_pool());
         let data_reader = Arc::new(reader);
         Self {
+            reader: data_reader.clone(),
             fullnode_grpc_client,
             transaction_builder: TransactionBuilder::new(data_reader),
             package_resolver: Arc::new(Resolver::new(package_resolver)),
@@ -148,8 +153,7 @@ impl WriteApi {
 
         let tx_events = TransactionEvents::try_from(executed_transaction.events()?.events()?)?;
 
-        let in_mem_tx_changes =
-            InMemTxChanges::new(&objects, IndexerMetrics::new(&Default::default()));
+        let in_mem_tx_changes = TxObjectResolver::new(&objects, self.reader.clone());
 
         // as a minor optimization we will run concurrently the following four futures
         let fut1 = in_mem_tx_changes
@@ -517,5 +521,107 @@ impl IotaRpcModule for OptimisticWriteApi {
 
     fn rpc_doc_module() -> Module {
         iota_json_rpc_api::WriteApiOpenRpc::module_doc()
+    }
+}
+
+/// Resolves balance and object changes in dry_run.
+///
+/// Checks the in-memory cache (from the simulate
+/// response) first, then falls back to the indexer's `objects` table for
+/// dynamically loaded objects not included in the response.
+pub struct TxObjectResolver {
+    object_cache: InMemObjectCache,
+    reader: Arc<IndexerReader>,
+}
+
+impl TxObjectResolver {
+    pub fn new(objects: &[&Object], reader: Arc<IndexerReader>) -> Self {
+        let mut object_cache = InMemObjectCache::new();
+        for obj in objects {
+            object_cache.insert_object(<&Object>::clone(obj).clone());
+        }
+        Self {
+            object_cache,
+            reader,
+        }
+    }
+
+    pub(crate) async fn get_changes(
+        &self,
+        tx: &TransactionData,
+        effects: &TransactionEffects,
+        tx_digest: &TransactionDigest,
+    ) -> IndexerResult<(
+        Vec<iota_json_rpc_types::BalanceChange>,
+        Vec<IndexedObjectChange>,
+    )> {
+        let object_change: Vec<_> = get_object_changes(
+            self,
+            tx.sender(),
+            effects.modified_at_versions(),
+            effects.all_changed_objects(),
+            effects.all_removed_objects(),
+        )
+        .await?
+        .into_iter()
+        .map(IndexedObjectChange::from)
+        .collect();
+        let balance_change = get_balance_changes_from_effect(
+            self,
+            effects,
+            tx.input_objects().unwrap_or_else(|e| {
+                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
+            }),
+            None,
+        )
+        .await?;
+        Ok((balance_change, object_change))
+    }
+}
+
+#[async_trait]
+impl ObjectProvider for TxObjectResolver {
+    type Error = IndexerError;
+
+    async fn get_object(
+        &self,
+        id: &ObjectID,
+        version: &SequenceNumber,
+    ) -> Result<Object, Self::Error> {
+        // try in-memory cache first (simulate response objects)
+        if let Some(o) = self.object_cache.get(id, Some(version)) {
+            return Ok(o.clone());
+        }
+
+        // fallback: query the indexer's objects table.
+        // for dry_run, the pre-mutation version should match the latest
+        // version in the objects table since the simulation didn't commit.
+        self.reader
+            .get_object_in_blocking_task(*id)
+            .await?
+            .ok_or_else(|| {
+                IndexerError::Generic(format!("object {id} not found in cache or indexer DB"))
+            })
+    }
+
+    async fn find_object_lt_or_eq_version(
+        &self,
+        id: &ObjectID,
+        version: &SequenceNumber,
+    ) -> Result<Option<Object>, Self::Error> {
+        // try exact version in cache
+        if let Some(o) = self.object_cache.get(id, Some(version)) {
+            return Ok(Some(o.clone()));
+        }
+
+        // try latest in cache
+        if let Some(o) = self.object_cache.get(id, None) {
+            if o.version() <= *version {
+                return Ok(Some(o.clone()));
+            }
+        }
+
+        // fallback to indexer DB
+        self.reader.get_object_in_blocking_task(*id).await
     }
 }
