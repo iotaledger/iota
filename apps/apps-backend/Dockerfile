@@ -8,6 +8,14 @@ RUN corepack enable
 # ---------- Dependencies + Build ----------
 FROM base AS builder
 
+ARG DEPLOY_TYPE
+ARG STAGING_APPS_BACKEND
+ARG PROD_APPS_BACKEND
+
+ENV DEPLOY_TYPE=$DEPLOY_TYPE
+ENV STAGING_APPS_BACKEND=$STAGING_APPS_BACKEND
+ENV PROD_APPS_BACKEND=$PROD_APPS_BACKEND
+
 # Files needed for pnpm and workspaces
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json Cargo.toml ./
 
@@ -25,6 +33,14 @@ FROM node:24-alpine AS runner
 WORKDIR /app
 RUN corepack enable
 ENV NODE_ENV=production
+
+ARG DEPLOY_TYPE
+ARG STAGING_APPS_BACKEND
+ARG PROD_APPS_BACKEND
+
+ENV DEPLOY_TYPE=$DEPLOY_TYPE
+ENV STAGING_APPS_BACKEND=$STAGING_APPS_BACKEND
+ENV PROD_APPS_BACKEND=$PROD_APPS_BACKEND
 
 COPY --from=builder /app ./
 

@@ -24,7 +24,7 @@ import { InfoModule } from './info/info.module';
         ScheduleModule.forRoot(),
         ConfigModule.forRoot({
             isGlobal: true,
-            envFilePath: process.env.CI === 'true' ? [] : ['.env', '.env.defaults'],
+            envFilePath: ['.env', '.env.defaults'],
             expandVariables: true,
         }),
         CacheModule.register({
