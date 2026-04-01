@@ -41,7 +41,8 @@ export function EnterAmountView({
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
+        useSignAndExecuteTransaction();
     const { values, resetForm, setFieldValue } = useFormikContext<FormValues>();
 
     const { data: metadata } = useCoinMetadata(IOTA_TYPE_ARG);
@@ -160,7 +161,7 @@ export function EnterAmountView({
                     />
                 ) : undefined
             }
-            isLoading={isTransactionLoading}
+            isLoading={isTransactionLoading || isTransactionPending}
             onBack={onBack}
             handleClose={handleClose}
             handleStake={handleStake}

@@ -46,7 +46,8 @@ export function EnterTimelockedAmountView({
     handleClose,
     onSuccess,
 }: EnterTimelockedAmountViewProps): JSX.Element {
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
+        useSignAndExecuteTransaction();
     const { values, resetForm } = useFormikContext<FormValues>();
     const [possibleAmount, setPossibleAmount] = useState<bigint | null>(null);
     const [isSearchingProtocolMaxAmount, setSearchingProtocolMaxAmount] = useState(false);
@@ -202,7 +203,7 @@ export function EnterTimelockedAmountView({
                     />
                 ) : undefined
             }
-            isLoading={isTransactionLoading}
+            isLoading={isTransactionLoading || isTransactionPending}
             isStakeDisabled={!hasGroupedTimelockObjects || isSearchingProtocolMaxAmount}
             onBack={onBack}
             handleClose={handleClose}
