@@ -8,7 +8,7 @@ export const DATE_PICKER_CALENDAR_CLASSES =
     'date-picker-calendar-bg date-picker-calendar-border-color absolute z-50 mt-1 rounded-lg border p-3 shadow-lg';
 
 export const DATE_PICKER_DAY_BASE_CLASSES =
-    'date-picker-day-text-color flex h-8 w-8 items-center justify-center rounded-full text-body-md transition-colors';
+    'date-picker-day-text-color flex h-8 w-8 items-center justify-center rounded-full text-body-md transition-colors hover:delay-75';
 
 export const DATE_PICKER_DAY_HOVER_CLASSES =
     'enabled:hover:date-picker-day-bg-hover enabled:hover:date-picker-day-text-color-hover cursor-pointer';
@@ -28,15 +28,14 @@ export const DATE_PICKER_WEEKDAY_CLASSES =
     'date-picker-weekday-text-color flex h-8 w-8 items-center justify-center text-label-sm font-medium';
 
 export const DATE_PICKER_NAV_BUTTON_CLASSES =
-    'date-picker-nav-icon-color enabled:hover:date-picker-nav-bg-hover flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:h-4 [&_svg]:w-4';
+    'date-picker-nav-icon-color enabled:hover:date-picker-nav-bg-hover flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:delay-75 disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:h-4 [&_svg]:w-4';
 
 export const DATE_PICKER_HEADER_BUTTON_CLASSES =
-    'date-picker-header-text-color enabled:hover:date-picker-nav-bg-hover rounded-md px-1 py-0.5 text-label-lg font-semibold transition-colors';
+    'date-picker-header-text-color enabled:hover:date-picker-nav-bg-hover rounded-md px-1 py-0.5 text-label-lg font-semibold transition-colors hover:delay-75';
 
 export const DATE_PICKER_YEAR_CELL_BASE_CLASSES =
-    'date-picker-day-text-color flex w-full items-center justify-center rounded-lg py-2 text-body-md transition-colors';
+    'date-picker-day-text-color flex w-full items-center justify-center rounded-lg py-2 text-body-md transition-colors hover:delay-75';
 
-// Year-cell states reuse the exact same styles as their day-cell equivalents.
 export const DATE_PICKER_YEAR_CELL_HOVER_CLASSES = DATE_PICKER_DAY_HOVER_CLASSES;
 export const DATE_PICKER_YEAR_CELL_SELECTED_CLASSES = DATE_PICKER_DAY_SELECTED_CLASSES;
 export const DATE_PICKER_YEAR_CELL_CURRENT_CLASSES = DATE_PICKER_DAY_TODAY_CLASSES;

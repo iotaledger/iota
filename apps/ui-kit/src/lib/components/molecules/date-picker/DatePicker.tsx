@@ -56,14 +56,13 @@ export interface DatePickerProps {
     /**
      * The earliest selectable date (inclusive).
      */
-    min?: Date;
+    minDate?: Date;
     /**
      * The latest selectable date (inclusive).
      */
-    max?: Date;
+    maxDate?: Date;
     /**
      * Controls how the selected date is displayed in the trigger field.
-     * @default DatePickerFormat.DayMonthYear  ("DD/MM/YYYY")
      */
     dateFormat?: DatePickerFormat;
     /**
@@ -91,8 +90,8 @@ export interface DatePickerProps {
 export function DatePicker({
     value,
     onChange,
-    min,
-    max,
+    minDate,
+    maxDate,
     dateFormat = DatePickerFormat.DayMonthYear,
     label,
     caption,
@@ -109,7 +108,6 @@ export function DatePicker({
 
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    // Sync calendar view when value changes externally
     useEffect(() => {
         if (value) {
             setViewYear(value.getFullYear());
@@ -117,12 +115,10 @@ export function DatePicker({
         }
     }, [value]);
 
-    // Reset to day view when the popup closes
     useEffect(() => {
         if (!isOpen) setCalendarView('days');
     }, [isOpen]);
 
-    // Close on outside click
     useEffect(() => {
         if (!isOpen) return;
         function handleClickOutside(e: MouseEvent) {
@@ -134,7 +130,6 @@ export function DatePicker({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isOpen]);
 
-    // Close on Escape key
     useEffect(() => {
         if (!isOpen) return;
         function handleKeyDown(e: KeyboardEvent) {
@@ -151,39 +146,35 @@ export function DatePicker({
     function navigatePrevMonth() {
         if (viewMonth === 0) {
             setViewMonth(11);
-            setViewYear((y) => y - 1);
+            setViewYear((year) => year - 1);
         } else {
-            setViewMonth((m) => m - 1);
+            setViewMonth((month) => month - 1);
         }
     }
 
     function navigateNextMonth() {
         if (viewMonth === 11) {
             setViewMonth(0);
-            setViewYear((y) => y + 1);
+            setViewYear((year) => year + 1);
         } else {
-            setViewMonth((m) => m + 1);
+            setViewMonth((month) => month + 1);
         }
     }
 
-    /** Jump 10 years back (day view). */
-    function navigatePrev10Years() {
-        setViewYear((y) => y - DECADE_SIZE);
+    function goBackTenYears() {
+        setViewYear((year) => year - DECADE_SIZE);
     }
 
-    /** Jump 10 years forward (day view). */
-    function navigateNext10Years() {
-        setViewYear((y) => y + DECADE_SIZE);
+    function goForwardTenYears() {
+        setViewYear((year) => year + DECADE_SIZE);
     }
 
-    /** Navigate to the previous decade in year picker. */
-    function navigatePrevDecade() {
-        setViewYear((y) => decadeStart(y) - DECADE_SIZE);
+    function goBackOneDecade() {
+        setViewYear((year) => decadeStart(year) - DECADE_SIZE);
     }
 
-    /** Navigate to the next decade in year picker. */
-    function navigateNextDecade() {
-        setViewYear((y) => decadeStart(y) + DECADE_SIZE);
+    function goToNextDecade() {
+        setViewYear((year) => decadeStart(year) + DECADE_SIZE);
     }
 
     function handleYearSelect(year: number) {
@@ -192,7 +183,7 @@ export function DatePicker({
     }
 
     function handleDayClick(date: Date) {
-        if (isDateDisabled(date, min, max)) return;
+        if (isDateDisabled(date, minDate, maxDate)) return;
         onChange?.(date);
         setIsOpen(false);
     }
@@ -200,17 +191,21 @@ export function DatePicker({
     const calendarGrid = buildCalendarGrid(viewYear, viewMonth);
 
     const decadeStartYear = decadeStart(viewYear);
-    const yearGrid = Array.from({ length: YEAR_GRID_SIZE }, (_, i) => decadeStartYear + i);
+    const yearsInDecade = Array.from({ length: YEAR_GRID_SIZE }, (_, i) => decadeStartYear + i);
 
-    const canGoPrev10 =
-        !min || new Date(viewYear - DECADE_SIZE, viewMonth + 1, 0) >= startOfDay(min);
-    const canGoPrevMonth = !min || new Date(viewYear, viewMonth, 0) >= startOfDay(min);
-    const canGoNextMonth = !max || new Date(viewYear, viewMonth + 1, 1) <= startOfDay(max);
-    const canGoNext10 = !max || new Date(viewYear + DECADE_SIZE, viewMonth, 1) <= startOfDay(max);
+    const canNavigateBackDecade =
+        !minDate || new Date(viewYear - DECADE_SIZE, viewMonth + 1, 0) >= startOfDay(minDate);
+    const canNavigateToPreviousMonth =
+        !minDate || new Date(viewYear, viewMonth, 0) >= startOfDay(minDate);
+    const canNavigateNextMonth =
+        !maxDate || new Date(viewYear, viewMonth + 1, 1) <= startOfDay(maxDate);
+    const canNavigateNextDecade =
+        !maxDate || new Date(viewYear + DECADE_SIZE, viewMonth, 1) <= startOfDay(maxDate);
 
-    const canGoPrevDecade = !min || new Date(decadeStartYear - 1, 11, 31) >= startOfDay(min);
-    const canGoNextDecade =
-        !max || new Date(decadeStartYear + YEAR_GRID_SIZE, 0, 1) <= startOfDay(max);
+    const isPreviousDecadeAccessible =
+        !minDate || new Date(decadeStartYear - 1, 11, 31) >= startOfDay(minDate);
+    const isNextDecadeAccessible =
+        !maxDate || new Date(decadeStartYear + YEAR_GRID_SIZE, 0, 1) <= startOfDay(maxDate);
 
     return (
         <InputWrapper
@@ -254,8 +249,8 @@ export function DatePicker({
                             <>
                                 <div className="mb-1 flex items-center justify-between">
                                     <ButtonUnstyled
-                                        onClick={navigatePrev10Years}
-                                        disabled={!canGoPrev10}
+                                        onClick={goBackTenYears}
+                                        disabled={!canNavigateBackDecade}
                                         aria-label="Previous 10 years"
                                         className={DATE_PICKER_NAV_BUTTON_CLASSES}
                                     >
@@ -265,7 +260,7 @@ export function DatePicker({
                                     <div className="flex flex-1 items-center justify-between px-1">
                                         <ButtonUnstyled
                                             onClick={navigatePrevMonth}
-                                            disabled={!canGoPrevMonth}
+                                            disabled={!canNavigateToPreviousMonth}
                                             aria-label="Previous month"
                                             className={DATE_PICKER_NAV_BUTTON_CLASSES}
                                         >
@@ -282,7 +277,7 @@ export function DatePicker({
 
                                         <ButtonUnstyled
                                             onClick={navigateNextMonth}
-                                            disabled={!canGoNextMonth}
+                                            disabled={!canNavigateNextMonth}
                                             aria-label="Next month"
                                             className={DATE_PICKER_NAV_BUTTON_CLASSES}
                                         >
@@ -291,8 +286,8 @@ export function DatePicker({
                                     </div>
 
                                     <ButtonUnstyled
-                                        onClick={navigateNext10Years}
-                                        disabled={!canGoNext10}
+                                        onClick={goForwardTenYears}
+                                        disabled={!canNavigateNextDecade}
                                         aria-label="Next 10 years"
                                         className={DATE_PICKER_NAV_BUTTON_CLASSES}
                                     >
@@ -313,7 +308,7 @@ export function DatePicker({
                                         const isCurrentMonth = date.getMonth() === viewMonth;
                                         const isSelected = !!value && isSameDay(date, value);
                                         const isToday = isSameDay(date, today);
-                                        const isDisabled = isDateDisabled(date, min, max);
+                                        const isDisabled = isDateDisabled(date, minDate, maxDate);
                                         const isOutsideMonth = !isCurrentMonth;
 
                                         return (
@@ -356,8 +351,8 @@ export function DatePicker({
                             <>
                                 <div className="mb-2 flex items-center justify-between">
                                     <ButtonUnstyled
-                                        onClick={navigatePrevDecade}
-                                        disabled={!canGoPrevDecade}
+                                        onClick={goBackOneDecade}
+                                        disabled={!isPreviousDecadeAccessible}
                                         aria-label="Previous decade"
                                         className={DATE_PICKER_NAV_BUTTON_CLASSES}
                                     >
@@ -369,8 +364,8 @@ export function DatePicker({
                                     </span>
 
                                     <ButtonUnstyled
-                                        onClick={navigateNextDecade}
-                                        disabled={!canGoNextDecade}
+                                        onClick={goToNextDecade}
+                                        disabled={!isNextDecadeAccessible}
                                         aria-label="Next decade"
                                         className={DATE_PICKER_NAV_BUTTON_CLASSES}
                                     >
@@ -379,10 +374,10 @@ export function DatePicker({
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-1">
-                                    {yearGrid.map((year) => {
+                                    {yearsInDecade.map((year) => {
                                         const isSelected = value?.getFullYear() === year;
                                         const isCurrent = today.getFullYear() === year;
-                                        const isDisabled = isYearDisabled(year, min, max);
+                                        const isDisabled = isYearDisabled(year, minDate, maxDate);
 
                                         return (
                                             <ButtonUnstyled

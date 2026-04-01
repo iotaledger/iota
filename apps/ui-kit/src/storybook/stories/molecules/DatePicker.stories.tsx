@@ -42,8 +42,8 @@ export const Default: Story = {
 
 export const WithDateFormat: Story = {
     args: {
-        label: 'Formato DD/MM/YYYY',
-        caption: 'Cambia el formato desde los controles ↓',
+        label: 'Format DD/MM/YYYY',
+        caption: 'Change the date format from the controls ',
         dateFormat: DatePickerFormat.DayMonthYear,
     },
     render: (args) => {
@@ -64,13 +64,18 @@ export const WithMinMaxLimitsInclusive: Story = {
         dateFormat: DatePickerFormat.DayMonthYear,
     },
     render: (args) => {
-        // Both boundaries are selectable (inclusive)
         const minDate = new Date(2026, 3, 1); // April 1 2026
         const maxDate = new Date(2026, 3, 30); // April 30 2026
         const [date, setDate] = useState<Date | undefined>(undefined);
         return (
             <div className="w-72 pb-80">
-                <DatePicker {...args} value={date} onChange={setDate} min={minDate} max={maxDate} />
+                <DatePicker
+                    {...args}
+                    value={date}
+                    onChange={setDate}
+                    minDate={minDate}
+                    maxDate={maxDate}
+                />
             </div>
         );
     },

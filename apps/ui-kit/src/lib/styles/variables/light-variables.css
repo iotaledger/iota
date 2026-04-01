@@ -271,29 +271,17 @@
     --table-text-color: theme('colors.iota-neutral.40');
 
     /* DATE PICKER */
-    --date-picker-trigger-text-color: theme('colors.iota-neutral.10');
-    --date-picker-trigger-placeholder-color: rgba(
-        84,
-        94,
-        110,
-        0.4
-    ); /* neutral.40 with 40% opacity */
-    --date-picker-trigger-border-color: theme('colors.iota-neutral.80');
+    --date-picker-text-color: theme('colors.iota-neutral.10');
+    --date-picker-trigger-placeholder-color: rgba(84, 94, 110, 0.4);
+    --date-picker-border-color: theme('colors.iota-neutral.80');
     --date-picker-trigger-border-hover-color: theme('colors.iota-neutral.50');
-    --date-picker-trigger-border-focus-color: theme('colors.iota-primary.30');
+    --date-picker-focus-color: theme('colors.iota-primary.30');
     --date-picker-trigger-border-error-color: theme('colors.iota-error.30');
     --date-picker-calendar-bg: theme('colors.iota-neutral.100');
-    --date-picker-calendar-border-color: theme('colors.iota-neutral.80');
-    --date-picker-header-text-color: theme('colors.iota-neutral.10');
-    --date-picker-nav-icon-color: theme('colors.iota-neutral.40');
-    --date-picker-nav-bg-hover: theme('colors.iota-neutral.92');
-    --date-picker-weekday-text-color: theme('colors.iota-neutral.40');
-    --date-picker-day-text-color: theme('colors.iota-neutral.10');
-    --date-picker-day-text-color-hover: theme('colors.iota-neutral.10');
-    --date-picker-day-bg-hover: theme('colors.iota-neutral.92');
+    --date-picker-muted-text-color: theme('colors.iota-neutral.40');
+    --date-picker-hover-bg: theme('colors.iota-neutral.92');
     --date-picker-day-bg-selected: theme('colors.iota-primary.30');
     --date-picker-day-text-selected: theme('colors.iota-primary.100');
-    --date-picker-day-today-ring-color: theme('colors.iota-primary.30');
     --date-picker-day-text-disabled: theme('colors.iota-neutral.40');
     --date-picker-day-text-outside-month: theme('colors.iota-neutral.60');
 
