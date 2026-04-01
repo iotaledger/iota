@@ -3,6 +3,10 @@ name: Deploy Apps-Backend
 on:
   push:
     branches: [develop]
+    paths:
+      - "apps/apps-backend/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   workflow_dispatch:
     inputs:
       deploy_type:
@@ -13,6 +17,10 @@ on:
           - staging
           - rc
           - production
+
+concurrency:
+  group: apps-backend-deploy-${{ github.workflow }}-${{ inputs.deploy_type || 'staging' }}
+  cancel-in-progress: true
 
 jobs:
   resolve-deploy-type:
