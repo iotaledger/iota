@@ -61,6 +61,7 @@ pub fn derive_key_pair_from_path(
             );
             Ok((kp.public().into(), IotaKeyPair::Secp256r1(kp)))
         }
+        #[allow(deprecated)]
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
         | SignatureScheme::ZkLoginAuthenticator
@@ -163,6 +164,7 @@ pub fn validate_path(
                 .map_err(|_| IotaError::SignatureKeyGen("Cannot parse path".to_string()))?),
             }
         }
+        #[allow(deprecated)]
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
         | SignatureScheme::ZkLoginAuthenticator

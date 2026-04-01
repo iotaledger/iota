@@ -2839,6 +2839,7 @@ impl AuthorityPerEpochStore {
                     return None;
                 }
             }
+            #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::NewJWKFetched(..),
                 ..
@@ -4212,6 +4213,7 @@ impl AuthorityPerEpochStore {
                 }
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
+            #[allow(deprecated)]
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::NewJWKFetched(..),
                 ..

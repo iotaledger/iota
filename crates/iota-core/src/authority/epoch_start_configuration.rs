@@ -7,7 +7,6 @@ use std::fmt;
 use enum_dispatch::enum_dispatch;
 use iota_config::{ExecutionCacheType, NodeConfig};
 use iota_types::{
-    authenticator_state::get_authenticator_state_obj_initial_shared_version,
     base_types::SequenceNumber,
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,
@@ -130,8 +129,6 @@ impl EpochStartConfiguration {
         object_store: &dyn ObjectStore,
         initial_epoch_flags: Vec<EpochFlag>,
     ) -> IotaResult<Self> {
-        let authenticator_obj_initial_shared_version =
-            get_authenticator_state_obj_initial_shared_version(object_store)?;
         let randomness_obj_initial_shared_version =
             get_randomness_state_obj_initial_shared_version(object_store)?;
         let coin_deny_list_obj_initial_shared_version =
@@ -140,7 +137,7 @@ impl EpochStartConfiguration {
             system_state,
             epoch_digest,
             flags: initial_epoch_flags,
-            authenticator_obj_initial_shared_version,
+            authenticator_obj_initial_shared_version: None,
             randomness_obj_initial_shared_version,
             coin_deny_list_obj_initial_shared_version,
         }))

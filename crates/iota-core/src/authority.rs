@@ -1469,6 +1469,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
+        #[allow(deprecated)]
         if let TransactionKind::AuthenticatorStateUpdateV1(_auth_state) =
             certificate.data().transaction_data().kind()
         {

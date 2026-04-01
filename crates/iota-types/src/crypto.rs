@@ -2,6 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// Allow deprecated zkLogin types — this module defines and must handle them
+// for serialization compatibility.
+#![allow(deprecated)]
+
 use std::{
     collections::BTreeMap,
     fmt::{self, Debug, Display, Formatter},
@@ -1695,6 +1699,7 @@ pub enum SignatureScheme {
     Secp256r1,
     BLS12381, // This is currently not supported for user Iota Address.
     MultiSig,
+    #[deprecated(note = "zkLogin is no longer supported")]
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
     MoveAuthenticator,
@@ -1752,11 +1757,13 @@ pub enum CompressedSignature {
     Ed25519(Ed25519SignatureAsBytes),
     Secp256k1(Secp256k1SignatureAsBytes),
     Secp256r1(Secp256r1SignatureAsBytes),
+    #[deprecated(note = "zkLogin is no longer supported")]
     ZkLogin(ZkLoginAuthenticatorAsBytes),
     Passkey(PasskeyAuthenticatorAsBytes),
     Move(MoveAuthenticatorAsBytes),
 }
 
+#[deprecated(note = "zkLogin is no longer supported")]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub struct ZkLoginAuthenticatorAsBytes(#[schemars(with = "Base64")] pub Vec<u8>);
 

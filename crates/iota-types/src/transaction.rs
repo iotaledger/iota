@@ -3,6 +3,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// Allow deprecated zkLogin/JWK types — this module defines and must handle them
+// for BCS serialization compatibility.
+#![allow(deprecated)]
+
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
@@ -30,8 +34,8 @@ use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
-    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION,
-    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
@@ -321,6 +325,7 @@ impl GenesisObject {
     }
 }
 
+#[deprecated(note = "JWK/authenticator state is no longer supported")]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AuthenticatorStateExpire {
     /// expire JWKs that have a lower epoch than this
@@ -329,12 +334,7 @@ pub struct AuthenticatorStateExpire {
     pub authenticator_obj_initial_shared_version: SequenceNumber,
 }
 
-impl AuthenticatorStateExpire {
-    pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.authenticator_obj_initial_shared_version
-    }
-}
-
+#[deprecated(note = "JWK/authenticator state is no longer supported")]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AuthenticatorStateUpdateV1 {
     /// Epoch of the authenticator state update transaction
@@ -347,12 +347,6 @@ pub struct AuthenticatorStateUpdateV1 {
     pub authenticator_obj_initial_shared_version: SequenceNumber,
     // to version this struct, do not add new fields. Instead, add a AuthenticatorStateUpdateV2 to
     // TransactionKind.
-}
-
-impl AuthenticatorStateUpdateV1 {
-    pub fn authenticator_obj_initial_shared_version(&self) -> SequenceNumber {
-        self.authenticator_obj_initial_shared_version
-    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -382,6 +376,7 @@ pub enum TransactionKind {
     ProgrammableTransaction(ProgrammableTransaction),
     Genesis(GenesisTransaction),
     ConsensusCommitPrologueV1(ConsensusCommitPrologueV1),
+    #[deprecated(note = "JWK/authenticator state is no longer supported")]
     AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1),
 
     /// EndOfEpochTransaction contains a list of transactions
@@ -405,9 +400,9 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpochV4(ChangeEpochV4),
     // IMPORTANT: new enum variants should be added at the end to preserve serialization
     // compatibility. DO NOT CHANGE THE ORDER OF EXISTING ENTRIES!
-    // Deprecated: AuthenticatorStateCreate and AuthenticatorStateExpire are no longer used
-    // after ZkLogin removal. Kept for serialization compatibility.
+    #[deprecated(note = "JWK/authenticator state is no longer supported")]
     AuthenticatorStateCreate,
+    #[deprecated(note = "JWK/authenticator state is no longer supported")]
     AuthenticatorStateExpire(AuthenticatorStateExpire),
 }
 
@@ -514,20 +509,6 @@ impl EndOfEpochTransactionKind {
         })
     }
 
-    pub fn new_authenticator_state_expire(
-        min_epoch: u64,
-        authenticator_obj_initial_shared_version: SequenceNumber,
-    ) -> Self {
-        Self::AuthenticatorStateExpire(AuthenticatorStateExpire {
-            min_epoch,
-            authenticator_obj_initial_shared_version,
-        })
-    }
-
-    pub fn new_authenticator_state_create() -> Self {
-        Self::AuthenticatorStateCreate
-    }
-
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -558,13 +539,9 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateCreate => vec![],
-            Self::AuthenticatorStateExpire(expire) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: expire.authenticator_obj_initial_shared_version(),
-                    mutable: true,
-                }]
+            Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                vec![]
             }
         }
     }
@@ -583,15 +560,10 @@ impl EndOfEpochTransactionKind {
             Self::ChangeEpochV4(_) => {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
-            Self::AuthenticatorStateExpire(expire) => Either::Left(
-                vec![SharedInputObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: expire.authenticator_obj_initial_shared_version(),
-                    mutable: true,
-                }]
-                .into_iter(),
-            ),
-            Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
+            Self::AuthenticatorStateExpire(_) | Self::AuthenticatorStateCreate => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                Either::Right(iter::empty())
+            }
         }
     }
 
@@ -681,11 +653,9 @@ impl EndOfEpochTransactionKind {
                 }
             }
             Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
-                if !config.enable_jwk_consensus_updates() {
-                    return Err(UserInputError::Unsupported(
-                        "authenticator state updates not enabled".to_string(),
-                    ));
-                }
+                return Err(UserInputError::Unsupported(
+                    "authenticator state updates not enabled".to_string(),
+                ));
             }
         }
         Ok(())
@@ -1489,12 +1459,9 @@ impl TransactionKind {
                     mutable: true,
                 })))
             }
-            Self::AuthenticatorStateUpdateV1(update) => {
-                Either::Left(Either::Left(iter::once(SharedInputObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: update.authenticator_obj_initial_shared_version,
-                    mutable: true,
-                })))
+            Self::AuthenticatorStateUpdateV1(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                Either::Right(Either::Right(iter::empty()))
             }
             Self::RandomnessStateUpdate(update) => {
                 Either::Left(Either::Left(iter::once(SharedInputObject {
@@ -1548,12 +1515,9 @@ impl TransactionKind {
                     mutable: true,
                 }]
             }
-            Self::AuthenticatorStateUpdateV1(update) => {
-                vec![InputObjectKind::SharedMoveObject {
-                    id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
-                    initial_shared_version: update.authenticator_obj_initial_shared_version(),
-                    mutable: true,
-                }]
+            Self::AuthenticatorStateUpdateV1(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                vec![]
             }
             Self::RandomnessStateUpdate(update) => {
                 vec![InputObjectKind::SharedMoveObject {
@@ -1605,11 +1569,9 @@ impl TransactionKind {
             }
 
             TransactionKind::AuthenticatorStateUpdateV1(_) => {
-                if !config.enable_jwk_consensus_updates() {
-                    return Err(UserInputError::Unsupported(
-                        "authenticator state updates not enabled".to_string(),
-                    ));
-                }
+                return Err(UserInputError::Unsupported(
+                    "authenticator state updates not enabled".to_string(),
+                ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
         };
@@ -1673,7 +1635,10 @@ impl Display for TransactionKind {
                 write!(writer, "{p}")?;
             }
             Self::AuthenticatorStateUpdateV1(_) => {
-                writeln!(writer, "Transaction Kind : Authenticator State Update")?;
+                writeln!(
+                    writer,
+                    "Transaction Kind : Authenticator State Update (deprecated)"
+                )?;
             }
             Self::RandomnessStateUpdate(_) => {
                 writeln!(writer, "Transaction Kind : Randomness State Update")?;
@@ -3012,22 +2977,6 @@ impl VerifiedTransaction {
                 ),
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)
-        .pipe(Self::new_system_transaction)
-    }
-
-    pub fn new_authenticator_state_update(
-        epoch: u64,
-        round: u64,
-        new_active_jwks: Vec<ActiveJwk>,
-        authenticator_obj_initial_shared_version: SequenceNumber,
-    ) -> Self {
-        AuthenticatorStateUpdateV1 {
-            epoch,
-            round,
-            new_active_jwks,
-            authenticator_obj_initial_shared_version,
-        }
-        .pipe(TransactionKind::AuthenticatorStateUpdateV1)
         .pipe(Self::new_system_transaction)
     }
 

@@ -10,11 +10,9 @@ use self::{
     randomness_state_update::RandomnessStateUpdateTransaction,
 };
 use crate::types::transaction_block_kind::{
-    authenticator_state_update::AuthenticatorStateUpdateTransaction,
     end_of_epoch::EndOfEpochTransaction, programmable::ProgrammableTransactionBlock,
 };
 
-pub(crate) mod authenticator_state_update;
 pub(crate) mod consensus_commit_prologue;
 pub(crate) mod end_of_epoch;
 pub(crate) mod genesis;
@@ -28,7 +26,6 @@ pub(crate) enum TransactionBlockKind {
     ConsensusCommitPrologue(ConsensusCommitPrologueTransaction),
     Genesis(GenesisTransaction),
     Programmable(ProgrammableTransactionBlock),
-    AuthenticatorState(AuthenticatorStateUpdateTransaction),
     Randomness(RandomnessStateUpdateTransaction),
     EndOfEpoch(EndOfEpochTransaction),
 }
@@ -53,11 +50,11 @@ impl TransactionBlockKind {
                     checkpoint_viewed_at,
                 })
             }
-            K::AuthenticatorStateUpdateV1(asu) => {
-                T::AuthenticatorState(AuthenticatorStateUpdateTransaction {
-                    native: asu,
-                    checkpoint_viewed_at,
-                })
+            #[allow(deprecated)]
+            K::AuthenticatorStateUpdateV1(_) => {
+                // Deprecated: authenticator state (JWK) is no longer supported
+                // and was never enabled on IOTA.
+                unreachable!("AuthenticatorStateUpdateV1 transactions were never created on IOTA");
             }
             K::EndOfEpochTransaction(eoe) => T::EndOfEpoch(EndOfEpochTransaction {
                 native: eoe,

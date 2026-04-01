@@ -3,6 +3,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(deprecated)]
+
 //! Deprecated: zkLogin is no longer supported.
 //! This module is retained solely for BCS/serde deserialization compatibility
 //! in [`GenericSignature`](crate::signature::GenericSignature).
@@ -26,6 +28,7 @@ use crate::{
 /// Deprecated zkLogin authenticator.
 /// Kept only for BCS/serde deserialization compatibility. All operations return
 /// an `UnsupportedFeature` error.
+#[deprecated(note = "zkLogin is no longer supported")]
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZkLoginAuthenticator {

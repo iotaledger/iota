@@ -2814,10 +2814,6 @@ impl ProtocolConfig {
 // `_for_testing`. Non-feature_flags should already have test setters defined
 // through macros.
 impl ProtocolConfig {
-    pub fn set_enable_jwk_consensus_updates_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_jwk_consensus_updates = val
-    }
-
     pub fn set_per_object_congestion_control_mode_for_testing(
         &mut self,
         val: PerObjectCongestionControlMode,

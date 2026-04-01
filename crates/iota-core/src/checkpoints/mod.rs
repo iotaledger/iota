@@ -1478,6 +1478,7 @@ impl CheckpointBuilder {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {effects:?}"));
                 match transaction.inner().transaction_data().kind() {
+                    #[allow(deprecated)]
                     TransactionKind::ConsensusCommitPrologueV1(_)
                     | TransactionKind::AuthenticatorStateUpdateV1(_) => {
                         // ConsensusCommitPrologue and

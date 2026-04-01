@@ -12,7 +12,6 @@ use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
-    authenticator_state::ActiveJwk,
     base_types::{EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
     crypto::IotaSignature,
     digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
@@ -448,8 +447,6 @@ pub enum IotaTransactionBlockKind {
     /// A series of transactions where the results of one transaction can be
     /// used in future transactions
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
-    /// A transaction which updates global authenticator state
-    AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1),
     /// A transaction which updates global randomness state
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
     /// The transaction which occurs only at the end of the epoch
@@ -479,9 +476,6 @@ impl Display for IotaTransactionBlockKind {
             Self::ProgrammableTransaction(p) => {
                 write!(writer, "Transaction Kind: Programmable")?;
                 write!(writer, "{}", crate::displays::Pretty(p))?;
-            }
-            Self::AuthenticatorStateUpdateV1(_) => {
-                writeln!(writer, "Transaction Kind: Authenticator State Update")?;
             }
             Self::RandomnessStateUpdate(_) => {
                 writeln!(writer, "Transaction Kind: Randomness State Update")?;
@@ -524,16 +518,10 @@ impl IotaTransactionBlockKind {
                 // This case is handled separately by the callers
                 unreachable!()
             }
-            TransactionKind::AuthenticatorStateUpdateV1(update) => {
-                Self::AuthenticatorStateUpdateV1(IotaAuthenticatorStateUpdateV1 {
-                    epoch: update.epoch,
-                    round: update.round,
-                    new_active_jwks: update
-                        .new_active_jwks
-                        .into_iter()
-                        .map(IotaActiveJwk::from)
-                        .collect(),
-                })
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                unreachable!("AuthenticatorStateUpdateV1 transactions were never created on IOTA");
             }
             TransactionKind::RandomnessStateUpdate(update) => {
                 Self::RandomnessStateUpdate(IotaRandomnessStateUpdate {
@@ -559,15 +547,13 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
-                            EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                                IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
-                            }
-                            EndOfEpochTransactionKind::AuthenticatorStateExpire(expire) => {
-                                IotaEndOfEpochTransactionKind::AuthenticatorStateExpire(
-                                    IotaAuthenticatorStateExpire {
-                                        min_epoch: expire.min_epoch,
-                                    },
-                                )
+                            #[allow(deprecated)]
+                            EndOfEpochTransactionKind::AuthenticatorStateCreate
+                            | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
+                                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                                unreachable!(
+                                    "AuthenticatorState transactions were never created on IOTA"
+                                );
                             }
                         })
                         .collect(),
@@ -618,7 +604,6 @@ impl IotaTransactionBlockKind {
             Self::Genesis(_) => "Genesis",
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
-            Self::AuthenticatorStateUpdateV1(_) => "AuthenticatorStateUpdateV1",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
@@ -1818,19 +1803,6 @@ pub struct IotaConsensusCommitPrologueV1 {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaAuthenticatorStateUpdateV1 {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub round: u64,
-
-    pub new_active_jwks: Vec<IotaActiveJwk>,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaRandomnessStateUpdate {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
@@ -1853,61 +1825,6 @@ pub struct IotaEndOfEpochTransaction {
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     ChangeEpochV2(IotaChangeEpochV2),
-    AuthenticatorStateCreate,
-    AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaAuthenticatorStateExpire {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub min_epoch: u64,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaActiveJwk {
-    pub jwk_id: IotaJwkId,
-    pub jwk: IotaJWK,
-
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: u64,
-}
-
-impl From<ActiveJwk> for IotaActiveJwk {
-    fn from(active_jwk: ActiveJwk) -> Self {
-        Self {
-            jwk_id: IotaJwkId {
-                iss: active_jwk.jwk_id.iss.clone(),
-                kid: active_jwk.jwk_id.kid.clone(),
-            },
-            jwk: IotaJWK {
-                kty: active_jwk.jwk.kty.clone(),
-                e: active_jwk.jwk.e.clone(),
-                n: active_jwk.jwk.n.clone(),
-                alg: active_jwk.jwk.alg.clone(),
-            },
-            epoch: active_jwk.epoch,
-        }
-    }
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaJwkId {
-    pub iss: String,
-    pub kid: String,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaJWK {
-    pub kty: String,
-    pub e: String,
-    pub n: String,
-    pub alg: String,
 }
 
 #[serde_as]
@@ -2785,7 +2702,6 @@ pub enum IotaTransactionKind {
     ProgrammableTransaction = 1,
     Genesis = 2,
     ConsensusCommitPrologueV1 = 3,
-    AuthenticatorStateUpdateV1 = 4,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
 }
@@ -2802,7 +2718,8 @@ impl From<&TransactionKind> for IotaTransactionKind {
         match kind {
             TransactionKind::Genesis(_) => Self::Genesis,
             TransactionKind::ConsensusCommitPrologueV1(_) => Self::ConsensusCommitPrologueV1,
-            TransactionKind::AuthenticatorStateUpdateV1(_) => Self::AuthenticatorStateUpdateV1,
+            #[allow(deprecated)]
+            TransactionKind::AuthenticatorStateUpdateV1(_) => Self::SystemTransaction,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
             TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
             TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,

@@ -42,6 +42,7 @@ impl From<&iota_types::transaction::TransactionKind> for TransactionKind {
             iota_types::transaction::TransactionKind::ConsensusCommitPrologueV1(_) => {
                 TransactionKind::ConsensusCommitPrologueV1
             }
+            #[allow(deprecated)]
             iota_types::transaction::TransactionKind::AuthenticatorStateUpdateV1(_) => {
                 TransactionKind::AuthenticatorStateUpdateV1
             }

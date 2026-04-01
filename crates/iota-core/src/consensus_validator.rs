@@ -94,7 +94,7 @@ impl IotaTxValidator {
                         });
                     }
                 }
-
+                #[allow(deprecated)]
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
@@ -347,6 +347,7 @@ mod tests {
         // Returns the feature flag value that gates a variant, or `None` if the
         // variant is always allowed. The exhaustive match ensures this function
         // must be updated when new variants are added to ConsensusTransactionKind.
+        #[allow(deprecated)]
         fn is_feature_gated(
             kind: &ConsensusTransactionKind,
             config: &ProtocolConfig,
@@ -374,6 +375,7 @@ mod tests {
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
         // gate check; their gating is verified by the exhaustive match above.
+        #[allow(deprecated)]
         let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
             (
                 "EndOfPublish",

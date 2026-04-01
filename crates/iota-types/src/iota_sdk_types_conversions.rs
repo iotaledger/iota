@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(deprecated)]
+
 //! Module for conversions between iota-core types and iota-sdk types
 //!
 //! For now this module makes heavy use of the `bcs_convert_impl` macro to
@@ -17,7 +19,7 @@ use iota_sdk_types::{
         CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
         CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
     },
-    crypto::{Bls12381PublicKey, Bls12381Signature, Jwk, JwkId, UserSignature},
+    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
     digest::Digest,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -35,13 +37,13 @@ use iota_sdk_types::{
     },
     object_id::ObjectId,
     transaction::{
-        ActiveJwk, Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1,
-        CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments,
-        EndOfEpochTransactionKind, GasPayment, GenesisTransaction, Input, MakeMoveVector,
-        MergeCoins, MoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-        SignedTransaction, SplitCoins, SystemPackage, Transaction, TransactionExpiration,
-        TransactionKind, TransactionV1, TransferObjects, Upgrade, VersionAssignment,
+        Argument, AuthenticatorStateUpdateV1, CancelledTransaction, ChangeEpoch, ChangeEpochV2,
+        ChangeEpochV3, ChangeEpochV4, Command, ConsensusCommitPrologueV1,
+        ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind, GasPayment,
+        GenesisTransaction, Input, MakeMoveVector, MergeCoins, MoveCall, ProgrammableTransaction,
+        Publish, RandomnessStateUpdate, SignedTransaction, SplitCoins, SystemPackage, Transaction,
+        TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, Upgrade,
+        VersionAssignment,
     },
     type_tag::{Identifier, StructTag, TypeParseError, TypeTag},
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
@@ -479,30 +481,13 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
-            InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
+            InternalTxnKind::AuthenticatorStateUpdateV1(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
                 TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
-                        .new_active_jwks
-                        .into_iter()
-                        .map(|jwk| ActiveJwk {
-                            jwk_id: JwkId {
-                                iss: jwk.jwk_id.iss,
-                                kid: jwk.jwk_id.kid,
-                            },
-                            jwk: Jwk {
-                                kty: jwk.jwk.kty,
-                                e: jwk.jwk.e,
-                                n: jwk.jwk.n,
-                                alg: jwk.jwk.alg,
-                            },
-                            epoch: jwk.epoch,
-                        })
-                        .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version
-                        .value(),
+                    epoch: 0,
+                    round: 0,
+                    new_active_jwks: vec![],
+                    authenticator_obj_initial_shared_version: 0,
                 })
             }
             InternalTxnKind::EndOfEpochTransaction(vec) => {
@@ -610,30 +595,13 @@ impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
                     },
                 )
             }
-            TransactionKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
+            TransactionKind::AuthenticatorStateUpdateV1(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
                 Self::AuthenticatorStateUpdateV1(crate::transaction::AuthenticatorStateUpdateV1 {
-                    epoch: authenticator_state_update_v1.epoch,
-                    round: authenticator_state_update_v1.round,
-                    new_active_jwks: authenticator_state_update_v1
-                        .new_active_jwks
-                        .into_iter()
-                        .map(|jwk| crate::authenticator_state::ActiveJwk {
-                            jwk_id: crate::authenticator_state::JwkId {
-                                iss: jwk.jwk_id.iss,
-                                kid: jwk.jwk_id.kid,
-                            },
-                            jwk: crate::authenticator_state::JWK {
-                                kty: jwk.jwk.kty,
-                                e: jwk.jwk.e,
-                                n: jwk.jwk.n,
-                                alg: jwk.jwk.alg,
-                            },
-                            epoch: jwk.epoch,
-                        })
-                        .collect(),
-                    authenticator_obj_initial_shared_version: authenticator_state_update_v1
-                        .authenticator_obj_initial_shared_version
-                        .into(),
+                    epoch: 0,
+                    round: 0,
+                    new_active_jwks: vec![],
+                    authenticator_obj_initial_shared_version: 0.into(),
                 })
             }
             TransactionKind::EndOfEpoch(vec) => {
@@ -748,17 +716,11 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
-            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {
-                EndOfEpochTransactionKind::AuthenticatorStateCreate
+            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate
+            | crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                unreachable!("AuthenticatorState transactions were never created on IOTA");
             }
-            crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateExpire(
-                authenticator_state_expire,
-            ) => EndOfEpochTransactionKind::AuthenticatorStateExpire(AuthenticatorStateExpire {
-                min_epoch: authenticator_state_expire.min_epoch,
-                authenticator_obj_initial_shared_version: authenticator_state_expire
-                    .authenticator_obj_initial_shared_version
-                    .value(),
-            }),
         }
     }
 }
@@ -861,14 +823,10 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                     adjust_rewards_by_score: change_epoch_v4.adjust_rewards_by_score,
                 })
             }
-            EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,
-            EndOfEpochTransactionKind::AuthenticatorStateExpire(authenticator_state_expire) => {
-                Self::AuthenticatorStateExpire(crate::transaction::AuthenticatorStateExpire {
-                    min_epoch: authenticator_state_expire.min_epoch,
-                    authenticator_obj_initial_shared_version: authenticator_state_expire
-                        .authenticator_obj_initial_shared_version
-                        .into(),
-                })
+            EndOfEpochTransactionKind::AuthenticatorStateCreate
+            | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => {
+                // Deprecated: authenticator state (JWK) was never enabled on IOTA.
+                unreachable!("AuthenticatorState transactions were never created on IOTA");
             }
             _ => unreachable!("a new enum variant was added and needs to be handled"),
         }

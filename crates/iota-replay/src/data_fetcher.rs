@@ -590,6 +590,7 @@ impl DataFetcher for RemoteFetcher {
                             .await?
                             .base_gas_price(),
                     ),
+                    #[allow(deprecated)]
                     EndOfEpochTransactionKind::AuthenticatorStateCreate
                     | EndOfEpochTransactionKind::AuthenticatorStateExpire(_) => continue,
                 };

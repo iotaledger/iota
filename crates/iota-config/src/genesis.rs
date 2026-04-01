@@ -16,7 +16,6 @@ use fastcrypto::{
 };
 use iota_types::{
     GENESIS_IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-    authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
     base_types::{IotaAddress, ObjectID},
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
@@ -326,10 +325,6 @@ impl UnsignedGenesis {
 
     pub fn iota_system_object(&self) -> IotaSystemState {
         get_iota_system_state(&self.objects()).expect("IOTA System State object must always exist")
-    }
-
-    pub fn authenticator_state_object(&self) -> Option<AuthenticatorStateInner> {
-        get_authenticator_state(self.objects()).expect("read from genesis cannot fail")
     }
 
     pub fn has_randomness_state_object(&self) -> bool {

@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#![allow(deprecated)]
+
 use std::{
     collections::hash_map::DefaultHasher,
     fmt::{Debug, Formatter},
@@ -78,8 +80,7 @@ pub enum ConsensusTransactionKey {
     CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityName, u64 /* generation */),
-    // Key must include both id and jwk, because honest validators could be given multiple jwks
-    // for the same id by malfunctioning providers.
+    #[deprecated(note = "JWK is no longer supported")]
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
@@ -106,15 +107,8 @@ impl Debug for ConsensusTransactionKey {
                 name.concise(),
                 generation
             ),
-            Self::NewJWKFetched(key) => {
-                let (authority, id, jwk) = &**key;
-                write!(
-                    f,
-                    "NewJWKFetched({:?}, {:?}, {:?})",
-                    authority.concise(),
-                    id,
-                    jwk
-                )
+            Self::NewJWKFetched(_) => {
+                write!(f, "NewJWKFetched(deprecated: JWK is no longer supported)")
             }
             Self::RandomnessDkgMessage(name) => {
                 write!(f, "RandomnessDkgMessage({:?})", name.concise())
@@ -257,6 +251,7 @@ pub enum ConsensusTransactionKind {
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
     SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
+    #[deprecated(note = "JWK is no longer supported")]
     NewJWKFetched(AuthorityName, JwkId, JWK),
 
     // DKG is used to generate keys for use in the random beacon protocol.
@@ -674,31 +669,4 @@ impl ConsensusTransaction {
     pub fn is_end_of_publish(&self) -> bool {
         matches!(self.kind, ConsensusTransactionKind::EndOfPublish(_))
     }
-}
-
-#[test]
-fn test_jwk_compatibility() {
-    // Ensure that the JWK and JwkId structs in fastcrypto do not change formats.
-    // If this test breaks DO NOT JUST UPDATE THE EXPECTED BYTES. Instead, add a
-    // local JWK or JwkId struct that mirrors the fastcrypto struct, use it in
-    // AuthenticatorStateUpdate, and add Into/From as necessary.
-    let jwk = JWK {
-        kty: "a".to_string(),
-        e: "b".to_string(),
-        n: "c".to_string(),
-        alg: "d".to_string(),
-    };
-
-    let expected_jwk_bytes = vec![1, 97, 1, 98, 1, 99, 1, 100];
-    let jwk_bcs = bcs::to_bytes(&jwk).unwrap();
-    assert_eq!(jwk_bcs, expected_jwk_bytes);
-
-    let id = JwkId {
-        iss: "abc".to_string(),
-        kid: "def".to_string(),
-    };
-
-    let expected_id_bytes = vec![3, 97, 98, 99, 3, 100, 101, 102];
-    let id_bcs = bcs::to_bytes(&id).unwrap();
-    assert_eq!(id_bcs, expected_id_bytes);
 }

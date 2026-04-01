@@ -547,7 +547,6 @@ impl Builder {
             }
         };
 
-        assert!(unsigned_genesis.authenticator_state_object().is_none());
         assert!(unsigned_genesis.has_randomness_state_object());
 
         assert!(unsigned_genesis.has_coin_deny_list_object());
