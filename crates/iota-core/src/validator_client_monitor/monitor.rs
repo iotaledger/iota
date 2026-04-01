@@ -134,9 +134,7 @@ impl ValidatorClientMonitor {
             }
         }
     }
-}
 
-impl ValidatorClientMonitor {
     /// Record client-observed interaction result with a validator.
     pub fn record_interaction_result(&self, feedback: OperationFeedback) {
         let score = self
