@@ -42,7 +42,7 @@ cd "$REPO_ROOT"
 if [ -f "$WORKING_DIR/iota-node-release" ] && [ -f "$WORKING_DIR/iota-localnet-release" ] && [ -f "$WORKING_DIR/iota-node-candidate" ]; then
   echo "Binaries already built, skipping build"
 else
-  echo "Building iota-node and iota at $RELEASE_COMMIT"
+  echo "Building iota-node and iota-localnet at $RELEASE_COMMIT"
 
   # remember current commit
   CURRENT_COMMIT=$(git rev-parse HEAD)
