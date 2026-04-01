@@ -76,12 +76,16 @@ fn get_dynamic_field(
         message.field_id = Some(crate::validation::object_id_proto(field_id));
     }
 
+    // Conditionally load the field object to populate heavy fields.
+    // On recoverable errors (missing layout, deserialization failure),
+    // the item is still returned with index-only fields populated so
+    // that clients see all items and can detect partial data via the
+    // absence of the requested heavy fields.
     if load_field {
         if let Err(e) = load_dynamic_field(reader, field_id, read_mask, &mut message) {
             tracing::warn!("error loading dynamic field object {field_id}: {e}");
-            // Return None to skip this item (object may be missing due to
-            // eventual consistency).
-            return Ok(None);
+            // Return the item with index-only fields rather than
+            // silently dropping it.
         }
     }
 
