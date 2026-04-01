@@ -5,10 +5,10 @@
 use std::sync::Arc;
 
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil},
+    field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
     read_masks::GET_EPOCH_READ_MASK,
-    v0::{
+    v1::{
         bcs::BcsData,
         epoch::{Epoch, ProtocolConfig},
         ledger_service::{GetEpochRequest, GetEpochResponse},
@@ -16,10 +16,12 @@ use iota_grpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
 use iota_types::committee::EpochId;
-use prost_types::FieldMask;
 use tonic::Status;
 
-use crate::{error::RpcError, ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader};
+use crate::{
+    error::RpcError, ledger_service::LedgerGrpcService, merge::Merge, types::GrpcReader,
+    validation::validate_read_mask,
+};
 
 /// Source for building `Epoch` using the `Merge` trait.
 pub struct EpochReadSource {
@@ -167,15 +169,7 @@ pub fn get_epoch(
     service: &LedgerGrpcService,
     request: GetEpochRequest,
 ) -> Result<GetEpochResponse, Status> {
-    let read_mask = {
-        let read_mask = request
-            .read_mask
-            .unwrap_or_else(|| FieldMask::from_str(GET_EPOCH_READ_MASK));
-        read_mask
-            .validate::<Epoch>()
-            .map_err(|path| Status::invalid_argument(format!("invalid read_mask path: {path}")))?;
-        FieldMaskTree::from(read_mask)
-    };
+    let read_mask = validate_read_mask::<Epoch>(request.read_mask, GET_EPOCH_READ_MASK)?;
 
     let current_epoch = service
         .reader

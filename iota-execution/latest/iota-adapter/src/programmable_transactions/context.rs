@@ -8,7 +8,9 @@ pub use checked::*;
 mod checked {
     use std::{
         borrow::Borrow,
+        cell::RefCell,
         collections::{BTreeMap, BTreeSet, HashMap},
+        rc::Rc,
         sync::Arc,
     };
 
@@ -80,7 +82,7 @@ mod checked {
         pub state_view: &'state dyn ExecutionState,
         /// A shared transaction context, contains transaction digest
         /// information and manages the creation of new object IDs
-        pub tx_context: &'a mut TxContext,
+        pub tx_context: Rc<RefCell<TxContext>>,
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
         /// Additional transfers not from the Move runtime
@@ -146,7 +148,7 @@ mod checked {
             metrics: Arc<LimitsMetrics>,
             vm: &'vm MoveVM,
             state_view: &'state dyn ExecutionState,
-            tx_context: &'a mut TxContext,
+            tx_context: Rc<RefCell<TxContext>>,
             gas_charger: &'a mut GasCharger,
             inputs: Vec<CallArg>,
         ) -> Result<Self, ExecutionError>
@@ -213,7 +215,7 @@ mod checked {
                 !gas_charger.is_unmetered(),
                 protocol_config,
                 metrics.clone(),
-                tx_context.epoch(),
+                tx_context.clone(),
                 state_view.read_auth_context(),
             );
 
@@ -223,7 +225,8 @@ mod checked {
                 use move_vm_profiler::GasProfiler;
                 use move_vm_types::gas::GasMeter;
 
-                let tx_digest = tx_context.digest();
+                let ref_context: &RefCell<TxContext> = tx_context.borrow();
+                let tx_digest = ref_context.borrow().digest();
                 let remaining_gas: u64 =
                     move_vm_types::gas::GasMeter::remaining_gas(&IotaGasMeter(gas_charger.move_gas_status_mut()))
                         .into();
@@ -262,7 +265,7 @@ mod checked {
 
         /// Create a new ID and update the state
         pub fn fresh_id(&mut self) -> Result<ObjectID, ExecutionError> {
-            let object_id = self.tx_context.fresh_id();
+            let object_id = self.tx_context.borrow_mut().fresh_id();
             self.native_extensions
                 .get_mut()
                 .and_then(|object_runtime: &mut ObjectRuntime| object_runtime.new_id(object_id))
@@ -727,7 +730,9 @@ mod checked {
                 state_view,
                 ..
             } = self;
-            let tx_digest = tx_context.digest();
+            let ref_context: &RefCell<TxContext> = tx_context.borrow();
+            let tx_digest = ref_context.borrow().digest();
+
             let gas_id_opt = gas.object_metadata.as_ref().map(|info| info.id());
             let mut loaded_runtime_objects = BTreeMap::new();
             let mut additional_writes = BTreeMap::new();
@@ -943,7 +948,7 @@ mod checked {
                     Event::new(
                         module_id.address(),
                         module_id.name(),
-                        tx_context.sender(),
+                        ref_context.borrow().sender(),
                         tag,
                         contents,
                     )

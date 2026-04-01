@@ -290,7 +290,7 @@ pub fn create_router(state: AppState) -> Router {
                 .load_shed()
                 .buffer(request_buffer_size)
                 .concurrency_limit(concurrency_limit)
-                .layer(Extension(state.clone()))
+                .layer(Extension(state))
                 .into_inner(),
         )
 }

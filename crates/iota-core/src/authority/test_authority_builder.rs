@@ -348,7 +348,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Some(Arc::new(
                 RestIndexStore::new(
                     path.join("rest_index"),
-                    &authority_store,
+                    Arc::clone(&authority_store),
                     &checkpoint_store,
                     &epoch_store,
                     &cache_traits.backing_package_store,

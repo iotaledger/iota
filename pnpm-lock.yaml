@@ -20,12 +20,13 @@ overrides:
   glob@>=10.2.0 <10.5.0: 10.5.0
   qs@<6.14.1: 6.14.1
   preact@>=10.28.0 <10.28.2: 10.28.2
-  h3@<=1.15.4: 1.15.5
+  h3@<1.15.6: 1.15.8
   minimatch@>=3.0.0: ^3.1.5
   minimatch@>=5.0.0: ^5.1.9
   minimatch@>=9.0.0: ^9.0.9
   hono@<4.12.4: '>=4.12.4'
   axios@<0.30.3: ^0.30.3
+  socket.io-parser@<4.2.6: 4.2.6
 
 importers:
 
@@ -494,6 +495,9 @@ importers:
       '@sentry/react':
         specifier: ^7.120.3
         version: 7.120.3(react@18.3.1)
+      '@sentry/vite-plugin':
+        specifier: ^2.22.5
+        version: 2.23.1
       '@tanstack/react-query':
         specifier: ^5.50.1
         version: 5.56.2(react@18.3.1)
@@ -1258,9 +1262,6 @@ importers:
       '@fontsource-variable/red-hat-mono':
         specifier: ^5.0.6
         version: 5.1.0
-      '@hookform/resolvers':
-        specifier: ^3.9.0
-        version: 3.9.0(react-hook-form@7.53.0(react@18.3.1))
       '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
@@ -1270,18 +1271,12 @@ importers:
       '@markdoc/markdoc':
         specifier: ^0.4.0
         version: 0.4.0(@types/react@18.3.9)(react@18.3.1)
-      '@noble/hashes':
-        specifier: ^1.4.0
-        version: 1.8.0
       '@radix-ui/react-dialog':
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-label':
         specifier: ^2.1.0
         version: 2.1.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-navigation-menu':
-        specifier: ^1.2.0
-        version: 1.2.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-popover':
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1294,12 +1289,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.50.1
         version: 5.56.2(react@18.3.1)
-      add:
-        specifier: ^2.0.6
-        version: 2.0.6
-      blake2b:
-        specifier: link:@noble/hashes/blake2b
-        version: link:@noble/hashes/blake2b
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.0
@@ -1333,16 +1322,7 @@ importers:
       tailwind-merge:
         specifier: ^2.4.0
         version: 2.5.2
-      zod:
-        specifier: ^3.21.4
-        version: 3.23.8
     devDependencies:
-      '@tailwindcss/forms':
-        specifier: ^0.5.7
-        version: 0.5.9(tailwindcss@3.4.13(ts-node@10.9.2(@types/node@24.10.12)(typescript@5.6.2)))
-      '@tsconfig/docusaurus':
-        specifier: ^2.0.3
-        version: 2.0.3
       '@types/node':
         specifier: ^24.0.0
         version: 24.10.12
@@ -1573,6 +1553,9 @@ importers:
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.9
+      docusaurus-plugin-llms:
+        specifier: ^0.3.0
+        version: 0.3.0(@docusaurus/core@3.9.2(@docusaurus/faster@3.9.2(@docusaurus/types@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@swc/helpers@0.5.18))(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(@rspack/core@1.7.6(@swc/helpers@0.5.18))(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10))
       docusaurus-plugin-typedoc:
         specifier: ^1.4.2
         version: 1.4.2(typedoc-plugin-markdown@4.10.0(typedoc@0.28.17(typescript@5.6.2)))
@@ -7618,19 +7601,6 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@radix-ui/react-navigation-menu@1.2.0':
-    resolution: {integrity: sha512-OQ8tcwAOR0DhPlSY3e4VMXeHiol7la4PPdJWhhwJiJA+NLX0SaCaonOkRnI3gCDHoZ7Fo7bb/G6q25fRM2Y+3Q==}
-    peerDependencies:
-      '@types/react': '*'
-      '@types/react-dom': '*'
-      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
-      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      '@types/react-dom':
-        optional: true
-
   '@radix-ui/react-popover@1.1.1':
     resolution: {integrity: sha512-3y1A3isulwnWhvTTwmIreiB8CF4L+qRjZnK1wYLO7pplddzXKby/GnZ2M7OZY3qgnl6p9AodUIHRYGXNah8Y7g==}
     peerDependencies:
@@ -7964,15 +7934,6 @@ packages:
     peerDependencies:
       '@types/react': '*'
       react: ^16.8 || ^17.0 || ^18.0
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-
-  '@radix-ui/react-use-previous@1.1.0':
-    resolution: {integrity: sha512-Z/e78qg2YFnnXcW88A4JmTtm4ADckLno6F7OXotmkQfeuCVaKuYzqAATPhVzl3delXE7CxIV8shofPn3jPc5Og==}
-    peerDependencies:
-      '@types/react': '*'
-      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
     peerDependenciesMeta:
       '@types/react':
         optional: true
@@ -8783,6 +8744,10 @@ packages:
   '@sentry/vercel-edge@10.40.0':
     resolution: {integrity: sha512-DdW8F5NE69Wm1CdKTaElFBtTsEzZZlYWs6tkHPY6GapQ97XY+71zu73cx7jFJgCGG/W4l0Em/BQlzNcw4U0V9A==}
     engines: {node: '>=18'}
+
+  '@sentry/vite-plugin@2.23.1':
+    resolution: {integrity: sha512-avtjtIQ019sZW3FklpmNNsQOnYZjCHpnVxgDGElfZb+AaR4AvtHNlxXLJp+iqEfSK+Xok8MJarJqIgCaWcF40Q==}
+    engines: {node: '>= 14'}
 
   '@sentry/webpack-plugin@2.23.1':
     resolution: {integrity: sha512-b+/A0BFryfIsLdKIsjRn9gZTxIoY+YxF31bAEWcecOSK4IMHxhzKjgIuWh5xBPQAWY5Eff961AoQlStTcipmWQ==}
@@ -9877,9 +9842,6 @@ packages:
 
   '@tokenizer/token@0.3.0':
     resolution: {integrity: sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==}
-
-  '@tsconfig/docusaurus@2.0.3':
-    resolution: {integrity: sha512-3l1L5PzWVa7l0691TjnsZ0yOIEwG9DziSqu5IPZPlI5Dowi7z42cEym8Y35GHbgHvPcBfNxfrbxm7Cncn4nByQ==}
 
   '@tsconfig/node10@1.0.11':
     resolution: {integrity: sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw==}
@@ -11106,9 +11068,6 @@ packages:
     resolution: {integrity: sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg==}
     engines: {node: '>=0.4.0'}
     hasBin: true
-
-  add@2.0.6:
-    resolution: {integrity: sha512-j5QzrmsokwWWp6kUcJQySpbG+xfOBqqKnup3OIk1pz+kB/80SLorZ9V8zHFLO92Lcd+hbvq8bT+zOGoPkmBV0Q==}
 
   addons-linter@9.6.0:
     resolution: {integrity: sha512-hoZFDg/4Ial7xw2SDrnQJ6iyLtf0KdP/NRhLP1bX+SKNmFLJskDIvWOCbDAC1qUq7cNrt4yCvGlr3UO0VZaluw==}
@@ -13149,6 +13108,12 @@ packages:
     resolution: {integrity: sha512-yS+Q5i3hBf7GBkd4KG8a7eBNNWNGLTaEwwYWUijIYM7zrlYDM0BFXHjjPWlWZ1Rg7UaddZeIDmi9jF3HmqiQ2w==}
     engines: {node: '>=6.0.0'}
 
+  docusaurus-plugin-llms@0.3.0:
+    resolution: {integrity: sha512-JuADAJA2fjTv1U4XQUoIu1LyjISDzxFhRK5HbCZiHum4HlmdPwyx8NBXsi+LfdUyjK9acbZgazGsHPhdwEZs0g==}
+    engines: {node: '>=18.0'}
+    peerDependencies:
+      '@docusaurus/core': ^3.0.0
+
   docusaurus-plugin-openapi-docs@4.3.7:
     resolution: {integrity: sha512-wCXuHniG108OGCj6qKtTOFLgyhnlztMegj63BbEyHC/OgM7PDL2Yj2VFkWsU3eCmJKI+czahanztFMhVLFD67w==}
     engines: {node: '>=14'}
@@ -14544,8 +14509,8 @@ packages:
     resolution: {integrity: sha512-ax7ZYomf6jqPTQ4+XCpUGyXKHk5WweS+e05MBO4/y3WJ5RkmPXNKvX+bx1behVILVwr6JSQvZAku021CHPXG3Q==}
     engines: {node: '>=10'}
 
-  h3@1.15.5:
-    resolution: {integrity: sha512-xEyq3rSl+dhGX2Lm0+eFQIAzlDN6Fs0EcC4f7BNUmzaRX/PTzeuM+Tr2lHB8FoXggsQIeXLj8EDVgs5ywxyxmg==}
+  h3@1.15.8:
+    resolution: {integrity: sha512-iOH6Vl8mGd9nNfu9C0IZ+GuOAfJHcyf3VriQxWaSWIB76Fg4BnFuk4cxBxjmQSSxJS664+pgjP6e7VBnUzFfcg==}
 
   hachure-fill@0.5.2:
     resolution: {integrity: sha512-3GKBOn+m2LX9iq+JC1064cSFprJY4jL1jCXTcpnfER5HYE2l/4EfWSGzkPa/ZDBmYI0ZOEj5VHV/eKnPGkHuOg==}
@@ -19789,8 +19754,8 @@ packages:
     resolution: {integrity: sha512-hJVXfu3E28NmzGk8o1sHhN3om52tRvwYeidbj7xKy2eIIse5IoKX3USlS6Tqt3BHAtflLIkCQBkzVrEEfWUyYQ==}
     engines: {node: '>=10.0.0'}
 
-  socket.io-parser@4.2.4:
-    resolution: {integrity: sha512-/GbIKmo8ioc+NIWIhwdecY0ge+qVBSMdgxGygevmdHj24bsfgtCmcUUcQ5ZzcylGFHsN3k4HB4Cgkl96KVnuew==}
+  socket.io-parser@4.2.6:
+    resolution: {integrity: sha512-asJqbVBDsBCJx0pTqw3WfesSY0iRX+2xzWEWzrpcH7L6fLzrhyF8WPI8UaeM4YCuDfpwA/cgsdugMsmtz8EJeg==}
     engines: {node: '>=10.0.0'}
 
   sockjs@0.3.24:
@@ -29819,28 +29784,6 @@ snapshots:
       '@types/react': 18.3.9
       '@types/react-dom': 18.3.7(@types/react@18.3.9)
 
-  '@radix-ui/react-navigation-menu@1.2.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@radix-ui/primitive': 1.1.0
-      '@radix-ui/react-collection': 1.1.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-compose-refs': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-context': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-direction': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-dismissable-layer': 1.1.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-id': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-presence': 1.1.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-primitive': 2.0.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@radix-ui/react-use-callback-ref': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-use-controllable-state': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-use-layout-effect': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-use-previous': 1.1.0(@types/react@18.3.9)(react@18.3.1)
-      '@radix-ui/react-visually-hidden': 1.1.0(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-    optionalDependencies:
-      '@types/react': 18.3.9
-      '@types/react-dom': 18.3.0
-
   '@radix-ui/react-popover@1.1.1(@types/react-dom@18.3.0)(@types/react@18.3.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@radix-ui/primitive': 1.1.0
@@ -30251,12 +30194,6 @@ snapshots:
   '@radix-ui/react-use-previous@1.0.1(@types/react@18.3.9)(react@18.3.1)':
     dependencies:
       '@babel/runtime': 7.28.6
-      react: 18.3.1
-    optionalDependencies:
-      '@types/react': 18.3.9
-
-  '@radix-ui/react-use-previous@1.1.0(@types/react@18.3.9)(react@18.3.1)':
-    dependencies:
       react: 18.3.1
     optionalDependencies:
       '@types/react': 18.3.9
@@ -31371,6 +31308,14 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@opentelemetry/resources': 2.5.1(@opentelemetry/api@1.9.0)
       '@sentry/core': 10.40.0
+
+  '@sentry/vite-plugin@2.23.1':
+    dependencies:
+      '@sentry/bundler-plugin-core': 2.23.1
+      unplugin: 1.0.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
 
   '@sentry/webpack-plugin@2.23.1(webpack@5.95.0)':
     dependencies:
@@ -32924,8 +32869,6 @@ snapshots:
       - supports-color
 
   '@tokenizer/token@0.3.0': {}
-
-  '@tsconfig/docusaurus@2.0.3': {}
 
   '@tsconfig/node10@1.0.11': {}
 
@@ -34997,8 +34940,6 @@ snapshots:
   acorn@8.14.0: {}
 
   acorn@8.15.0: {}
-
-  add@2.0.6: {}
 
   addons-linter@9.6.0(body-parser@2.2.2)(express@5.2.1)(jiti@1.21.6):
     dependencies:
@@ -37340,6 +37281,13 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
+  docusaurus-plugin-llms@0.3.0(@docusaurus/core@3.9.2(@docusaurus/faster@3.9.2(@docusaurus/types@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@swc/helpers@0.5.18))(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(@rspack/core@1.7.6(@swc/helpers@0.5.18))(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10)):
+    dependencies:
+      '@docusaurus/core': 3.9.2(@docusaurus/faster@3.9.2(@docusaurus/types@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@swc/helpers@0.5.18))(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(@rspack/core@1.7.6(@swc/helpers@0.5.18))(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10)
+      gray-matter: 4.0.3
+      minimatch: 9.0.9
+      yaml: 2.8.2
+
   docusaurus-plugin-openapi-docs@4.3.7(@docusaurus/plugin-content-docs@3.9.2(@docusaurus/faster@3.9.2(@docusaurus/types@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@swc/helpers@0.5.18))(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(@rspack/core@1.7.6(@swc/helpers@0.5.18))(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10))(@docusaurus/utils-validation@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@docusaurus/utils@3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
     dependencies:
       '@apidevtools/json-schema-ref-parser': 11.9.3
@@ -39404,7 +39352,7 @@ snapshots:
     dependencies:
       duplexer: 0.1.2
 
-  h3@1.15.5:
+  h3@1.15.8:
     dependencies:
       cookie-es: 1.2.2
       crossws: 0.3.5
@@ -46069,16 +46017,16 @@ snapshots:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.3.7
       engine.io-client: 6.6.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      socket.io-parser: 4.2.4
+      socket.io-parser: 4.2.6
     transitivePeerDependencies:
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  socket.io-parser@4.2.4:
+  socket.io-parser@4.2.6:
     dependencies:
       '@socket.io/component-emitter': 3.1.2
-      debug: 4.3.7
+      debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -47477,7 +47425,7 @@ snapshots:
       anymatch: 3.1.3
       chokidar: 4.0.3
       destr: 2.0.5
-      h3: 1.15.5
+      h3: 1.15.8
       lru-cache: 10.4.3
       node-fetch-native: 1.6.6
       ofetch: 1.4.1
@@ -48712,10 +48660,10 @@ snapshots:
       '@webassemblyjs/wasm-parser': 1.12.1
       acorn: 8.15.0
       acorn-import-attributes: 1.9.5(acorn@8.15.0)
-      browserslist: 4.28.1
+      browserslist: 4.24.0
       chrome-trace-event: 1.0.4
       enhanced-resolve: 5.17.1
-      es-module-lexer: 1.7.0
+      es-module-lexer: 1.5.4
       eslint-scope: 5.1.1
       events: 3.3.0
       glob-to-regexp: 0.4.1
@@ -48727,7 +48675,7 @@ snapshots:
       schema-utils: 3.3.0
       tapable: 2.2.1
       terser-webpack-plugin: 5.3.10(@swc/core@1.15.11(@swc/helpers@0.5.18))(webpack@5.95.0(@swc/core@1.15.11(@swc/helpers@0.5.18)))
-      watchpack: 2.5.1
+      watchpack: 2.4.2
       webpack-sources: 3.2.3
     transitivePeerDependencies:
       - '@swc/core'

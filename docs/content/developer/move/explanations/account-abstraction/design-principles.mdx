@@ -7,6 +7,10 @@ tags:
 
 # Design Principles for Third-Party Developers
 
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
 ## Authenticator functions are read-only by construction
 
 The type system prevents an authenticator function from modifying any state. All its inputs are immutable. This is intentional: authentication must be a direct decision, it reads the ledger state and says yes or no. If you need mutable state during authentication (for example, to record that a one-time code has been used), that state must be managed through the account object itself, which can be done during the execution of the AA transaction.
