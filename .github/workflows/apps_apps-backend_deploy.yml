@@ -30,7 +30,7 @@ jobs:
             DEPLOY_TYPE="${{ inputs.deploy_type }}"
           fi
 
-          if [ "$DEPLOY_TYPE" = "staging" ]; then
+          if [ "$DEPLOY_TYPE" = "staging" ] || [ "$DEPLOY_TYPE" = "rc" ]; then
             ENVIRONMENT="pre-production - apps-backend"
           else
             ENVIRONMENT="production - apps-backend"
