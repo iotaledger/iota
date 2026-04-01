@@ -547,7 +547,7 @@ impl IotaTransactionBlockKind {
                         .into(),
                 },
             )),
-            TransactionKind::ProgrammableTransaction(_) => {
+            TransactionKind::Programmable(_) => {
                 // This case is handled separately by the callers
                 Err(anyhow::anyhow!(
                     "ProgrammableTransaction must be handled by the caller, not try_from_inner"
@@ -569,7 +569,7 @@ impl IotaTransactionBlockKind {
                     random_bytes: update.random_bytes,
                 }))
             }
-            TransactionKind::EndOfEpochTransaction(end_of_epoch_tx) => {
+            TransactionKind::EndOfEpoch(end_of_epoch_tx) => {
                 Ok(Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
                         .into_iter()
@@ -593,6 +593,9 @@ impl IotaTransactionBlockKind {
                         .collect(),
                 }))
             }
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            )
         }
     }
 
@@ -602,7 +605,7 @@ impl IotaTransactionBlockKind {
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         match tx {
-            TransactionKind::ProgrammableTransaction(p) => Ok(Self::ProgrammableTransaction(
+            TransactionKind::Programmable(p) => Ok(Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_module_cache(p, module_cache)?,
             )),
             tx => Self::try_from_inner(tx, tx_digest),
@@ -614,8 +617,8 @@ impl IotaTransactionBlockKind {
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
-        Ok(match tx {
-            TransactionKind::Genesis(g) => Self::Genesis(IotaGenesisTransaction {
+        match tx {
+            TransactionKind::Genesis(g) => Ok(Self::Genesis(IotaGenesisTransaction {
                 objects: g.objects.iter().map(GenesisObject::id).collect(),
                 events: g
                     .events
@@ -623,9 +626,9 @@ impl IotaTransactionBlockKind {
                     .enumerate()
                     .map(|(seq, _event)| EventID::from((tx_digest, seq as u64)))
                     .collect(),
-            }),
-            TransactionKind::ConsensusCommitPrologueV1(p) => {
-                Self::ConsensusCommitPrologueV1(IotaConsensusCommitPrologueV1 {
+            })),
+            TransactionKind::ConsensusCommitPrologueV1(p) => Ok(Self::ConsensusCommitPrologueV1(
+                IotaConsensusCommitPrologueV1 {
                     epoch: p.epoch,
                     round: p.round,
                     sub_dag_index: p.sub_dag_index,
@@ -634,17 +637,19 @@ impl IotaTransactionBlockKind {
                     consensus_determined_version_assignments: p
                         .consensus_determined_version_assignments
                         .into(),
-                })
-            }
-            TransactionKind::ProgrammableTransaction(p) => Self::ProgrammableTransaction(
+                },
+            )),
+            TransactionKind::Programmable(p) => Ok(Self::ProgrammableTransaction(
                 IotaProgrammableTransactionBlock::try_from_with_package_resolver(
                     p,
                     package_resolver,
                 )
                 .await?,
+            )),
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
             ),
-            tx => Self::try_from_inner(tx, tx_digest)?,
-        })
+        }
     }
 
     pub fn transaction_count(&self) -> usize {
@@ -2916,8 +2921,11 @@ impl From<&TransactionKind> for IotaTransactionKind {
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => Self::SystemTransaction,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
-            TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
-            TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
+            TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
+            TransactionKind::Programmable(_) => Self::ProgrammableTransaction,
+            _ => unimplemented!(
+                "a new TransactionKind enum variant was added and needs to be handled"
+            ),
         }
     }
 }

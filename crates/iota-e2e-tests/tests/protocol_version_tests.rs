@@ -553,7 +553,7 @@ mod sim_only_tests {
             builder.command(Command::MoveCall(call));
             builder.finish()
         };
-        let txn = TransactionKind::programmable(pt);
+        let txn = TransactionKind::new_programmable(pt);
 
         let response = client
             .dev_inspect_transaction_block(

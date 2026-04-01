@@ -27,10 +27,7 @@ use iota_sdk_types::{
     gas::GasCostSummary,
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
-    transaction::{
-        GasPayment, GenesisTransaction, RandomnessStateUpdate, SignedTransaction, Transaction,
-        TransactionKind, TransactionV1,
-    },
+    transaction::{GasPayment, SignedTransaction, Transaction, TransactionV1},
     validator::{ValidatorAggregatedSignature, ValidatorCommittee, ValidatorCommitteeMember},
 };
 use tap::Pipe;
@@ -146,7 +143,7 @@ impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
                 budget: value.gas_data().budget,
             },
             expiration: value.expiration,
-            kind: value.into_kind().try_into()?,
+            kind: value.into_kind(),
         }
         .pipe(Ok)
     }
@@ -157,91 +154,10 @@ impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
 
     fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
         Self {
-            kind: value.kind.try_into()?,
+            kind: value.kind,
             sender: value.sender,
             gas_data: value.gas_payment,
             expiration: value.expiration,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::TransactionKind) -> Result<Self, Self::Error> {
-        use crate::transaction::TransactionKind as InternalTxnKind;
-
-        match value {
-            InternalTxnKind::ProgrammableTransaction(programmable_transaction) => {
-                TransactionKind::ProgrammableTransaction(programmable_transaction)
-            }
-            InternalTxnKind::Genesis(genesis_transaction) => {
-                TransactionKind::Genesis(GenesisTransaction {
-                    objects: genesis_transaction.objects,
-                    events: genesis_transaction.events,
-                })
-            }
-            InternalTxnKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
-            }
-            #[allow(deprecated)]
-            InternalTxnKind::AuthenticatorStateUpdateV1Deprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                TransactionKind::AuthenticatorStateUpdateV1Deprecated
-            }
-            InternalTxnKind::EndOfEpochTransaction(vec) => TransactionKind::EndOfEpoch(vec),
-            InternalTxnKind::RandomnessStateUpdate(randomness_state_update) => {
-                TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
-                    epoch: randomness_state_update.epoch,
-                    randomness_round: randomness_state_update.randomness_round,
-                    random_bytes: randomness_state_update.random_bytes,
-                    randomness_obj_initial_shared_version: randomness_state_update
-                        .randomness_obj_initial_shared_version,
-                })
-            }
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<TransactionKind> for crate::transaction::TransactionKind {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: TransactionKind) -> Result<Self, Self::Error> {
-        match value {
-            TransactionKind::ProgrammableTransaction(programmable_transaction) => {
-                Self::ProgrammableTransaction(programmable_transaction)
-            }
-            TransactionKind::Genesis(genesis_transaction) => {
-                Self::Genesis(crate::transaction::GenesisTransaction {
-                    objects: genesis_transaction.objects,
-                    events: genesis_transaction.events,
-                })
-            }
-            TransactionKind::ConsensusCommitPrologueV1(consensus_commit_prologue_v1) => {
-                Self::ConsensusCommitPrologueV1(consensus_commit_prologue_v1)
-            }
-            #[allow(deprecated)]
-            TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
-                // Deprecated: Authenticator state (JWK) is deprecated and
-                // was never enabled. These transaction kinds are retained
-                // only for BCS enum variant compatibility.
-                Self::AuthenticatorStateUpdateV1Deprecated
-            }
-            TransactionKind::EndOfEpoch(vec) => Self::EndOfEpochTransaction(vec),
-            TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
-                Self::RandomnessStateUpdate(crate::transaction::RandomnessStateUpdate {
-                    epoch: randomness_state_update.epoch,
-                    randomness_round: randomness_state_update.randomness_round,
-                    random_bytes: randomness_state_update.random_bytes,
-                    randomness_obj_initial_shared_version: randomness_state_update
-                        .randomness_obj_initial_shared_version,
-                })
-            }
-            _ => unimplemented!("a new enum variant was added and needs to be handled"),
         }
         .pipe(Ok)
     }

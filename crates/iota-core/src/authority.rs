@@ -1858,7 +1858,7 @@ impl AuthorityState {
             });
         }
 
-        if transaction.kind().is_system_tx() {
+        if transaction.kind().is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "dry-exec does not support system transactions".to_string(),
             });
@@ -2081,7 +2081,7 @@ impl AuthorityState {
         mut transaction: TransactionData,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
-        if transaction.kind().is_system_tx() {
+        if transaction.kind().is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "simulate does not support system transactions".to_string(),
             });
@@ -2246,7 +2246,7 @@ impl AuthorityState {
             });
         }
 
-        if transaction_kind.is_system_tx() {
+        if transaction_kind.is_system() {
             return Err(IotaError::UnsupportedFeature {
                 error: "system transactions are not supported".to_string(),
             });

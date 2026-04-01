@@ -28,6 +28,7 @@ mod checked {
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
             ReceivingObjects, TransactionData, TransactionDataAPI, TransactionKind,
+            TransactionKindExt,
         },
     };
     use tracing::{error, instrument};
@@ -178,7 +179,7 @@ mod checked {
         _receiving_objects: ReceivingObjects,
     ) -> IotaResult<CheckedInputObjects> {
         kind.validity_check(config)?;
-        if kind.is_system_tx() {
+        if kind.is_system() {
             return Err(UserInputError::Unsupported(format!(
                 "Transaction kind {kind} is not supported in dev-inspect"
             ))
@@ -894,7 +895,7 @@ mod checked {
             return Ok(());
         }
 
-        let TransactionKind::ProgrammableTransaction(pt) = transaction.kind() else {
+        let TransactionKind::Programmable(pt) = transaction.kind() else {
             return Ok(());
         };
 

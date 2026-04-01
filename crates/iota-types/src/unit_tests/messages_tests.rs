@@ -730,7 +730,7 @@ fn test_sponsored_transaction_message() {
         builder.finish()
     };
     let gas_price = 10;
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let gas_obj_ref = random_object_ref();
     let gas_data = GasData {
         objects: vec![gas_obj_ref],
@@ -836,7 +836,7 @@ fn test_sponsored_transaction_validity_check() {
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -854,7 +854,7 @@ fn test_sponsored_transaction_validity_check() {
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -864,7 +864,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.publish_immutable(vec![vec![]], vec![]);
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -881,7 +881,7 @@ fn test_sponsored_transaction_validity_check() {
             .unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -892,7 +892,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.transfer_iota(IotaAddress::random(), Some(50000));
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -903,7 +903,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.pay_iota(vec![], vec![]).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data.clone())
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -914,7 +914,7 @@ fn test_sponsored_transaction_validity_check() {
         builder.pay_all_iota(IotaAddress::random());
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     TransactionData::new_with_gas_data(kind, sender, gas_data)
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
@@ -1251,7 +1251,7 @@ fn test_unique_input_objects() {
         args_2,
     ));
     let pt = builder.finish();
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let transaction_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
 
     let input_objects = transaction_data.input_objects().unwrap();

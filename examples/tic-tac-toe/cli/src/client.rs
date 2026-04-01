@@ -27,7 +27,7 @@ use iota_types::{
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, ProgrammableTransaction, SharedObjectRef, Transaction,
-        TransactionData, TransactionKind,
+        TransactionData, TransactionKind, TransactionKindExt,
     },
 };
 
@@ -168,7 +168,7 @@ impl Client {
             .read_api()
             .dev_inspect_transaction_block(
                 IotaAddress::ZERO,
-                TransactionKind::ProgrammableTransaction(builder.finish()),
+                TransactionKind::Programmable(builder.finish()),
                 None,
                 None,
                 Some(DevInspectArgs {
@@ -619,7 +619,7 @@ impl Client {
             .await
             .context("Error fetching reference gas price")?;
 
-        let tx_kind = TransactionKind::ProgrammableTransaction(tx);
+        let tx_kind = TransactionKind::Programmable(tx);
 
         // Gas Estimation
         let tx_data = client

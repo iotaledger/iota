@@ -75,7 +75,7 @@ use iota_types::{
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKind,
+        TransactionDataAPI, TransactionKind, TransactionKindExt,
     },
 };
 use json_to_table::json_to_table;

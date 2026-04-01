@@ -361,10 +361,7 @@ fn get_registry() -> Result<Registry> {
         commands: vec![Command::new_make_move_vector(None, vec![])],
     };
     tracer
-        .trace_value(
-            &mut samples,
-            &TransactionKind::ProgrammableTransaction(sample_pt),
-        )
+        .trace_value(&mut samples, &TransactionKind::Programmable(sample_pt))
         .unwrap();
     let sample_genesis_obj = GenesisObject::new(
         Data::Struct(MoveObject::new_gas_coin(1u64.into(), ObjectID::ZERO, 0)),
@@ -528,7 +525,7 @@ fn get_registry() -> Result<Registry> {
 
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
-            TransactionKind::EndOfEpochTransaction(vec![EndOfEpochTransactionKind::ChangeEpoch(
+            TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::ChangeEpoch(
                 ChangeEpoch {
                     epoch: 0,
                     protocol_version: 0,

@@ -878,10 +878,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     );
                     let sender_address = self.get_sender(sender).address;
                     let transaction =
-                        TransactionKind::ProgrammableTransaction(ProgrammableTransaction {
-                            inputs,
-                            commands,
-                        });
+                        TransactionKind::Programmable(ProgrammableTransaction { inputs, commands });
                     self.dev_inspect(sender_address, transaction, gas_price)
                         .await?
                 };

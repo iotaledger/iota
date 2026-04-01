@@ -148,7 +148,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.transfer_object(another_addr, object_ref).unwrap();
         builder.finish()
     };
-    let kind = TransactionKind::programmable(pt);
+    let kind = TransactionKind::new_programmable(pt);
     let tx_data = TransactionData::new_with_gas_data(
         kind,
         sender,
