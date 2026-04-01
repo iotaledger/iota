@@ -67,7 +67,7 @@ pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
 pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
     (vec(gen_type_tag(), 0..10))
         .prop_map(pt_for_tags)
-        .prop_map(TransactionKind::ProgrammableTransaction)
+        .prop_map(TransactionKind::Programmable)
 }
 
 pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = TransactionData> {

@@ -38,8 +38,7 @@ use iota_types::{
     },
     transaction::{
         CheckedInputObjects, GasData, InputObjectKind, InputObjects, ObjectReadResult,
-        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI,
-        TransactionKind::{self, ProgrammableTransaction},
+        ObjectReadResultKind, SenderSignedData, Transaction, TransactionDataAPI, TransactionKind,
         VerifiedTransaction,
     },
 };
@@ -754,7 +753,7 @@ impl LocalExec {
         let expensive_checks = true;
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
-        let gas_status = if tx_info.kind.is_system_tx() {
+        let gas_status = if tx_info.kind.is_system() {
             IotaGasStatus::new_unmetered()
         } else {
             IotaGasStatus::new(
@@ -835,7 +834,7 @@ impl LocalExec {
             price: tx_info.gas_price,
             budget: tx_info.gas_budget,
         };
-        if let ProgrammableTransaction(pt) = transaction_kind {
+        if let TransactionKind::Programmable(pt) = transaction_kind {
             trace!(
                 target: "replay_ptb_info",
                 "{}",

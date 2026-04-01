@@ -10,7 +10,7 @@ use iota_data_ingestion_core::Worker;
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::{Command, TransactionDataAPI, TransactionKind},
+    transaction::{Command, TransactionDataAPI, TransactionKind, TransactionKindExt},
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -117,7 +117,7 @@ impl TransactionHandler {
         let is_system_txn = txn_data.is_system_tx();
         if !is_system_txn {
             let kind = txn_data.kind();
-            if let TransactionKind::ProgrammableTransaction(pt) = txn_data.kind() {
+            if let TransactionKind::Programmable(pt) = txn_data.kind() {
                 for cmd in &pt.commands {
                     match cmd {
                         Command::MoveCall(_) => move_calls_count += 1,

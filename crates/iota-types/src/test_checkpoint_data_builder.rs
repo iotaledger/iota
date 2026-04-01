@@ -448,14 +448,7 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = TransactionData::new(
-            TransactionKind::ProgrammableTransaction(pt),
-            sender,
-            gas,
-            1,
-            1,
-        );
-
+        let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
         let tx = Transaction::new(SenderSignedData::new(tx_data, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
@@ -575,7 +568,7 @@ impl TestCheckpointDataBuilder {
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
         let end_of_epoch_tx = TransactionData::new(
-            TransactionKind::EndOfEpochTransaction(vec![tx_kind]),
+            TransactionKind::EndOfEpoch(vec![tx_kind]),
             IotaAddress::ZERO,
             random_object_ref(),
             1,
@@ -712,7 +705,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectID,
-        transaction::{Command, TransactionDataAPI},
+        transaction::{Command, TransactionDataAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
