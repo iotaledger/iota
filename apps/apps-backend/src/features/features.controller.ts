@@ -19,13 +19,13 @@ export class FeaturesController {
 
     @Get('staging')
     getStagingRedirect(@Res() res: Response) {
-        const stagingBackend = this.configService.get<string>('STAGING_APPS_BACKEND');
+        const stagingBackend = this.configService.getOrThrow<string>('STAGING_APPS_BACKEND');
         return res.redirect(`${stagingBackend}/api/features`);
     }
 
     @Get('production')
     getProductionRedirect(@Res() res: Response) {
-        const productionBackend = this.configService.get<string>('PROD_APPS_BACKEND');
+        const productionBackend = this.configService.getOrThrow<string>('PROD_APPS_BACKEND');
         return res.redirect(`${productionBackend}/api/features`);
     }
 
