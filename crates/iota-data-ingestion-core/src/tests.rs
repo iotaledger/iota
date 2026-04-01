@@ -27,7 +27,9 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
         CheckpointSummary, SignedCheckpointSummary,
     },
-    transaction::{RandomnessStateUpdate, Transaction, TransactionData, TransactionKind},
+    transaction::{
+        RandomnessStateUpdate, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
+    },
     utils::make_committee_key,
 };
 use prometheus::Registry;

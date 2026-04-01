@@ -135,7 +135,7 @@ impl WriteAheadLog {
 mod tests {
     use iota_types::{
         base_types::{ObjectRef, random_object_ref},
-        transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
     };
 
     use super::*;

@@ -1005,6 +1005,7 @@ pub trait TransactionDataAPI {
 
     fn new_system_transaction(kind: TransactionKind) -> TransactionData;
 
+    #[allow(clippy::new_ret_no_self)]
     fn new(
         kind: TransactionKind,
         sender: IotaAddress,
@@ -1167,7 +1168,7 @@ pub trait TransactionDataAPI {
 
     fn message_version(&self) -> u64;
 
-    fn execution_parts(&self) -> (TransactionKind, IotaAddress, Vec<ObjectRef>);
+    fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData);
 
     /// Checks if the transaction data contains the `Random` object as an
     /// input.
@@ -1738,12 +1739,8 @@ impl TransactionDataAPI for TransactionData {
         }
     }
 
-    fn execution_parts(&self) -> (TransactionKind, IotaAddress, Vec<ObjectRef>) {
-        (
-            self.kind().clone(),
-            self.sender(),
-            self.gas_data().objects.clone(),
-        )
+    fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData) {
+        (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
 
     fn uses_randomness(&self) -> bool {

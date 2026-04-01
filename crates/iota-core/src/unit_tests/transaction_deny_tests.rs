@@ -22,7 +22,7 @@ use iota_types::{
     messages_grpc::HandleTransactionResponse,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction,
-        TransactionData, VerifiedCertificate, VerifiedTransaction,
+        TransactionData, TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
         get_zklogin_user_address, make_move_authenticator_tx, make_zklogin_tx,

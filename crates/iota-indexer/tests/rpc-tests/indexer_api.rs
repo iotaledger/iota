@@ -31,7 +31,7 @@ use iota_types::{
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, Command, TransactionData},
+    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;

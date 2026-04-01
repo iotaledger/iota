@@ -27,7 +27,7 @@ use iota_sdk::{
         crypto::{IotaKeyPair, IotaSignature, Signer, ToFromBytes, get_key_pair_from_rng},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         signature::GenericSignature,
-        transaction::TransactionData,
+        transaction::{TransactionData, TransactionDataAPI},
     },
 };
 use iota_sdk_types::crypto::{Intent, IntentMessage};
