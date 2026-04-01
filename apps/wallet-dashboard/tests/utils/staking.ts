@@ -26,6 +26,7 @@ export async function setupWalletWithFunds(
 
 export async function navigateToDashboardStakePage(page: Page): Promise<void> {
     await page.getByTestId('sidebar-staking').click();
+    await page.waitForURL('**/staking', { timeout: SHORT_TIMEOUT });
     // Move mouse to avoid keeping tooltip open
     await page.mouse.move(200, 0);
     // Wait for tooltip to disappear
