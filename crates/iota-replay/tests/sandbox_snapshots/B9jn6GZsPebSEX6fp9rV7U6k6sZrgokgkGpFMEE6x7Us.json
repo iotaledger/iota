@@ -12,38 +12,37 @@
                     "value": {
                         "V1": {
                             "kind": {
-                                "ProgrammableTransaction": {
-                                    "inputs": [
-                                        {
-                                            "pure": {
-                                                "value": "NSnsCrJaqEOUJxUZTdTu4fwdXIPf7yjoOYOPoPCzaqA="
-                                            }
+                                "kind": "programmable_transaction",
+                                "inputs": [
+                                    {
+                                        "pure": {
+                                            "value": "NSnsCrJaqEOUJxUZTdTu4fwdXIPf7yjoOYOPoPCzaqA="
                                         }
-                                    ],
-                                    "commands": [
-                                        {
-                                            "command": "publish",
-                                            "modules": [
-                                                "oRzrCwYAAAAJAQAGAgYIAw4QBB4CBSARBzFSCIMBQArDAQcMygERAAgBAwEHAAEDAAIAAgAABAABAAECBQEBAwIGAgMAAQQBBwgBAAEGCAEBBQEIAAEJAAlUeENvbnRleHQKVHhJbnN0YW5jZQRlbWl0BWV2ZW50BGluaXQJcHVibGlzaGVkBnNlbmRlcgp0eF9jb250ZXh0C3R4X2luc3RhbmNlBHVzZXIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAICCQUFAQAAAAABBwsALhECCBIAOAACAA=="
-                                            ],
-                                            "dependencies": [
-                                                "0x0000000000000000000000000000000000000000000000000000000000000002",
-                                                "0x0000000000000000000000000000000000000000000000000000000000000001"
-                                            ]
-                                        },
-                                        {
-                                            "command": "transfer_objects",
-                                            "objects": [
-                                                {
-                                                    "Result": 0
-                                                }
-                                            ],
-                                            "address": {
-                                                "Input": 0
+                                    }
+                                ],
+                                "commands": [
+                                    {
+                                        "command": "publish",
+                                        "modules": [
+                                            "oRzrCwYAAAAJAQAGAgYIAw4QBB4CBSARBzFSCIMBQArDAQcMygERAAgBAwEHAAEDAAIAAgAABAABAAECBQEBAwIGAgMAAQQBBwgBAAEGCAEBBQEIAAEJAAlUeENvbnRleHQKVHhJbnN0YW5jZQRlbWl0BWV2ZW50BGluaXQJcHVibGlzaGVkBnNlbmRlcgp0eF9jb250ZXh0C3R4X2luc3RhbmNlBHVzZXIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAICCQUFAQAAAAABBwsALhECCBIAOAACAA=="
+                                        ],
+                                        "dependencies": [
+                                            "0x0000000000000000000000000000000000000000000000000000000000000002",
+                                            "0x0000000000000000000000000000000000000000000000000000000000000001"
+                                        ]
+                                    },
+                                    {
+                                        "command": "transfer_objects",
+                                        "objects": [
+                                            {
+                                                "Result": 0
                                             }
+                                        ],
+                                        "address": {
+                                            "Input": 0
                                         }
-                                    ]
-                                }
+                                    }
+                                ]
                             },
                             "sender": "0x3529ec0ab25aa843942715194dd4eee1fc1d5c83dfef28e839838fa0f0b36aa0",
                             "gas_data": {
@@ -84,38 +83,37 @@
             }
         ],
         "kind": {
-            "ProgrammableTransaction": {
-                "inputs": [
-                    {
-                        "pure": {
-                            "value": "NSnsCrJaqEOUJxUZTdTu4fwdXIPf7yjoOYOPoPCzaqA="
-                        }
+            "kind": "programmable_transaction",
+            "inputs": [
+                {
+                    "pure": {
+                        "value": "NSnsCrJaqEOUJxUZTdTu4fwdXIPf7yjoOYOPoPCzaqA="
                     }
-                ],
-                "commands": [
-                    {
-                        "command": "publish",
-                        "modules": [
-                            "oRzrCwYAAAAJAQAGAgYIAw4QBB4CBSARBzFSCIMBQArDAQcMygERAAgBAwEHAAEDAAIAAgAABAABAAECBQEBAwIGAgMAAQQBBwgBAAEGCAEBBQEIAAEJAAlUeENvbnRleHQKVHhJbnN0YW5jZQRlbWl0BWV2ZW50BGluaXQJcHVibGlzaGVkBnNlbmRlcgp0eF9jb250ZXh0C3R4X2luc3RhbmNlBHVzZXIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAICCQUFAQAAAAABBwsALhECCBIAOAACAA=="
-                        ],
-                        "dependencies": [
-                            "0x0000000000000000000000000000000000000000000000000000000000000002",
-                            "0x0000000000000000000000000000000000000000000000000000000000000001"
-                        ]
-                    },
-                    {
-                        "command": "transfer_objects",
-                        "objects": [
-                            {
-                                "Result": 0
-                            }
-                        ],
-                        "address": {
-                            "Input": 0
+                }
+            ],
+            "commands": [
+                {
+                    "command": "publish",
+                    "modules": [
+                        "oRzrCwYAAAAJAQAGAgYIAw4QBB4CBSARBzFSCIMBQArDAQcMygERAAgBAwEHAAEDAAIAAgAABAABAAECBQEBAwIGAgMAAQQBBwgBAAEGCAEBBQEIAAEJAAlUeENvbnRleHQKVHhJbnN0YW5jZQRlbWl0BWV2ZW50BGluaXQJcHVibGlzaGVkBnNlbmRlcgp0eF9jb250ZXh0C3R4X2luc3RhbmNlBHVzZXIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAICCQUFAQAAAAABBwsALhECCBIAOAACAA=="
+                    ],
+                    "dependencies": [
+                        "0x0000000000000000000000000000000000000000000000000000000000000002",
+                        "0x0000000000000000000000000000000000000000000000000000000000000001"
+                    ]
+                },
+                {
+                    "command": "transfer_objects",
+                    "objects": [
+                        {
+                            "Result": 0
                         }
+                    ],
+                    "address": {
+                        "Input": 0
                     }
-                ]
-            }
+                }
+            ]
         },
         "modified_at_versions": [
             [
