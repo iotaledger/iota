@@ -15,7 +15,7 @@ type ObjectOwnerVariants = Extract<ObjectOwner, object>;
  * @param objectId The object ID, required for 'Shared' owner type.
  * @returns The owner address, or null if not found.
  */
-export function getOwnerAddress(owner?: ObjectOwner | null, objectId?: string): string | null {
+export function getOwnerAddress(owner?: ObjectOwner | null): string | null {
     if (owner == null) {
         return null;
     }
@@ -26,9 +26,9 @@ export function getOwnerAddress(owner?: ObjectOwner | null, objectId?: string): 
         case 'ObjectOwner':
             return getObjectOwner(owner);
         case 'Shared':
-            return objectId || null;
-        case 'Immutable': // NOTE: What to do with immutable?
-        case 'Undefined':
+            return 'Shared';
+        case 'Immutable':
+            return 'Immutable';
         default:
             return null;
     }
@@ -37,11 +37,11 @@ export function getOwnerAddress(owner?: ObjectOwner | null, objectId?: string): 
 /**
  * Gets the type of the object owner.
  * @param owner The object owner.
- * @returns The type of the owner as a string.
+ * @returns The type of the owner as a string or null
  */
-export function getOwnerType(owner?: ObjectOwner | null): string {
+export function getOwnerType(owner?: ObjectOwner | null): ObjectOwnerKeyVariants | null {
     if (owner == null) {
-        return 'Undefined';
+        return null;
     }
 
     if (isOwnerType(owner, 'AddressOwner')) {

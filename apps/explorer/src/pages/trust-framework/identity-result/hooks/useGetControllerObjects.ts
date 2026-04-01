@@ -45,7 +45,7 @@ export function useGetControllerObjects(objectData: IotaObjectData) {
                         ...controllerCap,
                         isError: false,
                         objectType: objectData?.type,
-                        owner: getOwnerAddress(objectData?.owner, objectData?.objectId),
+                        owner: getOwnerAddress(objectData?.owner),
                         ownerType: getOwnerType(objectData?.owner),
                     };
                 },

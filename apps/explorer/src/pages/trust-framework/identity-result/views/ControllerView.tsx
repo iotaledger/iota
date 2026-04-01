@@ -79,7 +79,10 @@ export function ControllerView({ objectData }: ControllerViewProps) {
                         }
                         supportingTitleElement={
                             <div className="ml-1 flex">
-                                <Badge label={controller.ownerType} type={BadgeType.PrimarySoft} />
+                                <Badge
+                                    label={controller.ownerType || 'Undefined'}
+                                    type={BadgeType.PrimarySoft}
+                                />
                             </div>
                         }
                     >
