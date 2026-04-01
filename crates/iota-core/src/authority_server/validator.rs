@@ -60,7 +60,9 @@ impl ValidatorService {
         self.transaction(request).await
     }
 
-    /// Handles a `Transaction` request.
+    /// Certificate-only flow: handles and certifies a transaction. Validates,
+    /// checks overload, and returns a signed vote for certificate assembly.
+    /// Called by `transaction_impl`.
     async fn handle_transaction(
         &self,
         request: tonic::Request<Transaction>,
@@ -76,11 +78,13 @@ impl ValidatorService {
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
         // Reject if white flag flow is enabled - transactions should use
-        // submit_transaction instead
+        // `handle_submit_transaction_impl` instead
         fp_ensure!(
             !epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_transaction is disabled when white flag flow is enabled. Use submit_transaction instead.".to_string()
+                error: "handle_transaction is disabled when white flag flow is enabled. \
+                    Use handle_submit_transaction_impl instead."
+                    .to_string()
             }
             .into()
         );
@@ -380,7 +384,12 @@ impl ValidatorService {
 
         Ok((Some(responses), Weight::zero()))
     }
+}
 
+impl ValidatorService {
+    /// Certificate-only flow: thin wrapper that delegates to
+    /// `handle_transaction`. Called by the `transaction()`
+    /// gRPC trait method.
     async fn transaction_impl(
         &self,
         request: tonic::Request<Transaction>,
@@ -401,7 +410,9 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+                error: "handle_certificate_v1 is disabled when white flag flow is enabled. \
+                    Transactions go directly to consensus."
+                    .to_string()
             }
             .into()
         );
@@ -442,7 +453,9 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_certificate_v1 is disabled when white flag flow is enabled. Transactions go directly to consensus.".to_string()
+                error: "handle_certificate_v1 is disabled when white flag flow is enabled. \
+                    Transactions go directly to consensus."
+                    .to_string()
             }
             .into()
         );
@@ -580,7 +593,9 @@ impl ValidatorService {
         fp_ensure!(
             !epoch_store.protocol_config().enable_white_flag_flow(),
             IotaError::UnsupportedFeature {
-                error: "handle_soft_bundle_certificates_v1 is disabled when white flag flow is enabled. Use batch submission via submit_transaction instead.".to_string()
+                error: "handle_soft_bundle_certificates_v1 is disabled when white flag flow is \
+                    enabled. Use batch submission via handle_submit_transactions_impl instead."
+                    .to_string()
             }
             .into()
         );
@@ -616,7 +631,8 @@ impl ValidatorService {
             .await?;
 
         info!(
-            "Received Soft Bundle with {} certificates, from {}, tx digests are [{}], total size [{}]bytes",
+            "Received Soft Bundle with {} certificates, from {}, tx digests are [{}], total size \
+                [{total_size_bytes}]bytes",
             certificates.len(),
             client_addr
                 .map(|x| x.to_string())
@@ -626,7 +642,6 @@ impl ValidatorService {
                 .map(|x| x.digest().to_string())
                 .collect::<Vec<_>>()
                 .join(", "),
-            total_size_bytes
         );
 
         let span = error_span!("handle_soft_bundle_certificates_v1");
