@@ -1,7 +1,14 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
+import {
+    Badge,
+    BadgeType,
+    TableCellBase,
+    TableCellText,
+    Tooltip,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
     type ApyByValidator,
@@ -21,6 +28,7 @@ import {
 import { StakeColumn } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
+import { type ReactNode } from 'react';
 import { ValidatorLink } from '~/components/ui';
 
 interface GenerateValidatorsTableColumnsArgs {
@@ -64,7 +72,18 @@ function ValidatorWithImage({
                     {validator.name}
                 </span>
                 {isValidatorCommitteeMember && (
-                    <Badge type={BadgeType.PrimarySoft} label="Committee" />
+                    <Tooltip
+                        text="Active committee member — currently participating in consensus this epoch."
+                        position={TooltipPosition.Right}
+                    >
+                        <span className="flex shrink-0 items-center gap-1 text-iota-tertiary-40 dark:text-iota-tertiary-60">
+                            <span className="relative flex h-1.5 w-1.5">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-iota-tertiary-40 opacity-75 dark:bg-iota-tertiary-60" />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-iota-tertiary-40 dark:bg-iota-tertiary-60" />
+                            </span>
+                            <span className="text-label-sm font-medium">Committee</span>
+                        </span>
+                    </Tooltip>
                 )}
             </div>
             <div className="flex items-center gap-1">
@@ -87,17 +106,21 @@ function ValidatorWithImage({
         </div>
     );
 
+    const avatarElement = (
+        <div className="h-8 w-8 shrink-0">
+            <ImageIcon
+                src={validator.imageUrl}
+                label={validator.name}
+                fallback={validator.name}
+                size={ImageIconSize.Medium}
+                rounded
+            />
+        </div>
+    );
+
     return validator.isPending ? (
         <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
-            <div className="h-8 w-8 shrink-0">
-                <ImageIcon
-                    src={validator.imageUrl}
-                    label={validator.name}
-                    fallback={validator.name}
-                    size={ImageIconSize.Medium}
-                    rounded
-                />
-            </div>
+            {avatarElement}
             {validatorNameContainer}
         </div>
     ) : (
@@ -113,15 +136,7 @@ function ValidatorWithImage({
             }
             label={
                 <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
-                    <div className="h-8 w-8 shrink-0">
-                        <ImageIcon
-                            src={validator.imageUrl}
-                            label={validator.name}
-                            fallback={validator.name}
-                            size={ImageIconSize.Medium}
-                            rounded
-                        />
-                    </div>
+                    {avatarElement}
                     {validatorNameContainer}
                 </div>
             }
@@ -155,7 +170,8 @@ export function generateValidatorsTableColumns({
                 const value2 = row2.getValue<string>(columnId);
                 return sortByString(value1, value2);
             },
-            cell({ row: { original: validator } }) {
+            cell({ row }) {
+                const { original: validator } = row;
                 return (
                     <TableCellBase>
                         {showValidatorIcon ? (
@@ -301,6 +317,10 @@ export function generateValidatorsTableColumns({
         },
         {
             header: 'Last Epoch Rewards',
+            meta: {
+                tooltip:
+                    "Total staking rewards distributed to this validator's pool at the end of the previous epoch.",
+            },
             accessorKey: 'lastReward',
             id: 'lastReward',
             enableSorting: true,
@@ -327,6 +347,10 @@ export function generateValidatorsTableColumns({
         },
         {
             header: 'Voting Power',
+            meta: {
+                tooltip:
+                    "This validator's share of total committee voting power, proportional to its stake. Determines influence over consensus.",
+            },
             accessorKey: 'votingPower',
             enableSorting: true,
             sortingFn: sortByNumber,
@@ -343,6 +367,10 @@ export function generateValidatorsTableColumns({
         },
         {
             header: 'Status',
+            meta: {
+                tooltip:
+                    'Active: in the committee earning rewards. At risk: stake below the threshold, may be removed. Pending: awaiting activation next epoch.',
+            },
             accessorKey: 'status',
             id: 'status',
             enableSorting: true,

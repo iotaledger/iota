@@ -192,10 +192,10 @@ function ValidatorPageResult(): JSX.Element {
             'Validator',
             'Stake',
             'APY',
+            'Effective Commission',
             'Commission',
             'Last Epoch Rewards',
             'Voting Power',
-            'Status',
         ];
 
         return generateValidatorsTableColumns({
@@ -266,7 +266,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="dark:text-iota-neutral-92 pt-md--rs text-display-sm text-iota-neutral-10">
+                        <div className="pt-md--rs text-display-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">

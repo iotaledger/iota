@@ -1,11 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import {
+    Badge,
+    BadgeType,
+    Chip,
+    ChipSize,
+    ChipType,
+    KeyValueInfo,
+    Panel,
+    Tooltip,
+    TooltipPosition,
+} from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
-import { ArrowTopRight } from '@iota/apps-ui-icons';
+import { ArrowTopRight, IotaLogoMark } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
-import { ImageIcon, ImageIconSize } from '@iota/core';
+import { ImageIcon, ImageIconSize, useIsValidatorCommitteeMember } from '@iota/core';
 import type { InactiveValidatorData } from '@iota/core/src/types';
 import { onCopySuccess } from '~/lib/utils';
 
@@ -95,13 +105,15 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
     const logo = validatorData.imageUrl;
     const description = validatorData.description;
     const projectUrl = validatorData.projectUrl;
+    const { isCommitteeMember } = useIsValidatorCommitteeMember();
+    const isValidatorCommitteeMember = isCommitteeMember(validatorData.iotaAddress);
 
     return (
         <div className="flex flex-col gap-y-md">
             <Panel>
                 <div className="flex flex-col gap-lg p-md--rs md:flex-row">
                     <div className="flex flex-row gap-lg">
-                        <div className="flex h-[120px] w-[120px]">
+                        <div className="h-[120px] w-[120px] shrink-0">
                             <ImageIcon
                                 src={logo}
                                 label={validatorName}
@@ -109,27 +121,50 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                                 size={ImageIconSize.Full}
                             />
                         </div>
-                        <div className="flex flex-col gap-y-sm">
-                            <div>
-                                <Badge type={BadgeType.Neutral} label="Validator" />
-                            </div>
-                            <div className="flex flex-row items-center gap-x-xs text-iota-neutral-10 dark:text-iota-neutral-92">
-                                <span className="text-headline-md">{validatorName}</span>
+                        <div className="flex min-w-0 flex-col gap-sm">
+                            <div className="flex flex-row flex-wrap items-center gap-x-sm gap-y-xs">
+                                <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                                    {validatorName}
+                                </span>
                                 {projectUrl && (
-                                    <a href={projectUrl} target="_blank" rel="noreferrer noopener">
+                                    <a
+                                        href={projectUrl}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                        className="text-iota-neutral-40 hover:text-iota-neutral-10 dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92"
+                                    >
                                         <ArrowTopRight />
                                     </a>
                                 )}
                             </div>
+                            <div className="flex flex-wrap items-center gap-xs">
+                                <Badge type={BadgeType.Neutral} label="Validator" />
+                                <Badge type={BadgeType.PrimarySoft} label="Active" />
+                                {isValidatorCommitteeMember && (
+                                    <Tooltip
+                                        text="This validator is in the active committee and currently participating in consensus this epoch."
+                                        position={TooltipPosition.Right}
+                                    >
+                                        <Chip
+                                            type={ChipType.Success}
+                                            size={ChipSize.Small}
+                                            leadingElement={
+                                                <span className="relative flex h-[5px] w-[5px] shrink-0">
+                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-iota-tertiary-40 opacity-75 dark:bg-iota-tertiary-60" />
+                                                    <span className="relative inline-flex h-[5px] w-[5px] rounded-full bg-iota-tertiary-40 dark:bg-iota-tertiary-60" />
+                                                </span>
+                                            }
+                                            label="Committee"
+                                        />
+                                    </Tooltip>
+                                )}
+                            </div>
+                            {description && (
+                                <p className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                                    {description}
+                                </p>
+                            )}
                         </div>
-                    </div>
-                    <div className="flex w-full flex-col gap-y-md md:w-1/2">
-                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
-                            Description
-                        </span>
-                        <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
-                            {description ?? '--'}
-                        </span>
                     </div>
                 </div>
             </Panel>
@@ -144,17 +179,25 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                     <KeyValueInfo
                         keyText="Address"
                         value={
-                            <AddressLink
-                                address={validatorData.iotaAddress}
-                                copyText={validatorData.iotaAddress}
-                                noTruncate
-                            />
+                            <div className="flex flex-col gap-xxs">
+                                <div className="flex items-center gap-xs text-iota-neutral-40 dark:text-iota-neutral-60">
+                                    <IotaLogoMark className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="text-body-sm">{validatorName}</span>
+                                </div>
+                                <AddressLink
+                                    address={validatorData.iotaAddress}
+                                    copyText={validatorData.iotaAddress}
+                                    noTruncate
+                                    showAddressAlias={false}
+                                />
+                            </div>
                         }
                     />
                     <KeyValueInfo
                         keyText="Public Key"
                         value={validatorPublicKey}
                         copyText={validatorPublicKey}
+                        onCopySuccess={onCopySuccess}
                     />
                 </div>
             </Panel>

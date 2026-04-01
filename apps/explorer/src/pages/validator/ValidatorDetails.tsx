@@ -30,6 +30,13 @@ import { CoinFormat } from '@iota/iota-sdk/utils';
 import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
+type PrevEpochEventData = {
+    pool_staking_reward?: string;
+    stake?: string;
+    reference_gas_survey_quote?: string;
+    commission_rate?: string;
+};
+
 const getAtRiskRemainingEpochs = (
     data: LatestIotaSystemStateSummary | undefined,
     validatorId: string | undefined,
@@ -56,14 +63,13 @@ function ValidatorDetails(): JSX.Element {
         order: 'descending',
     });
     const epochId = systemStateData?.epoch;
-    const validatorRewards = (() => {
-        if (!validatorEvents || !id || !epochId) return 0;
-        const rewards = (
-            getValidatorMoveEvent(validatorEvents, id, epochId) as { pool_staking_reward: string }
-        )?.pool_staking_reward;
-
-        return rewards ? Number(rewards) : null;
-    })();
+    const prevEpochEvent =
+        validatorEvents && id && epochId
+            ? (getValidatorMoveEvent(validatorEvents, id, epochId) as PrevEpochEventData | null)
+            : null;
+    const validatorRewards = prevEpochEvent?.pool_staking_reward
+        ? Number(prevEpochEvent.pool_staking_reward)
+        : null;
 
     const activeValidatorData = systemStateData?.activeValidators.find(
         ({ iotaAddress, stakingPoolId }) => iotaAddress === id || stakingPoolId === id,
@@ -78,7 +84,16 @@ function ValidatorDetails(): JSX.Element {
         balance: Number(activeValidatorData?.gasPrice ?? 0),
         format: CoinFormat.Full,
     });
-
+    const [formattedCurrentStake, currentStakeSymbol] = useFormatCoin({
+        balance: Number(activeValidatorData?.stakingPoolIotaBalance ?? 0),
+    });
+    const [formattedNextEpochGasPrice, nextEpochGasPriceSymbol] = useFormatCoin({
+        balance: Number(activeValidatorData?.nextEpochGasPrice ?? 0),
+        format: CoinFormat.Full,
+    });
+    const [formattedPrevEpochRewards, prevEpochRewardsSymbol] = useFormatCoin({
+        balance: validatorRewards,
+    });
     if (
         isLoadingSystemState ||
         isValidatorsEventsLoading ||
@@ -146,7 +161,7 @@ function ValidatorDetails(): JSX.Element {
             validatorEvents as {
                 parsedJson?: { tallying_rule_global_score?: string; validator_address?: string };
             }[]
-        )?.find(({ parsedJson }) => parsedJson?.validator_address === id)?.parsedJson
+        ).find(({ parsedJson }) => parsedJson?.validator_address === id)?.parsedJson
             ?.tallying_rule_global_score || null;
 
     return (
@@ -164,42 +179,54 @@ function ValidatorDetails(): JSX.Element {
                     <div className="flex flex-col gap-lg md:flex-row">
                         <Panel>
                             <Title
+                                title="Previous Epoch"
+                                trailingElement={
+                                    prevEpochEvent ? (
+                                        <EpochStatusIndicator
+                                            active={!!validatorRewards}
+                                            activeLabel="Earned rewards"
+                                            inactiveLabel="No rewards"
+                                            tooltipText="Whether this validator earned staking rewards in the previous epoch."
+                                        />
+                                    ) : undefined
+                                }
+                            />
+                            <div className="p-md--rs">
+                                <LabelText
+                                    size={LabelTextSize.Medium}
+                                    label="Last Epoch Rewards"
+                                    text={
+                                        validatorRewards === null ? '--' : formattedPrevEpochRewards
+                                    }
+                                    supportingLabel={
+                                        validatorRewards !== null
+                                            ? prevEpochRewardsSymbol
+                                            : undefined
+                                    }
+                                    tooltipText="Total staking rewards distributed to this validator's pool at the last epoch boundary."
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
+                            </div>
+                        </Panel>
+                        <Panel>
+                            <Title
                                 title="Current Epoch"
                                 trailingElement={
-                                    <Tooltip
-                                        text="Whether this validator is in the active committee and earning staking rewards this epoch."
-                                        position={TooltipPosition.Top}
-                                    >
-                                        <div className="flex cursor-default items-center gap-1.5 px-md--rs">
-                                            <span
-                                                className={`h-2 w-2 shrink-0 rounded-full ${
-                                                    isEarningCurrentEpoch
-                                                        ? 'bg-iota-tertiary-50'
-                                                        : 'bg-iota-neutral-40'
-                                                }`}
-                                            />
-                                            <span
-                                                className={`text-label-md ${
-                                                    isEarningCurrentEpoch
-                                                        ? 'text-iota-tertiary-50'
-                                                        : 'label-text-secondary-neutral'
-                                                }`}
-                                            >
-                                                {isEarningCurrentEpoch
-                                                    ? 'Earning rewards'
-                                                    : 'Not earning'}
-                                            </span>
-                                            <Info className="label-text-secondary-neutral h-3.5 w-3.5" />
-                                        </div>
-                                    </Tooltip>
+                                    <EpochStatusIndicator
+                                        active={isEarningCurrentEpoch}
+                                        activeLabel="Earning rewards"
+                                        inactiveLabel="Not earning"
+                                        tooltipText="Whether this validator is in the active committee and earning staking rewards this epoch."
+                                    />
                                 }
                             />
                             <div className="grid grid-cols-2 gap-md p-md--rs">
                                 <LabelText
                                     size={LabelTextSize.Medium}
-                                    label="Voting Power"
-                                    text={`${votingPower}%`}
-                                    tooltipText="Share of total committee voting power held by this validator, proportional to its stake."
+                                    label="Stake"
+                                    text={formattedCurrentStake}
+                                    supportingLabel={currentStakeSymbol}
+                                    tooltipText="Total IOTA currently staked in this validator's pool."
                                     tooltipPosition={TooltipPosition.Right}
                                 />
                                 <LabelText
@@ -210,42 +237,45 @@ function ValidatorDetails(): JSX.Element {
                                     tooltipText="The reference gas price proposed by this validator for the current epoch."
                                     tooltipPosition={TooltipPosition.Right}
                                 />
+                                <LabelText
+                                    size={LabelTextSize.Medium}
+                                    label="Voting Power"
+                                    text={`${votingPower}%`}
+                                    tooltipText="Share of total committee voting power held by this validator, proportional to its stake."
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
+                                <LabelText
+                                    size={LabelTextSize.Medium}
+                                    label="Rewards"
+                                    text={
+                                        validatorRewards === null ? '--' : formattedPrevEpochRewards
+                                    }
+                                    supportingLabel={
+                                        validatorRewards !== null
+                                            ? prevEpochRewardsSymbol
+                                            : undefined
+                                    }
+                                    tooltipText="Staking rewards accrued in this validator's pool during the current epoch."
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
                             </div>
                         </Panel>
                         <Panel>
                             <Title
                                 title="Next Epoch"
                                 trailingElement={
-                                    <Tooltip
-                                        text="Whether this validator is projected to earn rewards next epoch, based on its stake ranking and at-risk status."
-                                        position={TooltipPosition.Left}
-                                    >
-                                        <div className="flex cursor-default items-center gap-1.5 px-md--rs">
-                                            <span
-                                                className={`h-2 w-2 shrink-0 rounded-full ${
-                                                    maxCommitteeSize !== undefined &&
-                                                    isEarningNextEpoch
-                                                        ? 'bg-iota-tertiary-50'
-                                                        : 'bg-iota-neutral-40'
-                                                }`}
-                                            />
-                                            <span
-                                                className={`text-label-md ${
-                                                    maxCommitteeSize !== undefined &&
-                                                    isEarningNextEpoch
-                                                        ? 'text-iota-tertiary-50'
-                                                        : 'label-text-secondary-neutral'
-                                                }`}
-                                            >
-                                                {maxCommitteeSize === undefined
-                                                    ? 'Loading…'
-                                                    : isEarningNextEpoch
-                                                      ? 'Earning rewards'
-                                                      : 'Not earning'}
-                                            </span>
-                                            <Info className="label-text-secondary-neutral h-3.5 w-3.5" />
-                                        </div>
-                                    </Tooltip>
+                                    <EpochStatusIndicator
+                                        active={
+                                            maxCommitteeSize !== undefined && isEarningNextEpoch
+                                        }
+                                        activeLabel="Earning rewards"
+                                        inactiveLabel="Not earning"
+                                        tooltipText="Whether this validator is projected to earn rewards next epoch, based on its stake ranking and at-risk status."
+                                        tooltipPosition={TooltipPosition.Left}
+                                        loadingLabel={
+                                            maxCommitteeSize === undefined ? 'Loading…' : undefined
+                                        }
+                                    />
                                 }
                             />
                             <div className="grid grid-cols-2 gap-md p-md--rs">
@@ -262,6 +292,14 @@ function ValidatorDetails(): JSX.Element {
                                     label="Commission"
                                     text={`${nextEpochCommission}%`}
                                     tooltipText="The commission rate this validator will charge from the next epoch onwards."
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
+                                <LabelText
+                                    size={LabelTextSize.Medium}
+                                    label="Gas Price"
+                                    text={formattedNextEpochGasPrice}
+                                    supportingLabel={nextEpochGasPriceSymbol}
+                                    tooltipText="The gas price this validator will propose for the next epoch."
                                     tooltipPosition={TooltipPosition.Right}
                                 />
                             </div>
@@ -286,3 +324,41 @@ function ValidatorDetails(): JSX.Element {
 }
 
 export { ValidatorDetails };
+
+type EpochStatusIndicatorProps = {
+    active: boolean;
+    activeLabel: string;
+    inactiveLabel: string;
+    tooltipText: string;
+    tooltipPosition?: TooltipPosition;
+    loadingLabel?: string;
+};
+
+function EpochStatusIndicator({
+    active,
+    activeLabel,
+    inactiveLabel,
+    tooltipText,
+    tooltipPosition = TooltipPosition.Top,
+    loadingLabel,
+}: EpochStatusIndicatorProps): JSX.Element {
+    return (
+        <Tooltip text={tooltipText} position={tooltipPosition}>
+            <div className="flex cursor-default items-center gap-1.5">
+                <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                        active ? 'bg-iota-tertiary-50' : 'bg-iota-neutral-40'
+                    }`}
+                />
+                <span
+                    className={`shrink-0 text-label-md ${
+                        active ? 'text-iota-tertiary-50' : 'label-text-secondary-neutral'
+                    }`}
+                >
+                    {loadingLabel ?? (active ? activeLabel : inactiveLabel)}
+                </span>
+                <Info className="label-text-secondary-neutral h-3.5 w-3.5 shrink-0" />
+            </div>
+        </Tooltip>
+    );
+}
