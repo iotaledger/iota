@@ -65,10 +65,9 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add --global vercel@canary
       - name: Pull Vercel Environment and Deploy
-        env:
-          TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           DEPLOY_TYPE="${{ needs.resolve-deploy-type.outputs.deploy_type }}"
+          VERCEL_FLAGS="--token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_SCOPE }}"
 
           case "$DEPLOY_TYPE" in
             production) VERCEL_ENV="production" ;;
@@ -78,17 +77,17 @@ jobs:
 
           echo "Deploy type: ${DEPLOY_TYPE}, Vercel environment: ${VERCEL_ENV}"
 
-          vercel pull --yes --environment="$VERCEL_ENV" --token="$TOKEN"
+          vercel pull --yes --environment="$VERCEL_ENV" $VERCEL_FLAGS
           cp ./.vercel/.env.${VERCEL_ENV}.local ./sdk/.env
 
           if [ "$DEPLOY_TYPE" = "production" ]; then
-            vercel build --prod --token="$TOKEN"
-            vercel deploy --prod --prebuilt --token="$TOKEN"
+            vercel build --prod $VERCEL_FLAGS
+            vercel deploy --prod --prebuilt $VERCEL_FLAGS
           else
-            vercel build --token="$TOKEN"
-            DEPLOY_URL=$(vercel deploy --prebuilt --token="$TOKEN")
+            vercel build $VERCEL_FLAGS
+            DEPLOY_URL=$(vercel deploy --prebuilt $VERCEL_FLAGS)
 
             if [ "$DEPLOY_TYPE" = "rc" ]; then
-              vercel alias "$DEPLOY_URL" wallet-dashboard-rc-iota1.vercel.app --token="$TOKEN"
+              vercel alias "$DEPLOY_URL" wallet-dashboard-rc-iota1.vercel.app $VERCEL_FLAGS
             fi
           fi

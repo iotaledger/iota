@@ -1164,12 +1164,13 @@ impl<'a> LayerBuilder<'a> {
         round: Round,
         num_block: u32,
     ) -> BlockTimestampMs {
-        if self.specified_authorities.is_some() && !self.timestamps.is_empty() {
-            let specified_authorities = self.specified_authorities.as_ref().unwrap();
-            if let Some(position) = specified_authorities.iter().position(|&x| x == authority) {
-                return self.timestamps[position]
-                    + (round + num_block) as u64
-                    + self.timestamp_delay_ms.unwrap_or_default();
+        if let Some(specified_authorities) = &self.specified_authorities {
+            if !self.timestamps.is_empty() {
+                if let Some(position) = specified_authorities.iter().position(|&x| x == authority) {
+                    return self.timestamps[position]
+                        + (round + num_block) as u64
+                        + self.timestamp_delay_ms.unwrap_or_default();
+                }
             }
         }
         let author = authority.value() as u32;

@@ -544,9 +544,7 @@ impl CommitObserver {
                 .observe(commit.headers.len() as f64);
 
             for header in &commit.headers {
-                let latency_ms = utc_now
-                    .checked_sub(header.timestamp_ms())
-                    .unwrap_or_default();
+                let latency_ms = utc_now.saturating_sub(header.timestamp_ms());
                 metrics
                     .block_header_commit_latency
                     .observe(Duration::from_millis(latency_ms).as_secs_f64());
@@ -616,9 +614,7 @@ impl CommitObserver {
                 .collect::<Vec<_>>();
 
             for block_header in headers_for_committed_txs {
-                let latency_ms = utc_now
-                    .checked_sub(block_header.timestamp_ms())
-                    .unwrap_or_default();
+                let latency_ms = utc_now.saturating_sub(block_header.timestamp_ms());
                 metrics
                     .transaction_commit_latency
                     .observe(Duration::from_millis(latency_ms).as_secs_f64());

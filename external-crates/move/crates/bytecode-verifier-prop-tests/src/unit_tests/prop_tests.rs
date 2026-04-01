@@ -88,12 +88,6 @@ proptest! {
         );
     }
 
-    /// Make sure that garbage inputs don't crash the bounds checker.
-    #[test]
-    fn garbage_inputs(module in any_with::<CompiledModule>(16)) {
-        let _ = BoundsChecker::verify_module(&module);
-    }
-
     #[test]
     fn valid_generated_constants(module in CompiledModule::valid_strategy(20)) {
         prop_assert!(constants::verify_module(&module).is_ok());
@@ -158,6 +152,25 @@ proptest! {
     fn valid_recursive_struct_defs(module in CompiledModule::valid_strategy(20)) {
         prop_assert!(RecursiveDataDefChecker::verify_module(&module).is_ok());
     }
+}
+
+/// Make sure that garbage inputs don't crash the bounds checker.
+///
+/// Runs on a thread with an 8 MiB stack because deeply-nested `SignatureToken`
+/// generation in proptest can overflow the default 2 MiB test-thread stack in
+/// debug builds.
+#[test]
+fn garbage_inputs() {
+    const STACK_SIZE: usize = 8 * 1024 * 1024;
+    let child = std::thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(|| {
+            proptest!(ProptestConfig::with_cases(16), |(module in any_with::<CompiledModule>(16))| {
+                let _ = BoundsChecker::verify_module(&module);
+            });
+        })
+        .expect("failed to spawn thread");
+    child.join().expect("garbage_inputs thread panicked");
 }
 
 /// Ensure that valid modules that don't have any members (e.g. function args,

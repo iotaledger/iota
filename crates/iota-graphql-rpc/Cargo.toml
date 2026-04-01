@@ -92,7 +92,7 @@ iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
 
 [features]
-pg_integration = []
+pg_integration = ["iota-indexer/pg_integration"]
 
 [package.metadata.cargo-udeps.ignore]
 development = ["serial_test", "simulacrum"]
