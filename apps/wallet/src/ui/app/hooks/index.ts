@@ -10,7 +10,6 @@ export * from './useOnKeyboardEvent';
 export * from './useTransactionDryRun';
 export * from './useCopyToClipboard';
 export * from './useExplorerLink';
-export * from './useTransactionData';
 export * from './useActiveAddress';
 export * from './useSyncAppsBackendAttributes';
 export * from './useAccountByAddress';
