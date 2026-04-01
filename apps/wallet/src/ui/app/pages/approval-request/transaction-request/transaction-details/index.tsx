@@ -59,7 +59,7 @@ export function TransactionDetails({ sender, transaction, chain }: TransactionDe
         isPending,
         isError,
         error,
-    } = useTransactionDryRun(sender, transaction);
+    } = useTransactionDryRun(sender, transaction, chain);
 
     const dryRunInputs =
         dryRunData?.input.transaction.kind === 'ProgrammableTransaction'
