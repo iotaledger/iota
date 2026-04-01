@@ -48,9 +48,9 @@ else
   CURRENT_COMMIT=$(git rev-parse HEAD)
 
   git checkout $RELEASE_COMMIT || exit 1
-  cargo build --bin iota-node --bin iota || exit 1
+  cargo build --bin iota-node --bin iota-localnet || exit 1
   cp ./target/debug/iota-node "$WORKING_DIR/iota-node-release"
-  cp ./target/debug/iota "$WORKING_DIR/iota-release"
+  cp ./target/debug/iota-localnet "$WORKING_DIR/iota-release"
 
   echo "Building iota-node at $RELEASE_CANDIDATE_COMMIT"
   git checkout $RELEASE_CANDIDATE_COMMIT || exit 1
