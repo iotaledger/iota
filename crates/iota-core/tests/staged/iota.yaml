@@ -981,7 +981,7 @@ TransactionKind:
         NEWTYPE:
           TYPENAME: AuthenticatorStateUpdateV1
     4:
-      EndOfEpochTransaction:
+      EndOfEpoch:
         NEWTYPE:
           SEQ:
             TYPENAME: EndOfEpochTransactionKind
