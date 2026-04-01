@@ -16,7 +16,7 @@ export async function fundL1AddressWithNativeTokens(
     amount: number,
 ) {
     console.log(
-        `fundL1AddressWithNativeTokens: Sending ${amount} TOOL from ${senderAddress} to ${addressL1}`,
+        `📤 fundL1AddressWithNativeTokens: Sending ${amount} TOOL from ${senderAddress} to ${addressL1}`,
     );
     try {
         const { L1 } = CONFIG;
@@ -41,7 +41,7 @@ export async function fundL1AddressWithNativeTokens(
         await client.waitForTransaction({
             digest,
         });
-        console.log(`fundL1AddressWithNativeTokens transaction digest: ${digest}`);
+        console.log(`✅ fundL1AddressWithNativeTokens transaction digest: ${digest}`);
         return true;
     } catch (error) {
         console.error(
@@ -59,7 +59,7 @@ export async function fundL2AddressWithIscClient(
     coinType = IOTA_TYPE_ARG,
 ) {
     console.log(
-        `fundL2AddressWithIscClient: Sending ${amount} ${coinType} from ${senderAddress} to ${addressL2}`,
+        `📤 fundL2AddressWithIscClient: Sending ${amount} ${coinType} from ${senderAddress} to ${addressL2}`,
     );
     try {
         const { L1 } = CONFIG;
@@ -104,11 +104,11 @@ export async function fundL2AddressWithIscClient(
         await client.waitForTransaction({
             digest,
         });
-        console.log(`fundL2AddressWithIscClient transaction digest: ${digest}`);
+        console.log(`✅ fundL2AddressWithIscClient transaction digest: ${digest}`);
         return true;
     } catch (error) {
         console.error(
-            `❌ fundL2AddressWithIscClient: Failed to send ${amount} IOTA from ${senderAddress} to ${addressL2}`,
+            `❌ fundL2AddressWithIscClient: Failed to send ${amount} ${coinType} from ${senderAddress} to ${addressL2}`,
             error,
         );
         return false;
@@ -116,7 +116,7 @@ export async function fundL2AddressWithIscClient(
 }
 
 export async function requestFundsFromFaucet(addressL1: string) {
-    console.log(`Requesting funds from faucet for ${addressL1}`);
+    console.log(`💸 Requesting funds from faucet for ${addressL1}`);
     const { L1 } = CONFIG;
     try {
         await requestIotaFromFaucet({
@@ -137,7 +137,7 @@ export async function addL1FundsThroughBridgeUI(page: Page) {
 
     while (attempt <= maxRetries && !success) {
         try {
-            console.log(`Attempt ${attempt}/${maxRetries} to add funds through bridge UI`);
+            console.log(`🔄 Attempt ${attempt}/${maxRetries} to add funds through bridge UI`);
 
             // Add funds to L1
             await page.getByTestId('request-l1-funds-button').click();
@@ -174,7 +174,7 @@ export async function addL1FundsThroughBridgeUI(page: Page) {
                 await page.waitForTimeout(3000);
             }
         } catch (error) {
-            console.error(`Error during attempt ${attempt}:`, error);
+            console.error(`❌ Error during attempt ${attempt}:`, error);
         }
 
         attempt++;
@@ -192,7 +192,7 @@ export async function sendIotaToAddress(
     amount: number | string,
 ) {
     console.log(
-        `sendIotaToAddress: Sending ${amount} IOTA from ${senderAddress} to ${receiverAddress}`,
+        `📤 sendIotaToAddress: Sending ${amount} IOTA from ${senderAddress} to ${receiverAddress}`,
     );
 
     try {
@@ -220,7 +220,7 @@ export async function sendIotaToAddress(
             digest,
         });
 
-        console.log(`sendIotaToAddress transaction digest: ${digest}`);
+        console.log(`✅ sendIotaToAddress transaction digest: ${digest}`);
     } catch (error) {
         console.error(
             `❌ sendIotaToAddress: Failed to send ${amount} IOTA from ${senderAddress} to ${receiverAddress}`,
