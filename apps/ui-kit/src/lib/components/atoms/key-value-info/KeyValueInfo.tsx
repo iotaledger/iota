@@ -25,7 +25,7 @@ interface KeyValueProps {
     /**
      * The tooltip text.
      */
-    tooltipText?: string;
+    tooltipText?: ReactNode;
     /**
      * The supporting label of the KeyValue (optional).
      */

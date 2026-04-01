@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRef, useState, useLayoutEffect } from 'react';
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import cx from 'classnames';
 import { TooltipPosition } from './tooltip.enums';
 
 interface TooltipProps {
-    text: string;
+    text: ReactNode;
     position?: TooltipPosition;
     maxWidth?: string;
     offset?: number;
