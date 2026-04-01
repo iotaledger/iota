@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 
 use iota_types::base_types::AuthorityName;
 
@@ -37,7 +37,7 @@ use crate::{
 ///
 /// This component helps to manage this retry pattern.
 pub(crate) struct RequestRetrier<A> {
-    ranked_clients: VecDeque<(AuthorityName, Arc<SafeClient<A>>)>,
+    ranked_clients: Vec<(AuthorityName, Arc<SafeClient<A>>)>,
     pub(crate) non_retriable_errors_aggregator: StatusAggregator<TransactionRequestError>,
     pub(crate) retriable_errors_aggregator: StatusAggregator<TransactionRequestError>,
 }
@@ -72,7 +72,7 @@ impl<A> RequestRetrier<A> {
                     .get(name)
                     .map(|client| (*name, client.clone()))
             })
-            .collect::<VecDeque<_>>();
+            .collect::<Vec<_>>();
         let non_retriable_errors_aggregator = StatusAggregator::new(auth_agg.committee.clone());
         let retriable_errors_aggregator = StatusAggregator::new(auth_agg.committee.clone());
         Self {
@@ -86,7 +86,7 @@ impl<A> RequestRetrier<A> {
     pub(crate) fn next_target(
         &mut self,
     ) -> Result<(AuthorityName, Arc<SafeClient<A>>), TransactionDriverError> {
-        if let Some((name, client)) = self.ranked_clients.pop_front() {
+        if let Some((name, client)) = self.ranked_clients.pop() {
             return Ok((name, client));
         };
 
