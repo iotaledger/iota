@@ -1,6 +1,6 @@
 {
     "name": "@iota/apps-backend-client",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "sideEffects": false,
     "author": "IOTA Foundation <info@iota.org>",
     "description": "Client library for the IOTA apps-backend service",

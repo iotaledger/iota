@@ -10,9 +10,17 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
 
-    if (!configService.get('DEPLOY_TYPE')) {
-        throw new Error('DEPLOY_TYPE environment variable is not set');
+    function getRequiredEnv(key: string): string {
+        const value = configService.get<string>(key);
+        if (!value) {
+            throw new Error(`${key} is not configured`);
+        }
+        return value;
     }
+
+    getRequiredEnv('DEPLOY_TYPE');
+    getRequiredEnv('STAGING_APPS_BACKEND');
+    getRequiredEnv('PROD_APPS_BACKEND');
 
     app.enableCors({
         origin: '*',

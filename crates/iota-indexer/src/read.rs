@@ -96,6 +96,18 @@ pub const OPTIMISTIC_SEQUENCE_NUMBER_STR: &str = "optimistic_sequence_number";
 pub const TX_DIGEST_STR: &str = "tx_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
+/// Result of checking input object dependencies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputObjectsStatus {
+    /// All objects exist at the requested versions and are finalized.
+    Ready,
+    /// At least one object has a newer version — waiting will never succeed.
+    Superseded,
+    /// Not all objects are ready yet (missing, older version, or not yet
+    /// finalized by checkpoint indexing).
+    Pending,
+}
+
 /// Encapsulates the logic for reading from the database.
 ///
 /// Provides a set of methods to perform read operations,
@@ -1050,20 +1062,22 @@ impl IndexerReader {
         })
     }
 
-    pub async fn count_existing_object_keys_in_blocking_task(
+    /// Checks whether all input objects exist at the requested versions and
+    /// are finalized.
+    pub async fn check_input_objects_in_blocking_task(
         &self,
         object_keys: Vec<(ObjectID, SequenceNumber)>,
-    ) -> Result<i64, IndexerError> {
-        self.spawn_blocking(move |this| this.count_existing_object_keys(object_keys))
+    ) -> Result<InputObjectsStatus, IndexerError> {
+        self.spawn_blocking(move |this| this.check_input_objects(object_keys))
             .await
     }
 
-    fn count_existing_object_keys(
+    fn check_input_objects(
         &self,
         object_keys: Vec<(ObjectID, SequenceNumber)>,
-    ) -> Result<i64, IndexerError> {
+    ) -> Result<InputObjectsStatus, IndexerError> {
         if object_keys.is_empty() {
-            return Ok(0);
+            return Ok(InputObjectsStatus::Ready);
         }
 
         let values_clause = object_keys
@@ -1077,25 +1091,47 @@ impl IndexerReader {
             })
             .join(", ");
 
+        // Single query that returns a tri-state:
+        // TRUE  — all objects match exact versions and are finalized
+        // FALSE — at least one object has been superseded (newer version)
+        // NULL  — not ready yet (missing, older version, or not finalized)
         let query = format!(
-            "WITH max_chk AS (SELECT COALESCE(MAX(sequence_number), -1) AS max_sn FROM checkpoints) \
-             SELECT COUNT(*) as count FROM objects \
-             WHERE (object_id, object_version) IN (VALUES {}) \
-             AND (finalized_in_cp IS NULL \
-                  OR finalized_in_cp <= (SELECT max_sn FROM max_chk))",
+            "WITH \
+               input_objects(id, version) AS (VALUES {}), \
+               max_chk AS (SELECT COALESCE(MAX(sequence_number), -1) AS max_sn FROM checkpoints), \
+               matches AS ( \
+                 SELECT \
+                   i.version AS input_version, \
+                   o.object_version AS actual_version, \
+                   o.finalized_in_cp \
+                 FROM input_objects i \
+                 LEFT JOIN objects o ON o.object_id = i.id \
+               ) \
+             SELECT CASE \
+               WHEN COUNT(*) FILTER (WHERE actual_version > input_version) > 0 THEN FALSE \
+               WHEN COUNT(*) FILTER (WHERE actual_version IS NULL) > 0 THEN NULL \
+               WHEN COUNT(*) FILTER (WHERE actual_version < input_version) > 0 THEN NULL \
+               WHEN COUNT(*) FILTER (WHERE finalized_in_cp IS NOT NULL \
+                 AND finalized_in_cp > (SELECT max_sn FROM max_chk)) > 0 THEN NULL \
+               ELSE TRUE \
+             END AS result FROM matches",
             values_clause
         );
 
         #[derive(QueryableByName)]
-        struct Count {
-            #[diesel(sql_type = BigInt)]
-            count: i64,
+        struct TriState {
+            #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Bool>)]
+            result: Option<bool>,
         }
 
         run_query!(&self.pool, |conn| {
             diesel::sql_query(query)
-                .get_result::<Count>(conn)
-                .map(|result| result.count)
+                .get_result::<TriState>(conn)
+                .map(|r| match r.result {
+                    Some(true) => InputObjectsStatus::Ready,
+                    Some(false) => InputObjectsStatus::Superseded,
+                    None => InputObjectsStatus::Pending,
+                })
         })
     }
 

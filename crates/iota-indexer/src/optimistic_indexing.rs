@@ -36,7 +36,7 @@ use crate::{
         display::StoredDisplay,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
     },
-    read::IndexerReader,
+    read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{
@@ -88,7 +88,6 @@ impl OptimisticTransactionExecutor {
         &self,
         input_obj_keys: Vec<(ObjectID, SequenceNumber)>,
     ) -> Result<(), IndexerError> {
-        let expected_count = input_obj_keys.len();
         let backoff = backoff::ExponentialBackoff {
             initial_interval: Duration::from_millis(100),
             max_elapsed_time: Some(WAIT_FOR_DEPS_MAX_ELAPSED_TIME),
@@ -96,14 +95,19 @@ impl OptimisticTransactionExecutor {
         };
 
         backoff::future::retry(backoff, async || {
-            let count = self
+            match self
                 .read
-                .count_existing_object_keys_in_blocking_task(input_obj_keys.clone())
-                .await?;
-            if count as usize != expected_count {
-                return Err(IndexerError::TransactionDependenciesNotIndexed)?;
+                .check_input_objects_in_blocking_task(input_obj_keys.clone())
+                .await?
+            {
+                InputObjectsStatus::Ready => Ok(()),
+                InputObjectsStatus::Superseded => Err(backoff::Error::permanent(
+                    IndexerError::TransactionDependenciesNotIndexed,
+                )),
+                InputObjectsStatus::Pending => {
+                    Err(IndexerError::TransactionDependenciesNotIndexed)?
+                }
             }
-            Ok(())
         })
         .await
         .or(Err(IndexerError::TransactionDependenciesNotIndexed))
