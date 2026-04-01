@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { growthbook } from '_src/shared/experimentation/features';
+import { appsBackendClient } from '_src/shared/experimentation/features';
 import { getSentryConfig } from '_src/shared/sentryConfig';
 import * as Sentry from '@sentry/browser';
 import { Feature } from '@iota/core';
@@ -12,7 +12,7 @@ export function initSentry() {
     Sentry.init(
         getSentryConfig({
             tracesSampler: () => {
-                return growthbook.getFeatureValue(Feature.WalletSentryTracing, 0);
+                return appsBackendClient.getFeatureValue(Feature.WalletSentryTracing, 0);
             },
         }),
     );

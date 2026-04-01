@@ -5,7 +5,7 @@
 import { useAppSelector, useConnectedApps } from '_hooks';
 import { Feature, NoData } from '@iota/core';
 import { prepareLinkToCompare } from '_src/shared/utils';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import cx from 'clsx';

@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useAppsBackend, Feature } from '@iota/core';
+import { useAppsBackendClient, useFeatureIsOn } from '@iota/apps-backend-client';
+import { Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useRef } from 'react';
@@ -22,17 +22,14 @@ type PageLayoutProps = {
 
 export function PageLayout({ content, loading, loadingText }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
     const outageOverride = useFeatureIsOn(Feature.NetworkOutageOverride as string);
 
     const canShowLoadingText = isString(loadingText);
 
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
-        queryFn: () =>
-            request<{ degraded: boolean }>('monitor-network', {
-                project: 'EXPLORER',
-            }),
+        queryFn: () => client.getMonitorNetwork('EXPLORER'),
         // Keep cached for 2 minutes
         staleTime: 2 * 60 * 1000,
         retry: false,

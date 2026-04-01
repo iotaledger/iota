@@ -301,10 +301,10 @@ impl ReadApi {
 
         // fill cache with the timestamp
         for (_, cache_entry) in temp_response.iter_mut() {
-            if cache_entry.checkpoint_seq.is_some() {
+            if let Some(checkpoint_seq) = &cache_entry.checkpoint_seq {
                 // safe to unwrap because is_some is checked
                 cache_entry.timestamp = *checkpoint_to_timestamp
-                    .get(cache_entry.checkpoint_seq.as_ref().unwrap())
+                    .get(checkpoint_seq)
                     // Safe to unwrap because checkpoint_seq is guaranteed to exist in
                     // checkpoint_to_timestamp
                     .unwrap();
@@ -1370,20 +1370,24 @@ async fn convert_to_response<S: PackageStore>(
     let mut response = IotaTransactionBlockResponse::new(cache.digest);
     response.errors = cache.errors;
 
-    if opts.show_raw_input && cache.transaction.is_some() {
-        let sender_signed_data = cache.transaction.as_ref().unwrap().data();
-        let raw_tx = bcs::to_bytes(sender_signed_data)
-            .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {e}"))?; // TODO: is this a client or server error?
-        response.raw_transaction = raw_tx;
+    if opts.show_raw_input {
+        if let Some(transaction) = &cache.transaction {
+            let sender_signed_data = transaction.data();
+            let raw_tx = bcs::to_bytes(sender_signed_data)
+                .map_err(|e| anyhow!("Failed to serialize raw transaction with error: {e}"))?; // TODO: is this a client or server error?
+            response.raw_transaction = raw_tx;
+        }
     }
 
-    if opts.show_input && cache.transaction.is_some() {
-        let tx_block = IotaTransactionBlock::try_from(
-            cache.transaction.unwrap().into_data(),
-            module_cache,
-            cache.digest,
-        )?;
-        response.transaction = Some(tx_block);
+    if opts.show_input {
+        if let Some(transaction) = cache.transaction {
+            let tx_block = IotaTransactionBlock::try_from(
+                transaction.into_data(),
+                module_cache,
+                cache.digest,
+            )?;
+            response.transaction = Some(tx_block);
+        }
     }
 
     if opts.show_raw_effects {
@@ -1397,14 +1401,12 @@ async fn convert_to_response<S: PackageStore>(
         response.raw_effects = raw_effects;
     }
 
-    if opts.show_effects && cache.effects.is_some() {
-        let native_effects = cache
-            .effects
-            .expect("show_effects should have populated effects");
-        let effects =
-            IotaTransactionBlockEffects::from_native_with_clever_error(native_effects, resolver)
-                .await;
-        response.effects = Some(effects);
+    if opts.show_effects {
+        if let Some(effects) = cache.effects {
+            let effects =
+                IotaTransactionBlockEffects::from_native_with_clever_error(effects, resolver).await;
+            response.effects = Some(effects);
+        }
     }
 
     response.checkpoint = cache.checkpoint_seq;

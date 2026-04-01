@@ -132,7 +132,8 @@ async function buildESM(
 }
 
 async function buildTypes(config: string) {
-    execSync(`pnpm tsc --build ${config}`, {
+    const tsc = require.resolve('typescript/bin/tsc');
+    execSync(`node ${tsc} --build ${config}`, {
         stdio: 'inherit',
         cwd: process.cwd(),
     });
