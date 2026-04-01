@@ -3,6 +3,8 @@ name: Deploy Apps-Backend
 on:
   push:
     branches: [develop]
+    paths:
+      - "apps/apps-backend/**"
   workflow_dispatch:
     inputs:
       deploy_type:
@@ -13,6 +15,10 @@ on:
           - staging
           - rc
           - production
+
+concurrency:
+  group: apps-backend-deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 jobs:
   resolve-deploy-type:
