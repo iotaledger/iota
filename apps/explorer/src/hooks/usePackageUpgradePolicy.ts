@@ -3,6 +3,7 @@
 
 import { useGetTransaction } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { UpgradePolicy } from '@iota/iota-sdk/transactions';
 import { useMemo } from 'react';
 
@@ -135,18 +136,18 @@ export function usePackageUpgradePolicy(txDigest: string | null | undefined): {
         const lastTx = lastCapTxData?.data?.[0];
         if (lastTx?.transaction?.data?.transaction?.kind === 'ProgrammableTransaction') {
             const transactions = lastTx.transaction.data.transaction.transactions;
+            const normalizedPkg = normalizeIotaAddress(MAKE_IMMUTABLE_FUNCTION.package);
             const wasMadeImmutable = transactions.some(
                 (tx) =>
                     'MoveCall' in tx &&
-                    tx.MoveCall.package === MAKE_IMMUTABLE_FUNCTION.package &&
+                    normalizeIotaAddress(tx.MoveCall.package) === normalizedPkg &&
                     tx.MoveCall.module === MAKE_IMMUTABLE_FUNCTION.module &&
                     tx.MoveCall.function === MAKE_IMMUTABLE_FUNCTION.function,
             );
             return wasMadeImmutable ? IMMUTABLE_POLICY : CUSTOM_POLICY;
         }
 
-        // Fallback: couldn't determine
-        return IMMUTABLE_POLICY;
+        return null;
     }, [
         txDigest,
         upgradeCapObjectId,
