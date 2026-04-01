@@ -13,6 +13,7 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_move_build::BuildConfig;
 use iota_sdk::{
     IotaClient,
+    iota_types::transaction::TransactionDataAPI,
     rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions},
     types::{
         base_types::{IotaAddress, ObjectID},
