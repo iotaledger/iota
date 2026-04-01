@@ -76,11 +76,12 @@ impl ValidatorService {
         } = self.clone();
         let transaction = request.into_inner();
         let epoch_store = state.load_epoch_store_one_call_per_task();
+        let white_flag_flow_enabled = epoch_store.protocol_config().enable_white_flag_flow();
 
         // Reject if white flag flow is enabled - transactions should use
         // `handle_submit_transaction_impl` instead
         fp_ensure!(
-            !epoch_store.protocol_config().enable_white_flag_flow(),
+            !white_flag_flow_enabled,
             IotaError::UnsupportedFeature {
                 error: "handle_transaction is disabled when white flag flow is enabled. \
                     Use handle_submit_transaction_impl instead."
@@ -104,6 +105,7 @@ impl ValidatorService {
             &consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
+            white_flag_flow_enabled, // should be false if this point is reached
         );
         if let Err(error) = overload_check_res {
             metrics
@@ -236,11 +238,13 @@ impl ValidatorService {
 
         // 2) Verify the certificates.
         // Check system overload
+        let white_flag_flow_enabled = epoch_store.protocol_config().enable_white_flag_flow();
         for certificate in &certificates {
             let overload_check_res = self.state.check_system_overload(
                 &self.consensus_adapter,
                 certificate.data(),
                 self.state.check_system_overload_at_execution(),
+                white_flag_flow_enabled, // should be false if this point is reached
             );
             if let Err(error) = overload_check_res {
                 self.metrics

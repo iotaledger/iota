@@ -603,24 +603,33 @@ impl ConsensusAdapter {
         self.num_inflight_transactions.load(Ordering::Relaxed)
     }
 
-    /// Performs weakly consistent checks on internal buffers to quickly
-    /// discard transactions if we are overloaded
-    pub fn check_limits(&self) -> bool {
+    /// Returns `true` if consensus has capacity to accept more transactions.
+    /// Checks that in-flight transactions are below `max_pending_transactions`
+    /// and that submission permits are available. Weakly consistent (relaxed
+    /// atomic reads).
+    fn check_consensus_limits(&self) -> bool {
         // First check total transactions (waiting and in submission)
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
             return false;
         }
-        // Then check if submit_semaphore has permits
+
+        // Then check if `submit_semaphore` has permits
         self.submit_semaphore.available_permits() > 0
     }
 
+    /// Returns an error if the consensus adapter cannot accept more
+    /// transactions. This is a hard cutoff check - if in-flight
+    /// transactions exceed `max_pending_transactions` or no submission
+    /// permits are available, returns `TooManyTransactionsPendingConsensus`.
+    /// Used as a safeguard in both certificate and certificate-less flows.
     pub(crate) fn check_consensus_overload(&self) -> IotaResult {
         fp_ensure!(
-            self.check_limits(),
+            self.check_consensus_limits(),
             IotaError::TooManyTransactionsPendingConsensus
         );
+
         Ok(())
     }
 

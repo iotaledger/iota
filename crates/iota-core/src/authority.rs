@@ -1116,39 +1116,58 @@ impl AuthorityState {
             .check_system_overload_at_execution
     }
 
+    /// Checks system overload conditions before accepting a transaction.
+    ///
+    /// In certificate-less (white-flag) mode: only checks consensus
+    /// queue overload, since execution-based overload will be handled
+    /// post-consensus.
+    ///
+    /// In certificate mode: runs all checks — authority overload
+    /// (execution latency), transaction manager (execution queue),
+    /// consensus adapter (queue limit), and writeback cache backpressure.
     pub(crate) fn check_system_overload(
         &self,
         consensus_adapter: &Arc<ConsensusAdapter>,
         tx_data: &SenderSignedData,
         do_authority_overload_check: bool,
+        white_flag_flow_enabled: bool,
     ) -> IotaResult {
-        if do_authority_overload_check {
-            self.check_authority_overload(tx_data).tap_err(|_| {
-                self.update_overload_metrics("execution_queue");
+        if white_flag_flow_enabled {
+            // TODO: maybe add graduated consensus overload check: as consensus
+            // queue fills, an increasing percentage of transactions are shed
+            // proportionally.
+            consensus_adapter.check_consensus_overload().tap_err(|_| {
+                self.update_overload_metrics("consensus");
             })?;
-        }
-        self.transaction_manager
-            .check_execution_overload(self.overload_config(), tx_data)
-            .tap_err(|_| {
-                self.update_overload_metrics("execution_pending");
+        } else {
+            if do_authority_overload_check {
+                self.check_authority_overload(tx_data).tap_err(|_| {
+                    self.update_overload_metrics("execution_queue");
+                })?;
+            }
+            self.transaction_manager
+                .check_execution_overload(self.overload_config(), tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("execution_pending");
+                })?;
+            consensus_adapter.check_consensus_overload().tap_err(|_| {
+                self.update_overload_metrics("consensus");
             })?;
-        consensus_adapter.check_consensus_overload().tap_err(|_| {
-            self.update_overload_metrics("consensus");
-        })?;
 
-        let pending_tx_count = self
-            .get_cache_commit()
-            .approximate_pending_transaction_count();
-        if pending_tx_count
-            > self
-                .config
-                .execution_cache_config
-                .writeback_cache
-                .backpressure_threshold_for_rpc()
-        {
-            return Err(IotaError::ValidatorOverloadedRetryAfter {
-                retry_after_secs: 10,
-            });
+            let pending_tx_count = self
+                .get_cache_commit()
+                .approximate_pending_transaction_count();
+            if pending_tx_count
+                > self
+                    .config
+                    .execution_cache_config
+                    .writeback_cache
+                    .backpressure_threshold_for_rpc()
+            {
+                return Err(IotaError::ValidatorOverloadedRetryAfter {
+                    retry_after_secs: 10,
+                });
+            }
         }
 
         Ok(())
