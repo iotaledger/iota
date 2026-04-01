@@ -575,7 +575,6 @@ pub trait ProgrammableTransactionExt {
     fn shared_input_objects(&self) -> impl Iterator<Item = SharedObjectRef> + '_;
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
     fn non_system_packages_to_be_published(&self) -> impl Iterator<Item = &Vec<Vec<u8>>>;
-    fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result;
 }
 
 impl ProgrammableTransactionExt for ProgrammableTransaction {
@@ -694,16 +693,6 @@ impl ProgrammableTransactionExt for ProgrammableTransaction {
         self.commands
             .iter()
             .filter_map(|q| q.non_system_packages_to_be_published())
-    }
-
-    fn fmt_display(&self, f: &mut dyn Write) -> std::fmt::Result {
-        let ProgrammableTransaction { inputs, commands } = self;
-        writeln!(f, "Inputs: {inputs:?}")?;
-        writeln!(f, "Commands: [")?;
-        for c in commands {
-            writeln!(f, "  {c},")?;
-        }
-        writeln!(f, "]")
     }
 }
 
