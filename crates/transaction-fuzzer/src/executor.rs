@@ -16,7 +16,7 @@ use iota_types::{
     error::IotaError,
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::Object,
-    transaction::{Transaction, TransactionData},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use tokio::runtime::Runtime;

@@ -12,7 +12,6 @@ use std::{
 };
 
 use anyhow::bail;
-use enum_dispatch::enum_dispatch;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::{
@@ -20,8 +19,9 @@ pub use iota_sdk_types::{
     ChangeEpochV3, ChangeEpochV4, Command, EndOfEpochTransactionKind, GasPayment as GasData,
     GenesisObject, GenesisTransaction, MakeMoveVector, MergeCoins,
     MoveCall as ProgrammableMoveCall, ProgrammableTransaction, Publish, RandomnessStateUpdate,
-    SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage, TransactionExpiration,
-    TransactionKind, TransferObjects, Upgrade,
+    SharedObjectReference as SharedObjectRef, SplitCoins, SystemPackage,
+    Transaction as TransactionData, TransactionExpiration, TransactionKind,
+    TransactionV1 as TransactionDataV1, TransferObjects, Upgrade,
 };
 use iota_sdk_types::{
     Identifier, Input, ObjectId, TypeTag,
@@ -936,447 +936,13 @@ impl TransactionKindExt for TransactionKind {
     }
 }
 
-#[enum_dispatch(TransactionDataAPI)]
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub enum TransactionData {
-    V1(TransactionDataV1),
-    // When new variants are introduced, it is important that we check version support
-    // in the validity_check function based on the protocol config.
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct TransactionDataV1 {
-    pub kind: TransactionKind,
-    pub sender: IotaAddress,
-    pub gas_data: GasData,
-    pub expiration: TransactionExpiration,
-}
-
-impl TransactionData {
-    fn new_system_transaction(kind: TransactionKind) -> Self {
-        // assert transaction kind if a system transaction
-        assert!(kind.is_system());
-        let sender = IotaAddress::ZERO;
-        TransactionData::V1(TransactionDataV1 {
-            kind,
-            sender,
-            gas_data: GasData {
-                price: GAS_PRICE_FOR_SYSTEM_TX,
-                owner: sender,
-                objects: vec![ObjectRef::new(
-                    ObjectID::ZERO,
-                    SequenceNumber::default(),
-                    ObjectDigest::MIN,
-                )],
-                budget: 0,
-            },
-            expiration: TransactionExpiration::None,
-        })
-    }
-
-    pub fn new(
-        kind: TransactionKind,
-        sender: IotaAddress,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        TransactionData::V1(TransactionDataV1 {
-            kind,
-            sender,
-            gas_data: GasData {
-                price: gas_price,
-                owner: sender,
-                objects: vec![gas_payment],
-                budget: gas_budget,
-            },
-            expiration: TransactionExpiration::None,
-        })
-    }
-
-    pub fn new_with_gas_coins(
-        kind: TransactionKind,
-        sender: IotaAddress,
-        gas_payment: Vec<ObjectRef>,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        Self::new_with_gas_coins_allow_sponsor(
-            kind,
-            sender,
-            gas_payment,
-            gas_budget,
-            gas_price,
-            sender,
-        )
-    }
-
-    pub fn new_with_gas_coins_allow_sponsor(
-        kind: TransactionKind,
-        sender: IotaAddress,
-        gas_payment: Vec<ObjectRef>,
-        gas_budget: u64,
-        gas_price: u64,
-        gas_sponsor: IotaAddress,
-    ) -> Self {
-        TransactionData::V1(TransactionDataV1 {
-            kind,
-            sender,
-            gas_data: GasData {
-                price: gas_price,
-                owner: gas_sponsor,
-                objects: gas_payment,
-                budget: gas_budget,
-            },
-            expiration: TransactionExpiration::None,
-        })
-    }
-
-    pub fn new_with_gas_data(
-        kind: TransactionKind,
-        sender: IotaAddress,
-        gas_data: GasData,
-    ) -> Self {
-        TransactionData::V1(TransactionDataV1 {
-            kind,
-            sender,
-            gas_data,
-            expiration: TransactionExpiration::None,
-        })
-    }
-
-    pub fn new_move_call(
-        sender: IotaAddress,
-        package: ObjectID,
-        module: Identifier,
-        function: Identifier,
-        type_arguments: Vec<TypeTag>,
-        gas_payment: ObjectRef,
-        arguments: Vec<CallArg>,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> anyhow::Result<Self> {
-        Self::new_move_call_with_gas_coins(
-            sender,
-            package,
-            module,
-            function,
-            type_arguments,
-            vec![gas_payment],
-            arguments,
-            gas_budget,
-            gas_price,
-        )
-    }
-
-    pub fn new_move_call_with_gas_coins(
-        sender: IotaAddress,
-        package: ObjectID,
-        module: Identifier,
-        function: Identifier,
-        type_arguments: Vec<TypeTag>,
-        gas_payment: Vec<ObjectRef>,
-        arguments: Vec<CallArg>,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> anyhow::Result<Self> {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.move_call(package, module, function, type_arguments, arguments)?;
-            builder.finish()
-        };
-        Ok(Self::new_programmable(
-            sender,
-            gas_payment,
-            pt,
-            gas_budget,
-            gas_price,
-        ))
-    }
-
-    pub fn new_transfer(
-        recipient: IotaAddress,
-        object_ref: ObjectRef,
-        sender: IotaAddress,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.transfer_object(recipient, object_ref).unwrap();
-            builder.finish()
-        };
-        Self::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
-    }
-
-    pub fn new_transfer_iota(
-        recipient: IotaAddress,
-        sender: IotaAddress,
-        amount: Option<u64>,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        Self::new_transfer_iota_allow_sponsor(
-            recipient,
-            sender,
-            amount,
-            gas_payment,
-            gas_budget,
-            gas_price,
-            sender,
-        )
-    }
-
-    pub fn new_transfer_iota_allow_sponsor(
-        recipient: IotaAddress,
-        sender: IotaAddress,
-        amount: Option<u64>,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-        gas_sponsor: IotaAddress,
-    ) -> Self {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.transfer_iota(recipient, amount);
-            builder.finish()
-        };
-        Self::new_programmable_allow_sponsor(
-            sender,
-            vec![gas_payment],
-            pt,
-            gas_budget,
-            gas_price,
-            gas_sponsor,
-        )
-    }
-
-    pub fn new_pay(
-        sender: IotaAddress,
-        coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
-        amounts: Vec<u64>,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> anyhow::Result<Self> {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.pay(coins, recipients, amounts)?;
-            builder.finish()
-        };
-        Ok(Self::new_programmable(
-            sender,
-            vec![gas_payment],
-            pt,
-            gas_budget,
-            gas_price,
-        ))
-    }
-
-    pub fn new_pay_iota(
-        sender: IotaAddress,
-        mut coins: Vec<ObjectRef>,
-        recipients: Vec<IotaAddress>,
-        amounts: Vec<u64>,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> anyhow::Result<Self> {
-        coins.insert(0, gas_payment);
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.pay_iota(recipients, amounts)?;
-            builder.finish()
-        };
-        Ok(Self::new_programmable(
-            sender, coins, pt, gas_budget, gas_price,
-        ))
-    }
-
-    pub fn new_pay_all_iota(
-        sender: IotaAddress,
-        mut coins: Vec<ObjectRef>,
-        recipient: IotaAddress,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        coins.insert(0, gas_payment);
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.pay_all_iota(recipient);
-            builder.finish()
-        };
-        Self::new_programmable(sender, coins, pt, gas_budget, gas_price)
-    }
-
-    pub fn new_split_coin(
-        sender: IotaAddress,
-        coin: ObjectRef,
-        amounts: Vec<u64>,
-        gas_payment: ObjectRef,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            builder.split_coin(sender, coin, amounts);
-            builder.finish()
-        };
-        Self::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
-    }
-
-    pub fn new_module(
-        sender: IotaAddress,
-        gas_payment: ObjectRef,
-        modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let upgrade_cap = builder.publish_upgradeable(modules, dep_ids);
-            builder.transfer_arg(sender, upgrade_cap);
-            builder.finish()
-        };
-        Self::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
-    }
-
-    pub fn new_upgrade(
-        sender: IotaAddress,
-        gas_payment: ObjectRef,
-        package_id: ObjectID,
-        modules: Vec<Vec<u8>>,
-        dep_ids: Vec<ObjectID>,
-        (upgrade_capability, capability_owner): (ObjectRef, Owner),
-        upgrade_policy: u8,
-        digest: Vec<u8>,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> anyhow::Result<Self> {
-        let pt = {
-            let mut builder = ProgrammableTransactionBuilder::new();
-            let capability_arg = match capability_owner {
-                Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
-                    object_id: upgrade_capability.object_id,
-                    initial_shared_version,
-                    mutable: true,
-                }),
-                Owner::Immutable => {
-                    bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
-                }
-                // If the capability is owned by an object, then the module defining the owning
-                // object gets to decide how the upgrade capability should be used.
-                Owner::Object(_) => {
-                    bail!("Upgrade capability controlled by object");
-                }
-                _ => unimplemented!("a new enum variant was added and needs to be handled"),
-            };
-            builder.obj(capability_arg).unwrap();
-            let upgrade_arg = builder.pure(upgrade_policy).unwrap();
-            let digest_arg = builder.pure(digest).unwrap();
-            let upgrade_ticket = builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
-                Identifier::PACKAGE_MODULE,
-                Identifier::from_static("authorize_upgrade"),
-                vec![],
-                vec![Argument::Input(0), upgrade_arg, digest_arg],
-            );
-            let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
-
-            builder.programmable_move_call(
-                ObjectID::FRAMEWORK,
-                Identifier::PACKAGE_MODULE,
-                Identifier::from_static("commit_upgrade"),
-                vec![],
-                vec![Argument::Input(0), upgrade_receipt],
-            );
-
-            builder.finish()
-        };
-        Ok(Self::new_programmable(
-            sender,
-            vec![gas_payment],
-            pt,
-            gas_budget,
-            gas_price,
-        ))
-    }
-
-    pub fn new_programmable(
-        sender: IotaAddress,
-        gas_payment: Vec<ObjectRef>,
-        pt: ProgrammableTransaction,
-        gas_budget: u64,
-        gas_price: u64,
-    ) -> Self {
-        Self::new_programmable_allow_sponsor(sender, gas_payment, pt, gas_budget, gas_price, sender)
-    }
-
-    pub fn new_programmable_allow_sponsor(
-        sender: IotaAddress,
-        gas_payment: Vec<ObjectRef>,
-        pt: ProgrammableTransaction,
-        gas_budget: u64,
-        gas_price: u64,
-        sponsor: IotaAddress,
-    ) -> Self {
-        let kind = TransactionKind::Programmable(pt);
-        Self::new_with_gas_coins_allow_sponsor(
-            kind,
-            sender,
-            gas_payment,
-            gas_budget,
-            gas_price,
-            sponsor,
-        )
-    }
-
-    pub fn message_version(&self) -> u64 {
-        match self {
-            TransactionData::V1(_) => 1,
-        }
-    }
-
-    pub fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData) {
-        (self.kind().clone(), self.sender(), self.gas_data().clone())
-    }
-
-    /// Checks if the transaction data contains the `Random` object as an
-    /// input.
-    ///
-    /// IMPORTANT: This function does not check shared objects associated with
-    /// `MoveAuthenticator` signatures. To check those objects as well, use the
-    /// corresponding function from `SenderSignedData`.
-    pub fn uses_randomness(&self) -> bool {
-        self.shared_input_objects()
-            .iter()
-            .any(|obj| obj.object_id == ObjectID::RANDOMNESS_STATE)
-    }
-
-    pub fn digest(&self) -> TransactionDigest {
-        TransactionDigest::new(default_hash(self))
-    }
-}
-
-#[enum_dispatch]
 pub trait TransactionDataAPI {
     fn sender(&self) -> IotaAddress;
 
-    // Note: this implies that SingleTransactionKind itself must be versioned, so
-    // that it can be shared across versions. This will be easy to do since it
-    // is already an enum.
     fn kind(&self) -> &TransactionKind;
 
-    // Used by programmable_transaction_builder
     fn kind_mut(&mut self) -> &mut TransactionKind;
 
-    // kind is moved out of often enough that this is worth it to special case.
     fn into_kind(self) -> TransactionKind;
 
     /// Transaction signer and Gas owner
@@ -1435,76 +1001,268 @@ pub trait TransactionDataAPI {
 
     fn gas_data_mut(&mut self) -> &mut GasData;
 
-    // This should be used in testing only.
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration;
+
+    fn new_system_transaction(kind: TransactionKind) -> TransactionData;
+
+    fn new(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_with_gas_coins(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_with_gas_coins_allow_sponsor(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        gas_budget: u64,
+        gas_price: u64,
+        gas_sponsor: IotaAddress,
+    ) -> TransactionData;
+
+    fn new_with_gas_data(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_data: GasData,
+    ) -> TransactionData;
+
+    fn new_move_call(
+        sender: IotaAddress,
+        package: ObjectID,
+        module: Identifier,
+        function: Identifier,
+        type_arguments: Vec<TypeTag>,
+        gas_payment: ObjectRef,
+        arguments: Vec<CallArg>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData>;
+
+    fn new_move_call_with_gas_coins(
+        sender: IotaAddress,
+        package: ObjectID,
+        module: Identifier,
+        function: Identifier,
+        type_arguments: Vec<TypeTag>,
+        gas_payment: Vec<ObjectRef>,
+        arguments: Vec<CallArg>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData>;
+
+    fn new_transfer(
+        recipient: IotaAddress,
+        object_ref: ObjectRef,
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_transfer_iota(
+        recipient: IotaAddress,
+        sender: IotaAddress,
+        amount: Option<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_transfer_iota_allow_sponsor(
+        recipient: IotaAddress,
+        sender: IotaAddress,
+        amount: Option<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+        gas_sponsor: IotaAddress,
+    ) -> TransactionData;
+
+    fn new_pay(
+        sender: IotaAddress,
+        coins: Vec<ObjectRef>,
+        recipients: Vec<IotaAddress>,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData>;
+
+    fn new_pay_iota(
+        sender: IotaAddress,
+        coins: Vec<ObjectRef>,
+        recipients: Vec<IotaAddress>,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData>;
+
+    fn new_pay_all_iota(
+        sender: IotaAddress,
+        coins: Vec<ObjectRef>,
+        recipient: IotaAddress,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_split_coin(
+        sender: IotaAddress,
+        coin: ObjectRef,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_module(
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        modules: Vec<Vec<u8>>,
+        dep_ids: Vec<ObjectID>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_upgrade(
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        package_id: ObjectID,
+        modules: Vec<Vec<u8>>,
+        dep_ids: Vec<ObjectID>,
+        upgrade_capability_and_owner: (ObjectRef, Owner),
+        upgrade_policy: u8,
+        digest: Vec<u8>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData>;
+
+    fn new_programmable(
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        pt: ProgrammableTransaction,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData;
+
+    fn new_programmable_allow_sponsor(
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        pt: ProgrammableTransaction,
+        gas_budget: u64,
+        gas_price: u64,
+        sponsor: IotaAddress,
+    ) -> TransactionData;
+
+    fn message_version(&self) -> u64;
+
+    fn execution_parts(&self) -> (TransactionKind, IotaAddress, Vec<ObjectRef>);
+
+    /// Checks if the transaction data contains the `Random` object as an
+    /// input.
+    ///
+    /// IMPORTANT: This function does not check shared objects associated with
+    /// `MoveAuthenticator` signatures. To check those objects as well, use the
+    /// corresponding function from `SenderSignedData`.
+    fn uses_randomness(&self) -> bool;
+
+    fn digest(&self) -> TransactionDigest;
 }
 
-impl TransactionDataAPI for TransactionDataV1 {
+impl TransactionDataAPI for TransactionData {
     fn sender(&self) -> IotaAddress {
-        self.sender
+        match self {
+            Self::V1(v1) => v1.sender,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn kind(&self) -> &TransactionKind {
-        &self.kind
+        match self {
+            Self::V1(v1) => &v1.kind,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn kind_mut(&mut self) -> &mut TransactionKind {
-        &mut self.kind
+        match self {
+            Self::V1(v1) => &mut v1.kind,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn into_kind(self) -> TransactionKind {
-        self.kind
+        match self {
+            Self::V1(v1) => v1.kind,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
-    /// Transaction signer and Gas owner
     fn signers(&self) -> NonEmpty<IotaAddress> {
-        let mut signers = nonempty![self.sender];
-        if self.gas_owner() != self.sender {
+        let mut signers = nonempty![self.sender()];
+        if self.gas_owner() != self.sender() {
             signers.push(self.gas_owner());
         }
         signers
     }
 
     fn gas_data(&self) -> &GasData {
-        &self.gas_data
+        match self {
+            Self::V1(v1) => &v1.gas_payment,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn gas_owner(&self) -> IotaAddress {
-        self.gas_data.owner
+        self.gas_data().owner
     }
 
     fn gas(&self) -> &[ObjectRef] {
-        &self.gas_data.objects
+        &self.gas_data().objects
     }
 
     fn gas_price(&self) -> u64 {
-        self.gas_data.price
+        self.gas_data().price
     }
 
     fn gas_budget(&self) -> u64 {
-        self.gas_data.budget
+        self.gas_data().budget
     }
 
     fn expiration(&self) -> &TransactionExpiration {
-        &self.expiration
+        match self {
+            Self::V1(v1) => &v1.expiration,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn contains_shared_object(&self) -> bool {
-        self.kind.shared_input_objects().next().is_some()
+        self.kind().shared_input_objects().next().is_some()
     }
 
     fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
-        self.kind.shared_input_objects().collect()
+        self.kind().shared_input_objects().collect()
     }
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
-        self.kind.move_calls()
+        self.kind().move_calls()
     }
 
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>> {
-        let mut inputs = self.kind.input_objects()?;
+        let mut inputs = self.kind().input_objects()?;
 
-        if !self.kind.is_system() {
+        if !self.kind().is_system() {
             inputs.extend(
                 self.gas()
                     .iter()
@@ -1515,7 +1273,7 @@ impl TransactionDataAPI for TransactionDataV1 {
     }
 
     fn receiving_objects(&self) -> Vec<ObjectRef> {
-        self.kind.receiving_objects()
+        self.kind().receiving_objects()
     }
 
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
@@ -1530,57 +1288,474 @@ impl TransactionDataAPI for TransactionDataV1 {
         self.validity_check_no_gas_check(config)
     }
 
-    // Keep all the logic for validity here, we need this for dry run where the gas
-    // may not be provided and created "on the fly"
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
         self.check_sponsorship()
     }
 
-    /// Check if the transaction is sponsored (namely gas owner != sender)
     fn is_sponsored_tx(&self) -> bool {
-        self.gas_owner() != self.sender
+        self.gas_owner() != self.sender()
     }
 
-    /// Check if the transaction is compliant with sponsorship.
     fn check_sponsorship(&self) -> UserInputResult {
-        // Not a sponsored transaction, nothing to check
         if self.gas_owner() == self.sender() {
             return Ok(());
         }
-        if matches!(&self.kind, TransactionKind::Programmable(_)) {
+        if matches!(self.kind(), TransactionKind::Programmable(_)) {
             return Ok(());
         }
         Err(UserInputError::UnsupportedSponsoredTransactionKind)
     }
 
     fn is_end_of_epoch_tx(&self) -> bool {
-        matches!(self.kind, TransactionKind::EndOfEpoch(_))
+        matches!(self.kind(), TransactionKind::EndOfEpoch(_))
     }
 
     fn is_system_tx(&self) -> bool {
-        self.kind.is_system()
+        self.kind().is_system()
     }
 
     fn is_genesis_tx(&self) -> bool {
-        matches!(self.kind, TransactionKind::Genesis(_))
+        matches!(self.kind(), TransactionKind::Genesis(_))
     }
 
     fn sender_mut_for_testing(&mut self) -> &mut IotaAddress {
-        &mut self.sender
+        match self {
+            Self::V1(v1) => &mut v1.sender,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn gas_data_mut(&mut self) -> &mut GasData {
-        &mut self.gas_data
+        match self {
+            Self::V1(v1) => &mut v1.gas_payment,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
     }
 
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration {
-        &mut self.expiration
+        match self {
+            Self::V1(v1) => &mut v1.expiration,
+            _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
+        }
+    }
+
+    fn new_system_transaction(kind: TransactionKind) -> TransactionData {
+        assert!(kind.is_system());
+        let sender = IotaAddress::ZERO;
+        TransactionData::V1(TransactionDataV1 {
+            kind,
+            sender,
+            gas_payment: GasData {
+                price: GAS_PRICE_FOR_SYSTEM_TX,
+                owner: sender,
+                objects: vec![ObjectRef::new(
+                    ObjectID::ZERO,
+                    SequenceNumber::default(),
+                    ObjectDigest::MIN,
+                )],
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        })
+    }
+
+    fn new(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        TransactionData::V1(TransactionDataV1 {
+            kind,
+            sender,
+            gas_payment: GasData {
+                price: gas_price,
+                owner: sender,
+                objects: vec![gas_payment],
+                budget: gas_budget,
+            },
+            expiration: TransactionExpiration::None,
+        })
+    }
+
+    fn new_with_gas_coins(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        TransactionData::new_with_gas_coins_allow_sponsor(
+            kind,
+            sender,
+            gas_payment,
+            gas_budget,
+            gas_price,
+            sender,
+        )
+    }
+
+    fn new_with_gas_coins_allow_sponsor(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        gas_budget: u64,
+        gas_price: u64,
+        gas_sponsor: IotaAddress,
+    ) -> TransactionData {
+        TransactionData::V1(TransactionDataV1 {
+            kind,
+            sender,
+            gas_payment: GasData {
+                price: gas_price,
+                owner: gas_sponsor,
+                objects: gas_payment,
+                budget: gas_budget,
+            },
+            expiration: TransactionExpiration::None,
+        })
+    }
+
+    fn new_with_gas_data(
+        kind: TransactionKind,
+        sender: IotaAddress,
+        gas_data: GasData,
+    ) -> TransactionData {
+        TransactionData::V1(TransactionDataV1 {
+            kind,
+            sender,
+            gas_payment: gas_data,
+            expiration: TransactionExpiration::None,
+        })
+    }
+
+    fn new_move_call(
+        sender: IotaAddress,
+        package: ObjectID,
+        module: Identifier,
+        function: Identifier,
+        type_arguments: Vec<TypeTag>,
+        gas_payment: ObjectRef,
+        arguments: Vec<CallArg>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData> {
+        TransactionData::new_move_call_with_gas_coins(
+            sender,
+            package,
+            module,
+            function,
+            type_arguments,
+            vec![gas_payment],
+            arguments,
+            gas_budget,
+            gas_price,
+        )
+    }
+
+    fn new_move_call_with_gas_coins(
+        sender: IotaAddress,
+        package: ObjectID,
+        module: Identifier,
+        function: Identifier,
+        type_arguments: Vec<TypeTag>,
+        gas_payment: Vec<ObjectRef>,
+        arguments: Vec<CallArg>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.move_call(package, module, function, type_arguments, arguments)?;
+            builder.finish()
+        };
+        Ok(TransactionData::new_programmable(
+            sender,
+            gas_payment,
+            pt,
+            gas_budget,
+            gas_price,
+        ))
+    }
+
+    fn new_transfer(
+        recipient: IotaAddress,
+        object_ref: ObjectRef,
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.transfer_object(recipient, object_ref).unwrap();
+            builder.finish()
+        };
+        TransactionData::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
+    }
+
+    fn new_transfer_iota(
+        recipient: IotaAddress,
+        sender: IotaAddress,
+        amount: Option<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        TransactionData::new_transfer_iota_allow_sponsor(
+            recipient,
+            sender,
+            amount,
+            gas_payment,
+            gas_budget,
+            gas_price,
+            sender,
+        )
+    }
+
+    fn new_transfer_iota_allow_sponsor(
+        recipient: IotaAddress,
+        sender: IotaAddress,
+        amount: Option<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+        gas_sponsor: IotaAddress,
+    ) -> TransactionData {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.transfer_iota(recipient, amount);
+            builder.finish()
+        };
+        TransactionData::new_programmable_allow_sponsor(
+            sender,
+            vec![gas_payment],
+            pt,
+            gas_budget,
+            gas_price,
+            gas_sponsor,
+        )
+    }
+
+    fn new_pay(
+        sender: IotaAddress,
+        coins: Vec<ObjectRef>,
+        recipients: Vec<IotaAddress>,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.pay(coins, recipients, amounts)?;
+            builder.finish()
+        };
+        Ok(TransactionData::new_programmable(
+            sender,
+            vec![gas_payment],
+            pt,
+            gas_budget,
+            gas_price,
+        ))
+    }
+
+    fn new_pay_iota(
+        sender: IotaAddress,
+        mut coins: Vec<ObjectRef>,
+        recipients: Vec<IotaAddress>,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData> {
+        coins.insert(0, gas_payment);
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.pay_iota(recipients, amounts)?;
+            builder.finish()
+        };
+        Ok(TransactionData::new_programmable(
+            sender, coins, pt, gas_budget, gas_price,
+        ))
+    }
+
+    fn new_pay_all_iota(
+        sender: IotaAddress,
+        mut coins: Vec<ObjectRef>,
+        recipient: IotaAddress,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        coins.insert(0, gas_payment);
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.pay_all_iota(recipient);
+            builder.finish()
+        };
+        TransactionData::new_programmable(sender, coins, pt, gas_budget, gas_price)
+    }
+
+    fn new_split_coin(
+        sender: IotaAddress,
+        coin: ObjectRef,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.split_coin(sender, coin, amounts);
+            builder.finish()
+        };
+        TransactionData::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
+    }
+
+    fn new_module(
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        modules: Vec<Vec<u8>>,
+        dep_ids: Vec<ObjectID>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let upgrade_cap = builder.publish_upgradeable(modules, dep_ids);
+            builder.transfer_arg(sender, upgrade_cap);
+            builder.finish()
+        };
+        TransactionData::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
+    }
+
+    fn new_upgrade(
+        sender: IotaAddress,
+        gas_payment: ObjectRef,
+        package_id: ObjectID,
+        modules: Vec<Vec<u8>>,
+        dep_ids: Vec<ObjectID>,
+        (upgrade_capability, capability_owner): (ObjectRef, Owner),
+        upgrade_policy: u8,
+        digest: Vec<u8>,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> anyhow::Result<TransactionData> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            let capability_arg = match capability_owner {
+                Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability),
+                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef {
+                    object_id: upgrade_capability.object_id,
+                    initial_shared_version,
+                    mutable: true,
+                }),
+                Owner::Immutable => {
+                    bail!("Upgrade capability is stored immutably and cannot be used for upgrades");
+                }
+                Owner::Object(_) => {
+                    bail!("Upgrade capability controlled by object");
+                }
+                _ => unimplemented!("a new enum variant was added and needs to be handled"),
+            };
+            builder.obj(capability_arg).unwrap();
+            let upgrade_arg = builder.pure(upgrade_policy).unwrap();
+            let digest_arg = builder.pure(digest).unwrap();
+            let upgrade_ticket = builder.programmable_move_call(
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("authorize_upgrade"),
+                vec![],
+                vec![Argument::Input(0), upgrade_arg, digest_arg],
+            );
+            let upgrade_receipt = builder.upgrade(package_id, upgrade_ticket, dep_ids, modules);
+
+            builder.programmable_move_call(
+                ObjectID::FRAMEWORK,
+                Identifier::PACKAGE_MODULE,
+                Identifier::from_static("commit_upgrade"),
+                vec![],
+                vec![Argument::Input(0), upgrade_receipt],
+            );
+
+            builder.finish()
+        };
+        Ok(TransactionData::new_programmable(
+            sender,
+            vec![gas_payment],
+            pt,
+            gas_budget,
+            gas_price,
+        ))
+    }
+
+    fn new_programmable(
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        pt: ProgrammableTransaction,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> TransactionData {
+        TransactionData::new_programmable_allow_sponsor(
+            sender,
+            gas_payment,
+            pt,
+            gas_budget,
+            gas_price,
+            sender,
+        )
+    }
+
+    fn new_programmable_allow_sponsor(
+        sender: IotaAddress,
+        gas_payment: Vec<ObjectRef>,
+        pt: ProgrammableTransaction,
+        gas_budget: u64,
+        gas_price: u64,
+        sponsor: IotaAddress,
+    ) -> TransactionData {
+        let kind = TransactionKind::Programmable(pt);
+        TransactionData::new_with_gas_coins_allow_sponsor(
+            kind,
+            sender,
+            gas_payment,
+            gas_budget,
+            gas_price,
+            sponsor,
+        )
+    }
+
+    fn message_version(&self) -> u64 {
+        match self {
+            TransactionData::V1(_) => 1,
+            _ => unimplemented!(
+                "a new TransactionData enum variant was added and needs to be handled"
+            ),
+        }
+    }
+
+    fn execution_parts(&self) -> (TransactionKind, IotaAddress, Vec<ObjectRef>) {
+        (
+            self.kind().clone(),
+            self.sender(),
+            self.gas_data().objects.clone(),
+        )
+    }
+
+    fn uses_randomness(&self) -> bool {
+        self.shared_input_objects()
+            .iter()
+            .any(|obj| obj.object_id == ObjectID::RANDOMNESS_STATE)
+    }
+
+    fn digest(&self) -> TransactionDigest {
+        TransactionDigest::new(default_hash(self))
     }
 }
-
-impl TransactionDataV1 {}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct SenderSignedData(SizeOneVec<SenderSignedTransaction>);

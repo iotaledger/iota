@@ -2248,7 +2248,7 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_data: GasData {
+            gas_payment: GasData {
                 objects: payment,
                 owner,
                 price,

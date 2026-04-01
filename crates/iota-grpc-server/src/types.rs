@@ -1091,10 +1091,9 @@ impl GrpcReader {
                 .try_get_transaction(digest)?
                 .ok_or(crate::error::TransactionNotFoundError(*digest))?;
 
-            let transaction_data = fields
+            let transaction_data: Option<iota_sdk_types::Transaction> = fields
                 .include_transaction
-                .then(|| transaction.transaction_data().clone().try_into())
-                .transpose()?;
+                .then(|| transaction.transaction_data().clone());
 
             let signatures_data = fields
                 .include_signatures

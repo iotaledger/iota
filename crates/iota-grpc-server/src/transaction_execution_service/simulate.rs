@@ -264,13 +264,11 @@ async fn simulate_single_transaction(
             transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
         }
 
-        let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
-
         // Create a source for the merge
         let source = TransactionReadSource {
             reader: reader.clone(),
             config,
-            transaction: Some(transaction),
+            transaction: Some(transaction_data),
             signatures: None,
             effects: Some(effects),
             events,

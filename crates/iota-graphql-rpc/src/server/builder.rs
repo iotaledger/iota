@@ -791,7 +791,7 @@ pub mod tests {
         Request, Response, Variables,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_types::transaction::TransactionData;
+    use iota_types::transaction::{TransactionData, TransactionDataAPI};
     use serde_json::json;
     use uuid::Uuid;
 

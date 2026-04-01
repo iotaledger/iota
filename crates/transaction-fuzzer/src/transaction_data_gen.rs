@@ -129,7 +129,7 @@ impl<
             .prop_map(|(kind, sender, gas_data, expiration)| TransactionDataV1 {
                 kind,
                 sender,
-                gas_data,
+                gas_payment: gas_data,
                 expiration,
             })
             .prop_map(TransactionData::V1)
