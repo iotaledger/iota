@@ -14,7 +14,6 @@ export * from './useTransactionSummary';
 export * from './useOnScreen';
 export * from './useGetOwnedObjects';
 export * from './useCopyToClipboard';
-export * from './useAppsBackend';
 export * from './useGetAllCoins';
 export * from './useGetCoins';
 export * from './useBalance';
