@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
@@ -29,7 +29,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::ExecutionError,
     iota_serde::BigInt,
-    object::Object,
+    object::{Object, PastObjectRead},
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     transaction::{
@@ -546,6 +546,27 @@ impl TxObjectResolver {
         }
     }
 
+    async fn get_past_object_read_with_retry(
+        &self,
+        id: ObjectID,
+        version: SequenceNumber,
+    ) -> IndexerResult<PastObjectRead> {
+        let backoff = backoff::ExponentialBackoff {
+            initial_interval: Duration::from_millis(100),
+            max_elapsed_time: Some(Duration::from_secs(3)),
+            multiplier: 2.0,
+            ..Default::default()
+        };
+
+        backoff::future::retry(backoff, || async {
+            self.reader
+                .get_past_object_read_with_fallback(id, version, false)
+                .await
+                .map_err(backoff::Error::transient)
+        })
+        .await
+    }
+
     pub(crate) async fn get_changes(
         &self,
         tx: &TransactionData,
@@ -593,10 +614,7 @@ impl ObjectProvider for TxObjectResolver {
             return Ok(o.clone());
         }
 
-        let past_read = self
-            .reader
-            .get_past_object_read(*id, *version, false)
-            .await?;
+        let past_read = self.get_past_object_read_with_retry(*id, *version).await?;
 
         past_read.into_object().map_err(|e| {
             IndexerError::Generic(format!(
@@ -622,8 +640,7 @@ impl ObjectProvider for TxObjectResolver {
             }
         }
 
-        self.reader
-            .get_past_object_read_with_fallback(*id, *version, false)
+        self.get_past_object_read_with_retry(*id, *version)
             .await
             .map(|past_read| past_read.into_object().ok())
     }
