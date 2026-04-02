@@ -189,7 +189,7 @@ impl InMemory {
 
             async move {
                 loop {
-                    let mut pool = match indexer_reader.get_pool().get() {
+                    let mut connection = match indexer_reader.get_pool().get() {
                         Ok(value) => value,
                         Err(e) => {
                             error!(
@@ -206,7 +206,7 @@ impl InMemory {
                     };
 
                     if let Err(e) =
-                        diesel::sql_query(format!("LISTEN {CHANNEL_NAME}")).execute(&mut pool)
+                        diesel::sql_query(format!("LISTEN {CHANNEL_NAME}")).execute(&mut connection)
                     {
                         error!("failed listening to postgres notify channel: {e}");
                         Self::publish_error(e.into(), &event_tx, &transaction_tx);
@@ -216,7 +216,7 @@ impl InMemory {
                     if let Err(e) = Self::process_checkpoint_notifications(
                         &metrics,
                         &config,
-                        &mut pool,
+                        &mut connection,
                         &indexer_reader,
                         &event_tx,
                         &transaction_tx,
@@ -322,7 +322,7 @@ impl InMemory {
     async fn process_checkpoint_notifications(
         metrics: &InMemoryStreamMetrics,
         config: &Config,
-        pool: &mut PoolConnection,
+        connection: &mut PoolConnection,
         indexer_reader: &IndexerReader,
         event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
         transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
@@ -338,7 +338,7 @@ impl InMemory {
             // notifications. The iterator is non-blocking, it drains whatever
             // is currently buffered and returns None when empty. We re-poll
             // after a short sleep since new notifications can arrive at any time.
-            let messages = pool
+            let messages = connection
                 .notifications_iter()
                 .take(config.notification_chunk_size.get())
                 .collect::<Vec<QueryResult<PgNotification>>>();
