@@ -175,7 +175,7 @@ impl ReadApi {
                 Ok(executed_tx.transaction()?.digest()? == digest.into())
             }
             Err(e) => {
-                if matches!(e, iota_grpc_client::Error::Server(ref e) if  tonic::Code::from_i32(e.code) == tonic::Code::NotFound)
+                if matches!(e, iota_grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
                 {
                     return Ok(false);
                 }
@@ -336,8 +336,11 @@ impl ReadApiServer for ReadApi {
             .get_past_object_read_with_fallback(object_id, version, true)
             .await?;
 
-        self.past_object_read_to_response(None, past_object_read)
-            .await
+        self.past_object_read_to_response(
+            Some(IotaObjectDataOptions::bcs_lossless()),
+            past_object_read,
+        )
+        .await
     }
 
     async fn try_multi_get_past_objects(

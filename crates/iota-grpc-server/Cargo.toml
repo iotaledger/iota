@@ -34,6 +34,7 @@ tracing.workspace = true
 iota-config.workspace = true
 iota-grpc-types.workspace = true
 iota-metrics.workspace = true
+iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
@@ -42,3 +43,4 @@ move-core-types.workspace = true
 [dev-dependencies]
 iota-grpc-client.workspace = true
 iota-test-transaction-builder.workspace = true
+typed-store-error.workspace = true

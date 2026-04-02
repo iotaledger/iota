@@ -153,6 +153,21 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     );
 }
 
+interface DigestCardProps {
+    digest: string;
+}
+
+function DigestCard({ digest }: DigestCardProps): JSX.Element {
+    return (
+        <DisplayStats
+            label="Object Digest"
+            value={formatDigest(digest)}
+            copyText={digest}
+            onCopySuccess={onCopySuccess}
+        />
+    );
+}
+
 function getOwnerDisplay(objOwner: ObjectOwner): 'Shared' | 'Immutable' | string {
     if (objOwner === 'Immutable') {
         return 'Immutable';
@@ -227,6 +242,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
     const storageRebate = data.data?.storageRebate;
     const objectId = data.data?.objectId;
     const lastTransactionBlockDigest = data.data?.previousTransaction;
+    const objectDigest = data.data?.digest;
 
     const heroImageTitle = name || display?.description || trimStdLibPrefix(objectType);
     const heroImageSubtitle = `1 ${capitalize(nftFileType)} File`;
@@ -291,6 +307,11 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
                 {storageRebate && (
                     <div style={{ gridArea: 'storageRebate' }}>
                         <StorageRebateCard storageRebate={storageRebate} />
+                    </div>
+                )}
+                {objectDigest && (
+                    <div style={{ gridArea: 'digest' }}>
+                        <DigestCard digest={objectDigest} />
                     </div>
                 )}
             </div>

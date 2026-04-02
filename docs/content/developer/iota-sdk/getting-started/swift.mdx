@@ -1,0 +1,85 @@
+---
+description: Get started with the IOTA SDK Swift bindings to interact with the IOTA network.
+tags: [ mainnet, testnet, devnet, setup, install, getting-started ]
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with Swift
+
+<IotaSdk />
+
+The IOTA SDK Swift bindings allow iOS and macOS developers to build native applications that interact with the IOTA network. These bindings use UniFFI to bridge the Rust core SDK into a native Swift interface.
+
+## Prerequisites
+
+Before using the Swift bindings, ensure you have:
+* **Xcode**: Version 14.0 or higher.
+* **Swift**: Version 5.7 or higher.
+* **macOS**: 12.0 or higher (for development).
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
+### Swift Package Manager (SPM)
+
+You can add the IOTA SDK to your project via Swift Package Manager. In Xcode:
+
+1. Select **File** > **Add Packages...**
+2. Enter the repository URL: `https://github.com/iotaledger/iota-rust-sdk`
+3. In the dependency rule, select the `develop` branch or a specific version.
+4. Select the `IotaSDK` library.
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+The Swift bindings include prebuilt binaries for most macOS and iOS platforms. In most cases, using Swift Package Manager (SPM) with the repository URL will automatically fetch a compatible binary.
+
+If a prebuilt binary is not available for your platform or Swift version, you can build the SDK from source. A Rust toolchain and UniFFI tool are required to generate the Swift bindings.
+
+A typical workflow is:
+
+```bash
+# Clone the SDK repository
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+
+# Navigate to the Swift bindings folder
+cd iota-rust-sdk/bindings/swift
+
+# Build the Swift package and generate bindings
+swift build
+```
+
+Once built, you can add the locally generated Swift package to your Xcode project, ensuring the native Rust library is included and accessible in your build settings.
+
+For more details on development setup, platform-specific notes, and linking, refer to the [Swift bindings README](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/swift) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to initialize a client and retrieve the **Chain ID** using Swift.
+
+### 1. Implementation
+You can use the following code snippet in your `main.swift` or within an `async` task in your app:
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/ChainId.swift#L1-L14
+```
+
+:::important App Sandbox & Permissions
+If you are building for macOS or iOS, ensure your app has Outgoing Connections (Client) enabled in the "App Sandbox" or "Hardened Runtime" settings to allow the SDK to communicate with IOTA nodes.
+:::
+
+## What's Next?
+
+Now that you have connected to the network, you can explore:
+
+* Wallet & Accounts: Manage secure storage and account state.
+* Stronghold Support: Use IOTA's Stronghold for secure secret management on mobile devices.
+* Advanced PTBs: Build complex Programmable Transaction Blocks directly in Swift.
+
+View more comprehensive examples in the official [Swift examples](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/swift/examples) directory.

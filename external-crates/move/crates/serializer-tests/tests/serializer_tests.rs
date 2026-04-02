@@ -19,19 +19,26 @@ proptest! {
     }
 }
 
-proptest! {
-    // Generating arbitrary compiled modules is really slow, possibly because of
-    // https://github.com/AltSysrq/proptest/issues/143.
-    #![proptest_config(ProptestConfig::with_cases(16))]
+/// Make sure that garbage inputs don't crash the serializer and deserializer.
+///
+/// Runs on a thread with an 8 MiB stack because deeply-nested `SignatureToken`
+/// generation in proptest can overflow the default 2 MiB test-thread stack in
+/// debug builds.
+#[test]
+fn garbage_inputs() {
+    const STACK_SIZE: usize = 8 * 1024 * 1024;
+    let child = std::thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(|| {
+            proptest!(ProptestConfig::with_cases(16), |(module in any_with::<CompiledModule>(16))| {
+                let mut serialized = Vec::with_capacity(65536);
+                module.serialize(&mut serialized).expect("serialization should work");
 
-    /// Make sure that garbage inputs don't crash the serializer and deserializer.
-    #[test]
-    fn garbage_inputs(module in any_with::<CompiledModule>(16)) {
-        let mut serialized = Vec::with_capacity(65536);
-        module.serialize(&mut serialized).expect("serialization should work");
-
-        let deserialized_module = CompiledModule::deserialize_no_check_bounds(&serialized)
-            .expect("deserialization should work");
-        prop_assert_eq!(module, deserialized_module);
-    }
+                let deserialized_module = CompiledModule::deserialize_no_check_bounds(&serialized)
+                    .expect("deserialization should work");
+                prop_assert_eq!(module, deserialized_module);
+            });
+        })
+        .expect("failed to spawn thread");
+    child.join().expect("garbage_inputs thread panicked");
 }

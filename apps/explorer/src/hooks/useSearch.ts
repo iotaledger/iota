@@ -19,7 +19,7 @@ import {
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
 import { useNetwork } from './useNetwork';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
+import { useFeatureIsOn } from '@iota/apps-backend-client';
 import {
     tryGenerateDidFromObjectId,
     tryDIDParse,
