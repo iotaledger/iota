@@ -3,7 +3,7 @@
 
 import { Feature } from '../enums';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { useFeatureValue } from '@growthbook/growthbook-react';
+import { useFeatureValue } from '@iota/apps-backend-client';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 const ADDRESSES_ALIAS_FALLBACK: KnownAddressAliasesFeature = {

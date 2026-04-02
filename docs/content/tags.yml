@@ -44,6 +44,18 @@ wasm:
   label: WASM
   description: WebAssembly programming language.
 
+go:
+  label: Go
+  description: Go programming language.
+
+kotlin:
+  label: Kotlin
+  description: Kotlin programming language.
+
+swift:
+  label: Swift
+  description: Swift programming language.
+
 # VMs
 evm:
   label: EVM

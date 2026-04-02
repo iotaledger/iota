@@ -1,0 +1,165 @@
+---
+title: Create Random Mnemonic
+description: 'How to create a random Mnemonic'
+tags:
+  - how-to
+  - rust
+  - go
+  - kotlin
+  - python
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Create a Seed Mnemonic
+
+<IotaSdk />
+
+## About Mnemonics
+
+Mnemonics are a popular method for generating cryptographic seeds in a more user-friendly way. A mnemonic phrase, seed
+phrase, or recovery phrase is a sequence of words that users can easily write down and verify. These words are carefully
+selected from a predefined wordlist to ensure compatibility across different wallets and systems.
+
+The IOTA SDK uses the [BIP39](https://en.bitcoin.it/wiki/BIP_0039), [BIP44](https://en.bitcoin.it/wiki/BIP_0044) and [SLIP10](https://github.com/satoshilabs/slips/blob/master/slip-0010.md) standards to generate addresses and sign transactions.
+This means that the SDK can deterministically derive the seed from a mnemonic or seed phrase, making it easier for your
+users to write down or remember.
+
+## Example Code
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="rust" label="Rust">
+
+You can use the the [`generate_mnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/generate_mnemonic.rs#L7
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass a [MnemonicLength]{/*TODO: Add reference link*/} to generate a mnemonic with a different number of words.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/generate_mnemonic.rs#L9
+```
+
+</div>
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+You can use the [`iota_sdk.GenerateMnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/generate_mnemonic/main.go#L13
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass for example [iota_sdk.MnemonicLengthWords12]{/*TODO: Add reference link*/} to generate a mnemonic with 12 words.
+
+<div className={'hide-code-block-extras'}>
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/generate_mnemonic/main.go#L15-L16
+```
+
+</div>
+
+</TabItem>
+<TabItem value="kotlin" label="Kotlin">
+
+You can use the [`generateMnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/GenerateMnemonic.kt#L9
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass a [MnemonicLength] to generate a mnemonic with a different number of words.
+
+<div className={'hide-code-block-extras'}>
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/GenerateMnemonic.kt#L11
+```
+
+</div>
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+You can use the [`generate_mnemonic()`]{/*TODO: Add reference link*/} function to generate a random mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/generate_mnemonic.py#L8
+```
+
+</div>
+
+by default, the generated mnemonic will consist of 24 words, but you can pass a [MnemonicLength]{/*TODO: Add reference link*/} to generate a mnemonic with a different number of words.
+
+<div className={'hide-code-block-extras'}>
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/generate_mnemonic.py#L10
+```
+
+</div>
+
+</TabItem>
+</Tabs>
+
+### Full Example Code
+
+<Tabs groupId="language" queryString>
+
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/generate_mnemonic.rs
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/generate_mnemonic/main.go
+```
+
+</TabItem>
+<TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/GenerateMnemonic.kt
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/generate_mnemonic.py
+```
+
+</TabItem>
+</Tabs>
+
+### Expected Output
+
+```plaintext
+24 word mnemonic: defy forest author famous found replace salad apple trial alien agent crush little east slim seminar icon wall tumble online knee test beyond gloom
+12 word mnemonic: charge cheese abandon build zebra small hope anxiety curtain regret noise culture
+```

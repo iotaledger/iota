@@ -1,13 +1,14 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::sync::Arc;
+
+use std::{sync::Arc, time::Duration};
 
 use diesel::{ExpressionMethods, RunQueryDsl};
 use downcast::Any;
 use iota_types::{effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData};
 
 use crate::{
-    Duration, IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,
+    IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,
     errors::IndexerError, ingestion::primary::prepare::PrimaryWorker,
     models::transactions::StoredTransaction, schema::transactions,
     transactional_blocking_with_retry,

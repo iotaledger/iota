@@ -4,15 +4,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import { useAppsBackend } from './useAppsBackend';
-
-type ProductAnalyticsConfigResponse = { mustProvideCookieConsent: boolean };
+import { useAppsBackendClient } from '@iota/apps-backend-client';
 
 export function useProductAnalyticsConfig() {
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
     return useQuery({
         queryKey: ['apps-backend', 'product-analytics-config'],
-        queryFn: () => request<ProductAnalyticsConfigResponse>('product-analytics'),
+        queryFn: () => client.getProductAnalyticsConfig(),
         staleTime: 24 * 60 * 60 * 1000,
         gcTime: Infinity,
     });

@@ -550,6 +550,11 @@ h4 {
 }
 }
 
+/** Added to hide the See full example on GitHub link in imported code examples **/
+.hide-code-block-extras a {
+  display: none;
+}
+
 [data-theme="light"] {
   
   .clean-btn:hover {
