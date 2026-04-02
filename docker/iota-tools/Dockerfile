@@ -12,7 +12,7 @@ WORKDIR "/iota"
 
 # Install build dependencies, including clang and lld for faster linking
 # libudev for Ledger hardware wallets
-RUN apt update && apt install -y cmake clang lld libudev-dev protobuf-compiler
+RUN apt update && apt install -y cmake clang lld libudev-dev protobuf-compiler jq
 
 # Configure Rust to use clang and lld as the linker
 RUN mkdir -p ~/.cargo && \
@@ -21,42 +21,29 @@ RUN mkdir -p ~/.cargo && \
 # Install additional dependencies (git is needed when fetching move dependencies during builds)
 RUN apt install -y libpq5 libpq-dev ca-certificates git
 
-# Copy in all crates, Cargo.toml, and Cargo.lock
+# Copy in all crates, Cargo.toml, Cargo.lock, and binary build list
 COPY consensus consensus
 COPY crates crates
 COPY docs docs
 COPY examples examples
 COPY external-crates external-crates
 COPY iota-execution iota-execution
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock binary-build-list.json ./
 
-# Build binaries with their required features (matching binary-build-list.json)
-RUN cargo build --profile ${PROFILE} \
-      --bin iota-node \
-      --bin stress \
-      --bin iota-analytics-indexer \
-      --bin iota-faucet \
-      --bin iota-cluster-test \
-      --bin iota-genesis-builder && \
-    cargo build --profile ${PROFILE} \
-      --bin iota \
-      --features iota-names,gen-completions && \
-    cargo build --profile ${PROFILE} \
-      --bin iota-localnet \
-      --features indexer && \
-    cargo build --profile ${PROFILE} \
-      --bin iota-tool \
-      --features tracing
+# Build binaries with their required features from binary-build-list.json
+RUN jq -r '.docker_images["iota-tools"] | to_entries[] | [.key, (.value | join(","))] | @tsv' binary-build-list.json | while IFS=$'\t' read -r binary features; do \
+      echo ">>> Building $binary with features: $features"; \
+      if [ -z "$features" ]; then \
+        cargo build --profile ${PROFILE} --bin "$binary"; \
+      else \
+        cargo build --profile ${PROFILE} --bin "$binary" --features "$features"; \
+      fi \
+    done
 
-RUN cp $TARGET_FOLDER/iota-node ./iota-node && \
-    cp $TARGET_FOLDER/stress ./stress && \
-    cp $TARGET_FOLDER/iota-analytics-indexer ./iota-analytics-indexer && \
-    cp $TARGET_FOLDER/iota ./iota && \
-    cp $TARGET_FOLDER/iota-localnet ./iota-localnet && \
-    cp $TARGET_FOLDER/iota-faucet ./iota-faucet && \
-    cp $TARGET_FOLDER/iota-cluster-test ./iota-cluster-test && \
-    cp $TARGET_FOLDER/iota-tool ./iota-tool && \
-    cp $TARGET_FOLDER/iota-genesis-builder ./iota-genesis-builder
+RUN mkdir -p /usr/local/bin/iota-tools && \
+    jq -r '.docker_images["iota-tools"] | keys[]' binary-build-list.json | while read -r binary; do \
+      cp $TARGET_FOLDER/$binary /usr/local/bin/iota-tools/$binary; \
+    done
 
 # Production image
 FROM debian:trixie-slim AS runtime
@@ -67,15 +54,7 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl git
 
-COPY --from=builder /iota/iota-node /usr/local/bin
-COPY --from=builder /iota/stress /usr/local/bin
-COPY --from=builder /iota/iota-analytics-indexer /usr/local/bin
-COPY --from=builder /iota/iota /usr/local/bin
-COPY --from=builder /iota/iota-localnet /usr/local/bin
-COPY --from=builder /iota/iota-faucet /usr/local/bin
-COPY --from=builder /iota/iota-cluster-test /usr/local/bin
-COPY --from=builder /iota/iota-tool /usr/local/bin
-COPY --from=builder /iota/iota-genesis-builder /usr/local/bin
+COPY --from=builder /usr/local/bin/iota-tools/ /usr/local/bin/
 
 ARG BUILD_DATE
 ARG GIT_REVISION
