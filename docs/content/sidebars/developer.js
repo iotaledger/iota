@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const tsSDK = require('./ts-sdk');
+const iotaSDK = require('./iota-sdk');
 const notarization = require("./notarization");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
@@ -645,6 +646,11 @@ const developer = [
         type: 'category',
         label: 'TS SDK',
         items: tsSDK,
+    },
+    {
+        type: 'category',
+        label: 'IOTA SDK',
+        items: iotaSDK,
     },
     'developer/references/rust-sdk',
     {

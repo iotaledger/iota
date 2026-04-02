@@ -1,0 +1,107 @@
+---
+title: Getting Started with Rust
+description: Get started with the IOTA Rust SDK to interact with the IOTA network natively.
+tags: [ rust, mainnet, testnet, devnet, setup, install, getting-started ]
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with Rust
+
+<IotaSdk />
+
+The IOTA Rust SDK is the core library for interacting with the IOTA network. It provides a native Rust interface for building high-performance applications, and serves as the foundation for all other language bindings.
+
+## Prerequisites
+
+Before using the Rust SDK, ensure you have:
+* **Rust**: Version 1.75 or higher (installed via [rustup](https://rustup.rs)).
+* **Cargo**: Included with the Rust toolchain.
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Crates.io (Recommended)'>
+
+<Tabs groupId='cargo-method' queryString>
+<TabItem value='cargo-add' label='Cargo add'>
+
+```bash
+cargo add iota-sdk@=3.0.0-alpha.1
+```
+
+</TabItem>
+<TabItem value='cargo-toml' label='Cargo.toml'>
+
+Add the IOTA SDK to your `Cargo.toml`:
+
+```toml
+[dependencies]
+iota-sdk = "=3.0.0-alpha.1"
+```
+
+</TabItem>
+</Tabs>
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+If you need the latest unreleased features or want to contribute to the SDK, you can depend directly on the Git repository:
+
+```toml
+[dependencies]
+iota-rust-sdk = { git = "https://github.com/iotaledger/iota-rust-sdk.git", branch = "develop" }
+tokio = { version = "1", features = ["full"] }
+```
+
+Alternatively, clone the repository and build it locally:
+
+```bash
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+cd iota-rust-sdk
+cargo build
+```
+
+For more details on the project structure and development setup, refer to the [Rust SDK README](https://github.com/iotaledger/iota-rust-sdk/tree/develop) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+
+### 1. Create a new project
+
+```bash
+cargo new iota-quickstart
+cd iota-quickstart
+```
+
+### 2. Install the SDK
+
+Install the SDK as mentioned above and also add `tokio` as a dependency for asynchronous support.
+
+### 3. Write `src/main.rs`
+
+Replace the contents of `src/main.rs` with the following:
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/chain_id.rs#L1-L14
+```
+
+### 4. Run the code
+
+```bash
+cargo run
+```
+
+## What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* **Accounts & Wallets**: Manage keypairs and derive IOTA addresses.
+* **Transactions**: Build and sign Programmable Transaction Blocks (PTBs).
+* **Events**: Subscribe to real-time on-chain events.
+
+View more comprehensive examples in the official [Rust examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/examples).
