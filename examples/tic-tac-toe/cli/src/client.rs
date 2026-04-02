@@ -27,7 +27,7 @@ use iota_types::{
     signature::GenericSignature,
     transaction::{
         CallArg, InputObjectKind, ProgrammableTransaction, SharedObjectRef, Transaction,
-        TransactionData, TransactionKind, TransactionKindExt,
+        TransactionData, TransactionDataAPI, TransactionKind, TransactionKindExt,
     },
 };
 
