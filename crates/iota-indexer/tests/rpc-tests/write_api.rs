@@ -15,7 +15,8 @@ use iota_indexer::{
 };
 use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
-    CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
@@ -1426,5 +1427,65 @@ fn clever_errors() {
             panic!("transaction should have failed");
         };
         assert_eq!(error, &expected_error);
+    });
+}
+
+#[test]
+fn dry_run_request_add_stake() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, _key_pair): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA * 10),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA * 2),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, coin_ref.0, coin_ref.1).await;
+
+        let validator = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .active_validators()[0]
+            .iota_address;
+
+        let tx_bytes: TransactionBlockBytes = client
+            .request_add_stake(
+                sender,
+                vec![coin_ref.0],
+                Some((NANOS_PER_IOTA * 2).into()),
+                validator,
+                Some(gas_ref.0),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+
+        let dry_run_resp = client
+            .dry_run_transaction_block(tx_bytes.tx_bytes)
+            .await
+            .unwrap();
+
+        assert_eq!(dry_run_resp.effects.status(), &IotaExecutionStatus::Success);
+        assert!(!dry_run_resp.balance_changes.is_empty());
     });
 }
