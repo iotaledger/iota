@@ -13,7 +13,7 @@ import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@io
 import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature, Collapsible } from '@iota/core';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
@@ -261,29 +261,29 @@ export function AccountGroup({
                     ))
                 )}
             </Collapsible>
-            <div
-                className={`absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
-            >
-                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                    <Dropdown>
-                        {dropdownVisibility.showBalanceFinder && (
-                            <ListItem hideBottomBorder onClick={handleBalanceFinder}>
-                                Balance Finder
-                            </ListItem>
-                        )}
-                        {dropdownVisibility.showExportMnemonic && (
-                            <ListItem hideBottomBorder onClick={handleExportMnemonic}>
-                                Export Mnemonic
-                            </ListItem>
-                        )}
-                        {dropdownVisibility.showExportSeed && (
-                            <ListItem hideBottomBorder onClick={handleExportSeed}>
-                                Export Seed
-                            </ListItem>
-                        )}
-                    </Dropdown>
-                </OutsideClickHandler>
-            </div>
+            {isDropdownOpen && (
+                <div className="absolute right-3 top-3 z-[100] origin-top animate-dropdown-show rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6">
+                    <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                        <Dropdown>
+                            {dropdownVisibility.showBalanceFinder && (
+                                <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                    Balance Finder
+                                </ListItem>
+                            )}
+                            {dropdownVisibility.showExportMnemonic && (
+                                <ListItem hideBottomBorder onClick={handleExportMnemonic}>
+                                    Export Mnemonic
+                                </ListItem>
+                            )}
+                            {dropdownVisibility.showExportSeed && (
+                                <ListItem hideBottomBorder onClick={handleExportSeed}>
+                                    Export Seed
+                                </ListItem>
+                            )}
+                        </Dropdown>
+                    </OutsideClickHandler>
+                </div>
+            )}
         </div>
     );
 }

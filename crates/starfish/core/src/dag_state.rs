@@ -1792,7 +1792,7 @@ impl DagState {
     pub(crate) fn add_commit(&mut self, commit: TrustedCommit) {
         let time_diff = if let Some(last_commit) = &self.last_commit {
             if commit.index() <= last_commit.index() {
-                error!(
+                debug!(
                     "New commit index {} <= last commit index {}!",
                     commit.index(),
                     last_commit.index()

@@ -399,21 +399,20 @@ impl GasPriceFeedbackTester {
         for (index, data) in data.into_iter().enumerate() {
             let gas_data = GasDataForTests::new(self.gas_object_ids[index], data.0, data.1);
 
-            let transaction = if data.2.is_some() && data.3.is_some() {
-                self.build_access_both_counters_transaction(
-                    gas_data,
-                    data.2.unwrap(),
-                    data.3.unwrap(),
-                )
-                .await
-            } else if data.2.is_some() && data.3.is_none() {
-                self.build_access_one_counter_transaction(gas_data, data.2.unwrap(), true)
-                    .await
-            } else if data.2.is_none() && data.3.is_some() {
-                self.build_access_one_counter_transaction(gas_data, data.3.unwrap(), false)
-                    .await
-            } else {
-                panic!("At least one counter must be accessed in transactions.");
+            let transaction = match (data.2, data.3) {
+                (Some(counter_1), Some(counter_2)) => {
+                    self.build_access_both_counters_transaction(gas_data, counter_1, counter_2)
+                        .await
+                }
+                (Some(counter_1), None) => {
+                    self.build_access_one_counter_transaction(gas_data, counter_1, true)
+                        .await
+                }
+                (None, Some(counter_2)) => {
+                    self.build_access_one_counter_transaction(gas_data, counter_2, false)
+                        .await
+                }
+                _ => panic!("At least one counter must be accessed in transactions."),
             };
 
             certificates.push(self.certify_transaction(transaction).await);

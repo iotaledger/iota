@@ -56,6 +56,7 @@
 /crates/iota-network/ @iotaledger/node
 /crates/iota-network-stack/ @iotaledger/node
 /crates/iota-node/ @iotaledger/node
+/crates/iota-node-storage/ @iotaledger/node
 /crates/iota-open-rpc/ @iotaledger/infrastructure
 /crates/iota-open-rpc-macros/ @iotaledger/dev-tools
 /crates/iota-package-alt/ @iotaledger/vm-language
@@ -68,7 +69,6 @@
 /crates/iota-protocol-config-macros/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-proxy/ @iotaledger/node
 /crates/iota-replay/ @iotaledger/node
-/crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
 /crates/iota-rest-kv/ @iotaledger/infrastructure
 /crates/iota-rpc-loadgen/ @iotaledger/infrastructure
 /crates/iota-sdk/ @iotaledger/dev-tools

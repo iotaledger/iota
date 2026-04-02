@@ -208,15 +208,14 @@ impl ScoringSubdag {
             .with_label_values(&["ScoringSubdag::add_unscored_committed_subdags"])
             .start_timer();
         for subdag in committed_subdags {
-            // If the commit range is not set, then set it to the range of the first
-            // committed subdag index.
-            if self.commit_range.is_none() {
+            if let Some(commit_range) = self.commit_range.as_mut() {
+                commit_range.extend_to(subdag.commit_ref.index);
+            } else {
+                // If the commit range is not set, then set it to the range of the first
+                // committed subdag index.
                 self.commit_range = Some(CommitRange::new(
                     subdag.commit_ref.index..=subdag.commit_ref.index,
                 ));
-            } else {
-                let commit_range = self.commit_range.as_mut().unwrap();
-                commit_range.extend_to(subdag.commit_ref.index);
             }
             // Add the committed leader to the list of leaders we will be scoring.
             tracing::trace!("Adding new committed leader {} for scoring", subdag.leader);

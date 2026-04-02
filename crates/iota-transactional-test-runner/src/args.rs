@@ -84,10 +84,10 @@ pub struct IotaInitArgs {
     /// offchain indexer and reader.
     #[clap(long)]
     pub data_ingestion_path: Option<PathBuf>,
-    /// URL for the IOTA REST API. To be passed to the offchain indexer and
+    /// URL for the IOTA gRPC API. To be passed to the offchain indexer and
     /// reader.
     #[clap(long)]
-    pub rest_api_url: Option<String>,
+    pub grpc_api_url: Option<String>,
 }
 
 #[derive(Debug, clap::Parser)]

@@ -36,14 +36,14 @@ export function NFTDetailsPage() {
 
     function handleMoreAboutKiosk() {
         const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
-        ampli.externalLinkOpened({ type: 'ts-sdk documentation' });
+        ampli.openedLink({ type: 'ts-sdk documentation' });
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
         const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
-        ampli.externalLinkOpened({ type: 'ts-sdk documentation' });
+        ampli.openedLink({ type: 'ts-sdk documentation' });
         window.open(url, '_blank', 'noopener noreferrer');
     }
 

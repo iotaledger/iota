@@ -168,11 +168,11 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
-    rest_index::RestIndexStore,
     stake_aggregator::StakeAggregator,
     state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
@@ -797,7 +797,7 @@ pub struct AuthorityState {
     execution_lock: RwLock<EpochId>,
 
     pub indexes: Option<Arc<IndexStore>>,
-    pub rest_index: Option<Arc<RestIndexStore>>,
+    pub grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
@@ -2012,12 +2012,16 @@ impl AuthorityState {
                 suggested_gas_price: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
-                input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
-                    .map_err(|e| IotaError::TransactionSerialization {
-                        error: format!(
-                            "Failed to convert transaction to IotaTransactionBlockData: {e}",
-                        ),
-                    })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
+                input: IotaTransactionBlockData::try_from_with_module_cache(
+                    transaction,
+                    &module_cache,
+                    tx_digest,
+                )
+                .map_err(|e| IotaError::TransactionSerialization {
+                    error: format!(
+                        "Failed to convert transaction to IotaTransactionBlockData: {e}",
+                    ),
+                })?, // TODO: replace the underlying try_from to IotaError. This one goes deep
                 effects: effects.clone().try_into()?,
                 events: IotaTransactionBlockEvents::try_from(
                     inner_temp_store.events.clone(),
@@ -2989,7 +2993,7 @@ impl AuthorityState {
         epoch_store: Arc<AuthorityPerEpochStore>,
         committee_store: Arc<CommitteeStore>,
         indexes: Option<Arc<IndexStore>>,
-        rest_index: Option<Arc<RestIndexStore>>,
+        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         checkpoint_store: Arc<CheckpointStore>,
         prometheus_registry: &Registry,
         genesis_objects: &[Object],
@@ -3022,7 +3026,7 @@ impl AuthorityState {
         let _pruner = AuthorityStorePruner::new(
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
-            rest_index.clone(),
+            grpc_indexes_store.clone(),
             indexes.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
@@ -3043,7 +3047,7 @@ impl AuthorityState {
             input_loader,
             execution_cache_trait_pointers,
             indexes,
-            rest_index,
+            grpc_indexes_store,
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
@@ -3138,7 +3142,7 @@ impl AuthorityState {
         AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
-            self.rest_index.as_deref(),
+            self.grpc_indexes_store.as_deref(),
             None,
             config.authority_store_pruning_config,
             metrics,
@@ -3553,8 +3557,8 @@ impl AuthorityState {
             if let Some(indexes) = self.indexes.as_ref() {
                 indexes.checkpoint_db(&checkpoint_path_tmp.join("indexes"))?;
             }
-            if let Some(rest_index) = self.rest_index.as_ref() {
-                rest_index.checkpoint_db(&checkpoint_path_tmp.join("grpc_indexes"))?;
+            if let Some(grpc_indexes_store) = self.grpc_indexes_store.as_ref() {
+                grpc_indexes_store.checkpoint_db(&checkpoint_path_tmp.join(GRPC_INDEXES_DIR))?;
             }
         }
 
@@ -3618,6 +3622,43 @@ impl AuthorityState {
         Ok(self
             .checkpoint_store
             .get_checkpoint_by_sequence_number(sequence_number)?)
+    }
+
+    /// Wait for the given transactions to be included in a checkpoint.
+    ///
+    /// Returns a mapping from transaction digest to
+    /// `(checkpoint_sequence_number, checkpoint_timestamp_ms)`.
+    /// On timeout, returns partial results for any transactions that were
+    /// already checkpointed.
+    pub async fn wait_for_checkpoint_inclusion(
+        &self,
+        digests: &[TransactionDigest],
+        timeout: Duration,
+    ) -> IotaResult<BTreeMap<TransactionDigest, (CheckpointSequenceNumber, u64)>> {
+        let epoch_store = self.load_epoch_store_one_call_per_task();
+
+        // Local cache so multiple transactions in the same checkpoint only
+        // trigger a single checkpoint summary lookup.
+        let mut checkpoint_timestamp_cache = HashMap::<CheckpointSequenceNumber, u64>::new();
+
+        let results = epoch_store
+            .wait_for_transactions_in_checkpoint_with_timeout(digests, timeout, |seq| {
+                *checkpoint_timestamp_cache.entry(seq).or_insert_with(|| {
+                    self.get_checkpoint_by_sequence_number(seq)
+                        .ok()
+                        .flatten()
+                        .map(|c| c.timestamp_ms)
+                        .unwrap_or(0)
+                })
+            })
+            .await?;
+
+        Ok(digests
+            .iter()
+            .copied()
+            .zip(results)
+            .filter_map(|(digest, opt)| opt.map(|seq_and_ts| (digest, seq_and_ts)))
+            .collect())
     }
 
     #[instrument(level = "trace", skip_all)]

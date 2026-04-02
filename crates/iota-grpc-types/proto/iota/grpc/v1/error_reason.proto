@@ -1,0 +1,13 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.error_reason;
+
+enum ErrorReason {
+  ERROR_REASON_UNKNOWN = 0;
+  FIELD_INVALID = 1;
+  FIELD_MISSING = 2;
+}
