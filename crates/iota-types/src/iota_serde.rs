@@ -342,11 +342,13 @@ impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for IotaBitmap {
     }
 }
 
-// RoaringBitmap::deserialize_from() or iter() do not check for duplicates.
-// So this function is needed to sanitize the bitmap to ensure unique entries.
+// Deserializes a RoaringBitmap, ensuring entries are unique and sorted.
+// NOTE: roaring 0.11+ validates container key ordering in deserialize_from(),
+// so bitmaps with unsorted/duplicate container keys are already rejected at the
+// deserialization level. The explicit dedup below is kept as defense-in-depth.
 fn deserialize_iota_bitmap(bytes: &[u8]) -> std::io::Result<roaring::RoaringBitmap> {
     let orig_bitmap = roaring::RoaringBitmap::deserialize_from(bytes)?;
-    // Ensure there is no duplicated entries in the bitmap.
+    // Ensure there are no duplicated entries in the bitmap.
     let mut seen = std::collections::BTreeSet::new();
     let mut new_bitmap = roaring::RoaringBitmap::new();
     for v in orig_bitmap.iter() {
@@ -364,20 +366,31 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_iota_bitmap_unique_deserialize() {
+    fn test_iota_bitmap_rejects_unsorted_keys() {
+        // This base64 encodes a malformed roaring bitmap with unsorted/duplicate
+        // container keys. roaring 0.11+ rejects such bitmaps at deserialization.
         let raw = "OjAAAAoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWAAAAFoAAABcAAAAXgAAAGAAAABiAAAAZAAAAGYAAABoAAAAagAAAAEAAQABAAEAAQABAAEAAQABAAEA";
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(raw)
             .unwrap();
 
-        let bitmap = roaring::RoaringBitmap::deserialize_from(&bytes[..]).unwrap();
-        assert_eq!(bitmap.len(), 10);
-        let bitmap_values: Vec<u32> = bitmap.iter().collect();
-        assert_eq!(bitmap_values, vec![1; 10]);
+        assert!(deserialize_iota_bitmap(&bytes[..]).is_err());
+    }
 
-        let iota_bitmap = deserialize_iota_bitmap(&bytes[..]).unwrap();
-        assert_eq!(iota_bitmap.len(), 1);
-        let bitmap_values: Vec<u32> = iota_bitmap.iter().collect();
-        assert_eq!(bitmap_values, vec![1]);
+    #[test]
+    fn test_iota_bitmap_valid_roundtrip() {
+        // Build a valid bitmap, serialize it, then deserialize via our function.
+        let mut original = roaring::RoaringBitmap::new();
+        original.insert(1);
+        original.insert(42);
+        original.insert(100);
+
+        let mut bytes = vec![];
+        original.serialize_into(&mut bytes).unwrap();
+
+        let result = deserialize_iota_bitmap(&bytes[..]).unwrap();
+        assert_eq!(result.len(), 3);
+        let values: Vec<u32> = result.iter().collect();
+        assert_eq!(values, vec![1, 42, 100]);
     }
 }
