@@ -32,7 +32,17 @@ COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock binary-build-list.json ./
 
 # Build binaries with their required features looked up from binary-build-list.json
-RUN BINARIES="iota-node stress iota-analytics-indexer iota iota-localnet iota-faucet iota-cluster-test iota-tool iota-genesis-builder"; \
+RUN BINARIES="\
+      iota-node \
+      stress \
+      iota-analytics-indexer \
+      iota \
+      iota-localnet \
+      iota-faucet \
+      iota-cluster-test \
+      iota-tool \
+      iota-genesis-builder \
+    "; \
     for binary in $BINARIES; do \
       features=$(jq -r --arg bin "$binary" '.release_binaries[$bin] // [] | join(",")' binary-build-list.json); \
       echo ">>> Building $binary with features: $features"; \
