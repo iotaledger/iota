@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
-import { Card, CardImage, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
+import {
+    ButtonType,
+    Card,
+    CardImage,
+    CardBody,
+    CardAction,
+    CardActionType,
+} from '@iota/apps-ui-kit';
 import { useFormatCoin, ImageIcon, ImageIconSize, useStakeRewardStatus } from '@iota/core';
 import { IotaValidatorSummary } from '@iota/iota-sdk/client';
 
@@ -11,6 +18,7 @@ export interface StakedTimelockObjectProps {
     handleUnstake: (timelockedStakedObject: TimelockedStakedObjectsGrouped) => void;
     getValidatorByAddress: (validatorAddress: string) => IotaValidatorSummary | undefined;
     currentEpoch: number;
+    showUnstakeButton?: boolean;
 }
 
 export function StakedTimelockObject({
@@ -18,6 +26,7 @@ export function StakedTimelockObject({
     timelockedStakedObject,
     handleUnstake,
     currentEpoch,
+    showUnstakeButton = false,
 }: StakedTimelockObjectProps) {
     const validatorMeta = getValidatorByAddress(timelockedStakedObject.validatorAddress);
 
@@ -68,11 +77,20 @@ export function StakedTimelockObject({
                 subtitle={`${sumPrincipalFormatted} ${sumPrincipalSymbol}`}
                 isTextTruncated
             />
-            <CardAction
-                type={CardActionType.SupportingText}
-                title={supportingText.title}
-                subtitle={supportingText.subtitle}
-            />
+            {showUnstakeButton ? (
+                <CardAction
+                    type={CardActionType.Button}
+                    title="Unstake"
+                    buttonType={ButtonType.Primary}
+                    onClick={() => handleUnstake(timelockedStakedObject)}
+                />
+            ) : (
+                <CardAction
+                    type={CardActionType.SupportingText}
+                    title={supportingText.title}
+                    subtitle={supportingText.subtitle}
+                />
+            )}
         </Card>
     );
 }
