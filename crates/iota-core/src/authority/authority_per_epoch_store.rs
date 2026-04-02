@@ -1014,6 +1014,10 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<Arc<Self>> {
         let current_time = Instant::now();
         let epoch_id = committee.epoch;
+        metrics.current_epoch.set(epoch_id as i64);
+        metrics
+            .current_voting_right
+            .set(committee.weight(&name) as i64);
 
         let tables = AuthorityEpochTables::open(epoch_id, parent_path, db_options.clone());
         let end_of_publish =
@@ -1040,12 +1044,9 @@ impl AuthorityPerEpochStore {
             epoch_start_configuration.epoch_start_state().epoch(),
             epoch_id
         );
+
         let epoch_start_configuration = Arc::new(epoch_start_configuration);
         info!("epoch flags: {:?}", epoch_start_configuration.flags());
-        metrics.current_epoch.set(epoch_id as i64);
-        metrics
-            .current_voting_right
-            .set(committee.weight(&name) as i64);
         let protocol_version = epoch_start_configuration
             .epoch_start_state()
             .protocol_version();
@@ -4732,7 +4733,6 @@ impl AuthorityPerEpochStore {
     }
 
     fn record_epoch_total_duration_metric(&self) {
-        self.metrics.current_epoch.set(self.epoch() as i64);
         self.metrics
             .epoch_total_duration
             .set(self.epoch_open_time.elapsed().as_millis() as i64);
