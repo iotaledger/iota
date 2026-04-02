@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Feature, useFeatureEnabledByNetwork, useIotaNamesClient } from '@iota/core';
@@ -7,6 +6,7 @@ import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaNamesClient, isValidIotaName } from '@iota/iota-names-sdk';
 import {
     getNetwork,
+    type TransactionBlockData,
     type IotaClient,
     type LatestIotaSystemStateSummary,
 } from '@iota/iota-sdk/client';
@@ -75,20 +75,135 @@ const getResultsForTransaction = async (
     ];
 };
 
+/**
+ * Extracts the previous version of an object from transaction data.
+ * Checks both transaction inputs and gas payment objects.
+ */
+const extractPreviousVersionFromTxData = (
+    txData: TransactionBlockData | undefined,
+    targetObjectId: string,
+): number | null => {
+    if (txData?.transaction?.kind !== 'ProgrammableTransaction') {
+        return null;
+    }
+
+    // Check transaction inputs for the object
+    for (const input of txData.transaction.inputs) {
+        const isMatchingObjectInput =
+            input.type === 'object' &&
+            (input.objectType === 'immOrOwnedObject' || input.objectType === 'receiving') &&
+            input.objectId === targetObjectId;
+
+        if (isMatchingObjectInput) {
+            return Number(input.version);
+        }
+    }
+
+    // Check gas payment objects
+    for (const paymentObject of txData.gasData.payment) {
+        if (paymentObject.objectId === targetObjectId) {
+            return Number(paymentObject.version);
+        }
+    }
+
+    return null;
+};
+
+/**
+ * Attempts to find the most recent transaction that used the object as input.
+ * Returns the previous version number if found.
+ */
+const findPreviousObjectVersion = async (
+    client: IotaClient,
+    objectId: string,
+): Promise<number | null> => {
+    try {
+        const txsWithObjectInput = await client.queryTransactionBlocks({
+            filter: { InputObject: objectId },
+            order: 'descending',
+            options: {
+                showInput: true,
+            },
+            limit: 1,
+        });
+
+        if (!txsWithObjectInput?.data.length) {
+            return null;
+        }
+
+        const previousTxData = txsWithObjectInput.data[0].transaction?.data;
+        return extractPreviousVersionFromTxData(previousTxData, objectId);
+    } catch (error) {
+        return null;
+    }
+};
+
+/**
+ * Attempts to retrieve a deleted object by finding its previous version
+ * and querying the past object state.
+ */
+const tryRecoverDeletedObject = async (
+    client: IotaClient,
+    objectId: string,
+): Promise<Results | null> => {
+    const previousVersion = await findPreviousObjectVersion(client, objectId);
+
+    if (previousVersion === null) {
+        return null;
+    }
+
+    try {
+        const pastObjectResponse = await client.tryGetPastObject({
+            id: objectId,
+            version: previousVersion,
+            options: {
+                showType: true,
+                showContent: true,
+                showOwner: true,
+            },
+        });
+
+        if (pastObjectResponse?.status === 'VersionFound' && pastObjectResponse.details) {
+            return [
+                {
+                    id: pastObjectResponse.details.objectId,
+                    label: pastObjectResponse.details.objectId,
+                    type: 'object',
+                },
+            ];
+        }
+
+        return null;
+    } catch (error) {
+        return null;
+    }
+};
+
 const getResultsForObject = async (client: IotaClient, query: string): Promise<Results | null> => {
     const normalized = normalizeIotaObjectId(query);
     if (!isValidIotaObjectId(normalized)) return null;
 
     const { data, error } = await client.getObject({ id: normalized });
-    if (!data || error) return null;
 
-    return [
-        {
-            id: data.objectId,
-            label: data.objectId,
-            type: 'object',
-        },
-    ];
+    // If object exists, return it
+    if (data && !error) {
+        return [
+            {
+                id: data.objectId,
+                label: data.objectId,
+                type: 'object',
+            },
+        ];
+    }
+
+    // Check if object might be deleted - try to recover past version
+    const shouldTryRecovery = error?.code === 'notExists' || error?.code === 'deleted';
+
+    if (shouldTryRecovery) {
+        return tryRecoverDeletedObject(client, normalized);
+    }
+
+    return null;
 };
 
 const getResultsForCheckpoint = async (
