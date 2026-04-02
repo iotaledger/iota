@@ -566,7 +566,7 @@ impl TxObjectResolver {
         .into_iter()
         .map(IndexedObjectChange::from)
         .collect();
-        let balance_change = get_balance_changes_from_effect(
+        let balance_changes = get_balance_changes_from_effect(
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
