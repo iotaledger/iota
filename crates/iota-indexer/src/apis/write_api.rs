@@ -575,7 +575,7 @@ impl TxObjectResolver {
             None,
         )
         .await?;
-        Ok((balance_change, object_change))
+        Ok((balance_changes, object_changes))
     }
 }
 
