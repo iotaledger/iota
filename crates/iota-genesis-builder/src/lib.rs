@@ -38,6 +38,7 @@ use iota_types::{
         ExecutionDigests, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
         TxContext,
     },
+    claim_registry::{CLAIM_REGISTRY_CREATE_FUNCTION_NAME, CLAIM_REGISTRY_MODULE_NAME},
     committee::Committee,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
@@ -1532,6 +1533,15 @@ pub fn generate_genesis_system_object(
             IOTA_FRAMEWORK_PACKAGE_ID,
             RANDOMNESS_MODULE_NAME.to_owned(),
             RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
+            vec![],
+            vec![],
+        )?;
+
+        // Create the claim registry
+        builder.move_call(
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            CLAIM_REGISTRY_MODULE_NAME.to_owned(),
+            CLAIM_REGISTRY_CREATE_FUNCTION_NAME.to_owned(),
             vec![],
             vec![],
         )?;

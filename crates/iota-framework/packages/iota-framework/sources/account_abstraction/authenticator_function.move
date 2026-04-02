@@ -69,6 +69,20 @@ public fun function_name<Account: key>(self: &AuthenticatorFunctionRefV1<Account
     &self.function_name
 }
 
+/// Create an `AuthenticatorFunctionRefV1` for an authenticate function defined in the
+/// iota-framework package itself (package address @0x2), bypassing metadata validation.
+/// For internal system use only — the package address is known at genesis time.
+public(package) fun create_for_framework<Account: key>(
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionRefV1<Account> {
+    AuthenticatorFunctionRefV1 {
+        package: object::id_from_address(@0x2),
+        module_name,
+        function_name,
+    }
+}
+
 /// Create an `AuthenticatorFunctionRefV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_function_ref_v1_for_testing<Account: key>(

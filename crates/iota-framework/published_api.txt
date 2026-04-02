@@ -1093,33 +1093,9 @@ activate_validators
 DerivedObjectKey
 	public struct
 	0x2::derived_object
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
 ecvrf_verify
 	public fun
 	0x2::ecvrf
-ed25519_verify
-	public fun
-	0x2::ed25519
-blake2b256
-	public fun
-	0x2::hash
-keccak256
-	public fun
-	0x2::hash
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1479,6 +1455,9 @@ module_name
 	0x2::authenticator_function
 function_name
 	public fun
+	0x2::authenticator_function
+create_for_framework
+	public(package) fun
 	0x2::authenticator_function
 ImmutableAccountCreated
 	public struct
@@ -2251,6 +2230,111 @@ put_back
 destroy
 	public fun
 	0x2::borrow
+Table
+	public struct
+	0x2::table
+new
+	public fun
+	0x2::table
+add
+	public fun
+	0x2::table
+borrow
+	public fun
+	0x2::table
+borrow_mut
+	public fun
+	0x2::table
+remove
+	public fun
+	0x2::table
+contains
+	public fun
+	0x2::table
+length
+	public fun
+	0x2::table
+is_empty
+	public fun
+	0x2::table
+destroy_empty
+	public fun
+	0x2::table
+drop
+	public fun
+	0x2::table
+blake2b256
+	public fun
+	0x2::hash
+keccak256
+	public fun
+	0x2::hash
+ed25519_verify
+	public fun
+	0x2::ed25519
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
+IotaDefaultAccount
+	public struct
+	0x2::claim_registry
+ClaimRegistry
+	public struct
+	0x2::claim_registry
+create
+	fun
+	0x2::claim_registry
+claim_ed25519
+	public entry fun
+	0x2::claim_registry
+claim_secp256k1
+	public entry fun
+	0x2::claim_registry
+claim_secp256r1
+	public entry fun
+	0x2::claim_registry
+rotate_key
+	public fun
+	0x2::claim_registry
+authenticate
+	public fun
+	0x2::claim_registry
+public_key
+	public fun
+	0x2::claim_registry
+scheme
+	public fun
+	0x2::claim_registry
+is_claimed
+	public fun
+	0x2::claim_registry
+claim_internal
+	fun
+	0x2::claim_registry
+make_auth_ref
+	fun
+	0x2::claim_registry
+derive_address
+	fun
+	0x2::claim_registry
+ensure_tx_sender_is_account
+	fun
+	0x2::claim_registry
+is_valid_scheme
+	fun
+	0x2::claim_registry
 Clock
 	public struct
 	0x2::clock
@@ -3484,39 +3568,6 @@ IotaSystemAdminCap
 new_system_admin_cap
 	fun
 	0x2::system_admin_cap
-Table
-	public struct
-	0x2::table
-new
-	public fun
-	0x2::table
-add
-	public fun
-	0x2::table
-borrow
-	public fun
-	0x2::table
-borrow_mut
-	public fun
-	0x2::table
-remove
-	public fun
-	0x2::table
-contains
-	public fun
-	0x2::table
-length
-	public fun
-	0x2::table
-is_empty
-	public fun
-	0x2::table
-destroy_empty
-	public fun
-	0x2::table
-drop
-	public fun
-	0x2::table
 TableVec
 	public struct
 	0x2::table_vec
