@@ -1,14 +1,14 @@
+// Copyright (c) The Diem Core Contributors
+// Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::{
     errors::PackageResult,
     flavor::Vanilla,
     package::{lockfile::Lockfile, manifest::Manifest},
 };
 use std::path::PathBuf;
-
-// Copyright (c) The Diem Core Contributors
-// Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
 //
 #[derive(Debug, Clone, clap::Parser)]
 pub struct Parse {
