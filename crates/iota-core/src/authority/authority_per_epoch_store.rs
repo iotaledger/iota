@@ -905,12 +905,6 @@ impl AuthorityEpochTables {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        // TODO: Add new tables that get added to the db automatically
-        self.executed_transactions_to_checkpoint.unsafe_clear()?;
-        Ok(())
-    }
-
     pub fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,

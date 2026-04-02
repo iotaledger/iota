@@ -217,17 +217,6 @@ impl Database {
         }
     }
 
-    pub fn create_cf<N: AsRef<str>>(
-        &self,
-        name: N,
-        opts: &rocksdb::Options,
-    ) -> Result<(), rocksdb::Error> {
-        match &self.storage {
-            Storage::Rocks(db) => db.underlying.create_cf(name, opts),
-            Storage::InMemory(_) => Ok(()),
-        }
-    }
-
     pub fn cf_handle(&self, name: &str) -> Option<()> {
         match &self.storage {
             Storage::Rocks(db) => db.underlying.cf_handle(name).map(|_| ()),
@@ -350,16 +339,6 @@ impl Database {
             rocksdb
                 .underlying
                 .compact_range_cf(&rocks_cf(rocksdb, cf.name()), start, end);
-        }
-    }
-
-    pub fn flush(&self) -> Result<(), TypedStoreError> {
-        match &self.storage {
-            Storage::Rocks(db) => db
-                .underlying
-                .flush()
-                .map_err(typed_store_err_from_rocks_err),
-            Storage::InMemory(_) => Ok(()),
         }
     }
 
@@ -1121,19 +1100,6 @@ where
                 .write_perf_ctx_metrics
                 .report_metrics(self.cf_name());
         }
-        Ok(())
-    }
-
-    /// This method first drops the existing column family and then creates a
-    /// new one with the same name. The two operations are not atomic and
-    /// hence it is possible to get into a race condition where the column
-    /// family has been dropped but new one is not created yet
-    #[instrument(level = "trace", skip_all, err)]
-    fn unsafe_clear(&self) -> Result<(), TypedStoreError> {
-        let _ = self.db.drop_cf(self.cf_name());
-        self.db
-            .create_cf(self.cf_name(), &crate::rocks::default_db_options().options)
-            .map_err(typed_store_err_from_rocks_err)?;
         Ok(())
     }
 
