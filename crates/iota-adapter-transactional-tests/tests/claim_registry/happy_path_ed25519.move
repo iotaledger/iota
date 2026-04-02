@@ -14,5 +14,3 @@
 //# view-object 1,0
 
 //# view-object 1,2
-
-//# view-object @A
