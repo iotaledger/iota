@@ -229,7 +229,7 @@ impl ValidatorService {
             Weight,
             Result<T, tonic::Status>,
         ) = match response {
-            Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
+            Ok((result, spam_weight)) => (None, spam_weight, Ok(result)),
             Err(status) => (
                 Some(IotaError::from(status.clone())),
                 Weight::zero(),
@@ -242,7 +242,7 @@ impl ValidatorService {
                 direct: client,
                 through_fullnode: None,
                 error_info: error.map(|e| {
-                    let error_type = String::from(e.clone().as_ref());
+                    let error_type = String::from(e.as_ref());
                     let error_weight = normalize(e);
                     (error_weight, error_type)
                 }),

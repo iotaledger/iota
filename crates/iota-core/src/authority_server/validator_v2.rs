@@ -3,8 +3,9 @@
 
 use std::sync::Arc;
 
+use futures::future::Either;
 use iota_network::{
-    api::{SubmitTxRequest, TxDigest, TxStatus, ValidatorV2},
+    api::{GetTxStatusRequest, SubmitTxRequest, TxStatus, ValidatorV2},
     tonic::{Request, Response, Status},
 };
 use iota_types::{
@@ -14,7 +15,10 @@ use iota_types::{
     fp_ensure,
     message_envelope::Message,
     messages_consensus::ConsensusTransaction,
-    messages_grpc::{ExecutedData, SubmitTransactionResult, SubmitTransactionsRequest},
+    messages_grpc::{
+        ExecutedData, GetTxStatusRequest as DomainGetTxStatusRequest, SubmitTransactionsRequest,
+        TxStatusUpdate,
+    },
     traffic_control::Weight,
     transaction::Transaction,
 };
@@ -22,6 +26,15 @@ use tokio_stream::wrappers::ReceiverStream;
 
 /// Maximum number of transactions allowed in a single `submit_tx` request.
 const MAX_TRANSACTIONS_PER_SUBMIT: usize = 256;
+
+/// Maximum number of queries allowed in a single `get_tx_status` request.
+const MAX_QUERIES_PER_GET_TX_STATUS: usize = 256;
+
+/// Timeout for waiting on transaction execution in `get_tx_status`.
+const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
+
+/// A single streamed item in a V2 RPC response.
+type TxUpdateItem = Result<(TransactionDigest, TxStatusUpdate), Status>;
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -33,13 +46,7 @@ impl ValidatorService {
     async fn submit_tx_impl(
         &self,
         request: SubmitTransactionsRequest,
-    ) -> Result<
-        (
-            ReceiverStream<Result<(TransactionDigest, SubmitTransactionResult), Status>>,
-            Weight,
-        ),
-        Status,
-    > {
+    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
@@ -107,31 +114,16 @@ impl ValidatorService {
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         transaction: Transaction,
-    ) -> Result<SubmitTransactionResult, Status> {
+    ) -> Result<TxStatusUpdate, Status> {
         let tx_digest = *transaction.digest();
 
-        let build_executed =
-            |effects: TransactionEffects| -> Result<SubmitTransactionResult, Status> {
-                let effects_digest = effects.digest();
-                let events = if effects.events_digest().is_some() {
-                    state
-                        .get_transaction_events(effects.transaction_digest())
-                        .ok()
-                } else {
-                    None
-                };
-                let input_objects = state.get_transaction_input_objects(&effects).ok();
-                let output_objects = state.get_transaction_output_objects(&effects).ok();
-                Ok(SubmitTransactionResult::Executed {
-                    effects_digest,
-                    details: Box::new(ExecutedData {
-                        effects,
-                        events,
-                        input_objects: input_objects.unwrap_or_default(),
-                        output_objects: output_objects.unwrap_or_default(),
-                    }),
-                })
-            };
+        let build_executed = |effects: TransactionEffects| -> Result<TxStatusUpdate, Status> {
+            let effects_digest = effects.digest();
+            Ok(TxStatusUpdate::Executed {
+                effects_digest,
+                details: Some(Self::build_executed_data(state, &effects)),
+            })
+        };
 
         // Check system overload.
         if let Err(e) = state.check_system_overload(
@@ -143,27 +135,24 @@ impl ValidatorService {
                 .num_rejected_tx_during_overload
                 .with_label_values(&[e.as_ref()])
                 .inc();
-            return Ok(SubmitTransactionResult::Rejected { error: e });
+            return Ok(TxStatusUpdate::Rejected { error: Some(e) });
         }
 
         // Validate transaction.
         if let Err(e) =
             transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
         {
-            return Ok(SubmitTransactionResult::Rejected { error: e });
+            return Ok(TxStatusUpdate::Rejected { error: Some(e) });
         }
 
-        // Check if already executed.
-        // TODO: The `?` here causes an early error return if the cache read fails.
-        // The intent is only to short-circuit when the tx is already executed. A
-        // transient cache error should probably not abort submission — consider using
-        // `.ok().flatten()` so errors are treated as "not found" and the normal flow
-        // continues (consensus handles dedup). The same applies to the second
-        // `try_get_executed_effects` call below. V1 has the same pattern, so verify
-        // the intended semantics for both code paths.
+        // Check if already executed. Transient cache errors are treated as
+        // "not found" — consensus handles dedup, so the normal submission
+        // flow continues safely.
         if let Some(effects) = state
             .get_transaction_cache_reader()
-            .try_get_executed_effects(&tx_digest)?
+            .try_get_executed_effects(&tx_digest)
+            .ok()
+            .flatten()
         {
             return build_executed(effects);
         }
@@ -174,11 +163,12 @@ impl ValidatorService {
             Ok(verified) => verified,
             Err(e) => {
                 metrics.signature_errors.inc();
-                return Ok(SubmitTransactionResult::Rejected { error: e });
+                return Ok(TxStatusUpdate::Rejected { error: Some(e) });
             }
         };
         drop(tx_verif_guard);
 
+        // TODO(#11110): return Rejected instead of Err(Status) for consistency.
         // Early bail-out during epoch boundary.
         if !epoch_store
             .get_reconfig_state_read_lock_guard()
@@ -188,6 +178,7 @@ impl ValidatorService {
             return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
         }
 
+        // TODO(#11110): return Rejected instead of Err(Status) for consistency.
         // Content validation: deny checks + owned object version validation.
         let owned_objects = state
             .handle_transaction_validation_checks(&verified_tx, epoch_store)
@@ -200,13 +191,16 @@ impl ValidatorService {
             // Edge case: check if executed while being validated.
             if let Some(effects) = state
                 .get_transaction_cache_reader()
-                .try_get_executed_effects(&tx_digest)?
+                .try_get_executed_effects(&tx_digest)
+                .ok()
+                .flatten()
             {
                 return build_executed(effects);
             }
             return Err(Status::from(e));
         }
 
+        // TODO(#11110): return Rejected instead of Err(Status) for consistency.
         // Reconfig check.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
@@ -223,7 +217,201 @@ impl ValidatorService {
             )
             .map_err(Status::from)?;
 
-        Ok(SubmitTransactionResult::Submitted)
+        Ok(TxStatusUpdate::Submitted)
+    }
+
+    /// Waits for one or more previously submitted transactions to reach
+    /// finality and streams a terminal status per digest (Executed, Rejected,
+    /// or Expired).
+    async fn get_tx_status_impl(
+        &self,
+        request: DomainGetTxStatusRequest,
+    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), Status> {
+        let state = self.state.clone();
+        let epoch_store = state.load_epoch_store_one_call_per_task();
+
+        fp_ensure!(
+            !state.is_fullnode(&epoch_store),
+            IotaError::FullNodeCantHandleSubmitTransactions.into()
+        );
+
+        fp_ensure!(
+            epoch_store.protocol_config().enable_white_flag_flow(),
+            IotaError::UnsupportedFeature {
+                error: "White flag flow is not enabled in this protocol version".to_string()
+            }
+            .into()
+        );
+
+        // Empty queries is a valid no-op/ping (consistent with V1's
+        // SubmitTransactionsRequest and WaitForEffectsRequest).
+        fp_ensure!(
+            request.queries.len() <= MAX_QUERIES_PER_GET_TX_STATUS,
+            Status::invalid_argument(format!(
+                "too many queries: {} exceeds limit of {MAX_QUERIES_PER_GET_TX_STATUS}",
+                request.queries.len()
+            ))
+        );
+
+        // TODO(#11111): epoch_store is captured once and used for the full 30s wait.
+        // If an epoch change occurs mid-wait, notify_read_dropped_digests
+        // watches the old epoch's cache and the timeout reports a stale epoch.
+        // This matches V1's handle_wait_for_effect_impl behavior. Client retry
+        // after timeout gets a fresh epoch store. Consider listening for epoch
+        // change to return Expired early if cross-epoch awareness is needed.
+        let (tx_sender, rx) = tokio::sync::mpsc::channel(request.queries.len().max(1));
+
+        for query in request.queries {
+            let state = state.clone();
+            let epoch_store = epoch_store.clone();
+            let tx_sender = tx_sender.clone();
+            tokio::spawn(async move {
+                let update = Self::wait_for_tx_finality(
+                    &state,
+                    &epoch_store,
+                    query.transaction_digest,
+                    query.include_details,
+                )
+                .await;
+                let _ = tx_sender.send(Ok((query.transaction_digest, update))).await;
+            });
+        }
+
+        Ok((ReceiverStream::new(rx), Weight::one()))
+    }
+
+    /// Waits for a single transaction to reach finality. Returns immediately
+    /// if already executed, otherwise blocks up to the timeout.
+    async fn wait_for_tx_finality(
+        state: &Arc<AuthorityState>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        tx_digest: TransactionDigest,
+        include_details: bool,
+    ) -> TxStatusUpdate {
+        // Fast path: already executed.
+        let cache = state.get_transaction_cache_reader();
+        match cache.try_get_executed_effects(&tx_digest) {
+            Ok(Some(effects)) => {
+                return Self::build_executed_update(state, effects, include_details);
+            }
+            Err(e) => {
+                tracing::warn!(?tx_digest, "failed to read effects cache: {e}");
+                // Fall through to the wait path.
+            }
+            Ok(None) => {}
+        }
+
+        // Wait for execution, rejection, or timeout.
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(GET_TX_STATUS_TIMEOUT_SECS),
+            async {
+                let digests_to_watch = [tx_digest];
+                tokio::select! {
+                    biased;
+                    effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
+                        Either::Left(effects_digests)
+                    }
+                    dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {
+                        Either::Right(dropped_error)
+                    }
+                }
+            },
+        )
+        .await;
+
+        match result {
+            Ok(Either::Left(effects_digests)) => {
+                let Some(effects_digest) = effects_digests.into_iter().next() else {
+                    tracing::warn!(
+                        ?tx_digest,
+                        "empty effects from notify_read, returning Expired"
+                    );
+                    return TxStatusUpdate::Expired {
+                        epoch: epoch_store.epoch(),
+                    };
+                };
+                let details = if include_details {
+                    match cache.try_get_executed_effects(&tx_digest) {
+                        Ok(Some(effects)) => Some(Self::build_executed_data(state, &effects)),
+                        Ok(None) => {
+                            tracing::warn!(
+                                ?tx_digest,
+                                "effects disappeared between notification and fetch, \
+                                 returning Executed without details"
+                            );
+                            None
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                ?tx_digest,
+                                "failed to read effects: {e}, returning Executed without details"
+                            );
+                            None
+                        }
+                    }
+                } else {
+                    None
+                };
+                TxStatusUpdate::Executed {
+                    effects_digest,
+                    details,
+                }
+            }
+            Ok(Either::Right(dropped_error)) => TxStatusUpdate::Rejected {
+                error: Some(dropped_error),
+            },
+            Err(_timeout) => TxStatusUpdate::Expired {
+                epoch: epoch_store.epoch(),
+            },
+        }
+    }
+
+    /// Builds a `TxStatusUpdate::Executed` from known effects, optionally
+    /// including full details.
+    fn build_executed_update(
+        state: &Arc<AuthorityState>,
+        effects: TransactionEffects,
+        include_details: bool,
+    ) -> TxStatusUpdate {
+        let effects_digest = effects.digest();
+        let details = if include_details {
+            Some(Self::build_executed_data(state, &effects))
+        } else {
+            None
+        };
+        TxStatusUpdate::Executed {
+            effects_digest,
+            details,
+        }
+    }
+
+    /// Fetches execution details (events, input/output objects) for a
+    /// transaction.
+    fn build_executed_data(
+        state: &Arc<AuthorityState>,
+        effects: &TransactionEffects,
+    ) -> Box<ExecutedData> {
+        let events = if effects.events_digest().is_some() {
+            state
+                .get_transaction_events(effects.transaction_digest())
+                .ok()
+        } else {
+            None
+        };
+        let input_objects = state
+            .get_transaction_input_objects(effects)
+            .ok()
+            .unwrap_or_default();
+        let output_objects = state
+            .get_transaction_output_objects(effects)
+            .ok()
+            .unwrap_or_default();
+        Box::new(ExecutedData {
+            effects: effects.clone(),
+            events,
+            input_objects,
+            output_objects,
+        })
     }
 }
 
@@ -239,12 +427,13 @@ impl ValidatorV2 for ValidatorService {
         self.post_handle_stream(ip, self.submit_tx_impl(req).await)
     }
 
-    type GetTxStatusStream = ReceiverStream<Result<TxStatus, Status>>;
+    type GetTxStatusStream = StreamResponse<TxStatus>;
 
     async fn get_tx_status(
         &self,
-        _request: Request<TxDigest>,
+        request: Request<GetTxStatusRequest>,
     ) -> Result<Response<Self::GetTxStatusStream>, Status> {
-        todo!()
+        let (req, ip) = self.pre_handle(request).await?;
+        self.post_handle_stream(ip, self.get_tx_status_impl(req).await)
     }
 }
