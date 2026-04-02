@@ -9,18 +9,5 @@
     "iota-graphql-rpc": [],
     "iota-indexer": [],
     "move-analyzer": []
-  },
-  "docker_images": {
-    "iota-tools": {
-      "iota-node": [],
-      "stress": [],
-      "iota-analytics-indexer": [],
-      "iota": ["iota-names", "gen-completions"],
-      "iota-localnet": ["indexer"],
-      "iota-faucet": [],
-      "iota-cluster-test": [],
-      "iota-tool": ["tracing"],
-      "iota-genesis-builder": []
-    }
   }
 }

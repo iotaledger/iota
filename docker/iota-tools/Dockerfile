@@ -30,17 +30,18 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock binary-build-list.json ./
 
-# Build binaries with their required features from binary-build-list.json
-RUN jq -r '.docker_images["iota-tools"] | to_entries[] | [.key, (.value | join(","))] | @tsv' binary-build-list.json | while IFS=$'\t' read -r binary features; do \
+# Build binaries with their required features looked up from binary-build-list.json
+RUN BINARIES="iota-node stress iota-analytics-indexer iota iota-localnet iota-faucet iota-cluster-test iota-tool iota-genesis-builder"; \
+    for binary in $BINARIES; do \
+      features=$(jq -r --arg bin "$binary" '.release_binaries[$bin] // [] | join(",")' binary-build-list.json); \
       echo ">>> Building $binary with features: $features"; \
       if [ -z "$features" ]; then \
         cargo build --profile ${PROFILE} --bin "$binary"; \
       else \
         cargo build --profile ${PROFILE} --bin "$binary" --features "$features"; \
-      fi \
-    done
-
-RUN jq -r '.docker_images["iota-tools"] | keys[]' binary-build-list.json | while read -r binary; do \
+      fi; \
+    done && \
+    for binary in $BINARIES; do \
       cp $TARGET_FOLDER/$binary ./$binary; \
     done
 
