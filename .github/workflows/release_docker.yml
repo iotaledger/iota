@@ -128,6 +128,12 @@ jobs:
           echo "GIT_REVISION=$(git describe --always --abbrev=12 --dirty --exclude '*')" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
 
+          # Enable the tracing feature for iota-tools so iota-tool can generate
+          # execution traces and gas profiles.
+          if [ "${{ matrix.image }}" == "iota-tools" ]; then
+            echo "CARGO_BUILD_FEATURES=tracing" >> $GITHUB_ENV
+          fi
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
@@ -157,6 +163,7 @@ jobs:
             GIT_REVISION=${{ env.GIT_REVISION }}
             BUILD_DATE=${{ env.BUILD_DATE }}
             RUST_IMAGE_VERSION=${{ env.TOOLCHAIN_VERSION }}-trixie
+            CARGO_BUILD_FEATURES=${{ env.CARGO_BUILD_FEATURES }}
 
       - name: Export digest
         run: |
