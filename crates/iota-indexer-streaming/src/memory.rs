@@ -52,7 +52,7 @@ const CHANNEL_NAME: &str = "checkpoint_committed";
 /// of failure.
 const RETRY_POSTGRES_CONNECTION_DELAY: Duration = Duration::from_secs(5);
 /// Interval between polling for new notifications from the Postgres NOTIFY
-/// channel when client processed then all.
+/// channel when client processed them all.
 const PG_NOTIFICATION_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Notification received from PostgreSQL NOTIFY channel when a checkpoint is
