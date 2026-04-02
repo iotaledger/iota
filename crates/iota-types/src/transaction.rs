@@ -936,28 +936,53 @@ impl TransactionKindExt for TransactionKind {
     }
 }
 
+/// API for accessing and constructing [`TransactionData`].
+///
+/// This trait provides node-internal methods for:
+/// - **Accessors**: reading transaction fields (sender, kind, gas, expiration,
+///   etc.)
+/// - **Queries**: inspecting transaction properties (shared objects, Move
+///   calls, sponsorship)
+/// - **Validation**: checking transaction validity against protocol config
+/// - **Constructors**: building new transactions (transfers, Move calls,
+///   programmable txs, etc.)
+///
+/// Note: The `iota-rust-sdk` crate (`iota-sdk-types`) defines its own
+/// [`Transaction`] type with additional client-facing methods.
 pub trait TransactionDataAPI {
+    /// Returns the address of the transaction sender.
     fn sender(&self) -> IotaAddress;
 
+    /// Returns a reference to the transaction kind.
     fn kind(&self) -> &TransactionKind;
 
+    /// Returns a mutable reference to the transaction kind.
     fn kind_mut(&mut self) -> &mut TransactionKind;
 
+    /// Consumes self and returns the transaction kind.
     fn into_kind(self) -> TransactionKind;
 
-    /// Transaction signer and Gas owner
+    /// Returns the transaction signer(s). Includes both the sender and the gas
+    /// owner if they differ (i.e. for sponsored transactions).
     fn signers(&self) -> NonEmpty<IotaAddress>;
 
+    /// Returns a reference to the gas data (owner, payment objects, price,
+    /// budget).
     fn gas_data(&self) -> &GasData;
 
+    /// Returns the address that owns the gas payment objects.
     fn gas_owner(&self) -> IotaAddress;
 
+    /// Returns the gas payment object references.
     fn gas(&self) -> &[ObjectRef];
 
+    /// Returns the gas price for this transaction.
     fn gas_price(&self) -> u64;
 
+    /// Returns the gas budget for this transaction.
     fn gas_budget(&self) -> u64;
 
+    /// Returns the transaction expiration.
     fn expiration(&self) -> &TransactionExpiration;
 
     /// Checks if the transaction data contains at least one shared object.
@@ -974,20 +999,31 @@ pub trait TransactionDataAPI {
     /// corresponding function from `SenderSignedData`.
     fn shared_input_objects(&self) -> Vec<SharedObjectRef>;
 
+    /// Returns a list of Move calls as `(package_id, module_name,
+    /// function_name)` tuples.
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
 
+    /// Returns all input objects required by this transaction.
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
 
+    /// Returns object references for all objects being received in this
+    /// transaction.
     fn receiving_objects(&self) -> Vec<ObjectRef>;
 
+    /// Validates the transaction data against the given protocol config,
+    /// including gas checks.
     fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult;
 
+    /// Validates the transaction data against the given protocol config,
+    /// skipping gas-related checks.
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult;
 
     /// Check if the transaction is compliant with sponsorship.
     fn check_sponsorship(&self) -> UserInputResult;
 
+    /// Returns `true` if this is a system transaction.
     fn is_system_tx(&self) -> bool;
+    /// Returns `true` if this is the genesis transaction.
     fn is_genesis_tx(&self) -> bool;
 
     /// returns true if the transaction is one that is specially sequenced to
@@ -997,14 +1033,21 @@ pub trait TransactionDataAPI {
     /// Check if the transaction is sponsored (namely gas owner != sender)
     fn is_sponsored_tx(&self) -> bool;
 
+    /// Returns a mutable reference to the sender address. **Testing only.**
     fn sender_mut_for_testing(&mut self) -> &mut IotaAddress;
 
+    /// Returns a mutable reference to the gas data.
     fn gas_data_mut(&mut self) -> &mut GasData;
 
+    /// Returns a mutable reference to the expiration. **Testing only.**
     fn expiration_mut_for_testing(&mut self) -> &mut TransactionExpiration;
 
+    /// Creates a new system transaction with no gas payment. Used for
+    /// validator-initiated transactions (epoch changes, checkpoints, etc.).
     fn new_system_transaction(kind: TransactionKind) -> TransactionData;
 
+    /// Creates a new transaction with a single gas payment coin. The sender
+    /// is also the gas owner.
     #[allow(clippy::new_ret_no_self)]
     fn new(
         kind: TransactionKind,
@@ -1014,6 +1057,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a new transaction with multiple gas payment coins. The sender
+    /// is also the gas owner.
     fn new_with_gas_coins(
         kind: TransactionKind,
         sender: IotaAddress,
@@ -1022,6 +1067,9 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a new transaction with multiple gas payment coins and a
+    /// separate gas sponsor. Use this for sponsored transactions where
+    /// the gas owner differs from the sender.
     fn new_with_gas_coins_allow_sponsor(
         kind: TransactionKind,
         sender: IotaAddress,
@@ -1031,12 +1079,15 @@ pub trait TransactionDataAPI {
         gas_sponsor: IotaAddress,
     ) -> TransactionData;
 
+    /// Creates a new transaction from a pre-built [`GasData`] struct.
     fn new_with_gas_data(
         kind: TransactionKind,
         sender: IotaAddress,
         gas_data: GasData,
     ) -> TransactionData;
 
+    /// Creates a transaction that calls a single Move function with a single
+    /// gas payment coin.
     fn new_move_call(
         sender: IotaAddress,
         package: ObjectID,
@@ -1049,6 +1100,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
 
+    /// Creates a transaction that calls a single Move function with multiple
+    /// gas payment coins.
     fn new_move_call_with_gas_coins(
         sender: IotaAddress,
         package: ObjectID,
@@ -1061,6 +1114,7 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
 
+    /// Creates a transaction that transfers an object to a recipient.
     fn new_transfer(
         recipient: IotaAddress,
         object_ref: ObjectRef,
@@ -1070,6 +1124,9 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a transaction that transfers IOTA coins to a recipient.
+    /// If `amount` is `None`, the entire gas coin balance (minus gas fees)
+    /// is transferred.
     fn new_transfer_iota(
         recipient: IotaAddress,
         sender: IotaAddress,
@@ -1079,6 +1136,9 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a sponsored transaction that transfers IOTA coins to a
+    /// recipient. If `amount` is `None`, the entire gas coin balance
+    /// (minus gas fees) is transferred.
     fn new_transfer_iota_allow_sponsor(
         recipient: IotaAddress,
         sender: IotaAddress,
@@ -1089,6 +1149,9 @@ pub trait TransactionDataAPI {
         gas_sponsor: IotaAddress,
     ) -> TransactionData;
 
+    /// Creates a transaction that pays multiple recipients from a set of
+    /// input coins. The coins are merged and then split to satisfy the
+    /// specified amounts.
     fn new_pay(
         sender: IotaAddress,
         coins: Vec<ObjectRef>,
@@ -1099,6 +1162,9 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
 
+    /// Creates a transaction that pays multiple recipients using IOTA coins.
+    /// Similar to [`Self::new_pay`] but the gas coin is also used as an
+    /// input coin.
     fn new_pay_iota(
         sender: IotaAddress,
         coins: Vec<ObjectRef>,
@@ -1109,6 +1175,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
 
+    /// Creates a transaction that sends all IOTA from the given coins to a
+    /// single recipient. The gas coin is included as an input coin.
     fn new_pay_all_iota(
         sender: IotaAddress,
         coins: Vec<ObjectRef>,
@@ -1118,6 +1186,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a transaction that splits a coin into multiple coins with the
+    /// specified amounts.
     fn new_split_coin(
         sender: IotaAddress,
         coin: ObjectRef,
@@ -1127,6 +1197,7 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a transaction that publishes new Move modules.
     fn new_module(
         sender: IotaAddress,
         gas_payment: ObjectRef,
@@ -1136,6 +1207,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a transaction that upgrades an existing Move package.
+    /// Requires the upgrade capability object and the upgrade policy.
     fn new_upgrade(
         sender: IotaAddress,
         gas_payment: ObjectRef,
@@ -1149,6 +1222,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> anyhow::Result<TransactionData>;
 
+    /// Creates a programmable transaction with multiple gas payment coins.
+    /// The sender is also the gas owner.
     fn new_programmable(
         sender: IotaAddress,
         gas_payment: Vec<ObjectRef>,
@@ -1157,6 +1232,8 @@ pub trait TransactionDataAPI {
         gas_price: u64,
     ) -> TransactionData;
 
+    /// Creates a programmable transaction with multiple gas payment coins
+    /// and a separate gas sponsor.
     fn new_programmable_allow_sponsor(
         sender: IotaAddress,
         gas_payment: Vec<ObjectRef>,
@@ -1166,8 +1243,11 @@ pub trait TransactionDataAPI {
         sponsor: IotaAddress,
     ) -> TransactionData;
 
+    /// Returns the internal message version number.
     fn message_version(&self) -> u64;
 
+    /// Consumes self and returns the transaction kind, sender address, and
+    /// gas payment object references as a tuple.
     fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData);
 
     /// Checks if the transaction data contains the `Random` object as an
@@ -1178,6 +1258,7 @@ pub trait TransactionDataAPI {
     /// corresponding function from `SenderSignedData`.
     fn uses_randomness(&self) -> bool;
 
+    /// Computes and returns the transaction digest.
     fn digest(&self) -> TransactionDigest;
 }
 
