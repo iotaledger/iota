@@ -212,7 +212,7 @@ pub async fn fetch_from_full_node(
     let checkpoint: CheckpointData = client
         .get_checkpoint_by_sequence_number(
             checkpoint_number,
-            Some(iota_grpc_client::CHECKPOINT_DATA_READ_MASK),
+            Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA),
             None,
             None,
         )

@@ -1,0 +1,9 @@
+[package]
+name = "wrap_unwrap"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+wrap_unwrap = "0x0"

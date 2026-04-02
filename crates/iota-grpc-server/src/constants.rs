@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v0::error_reason::ErrorReason};
+use iota_grpc_types::{google::rpc::bad_request::FieldViolation, v1::error_reason::ErrorReason};
 
 use crate::error::RpcError;
 
@@ -15,14 +15,12 @@ pub const MIN_MESSAGE_SIZE_BYTES: usize = 1024 * 1024;
 pub const MAX_MESSAGE_SIZE_BYTES: usize = 128 * 1024 * 1024;
 
 /// Validates and converts the max_message_size_bytes parameter.
-pub fn validate_max_message_size(max_message_size_bytes: Option<u64>) -> Result<usize, RpcError> {
+///
+/// Accepts `Option<u32>` (the proto field type) and converts internally.
+pub fn validate_max_message_size(max_message_size_bytes: Option<u32>) -> Result<usize, RpcError> {
     match max_message_size_bytes {
         Some(size) => {
-            let size = usize::try_from(size).map_err(|_| {
-                FieldViolation::new("max_message_size_bytes")
-                    .with_description("must be a valid positive integer")
-                    .with_reason(ErrorReason::FieldInvalid)
-            })?;
+            let size = size as usize;
 
             match size {
                 s if s < MIN_MESSAGE_SIZE_BYTES => {

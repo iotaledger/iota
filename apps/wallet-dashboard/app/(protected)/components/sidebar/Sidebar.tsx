@@ -5,7 +5,7 @@ import { PROTECTED_ROUTES } from '@/lib/constants/routes.constants';
 import { IotaLogoMark } from '@iota/apps-ui-icons';
 import { SidebarItem } from './SidebarItem';
 import { Feature } from '@iota/core';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { ProtectedRouteTitle } from '@/lib/enums';
 
 export function Sidebar() {

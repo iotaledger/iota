@@ -50,7 +50,7 @@ export const getInputObjects = async (transaction: Transaction, client: IotaClie
                 storageRebate: object.data.storageRebate!,
             }).toBytes();
         })
-        .filter((bcsBytes): bcsBytes is Uint8Array<ArrayBuffer> => !!bcsBytes);
+        .filter((bcsBytes): bcsBytes is Uint8Array => !!bcsBytes);
 
     return { bcsObjects };
 };

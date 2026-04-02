@@ -674,7 +674,7 @@ impl IotaNode {
             Some(Arc::new(
                 RestIndexStore::new(
                     config.db_path().join("rest_index"),
-                    &store,
+                    Arc::clone(&store),
                     &checkpoint_store,
                     &epoch_store,
                     &cache_traits.backing_package_store,

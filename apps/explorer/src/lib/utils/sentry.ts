@@ -19,10 +19,6 @@ const SENTRY_DSN = IS_SENTRY_ENABLED
         : 'https://c8085701fa2650fb2a090ed6aba6bc62@o4508279186718720.ingest.de.sentry.io/4508279963320400'
     : undefined;
 
-// TODO: REMOVE AFTER ITS VALIDATED IN THE CI
-console.log('----> import.meta.env.VITE_BUILD_ENV', import.meta.env.VITE_BUILD_ENV);
-console.log('----> import.meta.env.VITE_SENTRY_ENABLED', import.meta.env.VITE_SENTRY_ENABLED);
-
 export function initSentry() {
     Sentry.init({
         enabled: IS_SENTRY_ENABLED && Boolean(SENTRY_DSN),

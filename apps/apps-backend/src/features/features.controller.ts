@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Controller, Get } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
 import {
@@ -13,8 +14,24 @@ import { RECOGNIZED_DAPPS } from './dapps.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
-    @Get('/staging')
-    getStagingFeatures() {
+    constructor(private readonly configService: ConfigService) {}
+
+    @Get()
+    getFeatures() {
+        const deployType = this.configService.get<string>('DEPLOY_TYPE');
+
+        switch (deployType) {
+            case 'production':
+                return this.getProductionFeatures();
+            case 'rc':
+                return this.getRcFeatures();
+            case 'staging':
+            default:
+                return this.getStagingFeatures();
+        }
+    }
+
+    private getStagingFeatures() {
         return {
             status: 200,
             features: {
@@ -101,8 +118,12 @@ export class FeaturesController {
         };
     }
 
-    @Get('/production')
-    getProductionFeatures() {
+    private getRcFeatures() {
+        // RC features are currently identical to staging
+        return this.getStagingFeatures();
+    }
+
+    private getProductionFeatures() {
         return {
             status: 200,
             features: {
@@ -184,15 +205,6 @@ export class FeaturesController {
                     defaultValue: true,
                 },
             },
-            dateUpdated: new Date().toISOString(),
-        };
-    }
-
-    @Get('/apps')
-    getAppsFeatures() {
-        return {
-            status: 200,
-            apps: [], // Note: we'll add wallet dapps when evm will be ready
             dateUpdated: new Date().toISOString(),
         };
     }

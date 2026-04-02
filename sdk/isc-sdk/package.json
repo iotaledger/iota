@@ -1,7 +1,7 @@
 {
     "name": "@iota/isc-sdk",
     "author": "IOTA Foundation <info@iota.org>",
-    "version": "0.2.4",
+    "version": "0.2.5",
     "description": "ISC SDK for interacting with IOTA Smart Contracts.",
     "repository": "https://github.com/iotaledger/iota",
     "type": "commonjs",

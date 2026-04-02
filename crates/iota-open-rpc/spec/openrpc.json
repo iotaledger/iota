@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.20.0-alpha"
+    "version": "1.21.0-alpha"
   },
   "methods": [
     {
@@ -10844,6 +10844,45 @@
                 "type": "string",
                 "enum": [
                   "wrapped"
+                ]
+              },
+              "version": {
+                "$ref": "#/components/schemas/SequenceNumber2"
+              }
+            }
+          },
+          {
+            "description": "Unwrapped object",
+            "type": "object",
+            "required": [
+              "digest",
+              "objectId",
+              "objectType",
+              "owner",
+              "sender",
+              "type",
+              "version"
+            ],
+            "properties": {
+              "digest": {
+                "$ref": "#/components/schemas/ObjectDigest"
+              },
+              "objectId": {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              "objectType": {
+                "type": "string"
+              },
+              "owner": {
+                "$ref": "#/components/schemas/Owner"
+              },
+              "sender": {
+                "$ref": "#/components/schemas/IotaAddress"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "unwrapped"
                 ]
               },
               "version": {

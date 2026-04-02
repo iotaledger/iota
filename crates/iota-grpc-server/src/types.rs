@@ -9,7 +9,7 @@ use grpc_ledger_service::checkpoint_data::Progress;
 use iota_grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
-    v0::{
+    v1::{
         checkpoint as grpc_checkpoint, event as grpc_event,
         ledger_service::{self as grpc_ledger_service},
         transaction as grpc_transaction,
@@ -53,7 +53,7 @@ pub struct TransactionReadFields {
 impl TransactionReadFields {
     /// Derive which fields to fetch from an `ExecutedTransaction` field mask.
     pub fn from_mask(mask: &FieldMaskTree) -> Self {
-        use iota_grpc_types::v0::transaction::ExecutedTransaction;
+        use iota_grpc_types::v1::transaction::ExecutedTransaction;
 
         Self {
             include_transaction: mask.contains(ExecutedTransaction::TRANSACTION_FIELD.name),
@@ -72,12 +72,11 @@ pub type GetObjectsStream = Pin<Box<dyn futures::Stream<Item = ObjectsStreamResu
 pub type GetTransactionsStream =
     Pin<Box<dyn futures::Stream<Item = TransactionsStreamResult> + Send>>;
 
-/// Server streaming response type for the GetCheckpointData method.
-pub type GetCheckpointDataStream =
-    Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
+/// Server streaming response type for the GetCheckpoint method.
+pub type GetCheckpointStream = Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
-/// Server streaming response type for the StreamCheckpointData method.
-pub type StreamCheckpointDataStream =
+/// Server streaming response type for the StreamCheckpoints method.
+pub type StreamCheckpointsStream =
     Pin<Box<dyn futures::Stream<Item = CheckpointStreamResult> + Send>>;
 
 /// Wrapper that converts native CheckpointData to gRPC type before broadcasting
@@ -130,6 +129,39 @@ impl GrpcCheckpointDataBroadcaster {
 pub type ObjectsStreamResult = Result<grpc_ledger_service::GetObjectsResponse, Status>;
 pub type TransactionsStreamResult = Result<grpc_ledger_service::GetTransactionsResponse, Status>;
 pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, Status>;
+
+// Iterator item types for state reader methods.
+//
+// These mirror the `iota_types::storage` item types but use `anyhow::Result`
+// so that different storage backends (RocksDB, mock, simulacrum) can map
+// their concrete errors into a uniform error type.
+
+/// A dynamic-field index entry (key + index info).
+pub type DynamicFieldIterItem = anyhow::Result<(
+    iota_types::storage::DynamicFieldKey,
+    iota_types::storage::DynamicFieldIndexInfo,
+)>;
+
+/// An owned-object from the legacy `owner` (v1) index.
+pub type OwnedObjectIterItem = anyhow::Result<iota_types::storage::AccountOwnedObjectInfo>;
+
+pub use iota_types::storage::OwnedObjectV2Cursor;
+
+/// An owned-object together with the v2 seek cursor for the position it
+/// occupies in the index.
+///
+/// Unlike [`OwnedObjectIterItem`], this carries the full v2 key components
+/// so that page tokens can encode an exact seek position.
+pub type OwnedObjectV2IterItem = anyhow::Result<(
+    iota_types::storage::AccountOwnedObjectInfo,
+    iota_types::storage::OwnedObjectV2Cursor,
+)>;
+
+/// A package-version index entry (key + storage info).
+pub type PackageVersionIterItem = anyhow::Result<(
+    iota_types::storage::PackageVersionKey,
+    iota_types::storage::PackageVersionInfo,
+)>;
 
 /// Result of [`GrpcReader::match_checkpoint_filter_or_report_progress`].
 enum FilterCheckResult {
@@ -269,11 +301,101 @@ pub trait GrpcStateReader: Send + Sync + 'static {
     /// errors.
     fn get_transaction_checkpoint(&self, digest: &TransactionDigest)
     -> anyhow::Result<Option<u64>>;
+
+    /// Iterate over objects owned by an account address using the legacy
+    /// `owner` (v1) table, optionally filtered by type.
+    ///
+    /// Used as a fallback when the `owner_v2` backfill is still in progress.
+    ///
+    /// **Cursor contract (raw):** bounds are *inclusive*.
+    fn account_owned_objects_info_iter(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<ObjectID>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>>;
+
+    /// Iterate over objects owned by an account address using the `owner_v2`
+    /// table, optionally filtered by type.
+    ///
+    /// When `cursor` is `Some`, the iterator starts at (and includes) the
+    /// cursor position — callers must `.skip(1)` to get exclusive semantics.
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>>;
+
+    /// Iterate over dynamic fields of a parent object.
+    ///
+    /// **Cursor contract (raw):** bounds are *inclusive*. When `cursor` is
+    /// `Some`, the iterator starts at (and includes) the cursor item.
+    /// Prefer using the `GrpcReader` wrapper methods which automatically
+    /// skip the cursor item.
+    fn dynamic_field_iter(
+        &self,
+        parent: ObjectID,
+        cursor: Option<ObjectID>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>>;
+
+    /// Get coin info (metadata and treasury object IDs) for a coin type.
+    fn get_coin_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>>;
+
+    /// Get unified coin info from the `coin_v2` table.
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>>;
+
+    /// Iterate over all versions of a package by its original package ID.
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>>;
+
+    /// Returns `true` once the `owner_v2` backfill has completed.
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_owner_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `coin_v2` backfill has completed.
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_coin_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `package_version` backfill has completed.
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_package_version_index_ready(&self) -> bool {
+        true
+    }
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
 pub struct RestStateReaderAdapter {
     inner: Arc<dyn RestStateReader>,
+}
+
+impl RestStateReaderAdapter {
+    /// Get the indexes or return an error if they are not available on this
+    /// node.
+    ///
+    /// New index-dependent endpoints use this (hard fail) rather than the
+    /// `Ok(None)` pattern used by `get_transaction_checkpoint` and
+    /// `get_epoch_info`, because those older methods have fallback behavior
+    /// when indexes are absent, while these endpoints cannot function at all
+    /// without indexes.
+    fn require_indexes(&self) -> anyhow::Result<&dyn iota_types::storage::RestIndexes> {
+        self.inner
+            .indexes()
+            .ok_or_else(|| crate::error::MissingIndexesError.into())
+    }
 }
 
 impl GrpcStateReader for RestStateReaderAdapter {
@@ -445,6 +567,84 @@ impl GrpcStateReader for RestStateReaderAdapter {
             None => Ok(None),
         }
     }
+
+    fn account_owned_objects_info_iter(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<ObjectID>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectIterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes.account_owned_objects_info_iter(owner, cursor, object_type)?;
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+    }
+
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes.account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+    }
+
+    fn dynamic_field_iter(
+        &self,
+        parent: ObjectID,
+        cursor: Option<ObjectID>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes.dynamic_field_iter(parent, cursor)?;
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
+    }
+
+    fn get_coin_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>> {
+        let indexes = self.require_indexes()?;
+        indexes.get_coin_info(coin_type).map_err(Into::into)
+    }
+
+    fn get_coin_v2_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>> {
+        let indexes = self.require_indexes()?;
+        indexes.get_coin_v2_info(coin_type).map_err(Into::into)
+    }
+
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>> {
+        let indexes = self.require_indexes()?;
+        let iter = indexes
+            .package_versions_iter(original_package_id, cursor)?
+            .map(|r| r.map_err(Into::into));
+        Ok(Box::new(iter))
+    }
+
+    fn is_owner_v2_index_ready(&self) -> bool {
+        self.inner
+            .indexes()
+            .is_none_or(|i| i.is_owner_v2_index_ready())
+    }
+
+    fn is_coin_v2_index_ready(&self) -> bool {
+        self.inner
+            .indexes()
+            .is_none_or(|i| i.is_coin_v2_index_ready())
+    }
+
+    fn is_package_version_index_ready(&self) -> bool {
+        self.inner
+            .indexes()
+            .is_none_or(|i| i.is_package_version_index_ready())
+    }
 }
 
 /// Central gRPC data reader that provides unified access to checkpoint data.
@@ -482,6 +682,14 @@ impl GrpcReader {
 
     pub fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
         self.state_reader.get_chain_identifier()
+    }
+
+    /// Get checkpoint summary by sequence number.
+    pub fn get_checkpoint_summary(
+        &self,
+        seq: u64,
+    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
+        self.state_reader.get_checkpoint_summary(seq)
     }
 
     /// Get checkpoint sequence number by digest
@@ -646,10 +854,22 @@ impl GrpcReader {
                                             .map_err(|e| Status::internal(format!("event conversion error: {e}")))?;
                                         let grpc_event = grpc_event::Event::merge_from(&sdk_event, &events_submask)
                                             .map_err(|e| e.with_context("failed to merge event"))?;
-                                        let event_size = grpc_event.encoded_len();
+                                        let event_encoded_len = grpc_event.encoded_len();
+                                        let event_size = event_encoded_len + crate::utils::repeated_field_item_overhead(event_encoded_len);
+
+                                        // Check if a single event exceeds the message size limit
+                                        let event_total = event_size + crate::utils::checkpoint_data_wrapper_overhead(event_size);
+                                        if event_total > max_message_size_bytes {
+                                            yield Err(Status::invalid_argument(format!(
+                                                "Single event size ({event_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
+                                            )));
+                                            return;
+                                        }
 
                                         // Check if adding this event would exceed limit
-                                        if events_batch_size + event_size > max_message_size_bytes && !events_batch.is_empty() {
+                                        // (batch content + wrapper overhead for CheckpointData oneof)
+                                        let candidate_size = events_batch_size + event_size;
+                                        if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !events_batch.is_empty() {
                                             // Yield current event batch
                                             yield Ok(grpc_ledger_service::CheckpointData::default()
                                                 .with_events(grpc_event::Events::default().with_events(events_batch)));
@@ -684,10 +904,22 @@ impl GrpcReader {
                                     &tx_mask,
                                 )
                                 .map_err(|e| e.with_context("failed to merge transaction"))?;
-                                let tx_size = executed_tx.encoded_len();
+                                let tx_encoded_len = executed_tx.encoded_len();
+                                let tx_size = tx_encoded_len + crate::utils::repeated_field_item_overhead(tx_encoded_len);
+
+                                // Check if a single transaction exceeds the message size limit
+                                let tx_total = tx_size + crate::utils::checkpoint_data_wrapper_overhead(tx_size);
+                                if tx_total > max_message_size_bytes {
+                                    yield Err(Status::invalid_argument(format!(
+                                        "Single transaction size ({tx_total} bytes) exceeds max message size ({max_message_size_bytes} bytes)"
+                                    )));
+                                    return;
+                                }
 
                                 // Check if adding this tx would exceed limit
-                                if current_batch_size + tx_size > max_message_size_bytes && !current_batch.is_empty() {
+                                // (batch content + wrapper overhead for CheckpointData oneof)
+                                let candidate_size = current_batch_size + tx_size;
+                                if candidate_size + crate::utils::checkpoint_data_wrapper_overhead(candidate_size) > max_message_size_bytes && !current_batch.is_empty() {
                                     // Yield current transaction batch
                                     yield Ok(grpc_ledger_service::CheckpointData::default()
                                         .with_executed_transactions(grpc_transaction::ExecutedTransactions::default().with_executed_transactions(current_batch)));
@@ -803,6 +1035,119 @@ impl GrpcReader {
         self.state_reader.get_type_layout(type_tag)
     }
 
+    /// Iterate over objects owned by an account address.
+    ///
+    /// When the `owner_v2` backfill has not yet completed, falls back to the
+    /// legacy `owner` table.
+    ///
+    /// The cursor is exclusive: items *after* the cursor position are returned.
+    pub fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: iota_types::base_types::IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
+        object_type: Option<move_core_types::language_storage::StructTag>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = OwnedObjectV2IterItem> + '_>> {
+        if self.state_reader.is_owner_v2_index_ready() {
+            let skip = usize::from(cursor.is_some());
+            let iter =
+                self.state_reader
+                    .account_owned_objects_info_iter_v2(owner, cursor, object_type)?;
+            Ok(Box::new(iter.skip(skip)))
+        } else {
+            // Fallback: owner_v2 backfill in progress — use legacy owner table.
+            // V1 natively supports cursor-based seeking by ObjectID.
+            let cursor_id = cursor.map(|c| c.object_id);
+            let skip = usize::from(cursor_id.is_some());
+            let iter =
+                self.state_reader
+                    .account_owned_objects_info_iter(owner, cursor_id, object_type)?;
+            // Wrap v1 items with a dummy cursor (only object_id is meaningful
+            // for v1; the other fields are unused if v1 is still active on the
+            // next request).
+            let iter = iter.map(|result| {
+                result.map(|info| {
+                    let c = OwnedObjectV2Cursor {
+                        object_type_identifier: 0,
+                        object_type_params: 0,
+                        inverted_balance: None,
+                        object_id: info.object_id,
+                    };
+                    (info, c)
+                })
+            });
+            Ok(Box::new(iter.skip(skip)))
+        }
+    }
+
+    /// Iterate over dynamic fields of a parent object.
+    ///
+    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
+    /// so callers get items *after* the cursor (exclusive lower bound).
+    pub fn dynamic_field_iter(
+        &self,
+        parent: ObjectID,
+        cursor: Option<ObjectID>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
+        let skip = usize::from(cursor.is_some());
+        let iter = self.state_reader.dynamic_field_iter(parent, cursor)?;
+        Ok(Box::new(iter.skip(skip)))
+    }
+
+    /// Get unified coin info from the `coin_v2` table.
+    ///
+    /// When the `coin_v2` backfill has not yet completed, falls back to the
+    /// legacy `coin` table and returns `regulated_available = false` so
+    /// callers know that `regulated_coin_metadata_object_id` is absent due
+    /// to the backfill rather than the coin being unregulated.
+    pub fn get_coin_v2_info(
+        &self,
+        coin_type: &move_core_types::language_storage::StructTag,
+    ) -> Result<(Option<iota_types::storage::CoinInfoV2>, bool), crate::error::RpcError> {
+        if self.state_reader.is_coin_v2_index_ready() {
+            let info = self
+                .state_reader
+                .get_coin_v2_info(coin_type)
+                .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
+            Ok((info, true))
+        } else {
+            // Fallback: coin_v2 backfill in progress — serve base coin info
+            // from the legacy table; regulated metadata is unavailable.
+            let info = self
+                .state_reader
+                .get_coin_info(coin_type)
+                .map_err(|e| crate::error::RpcError::internal().with_context(e))?
+                .map(|ci| iota_types::storage::CoinInfoV2 {
+                    coin_metadata_object_id: ci.coin_metadata_object_id,
+                    treasury_object_id: ci.treasury_object_id,
+                    regulated_coin_metadata_object_id: None,
+                });
+            Ok((info, false))
+        }
+    }
+
+    /// Iterate over all versions of a package by its original package ID.
+    ///
+    /// Returns `Err(IndexBackfillInProgressError)` when the backfill has not
+    /// yet completed so callers receive a retryable `Unavailable` gRPC status.
+    pub fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> Result<Box<dyn Iterator<Item = PackageVersionIterItem> + '_>, crate::error::RpcError> {
+        if !self.state_reader.is_package_version_index_ready() {
+            return Err(crate::error::IndexBackfillInProgressError {
+                index_name: "package_version",
+            }
+            .into());
+        }
+        let skip = usize::from(cursor.is_some());
+        let iter = self
+            .state_reader
+            .package_versions_iter(original_package_id, cursor)
+            .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
+        Ok(Box::new(iter.skip(skip)))
+    }
+
     /// Generic stream implementation for checkpoints
     fn create_generic_checkpoint_stream<T, S, R>(
         &self,
@@ -847,6 +1192,18 @@ impl GrpcReader {
             while start <= end {
                 // Try fetching historical data from the DB first
                 if start <= latest {
+                    // Check if the checkpoint has been pruned since we started
+                    // (e.g. genesis checkpoint 0 is always in DB but may be
+                    // below the pruning watermark).
+                    let lowest_available = state_reader
+                        .get_lowest_available_checkpoint()
+                        .map_err(|e| Status::internal(format!("Failed to get lowest available checkpoint: {e}")))?;
+                    if start < lowest_available {
+                        Err(Status::not_found(format!(
+                            "Checkpoint {data_type_name} {start} is below the lowest available checkpoint {lowest_available}"
+                        )))?;
+                    }
+
                     match fetch_historical(state_reader.clone(), start)? {
                         Some(item) => {
                             debug!("[profile][grpc] Fetched checkpoint {data_type_name} for index {start} from DB.");
@@ -1359,7 +1716,7 @@ impl CheckpointTransactionWithContext {
 }
 
 impl Merge<CheckpointTransactionWithContext>
-    for iota_grpc_types::v0::transaction::ExecutedTransaction
+    for iota_grpc_types::v1::transaction::ExecutedTransaction
 {
     type Error = RpcError;
 
@@ -1369,14 +1726,14 @@ impl Merge<CheckpointTransactionWithContext>
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
-            self.transaction = Some(iota_grpc_types::v0::transaction::Transaction::merge_from(
+            self.transaction = Some(iota_grpc_types::v1::transaction::Transaction::merge_from(
                 source.transaction.transaction.clone(),
                 &submask,
             )?);
         }
 
         if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = Some(iota_grpc_types::v0::signatures::UserSignatures::merge_from(
+            self.signatures = Some(iota_grpc_types::v1::signatures::UserSignatures::merge_from(
                 source.transaction.transaction.clone(),
                 &submask,
             )?);
@@ -1384,7 +1741,7 @@ impl Merge<CheckpointTransactionWithContext>
 
         if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
             self.effects = Some(
-                iota_grpc_types::v0::transaction::TransactionEffects::merge_from(
+                iota_grpc_types::v1::transaction::TransactionEffects::merge_from(
                     source.transaction.effects.clone(),
                     &submask,
                 )?,
@@ -1413,14 +1770,14 @@ impl Merge<CheckpointTransactionWithContext>
         }
 
         if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {
-            self.input_objects = Some(iota_grpc_types::v0::object::Objects::merge_from(
+            self.input_objects = Some(iota_grpc_types::v1::object::Objects::merge_from(
                 Some(source.transaction.input_objects),
                 &submask,
             )?);
         }
 
         if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name) {
-            self.output_objects = Some(iota_grpc_types::v0::object::Objects::merge_from(
+            self.output_objects = Some(iota_grpc_types::v1::object::Objects::merge_from(
                 Some(source.transaction.output_objects),
                 &submask,
             )?);

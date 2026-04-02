@@ -860,14 +860,44 @@ pub trait RestIndexes: Send + Sync {
     // used in both "grpc-server" and "rest-api"
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
+    /// Returns an iterator over objects owned by `owner`, optionally filtered
+    /// by `object_type`.
+    ///
+    /// The `cursor` bound is **inclusive**: if `Some(id)` is provided, the
+    /// iterator starts *at* that object ID. Callers that wish to paginate past
+    /// a previously-seen cursor must `.skip(1)` on the returned iterator to
+    /// avoid re-returning the cursor item.
     // only used in "rest-api"
     fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
+        object_type: Option<StructTag>,
     ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
 
-    // only used in "rest-api"
+    /// Returns an iterator over objects owned by `owner`, optionally filtered
+    /// by `object_type`.
+    ///
+    /// Each item includes an [`OwnedObjectV2Cursor`] that can be stored in an
+    /// opaque page token for seek-based cursor resumption.
+    ///
+    /// The `cursor` bound is **inclusive**: the iterator starts *at* the cursor
+    /// position. Callers must `.skip(1)` to get exclusive semantics.
+    // only used in "grpc-server"
+    fn account_owned_objects_info_iter_v2(
+        &self,
+        owner: IotaAddress,
+        cursor: Option<&OwnedObjectV2Cursor>,
+        object_type: Option<StructTag>,
+    ) -> Result<Box<dyn Iterator<Item = OwnedObjectV2IteratorItem> + '_>>;
+
+    /// Returns an iterator over the dynamic fields of `parent`.
+    ///
+    /// The `cursor` bound is **inclusive**: if `Some(id)` is provided, the
+    /// iterator starts *at* that object ID. Callers that wish to paginate past
+    /// a previously-seen cursor must `.skip(1)` on the returned iterator to
+    /// avoid re-returning the cursor item.
+    // used in both "grpc-server" and "rest-api"
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
@@ -876,14 +906,72 @@ pub trait RestIndexes: Send + Sync {
 
     // only used in "rest-api"
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
+
+    /// Returns unified coin info from the `coin_v2` table (merges
+    /// `coin` + `regulated_coin`).
+    // only used in "grpc-server"
+    fn get_coin_v2_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
+
+    /// Returns an iterator over the versions of a package identified by
+    /// `original_package_id`.
+    // only used in "grpc-server"
+    fn package_versions_iter(
+        &self,
+        original_package_id: ObjectID,
+        cursor: Option<u64>,
+    ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
+
+    /// Returns `true` once the `owner_v2` backfill has completed.
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_owner_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `coin_v2` backfill has completed.
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_coin_v2_index_ready(&self) -> bool {
+        true
+    }
+
+    /// Returns `true` once the `package_version` backfill has completed and the
+    /// index is ready to serve queries.  Defaults to `true` so that
+    /// implementations without a backfill concept (e.g. simulacrum) are
+    /// unaffected.
+    // only used in "grpc-server"
+    // TODO(remove): https://github.com/iotaledger/iota/issues/10955
+    fn is_package_version_index_ready(&self) -> bool {
+        true
+    }
 }
 
+pub type PackageVersionIteratorItem =
+    Result<(PackageVersionKey, PackageVersionInfo), TypedStoreError>;
+
+#[derive(Clone)]
 pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
     pub version: SequenceNumber,
     pub type_: MoveObjectType,
 }
+
+/// Opaque cursor for seeking in the `owner_v2` index.
+///
+/// Mirrors the non-owner components of the v2 composite key so that
+/// pagination can resume with a direct RocksDB seek instead of scanning
+/// from the start.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OwnedObjectV2Cursor {
+    pub object_type_identifier: u64,
+    pub object_type_params: u64,
+    pub inverted_balance: Option<u64>,
+    pub object_id: ObjectID,
+}
+
+pub type OwnedObjectV2IteratorItem =
+    Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DynamicFieldKey {
@@ -921,6 +1009,26 @@ pub struct DynamicFieldIndexInfo {
 pub struct CoinInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
+}
+
+/// Extended coin info from the `coin_v2` table — merges `coin` +
+/// `regulated_coin` into a single lookup.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct CoinInfoV2 {
+    pub coin_metadata_object_id: Option<ObjectID>,
+    pub treasury_object_id: Option<ObjectID>,
+    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct PackageVersionKey {
+    pub original_package_id: ObjectID,
+    pub version: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct PackageVersionInfo {
+    pub storage_id: ObjectID,
 }
 
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]

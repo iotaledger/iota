@@ -10,7 +10,7 @@ import {
     MigrationOverview,
     SupplyIncreaseVestingOverview,
 } from '@/components';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature } from '@iota/core';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
 

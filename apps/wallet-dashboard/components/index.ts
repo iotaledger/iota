@@ -10,7 +10,6 @@ export * from './Amplitude';
 
 export * from './account-balance/AccountBalance';
 export * from './coins';
-export * from './app-list';
 export * from './cards';
 export * from './buttons';
 export * from './transactions';

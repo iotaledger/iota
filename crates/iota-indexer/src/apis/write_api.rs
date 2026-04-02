@@ -115,7 +115,6 @@ impl WriteApi {
             .simulate_transaction(
                 transaction_data.clone().try_into()?,
                 false,
-                false,
                 Some(readmask.as_str()),
             )
             .await?
@@ -257,7 +256,6 @@ impl WriteApi {
             .simulate_transaction(
                 transaction_data.try_into()?,
                 skip_checks,
-                false,
                 Some(readmask.as_str()),
             )
             .await?

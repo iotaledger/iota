@@ -54,11 +54,11 @@ pub enum EventFilter {
 }
 
 // Proto-to-internal filter conversion
-impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
+impl TryFrom<iota_grpc_types::v1::filter::EventFilter> for EventFilter {
     type Error = String;
 
-    fn try_from(proto: iota_grpc_types::v0::filter::EventFilter) -> Result<Self, Self::Error> {
-        use iota_grpc_types::v0::filter::event_filter::Filter as ProtoFilter;
+    fn try_from(proto: iota_grpc_types::v1::filter::EventFilter) -> Result<Self, Self::Error> {
+        use iota_grpc_types::v1::filter::event_filter::Filter as ProtoFilter;
 
         let filter = proto.filter.ok_or("event filter is missing")?;
 
@@ -94,7 +94,7 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
             }
             ProtoFilter::MovePackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
-                let package_bytes = filter.package_id.ok_or("package_id is missing")?.address;
+                let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {}", e))?;
                 let module = filter
@@ -108,7 +108,7 @@ impl TryFrom<iota_grpc_types::v0::filter::EventFilter> for EventFilter {
             }
             ProtoFilter::MoveEventPackageAndModule(filter) => {
                 // TODO: add a function to parse the package and the module name
-                let package_bytes = filter.package_id.ok_or("package_id is missing")?.address;
+                let package_bytes = filter.package_id.ok_or("package_id is missing")?.object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {}", e))?;
                 let module = filter

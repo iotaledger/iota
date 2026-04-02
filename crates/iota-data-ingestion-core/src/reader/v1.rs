@@ -11,7 +11,7 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::{StreamExt, TryFutureExt};
+use futures::StreamExt;
 use iota_grpc_client::Client as GrpcClient;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
@@ -24,9 +24,9 @@ use tokio::{
         mpsc::{self, error::TryRecvError},
         oneshot,
     },
-    time::{sleep, timeout},
+    time::timeout,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
@@ -111,8 +111,6 @@ impl Default for ReaderOptions {
 
 /// Remote checkpoint store backends.
 enum RemoteStore {
-    ObjectStore(Box<dyn ObjectStore>),
-    Fullnode(Box<iota_grpc_client::Client>),
     Hybrid(Box<dyn ObjectStore>, Box<iota_grpc_client::Client>),
 }
 
@@ -122,10 +120,6 @@ impl CheckpointReader {
         checkpoint_number: CheckpointSequenceNumber,
     ) -> CheckpointResult {
         match store {
-            RemoteStore::ObjectStore(store) => {
-                fetch_from_object_store(store, checkpoint_number).await
-            }
-            RemoteStore::Fullnode(client) => fetch_from_full_node(client, checkpoint_number).await,
             RemoteStore::Hybrid(store, client) => {
                 match fetch_from_full_node(client, checkpoint_number).await {
                     Ok(result) => Ok(result),
@@ -163,7 +157,7 @@ impl CheckpointReader {
         }
     }
 
-    fn start_remote_fetcher(&mut self) -> mpsc::Receiver<CheckpointResult> {
+    async fn start_remote_fetcher(&mut self) -> mpsc::Receiver<CheckpointResult> {
         let batch_size = self.options.batch_size;
         let start_checkpoint = self.current_checkpoint_number;
         let (sender, receiver) = mpsc::channel(batch_size);
@@ -174,67 +168,25 @@ impl CheckpointReader {
         let remote_store_options = self.remote_store_options.clone();
         let timeout_secs = self.options.timeout_secs;
 
+        let (fullnode_url, object_store_url) = url.split_once('|').unwrap_or((&url, &url));
+
+        let object_store = create_remote_store_client(
+            object_store_url.to_string(),
+            remote_store_options,
+            timeout_secs,
+        )
+        .expect("failed to create remote store client");
+
+        let grpc_client = GrpcClient::connect(fullnode_url)
+            .await
+            .map(|client| {
+                client.with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES)
+            })
+            .expect("failed to connect to gRPC fullnode");
+
+        let store = RemoteStore::Hybrid(object_store, Box::new(grpc_client));
+
         spawn_monitored_task!(async move {
-            let store = if let Some((fn_url, remote_url)) = url.split_once('|') {
-                let object_store = create_remote_store_client(
-                    remote_url.to_string(),
-                    remote_store_options,
-                    timeout_secs,
-                )
-                .expect("failed to create remote store client");
-
-                let grpc_client = iota_grpc_client::Client::connect(fn_url)
-                    .await
-                    .expect("failed to connect to gRPC fullnode");
-
-                RemoteStore::Hybrid(object_store, Box::new(grpc_client))
-            } else {
-                let mut backoff = backoff::ExponentialBackoff {
-                    max_elapsed_time: Some(Duration::from_secs(timeout_secs)),
-                    initial_interval: Duration::from_millis(500),
-                    current_interval: Duration::from_millis(500),
-                    multiplier: 2.0,
-                    ..Default::default()
-                };
-
-                let grpc_result = loop {
-                    match GrpcClient::connect(url.clone())
-                        .and_then(|grpc_client| async {
-                            grpc_client.get_health(None).await?;
-                            Ok(grpc_client.with_max_decoding_message_size(
-                                GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES,
-                            ))
-                        })
-                        .await
-                    {
-                        Ok(client) => break Ok(client),
-                        Err(e) => match backoff.next_backoff() {
-                            Some(duration) => {
-                                info!(
-                                    "gRPC connection to fullnode not ready, retrying in {}ms: {e}",
-                                    duration.as_millis()
-                                );
-                                sleep(duration).await;
-                            }
-                            None => break Err(e),
-                        },
-                    }
-                };
-
-                match grpc_result {
-                    Ok(grpc_client) => RemoteStore::Fullnode(Box::new(grpc_client)),
-                    Err(err) => {
-                        warn!(
-                            "failed to connect to gRPC fullnode after retries, falling back to object store: {err:?}"
-                        );
-                        let object_store =
-                            create_remote_store_client(url, remote_store_options, timeout_secs)
-                                .expect("failed to create remote store client");
-                        RemoteStore::ObjectStore(object_store)
-                    }
-                }
-            };
-
             let mut checkpoint_stream = (start_checkpoint..u64::MAX)
                 .map(|checkpoint_number| Self::remote_fetch_checkpoint(&store, checkpoint_number))
                 .pipe(futures::stream::iter)
@@ -250,10 +202,10 @@ impl CheckpointReader {
         receiver
     }
 
-    fn remote_fetch(&mut self) -> Vec<Arc<CheckpointData>> {
+    async fn remote_fetch(&mut self) -> Vec<Arc<CheckpointData>> {
         let mut checkpoints = vec![];
         if self.remote_fetcher_receiver.is_none() {
-            self.remote_fetcher_receiver = Some(self.start_remote_fetcher());
+            self.remote_fetcher_receiver = Some(self.start_remote_fetcher().await);
         }
         while !self.exceeds_capacity(self.current_checkpoint_number + checkpoints.len() as u64) {
             match self.remote_fetcher_receiver.as_mut().unwrap().try_recv() {
@@ -286,7 +238,7 @@ impl CheckpointReader {
                 || checkpoints[0].checkpoint_summary.sequence_number
                     > self.current_checkpoint_number)
         {
-            checkpoints = self.remote_fetch();
+            checkpoints = self.remote_fetch().await;
             read_source = ReadSource::Remote;
         } else {
             // cancel remote fetcher execution because local reader has made progress
