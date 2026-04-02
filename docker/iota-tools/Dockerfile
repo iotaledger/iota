@@ -31,7 +31,7 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build the binaries and copy them to the working directory
+# Build all binaries except iota-tool (which needs extra features)
 RUN cargo build --profile ${PROFILE} \
       --bin iota-node \
       --bin stress \
@@ -40,10 +40,15 @@ RUN cargo build --profile ${PROFILE} \
       --bin iota-localnet \
       --bin iota-faucet \
       --bin iota-cluster-test \
-      --bin iota-tool \
       --bin iota-genesis-builder \
-      --features ${CARGO_BUILD_FEATURES:=default} && \
-    cp $TARGET_FOLDER/iota-node ./iota-node && \
+      --features ${CARGO_BUILD_FEATURES:=default}
+
+# Build iota-tool with the tracing feature for execution traces and gas profiles
+RUN cargo build --profile ${PROFILE} \
+      --bin iota-tool \
+      --features tracing
+
+RUN cp $TARGET_FOLDER/iota-node ./iota-node && \
     cp $TARGET_FOLDER/stress ./stress && \
     cp $TARGET_FOLDER/iota-analytics-indexer ./iota-analytics-indexer && \
     cp $TARGET_FOLDER/iota ./iota && \
