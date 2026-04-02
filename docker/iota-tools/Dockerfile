@@ -4,6 +4,7 @@ FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
 ARG TARGET_FOLDER=target/release
+ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
