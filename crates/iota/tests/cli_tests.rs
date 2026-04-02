@@ -784,7 +784,13 @@ async fn publish_package_for_upgrade(
             _ => panic!("Unexpected struct type"),
         };
         let package_value = &fields_map["package"];
-        IotaAddress::from_str(package_value.clone().to_json_value().as_str().unwrap()).unwrap()
+        package_value
+            .clone()
+            .to_json_value()
+            .as_str()
+            .unwrap()
+            .parse::<IotaAddress>()
+            .unwrap()
     } else {
         panic!("Expected MoveObject");
     };
