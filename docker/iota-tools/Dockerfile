@@ -4,7 +4,6 @@ FROM rust:${RUST_IMAGE_VERSION} AS builder
 
 ARG PROFILE=release
 ARG TARGET_FOLDER=target/release
-ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
@@ -31,20 +30,21 @@ COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
 
-# Build all binaries except iota-tool (which needs extra features)
+# Build binaries with their required features (matching binary-build-list.json)
 RUN cargo build --profile ${PROFILE} \
       --bin iota-node \
       --bin stress \
       --bin iota-analytics-indexer \
-      --bin iota \
-      --bin iota-localnet \
       --bin iota-faucet \
       --bin iota-cluster-test \
-      --bin iota-genesis-builder \
-      --features ${CARGO_BUILD_FEATURES:=default}
-
-# Build iota-tool with the tracing feature for execution traces and gas profiles
-RUN cargo build --profile ${PROFILE} \
+      --bin iota-genesis-builder && \
+    cargo build --profile ${PROFILE} \
+      --bin iota \
+      --features iota-names,gen-completions && \
+    cargo build --profile ${PROFILE} \
+      --bin iota-localnet \
+      --features indexer && \
+    cargo build --profile ${PROFILE} \
       --bin iota-tool \
       --features tracing
 
