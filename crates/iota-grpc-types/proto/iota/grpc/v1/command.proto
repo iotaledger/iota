@@ -1,0 +1,70 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.command;
+
+import "google/protobuf/struct.proto";
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/types.proto";
+
+// An argument to a programmable transaction command.
+message Argument {
+  // Unknown Argument kind.
+  message Unknown {}
+
+  // The gas coin.
+  message GasCoin {}
+
+  // One of the input objects or primitive values
+  // (from `ProgrammableTransaction` inputs).
+  message Input {
+    // Index of an input when `kind` is `Input`.
+    optional uint32 index = 1; 
+  }
+  
+  // The result of another command (from `ProgrammableTransaction` commands).
+  message Result {
+    // Index of a result when `kind` is `Result`.
+    optional uint32 index = 1;
+
+    // Used to access a nested result when `kind` is `Result`.
+    optional uint32 nested_result_index = 2;
+  }
+  
+  oneof kind {
+    Unknown unknown = 1;
+    GasCoin gas_coin = 2;
+    Input input = 3;
+    Result result = 4;
+  }
+}
+
+message CommandOutput {
+  optional Argument argument = 1;
+  optional iota.grpc.v1.types.TypeTag type_tag = 2;
+  optional iota.grpc.v1.bcs.BcsData bcs = 3;
+  optional google.protobuf.Value json = 4;
+}
+
+message CommandOutputs {
+  option (iota.grpc.field_mask_transparent) = true;
+
+  repeated CommandOutput outputs = 1;
+}
+
+// An intermediate result/output from the execution of a single command
+message CommandResult {
+  optional CommandOutputs mutated_by_ref = 1;
+  optional CommandOutputs return_values = 2;
+}
+
+message CommandResults {
+  option (iota.grpc.field_mask_transparent) = true;
+
+  repeated CommandResult results = 1;
+}

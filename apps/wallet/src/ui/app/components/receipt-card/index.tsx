@@ -55,7 +55,7 @@ export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
                     <OutlinedCopyButton
                         textToCopy={digest ?? ''}
                         onCopySuccess={() => {
-                            ampli.elementCopied({
+                            ampli.copiedElement({
                                 type: 'digest',
                             });
                         }}

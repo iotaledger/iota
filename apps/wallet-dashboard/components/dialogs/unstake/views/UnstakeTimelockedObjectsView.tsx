@@ -11,7 +11,7 @@ import {
     TimelockedStakedObjectsGrouped,
     isSizeExceededError,
 } from '@/lib/utils';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import {
     Panel,
     LoadingIndicator,
@@ -89,6 +89,12 @@ export function UnstakeTimelockedObjectsView({
         balance: totalStakedAmount,
     });
 
+    const [totalStakedAmountFormattedPlain] = useFormatCoin({
+        balance: totalStakedAmount,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
+
     const [rewardsPoolFormatted, rewardsToken] = useFormatCoin({
         balance: validatorInfo?.rewardsPool,
     });
@@ -111,7 +117,7 @@ export function UnstakeTimelockedObjectsView({
                     onSuccess(tx);
                     ampli.timelockUnstake({
                         validatorAddress: groupedTimelockedObjects.validatorAddress,
-                        stakedAmount: Number(totalStakedAmountFormatted),
+                        stakedAmount: Number(totalStakedAmountFormattedPlain),
                     });
                 },
             },

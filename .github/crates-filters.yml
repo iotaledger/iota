@@ -114,6 +114,8 @@ iota-network-stack:
   - "crates/iota-network-stack/**"
 iota-node:
   - "crates/iota-node/**"
+iota-node-storage:
+  - "crates/iota-node-storage/**"
 iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
@@ -138,8 +140,6 @@ iota-proxy:
   - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
-iota-rest-api:
-  - "crates/iota-rest-api/**"
 iota-rest-kv:
   - "crates/iota-rest-kv/**"
 iota-rpc-loadgen:

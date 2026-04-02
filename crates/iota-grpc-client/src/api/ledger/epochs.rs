@@ -5,7 +5,7 @@
 
 use iota_grpc_types::{
     field::FieldMask,
-    v0::{epoch::Epoch, ledger_service::GetEpochRequest},
+    v1::{epoch::Epoch, ledger_service::GetEpochRequest},
 };
 
 use crate::{

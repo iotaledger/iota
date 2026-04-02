@@ -68,6 +68,182 @@ const config = {
   },
   plugins: [
     [
+      'docusaurus-plugin-llms',
+      {
+        docsDir: '../content',
+        pathTransformation: {
+          ignorePaths: ['docs', '..', 'content']
+        },
+        // Ignore everything with an underscore which is docusaurus default behaviour
+        ignoreFiles: [ '**/_**' ],
+        // llms.txt is maintained by the llms-txt plugin at src/plugins/llms-txt
+        generateLLMsTxt: false,
+        customLLMFiles: [
+          {
+            filename: 'llms-full-about.txt',
+            title: 'IOTA Documentation - About IOTA',
+            description: 'Complete About IOTA documentation covering architecture, tokenomics, and programs',
+            includePatterns: ['about-iota/**'],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-operator.txt',
+            title: 'IOTA Documentation - Operators',
+            description: 'Complete operator documentation for running full nodes, validators, and infrastructure',
+            includePatterns: ['operator/**'],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-users.txt',
+            title: 'IOTA Documentation - Users',
+            description: 'Complete user documentation for wallets and IOTA applications',
+            includePatterns: ['users/**'],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-workshops.txt',
+            title: 'IOTA Documentation - Workshops',
+            description: 'Workshop materials for hands-on learning with IOTA',
+            includePatterns: ['developer/workshops/**'],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-getting-started.txt',
+            title: 'IOTA Developer Documentation - Getting Started',
+            description: 'Getting started guides including installation, environment setup, and first steps with IOTA development',
+            includePatterns: [
+              'developer/developer.md',
+              'developer/network-overview.md',
+              'developer/getting-started/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-explanations.txt',
+            title: 'IOTA Developer Documentation - Explanations',
+            description: 'Conceptual explanations including cryptography, transaction authentication, and smart contract security',
+            includePatterns: [
+              'developer/cryptography/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-how-to.txt',
+            title: 'IOTA Developer Documentation - How To',
+            description: 'How-to guides for transactions, sponsored transactions, PTBs, and exchange integration',
+            includePatterns: [
+              'developer/iota-101/transactions/**',
+              'developer/exchange-integration.md',
+              'developer/advanced/custom-indexer.md',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-tutorials.txt',
+            title: 'IOTA Developer Documentation - Tutorials',
+            description: 'Step-by-step tutorials for building applications on IOTA',
+            includePatterns: [
+              'developer/tutorials/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-move.txt',
+            title: 'IOTA Developer Documentation - Move',
+            description: 'Move language documentation including the object model, standards, patterns, framework references, and challenges',
+            includePatterns: [
+              'developer/iota-101/objects/**',
+              'developer/iota-101/move-overview/**',
+              'developer/iota-101/create-coin/**',
+              'developer/iota-101/nft/**',
+              'developer/iota-101/using-events.md',
+              'developer/iota-101/access-time.md',
+              'developer/references/framework/**',
+              'developer/references/iota-move.md',
+              'developer/references/move/**',
+              'developer/standards/**',
+              'developer/advanced/introducing-move-2024.md',
+              'developer/advanced/onchain-randomness.md',
+              'developer/advanced/asset-tokenization.md',
+              'developer/iota-move-ctf/**',
+              'developer/evm-to-move/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-sdks.txt',
+            title: 'IOTA Developer Documentation - SDKs',
+            description: 'TypeScript and Rust SDK documentation for building applications on IOTA',
+            includePatterns: [
+              'developer/ts-sdk/**',
+              'developer/references/rust-sdk.md',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-graphql.txt',
+            title: 'IOTA Developer Documentation - GraphQL',
+            description: 'GraphQL API how-to guides and reference documentation',
+            includePatterns: [
+              'developer/getting-started/graphql-rpc.md',
+              'developer/graphql-rpc.md',
+              'developer/advanced/graphql-migration.md',
+              'developer/references/iota-graphql.md',
+              'developer/references/iota-api/iota-graphql/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-cli.txt',
+            title: 'IOTA Developer Documentation - CLI',
+            description: 'Complete CLI reference for the IOTA command-line interface',
+            includePatterns: [
+              'developer/references/cli.md',
+              'developer/references/cli/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-trust-framework.txt',
+            title: 'IOTA Developer Documentation - IOTA Trust Framework',
+            description: 'IOTA Trust Framework documentation including Identity, Notarization, and Hierarchies',
+            includePatterns: [
+              'developer/iota-trust-framework.md',
+              'developer/iota-identity/**',
+              'developer/iota-notarization/**',
+              'developer/iota-hierarchies/**',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-stardust.txt',
+            title: 'IOTA Developer Documentation - Migrating from Stardust',
+            description: 'Migration guides and documentation for transitioning from IOTA Stardust to the new IOTA network',
+            includePatterns: [
+              'developer/stardust/**',
+              'developer/dev-cheat-sheet.md',
+            ],
+            fullContent: true,
+          },
+          {
+            filename: 'llms-full-developer-references.txt',
+            title: 'IOTA Developer Documentation - References',
+            description: 'API references, execution architecture, research papers, glossary, and contribution guides',
+            includePatterns: [
+              'developer/references/references.md',
+              'developer/references/iota-api/**',
+              'developer/references/execution-architecture/**',
+              'developer/references/research-papers.md',
+              'developer/references/iota-glossary.md',
+              'developer/references/contribute/**',
+            ],
+            fullContent: true,
+          },
+        ],
+      }
+    ],
+    path.resolve(__dirname, './src/plugins/llms-txt/index.ts'),
+    [
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {

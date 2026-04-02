@@ -1,5 +1,12 @@
 # @iota/apps-ui-icons
 
+## 0.7.4
+
+### Patch Changes
+
+-   adea573: Enable declarationMap in TS packages
+-   0142ab5: Update svgo dependency.
+
 ## 0.7.3
 
 ### Patch Changes

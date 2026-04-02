@@ -6,7 +6,7 @@ IOTA Indexer is an off-fullnode service to serve data from the IOTA protocol, in
 
 > [!NOTE]
 >
-> - Indexer sync workers require the `NodeConfig::enable_rest_api` flag set to `true` in the node
+> - Indexer sync workers require the node to be running as a full node with the gRPC API enabled (`enable_grpc_api: true`)
 > - Fullnodes expose read and transaction execution JSON-RPC APIs. Hence, transactions can be executed through fullnodes.
 > - Validators expose only read-only JSON-RPC APIs.
 > - Indexer instances expose read, write and extended JSON-RPC APIs.
@@ -62,7 +62,7 @@ To run the indexer as a standalone service with an existing fullnode, follow the
 - to run the indexer as a writer (Sync worker), which pulls data from a fullnode and writes data to the database
 
 ```sh
-cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:9000/api/v1" --reset-db
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:50051" --reset-db
 ```
 
 - to run indexer as a reader which exposes a JSON RPC service with following [APIs](https://docs.iota.org/iota-api-ref).
@@ -87,6 +87,58 @@ curl http://localhost:9124 \
 > To have a fully functional indexer that serves data via the JSON RPC interface at `--rpc-address`, you need to run both the writer (sync worker) instance to populate the database with data from the fullnode and the reader (RPC server worker) instance to expose the API. Running only the reader will not provide data unless the database has been populated by a writer.
 
 More available flags can be found in this [file](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/src/lib.rs).
+
+### Pruning
+
+The indexer supports automatic pruning of historical data to control database size. Pruning removes old data based on epoch-based retention policies.
+
+#### Configuration
+
+Pruning is configured via the `--pruning-config-path` flag, which points to a TOML file:
+
+```sh
+cargo run --bin iota-indexer -- --db-url "postgres://postgres:postgrespw@localhost/iota_indexer" indexer --remote-store-url "http://0.0.0.0:50051" --pruning-config-path /path/to/pruning.toml
+```
+
+The TOML file specifies a default retention policy (in epochs) and optional per-table overrides:
+
+```toml
+# Default retention for all prunable tables (in epochs)
+epochs_to_keep = 10
+
+# Per-table overrides (snake_case, must match prunable table names)
+[overrides]
+objects_history = 2
+transactions = 5
+events = 5
+tx_senders = 3
+```
+
+> [!NOTE]
+> All retention values must be greater than 0.
+
+The legacy `--epochs-to-keep` CLI argument is still supported but deprecated. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
+
+#### Default behavior
+
+- If no pruning configuration is provided, pruning is disabled.
+- `objects_history` defaults to 2 epochs retention even if not explicitly overridden, as it is primarily used for consistency queries and does not need long retention.
+- All other tables default to the `epochs_to_keep` value from the config.
+
+#### How pruning works
+
+When an epoch boundary is crossed, retention policies are evaluated and lower bounds for each table are updated in the `watermarks` table. Actual data deletion is delayed by 2 hours after the lower bound update to protect in-flight reads from losing data mid-query. It is expected that there will be a delay before pruning effects become visible.
+
+#### Prunable tables
+
+When pruning is enabled, the following tables are subject to pruning:
+
+| Strategy                                          | Tables                                                                           |
+| ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Epoch partition** (drop partition)              | `objects_history`, `transactions`, `events`                                      |
+| **By checkpoint** (DELETE)                        | `checkpoints`, `pruner_cp_watermark`                                             |
+| **By transaction** (DELETE)                       | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
+| **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions`                                                        |
 
 ### Backfilling of data
 
@@ -117,12 +169,16 @@ It supports following backfill options:
 - `sql`: Executes a SQL statement directly against the database in chunks, filtering on a specified column (typically a sequence number). Conflict resolution is handled automatically with `ON CONFLICT DO NOTHING`.
 - `ingestion`: Fetches and buffers checkpoint data from a provided ingestion source, then slices the buffered checkpoint data into chunks to backfill the database. Supported ingestion sources:
   - `--data-ingestion-path <DIR>`: Path to a directory containing checkpoint (`.chk`) files.
-  - `--remote-store-url <REMOTE_STORE_URL>`: Remote store URL to fetch checkpoint data from, e.g., `http://0.0.0.0:9000/api/v1`.
-  - `--rpc-client-url <RPC_CLIENT_URL>`: RPC client URL to fetch checkpoint data from, e.g., `http://0.0.0.0:9000`.
+  - `--remote-store-url <REMOTE_STORE_URL>`: Remote store URL to fetch checkpoint data from, e.g., `http://0.0.0.0:50051`.
 
 #### Backfill job: `tx-wrapped-or-deleted-objects`
 
 This job backfills the `tx_wrapped_or_deleted_objects` table, which indexes transactions that either wrapped or deleted given objects.
+Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode gRPC API URL used to fetch checkpoint data.
+
+#### Backfill job: `object-changes-unwrapped`
+
+This job backfills the information about unwrapped objects to the `transactions` table.
 Replace `<START>` and `<END>` with the desired checkpoint range to backfill (e.g., `0` `10000`, both inclusive), and `<REMOTE_STORE_URL>` with the fullnode REST API URL used to fetch checkpoint data.
 
 ```sh

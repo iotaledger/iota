@@ -32,4 +32,4 @@ Make sure to provide instructions for the maintainer as well as any relevant con
 - [ ] GraphQL:
 - [ ] CLI:
 - [ ] Rust SDK:
-- [ ] REST API:
+- [ ] gRPC:

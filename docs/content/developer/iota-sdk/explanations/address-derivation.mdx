@@ -1,0 +1,51 @@
+---
+description: 'Explains how IOTA address derivation works — key concepts, BIP-39/BIP-44/SLIP-10 standards, and the three supported signature schemes.'
+tags:
+  - explanation
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Address Derivation in IOTA
+
+<IotaSdk />
+
+This page explains the concepts and cryptographic standards behind deriving key pairs and addresses from a mnemonic in the IOTA SDK.
+
+## Key Concepts
+
+| Concept | Description |
+|---|---|
+| `Mnemonic` | A human-readable BIP-39 seed phrase (12–24 words) used as the root secret for key derivation. |
+| `Private Key` | A secret scalar derived from the mnemonic. Encoded in Bech32 format for storage and display. |
+| `Public Key` | The public counterpart of the private key, used to generate the IOTA address and verify signatures. |
+| `Flagged Public Key` | The public key bytes prefixed with a scheme flag byte (Base64-encoded), used internally by the IOTA protocol. |
+| `Address` | A 32-byte IOTA address derived from the public key, displayed as a `0x`-prefixed hex string. |
+| `Derivation Path` | A BIP-44/SLIP-10 path (e.g. `m/74'/4218'/0'/0/2`) specifying which key to derive from the seed. |
+
+## Supported Signature Schemes
+
+The IOTA SDK supports three cryptographic schemes. Each has different derivation conventions and use cases:
+
+| Scheme | Default Path | Password Support | Notes |
+|---|---|---|---|
+| **Ed25519** | `m/44'/4218'/0'/0'/0'` | Optional | Default scheme. Fast and widely supported. |
+| **Secp256k1** | `m/44'/60'/0'/0/0` | Optional | Bitcoin-compatible curve. Compatible with Ethereum tooling. |
+| **Secp256r1** | Custom (e.g. `m/74'/4218'/0'/0/2`) | Optional | NIST P-256 curve. Use `fromMnemonicWithPath` for full path control. |
+
+### Choosing a Scheme
+
+- **Ed25519** is the default and recommended choice for most IOTA applications. It is fast, produces small signatures, and is widely supported across wallets and tooling.
+- **Secp256k1** is useful when interoperability with Bitcoin or Ethereum-compatible tooling is required.
+- **Secp256r1** targets environments where NIST P-256 is mandated, such as hardware security modules or mobile secure enclaves.
+
+All three schemes derive **different** addresses from the same mnemonic. This is expected — each scheme uses a different cryptographic curve and derivation path.
+
+## Standards
+
+The IOTA SDK uses the [BIP-39](https://en.bitcoin.it/wiki/BIP_0039), [BIP-44](https://en.bitcoin.it/wiki/BIP_0044), and [SLIP-10](https://github.com/satoshilabs/slips/blob/master/slip-0010.md) standards for key derivation. This means the same mnemonic will always produce the same keys and addresses deterministically, making it safe for users to restore access from a seed phrase.
