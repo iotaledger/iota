@@ -1036,7 +1036,11 @@ impl LocalExec {
 
             let account_version = match &account_object.object {
                 ObjectReadResultKind::Object(obj) => obj.version(),
-                _ => panic!("Account object is not available"),
+                _ => {
+                    return Err(ReplayEngineError::GeneralError {
+                        err: format!("Account object {} is not available", account_object.id()),
+                    });
+                }
             };
 
             let authenticator_function_ref =
