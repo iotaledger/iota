@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::hash::{Digest, HashFunction};
+use iota_common::debug_fatal;
 use iota_macros::fail_point;
 use prometheus::{Histogram, HistogramTimer};
 use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
@@ -941,6 +943,16 @@ impl DBBatch {
                 let k_buf = be_fix_int_ser(k.borrow());
                 let v_buf = bcs::to_bytes(v.borrow()).map_err(typed_store_err_from_bcs_err)?;
                 total += k_buf.len() + v_buf.len();
+                if db.opts.log_value_hash {
+                    let key_hash = default_hash(&k_buf);
+                    let value_hash = default_hash(&v_buf);
+                    debug!(
+                        "Insert to DB table: {:?}, key_hash: {:?}, value_hash: {:?}",
+                        db.cf_name(),
+                        key_hash,
+                        value_hash
+                    );
+                }
                 match (&mut self.batch, &db.column_family) {
                     (StorageWriteBatch::Rocks(b), ColumnFamily::Rocks(name)) => {
                         b.put_cf(&rocks_cf_from_db(&self.database, name)?, k_buf, v_buf)
@@ -1023,9 +1035,21 @@ where
                 .report_metrics(self.cf_name());
         }
         match res {
-            Some(data) => Ok(Some(
-                bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
-            )),
+            Some(data) => {
+                let value = bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err);
+                if value.is_err() {
+                    let key_hash = default_hash(&key_buf);
+                    let value_hash = default_hash(&data);
+                    debug_fatal!(
+                        "Failed to deserialize value from DB table {:?}, key_hash: {:?}, value_hash: {:?}, error: {:?}",
+                        self.cf_name(),
+                        key_hash,
+                        value_hash,
+                        value.as_ref().err().unwrap()
+                    );
+                }
+                Ok(Some(value?))
+            }
             None => Ok(None),
         }
     }
@@ -1263,4 +1287,10 @@ where
     fn try_catch_up_with_primary(&self) -> Result<(), Self::Error> {
         self.db.try_catch_up_with_primary()
     }
+}
+
+fn default_hash(value: &[u8]) -> Digest<32> {
+    let mut hasher = fastcrypto::hash::Blake2b256::default();
+    hasher.update(value);
+    hasher.finalize()
 }
