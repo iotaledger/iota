@@ -588,7 +588,7 @@ impl ObjectProvider for TxObjectResolver {
         id: &ObjectID,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
-        // try in-memory cache first (simulate response objects)
+        // try in-memory cache first 
         if let Some(o) = self.object_cache.get(id, Some(version)) {
             return Ok(o.clone());
         }
