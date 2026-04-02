@@ -4,6 +4,4 @@
 import { AppsBackendClient } from '@iota/apps-backend-client';
 import { getAppsBackend } from '@iota/core';
 
-export const appsBackendClient = new AppsBackendClient({
-    url: getAppsBackend(),
-});
+export const appsBackendClient = new AppsBackendClient(getAppsBackend());

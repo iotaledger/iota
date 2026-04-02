@@ -12,6 +12,7 @@ use std::{
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
+use iota_node_storage::GrpcStateReader;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::AuthorityStrongQuorumSignInfo,
@@ -19,9 +20,11 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummary, VerifiedCheckpoint,
     },
     object::Object,
+    storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
 
@@ -138,84 +141,169 @@ impl MockGrpcStateReader {
     }
 }
 
-impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
-    fn get_chain_identifier(&self) -> anyhow::Result<iota_types::digests::ChainIdentifier> {
-        Ok(iota_types::digests::ChainIdentifier::default())
+// -- ObjectStore impl --
+impl iota_types::storage::ObjectStore for MockGrpcStateReader {
+    fn try_get_object(&self, object_id: &ObjectID) -> StorageResult<Option<Object>> {
+        Ok(self.objects.get(object_id).cloned())
     }
 
-    fn get_latest_checkpoint_sequence_number(&self) -> anyhow::Result<Option<u64>> {
-        if self.is_set_mode() {
-            Ok(self.checkpoints.lock().unwrap().iter().max().copied())
-        } else {
-            // Fixed mode: assume checkpoint 0 exists if summary is set.
-            Ok(self.summary.as_ref().map(|s| s.sequence_number))
-        }
-    }
-
-    fn get_checkpoint_summary(
+    fn try_get_object_by_key(
         &self,
-        seq: u64,
-    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
-        if self.is_set_mode() {
-            let guard = self.checkpoints.lock().unwrap();
-            if guard.contains(&seq) {
-                Ok(Some(mock_summary(seq, &EMPTY_CHECKPOINT_CONTENTS)))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(self.summary.clone())
-        }
+        object_id: &ObjectID,
+        _version: SequenceNumber,
+    ) -> StorageResult<Option<Object>> {
+        Ok(self.objects.get(object_id).cloned())
     }
+}
 
-    fn get_checkpoint_sequence_number_by_digest(
+// -- ReadStore impl --
+impl iota_types::storage::ReadStore for MockGrpcStateReader {
+    fn try_get_committee(
         &self,
-        _digest: &iota_types::digests::CheckpointDigest,
-    ) -> anyhow::Result<Option<u64>> {
+        _epoch: iota_types::committee::EpochId,
+    ) -> StorageResult<Option<Arc<iota_types::committee::Committee>>> {
         Ok(None)
     }
 
-    fn get_checkpoint_data(&self, seq: u64) -> anyhow::Result<Option<CheckpointData>> {
+    fn try_get_latest_checkpoint(&self) -> StorageResult<VerifiedCheckpoint> {
         if self.is_set_mode() {
             let guard = self.checkpoints.lock().unwrap();
-            if !guard.contains(&seq) {
-                return Ok(None);
-            }
-            drop(guard);
-
-            let transactions = if self.is_large_checkpoint(seq) {
-                self.large_checkpoint_transactions.clone()
+            if let Some(&max_seq) = guard.iter().max() {
+                Ok(VerifiedCheckpoint::new_unchecked(mock_summary(
+                    max_seq,
+                    &EMPTY_CHECKPOINT_CONTENTS,
+                )))
             } else {
-                vec![]
-            };
-            Ok(Some(CheckpointData {
-                checkpoint_summary: mock_summary(seq, &EMPTY_CHECKPOINT_CONTENTS),
-                checkpoint_contents: EMPTY_CHECKPOINT_CONTENTS.clone(),
-                transactions,
-            }))
+                Err(iota_types::storage::error::Error::missing(
+                    "No checkpoints available",
+                ))
+            }
+        } else if let Some(ref summary) = self.summary {
+            Ok(VerifiedCheckpoint::new_unchecked(summary.clone()))
         } else {
-            Ok(None)
+            Err(iota_types::storage::error::Error::missing(
+                "No checkpoints available",
+            ))
         }
     }
 
-    fn get_checkpoint_summary_and_contents(
+    fn try_get_highest_verified_checkpoint(&self) -> StorageResult<VerifiedCheckpoint> {
+        self.try_get_latest_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint(&self) -> StorageResult<VerifiedCheckpoint> {
+        self.try_get_latest_checkpoint()
+    }
+
+    fn try_get_lowest_available_checkpoint(&self) -> StorageResult<CheckpointSequenceNumber> {
+        Ok(self.lowest_available_checkpoint)
+    }
+
+    fn try_get_checkpoint_by_digest(
         &self,
-        seq: u64,
-    ) -> anyhow::Result<Option<(CertifiedCheckpointSummary, CheckpointContents)>> {
+        _digest: &iota_types::digests::CheckpointDigest,
+    ) -> StorageResult<Option<VerifiedCheckpoint>> {
+        Ok(None)
+    }
+
+    fn try_get_checkpoint_by_sequence_number(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> StorageResult<Option<VerifiedCheckpoint>> {
         if self.is_set_mode() {
             let guard = self.checkpoints.lock().unwrap();
-            if guard.contains(&seq) {
-                Ok(Some((
-                    mock_summary(seq, &EMPTY_CHECKPOINT_CONTENTS),
-                    EMPTY_CHECKPOINT_CONTENTS.clone(),
-                )))
-            } else {
-                Ok(None)
+            if seq == u64::MAX {
+                if let Some(&max_seq) = guard.iter().max() {
+                    return Ok(Some(VerifiedCheckpoint::new_unchecked(mock_summary(
+                        max_seq,
+                        &EMPTY_CHECKPOINT_CONTENTS,
+                    ))));
+                } else {
+                    return Ok(None);
+                }
+            }
+            Ok(guard.get(&seq).map(|_| {
+                VerifiedCheckpoint::new_unchecked(mock_summary(seq, &EMPTY_CHECKPOINT_CONTENTS))
+            }))
+        } else {
+            Ok(self
+                .summary
+                .as_ref()
+                .map(|s| VerifiedCheckpoint::new_unchecked(s.clone())))
+        }
+    }
+
+    fn try_get_checkpoint_contents_by_digest(
+        &self,
+        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> StorageResult<Option<CheckpointContents>> {
+        unimplemented!()
+    }
+
+    fn try_get_checkpoint_contents_by_sequence_number(
+        &self,
+        seq: CheckpointSequenceNumber,
+    ) -> StorageResult<Option<CheckpointContents>> {
+        if self.is_set_mode() {
+            let guard = self.checkpoints.lock().unwrap();
+            Ok(guard.get(&seq).map(|_| EMPTY_CHECKPOINT_CONTENTS.clone()))
+        } else {
+            Ok(self.contents.clone())
+        }
+    }
+
+    fn try_get_transaction(
+        &self,
+        digest: &TransactionDigest,
+    ) -> StorageResult<Option<Arc<VerifiedTransaction>>> {
+        Ok(self.transactions.get(digest).cloned())
+    }
+
+    fn try_get_transaction_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> StorageResult<Option<TransactionEffects>> {
+        Ok(self.effects.get(digest).cloned())
+    }
+
+    fn try_get_events(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> StorageResult<Option<TransactionEvents>> {
+        Ok(None)
+    }
+
+    fn try_get_full_checkpoint_contents_by_sequence_number(
+        &self,
+        _seq: CheckpointSequenceNumber,
+    ) -> StorageResult<Option<iota_types::messages_checkpoint::FullCheckpointContents>> {
+        unimplemented!()
+    }
+
+    fn try_get_full_checkpoint_contents(
+        &self,
+        _digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+    ) -> StorageResult<Option<iota_types::messages_checkpoint::FullCheckpointContents>> {
+        unimplemented!()
+    }
+
+    fn get_checkpoint_data(
+        &self,
+        checkpoint: VerifiedCheckpoint,
+        checkpoint_contents: CheckpointContents,
+    ) -> CheckpointData {
+        let seq = checkpoint.sequence_number;
+        if self.is_large_checkpoint(seq) {
+            CheckpointData {
+                checkpoint_summary: checkpoint.into_inner(),
+                checkpoint_contents,
+                transactions: self.large_checkpoint_transactions.clone(),
             }
         } else {
-            match (&self.summary, &self.contents) {
-                (Some(summary), Some(contents)) => Ok(Some((summary.clone(), contents.clone()))),
-                _ => Ok(None),
+            CheckpointData {
+                checkpoint_summary: checkpoint.into_inner(),
+                checkpoint_contents,
+                transactions: self.checkpoint_transactions.clone(),
             }
         }
     }
@@ -226,8 +314,6 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
     ) -> std::pin::Pin<
         Box<dyn futures::Stream<Item = anyhow::Result<CheckpointTransaction>> + Send + '_>,
     > {
-        // In set mode with large checkpoints, return large transactions.
-        // Otherwise return the fixed checkpoint_transactions (may be empty).
         let transactions = self.checkpoint_transactions.clone();
         Box::pin(async_stream::stream! {
             for tx in transactions {
@@ -235,94 +321,51 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
             }
         })
     }
+}
 
-    fn get_epoch_last_checkpoint(
-        &self,
-        _epoch: u64,
-    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
-        Ok(None)
-    }
-
-    fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
-        Ok(self.lowest_available_checkpoint)
-    }
-
-    fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64> {
+// -- iota_node_storage::GrpcStateReader impl --
+impl GrpcStateReader for MockGrpcStateReader {
+    fn get_lowest_available_checkpoint_objects(&self) -> StorageResult<CheckpointSequenceNumber> {
         Ok(0)
     }
 
-    fn get_object(&self, object_id: &ObjectID) -> anyhow::Result<Option<Object>> {
-        Ok(self.objects.get(object_id).cloned())
+    fn get_chain_identifier(&self) -> StorageResult<iota_types::digests::ChainIdentifier> {
+        Ok(iota_types::digests::ChainIdentifier::default())
     }
 
-    fn get_object_by_key(
+    fn get_epoch_last_checkpoint(
         &self,
-        object_id: &ObjectID,
-        _version: SequenceNumber,
-    ) -> anyhow::Result<Option<Object>> {
-        Ok(self.objects.get(object_id).cloned())
-    }
-
-    fn get_committee(
-        &self,
-        _epoch: u64,
-    ) -> anyhow::Result<Option<Arc<iota_types::committee::Committee>>> {
+        _epoch: iota_types::committee::EpochId,
+    ) -> StorageResult<Option<VerifiedCheckpoint>> {
         Ok(None)
     }
 
-    fn get_system_state(&self) -> anyhow::Result<iota_types::iota_system_state::IotaSystemState> {
-        unimplemented!()
+    fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
+        Some(self)
     }
 
+    fn get_struct_layout(
+        &self,
+        _type_tag: &move_core_types::language_storage::StructTag,
+    ) -> StorageResult<Option<move_core_types::annotated_value::MoveTypeLayout>> {
+        Ok(None)
+    }
+}
+
+// -- GrpcIndexes impl --
+impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
     fn get_epoch_info(
         &self,
-        _epoch: u64,
-    ) -> anyhow::Result<Option<iota_types::storage::EpochInfo>> {
+        _epoch: iota_types::committee::EpochId,
+    ) -> StorageResult<Option<iota_types::storage::EpochInfo>> {
         Ok(None)
     }
 
-    fn get_type_layout(
-        &self,
-        _type_tag: &iota_types::TypeTag,
-    ) -> anyhow::Result<Option<move_core_types::annotated_value::MoveTypeLayout>> {
-        Ok(None)
-    }
-
-    fn get_transaction(
-        &self,
-        digest: &TransactionDigest,
-    ) -> anyhow::Result<Option<Arc<VerifiedTransaction>>> {
-        Ok(self.transactions.get(digest).cloned())
-    }
-
-    fn get_transaction_effects(
-        &self,
-        digest: &TransactionDigest,
-    ) -> anyhow::Result<Option<TransactionEffects>> {
-        Ok(self.effects.get(digest).cloned())
-    }
-
-    fn get_transaction_events(
+    fn get_transaction_info(
         &self,
         _digest: &TransactionDigest,
-    ) -> anyhow::Result<Option<TransactionEvents>> {
+    ) -> StorageResult<Option<iota_types::storage::TransactionInfo>> {
         Ok(None)
-    }
-
-    fn get_transaction_checkpoint(
-        &self,
-        _digest: &TransactionDigest,
-    ) -> anyhow::Result<Option<u64>> {
-        Ok(None)
-    }
-
-    fn account_owned_objects_info_iter(
-        &self,
-        _owner: iota_types::base_types::IotaAddress,
-        _cursor: Option<ObjectID>,
-        _object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectIterItem> + '_>> {
-        Ok(Box::new(std::iter::empty()))
     }
 
     fn account_owned_objects_info_iter_v2(
@@ -330,7 +373,7 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
         owner: iota_types::base_types::IotaAddress,
         cursor: Option<&iota_types::storage::OwnedObjectV2Cursor>,
         object_type: Option<move_core_types::language_storage::StructTag>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::OwnedObjectV2IterItem> + '_>>
+    ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectV2IteratorItem> + '_>>
     {
         // Find the start index: if cursor is provided, seek to its position
         // (inclusive — the GrpcReader wrapper handles skip(1)).
@@ -365,7 +408,17 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
                         move_core_types::language_storage::StructTag::from(info.type_.clone()) == *t
                     })
             })
-            .map(|(info, cursor)| Ok((info.clone(), cursor.clone())));
+            .map(|(info, cursor)| {
+                Ok((
+                    iota_types::storage::AccountOwnedObjectInfo {
+                        owner: info.owner,
+                        object_id: info.object_id,
+                        version: info.version,
+                        type_: info.type_.clone(),
+                    },
+                    cursor.clone(),
+                ))
+            });
 
         Ok(Box::new(iter))
     }
@@ -374,21 +427,23 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
         &self,
         _parent: ObjectID,
         _cursor: Option<ObjectID>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::DynamicFieldIterItem> + '_>> {
+    ) -> StorageResult<
+        Box<
+            dyn Iterator<
+                    Item = Result<
+                        iota_types::storage::DynamicFieldKey,
+                        typed_store_error::TypedStoreError,
+                    >,
+                > + '_,
+        >,
+    > {
         Ok(Box::new(std::iter::empty()))
-    }
-
-    fn get_coin_info(
-        &self,
-        _coin_type: &move_core_types::language_storage::StructTag,
-    ) -> anyhow::Result<Option<iota_types::storage::CoinInfo>> {
-        Ok(None)
     }
 
     fn get_coin_v2_info(
         &self,
         _coin_type: &move_core_types::language_storage::StructTag,
-    ) -> anyhow::Result<Option<iota_types::storage::CoinInfoV2>> {
+    ) -> StorageResult<Option<iota_types::storage::CoinInfoV2>> {
         Ok(None)
     }
 
@@ -396,7 +451,7 @@ impl iota_grpc_server::GrpcStateReader for MockGrpcStateReader {
         &self,
         _original_package_id: ObjectID,
         _cursor: Option<u64>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = iota_grpc_server::PackageVersionIterItem> + '_>>
+    ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>>
     {
         Ok(Box::new(std::iter::empty()))
     }

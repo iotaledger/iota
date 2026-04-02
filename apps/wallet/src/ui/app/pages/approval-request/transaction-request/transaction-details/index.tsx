@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionData, useTransactionDryRun } from '_hooks';
+import { useTransactionDryRun } from '_hooks';
 import type {
     TransactionInput,
     Command as TxCommand,
@@ -26,10 +26,11 @@ import {
 import { useEffect, useState } from 'react';
 import { Loading } from '_src/ui/app/components';
 import { Warning } from '@iota/apps-ui-icons';
-
+import type { ChainType } from '@iota/iota-sdk/client';
 interface TransactionDetailsProps {
     sender?: string;
     transaction: Transaction;
+    chain?: ChainType;
 }
 
 enum DetailsCategory {
@@ -47,18 +48,19 @@ const DETAILS_CATEGORIES = [
     },
 ];
 
-export function TransactionDetails({ sender, transaction }: TransactionDetailsProps) {
+export function TransactionDetails({ sender, transaction, chain }: TransactionDetailsProps) {
     const [selectedDetailsCategory, setSelectedDetailsCategory] = useState<DetailsCategory | null>(
         null,
     );
+
+    const transactionData = transaction.getData();
     const {
-        data: transactionData,
+        data: dryRunData,
         isPending,
         isError,
         error,
-    } = useTransactionData(sender, transaction);
+    } = useTransactionDryRun(sender, transaction, chain);
 
-    const { data: dryRunData } = useTransactionDryRun(sender, transaction);
     const dryRunInputs =
         dryRunData?.input.transaction.kind === 'ProgrammableTransaction'
             ? dryRunData.input.transaction.inputs

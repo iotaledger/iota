@@ -4,12 +4,20 @@
 
 use std::time::Duration;
 
-use iota_indexer::{apis::GovernanceReadApi, db::ConnectionPoolConfig, read::IndexerReader};
+use iota_indexer::{
+    apis::GovernanceReadApi,
+    db::ConnectionPoolConfig,
+    metrics::IndexerMetrics,
+    pruning::watermark_task::{WatermarkCache, WatermarkTask},
+    read::IndexerReader,
+    store::PgIndexerStore,
+};
 use iota_json_rpc_types::Stake as RpcStakedIota;
 use iota_types::{
     governance::StakedIota as NativeStakedIota,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeIotaSystemStateSummary,
 };
+use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 
@@ -28,12 +36,27 @@ impl PgManager {
         db_url: impl Into<String>,
         pool_size: u32,
         timeout_ms: u64,
+        indexer_metrics: IndexerMetrics,
+        cancellation_token: CancellationToken,
     ) -> Result<IndexerReader, Error> {
         let mut config = ConnectionPoolConfig::default();
         config.set_pool_size(pool_size);
         config.set_statement_timeout(Duration::from_millis(timeout_ms));
-        IndexerReader::new_with_config(db_url, config)
-            .map_err(|e| Error::Internal(format!("Failed to create reader: {e}")))
+
+        // Create connection pool
+        let connection_pool = iota_indexer::db::new_connection_pool(&db_url.into(), &config)
+            .map_err(|e| Error::Internal(format!("Failed to create connection pool: {e}")))?;
+
+        // Create store and watermark cache for pruning support
+        let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics);
+        let watermark_cache = WatermarkCache::new();
+
+        // Start watermark task with cancellation token
+        let watermark_task = WatermarkTask::new(store, watermark_cache.clone());
+        watermark_task.start(cancellation_token);
+
+        // Create reader with watermark cache
+        Ok(IndexerReader::new(connection_pool, watermark_cache))
     }
 }
 
