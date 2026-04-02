@@ -482,8 +482,7 @@ impl ServerBuilder {
             ));
         };
 
-        let graphql_streams =
-            GraphQLStream::new(&config.connection.db_url, reader.clone(), &registry).await?;
+        let graphql_streams = GraphQLStream::new(reader.clone(), &registry).await?;
 
         let fullnode_grpc_client = GrpcClient::connect(fullnode_url)
             .await

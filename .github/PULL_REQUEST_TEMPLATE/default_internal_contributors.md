@@ -22,4 +22,4 @@ Be sure to reference any related issues by adding `fixes #(issue)`.
 - [ ] GraphQL:
 - [ ] CLI:
 - [ ] Rust SDK:
-- [ ] REST API:
+- [ ] gRPC:

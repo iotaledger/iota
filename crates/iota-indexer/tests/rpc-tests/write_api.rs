@@ -22,7 +22,8 @@ use iota_indexer::{
 };
 use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
-    CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
@@ -87,6 +88,36 @@ fn assert_transaction_success(res: &IotaTransactionBlockResponse) {
         res.effects.as_ref().map(|e| e.status()),
         res.errors
     );
+}
+
+async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64 {
+    let counter_content = client
+        .get_object(
+            counter_obj_id,
+            Some(IotaObjectDataOptions::new().with_content()),
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap()
+        .content
+        .unwrap();
+
+    let value_field = &counter_content
+        .try_as_move()
+        .unwrap()
+        .fields
+        .read_dynamic_field_value("value")
+        .unwrap();
+
+    if let IotaMoveValue::String(counter_value_str) = &value_field {
+        counter_value_str.parse().unwrap()
+    } else {
+        panic!(
+            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
+            value_field
+        );
+    }
 }
 
 #[test]
@@ -1553,32 +1584,62 @@ fn clever_errors() {
     });
 }
 
-async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64 {
-    let counter_content = client
-        .get_object(
-            counter_obj_id,
-            Some(IotaObjectDataOptions::new().with_content()),
-        )
-        .await
-        .unwrap()
-        .data
-        .unwrap()
-        .content
-        .unwrap();
+#[test]
+fn dry_run_request_add_stake() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
 
-    let value_field = &counter_content
-        .try_as_move()
-        .unwrap()
-        .fields
-        .read_dynamic_field_value("value")
-        .unwrap();
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, _key_pair): (_, AccountKeyPair) = get_key_pair();
 
-    if let IotaMoveValue::String(counter_value_str) = &value_field {
-        counter_value_str.parse().unwrap()
-    } else {
-        panic!(
-            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
-            value_field
-        );
-    }
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA * 10),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA * 2),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, coin_ref.0, coin_ref.1).await;
+
+        let validator = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .active_validators()[0]
+            .iota_address;
+
+        let tx_bytes: TransactionBlockBytes = client
+            .request_add_stake(
+                sender,
+                vec![coin_ref.0],
+                Some((NANOS_PER_IOTA * 2).into()),
+                validator,
+                Some(gas_ref.0),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+
+        let dry_run_resp = client
+            .dry_run_transaction_block(tx_bytes.tx_bytes)
+            .await
+            .unwrap();
+
+        assert_eq!(dry_run_resp.effects.status(), &IotaExecutionStatus::Success);
+        assert!(!dry_run_resp.balance_changes.is_empty());
+    });
 }

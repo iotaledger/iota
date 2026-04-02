@@ -3,7 +3,6 @@
 
 export { AppsBackendClient } from './client';
 export type {
-    AppsBackendClientOptions,
     CoinPriceResponse,
     FeatureDefinition,
     FeaturesResponse,

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 23;
+pub const MAX_PROTOCOL_VERSION: u64 = 24;
 
 // Record history of protocol version allocations here:
 //
@@ -133,6 +133,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 23;
 //             instead of being deserialized from a BCS-encoded struct.
 //             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
 //             Move.
+// Version 24: Switch consensus protocol to Starfish in all networks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2678,6 +2679,10 @@ impl ProtocolConfig {
                     cfg.tx_context_gas_budget_cost_base = Some(30);
                     cfg.tx_context_ids_created_cost_base = Some(30);
                     cfg.tx_context_replace_cost_base = Some(30);
+                }
+                24 => {
+                    // Switch consensus protocol to Starfish in all networks.
+                    cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                 }
 
                 // Use this template when making changes:
