@@ -40,9 +40,8 @@ RUN jq -r '.docker_images["iota-tools"] | to_entries[] | [.key, (.value | join("
       fi \
     done
 
-RUN mkdir -p /usr/local/bin/iota-tools && \
-    jq -r '.docker_images["iota-tools"] | keys[]' binary-build-list.json | while read -r binary; do \
-      cp $TARGET_FOLDER/$binary /usr/local/bin/iota-tools/$binary; \
+RUN jq -r '.docker_images["iota-tools"] | keys[]' binary-build-list.json | while read -r binary; do \
+      cp $TARGET_FOLDER/$binary ./$binary; \
     done
 
 # Production image
@@ -54,7 +53,15 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl git
 
-COPY --from=builder /usr/local/bin/iota-tools/ /usr/local/bin/
+COPY --from=builder /iota/iota-node /usr/local/bin
+COPY --from=builder /iota/stress /usr/local/bin
+COPY --from=builder /iota/iota-analytics-indexer /usr/local/bin
+COPY --from=builder /iota/iota /usr/local/bin
+COPY --from=builder /iota/iota-localnet /usr/local/bin
+COPY --from=builder /iota/iota-faucet /usr/local/bin
+COPY --from=builder /iota/iota-cluster-test /usr/local/bin
+COPY --from=builder /iota/iota-tool /usr/local/bin
+COPY --from=builder /iota/iota-genesis-builder /usr/local/bin
 
 ARG BUILD_DATE
 ARG GIT_REVISION
