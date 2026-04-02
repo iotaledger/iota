@@ -555,7 +555,7 @@ impl TxObjectResolver {
         Vec<iota_json_rpc_types::BalanceChange>,
         Vec<IndexedObjectChange>,
     )> {
-        let object_change: Vec<_> = get_object_changes(
+        let object_changes: Vec<_> = get_object_changes(
             self,
             tx.sender(),
             effects.modified_at_versions(),
