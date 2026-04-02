@@ -588,20 +588,21 @@ impl ObjectProvider for TxObjectResolver {
         id: &ObjectID,
         version: &SequenceNumber,
     ) -> Result<Object, Self::Error> {
-        // try in-memory cache first 
+        // try in-memory cache first
         if let Some(o) = self.object_cache.get(id, Some(version)) {
             return Ok(o.clone());
         }
 
-        // fallback: query the indexer's objects table.
-        // for dry_run, the pre-mutation version should match the latest
-        // version in the objects table since the simulation didn't commit.
-        self.reader
-            .get_object_in_blocking_task(*id)
-            .await?
-            .ok_or_else(|| {
-                IndexerError::Generic(format!("object {id} not found in cache or indexer DB"))
-            })
+        let past_read = self
+            .reader
+            .get_past_object_read(*id, *version, false)
+            .await?;
+
+        past_read.into_object().map_err(|e| {
+            IndexerError::Generic(format!(
+                "object {id} at version {version} not found in cache or indexer DB: {e}"
+            ))
+        })
     }
 
     async fn find_object_lt_or_eq_version(
@@ -621,7 +622,9 @@ impl ObjectProvider for TxObjectResolver {
             }
         }
 
-        // fallback to indexer DB
-        self.reader.get_object_in_blocking_task(*id).await
+        self.reader
+            .get_past_object_read_with_fallback(*id, *version, false)
+            .await
+            .map(|past_read| past_read.into_object().ok())
     }
 }
