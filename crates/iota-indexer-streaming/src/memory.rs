@@ -13,13 +13,17 @@ use std::{
     fmt::Debug,
     num::{NonZeroI64, NonZeroUsize},
     pin::Pin,
-    str::FromStr,
     sync::Arc,
     task::{Context, Poll},
     time::{Duration, Instant},
 };
 
-use futures::{Stream, StreamExt, TryFutureExt, stream};
+use diesel::{
+    PgConnection, QueryResult, RunQueryDsl,
+    pg::PgNotification,
+    r2d2::{ConnectionManager, PooledConnection},
+};
+use futures::{Stream, StreamExt, TryFutureExt};
 use iota_indexer::{
     models::{
         events::StoredEvent,
@@ -31,9 +35,6 @@ use iota_types::event::Event;
 use prometheus::IntGauge;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-use tokio_postgres::{
-    AsyncMessage, Config as PostgresConfig, Connection, NoTls, Socket, tls::NoTlsStream,
-};
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tracing::{debug, error};
 
@@ -42,12 +43,17 @@ use crate::{
     metrics::{InMemoryStreamMetrics, METRICS_EVENT_LABEL, METRICS_TRANSACTION_LABEL},
 };
 
+pub type PoolConnection = PooledConnection<ConnectionManager<PgConnection>>;
+
 /// Postgres NOTIFY channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
 
 /// Delay in seconds before retrying to connect to the Postgres database in case
 /// of failure.
 const RETRY_POSTGRES_CONNECTION_DELAY: Duration = Duration::from_secs(5);
+/// Interval between polling for new notifications from the Postgres NOTIFY
+/// channel when client processed them all.
+const PG_NOTIFICATION_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Notification received from PostgreSQL NOTIFY channel when a checkpoint is
 /// committed.
@@ -164,16 +170,11 @@ impl InMemory {
     /// - handles automatically reconnecting to PostgreSQL if the connection is
     ///   lost.
     pub async fn new(
-        db_url: &str,
         config: Config,
         indexer_reader: IndexerReader,
         metrics: impl Into<Arc<InMemoryStreamMetrics>>,
     ) -> IndexerStreamingResult<Self> {
         let metrics = metrics.into();
-
-        let pg_config = PostgresConfig::from_str(db_url).map_err(|e| {
-            IndexerStreamingError::Postgres(format!("failed to parse Postgresdb url: {e}"))
-        })?;
 
         let (event_tx, _) = broadcast::channel(config.channel_buffer_size.get());
         let (transaction_tx, _) = broadcast::channel(config.channel_buffer_size.get());
@@ -188,40 +189,40 @@ impl InMemory {
 
             async move {
                 loop {
-                    let (client, connection) = match pg_config.connect(NoTls).await {
+                    let mut connection = match indexer_reader.get_pool().get() {
                         Ok(value) => value,
                         Err(e) => {
-                            error!("unable to connect to postgres: {e}");
-                            Self::publish_error(e.into(), &event_tx, &transaction_tx);
+                            error!(
+                                "failed to get connection from postgres connection pool with error: {e:?}"
+                            );
+                            Self::publish_error(
+                                IndexerStreamingError::Postgres(e.to_string()),
+                                &event_tx,
+                                &transaction_tx,
+                            );
                             tokio::time::sleep(RETRY_POSTGRES_CONNECTION_DELAY).await;
                             continue;
                         }
                     };
 
-                    // the client's queries require the connection to be actively polled to execute.
-                    // process_checkpoint_notifications is a long-running future that polls the
-                    // connection for notifications and should never resolve (unless a fatal error
-                    // occurs).
-                    let query_fut = async {
-                        client
-                            .query(&format!("LISTEN {CHANNEL_NAME};"), &[])
-                            .await
-                            .map_err(Into::into)
-                    };
+                    if let Err(e) =
+                        diesel::sql_query(format!("LISTEN {CHANNEL_NAME}")).execute(&mut connection)
+                    {
+                        error!("failed listening to postgres notify channel: {e}");
+                        Self::publish_error(e.into(), &event_tx, &transaction_tx);
+                        continue;
+                    }
 
-                    let process_notification_fut = Self::process_checkpoint_notifications(
+                    if let Err(e) = Self::process_checkpoint_notifications(
                         &metrics,
                         &config,
-                        connection,
+                        &mut connection,
                         &indexer_reader,
                         &event_tx,
                         &transaction_tx,
-                    );
-
-                    // by using try_join!, we poll both futures concurrently, which allows the
-                    // client query to execute while the connection is being actively polled
-                    // for incoming notifications.
-                    if let Err(e) = futures::try_join!(query_fut, process_notification_fut) {
+                    )
+                    .await
+                    {
                         error!("processing checkpoint notifications failed: {e}");
                         Self::publish_error(e, &event_tx, &transaction_tx);
                     }
@@ -321,7 +322,7 @@ impl InMemory {
     async fn process_checkpoint_notifications(
         metrics: &InMemoryStreamMetrics,
         config: &Config,
-        mut connection: Connection<Socket, NoTlsStream>,
+        connection: &mut PoolConnection,
         indexer_reader: &IndexerReader,
         event_tx: &broadcast::Sender<IndexerStreamingResult<StoredEvent>>,
         transaction_tx: &broadcast::Sender<IndexerStreamingResult<StoredTransaction>>,
@@ -332,11 +333,21 @@ impl InMemory {
         backoff.current_interval = backoff.initial_interval;
         backoff.multiplier = 1.0;
 
-        // create a stream from the connection that forwards messages to the channel.
-        let mut stream = stream::poll_fn(move |cx| connection.poll_message(cx))
-            .ready_chunks(config.notification_chunk_size.get());
+        loop {
+            // Poll the PostgreSQL NOTIFY channel for new checkpoint commit
+            // notifications. The iterator is non-blocking, it drains whatever
+            // is currently buffered and returns None when empty. We re-poll
+            // after a short sleep since new notifications can arrive at any time.
+            let messages = connection
+                .notifications_iter()
+                .take(config.notification_chunk_size.get())
+                .collect::<Vec<QueryResult<PgNotification>>>();
 
-        while let Some(messages) = stream.next().await {
+            if messages.is_empty() {
+                tokio::time::sleep(PG_NOTIFICATION_POLL_INTERVAL).await;
+                continue;
+            }
+
             // auto-records duration on drop (after each iteration).
             let _record_processed_checkpoint_notifications =
                 metrics.process_notification_batch_latency.start_timer();
@@ -389,16 +400,13 @@ impl InMemory {
                 }
             }
         }
-        Err(IndexerStreamingError::Postgres(
-            "postgres notification stream closed, retrying establishing connection...".into(),
-        ))
     }
 
     /// Resolves the transaction sequence number bounds from the given messages
     /// batch.
     fn resolve_tx_bounds(
         metrics: &InMemoryStreamMetrics,
-        messages: &[Result<AsyncMessage, tokio_postgres::Error>],
+        messages: &[QueryResult<PgNotification>],
     ) -> IndexerStreamingResult<Option<(i64, i64)>> {
         let mut filtered_messages = Self::filter_checkpoint_notifications(metrics, messages);
 
@@ -510,32 +518,24 @@ impl InMemory {
     /// [`CheckpointCommitNotification`] from PostgreSQL messages.
     fn filter_checkpoint_notifications<'a>(
         metrics: &'a InMemoryStreamMetrics,
-        messages: &'a [Result<AsyncMessage, tokio_postgres::Error>],
+        messages: &'a [QueryResult<PgNotification>],
     ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> + 'a {
-        messages.iter().filter_map(|msg_result| {
-            match msg_result {
-                Ok(AsyncMessage::Notification(n)) => {
-                    match serde_json::from_str::<CheckpointCommitNotification>(n.payload()) {
-                        Ok(notification) => {
-                            metrics
-                                .notified_checkpoint_sequence_number
-                                .set(notification.checkpoint_sequence_number);
+        messages.iter().filter_map(|msg_result| match msg_result {
+            Ok(PgNotification { payload, .. }) => {
+                match serde_json::from_str::<CheckpointCommitNotification>(payload) {
+                    Ok(notification) => {
+                        metrics
+                            .notified_checkpoint_sequence_number
+                            .set(notification.checkpoint_sequence_number);
 
-                            Some(Ok(notification))
-                        }
-                        Err(_) => None,
+                        Some(Ok(notification))
                     }
+                    Err(_) => None,
                 }
-                // not a notification message, skip
-                Ok(AsyncMessage::Notice(msg)) => {
-                    tracing::warn!("received a postgres notice: {msg}");
-                    None
-                }
-                Ok(_) => None,
-                Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
-                    "database connection error: {e}"
-                )))),
             }
+            Err(e) => Some(Err(IndexerStreamingError::Postgres(format!(
+                "database connection error: {e}"
+            )))),
         })
     }
 
