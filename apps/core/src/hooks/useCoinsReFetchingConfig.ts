@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureValue } from '@growthbook/growthbook-react';
+import { useFeatureValue } from '@iota/apps-backend-client';
 import { Feature, COINS_QUERY_REFETCH_INTERVAL, COINS_QUERY_STALE_TIME } from '..';
 
 export function useCoinsReFetchingConfig() {

@@ -1,0 +1,295 @@
+---
+title: Create an Address from a Mnemonic
+description: 'How to derive an IOTA address from a BIP-39 mnemonic using Ed25519, Secp256k1, and Secp256r1 signature schemes.'
+tags:
+  - how-to
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Create an Address from a Mnemonic
+
+<IotaSdk />
+
+This how-to demonstrates how to derive a cryptographic key pair and an IOTA address from a BIP-39 mnemonic phrase for each of the three supported signature schemes: Ed25519, Secp256k1, and Secp256r1.
+
+:::warning Security Warning
+The mnemonic phrase used in these examples is for **demonstration only**. Never share or hard-code a real mnemonic in production code. Store mnemonics securely and never commit them to version control.
+:::
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language — see [Getting Started](../../getting-started/)
+- A valid BIP-39 mnemonic phrase (12 or 24 words)
+
+## Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+1. Define the mnemonic string.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/address_from_mnemonic.rs#L13
+```
+
+</div>
+
+2. Derive the Ed25519 key pair and address from the mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/address_from_mnemonic.rs#L16-L26
+```
+
+</div>
+
+3. Derive the Secp256k1 key pair and address.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/address_from_mnemonic.rs#L28-L38
+```
+
+</div>
+
+4. Derive the Secp256r1 key pair and address using a custom derivation path.
+
+<div className={'hide-code-block-extras'}>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/address_from_mnemonic.rs#L40-L54
+```
+
+</div>
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+1. Define the mnemonic string.
+
+<div className={'hide-code-block-extras'}>
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/address_from_mnemonic/main.go#L13
+```
+
+</div>
+
+2. Derive the Ed25519 key pair and address from the mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/address_from_mnemonic/main.go#L16-L32
+```
+
+</div>
+
+3. Derive the Secp256k1 key pair and address.
+
+<div className={'hide-code-block-extras'}>
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/address_from_mnemonic/main.go#L34-L50
+```
+
+</div>
+
+4. Derive the Secp256r1 key pair and address using a custom derivation path.
+
+<div className={'hide-code-block-extras'}>
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/address_from_mnemonic/main.go#L52-L68
+```
+
+</div>
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+1. Define the mnemonic string.
+
+<div className={'hide-code-block-extras'}>
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/address_from_mnemonic.py#L6
+```
+
+</div>
+
+2. Derive the Ed25519 key pair and address from the mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/address_from_mnemonic.py#L10-L20
+```
+
+</div>
+
+3. Derive the Secp256k1 key pair and address.
+
+<div className={'hide-code-block-extras'}>
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/address_from_mnemonic.py#L22-L32
+```
+
+</div>
+
+4. Derive the Secp256r1 key pair and address using a custom derivation path.
+
+<div className={'hide-code-block-extras'}>
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/address_from_mnemonic.py#L34-L45
+```
+
+</div>
+
+</TabItem>
+<TabItem value="kotlin" label="Kotlin">
+
+1. Define the mnemonic string.
+
+<div className={'hide-code-block-extras'}>
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/AddressFromMnemonic.kt#L10
+```
+
+</div>
+
+2. Derive the Ed25519 key pair and address from the mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/AddressFromMnemonic.kt#L13-L23
+```
+
+</div>
+
+3. Derive the Secp256k1 key pair and address.
+
+<div className={'hide-code-block-extras'}>
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/AddressFromMnemonic.kt#L25-L35
+```
+
+</div>
+
+4. Derive the Secp256r1 key pair and address using a custom derivation path.
+
+<div className={'hide-code-block-extras'}>
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/AddressFromMnemonic.kt#L37-L48
+```
+
+</div>
+
+</TabItem>
+<TabItem value="swift" label="Swift">
+
+1. Define the mnemonic string.
+
+<div className={'hide-code-block-extras'}>
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/AddressFromMnemonic.swift#L9
+```
+
+</div>
+
+2. Derive the Ed25519 key pair and address from the mnemonic.
+
+<div className={'hide-code-block-extras'}>
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/AddressFromMnemonic.swift#L11-L21
+```
+
+</div>
+
+3. Derive the Secp256k1 key pair and address.
+
+<div className={'hide-code-block-extras'}>
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/AddressFromMnemonic.swift#L23-L33
+```
+
+</div>
+
+4. Derive the Secp256r1 key pair and address using a custom derivation path.
+
+<div className={'hide-code-block-extras'}>
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/AddressFromMnemonic.swift#L35-L46
+```
+
+</div>
+
+</TabItem>
+</Tabs>
+
+:::tip
+
+Each scheme produces a **different** address from the same mnemonic. For a deeper explanation of why, see [Address Derivation in IOTA](../../explanations/address-derivation).
+
+:::
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/address_from_mnemonic.rs
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/address_from_mnemonic/main.go
+```
+
+</TabItem>
+<TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/address_from_mnemonic.py
+```
+
+</TabItem>
+<TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/AddressFromMnemonic.kt
+```
+
+</TabItem>
+<TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/AddressFromMnemonic.swift
+```
+
+</TabItem>
+</Tabs>
+

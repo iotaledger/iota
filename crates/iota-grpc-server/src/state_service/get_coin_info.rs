@@ -41,7 +41,7 @@ pub(crate) fn get_coin_info(
             .with_reason(ErrorReason::FieldInvalid)
     })?;
 
-    let (coin_info, regulated_available) = reader.get_coin_v2_info(&core_coin_type)?;
+    let coin_info = reader.get_coin_v2_info(&core_coin_type)?;
     let coin_info = coin_info.ok_or_else(|| {
         RpcError::new(
             tonic::Code::NotFound,
@@ -133,14 +133,7 @@ pub(crate) fn get_coin_info(
     // `iota_types::deny_list_v1::RegulatedCoinMetadata` does not implement
     // `TryFrom<Object>`. If that impl is added upstream, this should be
     // updated to use it for consistency and better error handling.
-    //
-    // When `regulated_available` is false the `coin_v2` backfill has not
-    // completed, so we cannot tell whether the coin is regulated. In that
-    // case we omit the field entirely so clients see "field not populated"
-    // rather than an incorrect "unregulated".
-    if !regulated_available {
-        // coin_v2 backfill in progress — regulated status unknown; omit field.
-    } else if let Some(regulated_object_id) = coin_info.regulated_coin_metadata_object_id {
+    if let Some(regulated_object_id) = coin_info.regulated_coin_metadata_object_id {
         if let Some(object) = reader.get_object(&regulated_object_id)? {
             if let Some(move_obj) = object.data.try_as_move() {
                 match bcs::from_bytes::<iota_types::deny_list_v1::RegulatedCoinMetadata>(

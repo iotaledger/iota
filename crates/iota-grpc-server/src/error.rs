@@ -300,6 +300,12 @@ impl From<MissingIndexesError> for RpcError {
     }
 }
 
+impl From<iota_types::storage::error::Error> for RpcError {
+    fn from(value: iota_types::storage::error::Error) -> Self {
+        Self::internal().with_context(value)
+    }
+}
+
 impl From<tonic::Status> for RpcError {
     fn from(status: tonic::Status) -> Self {
         Self::new(status.code(), status.message().to_string())
