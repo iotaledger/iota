@@ -164,7 +164,7 @@ impl ReadApi {
     ) -> IndexerResult<bool> {
         match self
             .fullnode_grpc_client
-            .get_transactions(&[digest.into()], Some("transaction.digest"))
+            .get_transactions(&[digest], Some("transaction.digest"))
             .await
         {
             Ok(txns) => {

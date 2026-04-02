@@ -146,7 +146,7 @@ async fn get_objects_readmask_scenarios() {
             &mut ledger_client,
             vec![
                 ObjectRequest::default()
-                    .with_object_ref(ObjectReference::default().with_object_id(object_id.clone())),
+                    .with_object_ref(ObjectReference::default().with_object_id(object_id)),
             ],
             mask,
             None,
