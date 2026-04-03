@@ -10444,10 +10444,10 @@
             ],
             "properties": {
               "digest": {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/Digest"
               },
               "objectId": {
-                "$ref": "#/components/schemas/ObjectID"
+                "$ref": "#/components/schemas/ObjectId"
               },
               "objectType": {
                 "type": "string"
@@ -10456,7 +10456,7 @@
                 "$ref": "#/components/schemas/Owner"
               },
               "sender": {
-                "$ref": "#/components/schemas/IotaAddress"
+                "$ref": "#/components/schemas/Address"
               },
               "type": {
                 "type": "string",
@@ -10465,7 +10465,7 @@
                 ]
               },
               "version": {
-                "$ref": "#/components/schemas/SequenceNumber2"
+                "$ref": "#/components/schemas/SequenceNumber"
               }
             }
           },
