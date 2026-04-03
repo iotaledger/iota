@@ -779,9 +779,7 @@ impl Merge<iota_types::transaction::Transaction> for Transaction {
             return Ok(());
         }
 
-        let sdk_transaction: iota_sdk_types::Transaction = source.transaction_data().clone();
-
-        Merge::merge(self, &sdk_transaction, mask)
+        Merge::merge(self, source.transaction_data(), mask)
     }
 }
 
