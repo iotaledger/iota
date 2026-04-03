@@ -11,6 +11,7 @@
 
 use base_types::{IotaAddress, ObjectID, SequenceNumber, StructTag, TypeTag};
 pub use iota_network_stack::multiaddr;
+pub use iota_sdk_types as sdk_types;
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
