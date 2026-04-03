@@ -1088,7 +1088,7 @@ impl IndexerReader {
             .map(|(id, version)| {
                 format!(
                     "('\\x{}'::bytea, {}::bigint)",
-                    Hex::encode(id.into_bytes().to_vec()),
+                    Hex::encode(id.into_bytes()),
                     version.as_u64()
                 )
             })

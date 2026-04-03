@@ -521,7 +521,7 @@ pub fn last_created_id(
     }
     ids_created -= 1;
     let digest = transaction_context.digest();
-    let object_id = ObjectID::derive_id(digest.into(), ids_created);
+    let object_id = ObjectID::derive_id(digest, ids_created);
     let address = AccountAddress::from(object_id.into_bytes());
     let obj_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     obj_runtime.new_id(object_id)?;
