@@ -1322,6 +1322,7 @@
                 "enable_group_ops_native_function_msm": true,
                 "enable_jwk_consensus_updates": false,
                 "enable_move_authentication": false,
+                "enable_move_authentication_for_sponsor": false,
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
@@ -9940,10 +9941,26 @@
             "$ref": "#/components/schemas/Base64"
           },
           "commissionRate": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
+            "description": "The fee set by the validator for providing staking services.\n\nThis might be overridden by the protocol, that uses instead an effective commission rate. See more on the associated field.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              }
+            ]
           },
           "description": {
             "type": "string"
+          },
+          "effectiveCommissionRate": {
+            "description": "The effective fee charged by the validator for staking services.\n\nThis follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BigInt_for_uint64"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "exchangeRatesId": {
             "description": "ID of the exchange rate table object.",

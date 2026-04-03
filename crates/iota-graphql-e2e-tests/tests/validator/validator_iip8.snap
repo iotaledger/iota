@@ -62,7 +62,7 @@ Response: {
           "nodes": [
             {
               "commissionRate": 200,
-              "effectiveCommissionRate": 200,
+              "effectiveCommissionRate": 10000,
               "name": "validator-0",
               "votingPower": 10000
             }
