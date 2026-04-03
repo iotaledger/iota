@@ -1045,8 +1045,20 @@ export type IotaTransactionKind =
  */
 export interface IotaValidatorSummary {
     authorityPubkeyBytes: string;
+    /**
+     * The fee set by the validator for providing staking services.
+     *
+     * This might be overridden by the protocol, that uses instead an effective commission rate. See more
+     * on the associated field.
+     */
     commissionRate: string;
     description: string;
+    /**
+     * The effective fee charged by the validator for staking services.
+     *
+     * This follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).
+     */
+    effectiveCommissionRate?: string | null;
     /** ID of the exchange rate table object. */
     exchangeRatesId: string;
     /** Number of exchange rates in the table. */

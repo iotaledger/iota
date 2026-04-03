@@ -21,6 +21,8 @@ use tracing::{info, warn};
 const MIN_PROTOCOL_VERSION: u64 = 1;
 pub const MAX_PROTOCOL_VERSION: u64 = 24;
 
+/// Protocol version that IIP8 took effect.
+pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Record history of protocol version allocations here:
 //
 // Version 1:  Original version.
