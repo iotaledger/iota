@@ -8,5 +8,5 @@ A: object(0,0)
 
 task 1, line 11:
 //# run iota::claim_registry::claim_ed25519 --sender A --args object(0x11) x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::claim_internal (function index 9) at offset 13, Abort Code: 13835058982995296260
-Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 9, instruction: 13, function_name: Some("claim_internal") }, 13835058982995296260) at command Some(0)
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::validate_and_mark_claimed (function index 6) at offset 38, Abort Code: 13835058806901768198
+Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 6, instruction: 38, function_name: Some("validate_and_mark_claimed") }, 13835058806901768198) at command Some(0)

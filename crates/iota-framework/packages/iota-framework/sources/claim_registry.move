@@ -1,26 +1,23 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Claim Registry for creating default IOTA accounts derived from public keys.
+/// Claim Registry — on-chain registry for creating default IOTA accounts.
 ///
-/// A default account (`IotaDefaultAccount`) can be created by any address by
-/// calling one of the `claim_*` entry functions. The operation:
-///   1. Verifies that the provided public key derives to `ctx.sender()`.
-///   2. Ensures the address has not been claimed before (via `ClaimRegistry`).
-///   3. Creates an `IotaDefaultAccount` object whose `ObjectID == sender address`.
-///   4. Registers a Move-based authenticator that uses the same signature scheme
-///      as the proof, so subsequent transactions can use `MoveAuthenticator`.
+/// A default account (`IotaDefaultAccount`) can be claimed by any address by
+/// calling one of the `claim_*` entry functions or `claim_with_auth`. The
+/// operation:
+///   1. Validates the provided public key (scheme, length, address derivation).
+///   2. Ensures the address has not been claimed before.
+///   3. Creates an `IotaDefaultAccount` with `ObjectID == sender address`.
+///   4. Attaches an authenticator so subsequent transactions can use
+///      `MoveAuthenticator` with that account.
 module iota::claim_registry;
 
-use iota::account;
 use iota::address as iota_address;
-use iota::authenticator_function;
-use iota::ecdsa_k1;
-use iota::ecdsa_r1;
-use iota::ed25519;
+use iota::authenticator_function::AuthenticatorFunctionRefV1;
+use iota::dynamic_field as df;
 use iota::hash;
-use iota::table::{Self, Table};
-use std::ascii;
+use iota::iota_default_account::{Self, IotaDefaultAccount};
 
 // === Signature scheme flags (match Rust `SignatureScheme`) ===
 
@@ -30,10 +27,9 @@ const SCHEME_ED25519: u8 = 0x00;
 const SCHEME_SECP256K1: u8 = 0x01;
 /// Secp256r1 signature scheme flag.
 const SCHEME_SECP256R1: u8 = 0x02;
-
-/// Hash flag for SHA-256 used in secp256k1/secp256r1 verification.
-/// Matches the `SHA256 = 1` constant in `ecdsa_k1` / `ecdsa_r1` Move modules.
-const HASH_SHA256: u8 = 1;
+/// Sentinel for accounts that use a caller-supplied Move-based authenticator.
+/// See `iota::iota_default_account::SCHEME_CUSTOM` for details.
+const SCHEME_CUSTOM: u8 = 0xFF;
 
 /// Expected byte length of an Ed25519 public key.
 const ED25519_PUBLIC_KEY_LEN: u64 = 32;
@@ -51,44 +47,24 @@ const EAlreadyClaimed: vector<u8> =
     b"This address has already been claimed.";
 
 #[error(code = 2)]
-const ENotAccountOwner: vector<u8> =
-    b"Transaction sender is not the account owner.";
-
-#[error(code = 3)]
 const EInvalidScheme: vector<u8> =
     b"Unknown or unsupported signature scheme.";
 
-#[error(code = 4)]
-const EAuthFailed: vector<u8> =
-    b"Signature verification failed.";
-
-#[error(code = 5)]
+#[error(code = 3)]
 const EInvalidPublicKeyLength: vector<u8> =
     b"Public key has an incorrect length for the given signature scheme.";
 
-#[error(code = 6)]
+#[error(code = 4)]
 const ENotGenesis: vector<u8> =
     b"ClaimRegistry can only be created during genesis.";
 
-// === Structs ===
-
-/// Default IOTA account whose `ObjectID` equals the owner's on-chain address.
-/// Created via one of the `claim_*` entry functions.
-public struct IotaDefaultAccount has key {
-    id: UID,
-    /// Raw public key bytes of the account owner.
-    public_key: vector<u8>,
-    /// Signature scheme flag (SCHEME_ED25519 / SCHEME_SECP256K1 / SCHEME_SECP256R1).
-    scheme: u8,
-}
+// === Struct ===
 
 /// Singleton shared object that tracks which addresses have been claimed.
-/// Prevents a second claim on the same address.
+/// Each claimed address is stored as a dynamic field on this object's UID,
+/// which allows full nodes to index and query claimed addresses efficiently.
 public struct ClaimRegistry has key {
     id: UID,
-    /// Set of claimed addresses. The `bool` value is a dummy placeholder — only
-    /// key existence matters.
-    claimed_addresses: Table<address, bool>,
 }
 
 // === Genesis ===
@@ -96,178 +72,133 @@ public struct ClaimRegistry has key {
 /// Create and share the `ClaimRegistry` singleton.
 /// Called exactly once during genesis from address @0x0.
 #[allow(unused_function)]
-fun create(ctx: &mut TxContext) {
+fun create(ctx: &TxContext) {
     assert!(ctx.sender() == @0x0, ENotGenesis);
     transfer::share_object(ClaimRegistry {
         id: object::new_uid_from_hash(@0x11),
-        claimed_addresses: table::new(ctx),
     });
 }
 
-// === Claim entry points ===
+// === Claim entry points (built-in authenticator) ===
 
 /// Claim the sender's address using an Ed25519 public key.
-/// `public_key` must be the 32-byte Ed25519 public key whose address equals
-/// `ctx.sender()`.
+/// `public_key` must be the 32-byte Ed25519 public key whose derived address
+/// equals `ctx.sender()`. Creates an `IotaDefaultAccount` with the built-in
+/// per-scheme authenticator.
 public entry fun claim_ed25519(
     registry: &mut ClaimRegistry,
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    claim_internal(registry, SCHEME_ED25519, public_key, ctx)
+    validate_and_mark_claimed(registry, SCHEME_ED25519, &public_key, ctx);
+    iota_default_account::new(ctx.sender(), public_key, SCHEME_ED25519);
 }
 
 /// Claim the sender's address using a Secp256k1 public key.
 /// `public_key` must be the 33-byte compressed Secp256k1 public key whose
-/// address equals `ctx.sender()`.
+/// derived address equals `ctx.sender()`.
 public entry fun claim_secp256k1(
     registry: &mut ClaimRegistry,
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    claim_internal(registry, SCHEME_SECP256K1, public_key, ctx)
+    validate_and_mark_claimed(registry, SCHEME_SECP256K1, &public_key, ctx);
+    iota_default_account::new(ctx.sender(), public_key, SCHEME_SECP256K1);
 }
 
 /// Claim the sender's address using a Secp256r1 public key.
 /// `public_key` must be the 33-byte compressed Secp256r1 public key whose
-/// address equals `ctx.sender()`.
+/// derived address equals `ctx.sender()`.
 public entry fun claim_secp256r1(
     registry: &mut ClaimRegistry,
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    claim_internal(registry, SCHEME_SECP256R1, public_key, ctx)
+    validate_and_mark_claimed(registry, SCHEME_SECP256R1, &public_key, ctx);
+    iota_default_account::new(ctx.sender(), public_key, SCHEME_SECP256R1);
 }
 
-// === Key rotation ===
+// === Claim with custom authenticator ===
 
-/// Rotate the stored public key and/or scheme of a default account.
+/// Claim the sender's address and attach a caller-supplied Move-based
+/// authenticator instead of the default per-scheme signature verifier.
 ///
-/// The caller must be the account owner: `ctx.sender() == object_id(account)`.
-/// This is guaranteed by the ObjectID == address invariant established at claim
-/// time, so only the address holder can satisfy this check.
-public fun rotate_key(
-    account: &mut IotaDefaultAccount,
-    new_public_key: vector<u8>,
-    new_scheme: u8,
-    ctx: &TxContext,
+/// `scheme` may be SCHEME_ED25519 (0x00), SCHEME_SECP256K1 (0x01),
+/// SCHEME_SECP256R1 (0x02), or SCHEME_CUSTOM (0xFF).
+///
+/// For the cryptographic schemes (Ed25519 / Secp256k1 / Secp256r1), `public_key`
+/// must have the correct length and derive to `ctx.sender()`.
+///
+/// For SCHEME_CUSTOM (0xFF), pass this sentinel to indicate that the account
+/// relies entirely on the caller-supplied `auth_ref` for authentication. The
+/// `public_key` may be empty or carry arbitrary data defined by the custom
+/// authenticator; the built-in key-to-address derivation check is skipped.
+/// For now this is a sentinel value — a richer representation will be added
+/// in the future.
+///
+/// `auth_ref` must point to a function whose first parameter is
+/// `&IotaDefaultAccount`. This enables attaching any Move-based authentication
+/// logic — multisig, hardware key abstraction, custom policies — in place of
+/// the built-in signature verifier.
+///
+/// Example PTB usage:
+/// ```
+/// let auth_ref = my_package::my_auth::make_ref();
+/// claim_registry::claim_with_auth(registry, 0xFF, vector[], auth_ref);
+/// ```
+public fun claim_with_auth(
+    registry: &mut ClaimRegistry,
+    scheme: u8,
+    public_key: vector<u8>,
+    auth_ref: AuthenticatorFunctionRefV1<IotaDefaultAccount>,
+    ctx: &mut TxContext,
 ) {
-    ensure_tx_sender_is_account(account, ctx);
-    assert!(is_valid_scheme(new_scheme), EInvalidScheme);
-    assert!(is_valid_public_key_length(new_scheme, &new_public_key), EInvalidPublicKeyLength);
-    account.public_key = new_public_key;
-    account.scheme = new_scheme;
-    let new_auth = make_auth_ref();
-    account::rotate_auth_function_ref_v1(account, new_auth);
-}
-
-// === Authenticate (Move-based authenticator) ===
-
-/// Authenticate a `MoveAuthenticator` transaction for an `IotaDefaultAccount`.
-///
-/// The VM calls this function when processing a `MoveAuthenticator` transaction
-/// whose `object_to_authenticate` is an `IotaDefaultAccount`.
-///
-/// `signature` is provided by the user as `MoveAuthenticatorV1.call_args[0]`.
-/// It must be a valid signature over `auth_ctx.digest()` using the key stored
-/// in the account:
-///   - Ed25519:   64-byte signature, signed directly over `digest`.
-///   - Secp256k1: 64-byte (r,s) signature, signed over `SHA256(digest)`.
-///   - Secp256r1: 64-byte (r,s) signature, signed over `SHA256(digest)`.
-#[authenticator]
-public fun authenticate(
-    account: &IotaDefaultAccount,
-    signature: vector<u8>,
-    _auth_ctx: &iota::auth_context::AuthContext,
-    ctx: &TxContext,
-) {
-    let digest = ctx.digest();
-    let pubkey = &account.public_key;
-    let scheme = account.scheme;
-
-    let ok = if (scheme == SCHEME_ED25519) {
-        ed25519::ed25519_verify(&signature, pubkey, digest)
-    } else if (scheme == SCHEME_SECP256K1) {
-        ecdsa_k1::secp256k1_verify(&signature, pubkey, digest, HASH_SHA256)
-    } else if (scheme == SCHEME_SECP256R1) {
-        ecdsa_r1::secp256r1_verify(&signature, pubkey, digest, HASH_SHA256)
-    } else {
-        false
-    };
-
-    assert!(ok, EAuthFailed);
+    validate_and_mark_claimed(registry, scheme, &public_key, ctx);
+    iota_default_account::new_with_auth(ctx.sender(), public_key, scheme, auth_ref);
 }
 
 // === Public reads ===
 
-/// Return a reference to the stored public key bytes.
-public fun public_key(account: &IotaDefaultAccount): &vector<u8> {
-    &account.public_key
-}
-
-/// Return the stored signature scheme flag.
-public fun scheme(account: &IotaDefaultAccount): u8 {
-    account.scheme
-}
-
 /// Return `true` if the given address has already been claimed.
 public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
-    registry.claimed_addresses.contains(addr)
+    df::exists_(&registry.id, addr)
 }
 
 // === Internal helpers ===
 
-fun claim_internal(
+/// Validate the claim parameters and mark the sender's address in the registry.
+/// Must be called before `iota_default_account::new` or `new_with_auth`.
+fun validate_and_mark_claimed(
     registry: &mut ClaimRegistry,
     scheme: u8,
-    public_key: vector<u8>,
+    public_key: &vector<u8>,
     ctx: &TxContext,
 ) {
-    // 1. Guard against future callers passing an unsupported scheme.
-    //    Currently unreachable via the public entry points, but prevents a
-    //    silently-broken account if a new entry point is added incorrectly.
+    // Guard against unsupported schemes — prevents silently-broken accounts
+    // if a new entry point is added that passes an invalid scheme.
     assert!(is_valid_scheme(scheme), EInvalidScheme);
 
-    // 2. Validate the public key length for the given scheme.
-    assert!(is_valid_public_key_length(scheme, &public_key), EInvalidPublicKeyLength);
+    assert!(is_valid_public_key_length(scheme, public_key), EInvalidPublicKeyLength);
 
-    // 3. Verify that the public key derives to the transaction sender.
-    //    The transaction itself is already signed with the corresponding
-    //    private key, so this implicitly proves ownership.
-    let derived = derive_address(scheme, &public_key);
-    assert!(derived == ctx.sender(), EAddressMismatch);
-
-    // 2. Prevent duplicate claims.
-    assert!(!registry.claimed_addresses.contains(ctx.sender()), EAlreadyClaimed);
-    registry.claimed_addresses.add(ctx.sender(), true);
-
-    // 3. Build the authenticator reference pointing to `claim_registry::authenticate`.
-    let auth_ref = make_auth_ref();
-
-    // 4. Create IotaDefaultAccount with ObjectID == sender address.
-    let account_obj = IotaDefaultAccount {
-        id: object::new_uid_from_hash(ctx.sender()),
-        public_key,
-        scheme,
+    // For cryptographic schemes, verify that the provided public key derives to
+    // the transaction sender. The transaction signature already proved the sender
+    // knows the private key, so this check binds the stored pubkey to the address.
+    //
+    // For SCHEME_CUSTOM the derivation is skipped: the custom authenticator is
+    // responsible for the key-to-address binding, and the transaction signature
+    // on the protocol level already proves ownership of ctx.sender().
+    if (scheme != SCHEME_CUSTOM) {
+        let derived = derive_address(scheme, public_key);
+        assert!(derived == ctx.sender(), EAddressMismatch);
     };
 
-    // 5. Register as a shared mutable account with the Move-based authenticator.
-    //    The bytecode verifier enforces that IotaDefaultAccount is defined in
-    //    this module, which satisfies the create_account_v1 constraint.
-    account::create_account_v1(account_obj, auth_ref);
-}
-
-/// Build an `AuthenticatorFunctionRefV1` pointing to `claim_registry::authenticate`
-/// in the iota-framework package (@0x2).
-fun make_auth_ref(): authenticator_function::AuthenticatorFunctionRefV1<IotaDefaultAccount> {
-    authenticator_function::create_for_framework<IotaDefaultAccount>(
-        ascii::string(b"claim_registry"),
-        ascii::string(b"authenticate"),
-    )
+    assert!(!df::exists_(&registry.id, ctx.sender()), EAlreadyClaimed);
+    df::add(&mut registry.id, ctx.sender(), true);
 }
 
 /// Compute the IOTA address for the given signature scheme and public key.
-/// Mirrors the Rust `IotaAddress::from(&PublicKey)` / `SignatureScheme::update_hasher_with_flag`:
+/// Mirrors the Rust `IotaAddress::from(&PublicKey)` /
+/// `SignatureScheme::update_hasher_with_flag`:
 ///   - Ed25519:   Blake2b256(pubkey_bytes)           — NO flag prefix (special case)
 ///   - Secp256k1: Blake2b256([0x01] || pubkey_bytes)
 ///   - Secp256r1: Blake2b256([0x02] || pubkey_bytes)
@@ -282,22 +213,23 @@ fun derive_address(scheme: u8, public_key: &vector<u8>): address {
     iota_address::from_bytes(hash::blake2b256(&data))
 }
 
-/// Assert that the transaction sender equals the account's object address.
-/// Valid because ObjectID == address is the invariant established at claim time.
-fun ensure_tx_sender_is_account(account: &IotaDefaultAccount, ctx: &TxContext) {
-    assert!(ctx.sender() == object::id_address(account), ENotAccountOwner);
-}
-
 fun is_valid_scheme(scheme: u8): bool {
-    scheme == SCHEME_ED25519 || scheme == SCHEME_SECP256K1 || scheme == SCHEME_SECP256R1
+    scheme == SCHEME_ED25519
+        || scheme == SCHEME_SECP256K1
+        || scheme == SCHEME_SECP256R1
+        || scheme == SCHEME_CUSTOM
 }
 
 fun is_valid_public_key_length(scheme: u8, public_key: &vector<u8>): bool {
-    let len = public_key.length();
-    if (scheme == SCHEME_ED25519) {
-        len == ED25519_PUBLIC_KEY_LEN
+    if (scheme == SCHEME_CUSTOM) {
+        true // custom auth: public_key may be empty or carry arbitrary data
     } else {
-        len == COMPRESSED_PUBLIC_KEY_LEN
+        let len = public_key.length();
+        if (scheme == SCHEME_ED25519) {
+            len == ED25519_PUBLIC_KEY_LEN
+        } else {
+            len == COMPRESSED_PUBLIC_KEY_LEN
+        }
     }
 }
 
@@ -318,7 +250,11 @@ public fun scheme_secp256k1(): u8 { SCHEME_SECP256K1 }
 public fun scheme_secp256r1(): u8 { SCHEME_SECP256R1 }
 
 #[test_only]
-/// Expose address derivation for tests that need to compute the correct sender address.
+public fun scheme_custom(): u8 { SCHEME_CUSTOM }
+
+#[test_only]
+/// Expose address derivation for tests that need to compute the correct sender
+/// address before calling a claim function.
 public fun derive_address_for_testing(scheme: u8, public_key: &vector<u8>): address {
     derive_address(scheme, public_key)
 }

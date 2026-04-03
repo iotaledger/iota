@@ -2230,45 +2230,6 @@ put_back
 destroy
 	public fun
 	0x2::borrow
-Table
-	public struct
-	0x2::table
-new
-	public fun
-	0x2::table
-add
-	public fun
-	0x2::table
-borrow
-	public fun
-	0x2::table
-borrow_mut
-	public fun
-	0x2::table
-remove
-	public fun
-	0x2::table
-contains
-	public fun
-	0x2::table
-length
-	public fun
-	0x2::table
-is_empty
-	public fun
-	0x2::table
-destroy_empty
-	public fun
-	0x2::table
-drop
-	public fun
-	0x2::table
-blake2b256
-	public fun
-	0x2::hash
-keccak256
-	public fun
-	0x2::hash
 ed25519_verify
 	public fun
 	0x2::ed25519
@@ -2289,7 +2250,43 @@ secp256k1_verify
 	0x2::ecdsa_k1
 IotaDefaultAccount
 	public struct
-	0x2::claim_registry
+	0x2::iota_default_account
+new
+	public(package) fun
+	0x2::iota_default_account
+new_with_auth
+	public(package) fun
+	0x2::iota_default_account
+rotate_key
+	public fun
+	0x2::iota_default_account
+authenticate
+	public fun
+	0x2::iota_default_account
+public_key
+	public fun
+	0x2::iota_default_account
+scheme
+	public fun
+	0x2::iota_default_account
+make_auth_ref
+	fun
+	0x2::iota_default_account
+ensure_tx_sender_is_account
+	fun
+	0x2::iota_default_account
+is_valid_scheme
+	fun
+	0x2::iota_default_account
+is_valid_public_key_length
+	fun
+	0x2::iota_default_account
+blake2b256
+	public fun
+	0x2::hash
+keccak256
+	public fun
+	0x2::hash
 ClaimRegistry
 	public struct
 	0x2::claim_registry
@@ -2305,34 +2302,22 @@ claim_secp256k1
 claim_secp256r1
 	public entry fun
 	0x2::claim_registry
-rotate_key
-	public fun
-	0x2::claim_registry
-authenticate
-	public fun
-	0x2::claim_registry
-public_key
-	public fun
-	0x2::claim_registry
-scheme
+claim_with_auth
 	public fun
 	0x2::claim_registry
 is_claimed
 	public fun
 	0x2::claim_registry
-claim_internal
-	fun
-	0x2::claim_registry
-make_auth_ref
+validate_and_mark_claimed
 	fun
 	0x2::claim_registry
 derive_address
 	fun
 	0x2::claim_registry
-ensure_tx_sender_is_account
+is_valid_scheme
 	fun
 	0x2::claim_registry
-is_valid_scheme
+is_valid_public_key_length
 	fun
 	0x2::claim_registry
 Clock
@@ -3568,6 +3553,39 @@ IotaSystemAdminCap
 new_system_admin_cap
 	fun
 	0x2::system_admin_cap
+Table
+	public struct
+	0x2::table
+new
+	public fun
+	0x2::table
+add
+	public fun
+	0x2::table
+borrow
+	public fun
+	0x2::table
+borrow_mut
+	public fun
+	0x2::table
+remove
+	public fun
+	0x2::table
+contains
+	public fun
+	0x2::table
+length
+	public fun
+	0x2::table
+is_empty
+	public fun
+	0x2::table
+destroy_empty
+	public fun
+	0x2::table
+drop
+	public fun
+	0x2::table
 TableVec
 	public struct
 	0x2::table_vec

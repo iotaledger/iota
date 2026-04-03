@@ -8,12 +8,12 @@ A: object(0,0)
 
 task 1, lines 15-17:
 //# run iota::claim_registry::claim_ed25519 --sender A --args object(0x11) x"7f51463aeb76d88dc9b75e637250b220c49cf5b7967dbf17c1f9fa7c594a0928"
-events: Event { package_id: iota, transaction_module: Identifier("claim_registry"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: iota, module: Identifier("claim_registry"), name: Identifier("IotaDefaultAccount"), type_params: [] })] }, contents: [140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 14, 99, 108, 97, 105, 109, 95, 114, 101, 103, 105, 115, 116, 114, 121, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
+events: Event { package_id: iota, transaction_module: Identifier("claim_registry"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: iota, module: Identifier("iota_default_account"), name: Identifier("IotaDefaultAccount"), type_params: [] })] }, contents: [140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 20, 105, 111, 116, 97, 95, 100, 101, 102, 97, 117, 108, 116, 95, 97, 99, 99, 111, 117, 110, 116, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101] }
 created: object(1,0), object(1,1), object(1,2)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000011, object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9439200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9272000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 19:
 //# run iota::claim_registry::claim_ed25519 --sender A --args object(0x11) x"7f51463aeb76d88dc9b75e637250b220c49cf5b7967dbf17c1f9fa7c594a0928"
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::claim_internal (function index 9) at offset 27, Abort Code: 13835340470857039878
-Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 9, instruction: 27, function_name: Some("claim_internal") }, 13835340470857039878) at command Some(0)
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::validate_and_mark_claimed (function index 6) at offset 52, Abort Code: 13835340290468544520
+Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 6, instruction: 52, function_name: Some("validate_and_mark_claimed") }, 13835340290468544520) at command Some(0)

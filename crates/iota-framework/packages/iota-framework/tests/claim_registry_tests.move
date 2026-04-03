@@ -4,7 +4,8 @@
 #[test_only]
 module iota::claim_registry_tests;
 
-use iota::claim_registry::{Self, ClaimRegistry, IotaDefaultAccount};
+use iota::claim_registry::{Self, ClaimRegistry};
+use iota::iota_default_account::{Self, IotaDefaultAccount};
 use iota::test_scenario::{Self, Scenario};
 
 // Pre-computed Ed25519 public key from fastcrypto test vectors.
@@ -44,7 +45,6 @@ fun setup(): Scenario {
 #[test]
 fun test_registry_created() {
     let mut scenario = setup();
-    // Registry must exist as a shared object at @0xa.
     scenario.next_tx(@0x0);
     let registry = scenario.take_shared<ClaimRegistry>();
     test_scenario::return_shared(registry);
@@ -177,7 +177,7 @@ fun test_claim_secp256r1_happy_path() {
 }
 
 // ============================================================
-// Error paths
+// Error paths — claim
 // ============================================================
 
 #[test]
@@ -243,7 +243,6 @@ fun test_rotate_key_happy_path() {
         &pk,
     );
 
-    // Claim first.
     scenario.next_tx(sender);
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
@@ -252,20 +251,20 @@ fun test_rotate_key_happy_path() {
         test_scenario::return_shared(registry);
     };
 
-    // Rotate to a new secp256k1 key.
-    let new_pk = SECP256K1_PK;
+    // Rotate to a different Ed25519 key (any 32 distinct bytes).
+    let new_pk = x"aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899";
 
     scenario.next_tx(sender);
     {
         let mut account = scenario.take_shared<IotaDefaultAccount>();
         let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::rotate_key(
+        iota_default_account::rotate_key(
             &mut account,
             new_pk,
-            claim_registry::scheme_secp256k1(),
+            iota_default_account::scheme_ed25519(),
             ctx,
         );
-        assert!(account.scheme() == claim_registry::scheme_secp256k1());
+        assert!(account.scheme() == iota_default_account::scheme_ed25519());
         assert!(account.public_key() == &new_pk);
         test_scenario::return_shared(account);
     };
@@ -274,7 +273,7 @@ fun test_rotate_key_happy_path() {
 }
 
 #[test]
-#[expected_failure(abort_code = claim_registry::ENotAccountOwner)]
+#[expected_failure(abort_code = iota_default_account::ENotAccountOwner)]
 fun test_rotate_key_wrong_sender() {
     let mut scenario = setup();
     let pk = ED25519_PK;
@@ -291,17 +290,11 @@ fun test_rotate_key_wrong_sender() {
         test_scenario::return_shared(registry);
     };
 
-    // Attempt rotation from a different address.
     scenario.next_tx(@0xbad);
     {
         let mut account = scenario.take_shared<IotaDefaultAccount>();
         let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::rotate_key(
-            &mut account,
-            ED25519_PK,
-            claim_registry::scheme_ed25519(),
-            ctx,
-        );
+        iota_default_account::rotate_key(&mut account, ED25519_PK, iota_default_account::scheme_ed25519(), ctx);
         test_scenario::return_shared(account);
     };
 
@@ -309,7 +302,7 @@ fun test_rotate_key_wrong_sender() {
 }
 
 #[test]
-#[expected_failure(abort_code = claim_registry::EInvalidScheme)]
+#[expected_failure(abort_code = iota_default_account::EInvalidScheme)]
 fun test_rotate_key_invalid_scheme() {
     let mut scenario = setup();
     let pk = ED25519_PK;
@@ -330,7 +323,38 @@ fun test_rotate_key_invalid_scheme() {
     {
         let mut account = scenario.take_shared<IotaDefaultAccount>();
         let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::rotate_key(&mut account, pk, 0xff, ctx);
+        iota_default_account::rotate_key(&mut account, pk, 0xff, ctx);
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_default_account::EInvalidPublicKeyLength)]
+fun test_rotate_key_wrong_key_length() {
+    let mut scenario = setup();
+    let pk = ED25519_PK;
+    let sender = claim_registry::derive_address_for_testing(
+        claim_registry::scheme_ed25519(),
+        &pk,
+    );
+
+    scenario.next_tx(sender);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim_ed25519(&mut registry, pk, ctx);
+        test_scenario::return_shared(registry);
+    };
+
+    scenario.next_tx(sender);
+    {
+        let mut account = scenario.take_shared<IotaDefaultAccount>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        // 31 bytes — abort at key-length check.
+        let short_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd";
+        iota_default_account::rotate_key(&mut account, short_pk, iota_default_account::scheme_ed25519(), ctx);
         test_scenario::return_shared(account);
     };
 
@@ -354,42 +378,6 @@ fun test_claim_ed25519_wrong_key_length() {
         claim_registry::claim_ed25519(&mut registry, short_pk, ctx);
         test_scenario::return_shared(registry);
     };
-    test_scenario::end(scenario);
-}
-
-#[test]
-#[expected_failure(abort_code = claim_registry::EInvalidPublicKeyLength)]
-fun test_rotate_key_wrong_key_length() {
-    let mut scenario = setup();
-    let pk = ED25519_PK;
-    let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
-        &pk,
-    );
-
-    scenario.next_tx(sender);
-    {
-        let mut registry = scenario.take_shared<ClaimRegistry>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        claim_registry::claim_ed25519(&mut registry, pk, ctx);
-        test_scenario::return_shared(registry);
-    };
-
-    // Attempt rotation with a 31-byte key — must abort with EInvalidPublicKeyLength.
-    scenario.next_tx(sender);
-    {
-        let mut account = scenario.take_shared<IotaDefaultAccount>();
-        let ctx = test_scenario::ctx(&mut scenario);
-        let short_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd";
-        claim_registry::rotate_key(
-            &mut account,
-            short_pk,
-            claim_registry::scheme_ed25519(),
-            ctx,
-        );
-        test_scenario::return_shared(account);
-    };
-
     test_scenario::end(scenario);
 }
 

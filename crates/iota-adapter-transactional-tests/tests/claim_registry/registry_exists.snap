@@ -16,12 +16,4 @@ Contents: iota::claim_registry::ClaimRegistry {
             bytes: 0x0000000000000000000000000000000000000000000000000000000000000011,
         },
     },
-    claimed_addresses: iota::table::Table<address, bool> {
-        id: iota::object::UID {
-            id: iota::object::ID {
-                bytes: _,
-            },
-        },
-        size: 0u64,
-    },
 }
