@@ -6,6 +6,7 @@ version: 24
 feature_flags:
   consensus_transaction_ordering: ByGasPrice
   per_object_congestion_control_mode: TotalTxCount
+  consensus_choice: Starfish
   zklogin_max_epoch_upper_bound_delta: 30
   passkey_auth: true
   relocate_event_module: true

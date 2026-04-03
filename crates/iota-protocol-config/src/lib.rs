@@ -133,7 +133,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 24;
 //             instead of being deserialized from a BCS-encoded struct.
 //             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
 //             Move.
-// Version 24: Enable Move-based sponsor account authentication in devnet.
+// Version 24: Switch consensus protocol to Starfish in all networks.
+//             Enable Move-based sponsor account authentication in devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2695,6 +2696,9 @@ impl ProtocolConfig {
                     cfg.tx_context_replace_cost_base = Some(30);
                 }
                 24 => {
+                    // Switch consensus protocol to Starfish in all networks.
+                    cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable Move-based sponsor account authentication in devnet.
                         cfg.feature_flags.enable_move_authentication_for_sponsor = true;
