@@ -21,6 +21,7 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
+        claim_registry::{CLAIM_REGISTRY_CREATE_FUNCTION_NAME, CLAIM_REGISTRY_MODULE_NAME},
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
@@ -1282,6 +1283,10 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::ClaimRegistryCreate => {
+                            assert!(protocol_config.enable_claim_registry());
+                            builder = setup_claim_registry_create(builder);
+                        }
                         EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                             assert!(protocol_config.enable_jwk_consensus_updates());
                             builder = setup_authenticator_state_create(builder);
@@ -1881,6 +1886,24 @@ mod checked {
             pt,
             trace_builder_opt,
         )
+    }
+
+    /// Adds a Move call to `iota::claim_registry::create`, creating the
+    /// `ClaimRegistry` singleton during an epoch-change transaction for
+    /// networks that were deployed before the ClaimRegistry was introduced.
+    fn setup_claim_registry_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> ProgrammableTransactionBuilder {
+        builder
+            .move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                CLAIM_REGISTRY_MODULE_NAME.to_owned(),
+                CLAIM_REGISTRY_CREATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![],
+            )
+            .expect("Unable to generate claim_registry_create transaction!");
+        builder
     }
 
     /// This function adds a Move call to the IOTA framework's

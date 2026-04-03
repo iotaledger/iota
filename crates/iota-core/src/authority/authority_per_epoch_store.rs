@@ -1204,6 +1204,12 @@ impl AuthorityPerEpochStore {
             .is_some()
     }
 
+    pub fn claim_registry_exists(&self) -> bool {
+        self.epoch_start_configuration
+            .claim_registry_obj_initial_shared_version()
+            .is_some()
+    }
+
     pub fn randomness_reporter(&self) -> Option<RandomnessReporter> {
         self.randomness_reporter.get().cloned()
     }

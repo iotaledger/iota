@@ -240,6 +240,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_jwk_consensus_updates: bool,
 
+    // If true, the ClaimRegistry singleton is created (or already exists).
+    // Used to gate genesis creation and epoch-change creation for existing networks.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_claim_registry: bool,
+
     // If true, multisig containing zkLogin sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_zklogin_in_multisig: bool,
@@ -1342,6 +1347,15 @@ impl ProtocolConfig {
     // this function only exists for readability in the genesis code.
     pub fn create_authenticator_state_in_genesis(&self) -> bool {
         self.enable_jwk_consensus_updates()
+    }
+
+    pub fn enable_claim_registry(&self) -> bool {
+        self.feature_flags.enable_claim_registry
+    }
+
+    // this function only exists for readability in the genesis code.
+    pub fn create_claim_registry_in_genesis(&self) -> bool {
+        self.enable_claim_registry()
     }
 
     pub fn dkg_version(&self) -> u64 {
@@ -2678,6 +2692,7 @@ impl ProtocolConfig {
                     cfg.tx_context_gas_budget_cost_base = Some(30);
                     cfg.tx_context_ids_created_cost_base = Some(30);
                     cfg.tx_context_replace_cost_base = Some(30);
+                    cfg.feature_flags.enable_claim_registry = true;
                 }
 
                 // Use this template when making changes:

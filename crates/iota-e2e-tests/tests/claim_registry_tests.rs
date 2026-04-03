@@ -33,6 +33,68 @@ use move_core_types::ident_str;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 // ---------------------------------------------------------------------------
+// Protocol-upgrade test (msim only)
+// ---------------------------------------------------------------------------
+
+/// Verify that `ClaimRegistry` is created via `EndOfEpochTransaction` when a
+/// network that was started at protocol v22 (no `enable_claim_registry`) upgrades
+/// to v23 (first version where `enable_claim_registry = true`).
+///
+/// Flow:
+///   1. Build a cluster at protocol v22 — registry must NOT be present at genesis.
+///   2. All validators support up to v23, so they vote to upgrade on the first epoch change.
+///   3. After epoch 1 the protocol version must be 23 and the registry must exist as
+///      a shared object with `ObjectID == IOTA_CLAIM_REGISTRY_OBJECT_ID`.
+#[cfg(msim)]
+#[sim_test]
+async fn test_claim_registry_created_on_protocol_upgrade() {
+    use iota_protocol_config::ProtocolVersion;
+    use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+
+    telemetry_subscribers::init_for_testing();
+
+    // v22 → enable_claim_registry = false → no registry at genesis
+    // v23 → enable_claim_registry = true  → registry created at epoch-change
+    const PRE: u64 = 22;
+    const POST: u64 = 23;
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_protocol_version(ProtocolVersion::new(PRE))
+        .with_epoch_duration_ms(20000)
+        .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(PRE, POST))
+        .build()
+        .await;
+
+    // Genesis is at v22 → ClaimRegistry must NOT exist yet.
+    assert!(
+        test_cluster
+            .get_object_from_fullnode_store(&IOTA_CLAIM_REGISTRY_OBJECT_ID)
+            .await
+            .is_none(),
+        "ClaimRegistry must NOT exist at genesis (protocol v{PRE})"
+    );
+
+    // Wait for the epoch change that upgrades the protocol to v23.
+    let system_state = test_cluster.wait_for_epoch(Some(1)).await;
+    assert_eq!(
+        system_state.protocol_version(),
+        POST,
+        "Expected protocol version {POST} after epoch 1"
+    );
+
+    // After the upgrade: ClaimRegistry must now exist as a shared object.
+    let reg = test_cluster
+        .get_object_from_fullnode_store(&IOTA_CLAIM_REGISTRY_OBJECT_ID)
+        .await
+        .expect("ClaimRegistry must exist after upgrade to protocol v{POST}");
+    assert!(
+        matches!(reg.owner(), Owner::Shared { .. }),
+        "ClaimRegistry must be a shared object; got {:?}",
+        reg.owner()
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
 

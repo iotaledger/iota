@@ -412,6 +412,9 @@ pub enum EndOfEpochTransactionKind {
     // `enable_jwk_consensus_updates` is not enabled in the protocol config.
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
+    // ClaimRegistryCreate can be left at the end as long as `enable_claim_registry` is not
+    // enabled in the protocol config.
+    ClaimRegistryCreate,
 }
 
 impl EndOfEpochTransactionKind {
@@ -531,6 +534,10 @@ impl EndOfEpochTransactionKind {
         Self::AuthenticatorStateCreate
     }
 
+    pub fn new_claim_registry_create() -> Self {
+        Self::ClaimRegistryCreate
+    }
+
     fn input_objects(&self) -> Vec<InputObjectKind> {
         match self {
             Self::ChangeEpoch(_) => {
@@ -562,6 +569,7 @@ impl EndOfEpochTransactionKind {
                 }]
             }
             Self::AuthenticatorStateCreate => vec![],
+            Self::ClaimRegistryCreate => vec![],
             Self::AuthenticatorStateExpire(expire) => {
                 vec![InputObjectKind::SharedMoveObject {
                     id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
@@ -595,6 +603,7 @@ impl EndOfEpochTransactionKind {
                 .into_iter(),
             ),
             Self::AuthenticatorStateCreate => Either::Right(iter::empty()),
+            Self::ClaimRegistryCreate => Either::Right(iter::empty()),
         }
     }
 
@@ -687,6 +696,13 @@ impl EndOfEpochTransactionKind {
                 if !config.enable_jwk_consensus_updates() {
                     return Err(UserInputError::Unsupported(
                         "authenticator state updates not enabled".to_string(),
+                    ));
+                }
+            }
+            Self::ClaimRegistryCreate => {
+                if !config.enable_claim_registry() {
+                    return Err(UserInputError::Unsupported(
+                        "claim registry not enabled".to_string(),
                     ));
                 }
             }

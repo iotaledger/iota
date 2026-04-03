@@ -560,6 +560,12 @@ impl Builder {
 
         assert!(unsigned_genesis.has_coin_deny_list_object());
 
+        if protocol_config.create_claim_registry_in_genesis() {
+            assert!(unsigned_genesis.has_claim_registry_object());
+        } else {
+            assert!(!unsigned_genesis.has_claim_registry_object());
+        }
+
         assert_eq!(
             self.validators.len(),
             system_state.validators.active_validators.len()
@@ -1537,14 +1543,17 @@ pub fn generate_genesis_system_object(
             vec![],
         )?;
 
-        // Create the claim registry
-        builder.move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            CLAIM_REGISTRY_MODULE_NAME.to_owned(),
-            CLAIM_REGISTRY_CREATE_FUNCTION_NAME.to_owned(),
-            vec![],
-            vec![],
-        )?;
+        // Create the claim registry (only for new networks; existing networks
+        // receive it via a ClaimRegistryCreate end-of-epoch transaction).
+        if protocol_config.create_claim_registry_in_genesis() {
+            builder.move_call(
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                CLAIM_REGISTRY_MODULE_NAME.to_owned(),
+                CLAIM_REGISTRY_CREATE_FUNCTION_NAME.to_owned(),
+                vec![],
+                vec![],
+            )?;
+        }
 
         // Create the deny list
         builder.move_call(

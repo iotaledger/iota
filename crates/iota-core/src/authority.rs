@@ -4959,6 +4959,23 @@ impl AuthorityState {
     }
 
     #[instrument(level = "debug", skip_all)]
+    fn create_claim_registry_tx(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> Option<EndOfEpochTransactionKind> {
+        if !epoch_store.protocol_config().enable_claim_registry() {
+            info!("ClaimRegistry is not enabled");
+            return None;
+        }
+        if epoch_store.claim_registry_exists() {
+            info!("ClaimRegistry already exists");
+            return None;
+        }
+        info!("Creating ClaimRegistryCreate tx");
+        Some(EndOfEpochTransactionKind::new_claim_registry_create())
+    }
+
+    #[instrument(level = "debug", skip_all)]
     fn create_authenticator_state_tx(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -5020,6 +5037,10 @@ impl AuthorityState {
         TransactionEffects,
     )> {
         let mut txns = Vec::new();
+
+        if let Some(tx) = self.create_claim_registry_tx(epoch_store) {
+            txns.push(tx);
+        }
 
         if let Some(tx) = self.create_authenticator_state_tx(epoch_store) {
             txns.push(tx);

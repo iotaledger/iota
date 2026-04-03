@@ -559,6 +559,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
+                            EndOfEpochTransactionKind::ClaimRegistryCreate => {
+                                IotaEndOfEpochTransactionKind::ClaimRegistryCreate
+                            }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
                             }
@@ -1855,6 +1858,7 @@ pub enum IotaEndOfEpochTransactionKind {
     ChangeEpochV2(IotaChangeEpochV2),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
+    ClaimRegistryCreate,
 }
 
 #[serde_as]
