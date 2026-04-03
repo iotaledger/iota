@@ -5,7 +5,10 @@ use std::sync::Arc;
 
 use futures::future::Either;
 use iota_network::{
-    api::{GetTxStatusRequest, SubmitTxRequest, TxStatus, ValidatorV2},
+    api::{
+        GetTxStatusRequest, NotifyCapabilitiesRequest, NotifyCapabilitiesResponse, SubmitTxRequest,
+        TxStatus, ValidatorV2,
+    },
     tonic::{Request, Response, Status},
 };
 use iota_types::{
@@ -16,8 +19,9 @@ use iota_types::{
     message_envelope::Message,
     messages_consensus::ConsensusTransaction,
     messages_grpc::{
-        ExecutedData, GetTxStatusRequest as DomainGetTxStatusRequest, SubmitTransactionsRequest,
-        TxStatusUpdate,
+        ExecutedData, GetTxStatusRequest as DomainGetTxStatusRequest,
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
+        SubmitTransactionsRequest, TxStatusUpdate,
     },
     traffic_control::Weight,
     transaction::Transaction,
@@ -35,6 +39,8 @@ const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
 
 /// A single streamed item in a V2 RPC response.
 type TxUpdateItem = Result<(TransactionDigest, TxStatusUpdate), Status>;
+
+use iota_metrics::spawn_monitored_task;
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -82,7 +88,7 @@ impl ValidatorService {
             let consensus_adapter = consensus_adapter.clone();
             let metrics = metrics.clone();
             let tx_sender = tx_sender.clone();
-            tokio::spawn(async move {
+            spawn_monitored_task!(async move {
                 let tx_digest = *transaction.digest();
                 let result = Self::submit_single_tx(
                     &state,
@@ -413,6 +419,89 @@ impl ValidatorService {
             output_objects,
         })
     }
+
+    async fn notify_capabilities_impl(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<(HandleCapabilityNotificationResponseV1, Weight), Status> {
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        fp_ensure!(
+            epoch_store
+                .protocol_config()
+                .track_non_committee_eligible_validators(),
+            IotaError::UnsupportedFeature {
+                error: "capability notification endpoint is not supported in this Protocol Version"
+                    .to_string()
+            }
+            .into()
+        );
+
+        fp_ensure!(
+            !self.state.is_fullnode(&epoch_store),
+            IotaError::FullNodeCantHandleAuthorityCapabilities.into()
+        );
+
+        let existing_capabilities = epoch_store.get_capabilities_v1()?;
+        let incoming_capability = request.message.data();
+
+        tracing::info!(
+            "Received capability notification: {:?}",
+            incoming_capability
+        );
+
+        if let Some(existing) = existing_capabilities
+            .iter()
+            .find(|cap| cap.authority == incoming_capability.authority)
+        {
+            if incoming_capability.generation <= existing.generation {
+                return Ok((
+                    HandleCapabilityNotificationResponseV1 { _unused: false },
+                    Weight::one(),
+                ));
+            }
+        }
+
+        if let Err(error) = self.consensus_adapter.check_consensus_overload() {
+            self.metrics
+                .num_rejected_capability_notifications_during_overload
+                .with_label_values(&[error.as_ref()])
+                .inc();
+            return Err(error.into());
+        }
+
+        let _metrics_guard = self
+            .metrics
+            .handle_capability_notification_latency
+            .start_timer();
+
+        let signed_authority_capabilities = request.message;
+        let verified_authority_capabilities = epoch_store
+            .verify_authority_capabilities(signed_authority_capabilities)
+            .inspect_err(|_e| {
+                self.metrics.signature_errors.inc();
+            })?;
+
+        let authority_name = verified_authority_capabilities.authority;
+        // Process the verified capabilities
+        tracing::debug!("Verified capability notification for authority {authority_name:?}");
+
+        let transaction = ConsensusTransaction::new_signed_capability_notification_v1(
+            verified_authority_capabilities.into_inner(),
+        );
+
+        self.consensus_adapter
+            .submit(transaction, None, &epoch_store)?;
+
+        tracing::debug!(
+            "Submitted capability notification to consensus for authority {authority_name:?}"
+        );
+
+        Ok((
+            HandleCapabilityNotificationResponseV1 { _unused: false },
+            Weight::one(),
+        ))
+    }
 }
 
 #[async_trait::async_trait]
@@ -435,5 +524,13 @@ impl ValidatorV2 for ValidatorService {
     ) -> Result<Response<Self::GetTxStatusStream>, Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_stream(ip, self.get_tx_status_impl(req).await)
+    }
+
+    async fn notify_capabilities(
+        &self,
+        request: Request<NotifyCapabilitiesRequest>,
+    ) -> Result<Response<NotifyCapabilitiesResponse>, Status> {
+        let (req, ip) = self.pre_handle(request).await?;
+        self.post_handle_unary(ip, self.notify_capabilities_impl(req).await)
     }
 }

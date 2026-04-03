@@ -10,6 +10,10 @@ service ValidatorV2 {
 
   // Stream status updates for a previously submitted transaction
   rpc GetTxStatus(GetTxStatusRequest) returns (stream TxStatus);
+
+  // Submit a signed capability notification from a non-committee validator.
+  rpc NotifyCapabilities(NotifyCapabilitiesRequest)
+      returns (NotifyCapabilitiesResponse);
 }
 
 // Wraps one or more transactions (BCS-encoded payloads)
@@ -74,3 +78,10 @@ message RejectedStatus {
 message ExpiredStatus {
   uint64 epoch = 1;
 }
+
+message NotifyCapabilitiesRequest {
+  // BCS-serialized SignedAuthorityCapabilitiesV1.
+  bytes capabilities = 1;
+}
+
+message NotifyCapabilitiesResponse {}

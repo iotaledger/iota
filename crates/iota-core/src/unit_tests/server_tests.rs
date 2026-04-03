@@ -4,8 +4,8 @@
 
 use fastcrypto::traits::KeyPair;
 use iota_network::api::{
-    GetCheckpointRequest, GetTxStatusRequest, SubmitTxRequest, TxStatusQuery, ValidatorPeer,
-    ValidatorV2,
+    GetCheckpointRequest, GetTxStatusRequest, NotifyCapabilitiesRequest, SubmitTxRequest,
+    TxStatusQuery, ValidatorPeer, ValidatorV2,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities};
@@ -2333,5 +2333,169 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
         matches!(update, TxStatusUpdate::Expired { .. }),
         "Expected Expired for unknown digest, got {:?}",
         update
+    );
+}
+
+// ── ValidatorV2 notify_capabilities tests
+// ─────────────────────────────────────
+
+/// Helper: build a proto `NotifyCapabilitiesRequest` from a domain request.
+fn make_v2_notify_capabilities_request(
+    domain: HandleCapabilityNotificationRequestV1,
+) -> tonic::Request<NotifyCapabilitiesRequest> {
+    let proto: NotifyCapabilitiesRequest = domain.try_into().unwrap();
+    make_tonic_request_for_testing(proto)
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_notify_capabilities_reject_unauthorized() {
+    telemetry_subscribers::init_for_testing();
+
+    let (_sender, sender_key): (_, AuthorityKeyPair) = get_authority_key_pair();
+
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    protocol_config.set_select_committee_from_eligible_validators_for_testing(true);
+    protocol_config.set_track_non_committee_eligible_validators_for_testing(true);
+    protocol_config.set_select_committee_supporting_next_epoch_version(true);
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    // Request from an unknown authority — should be rejected.
+    let capabilities = AuthorityCapabilitiesV1::new(
+        AuthorityName::new(sender_key.public().pubkey.to_bytes()),
+        Chain::Mainnet,
+        SupportedProtocolVersions::new_for_testing(1, 10),
+        vec![],
+    );
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(Intent::iota_app(AuthorityCapabilities), &capabilities),
+        &authority_state.current_epoch_for_testing(),
+        &sender_key,
+    );
+    let request1 = HandleCapabilityNotificationRequestV1 {
+        message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+    };
+
+    assert!(
+        validator_service
+            .notify_capabilities(make_v2_notify_capabilities_request(request1))
+            .await
+            .is_err(),
+        "Expected capability notification from unauthorized authority to be rejected"
+    );
+
+    // Request from the committee member itself — also rejected.
+    let authority_capabilities = AuthorityCapabilitiesV1::new(
+        authority_state.name,
+        Chain::Mainnet,
+        SupportedProtocolVersions::new_for_testing(1, 10),
+        vec![],
+    );
+    let authority_signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(AuthorityCapabilities),
+            &authority_capabilities,
+        ),
+        &authority_state.current_epoch_for_testing(),
+        &*authority_state.secret,
+    );
+    let request2 = HandleCapabilityNotificationRequestV1 {
+        message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(
+            authority_capabilities,
+            authority_signature,
+        ),
+    };
+
+    assert!(
+        validator_service
+            .notify_capabilities(make_v2_notify_capabilities_request(request2))
+            .await
+            .is_err(),
+        "Expected capability notification from committee member to be rejected"
+    );
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_notify_capabilities_feature_disabled() {
+    telemetry_subscribers::init_for_testing();
+
+    let (_sender, sender_key): (_, AuthorityKeyPair) = get_authority_key_pair();
+
+    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    protocol_config.set_select_committee_from_eligible_validators_for_testing(false);
+    protocol_config.set_track_non_committee_eligible_validators_for_testing(false);
+    protocol_config.set_select_committee_supporting_next_epoch_version(false);
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new(
+        Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
+        authority_state.name,
+        Arc::new(ConnectionMonitorStatusForTests {}),
+        100_000,
+        100_000,
+        None,
+        None,
+        ConsensusAdapterMetrics::new_test(),
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let capabilities = AuthorityCapabilitiesV1::new(
+        AuthorityName::new(sender_key.public().pubkey.to_bytes()),
+        Chain::Mainnet,
+        SupportedProtocolVersions::new_for_testing(1, 10),
+        vec![],
+    );
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(Intent::iota_app(AuthorityCapabilities), &capabilities),
+        &authority_state.current_epoch_for_testing(),
+        &sender_key,
+    );
+    let request = HandleCapabilityNotificationRequestV1 {
+        message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+    };
+
+    let result = validator_service
+        .notify_capabilities(make_v2_notify_capabilities_request(request))
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Expected capability notification to be rejected due to feature being disabled"
+    );
+    let err_kind = IotaError::from(result.unwrap_err());
+    assert!(
+        matches!(err_kind, IotaError::UnsupportedFeature { .. }),
+        "Expected UnsupportedFeature error, but got {err_kind:?}",
     );
 }

@@ -6,7 +6,12 @@
 use iota_types::{
     digests::TransactionDigest,
     error::IotaError,
-    messages_grpc::{GetTxStatusRequest, SubmitTransactionsRequest, TxStatusQuery, TxStatusUpdate},
+    messages_consensus::SignedAuthorityCapabilitiesV1,
+    messages_grpc::{
+        GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+        HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusQuery,
+        TxStatusUpdate,
+    },
     transaction::Transaction,
 };
 
@@ -141,6 +146,44 @@ impl TryFrom<(TransactionDigest, TxStatusUpdate)> for api::TxStatus {
             tx_digest: Some(digest.try_into()?),
             status: Some(update.try_into()?),
         })
+    }
+}
+
+// --- NotifyCapabilitiesRequest ↔ HandleCapabilityNotificationRequestV1 ---
+
+impl TryFrom<HandleCapabilityNotificationRequestV1> for api::NotifyCapabilitiesRequest {
+    type Error = IotaError;
+
+    fn try_from(value: HandleCapabilityNotificationRequestV1) -> Result<Self, Self::Error> {
+        Ok(Self {
+            capabilities: bcs_serialize(&value.message, "NotifyCapabilitiesRequest.capabilities")?,
+        })
+    }
+}
+
+impl TryFrom<api::NotifyCapabilitiesRequest> for HandleCapabilityNotificationRequestV1 {
+    type Error = IotaError;
+
+    fn try_from(value: api::NotifyCapabilitiesRequest) -> Result<Self, Self::Error> {
+        let message: SignedAuthorityCapabilitiesV1 = bcs_deserialize(
+            &value.capabilities,
+            "NotifyCapabilitiesRequest.capabilities",
+        )?;
+        Ok(Self { message })
+    }
+}
+
+// --- NotifyCapabilitiesResponse ↔ HandleCapabilityNotificationResponseV1 ---
+
+impl From<HandleCapabilityNotificationResponseV1> for api::NotifyCapabilitiesResponse {
+    fn from(_value: HandleCapabilityNotificationResponseV1) -> Self {
+        Self {}
+    }
+}
+
+impl From<api::NotifyCapabilitiesResponse> for HandleCapabilityNotificationResponseV1 {
+    fn from(_value: api::NotifyCapabilitiesResponse) -> Self {
+        Self { _unused: false }
     }
 }
 
