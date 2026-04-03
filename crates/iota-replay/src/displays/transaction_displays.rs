@@ -12,9 +12,8 @@ use iota_types::{
     base_types::TypeTag,
     execution::ExecutionResult,
     object::bounded_visitor::BoundedVisitor,
-    transaction::{
-        Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction, write_sep,
-    },
+    sdk_types::utils::write_sep,
+    transaction::{Argument, CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction},
 };
 use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
 use tabled::{
@@ -168,12 +167,12 @@ impl Display for Pretty<'_, Command> {
                     write!(f, "\n │ Type Tag: {ty}")?;
                 }
                 write!(f, "\n │ Arguments:\n │   ")?;
-                write_sep(f, cmd.elements.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.elements.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
             Command::TransferObjects(cmd) => {
                 write!(f, "TransferObjects:\n ┌\n │ Arguments: \n │   ")?;
-                write_sep(f, cmd.objects.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.objects.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n │ Address: {}\n └", Pretty(&cmd.address))
             }
             Command::SplitCoins(cmd) => {
@@ -182,7 +181,7 @@ impl Display for Pretty<'_, Command> {
                     "SplitCoins:\n ┌\n │ Coin: {}\n │ Amounts: \n │   ",
                     Pretty(&cmd.coin)
                 )?;
-                write_sep(f, cmd.amounts.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.amounts.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
             Command::MergeCoins(cmd) => {
@@ -191,17 +190,17 @@ impl Display for Pretty<'_, Command> {
                     "MergeCoins:\n ┌\n │ Target: {}\n │ Coins: \n │   ",
                     Pretty(&cmd.coin)
                 )?;
-                write_sep(f, cmd.coins_to_merge.iter().map(Pretty), "\n │   ")?;
+                write_sep(f, cmd.coins_to_merge.iter().map(Pretty), None, "\n │   ")?;
                 write!(f, "\n └")
             }
             Command::Publish(cmd) => {
                 write!(f, "Publish:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, &cmd.dependencies, "\n │   ")?;
+                write_sep(f, &cmd.dependencies, None, "\n │   ")?;
                 write!(f, "\n └")
             }
             Command::Upgrade(cmd) => {
                 write!(f, "Upgrade:\n ┌\n │ Dependencies: \n │   ")?;
-                write_sep(f, &cmd.dependencies, "\n │   ")?;
+                write_sep(f, &cmd.dependencies, None, "\n │   ")?;
                 write!(f, "\n │ Current Package ID: {}", cmd.package)?;
                 write!(f, "\n │ Ticket: {}", Pretty(&cmd.ticket))?;
                 write!(f, "\n └")
@@ -229,11 +228,11 @@ impl Display for Pretty<'_, ProgrammableMoveCall> {
 
         if !type_arguments.is_empty() {
             write!(f, "\n │ Type Arguments: \n │   ")?;
-            write_sep(f, type_arguments, "\n │   ")?;
+            write_sep(f, type_arguments, None, "\n │   ")?;
         }
         if !arguments.is_empty() {
             write!(f, "\n │ Arguments: \n │   ")?;
-            write_sep(f, arguments.iter().map(Pretty), "\n │   ")?;
+            write_sep(f, arguments.iter().map(Pretty), None, "\n │   ")?;
         }
 
         write!(f, "\n └")
