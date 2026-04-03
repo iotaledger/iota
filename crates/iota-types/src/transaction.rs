@@ -3150,20 +3150,3 @@ impl TransactionKey {
         }
     }
 }
-
-// TODO https://github.com/iotaledger/iota/issues/10960
-pub fn write_sep<T: core::fmt::Display>(
-    f: &mut core::fmt::Formatter<'_>,
-    items: impl IntoIterator<Item = T>,
-    sep: &str,
-) -> std::fmt::Result {
-    let mut xs = items.into_iter();
-    let Some(x) = xs.next() else {
-        return Ok(());
-    };
-    write!(f, "{x}")?;
-    for x in xs {
-        write!(f, "{sep}{x}")?;
-    }
-    Ok(())
-}

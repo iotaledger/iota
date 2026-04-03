@@ -3433,8 +3433,6 @@ version = "0.0.1-alpha.1"
 source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=bfe1492b31f4ad6a93393161e1c1dc1e994cd067#bfe1492b31f4ad6a93393161e1c1dc1e994cd067"
 dependencies = [
  "base64ct",
- "bcs",
- "blake2",
  "bnum",
  "bs58 0.5.1",
  "bytestring",
@@ -3444,10 +3442,6 @@ dependencies = [
  "paste",
  "rand_core 0.6.4",
  "roaring",
- "serde",
- "serde_json",
- "serde_repr",
- "serde_with",
  "strum 0.27.2",
  "thiserror 2.0.18",
  "winnow 0.7.15",
