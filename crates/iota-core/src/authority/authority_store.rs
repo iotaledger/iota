@@ -51,7 +51,7 @@ use crate::{
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
-    rest_index::RestIndexStore,
+    grpc_indexes::GrpcIndexesStore,
     state_accumulator::AccumulatorStore,
     transaction_outputs::TransactionOutputs,
 };
@@ -1659,7 +1659,7 @@ impl AuthorityStore {
     pub async fn prune_objects_and_compact_for_testing(
         &self,
         checkpoint_store: &Arc<CheckpointStore>,
-        rest_index: Option<&RestIndexStore>,
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
     ) {
         let pruning_config = AuthorityStorePruningConfig {
             num_epochs_to_retain: 0,
@@ -1668,7 +1668,7 @@ impl AuthorityStore {
         let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &self.perpetual_tables,
             checkpoint_store,
-            rest_index,
+            grpc_indexes_store,
             None,
             pruning_config,
             AuthorityStorePruningMetrics::new_for_test(),

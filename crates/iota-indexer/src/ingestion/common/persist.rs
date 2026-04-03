@@ -115,8 +115,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
                             return Ok(());
                         }
                         for (watermark, data) in tuple_chunk {
-                            unprocessed
-                                .insert(watermark.checkpoint_hi_inclusive, (watermark, data));
+                            unprocessed.insert(watermark.max_committed_cp, (watermark, data));
                         }
                     }
                     Some(None) => break, // Stream has ended
@@ -167,34 +166,38 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
 /// units will be used for a particular table.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CommitterWatermark {
-    /// Highest epoch written for given table. Doesn't mean that data for the
+    /// Current epoch for given table. Doesn't mean that data for the
     /// whole epoch is persisted as it still may be in progress.
-    pub epoch_hi_inclusive: u64,
-    /// Highest checkpoint for which all data is already written for given
-    /// table.
-    pub checkpoint_hi_inclusive: u64,
-    /// Exclusive upper transaction sequence number bound for this table's
-    /// data.
-    pub tx_hi: u64,
+    pub current_epoch: u64,
+    /// Maximum committed checkpoint for which all data is already written for
+    /// given table.
+    pub max_committed_cp: u64,
+    /// Maximum committed transaction sequence number for this table's data.
+    /// This is inclusive.
+    pub max_committed_tx: u64,
 }
 impl From<&IndexedCheckpoint> for CommitterWatermark {
     fn from(checkpoint: &IndexedCheckpoint) -> Self {
         Self {
-            epoch_hi_inclusive: checkpoint.epoch,
-            checkpoint_hi_inclusive: checkpoint.sequence_number,
-            tx_hi: checkpoint.network_total_transactions,
+            current_epoch: checkpoint.epoch,
+            max_committed_cp: checkpoint.sequence_number,
+            max_committed_tx: checkpoint.network_total_transactions.saturating_sub(1),
         }
     }
 }
 impl From<&CheckpointData> for CommitterWatermark {
     fn from(checkpoint: &CheckpointData) -> Self {
         Self {
-            epoch_hi_inclusive: checkpoint.checkpoint_summary.epoch,
-            checkpoint_hi_inclusive: checkpoint.checkpoint_summary.sequence_number,
-            tx_hi: checkpoint.checkpoint_summary.network_total_transactions,
+            current_epoch: checkpoint.checkpoint_summary.epoch,
+            max_committed_cp: checkpoint.checkpoint_summary.sequence_number,
+            max_committed_tx: checkpoint
+                .checkpoint_summary
+                .network_total_transactions
+                .saturating_sub(1),
         }
     }
 }
+
 /// Enum representing tables that a committer updates.
 #[derive(
     Debug,
@@ -241,9 +244,12 @@ pub enum CommitterTables {
     TxKinds,
     TxRecipients,
     TxSenders,
+    TxWrappedOrDeletedObjects,
+    TxGlobalOrder,
     Checkpoints,
     PrunerCpWatermark,
 }
+
 /// Enum representing tables that the objects snapshot processor updates.
 #[derive(
     Debug,
@@ -262,4 +268,25 @@ pub enum CommitterTables {
 #[serde(rename_all = "snake_case")]
 pub enum ObjectsSnapshotHandlerTables {
     ObjectsSnapshot,
+}
+
+/// Enum representing tables that are written by optimistic indexing, and not by
+/// main pipeline
+#[derive(
+    Debug,
+    Eq,
+    PartialEq,
+    strum_macros::Display,
+    strum_macros::EnumString,
+    strum_macros::EnumIter,
+    strum_macros::AsRefStr,
+    Hash,
+    Serialize,
+    Deserialize,
+    Clone,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum OptimisticIndexingTables {
+    OptimisticTransactions,
 }

@@ -18,7 +18,7 @@ export function useTransactionDryRun(
     const signer = useSigner(account || null);
     const response = useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['dryRunTransaction', transaction.getData()],
+        queryKey: ['dryRunTransaction', sender, chain, transaction.getData()],
         queryFn: () => {
             return signer!.dryRunTransactionBlock({ transactionBlock: transaction, chain });
         },

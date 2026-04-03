@@ -140,7 +140,6 @@ pub(crate) struct GraphQLStream {
 
 impl GraphQLStream {
     pub(crate) async fn new(
-        db_url: &str,
         indexer_reader: IndexerReader,
         registry: &Registry,
     ) -> Result<Self, Error> {
@@ -148,14 +147,9 @@ impl GraphQLStream {
             channel_buffer_size: BROKER_CHANNEL_SIZE,
             ..Default::default()
         };
-        let streamer = InMemory::new(
-            db_url,
-            config,
-            indexer_reader,
-            InMemoryStreamMetrics::new(registry),
-        )
-        .await
-        .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
+        let streamer = InMemory::new(config, indexer_reader, InMemoryStreamMetrics::new(registry))
+            .await
+            .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
         Ok(Self { streamer })
     }
 

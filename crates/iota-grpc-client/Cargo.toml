@@ -29,3 +29,6 @@ default = ["tls-ring", "tls-native-roots"]
 tls-ring = ["tonic/tls-ring"]
 tls-native-roots = ["tonic/tls-native-roots"]
 tls-webpki-roots = ["tonic/tls-webpki-roots"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
