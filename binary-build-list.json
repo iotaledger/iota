@@ -1,6 +1,6 @@
 {
   "release_binaries": {
-    "iota": ["iota-names", "gen-completions"],
+    "iota": ["iota-names", "gen-completions", "tracing"],
     "iota-localnet": ["indexer"],
     "iota-node": [],
     "iota-tool": ["tracing"],
