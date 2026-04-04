@@ -2275,11 +2275,23 @@ make_auth_ref
 ensure_tx_sender_is_account
 	fun
 	0x2::iota_default_account
+scheme_ed25519_flag
+	public(package) fun
+	0x2::iota_default_account
+scheme_secp256k1_flag
+	public(package) fun
+	0x2::iota_default_account
+scheme_secp256r1_flag
+	public(package) fun
+	0x2::iota_default_account
+is_move_authenticator_scheme
+	public(package) fun
+	0x2::iota_default_account
 is_valid_scheme
-	fun
+	public(package) fun
 	0x2::iota_default_account
 is_valid_public_key_length
-	fun
+	public(package) fun
 	0x2::iota_default_account
 blake2b256
 	public fun
@@ -2312,12 +2324,6 @@ validate_and_mark_claimed
 	fun
 	0x2::claim_registry
 derive_address
-	fun
-	0x2::claim_registry
-is_valid_scheme
-	fun
-	0x2::claim_registry
-is_valid_public_key_length
 	fun
 	0x2::claim_registry
 Clock

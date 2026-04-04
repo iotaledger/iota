@@ -30,17 +30,14 @@ const SCHEME_ED25519: u8 = 0x00;
 const SCHEME_SECP256K1: u8 = 0x01;
 const SCHEME_SECP256R1: u8 = 0x02;
 
-/// Sentinel flag for accounts that use a caller-supplied Move-based authenticator
+/// Scheme flag for accounts that use a caller-supplied Move-based authenticator
 /// instead of the built-in per-scheme signature verifier.
 ///
-/// When `scheme == SCHEME_CUSTOM` the `public_key` field carries arbitrary data
-/// defined by the custom authenticator (or may be empty). The built-in
-/// `authenticate` function will always reject such accounts with `EAuthFailed`,
-/// so only the attached `auth_ref` function will be invoked by the VM.
-///
-/// TODO: once the protocol supports richer authentication metadata, this
-/// sentinel will be replaced by a more expressive representation.
-const SCHEME_CUSTOM: u8 = 0xFF;
+/// Matches `SignatureScheme::MoveAuthenticator` (0x07) on the Rust side.
+/// The built-in `authenticate` function will always reject such accounts with
+/// `EAuthFailed`, so only the attached `auth_ref` function will be invoked by
+/// the VM.
+const SCHEME_MOVE_AUTHENTICATOR: u8 = 0x07;
 
 /// SHA-256 hash flag for secp256k1/secp256r1 verification.
 const HASH_SHA256: u8 = 1;
@@ -80,7 +77,7 @@ public struct IotaDefaultAccount has key {
     /// Raw public key bytes of the account owner.
     public_key: vector<u8>,
     /// Signature scheme flag: SCHEME_ED25519 / SCHEME_SECP256K1 / SCHEME_SECP256R1,
-    /// or SCHEME_CUSTOM for accounts that use a caller-supplied Move-based authenticator.
+    /// or SCHEME_MOVE_AUTHENTICATOR for accounts that use a caller-supplied Move-based authenticator.
     scheme: u8,
 }
 
@@ -115,7 +112,7 @@ public(package) fun new(addr: address, public_key: vector<u8>, scheme: u8) {
 /// `address` must equal `ctx.sender()` as validated by `claim_registry`
 /// before this call.
 ///
-/// Pass `SCHEME_CUSTOM` (0xFF) as `scheme` to mark the account as using a
+/// Pass `SCHEME_MOVE_AUTHENTICATOR` (0xFF) as `scheme` to mark the account as using a
 /// custom authenticator. For now this is a sentinel value; the `public_key`
 /// field may carry arbitrary data defined by the custom auth or be empty.
 public(package) fun new_with_auth(
@@ -213,15 +210,23 @@ fun ensure_tx_sender_is_account(account: &IotaDefaultAccount, ctx: &TxContext) {
     assert!(ctx.sender() == object::id_address(account), ENotAccountOwner);
 }
 
-fun is_valid_scheme(scheme: u8): bool {
+public(package) fun scheme_ed25519_flag(): u8 { SCHEME_ED25519 }
+public(package) fun scheme_secp256k1_flag(): u8 { SCHEME_SECP256K1 }
+public(package) fun scheme_secp256r1_flag(): u8 { SCHEME_SECP256R1 }
+
+public(package) fun is_move_authenticator_scheme(scheme: u8): bool {
+    scheme == SCHEME_MOVE_AUTHENTICATOR
+}
+
+public(package) fun is_valid_scheme(scheme: u8): bool {
     scheme == SCHEME_ED25519
         || scheme == SCHEME_SECP256K1
         || scheme == SCHEME_SECP256R1
-        || scheme == SCHEME_CUSTOM
+        || scheme == SCHEME_MOVE_AUTHENTICATOR
 }
 
-fun is_valid_public_key_length(scheme: u8, public_key: &vector<u8>): bool {
-    if (scheme == SCHEME_CUSTOM) {
+public(package) fun is_valid_public_key_length(scheme: u8, public_key: &vector<u8>): bool {
+    if (scheme == SCHEME_MOVE_AUTHENTICATOR) {
         true // custom auth: public_key may be empty or carry arbitrary data
     } else {
         let len = public_key.length();
@@ -245,4 +250,4 @@ public fun scheme_secp256k1(): u8 { SCHEME_SECP256K1 }
 public fun scheme_secp256r1(): u8 { SCHEME_SECP256R1 }
 
 #[test_only]
-public fun scheme_custom(): u8 { SCHEME_CUSTOM }
+public fun scheme_move_authenticator(): u8 { SCHEME_MOVE_AUTHENTICATOR }

@@ -19,22 +19,8 @@ use iota::dynamic_field as df;
 use iota::hash;
 use iota::iota_default_account::{Self, IotaDefaultAccount};
 
-// === Signature scheme flags (match Rust `SignatureScheme`) ===
-
-/// Ed25519 signature scheme flag.
-const SCHEME_ED25519: u8 = 0x00;
-/// Secp256k1 signature scheme flag.
-const SCHEME_SECP256K1: u8 = 0x01;
-/// Secp256r1 signature scheme flag.
-const SCHEME_SECP256R1: u8 = 0x02;
-/// Sentinel for accounts that use a caller-supplied Move-based authenticator.
-/// See `iota::iota_default_account::SCHEME_CUSTOM` for details.
-const SCHEME_CUSTOM: u8 = 0xFF;
-
-/// Expected byte length of an Ed25519 public key.
-const ED25519_PUBLIC_KEY_LEN: u64 = 32;
-/// Expected byte length of a compressed Secp256k1 or Secp256r1 public key.
-const COMPRESSED_PUBLIC_KEY_LEN: u64 = 33;
+// Scheme flags and key-length validation are defined in `iota_default_account`
+// and delegated to it via `public(package)` helpers to avoid duplication.
 
 // === Errors ===
 
@@ -90,8 +76,8 @@ public entry fun claim_ed25519(
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    validate_and_mark_claimed(registry, SCHEME_ED25519, &public_key, ctx);
-    iota_default_account::new(ctx.sender(), public_key, SCHEME_ED25519);
+    validate_and_mark_claimed(registry, iota_default_account::scheme_ed25519_flag(), &public_key, ctx);
+    iota_default_account::new(ctx.sender(), public_key, iota_default_account::scheme_ed25519_flag());
 }
 
 /// Claim the sender's address using a Secp256k1 public key.
@@ -102,8 +88,8 @@ public entry fun claim_secp256k1(
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    validate_and_mark_claimed(registry, SCHEME_SECP256K1, &public_key, ctx);
-    iota_default_account::new(ctx.sender(), public_key, SCHEME_SECP256K1);
+    validate_and_mark_claimed(registry, iota_default_account::scheme_secp256k1_flag(), &public_key, ctx);
+    iota_default_account::new(ctx.sender(), public_key, iota_default_account::scheme_secp256k1_flag());
 }
 
 /// Claim the sender's address using a Secp256r1 public key.
@@ -114,8 +100,8 @@ public entry fun claim_secp256r1(
     public_key: vector<u8>,
     ctx: &mut TxContext,
 ) {
-    validate_and_mark_claimed(registry, SCHEME_SECP256R1, &public_key, ctx);
-    iota_default_account::new(ctx.sender(), public_key, SCHEME_SECP256R1);
+    validate_and_mark_claimed(registry, iota_default_account::scheme_secp256r1_flag(), &public_key, ctx);
+    iota_default_account::new(ctx.sender(), public_key, iota_default_account::scheme_secp256r1_flag());
 }
 
 // === Claim with custom authenticator ===
@@ -124,12 +110,12 @@ public entry fun claim_secp256r1(
 /// authenticator instead of the default per-scheme signature verifier.
 ///
 /// `scheme` may be SCHEME_ED25519 (0x00), SCHEME_SECP256K1 (0x01),
-/// SCHEME_SECP256R1 (0x02), or SCHEME_CUSTOM (0xFF).
+/// SCHEME_SECP256R1 (0x02), or SCHEME_MOVE_AUTHENTICATOR (0xFF).
 ///
 /// For the cryptographic schemes (Ed25519 / Secp256k1 / Secp256r1), `public_key`
 /// must have the correct length and derive to `ctx.sender()`.
 ///
-/// For SCHEME_CUSTOM (0xFF), pass this sentinel to indicate that the account
+/// For SCHEME_MOVE_AUTHENTICATOR (0xFF), pass this sentinel to indicate that the account
 /// relies entirely on the caller-supplied `auth_ref` for authentication. The
 /// `public_key` may be empty or carry arbitrary data defined by the custom
 /// authenticator; the built-in key-to-address derivation check is skipped.
@@ -144,7 +130,7 @@ public entry fun claim_secp256r1(
 /// Example PTB usage:
 /// ```
 /// let auth_ref = my_package::my_auth::make_ref();
-/// claim_registry::claim_with_auth(registry, 0xFF, vector[], auth_ref);
+/// claim_registry::claim_with_auth(registry, 0x07, vector[], auth_ref);
 /// ```
 public fun claim_with_auth(
     registry: &mut ClaimRegistry,
@@ -176,18 +162,19 @@ fun validate_and_mark_claimed(
 ) {
     // Guard against unsupported schemes — prevents silently-broken accounts
     // if a new entry point is added that passes an invalid scheme.
-    assert!(is_valid_scheme(scheme), EInvalidScheme);
+    assert!(iota_default_account::is_valid_scheme(scheme), EInvalidScheme);
 
-    assert!(is_valid_public_key_length(scheme, public_key), EInvalidPublicKeyLength);
+    assert!(iota_default_account::is_valid_public_key_length(scheme, public_key), EInvalidPublicKeyLength);
 
     // For cryptographic schemes, verify that the provided public key derives to
     // the transaction sender. The transaction signature already proved the sender
     // knows the private key, so this check binds the stored pubkey to the address.
     //
-    // For SCHEME_CUSTOM the derivation is skipped: the custom authenticator is
-    // responsible for the key-to-address binding, and the transaction signature
-    // on the protocol level already proves ownership of ctx.sender().
-    if (scheme != SCHEME_CUSTOM) {
+    // For SCHEME_MOVE_AUTHENTICATOR the derivation is skipped: the custom
+    // authenticator is responsible for key-to-address binding, and the
+    // transaction signature on the protocol level already proves ownership of
+    // ctx.sender().
+    if (!iota_default_account::is_move_authenticator_scheme(scheme)) {
         let derived = derive_address(scheme, public_key);
         assert!(derived == ctx.sender(), EAddressMismatch);
     };
@@ -203,7 +190,7 @@ fun validate_and_mark_claimed(
 ///   - Secp256k1: Blake2b256([0x01] || pubkey_bytes)
 ///   - Secp256r1: Blake2b256([0x02] || pubkey_bytes)
 fun derive_address(scheme: u8, public_key: &vector<u8>): address {
-    let data = if (scheme == SCHEME_ED25519) {
+    let data = if (scheme == iota_default_account::scheme_ed25519_flag()) {
         *public_key
     } else {
         let mut v = vector[scheme];
@@ -213,44 +200,12 @@ fun derive_address(scheme: u8, public_key: &vector<u8>): address {
     iota_address::from_bytes(hash::blake2b256(&data))
 }
 
-fun is_valid_scheme(scheme: u8): bool {
-    scheme == SCHEME_ED25519
-        || scheme == SCHEME_SECP256K1
-        || scheme == SCHEME_SECP256R1
-        || scheme == SCHEME_CUSTOM
-}
-
-fun is_valid_public_key_length(scheme: u8, public_key: &vector<u8>): bool {
-    if (scheme == SCHEME_CUSTOM) {
-        true // custom auth: public_key may be empty or carry arbitrary data
-    } else {
-        let len = public_key.length();
-        if (scheme == SCHEME_ED25519) {
-            len == ED25519_PUBLIC_KEY_LEN
-        } else {
-            len == COMPRESSED_PUBLIC_KEY_LEN
-        }
-    }
-}
-
 // === Test only ===
 
 #[test_only]
 public fun create_for_testing(ctx: &mut TxContext) {
     create(ctx);
 }
-
-#[test_only]
-public fun scheme_ed25519(): u8 { SCHEME_ED25519 }
-
-#[test_only]
-public fun scheme_secp256k1(): u8 { SCHEME_SECP256K1 }
-
-#[test_only]
-public fun scheme_secp256r1(): u8 { SCHEME_SECP256R1 }
-
-#[test_only]
-public fun scheme_custom(): u8 { SCHEME_CUSTOM }
 
 #[test_only]
 /// Expose address derivation for tests that need to compute the correct sender

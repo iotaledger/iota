@@ -15,5 +15,5 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 
 task 2, line 19:
 //# run iota::claim_registry::claim_ed25519 --sender A --args object(0x11) x"7f51463aeb76d88dc9b75e637250b220c49cf5b7967dbf17c1f9fa7c594a0928"
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::validate_and_mark_claimed (function index 6) at offset 52, Abort Code: 13835340290468544520
-Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 6, instruction: 52, function_name: Some("validate_and_mark_claimed") }, 13835340290468544520) at command Some(0)
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::validate_and_mark_claimed (function index 6) at offset 58, Abort Code: 13835340311943053315
+Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 6, instruction: 58, function_name: Some("validate_and_mark_claimed") }, 13835340311943053315) at command Some(0)

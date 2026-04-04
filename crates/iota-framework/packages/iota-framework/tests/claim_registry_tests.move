@@ -62,7 +62,7 @@ fun test_claim_ed25519_happy_path() {
 
     // Derive the address that corresponds to this Ed25519 public key.
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
 
@@ -81,9 +81,10 @@ fun test_claim_ed25519_happy_path() {
         // ObjectID must equal the sender address.
         assert!(object::id_address(&account) == sender);
         // Stored scheme must be Ed25519.
-        assert!(account.scheme() == claim_registry::scheme_ed25519());
+        assert!(account.scheme() == iota_default_account::scheme_ed25519());
         // Stored public key must match what was provided.
-        assert!(account.public_key() == &ED25519_PK);
+        let expected_pk = ED25519_PK;
+        assert!(account.public_key() == &expected_pk);
         test_scenario::return_shared(account);
     };
 
@@ -108,7 +109,7 @@ fun test_claim_secp256k1_happy_path() {
     let pk = SECP256K1_PK;
 
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_secp256k1(),
+        iota_default_account::scheme_secp256k1(),
         &pk,
     );
 
@@ -124,7 +125,7 @@ fun test_claim_secp256k1_happy_path() {
     {
         let account = scenario.take_shared<IotaDefaultAccount>();
         assert!(object::id_address(&account) == sender);
-        assert!(account.scheme() == claim_registry::scheme_secp256k1());
+        assert!(account.scheme() == iota_default_account::scheme_secp256k1());
         let expected_pk = SECP256K1_PK;
         assert!(account.public_key() == &expected_pk);
         test_scenario::return_shared(account);
@@ -143,7 +144,7 @@ fun test_claim_secp256r1_happy_path() {
     let pk = SECP256R1_PK;
 
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_secp256r1(),
+        iota_default_account::scheme_secp256r1(),
         &pk,
     );
 
@@ -159,7 +160,7 @@ fun test_claim_secp256r1_happy_path() {
     {
         let account = scenario.take_shared<IotaDefaultAccount>();
         assert!(object::id_address(&account) == sender);
-        assert!(account.scheme() == claim_registry::scheme_secp256r1());
+        assert!(account.scheme() == iota_default_account::scheme_secp256r1());
         let expected_pk = SECP256R1_PK;
         assert!(account.public_key() == &expected_pk);
         test_scenario::return_shared(account);
@@ -205,7 +206,7 @@ fun test_claim_double_claim() {
     let mut scenario = setup();
     let pk = ED25519_PK;
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
 
@@ -239,7 +240,7 @@ fun test_rotate_key_happy_path() {
     let mut scenario = setup();
     let pk = ED25519_PK;
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
 
@@ -278,7 +279,7 @@ fun test_rotate_key_wrong_sender() {
     let mut scenario = setup();
     let pk = ED25519_PK;
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
 
@@ -307,7 +308,7 @@ fun test_rotate_key_invalid_scheme() {
     let mut scenario = setup();
     let pk = ED25519_PK;
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
 
@@ -336,7 +337,7 @@ fun test_rotate_key_wrong_key_length() {
     let mut scenario = setup();
     let pk = ED25519_PK;
     let sender = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
 
@@ -389,11 +390,11 @@ fun test_claim_ed25519_wrong_key_length() {
 fun test_derive_address_ed25519_is_deterministic() {
     let pk = ED25519_PK;
     let addr1 = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
     let addr2 = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
     assert!(addr1 == addr2);
@@ -403,11 +404,11 @@ fun test_derive_address_ed25519_is_deterministic() {
 fun test_derive_address_differs_by_scheme() {
     let pk = ED25519_PK;
     let addr_ed = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_ed25519(),
+        iota_default_account::scheme_ed25519(),
         &pk,
     );
     let addr_k1 = claim_registry::derive_address_for_testing(
-        claim_registry::scheme_secp256k1(),
+        iota_default_account::scheme_secp256k1(),
         &pk,
     );
     // Different scheme flags must produce different addresses for the same key bytes.
