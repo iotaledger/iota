@@ -110,12 +110,12 @@ public entry fun claim_secp256r1(
 /// authenticator instead of the default per-scheme signature verifier.
 ///
 /// `scheme` may be SCHEME_ED25519 (0x00), SCHEME_SECP256K1 (0x01),
-/// SCHEME_SECP256R1 (0x02), or SCHEME_MOVE_AUTHENTICATOR (0xFF).
+/// SCHEME_SECP256R1 (0x02), or SCHEME_MOVE_AUTHENTICATOR (0x07).
 ///
 /// For the cryptographic schemes (Ed25519 / Secp256k1 / Secp256r1), `public_key`
 /// must have the correct length and derive to `ctx.sender()`.
 ///
-/// For SCHEME_MOVE_AUTHENTICATOR (0xFF), pass this sentinel to indicate that the account
+/// For SCHEME_MOVE_AUTHENTICATOR (0x07), pass this sentinel to indicate that the account
 /// relies entirely on the caller-supplied `auth_ref` for authentication. The
 /// `public_key` may be empty or carry arbitrary data defined by the custom
 /// authenticator; the built-in key-to-address derivation check is skipped.
