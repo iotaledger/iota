@@ -589,7 +589,7 @@ IntentMessage:
     - intent:
         TYPENAME: Intent
     - value:
-        TYPENAME: TransactionData
+        TYPENAME: Transaction
 Jwk:
   STRUCT:
     - kty: STR
@@ -897,22 +897,12 @@ SystemPackage:
     - dependencies:
         SEQ:
           TYPENAME: ObjectId
-TransactionData:
+Transaction:
   ENUM:
     0:
-      V1:
+      "1":
         NEWTYPE:
-          TYPENAME: TransactionDataV1
-TransactionDataV1:
-  STRUCT:
-    - kind:
-        TYPENAME: TransactionKind
-    - sender:
-        TYPENAME: Address
-    - gas_data:
-        TYPENAME: GasPayment
-    - expiration:
-        TYPENAME: TransactionExpiration
+          TYPENAME: TransactionV1
 TransactionEffects:
   ENUM:
     0:
@@ -989,6 +979,16 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+TransactionV1:
+  STRUCT:
+    - kind:
+        TYPENAME: TransactionKind
+    - sender:
+        TYPENAME: Address
+    - gasPayment:
+        TYPENAME: GasPayment
+    - expiration:
+        TYPENAME: TransactionExpiration
 TransferObjects:
   STRUCT:
     - objects:
