@@ -112,7 +112,7 @@ public(package) fun new(addr: address, public_key: vector<u8>, scheme: u8) {
 /// `address` must equal `ctx.sender()` as validated by `claim_registry`
 /// before this call.
 ///
-/// Pass `SCHEME_MOVE_AUTHENTICATOR` (0xFF) as `scheme` to mark the account as using a
+/// Pass `SCHEME_MOVE_AUTHENTICATOR` (0x07) as `scheme` to mark the account as using a
 /// custom authenticator. For now this is a sentinel value; the `public_key`
 /// field may carry arbitrary data defined by the custom auth or be empty.
 public(package) fun new_with_auth(
