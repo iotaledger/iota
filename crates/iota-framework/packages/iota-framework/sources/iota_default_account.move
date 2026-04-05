@@ -1,20 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Default IOTA account (`IotaDefaultAccount`) tied to an on-chain address.
-///
-/// An `IotaDefaultAccount` is always created through `iota::claim_registry`
-/// which enforces ownership proof and duplicate-claim prevention. Once
-/// created it supports Move-based authentication using the key stored in
-/// the account, or a custom authenticator supplied at creation time via
-/// `iota::claim_registry::claim_with_auth`.
-///
-/// # Object identity
-///
-/// The `ObjectID` of every `IotaDefaultAccount` equals the owner's address,
-/// which is `Blake2b256([scheme_flag?] || public_key_bytes)` (see
-/// `iota::claim_registry::derive_address_for_testing` for the exact rule).
-/// This makes accounts directly addressable without an external lookup.
+/// Default IOTA account whose `ObjectID` equals the owner's address.
+/// Created exclusively through `iota::claim_registry`, which enforces
+/// ownership proof and prevents duplicate claims.
 module iota::iota_default_account;
 
 use iota::account;
@@ -29,22 +18,14 @@ use std::ascii;
 const SCHEME_ED25519: u8 = 0x00;
 const SCHEME_SECP256K1: u8 = 0x01;
 const SCHEME_SECP256R1: u8 = 0x02;
-
-/// Scheme flag for accounts that use a caller-supplied Move-based authenticator
-/// instead of the built-in per-scheme signature verifier.
-///
-/// Matches `SignatureScheme::MoveAuthenticator` (0x07) on the Rust side.
-/// The built-in `authenticate` function will always reject such accounts with
-/// `EAuthFailed`, so only the attached `auth_ref` function will be invoked by
-/// the VM.
+/// Matches `SignatureScheme::MoveAuthenticator` (0x07). The built-in
+/// `authenticate` always rejects this scheme; only the attached `auth_ref` is invoked.
 const SCHEME_MOVE_AUTHENTICATOR: u8 = 0x07;
 
 /// SHA-256 hash flag for secp256k1/secp256r1 verification.
 const HASH_SHA256: u8 = 1;
 
-/// Expected byte length of an Ed25519 public key.
 const ED25519_PUBLIC_KEY_LEN: u64 = 32;
-/// Expected byte length of a compressed Secp256k1 or Secp256r1 public key.
 const COMPRESSED_PUBLIC_KEY_LEN: u64 = 33;
 
 // === Errors ===
@@ -65,34 +46,26 @@ const EInvalidScheme: vector<u8> =
 const EInvalidPublicKeyLength: vector<u8> =
     b"Public key has an incorrect length for the given signature scheme.";
 
+#[error(code = 4)]
+const ECannotRotateCustomAuth: vector<u8> =
+    b"Use rotate_auth_ref to update the authenticator of a MoveAuthenticator account.";
+
 // === Struct ===
 
-/// Default IOTA account whose `ObjectID` equals the owner's on-chain address.
-///
-/// Created exclusively through `iota::claim_registry` to ensure that:
-///   - the caller proved ownership of the address before the account was created,
-///   - no duplicate accounts exist for the same address.
 public struct IotaDefaultAccount has key {
     id: UID,
-    /// Raw public key bytes of the account owner.
+    /// Raw public key bytes (or arbitrary data for SCHEME_MOVE_AUTHENTICATOR).
     public_key: vector<u8>,
-    /// Signature scheme flag: SCHEME_ED25519 / SCHEME_SECP256K1 / SCHEME_SECP256R1,
-    /// or SCHEME_MOVE_AUTHENTICATOR for accounts that use a caller-supplied Move-based authenticator.
+    /// One of SCHEME_ED25519 / SCHEME_SECP256K1 / SCHEME_SECP256R1 / SCHEME_MOVE_AUTHENTICATOR.
     scheme: u8,
 }
 
 // === Package-internal constructors ===
 //
-// These are intentionally `public(package)` rather than `public` so that
-// `IotaDefaultAccount` objects can only be created through `claim_registry`,
+// `public(package)` ensures accounts are only created through `claim_registry`,
 // which validates ownership and prevents bypassing the duplicate-claim check.
 
-/// Create and share an `IotaDefaultAccount` with the built-in authenticator
-/// (`iota_default_account::authenticate`).
-///
-/// `address` must equal `ctx.sender()` as validated by `claim_registry`
-/// before this call.  The UID is created here — not passed in — so that the
-/// Move bytecode verifier's "fresh UID" rule is satisfied.
+/// Create and share an `IotaDefaultAccount` with the built-in authenticator.
 public(package) fun new(addr: address, public_key: vector<u8>, scheme: u8) {
     let uid = object::new_uid_from_hash(addr);
     account::create_account_v1(
@@ -101,20 +74,9 @@ public(package) fun new(addr: address, public_key: vector<u8>, scheme: u8) {
     );
 }
 
-/// Create and share an `IotaDefaultAccount` with a caller-supplied
-/// Move-based authenticator.
-///
-/// `auth_ref` must point to a function whose first parameter is
-/// `&IotaDefaultAccount`. This enables attaching any Move-based
-/// authentication logic — multisig, hardware key abstraction, custom
-/// policies — instead of the built-in per-scheme signature verifier.
-///
-/// `address` must equal `ctx.sender()` as validated by `claim_registry`
-/// before this call.
-///
-/// Pass `SCHEME_MOVE_AUTHENTICATOR` (0x07) as `scheme` to mark the account as using a
-/// custom authenticator. For now this is a sentinel value; the `public_key`
-/// field may carry arbitrary data defined by the custom auth or be empty.
+/// Create and share an `IotaDefaultAccount` with a caller-supplied authenticator.
+/// Use `SCHEME_MOVE_AUTHENTICATOR` (0x07) as `scheme`; `public_key` may be empty
+/// or carry arbitrary data defined by the custom authenticator.
 public(package) fun new_with_auth(
     addr: address,
     public_key: vector<u8>,
@@ -130,16 +92,12 @@ public(package) fun new_with_auth(
 
 // === Key rotation ===
 
-/// Rotate the stored public key and/or scheme of a default account.
+/// Rotate the public key and scheme of a built-in-auth account.
+/// Only the account owner can call this (`ctx.sender() == object_id(account)`).
+/// For MOVE_AUTHENTICATOR accounts use `rotate_auth_ref` instead.
 ///
-/// The caller must be the account owner: `ctx.sender() == object_id(account)`.
-/// This is guaranteed by the ObjectID == address invariant established at claim
-/// time, so only the address holder can satisfy this check.
-///
-/// TODO: rotating to a new pubkey shall be protected, i.e. proof of ownership
-/// shall be checked. During the initial claim ctx.sender check satisfies this,
-/// but for any subsequent rotation we need a cryptographic signature over some
-/// rotation action-specific data from the new pubkey.
+/// TODO: rotation should require a proof-of-ownership signature from the new key
+/// (iotaledger/iota#11039).
 public fun rotate_key(
     account: &mut IotaDefaultAccount,
     new_public_key: vector<u8>,
@@ -148,6 +106,8 @@ public fun rotate_key(
 ) {
     ensure_tx_sender_is_account(account, ctx);
     assert!(is_valid_scheme(new_scheme), EInvalidScheme);
+    // Reject 0x07: the built-in verifier always fails for MOVE_AUTHENTICATOR.
+    assert!(!is_move_authenticator_scheme(new_scheme), ECannotRotateCustomAuth);
     assert!(is_valid_public_key_length(new_scheme, &new_public_key), EInvalidPublicKeyLength);
     account.public_key = new_public_key;
     account.scheme = new_scheme;
@@ -155,17 +115,24 @@ public fun rotate_key(
     account::rotate_auth_function_ref_v1(account, new_auth);
 }
 
+/// Attach or replace a custom authenticator. Sets scheme to SCHEME_MOVE_AUTHENTICATOR (0x07).
+public fun rotate_auth_ref(
+    account: &mut IotaDefaultAccount,
+    new_public_key: vector<u8>,
+    new_auth_ref: AuthenticatorFunctionRefV1<IotaDefaultAccount>,
+    ctx: &TxContext,
+) {
+    ensure_tx_sender_is_account(account, ctx);
+    account.scheme = SCHEME_MOVE_AUTHENTICATOR;
+    account.public_key = new_public_key;
+    account::rotate_auth_function_ref_v1(account, new_auth_ref);
+}
+
 // === Authenticate (Move-based authenticator) ===
 
-/// Authenticate a `MoveAuthenticator` transaction for an `IotaDefaultAccount`.
-///
-/// The VM invokes this function when executing a `MoveAuthenticator`
-/// transaction whose `object_to_authenticate` is an `IotaDefaultAccount`.
-/// TODO: Switch to `auth_ctx.signing_digest()` once AuthContext exposes it
-/// (tracked in iotaledger/iota#11039). The signing digest must match the one
-/// used by the generic signature variants already present in the protocol
-/// (`Blake2b256(BCS(IntentMessage(TransactionData)))`), so that clients do not
-/// need to change their signing flows when using a MoveAuthenticator account.
+/// Built-in authenticator invoked by the VM for MoveAuthenticator transactions.
+/// TODO: switch to `auth_ctx.signing_digest()` once available (iotaledger/iota#11039)
+/// so the digest matches generic signature variants and clients need no changes.
 #[authenticator]
 public fun authenticate(
     account: &IotaDefaultAccount,
@@ -197,6 +164,11 @@ public fun scheme(account: &IotaDefaultAccount): u8 {
     account.scheme
 }
 
+public(package) fun scheme_ed25519(): u8 { SCHEME_ED25519 }
+public(package) fun scheme_secp256k1(): u8 { SCHEME_SECP256K1 }
+public(package) fun scheme_secp256r1(): u8 { SCHEME_SECP256R1 }
+public(package) fun scheme_move_authenticator(): u8 { SCHEME_MOVE_AUTHENTICATOR }
+
 // === Internal helpers ===
 
 fun make_auth_ref(): AuthenticatorFunctionRefV1<IotaDefaultAccount> {
@@ -209,10 +181,6 @@ fun make_auth_ref(): AuthenticatorFunctionRefV1<IotaDefaultAccount> {
 fun ensure_tx_sender_is_account(account: &IotaDefaultAccount, ctx: &TxContext) {
     assert!(ctx.sender() == object::id_address(account), ENotAccountOwner);
 }
-
-public(package) fun scheme_ed25519_flag(): u8 { SCHEME_ED25519 }
-public(package) fun scheme_secp256k1_flag(): u8 { SCHEME_SECP256K1 }
-public(package) fun scheme_secp256r1_flag(): u8 { SCHEME_SECP256R1 }
 
 public(package) fun is_move_authenticator_scheme(scheme: u8): bool {
     scheme == SCHEME_MOVE_AUTHENTICATOR
@@ -237,17 +205,3 @@ public(package) fun is_valid_public_key_length(scheme: u8, public_key: &vector<u
         }
     }
 }
-
-// === Test only ===
-
-#[test_only]
-public fun scheme_ed25519(): u8 { SCHEME_ED25519 }
-
-#[test_only]
-public fun scheme_secp256k1(): u8 { SCHEME_SECP256K1 }
-
-#[test_only]
-public fun scheme_secp256r1(): u8 { SCHEME_SECP256R1 }
-
-#[test_only]
-public fun scheme_move_authenticator(): u8 { SCHEME_MOVE_AUTHENTICATOR }

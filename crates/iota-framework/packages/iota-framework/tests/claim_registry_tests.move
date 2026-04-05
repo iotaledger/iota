@@ -131,6 +131,14 @@ fun test_claim_secp256k1_happy_path() {
         test_scenario::return_shared(account);
     };
 
+    // Registry must mark the address as claimed.
+    scenario.next_tx(sender);
+    {
+        let registry = scenario.take_shared<ClaimRegistry>();
+        assert!(claim_registry::is_claimed(&registry, sender));
+        test_scenario::return_shared(registry);
+    };
+
     test_scenario::end(scenario);
 }
 
@@ -356,6 +364,49 @@ fun test_rotate_key_wrong_key_length() {
         // 31 bytes — abort at key-length check.
         let short_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd";
         iota_default_account::rotate_key(&mut account, short_pk, iota_default_account::scheme_ed25519(), ctx);
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario);
+}
+
+// ============================================================
+// rotate_key — MOVE_AUTHENTICATOR rejection
+// ============================================================
+
+/// Attempting to rotate a key to SCHEME_MOVE_AUTHENTICATOR (0x07) via
+/// `rotate_key` must abort, because that would silently replace the custom
+/// auth_ref with the built-in verifier (which always returns false for 0x07).
+/// Use `rotate_auth_ref` for MOVE_AUTHENTICATOR accounts instead.
+#[test]
+#[expected_failure(abort_code = iota_default_account::ECannotRotateCustomAuth)]
+fun test_rotate_key_rejects_move_authenticator_scheme() {
+    let mut scenario = setup();
+    let pk = ED25519_PK;
+    let sender = claim_registry::derive_address_for_testing(
+        iota_default_account::scheme_ed25519(),
+        &pk,
+    );
+
+    scenario.next_tx(sender);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim_ed25519(&mut registry, pk, ctx);
+        test_scenario::return_shared(registry);
+    };
+
+    scenario.next_tx(sender);
+    {
+        let mut account = scenario.take_shared<IotaDefaultAccount>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        // Passing SCHEME_MOVE_AUTHENTICATOR as new_scheme must abort.
+        iota_default_account::rotate_key(
+            &mut account,
+            x"",
+            iota_default_account::scheme_move_authenticator(),
+            ctx,
+        );
         test_scenario::return_shared(account);
     };
 

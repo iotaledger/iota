@@ -2260,6 +2260,9 @@ new_with_auth
 rotate_key
 	public fun
 	0x2::iota_default_account
+rotate_auth_ref
+	public fun
+	0x2::iota_default_account
 authenticate
 	public fun
 	0x2::iota_default_account
@@ -2269,20 +2272,23 @@ public_key
 scheme
 	public fun
 	0x2::iota_default_account
+scheme_ed25519
+	public(package) fun
+	0x2::iota_default_account
+scheme_secp256k1
+	public(package) fun
+	0x2::iota_default_account
+scheme_secp256r1
+	public(package) fun
+	0x2::iota_default_account
+scheme_move_authenticator
+	public(package) fun
+	0x2::iota_default_account
 make_auth_ref
 	fun
 	0x2::iota_default_account
 ensure_tx_sender_is_account
 	fun
-	0x2::iota_default_account
-scheme_ed25519_flag
-	public(package) fun
-	0x2::iota_default_account
-scheme_secp256k1_flag
-	public(package) fun
-	0x2::iota_default_account
-scheme_secp256r1_flag
-	public(package) fun
 	0x2::iota_default_account
 is_move_authenticator_scheme
 	public(package) fun
