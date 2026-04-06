@@ -17,6 +17,7 @@ import {
     ImageIcon,
     ImageIconSize,
     useCopyToClipboard,
+    useIsValidatorCommitteeMember,
 } from '@iota/core';
 import {
     ampli,
@@ -28,6 +29,7 @@ import { StakeColumn } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { ValidatorLink } from '~/components/ui';
+import { Copy } from '@iota/apps-ui-icons';
 
 interface GenerateValidatorsTableColumnsArgs {
     allValidators?: IotaValidatorSummary[];
