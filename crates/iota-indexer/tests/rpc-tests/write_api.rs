@@ -1581,6 +1581,13 @@ fn clever_errors() {
             panic!("transaction should have failed");
         };
         assert_eq!(error, &expected_error);
+
+        // Check error in the response as well
+        let response_error = indexer_tx_response
+            .errors
+            .first()
+            .expect("execution error should be in the response");
+        assert_eq!(response_error, &expected_error);
     });
 }
 
