@@ -4,7 +4,12 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { createMigrationTransaction, getGasSummary, getUserFriendlyDryRunExecutionError, useMaxTransactionSizeBytes } from '@iota/core';
+import {
+    createMigrationTransaction,
+    getGasSummary,
+    getUserFriendlyDryRunExecutionError,
+    useMaxTransactionSizeBytes,
+} from '@iota/core';
 
 export function useMigrationTransaction(
     address: string,
