@@ -42,3 +42,12 @@ export type EnumOutputShapeWithKeys<T extends Record<string, unknown>, Keys exte
 export type EnumInputShape<T extends Record<string, unknown>> = {
     [K in keyof T]: { [K2 in K]: T[K] };
 }[keyof T];
+
+export type JoinString<T, Sep extends string> = T extends readonly [
+    infer F extends string,
+    ...infer R extends string[],
+]
+    ? [] extends R
+        ? F
+        : `${F}${Sep}${JoinString<R, Sep>}`
+    : '';

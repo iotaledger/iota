@@ -22,6 +22,7 @@ use fastcrypto::{
 };
 use iota_sdk_types::crypto::INTENT_PREFIX_LENGTH;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -88,6 +89,7 @@ impl ProtocolPublicKey {
         Self(key)
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn verify(
         &self,
         message: &[u8],
@@ -114,6 +116,7 @@ impl ProtocolKeyPair {
         ProtocolPublicKey(self.0.public().clone())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn sign(&self, message: &[u8]) -> ProtocolKeySignature {
         ProtocolKeySignature(self.0.sign(message))
     }

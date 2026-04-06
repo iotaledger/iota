@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[lints]
+workspace = true
+
 [features]
 default = ["metrics"]
 metrics = ["dep:iota-tls"]
@@ -15,15 +18,18 @@ metrics = ["dep:iota-tls"]
 anyhow.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
+once_cell.workspace = true
 parking_lot.workspace = true
 prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
 snap.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 tracing.workspace = true
 
 # internal dependencies
+iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-tls = { workspace = true, optional = true }
 iota-types.workspace = true

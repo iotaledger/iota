@@ -1,11 +1,9 @@
 ---
-title: Install IOTA TypeScript SDK
+title: Installation
 tags: [ typescript, sdk, install, ts-sdk]
 teams:
    - iotaledger/tooling
 ---
-
-# Install IOTA TypeScript SDK
 
 The IOTA TypeScript SDK is available in the
 [IOTA monorepo](https://github.com/iotaledger/iota/tree/develop/sdk) and NPM.
@@ -16,19 +14,6 @@ To use the IOTA TypeScript SDK in your project, run the following command in you
 
 ```sh npm2yarn
 npm i @iota/iota-sdk
-```
-
-## Experimental tag for use with a local IOTA network
-
-Projects developing against one of the on-chain IOTA networks (Devnet, Testnet, Mainnet) should use
-the base SDK published in the NPM registry (previous section) because the code aligns with the
-relevant JSON-RPC. If your developing against a
-[local network](../../../developer/getting-started/local-network.mdx) built from the
-`main` branch of the IOTA monorepo, however, you should use the `experimental`-tagged SDK package as
-it contains the latest features (or a local build detailed in the section that follows).
-
-```sh npm2yarn
-npm i @iota/iota-sdk@experimental
 ```
 
 ## Install from local build

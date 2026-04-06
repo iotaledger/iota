@@ -8,7 +8,7 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_node::{IotaNode, metrics};
+use iota_node::{IotaNode, ServerVersion, metrics};
 use iota_types::{
     committee::EpochId, messages_checkpoint::CheckpointSequenceNumber, multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
@@ -112,13 +112,13 @@ fn main() {
     // work if it deadlocks.
     let node_once_cell = Arc::new(AsyncOnceCell::<Arc<IotaNode>>::new());
     let node_once_cell_clone = node_once_cell.clone();
-    let rpc_runtime = runtimes.json_rpc.handle().clone();
 
     // let iota-node signal main to shutdown runtimes
     let (runtime_shutdown_tx, runtime_shutdown_rx) = broadcast::channel::<()>(1);
 
     runtimes.iota_node.spawn(async move {
-        match IotaNode::start_async(config, registry_service, Some(rpc_runtime), VERSION).await {
+        let server_version = ServerVersion::new(env!("CARGO_BIN_NAME"), VERSION);
+        match IotaNode::start_async(config, registry_service, server_version).await {
             Ok(iota_node) => node_once_cell_clone
                 .set(iota_node)
                 .expect("Failed to set node in AsyncOnceCell"),

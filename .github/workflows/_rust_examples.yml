@@ -1,6 +1,11 @@
 name: Rust examples
 
-on: workflow_call
+on:
+  workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: rust-examples-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -49,3 +54,13 @@ jobs:
               echo "Checking unused dependencies of $manifest"
               cargo +nightly-2026-01-07 ci-udeps --manifest-path $manifest
           done
+
+  lint-examples-cancel:
+    needs: [lint-examples]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -1786,7 +1786,7 @@ mod tests {
         };
 
         assert_eq!(f0.clone().intersect(f0.clone()), Some(f0.clone()));
-        assert_eq!(f0.clone().intersect(f1.clone()), None);
+        assert_eq!(f0.intersect(f1), None);
     }
 
     #[test]
@@ -1866,7 +1866,7 @@ mod tests {
         );
 
         assert_eq!(
-            f1.clone().intersect(f3.clone()),
+            f1.intersect(f3.clone()),
             Some(ObjectFilter {
                 object_keys: Some(vec![
                     ObjectKey {
@@ -1883,9 +1883,9 @@ mod tests {
         );
 
         // i2 got a conflicting version assignment
-        assert_eq!(f0.clone().intersect(f3.clone()), None);
+        assert_eq!(f0.intersect(f3.clone()), None);
 
         // No overlap between these two.
-        assert_eq!(f2.clone().intersect(f3.clone()), None);
+        assert_eq!(f2.intersect(f3), None);
     }
 }

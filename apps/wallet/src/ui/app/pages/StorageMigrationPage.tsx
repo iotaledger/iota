@@ -4,11 +4,12 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { toast } from '@iota/core';
-import { PasswordInputDialog } from '_components';
+import { VerifyPasswordModal } from '_components/accounts';
 import { useBackgroundClient, useStorageMigrationStatus } from '_hooks';
 import { CardLayout } from '../shared/card-layout';
 import { Toaster } from '../shared/toaster';
 import { LoadingIndicator } from '@iota/apps-ui-kit';
+import { useNavigate } from 'react-router-dom';
 
 export function StorageMigrationPage() {
     const { data } = useStorageMigrationStatus();
@@ -21,6 +22,7 @@ export function StorageMigrationPage() {
             toast.success('Storage migration done');
         },
     });
+    const navigate = useNavigate();
     if (!data || data === 'ready') {
         return null;
     }
@@ -32,11 +34,12 @@ export function StorageMigrationPage() {
                 icon="iota"
             >
                 {data === 'required' && !migrationMutation.isSuccess ? (
-                    <PasswordInputDialog
-                        onPasswordVerified={async (password) => {
+                    <VerifyPasswordModal
+                        open
+                        onVerify={async (password) => {
                             await migrationMutation.mutateAsync({ password });
                         }}
-                        title="Please insert your wallet password"
+                        onClose={() => navigate(-1)}
                     />
                 ) : (
                     <div className="flex flex-1 items-center">

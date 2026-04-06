@@ -137,7 +137,7 @@ export function TransferCoinPage() {
             queryClient.invalidateQueries({ queryKey: ['get-coins'] });
             queryClient.invalidateQueries({ queryKey: ['coin-balance'] });
 
-            ampli.coinsSent({
+            ampli.sentCoins({
                 coinType: selectedCoinType!,
                 amount: Number(formik.values.amount),
             });

@@ -2,20 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNextMenuUrl, Overlay } from '_components';
-import {
-    useAppSelector,
-    formatAutoLock,
-    useAutoLockMinutes,
-    useBackgroundClient,
-    useActiveAccount,
-} from '_hooks';
+import { useNextMenuUrl, Overlay, VerifyPasswordModal } from '_components';
+import { useAppSelector, formatAutoLock, useAutoLockMinutes, useLogoutMutation } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient, useMutation } from '@tanstack/react-query';
-import { persister } from '_src/ui/app/helpers/queryClient';
 import { useState } from 'react';
 import { ConfirmationModal } from '_src/ui/app/shared/ConfirmationModal';
 import {
@@ -23,11 +15,10 @@ import {
     Globe,
     Info,
     LockLocked,
-    LockUnlocked,
     Logout,
     Expand,
     Discord,
-    Sidepanel,
+    SidePanel as SidePanelIcon,
 } from '@iota/apps-ui-icons';
 import {
     ButtonType,
@@ -51,7 +42,6 @@ import { openInNewTab } from '_src/shared/utils';
 export function MenuList() {
     const { themePreference } = useTheme();
     const navigate = useNavigate();
-    const activeAccount = useActiveAccount();
     const networkUrl = useNextMenuUrl(true, '/network');
     const autoLockUrl = useNextMenuUrl(true, '/auto-lock');
     const themeUrl = useNextMenuUrl(true, '/theme');
@@ -65,20 +55,8 @@ export function MenuList() {
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
-    const backgroundClient = useBackgroundClient();
-    const queryClient = useQueryClient();
-    const logoutMutation = useMutation({
-        mutationKey: ['logout', 'clear wallet'],
-        mutationFn: async () => {
-            await ampli.walletReset();
-            await ampli.client.flush?.();
-            ampli.client.reset();
-            queryClient.cancelQueries();
-            queryClient.clear();
-            await persister.removeClient();
-            await backgroundClient.clearWallet();
-        },
-    });
+    const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
+    const logoutMutation = useLogoutMutation();
 
     function handleAutoLockSubtitle(): string {
         if (autoLockInterval.data === null) {
@@ -109,8 +87,8 @@ export function MenuList() {
 
         if (!isSidePanelVisible) {
             // Track before the mutation: SidePanel.close() destroys this window, so we must flush before it runs
-            ampli.sidePanelChanged({ enabled: false });
-            await ampli.client.flush?.();
+            ampli.changedSidePanel({ enabled: false });
+            await ampli.flush();
         }
 
         try {
@@ -122,22 +100,21 @@ export function MenuList() {
 
         if (isSidePanelVisible) {
             // Track after the mutation: the popup is still alive, so it's safe to flush before closing
-            ampli.sidePanelChanged({ enabled: true });
-            await ampli.client.flush?.();
+            ampli.changedSidePanel({ enabled: true });
+            await ampli.flush();
             window.close();
         }
     }
 
     function onSupportClick() {
-        ampli.externalLinkOpened({
-            value: DISCORD_SUPPORT_LINK,
-            type: 'support',
+        ampli.openedLink({
+            type: 'discord support',
         });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
-        ampli.externalLinkOpened({ value: FAQ_LINK, type: 'documentation' });
+        ampli.openedLink({ type: 'faqs documentation' });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
@@ -153,7 +130,7 @@ export function MenuList() {
         {
             title: 'Auto Lock Profile',
             subtitle: autoLockSubtitle,
-            icon: activeAccount?.isLocked ? <LockLocked /> : <LockUnlocked />,
+            icon: <LockLocked />,
             onClick: onAutoLockClick,
         },
         {
@@ -178,7 +155,7 @@ export function MenuList() {
                   {
                       title: 'Side Panel',
                       subtitle: sidePanel.data ? `Enabled` : 'Disabled',
-                      icon: <Sidepanel />,
+                      icon: <SidePanelIcon />,
                       tailIcon: <Toggle isToggled={!!sidePanel.data} onChange={onSidePanelClick} />,
                   },
               ]
@@ -191,7 +168,7 @@ export function MenuList() {
         {
             title: 'Reset',
             icon: <Logout />,
-            onClick: () => setIsLogoutDialogOpen(true),
+            onClick: () => setIsPasswordModalVisible(true),
         },
     ];
 
@@ -210,6 +187,14 @@ export function MenuList() {
                             {item.tailIcon ?? <CardAction type={CardActionType.Link} />}
                         </Card>
                     ))}
+                    <VerifyPasswordModal
+                        open={isPasswordModalVisible}
+                        onVerify={() => {
+                            setIsPasswordModalVisible(false);
+                            setIsLogoutDialogOpen(true);
+                        }}
+                        onClose={() => setIsPasswordModalVisible(false)}
+                    />
                     <ConfirmationModal
                         isOpen={isLogoutDialogOpen}
                         confirmText="Reset"

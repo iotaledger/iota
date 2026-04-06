@@ -10,7 +10,7 @@ const getOwner = (change: IotaObjectChangeWithDisplay) => {
     if ('owner' in change && typeof change.owner === 'object') {
         if ('AddressOwner' in change.owner) return change.owner.AddressOwner;
         if ('ObjectOwner' in change.owner) return change.owner.ObjectOwner;
-        if ('Shared' in change.owner) return change.objectId;
+        if ('Shared' in change.owner) return 'Shared';
     }
     return '';
 };

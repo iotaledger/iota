@@ -12,12 +12,18 @@ import { type SignedMessage, type SignedTransaction, WalletSigner } from './wall
 export class LedgerSigner extends WalletSigner {
     #iotaLedgerClient: IotaLedgerClient | null;
     #signer: SignersLedgerSigner | null = null;
-    readonly #connectToLedger: () => Promise<IotaLedgerClient>;
+    readonly #connectToLedger: (
+        requestPermissionsFirst?: boolean,
+        verifyConnection?: (client: IotaLedgerClient) => Promise<boolean>,
+    ) => Promise<IotaLedgerClient>;
     readonly #derivationPath: string;
     readonly #expectedAddress: string;
 
     constructor(
-        connectToLedger: () => Promise<IotaLedgerClient>,
+        connectToLedger: (
+            requestPermissionsFirst?: boolean,
+            verifyConnection?: (client: IotaLedgerClient) => Promise<boolean>,
+        ) => Promise<IotaLedgerClient>,
         derivationPath: string,
         expectedAddress: string,
         client: IotaClient,
@@ -33,7 +39,24 @@ export class LedgerSigner extends WalletSigner {
         if (!this.#iotaLedgerClient) {
             // We want to make sure that there's only one connection established per Ledger signer
             // instance since some methods make multiple calls like getAddress and signData
-            this.#iotaLedgerClient = await this.#connectToLedger();
+            this.#iotaLedgerClient = await this.#connectToLedger(
+                false,
+                async (client: IotaLedgerClient) => {
+                    try {
+                        // Verify device produces the expected address
+                        const tempSigner = await SignersLedgerSigner.fromDerivationPath(
+                            this.#derivationPath,
+                            client,
+                            this.client,
+                        );
+                        const actualAddress = await tempSigner.toIotaAddress();
+                        return actualAddress === this.#expectedAddress;
+                    } catch (error) {
+                        // If verification fails, return false to trigger device selection
+                        return false;
+                    }
+                },
+            );
         }
         return this.#iotaLedgerClient;
     }

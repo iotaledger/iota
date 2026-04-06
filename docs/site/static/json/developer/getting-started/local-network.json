@@ -7,7 +7,7 @@
                 "isCorrect": false
             },
             {
-                "answerText": "RUST_LOG=\"off,iota_node=info\" cargo run --bin iota start --force-regenesis --with-faucet",
+                "answerText": "RUST_LOG=\"off,iota_node=info\" cargo run --bin iota-localnet start --force-regenesis --with-faucet",
                 "isCorrect": true
             },
             {

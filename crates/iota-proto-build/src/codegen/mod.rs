@@ -3,3 +3,4 @@
 // SPDX-License-Identifier: Apache-2.0
 pub mod accessor_config;
 pub mod accessors;
+pub mod generate_fields;

@@ -11,14 +11,13 @@ import { translate, type DataType } from './ObjectResultType';
 import { PkgView, TokenView } from './views';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
-import { onCopySuccess } from '~/lib';
 
 const PACKAGE_TYPE_NAME = 'Move Package';
 
 export function ObjectResult(): JSX.Element {
     const { id: objID } = useParams();
     const { data, isPending, isError, isFetched } = useGetObjectOrPastObject(objID);
-    const copyToClipboard = useCopyToClipboard(onCopySuccess);
+    const copyToClipboard = useCopyToClipboard();
 
     if (isPending) {
         return (
@@ -65,8 +64,8 @@ export function ObjectResult(): JSX.Element {
                     )}
                     {isPageError || !data || !resp ? (
                         <InfoBox
-                            title="Error extracting data"
-                            supportingText={`Data could not be extracted on the following specified object ID: ${objID}`}
+                            title="Invalid Object ID"
+                            supportingText={`No object found matching ID: ${objID} on this network. Please verify the ID and try again.`}
                             icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}

@@ -12,7 +12,7 @@ use iota_types::{
     transaction::Transaction,
 };
 use rand::seq::IteratorRandom;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     ExecutionEffects, ValidatorProxy,
@@ -167,7 +167,10 @@ impl WorkloadBuilder<dyn Payload> for TransferObjectWorkloadBuilder {
         }
 
         let owner = *address_map.keys().choose(&mut rand::thread_rng()).unwrap();
-
+        info!(
+            "Transfer Object Workload Builder: owner address is {}",
+            owner
+        );
         // transfer tokens
         let mut gas_configs = vec![];
         for _i in 0..self.num_payloads {

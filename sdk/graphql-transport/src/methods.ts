@@ -13,7 +13,12 @@ import type {
     IotaMoveViewCallResults,
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
+import {
+    normalizeStructTag,
+    normalizeIotaAddress,
+    parseStructTag,
+    IOTA_TYPE_ARG,
+} from '@iota/iota-sdk/utils';
 
 import type {
     ObjectFilter,
@@ -176,22 +181,31 @@ export const RPC_METHODS: {
     },
 
     async getBalance(transport, inputs) {
-        const balance = await transport.graphqlQuery(
-            {
-                query: GetBalanceDocument,
-                variables: {
-                    owner: inputs[0],
-                    type: inputs[1],
+        try {
+            const balance = await transport.graphqlQuery(
+                {
+                    query: GetBalanceDocument,
+                    variables: {
+                        owner: inputs[0],
+                        type: inputs[1],
+                    },
                 },
-            },
-            (data) => data.address?.balance,
-        );
+                (data) => data.address?.balance,
+            );
 
-        return {
-            coinType: toShortTypeString(balance.coinType?.repr!),
-            coinObjectCount: balance.coinObjectCount!,
-            totalBalance: balance.totalBalance,
-        };
+            return {
+                coinType: toShortTypeString(balance.coinType?.repr!) || IOTA_TYPE_ARG,
+                coinObjectCount: balance.coinObjectCount || 0,
+                totalBalance: balance.totalBalance || 0,
+            };
+        } catch (error) {
+            console.warn('GraphQL getBalance failed, falling back to default values:', error);
+            return {
+                coinType: normalizeStructTag(inputs[1] ?? IOTA_TYPE_ARG),
+                coinObjectCount: 0,
+                totalBalance: '0',
+            };
+        }
     },
 
     async getAllBalances(transport, inputs) {

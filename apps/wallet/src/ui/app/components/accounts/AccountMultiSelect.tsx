@@ -10,15 +10,9 @@ interface AccountMultiSelectProps {
     accounts: SerializedUIAccount[];
     selectedAccountIDs: string[];
     onChange: (value: string[]) => void;
-    onLock: (id: string) => void;
 }
 
-function AccountMultiSelect({
-    accounts,
-    selectedAccountIDs,
-    onChange,
-    onLock,
-}: AccountMultiSelectProps) {
+function AccountMultiSelect({ accounts, selectedAccountIDs, onChange }: AccountMultiSelectProps) {
     return (
         <ToggleGroup.Root
             value={selectedAccountIDs}
@@ -32,7 +26,6 @@ function AccountMultiSelect({
                         <AccountItemApproveConnection
                             account={account}
                             selected={selectedAccountIDs.includes(account.id)}
-                            onLock={onLock}
                         />
                     </div>
                 </ToggleGroup.Item>
@@ -45,7 +38,6 @@ export function AccountMultiSelectWithControls({
     selectedAccountIDs,
     accounts,
     onChange,
-    onLock,
 }: AccountMultiSelectProps) {
     return (
         <div className="flex flex-col gap-3 [&>button]:border-none">
@@ -53,7 +45,6 @@ export function AccountMultiSelectWithControls({
                 selectedAccountIDs={selectedAccountIDs}
                 accounts={accounts}
                 onChange={onChange}
-                onLock={onLock}
             />
 
             {accounts.length > 1 ? (

@@ -3,8 +3,8 @@
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import {
-    Account,
     AccountType,
+    Account,
     type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
@@ -74,9 +74,12 @@ export class PasskeyAccount
         super({ type: AccountType.PasskeyDerived, id, cachedData });
     }
 
-    async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+    async lock(): Promise<void> {
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
+            await this.clearEphemeralValue();
+            await this.onLocked();
+        }
     }
 
     async isLocked(): Promise<boolean> {

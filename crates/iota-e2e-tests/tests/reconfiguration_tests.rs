@@ -553,6 +553,7 @@ async fn test_validator_candidate_pool_read() {
                 _ => panic!("unsupported IotaSystemStateSummary"),
             },
             &address,
+            Some(system_state.protocol_version()),
         )
         .unwrap()
         .staking_pool_id;

@@ -236,10 +236,7 @@ fn nft_migration_with_alias_owner() {
         alias_header.output_id(),
         nft_header.output_id(),
         3_000_000,
-        [
-            (nft_header.clone(), nft.into()),
-            (alias_header.clone(), alias.into()),
-        ],
+        [(nft_header, nft.into()), (alias_header, alias.into())],
         ALIAS_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_alias_address_owned_nft"),
@@ -271,10 +268,7 @@ fn nft_migration_with_nft_owner() {
         nft1_header.output_id(),
         nft2_header.output_id(),
         2_000_000,
-        [
-            (nft1_header.clone(), nft1.into()),
-            (nft2_header.clone(), nft2.into()),
-        ],
+        [(nft1_header, nft1.into()), (nft2_header, nft2.into())],
         NFT_OUTPUT_MODULE_NAME,
         NFT_OUTPUT_MODULE_NAME,
         ident_str!("unlock_nft_address_owned_nft"),
@@ -363,7 +357,7 @@ fn nft_migration_with_valid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
 
     let immutable_metadata = nft.immutable_metadata;
     assert_eq!(&immutable_metadata.media_type, metadata.media_type());
@@ -437,7 +431,7 @@ fn nft_migration_with_invalid_irc27_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -482,7 +476,7 @@ fn nft_migration_with_non_json_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
 
     let mut immutable_metadata = nft.immutable_metadata;
     let mut non_standard_fields = VecMap { contents: vec![] };
@@ -522,7 +516,7 @@ fn nft_migration_without_metadata() {
         .finish()
         .unwrap();
 
-    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft.clone(), CoinType::Iota).unwrap();
+    let (_, nft, _, _, _) = migrate_nft(header, stardust_nft, CoinType::Iota).unwrap();
     let immutable_metadata = nft.immutable_metadata;
 
     assert_eq!(immutable_metadata.non_standard_fields.contents.len(), 0);
@@ -720,7 +714,7 @@ fn nft_migration_with_storage_deposit_return_unlock_condition() {
     unlock_object(
         header.output_id(),
         1_000_000,
-        [(header.clone(), stardust_nft.clone().into())],
+        [(header, stardust_nft.into())],
         // Sender is not important for this test.
         &IotaAddress::ZERO,
         NFT_OUTPUT_MODULE_NAME,

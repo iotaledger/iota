@@ -22,10 +22,10 @@ pub enum IngestionError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
-    #[error(transparent)]
-    RestApi(#[from] iota_rest_api::client::sdk::Error),
+    #[error("grpc error: `{0}`")]
+    Grpc(String),
 
-    #[error("register at least one worker pool")]
+    #[error("Register at least one worker pool")]
     EmptyWorkerPool,
 
     #[error("{component} shutdown error: `{msg}`")]
@@ -60,4 +60,19 @@ pub enum IngestionError {
 
     #[error("checkpoint not available yet")]
     CheckpointNotAvailableYet,
+
+    #[error(transparent)]
+    Sdk(#[from] iota_types::iota_sdk_types_conversions::SdkTypeConversionError),
+}
+
+impl From<iota_grpc_types::proto::TryFromProtoError> for IngestionError {
+    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+        Self::Grpc(err.to_string())
+    }
+}
+
+impl From<iota_grpc_client::Error> for IngestionError {
+    fn from(err: iota_grpc_client::Error) -> Self {
+        Self::Grpc(err.to_string())
+    }
 }

@@ -1201,7 +1201,7 @@ mod tests {
         let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
         let transaction = Transaction::new(sender_signed_data);
         let response = ctx.execute_transaction_may_fail(transaction).await?;
-        let result_effects = response.clone().effects;
+        let result_effects = response.effects;
 
         if let Some(effects) = result_effects {
             if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {

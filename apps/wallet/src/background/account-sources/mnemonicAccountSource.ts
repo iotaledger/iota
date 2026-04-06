@@ -29,7 +29,6 @@ import {
     type AccountSourceSerialized,
     type AccountSourceSerializedUI,
 } from './accountSource';
-import { accountSourcesEvents } from './events';
 import { type MakeDerivationOptions, makeDerivationPath } from './bip44Path';
 
 type DataDecrypted = {
@@ -88,20 +87,9 @@ export class MnemonicAccountSource extends AccountSource<
         return serialized.type === AccountSourceType.Mnemonic;
     }
 
-    static async save(
-        serialized: MnemonicAccountSourceSerialized,
-        {
-            skipBackup = false,
-            skipEventEmit = false,
-        }: { skipBackup?: boolean; skipEventEmit?: boolean } = {},
-    ) {
+    static async save(serialized: MnemonicAccountSourceSerialized) {
         await (await Dexie.waitFor(getDB())).accountSources.put(serialized);
-        if (!skipBackup) {
-            await backupDB();
-        }
-        if (!skipEventEmit) {
-            accountSourcesEvents.emit('accountSourcesChanged');
-        }
+        await backupDB();
         return new MnemonicAccountSource(serialized.id);
     }
 
@@ -122,9 +110,10 @@ export class MnemonicAccountSource extends AccountSource<
     }
 
     async unlock(password: string) {
-        await this.setEphemeralValue(await this.#decryptStoredData(password));
-        await setupAutoLockAlarm();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        if (await this.isLocked()) {
+            await this.setEphemeralValue(await this.#decryptStoredData(password));
+            await setupAutoLockAlarm();
+        }
     }
 
     async verifyPassword(password: string) {
@@ -133,8 +122,10 @@ export class MnemonicAccountSource extends AccountSource<
     }
 
     async lock() {
-        await this.clearEphemeralValue();
-        accountSourcesEvents.emit('accountSourceStatusUpdated', { accountSourceID: this.id });
+        const isLocked = await this.isLocked();
+        if (!isLocked) {
+            await this.clearEphemeralValue();
+        }
     }
 
     async deriveAccount(

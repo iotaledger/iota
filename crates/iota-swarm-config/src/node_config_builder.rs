@@ -147,7 +147,7 @@ impl ValidatorConfigBuilder {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().unwrap().keep());
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
@@ -213,7 +213,6 @@ impl ValidatorConfigBuilder {
                 .to_socket_addr()
                 .unwrap(),
             consensus_config: Some(consensus_config),
-            remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
@@ -239,11 +238,6 @@ impl ValidatorConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
@@ -479,7 +473,7 @@ impl FullnodeConfigBuilder {
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().unwrap().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
@@ -574,7 +568,6 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            remove_deprecated_tables: false,
             enable_index_processing: default_enable_index_processing(),
             genesis,
             migration_tx_data_path,
@@ -600,11 +593,6 @@ impl FullnodeConfigBuilder {
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
-            enable_rest_api: true,
-            rest: Some(iota_rest_api::Config {
-                enable_unstable_apis: Some(true),
-                ..Default::default()
-            }),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),

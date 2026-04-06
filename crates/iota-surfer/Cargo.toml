@@ -37,3 +37,6 @@ iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-simulator.workspace = true
 move-package.workspace = true
+
+[lints]
+workspace = true

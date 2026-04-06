@@ -65,11 +65,9 @@ query paginateEpochValidators($id: UInt53!, $after: String) {
 fragment RPC_VALIDATOR_FIELDS on Validator {
     atRisk
     commissionRate
+    effectiveCommissionRate
     exchangeRatesSize
-    exchangeRates {
-        contents {
-            json
-        }
+    exchangeRatesTable {
         address
     }
     description
@@ -95,9 +93,7 @@ fragment RPC_VALIDATOR_FIELDS on Validator {
     poolTokenBalance
     projectUrl
     rewardsPool
-    stakingPool {
-        address
-    }
+    stakingPoolId
     stakingPoolActivationEpoch
     stakingPoolIotaBalance
     address {

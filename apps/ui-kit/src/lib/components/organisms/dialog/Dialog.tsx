@@ -42,11 +42,15 @@ const DialogOverlay = React.forwardRef<
     <RadixDialog.Overlay
         ref={ref}
         className={cx(
-            ' dialog-overlay-bg absolute h-full w-full backdrop-blur-md names:backdrop-blur-lg',
+            'dialog-overlay-bg absolute h-full w-full backdrop-blur-md names:backdrop-blur-lg',
+            'data-[state=open]:animate-dialog-overlay-show',
         )}
         {...props}
     >
-        <DialogClose className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}>
+        <DialogClose
+            className={cx('fixed right-3 top-3', { hidden: !showCloseIcon })}
+            aria-label="Close"
+        >
             <Close className="button-text-color-neutral" />
         </DialogClose>
     </RadixDialog.Overlay>
@@ -104,7 +108,7 @@ const DialogContent = React.forwardRef<
                 : 'overflow-y-auto overflow-x-hidden left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-xl';
         const widthClass =
             position === DialogPosition.Right ? 'md:w-96 max-w-[500px]' : customWidth;
-        const heightClass = position === DialogPosition.Right ? 'h-screen' : 'max-h-[80vh] h-full';
+        const heightClass = position === DialogPosition.Right ? 'h-screen' : 'max-h-[90vh] h-full';
         return (
             <RadixDialog.Portal container={containerElement}>
                 <DialogContainer isFixedPosition={isFixedPosition}>
@@ -115,6 +119,9 @@ const DialogContent = React.forwardRef<
                             'dialog-content-bg dialog-outline absolute flex flex-col justify-center',
                             dialogPositioning,
                             widthClass,
+                            position === DialogPosition.Right
+                                ? 'data-[state=open]:animate-dialog-panel-show'
+                                : 'data-[state=open]:animate-dialog-content-show',
                         )}
                         {...props}
                     >

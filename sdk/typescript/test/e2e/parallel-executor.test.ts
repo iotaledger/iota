@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { afterEach } from 'node:test';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { afterEach, afterAll, beforeAll, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 import { bcs } from '../../src/bcs';
 import { IotaClient } from '../../src/client';
@@ -172,5 +171,33 @@ describe('ParallelTransactionExecutor', { retry: 3 }, () => {
         const digests = new Set(results.map((result) => result.digest));
 
         expect(digests.size).toBe(9);
+    });
+
+    it('removes coins from pool when they drop below the minimum', async () => {
+        executor = new ParallelTransactionExecutor({
+            client: toolbox.client,
+            signer: toolbox.keypair,
+            maxPoolSize: 1,
+            coinBatchSize: 1,
+            // if initial and minimum are equal, the first usage will drop the coin below the threshold
+            minimumCoinBalance: 50_000_000n,
+            initialCoinBalance: 50_000_000n,
+        });
+
+        const tx1 = new Transaction();
+        tx1.transferObjects([await toolbox.mintNft()], toolbox.address());
+        const r1 = await executor.executeTransaction(tx1);
+
+        expect(r1.data.effects?.status.status).toEqual('success');
+        // 1 tx to fill the gas pool + the executed transaction
+        expect(toolbox.client.executeTransactionBlock).toHaveBeenCalledTimes(2);
+
+        const tx2 = new Transaction();
+        tx2.transferObjects([await toolbox.mintNft()], toolbox.address());
+        const r2 = await executor.executeTransaction(tx2);
+
+        expect(r2.data.effects?.status.status).toEqual('success');
+        // 2 txs to refill the gas pool + 2 executed transactions
+        expect(toolbox.client.executeTransactionBlock).toHaveBeenCalledTimes(4);
     });
 });

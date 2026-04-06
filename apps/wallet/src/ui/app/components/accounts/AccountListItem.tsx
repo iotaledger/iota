@@ -12,8 +12,6 @@ interface AccountListItemProps {
     showLock?: boolean;
     hideCopy?: boolean;
     hideExplorerLink?: boolean;
-    onLockAccountClick?: () => void;
-    onUnlockAccountClick?: () => void;
     icon?: React.ReactNode;
 }
 
@@ -21,15 +19,11 @@ export function AccountListItem({
     account,
     hideCopy,
     hideExplorerLink,
-    onLockAccountClick,
-    onUnlockAccountClick,
     icon,
 }: AccountListItemProps) {
     return (
         <AccountItem
             icon={icon ?? <IotaLogoMark />}
-            onLockAccountClick={onLockAccountClick}
-            onUnlockAccountClick={onUnlockAccountClick}
             accountID={account.id}
             hideCopy={hideCopy}
             hideExplorerLink={hideExplorerLink}

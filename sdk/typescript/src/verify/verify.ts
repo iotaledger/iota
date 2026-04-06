@@ -90,17 +90,23 @@ function parseSignature(signature: string) {
         };
     }
 
+    // @experimental
     if (parsedSignature.signatureScheme === 'MoveAuthenticator') {
-        const authenticatedObjectId =
-            parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
-            'ImmOrOwnedObject'
-                ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.ImmOrOwnedObject
-                      .objectId
-                : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.$kind ===
-                    'Receiving'
-                  ? parsedSignature.moveAuthenticator.objectToAuthenticate.Object.Receiving.objectId
-                  : parsedSignature.moveAuthenticator.objectToAuthenticate.Object?.SharedObject
-                        ?.objectId;
+        const moveAuth = parsedSignature.moveAuthenticator;
+        let authenticatedObjectId: string | undefined;
+
+        if (moveAuth.$kind === 'V1') {
+            const { objectToAuthenticate } = moveAuth.V1;
+            authenticatedObjectId =
+                objectToAuthenticate.Object?.$kind === 'ImmOrOwnedObject'
+                    ? objectToAuthenticate.Object.ImmOrOwnedObject.objectId
+                    : objectToAuthenticate.Object?.$kind === 'Receiving'
+                      ? objectToAuthenticate.Object.Receiving.objectId
+                      : objectToAuthenticate.Object?.SharedObject?.objectId;
+        } else {
+            throw new Error(`Unsupported MoveAuthenticator version: ${moveAuth.$kind}`);
+        }
+
         return {
             ...parsedSignature,
             publicKey: new MoveAuthenticatorPublicKey(authenticatedObjectId!),
@@ -132,6 +138,7 @@ export function publicKeyFromRawBytes(
             return new MultiSigPublicKey(bytes);
         case 'Passkey':
             return new PasskeyPublicKey(bytes);
+        // @experimental
         case 'MoveAuthenticator':
             return new MoveAuthenticatorPublicKey(bytes);
         default:

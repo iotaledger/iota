@@ -10,7 +10,7 @@ use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -27,7 +27,7 @@ use tracing::instrument;
 use typed_store::Map;
 
 use super::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
+    Batch, CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
     ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
     implement_passthrough_traits,
 };
@@ -255,9 +255,9 @@ impl TransactionCacheRead for PassthroughCache {
     #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
-        event_digests: &[TransactionEventsDigest],
+        tx_digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
-        self.store.multi_get_events(event_digests)
+        self.store.multi_get_events(tx_digests)
     }
 }
 
@@ -286,8 +286,8 @@ impl ExecutionCacheWrite for PassthroughCache {
         self.store
             .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
 
-        self.store
-            .write_transaction_outputs(epoch_id, &[tx_outputs])?;
+        let batch = self.store.build_db_batch(epoch_id, &[tx_outputs])?;
+        batch.write()?;
 
         self.executed_effects_digests_notify_read
             .notify(&tx_digest, &effects_digest);
@@ -342,9 +342,16 @@ impl AccumulatorStore for PassthroughCache {
 }
 
 impl ExecutionCacheCommit for PassthroughCache {
+    fn build_db_batch(&self, _epoch: EpochId, _digests: &[TransactionDigest]) -> Batch {
+        // Nothing needs to be done since they were already committed in
+        // write_transaction_outputs
+        (vec![], self.store.perpetual_tables.transactions.batch())
+    }
+
     fn try_commit_transaction_outputs(
         &self,
         _epoch: EpochId,
+        _batch: Batch,
         _digests: &[TransactionDigest],
     ) -> IotaResult {
         // Nothing needs to be done since they were already committed in

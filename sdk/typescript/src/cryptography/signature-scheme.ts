@@ -8,6 +8,7 @@ export const SIGNATURE_SCHEME_TO_FLAG = {
     Secp256r1: 0x02,
     MultiSig: 0x03,
     Passkey: 0x06,
+    /** @experimental */
     MoveAuthenticator: 0x07,
 } as const;
 
@@ -23,6 +24,7 @@ export const SIGNATURE_FLAG_TO_SCHEME = {
     0x02: 'Secp256r1',
     0x03: 'MultiSig',
     0x06: 'Passkey',
+    /** @experimental */
     0x07: 'MoveAuthenticator',
 } as const;
 
@@ -32,6 +34,7 @@ export type SignatureScheme =
     | 'Secp256r1'
     | 'MultiSig'
     | 'Passkey'
+    /** @experimental */
     | 'MoveAuthenticator';
 
 export type SignatureFlag = keyof typeof SIGNATURE_FLAG_TO_SCHEME;

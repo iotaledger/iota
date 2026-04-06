@@ -11,8 +11,9 @@ export function mapGraphQlValidatorToRpcValidator(
 ): IotaValidatorSummary {
     return {
         commissionRate: validator.commissionRate?.toString()!,
+        effectiveCommissionRate: validator.effectiveCommissionRate?.toString(),
         description: validator.description!,
-        exchangeRatesId: validator.exchangeRates?.address!,
+        exchangeRatesId: validator.exchangeRatesTable?.address!,
         exchangeRatesSize: validator.exchangeRatesSize?.toString()!,
         gasPrice: validator.gasPrice,
         imageUrl: validator.imageUrl!,
@@ -41,7 +42,7 @@ export function mapGraphQlValidatorToRpcValidator(
         authorityPubkeyBytes: validator.credentials?.authorityPubKey,
         protocolPubkeyBytes: validator.credentials?.protocolPubKey,
         rewardsPool: validator.rewardsPool,
-        stakingPoolId: validator.stakingPool?.address!,
+        stakingPoolId: validator.stakingPoolId!,
         stakingPoolActivationEpoch: validator.stakingPoolActivationEpoch?.toString(),
         stakingPoolIotaBalance: validator.stakingPoolIotaBalance,
         iotaAddress: validator.address.address,

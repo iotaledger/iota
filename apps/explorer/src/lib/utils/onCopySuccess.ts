@@ -4,5 +4,5 @@
 import { toast } from '@iota/core';
 
 export function onCopySuccess() {
-    toast.success('Copied to clipboard');
+    toast('Copied to clipboard');
 }

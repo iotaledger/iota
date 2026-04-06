@@ -322,7 +322,7 @@ mod test {
         let context = Arc::new(context);
 
         let scores = ReputationScores::new((1..=300).into(), vec![1, 2, 4, 3]);
-        let mut ancestor_state_manager = AncestorStateManager::new(context.clone());
+        let mut ancestor_state_manager = AncestorStateManager::new(context);
         ancestor_state_manager.set_propagation_scores(scores);
 
         // Quorum rounds are not set yet, so we should calculate a network
@@ -333,10 +333,8 @@ mod test {
 
         let received_quorum_rounds = vec![(100, 229), (225, 229), (229, 300), (229, 300)];
         let accepted_quorum_rounds = vec![(50, 229), (175, 229), (179, 229), (179, 300)];
-        ancestor_state_manager.set_quorum_rounds_per_authority(
-            received_quorum_rounds.clone(),
-            accepted_quorum_rounds.clone(),
-        );
+        ancestor_state_manager
+            .set_quorum_rounds_per_authority(received_quorum_rounds, accepted_quorum_rounds);
 
         // When probe_accepted_rounds is false, should use received rounds
         let network_high_quorum_round =
@@ -355,7 +353,7 @@ mod test {
         let context = Arc::new(context);
 
         let scores = ReputationScores::new((1..=300).into(), vec![1, 2, 4, 3]);
-        let mut ancestor_state_manager = AncestorStateManager::new(context.clone());
+        let mut ancestor_state_manager = AncestorStateManager::new(context);
         ancestor_state_manager.set_propagation_scores(scores);
 
         // Quorum rounds are not set yet, so we should calculate a network
@@ -366,10 +364,8 @@ mod test {
 
         let received_quorum_rounds = vec![(100, 229), (225, 300), (229, 300), (229, 300)];
         let accepted_quorum_rounds = vec![(50, 229), (175, 229), (179, 229), (179, 300)];
-        ancestor_state_manager.set_quorum_rounds_per_authority(
-            received_quorum_rounds.clone(),
-            accepted_quorum_rounds.clone(),
-        );
+        ancestor_state_manager
+            .set_quorum_rounds_per_authority(received_quorum_rounds, accepted_quorum_rounds);
 
         // When probe_accepted_rounds is true, should use accepted rounds
         let network_high_quorum_round =

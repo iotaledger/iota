@@ -43,6 +43,7 @@ export function DisconnectApp({
         [permission],
     );
     const backgroundClient = useBackgroundClient();
+
     const disconnectMutation = useMutation({
         mutationFn: async () => {
             const origin = permission?.origin;
@@ -52,11 +53,18 @@ export function DisconnectApp({
 
             await backgroundClient.disconnectApp(origin, accountsToDisconnect);
             await backgroundClient.sendGetPermissionRequests();
-            ampli.applicationDisconnected({
+
+            // If connected only one account - accountsToDisconnect array is empty
+            const isPartialDisconnect =
+                connectedAccounts.length > 1 &&
+                accountsToDisconnect.length < connectedAccounts.length;
+
+            ampli.disconnectedApplication({
                 sourceFlow: 'Application page',
                 disconnectedAccounts: accountsToDisconnect.length || 1,
                 applicationName: permission.name,
                 applicationUrl: origin,
+                partial: isPartialDisconnect,
             });
         },
         onSuccess: () => {
@@ -99,9 +107,13 @@ export function DisconnectApp({
                                             <CircleEmitter className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                         }
                                         text={
-                                            connectedAccounts[0]
-                                                ? formatAddress(connectedAccounts[0])
-                                                : ''
+                                            connectedAccounts[0] ? (
+                                                <span data-amp-mask>
+                                                    {formatAddress(connectedAccounts[0])}
+                                                </span>
+                                            ) : (
+                                                ''
+                                            )
                                         }
                                     />
                                 )}

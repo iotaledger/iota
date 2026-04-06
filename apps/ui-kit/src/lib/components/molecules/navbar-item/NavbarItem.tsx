@@ -5,7 +5,7 @@ import { NavbarItemHorizontal } from './NavbarItemHorizontal';
 import { NavbarItemVertical } from './NavbarItemVertical';
 import { NavbarItemType } from './navbarItem.enums';
 
-export interface NavbarItemProps {
+export interface NavbarItemProps extends React.AriaAttributes {
     /**
      * The type of the navbar item.
      */

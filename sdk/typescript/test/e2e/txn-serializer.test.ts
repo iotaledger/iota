@@ -17,7 +17,7 @@ let publishTxn: IotaTransactionBlockResponse;
 let sharedObjectId: string;
 beforeAll(async () => {
     toolbox = await setup();
-    const packagePath = __dirname + '/./data/serializer';
+    const packagePath = __dirname + '/data/serializer';
     ({ packageId, publishTxn } = await publishPackage(packagePath));
     const sharedObject = publishTxn.effects?.created!.find(
         (o) =>
@@ -186,7 +186,7 @@ describe('TXB v1 JSON serialization', () => {
         tx.setGasOwner(await toolbox.address());
         tx.setExpiration({ None: true });
         tx.setSender(await toolbox.address());
-        const transactionJson = json ?? (await tx.serialize());
+        const transactionJson = json ?? (await tx.toJSON());
         const deserializedTxnBuilder = Transaction.from(transactionJson);
         const reserializedTxnBytes = await deserializedTxnBuilder.build({
             client: toolbox.client,

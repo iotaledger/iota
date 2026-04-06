@@ -2,13 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    AccountItemApproveConnection,
-    AccountMultiSelectWithControls,
-    Loading,
-    SectionHeader,
-    UserApproveContainer,
-} from '_components';
+import { AccountMultiSelectWithControls, Loading, UserApproveContainer } from '_components';
 import { useAppDispatch, useAppSelector, useAccountGroups, useActiveAccount } from '_hooks';
 import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
@@ -21,6 +15,7 @@ import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { SidePanel } from '_src/polyfills/sidepanel';
+import { resolveApplicationName } from '_src/shared/utils';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
@@ -37,14 +32,12 @@ export function SiteConnectPage() {
     const activeAccount = useActiveAccount();
     const accountGroups = useAccountGroups();
     const accounts = accountGroups.list();
-    const unlockedAccounts = accounts.filter((account) => !account.isLocked);
-    const lockedAccounts = accounts.filter((account) => account.isLocked);
 
     const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() => {
         const preselectedAccounts = activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
 
         const previouslyPermittedAccounts = permissionRequest?.accounts.length
-            ? unlockedAccounts.filter((acc) => permissionRequest.accounts.includes(acc.address))
+            ? accounts.filter((acc) => permissionRequest.accounts.includes(acc.address))
             : [];
 
         return preselectedAccounts.concat(previouslyPermittedAccounts);
@@ -70,8 +63,12 @@ export function SiteConnectPage() {
                         allowed,
                     }),
                 );
+                const resolvedAppName = resolveApplicationName(
+                    permissionRequest.name,
+                    permissionRequest.origin,
+                );
                 ampli.respondedToConnectionRequest({
-                    applicationName: permissionRequest.name,
+                    applicationName: resolvedAppName,
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
@@ -92,12 +89,13 @@ export function SiteConnectPage() {
     );
 
     const isSecure = parsedOrigin?.protocol === 'https:';
-    const [displayWarning, setDisplayWarning] = useState(!isSecure);
+    const [warningDismissed, setWarningDismissed] = useState(false);
+    const displayWarning = !isSecure && !warningDismissed;
 
     const handleHideWarning = useCallback(
         async (allowed: boolean) => {
             if (allowed) {
-                setDisplayWarning(false);
+                setWarningDismissed(true);
             } else {
                 await handleOnSubmit(false);
             }
@@ -106,8 +104,18 @@ export function SiteConnectPage() {
     );
 
     useEffect(() => {
-        setDisplayWarning(!isSecure);
-    }, [isSecure]);
+        if (permissionRequest) {
+            const resolvedAppName = resolveApplicationName(
+                permissionRequest.name,
+                permissionRequest.origin,
+            );
+            ampli.startedDappConnection({
+                applicationName: resolvedAppName,
+                applicationUrl: permissionRequest.origin,
+            });
+        }
+    }, [permissionRequest]);
+
     return (
         <Loading loading={loading}>
             {permissionRequest &&
@@ -157,21 +165,16 @@ export function SiteConnectPage() {
                         blended
                     >
                         <div className="flex flex-col gap-md">
-                            {unlockedAccounts.length > 0 ? (
+                            {accounts.length > 0 ? (
                                 <AccountMultiSelectWithControls
                                     selectedAccountIDs={accountsToConnect.map(
                                         (account) => account.id,
                                     )}
-                                    accounts={unlockedAccounts ?? []}
+                                    accounts={accounts ?? []}
                                     onChange={(value) => {
                                         setAccountsToConnect(
                                             value.map((id) => accounts.find((a) => a.id === id)!),
                                         );
-                                    }}
-                                    onLock={(id) => {
-                                        setAccountsToConnect((prev) => {
-                                            return prev.filter((account) => account.id !== id);
-                                        });
                                     }}
                                 />
                             ) : (
@@ -181,17 +184,6 @@ export function SiteConnectPage() {
                                     type={InfoBoxType.Default}
                                     title="All accounts are currently locked. Unlock accounts to connect."
                                 />
-                            )}
-                            {lockedAccounts?.length > 0 && (
-                                <div className="flex flex-col gap-3">
-                                    <SectionHeader title="Locked & Unavailable" />
-                                    {lockedAccounts?.map((account) => (
-                                        <AccountItemApproveConnection
-                                            key={account.id}
-                                            account={account}
-                                        />
-                                    ))}
-                                </div>
                             )}
                         </div>
                     </UserApproveContainer>

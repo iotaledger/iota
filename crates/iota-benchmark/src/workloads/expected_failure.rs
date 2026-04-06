@@ -61,6 +61,7 @@ impl ExpectedFailurePayload {
             }
             ExpectedFailureType::Random => unreachable!(),
             ExpectedFailureType::NoFailure => unreachable!(),
+            ExpectedFailureType::MoveAuthenticatorFailure => unreachable!(),
         }
     }
 }

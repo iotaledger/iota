@@ -65,6 +65,7 @@ export function Pagination({
                 icon={<DoubleArrowLeft />}
                 onClick={onFirst}
                 disabled={!hasPrev}
+                aria-label="Go to first page"
             />
             <Button
                 type={ButtonType.Secondary}
@@ -72,6 +73,7 @@ export function Pagination({
                 icon={<ArrowLeft />}
                 onClick={onPrev}
                 disabled={!hasPrev}
+                aria-label="Go to previous page"
             />
             <Button
                 type={ButtonType.Secondary}
@@ -79,6 +81,7 @@ export function Pagination({
                 icon={<ArrowRight />}
                 disabled={!hasNext}
                 onClick={onNext}
+                aria-label="Go to next page"
             />
         </div>
     );

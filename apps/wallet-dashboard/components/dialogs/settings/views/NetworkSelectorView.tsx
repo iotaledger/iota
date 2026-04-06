@@ -33,6 +33,7 @@ export function NetworkSelectorView({
                                 label={network.name}
                                 isChecked={persistedNetwork === network.id}
                                 onChange={() => handleNetworkChange(network)}
+                                aria-label={`Select ${network.name} network`}
                             />
                         </div>
                     ))}

@@ -76,9 +76,14 @@ export function EnterTimelockedAmountView({
     } = useNewStakeTimelockedTransaction(selectedValidator, senderAddress, groupedTimelockObjects);
 
     const stakedAmount = getAmountFromGroupedTimelockObjects(groupedTimelockObjects);
-    const [stakedAmountFormatted] = useFormatCoin({ balance: stakedAmount });
 
     const hasGroupedTimelockObjects = groupedTimelockObjects.length > 0;
+
+    const [stakedAmountFormattedPlain] = useFormatCoin({
+        balance: stakedAmount,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const [maxTokenFormatted, maxTokenFormattedSymbol] = useFormatCoin({
         balance: maxStakableTimelockedAmount,
@@ -140,7 +145,7 @@ export function EnterTimelockedAmountView({
                     onSuccess?.(tx.digest);
                     toast.success('Stake transaction has been sent');
                     ampli.timelockStake({
-                        stakedAmount: Number(stakedAmountFormatted),
+                        stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: senderAddress,
                     });
                     resetForm();

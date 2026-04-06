@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "dev": "pnpm download-rpc-specs; pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; pnpm gen-api; NODE_OPTIONS='--max-old-space-size=8192' docusaurus start",
-    "build": "pnpm download-rpc-specs; pnpm download-iota-references; pnpm download-external-references; pnpm generate-graphql-docs; pnpm gen-api; NODE_OPTIONS='--max-old-space-size=8192' docusaurus build",
-    "generate-ts-docs": "docusaurus generate-typedoc;",
-    "generate-graphql-docs": "docusaurus graphql-to-doc:devnet; docusaurus graphql-to-doc:testnet;",
-    "download-iota-references": "git clean -Xdf ../content/developer/references/framework; git clean -Xdf ../content/developer/ts-sdk/api; ./scripts/get-iota-references.sh;",
+    "dev": "pnpm download-rpc-specs; pnpm download-iota-references; pnpm download-iota-sdk-references; pnpm download-external-references; pnpm generate-ts-docs; pnpm generate-graphql-docs; pnpm gen-api; NODE_OPTIONS='--max-old-space-size=8192' docusaurus start",
+    "build": "pnpm download-rpc-specs; pnpm download-iota-references; pnpm download-iota-sdk-references; pnpm download-external-references; pnpm generate-ts-docs; pnpm generate-graphql-docs; pnpm gen-api; NODE_OPTIONS='--max-old-space-size=8192' docusaurus build",
+    "generate-ts-docs": "docusaurus generate-typedoc",
+    "generate-graphql-docs": "docusaurus graphql-to-doc:mainnet; docusaurus graphql-to-doc:devnet; docusaurus graphql-to-doc:testnet;",
+    "download-iota-references": "git clean -Xdf ../content/developer/references/framework; git clean -Xdf ../content/developer/ts-sdk; ./scripts/get-iota-references.sh;",
+    "download-iota-sdk-references": "git clean -Xdf ../content/developer/iota-sdk/references; ./scripts/get-iota-sdk-references.sh;",
     "download-external-references": "git clean -Xdf ../content/developer/iota-evm/references/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/developer/iota-identity/references/; ./scripts/get-iota-identity-references.sh; git clean -Xdf ../content/developer/iota-notarization/references/; ./scripts/get-iota-notarization-references.sh; git clean -Xdf ../content/developer/iota-hierarchies/references/; ./scripts/get-iota-hierarchies-references.sh",
     "download-rpc-specs": "node src/utils/getopenrpcspecs.js",
     "swizzle": "docusaurus swizzle",
@@ -37,8 +38,8 @@
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
     "@graphql-markdown/docusaurus": "^1.24.1",
-    "@iota/dapp-kit": "0.8.3",
-    "@iota/iota-sdk": "1.10.1",
+    "@iota/dapp-kit": "workspace:*",
+    "@iota/iota-sdk": "workspace:*",
     "@mdx-js/react": "^3.0.1",
     "@mui/material": "^5.15.19",
     "@saucelabs/theme-github-codeblock": "^0.3.0",
@@ -76,10 +77,11 @@
     "@metamask/providers": "^10.2.1",
     "@types/node": "^24.0.0",
     "@types/react": "^18.3.3",
-    "docusaurus-plugin-typedoc": "^1.0.5",
+    "docusaurus-plugin-llms": "^0.3.0",
+    "docusaurus-plugin-typedoc": "^1.4.2",
     "remark-code-import": "^1.2.0",
-    "typedoc": "^0.26.10",
-    "typedoc-plugin-markdown": "^4.2.9",
+    "typedoc": "^0.28.17",
+    "typedoc-plugin-markdown": "^4.10.0",
     "typescript": "^5.5.3"
   },
   "browserslist": {
@@ -96,6 +98,6 @@
   },
   "engines": {
     "node": ">=18.12",
-    "pnpm": ">=8.6.5"
+    "pnpm": ">=10"
   }
 }

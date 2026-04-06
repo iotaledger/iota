@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod abstract_account;
 pub mod adversarial;
 pub mod batch_payment;
 pub mod delegation;
@@ -11,11 +12,12 @@ pub mod randomized_transaction;
 pub mod randomness;
 pub mod shared_counter;
 pub mod shared_object_deletion;
+pub mod slow;
 pub mod transfer_object;
 pub mod workload;
 pub mod workload_configuration;
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
@@ -58,4 +60,12 @@ pub struct GasCoinConfig {
     pub address: IotaAddress,
     // recipient account key pair (useful for signing txns)
     pub keypair: Arc<AccountKeyPair>,
+}
+
+pub fn benchmark_move_base_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("BENCHMARK_MOVE_BASE_DIR") {
+        PathBuf::from(dir)
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    }
 }

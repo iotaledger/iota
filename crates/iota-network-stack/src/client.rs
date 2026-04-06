@@ -264,10 +264,7 @@ impl Service<Name> for CachingResolver {
                             if let Ok(addrs) = (name.as_str(), 0).to_socket_addrs() {
                                 let addrs: Vec<_> = addrs.collect();
                                 trace!("updating cached host={:?}", name.as_str());
-                                cache
-                                    .lock()
-                                    .unwrap()
-                                    .insert(name, (Instant::now(), addrs.clone()));
+                                cache.lock().unwrap().insert(name, (Instant::now(), addrs));
                             }
                         });
                     }

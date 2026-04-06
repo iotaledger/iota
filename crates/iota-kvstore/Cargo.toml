@@ -22,3 +22,6 @@ tracing.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-types.workspace = true
 telemetry-subscribers.workspace = true
+
+[lints]
+workspace = true

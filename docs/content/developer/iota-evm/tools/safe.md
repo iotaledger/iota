@@ -1,5 +1,5 @@
 ---
-description: 'Multisig wallet refers to having multiple private keys for a single web3 wallet.'
+description: "Multisig wallet refers to having multiple private keys for a single web3 wallet."
 image: /img/logo/WASP_logo_dark.png
 teams:
   - iotaledger/l2-smart-contract

@@ -10,7 +10,7 @@ export function useShouldOpenInNewTab() {
     const activeAccount = useActiveAccount();
 
     const isTabView = useAppSelector(
-        (state) => state.app.extensionViewType === ExtensionViewType.Tab,
+        (state) => state.app.extensionViewType === ExtensionViewType.FullScreen,
     );
 
     if (!activeAccount) return false;

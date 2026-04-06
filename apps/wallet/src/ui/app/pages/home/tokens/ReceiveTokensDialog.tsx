@@ -65,7 +65,10 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
             <DialogContent containerId="overlay-portal-container">
                 <Header title="Receive" onClose={() => setOpen(false)} />
                 <DialogBody>
-                    <div className="flex max-h-[500px] flex-col gap-lg overflow-y-auto text-center [&_span]:w-full [&_span]:break-words">
+                    <div
+                        className="flex max-h-[500px] flex-col gap-lg overflow-y-auto text-center [&_span]:w-full [&_span]:break-words"
+                        data-amp-mask
+                    >
                         <div className="self-center">
                             <QR value={address} size={130} marginSize={2} />
                         </div>

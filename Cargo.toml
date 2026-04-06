@@ -111,6 +111,7 @@ members = [
   "crates/iota-ledger",
   "crates/iota-ledger-signer",
   "crates/iota-light-client",
+  "crates/iota-localnet",
   "crates/iota-macros",
   "crates/iota-mainnet-unlocks",
   "crates/iota-metric-checker",
@@ -122,6 +123,7 @@ members = [
   "crates/iota-network",
   "crates/iota-network-stack",
   "crates/iota-node",
+  "crates/iota-node-storage",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
   "crates/iota-package-alt",
@@ -134,9 +136,7 @@ members = [
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
   "crates/iota-replay",
-  "crates/iota-rest-api",
   "crates/iota-rest-kv",
-  "crates/iota-rosetta",
   "crates/iota-rpc-loadgen",
   "crates/iota-sdk",
   "crates/iota-simulator",
@@ -171,7 +171,6 @@ members = [
   "crates/typed-store",
   "crates/typed-store-derive",
   "crates/typed-store-error",
-  "crates/typed-store-workspace-hack",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",
@@ -181,7 +180,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.18.0-alpha"
+version = "1.21.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -227,6 +226,9 @@ inherits = "simulator"
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(msim)', 'cfg(fail_points)'] }
 
+[workspace.lints.clippy]
+redundant_clone = "warn"
+
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
 # external dependencies
@@ -240,11 +242,11 @@ async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
 async-stream = "0.3.6"
 async-trait = "0.1.61"
-aws-config = "1.8"
-aws-sdk-dynamodb = "1.103"
+aws-config = { version = "1.8", default-features = false, features = ["credentials-process", "rt-tokio", "sso"] }
+aws-sdk-dynamodb = { version = "1.103", default-features = false, features = ["rustls", "rt-tokio"] }
 axum = { version = "0.8", default-features = false, features = ["tokio", "http2", "json", "matched-path", "original-uri", "form", "query", "ws", "macros"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
-axum-server = { version = "0.8", default-features = false, features = ["tls-rustls"] }
+axum-server = { version = "0.8", default-features = false, features = ["tls-rustls-no-provider"] }
 backoff = { version = "0.4.0", features = ["futures", "futures-core", "pin-project-lite", "tokio", "tokio_1"] }
 base64 = "0.21.2"
 base64-url = "2"
@@ -272,9 +274,9 @@ dashmap = "5.5.3"
 datatest-stable = { git = "https://github.com/nextest-rs/datatest-stable.git", rev = "72db7f6d1bbe36a5407e96b9488a581f763e106f" }
 derive_more = { version = "1.0", default-features = false }
 diesel = "2.3.5"
-diffy = { version = "0.3" }
 dirs = "5.0"
 downcast = "0.11.0"
+duration-str = "0.5.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
 enum_dispatch = "^0.3"
@@ -306,7 +308,6 @@ itertools = "0.13.0"
 json_to_table = { git = "https://github.com/zhiburt/tabled/", rev = "e449317a1c02eb6b29e409ad6617e5d9eb7b3bd4" }
 jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-client", "http-client"] }
 lru = "0.12"
-mime = "0.3"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
 more-asserts = "0.3.1"
@@ -315,7 +316,6 @@ multiaddr = "0.17.0"
 nom = "7.1.3"
 nonempty = "0.9.0"
 num-bigint = "0.4.4"
-num-rational = "0.4"
 num_cpus = "1.15.0"
 num_enum = "0.7"
 object_store = { version = "0.13", features = ["aws", "gcp", "azure", "http"] }
@@ -337,7 +337,6 @@ proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.14"
 prost-types = "0.14"
-quinn-proto = "0.11.7"
 quote = "1.0.23"
 rand = "0.8.5"
 regex = "1.7.1"
@@ -360,8 +359,8 @@ shellexpand = "3.1.0"
 signature = "1.6.0"
 snap = "1.1.0"
 static_assertions = "1.1.0"
-strum = { version = "0.26.3", features = ["derive"] }
-strum_macros = "0.26.4"
+strum = { version = "0.27.1", features = ["derive"] }
+strum_macros = "0.27.1"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
 sysinfo = "^0.33"
 tabled = { version = "0.12" }
@@ -436,6 +435,7 @@ iota-keys = { path = "crates/iota-keys" }
 iota-kvstore = { path = "crates/iota-kvstore" }
 iota-ledger = { path = "crates/iota-ledger" }
 iota-ledger-signer = { path = "crates/iota-ledger-signer" }
+iota-localnet = { path = "crates/iota-localnet" }
 iota-macros = { path = "crates/iota-macros" }
 iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }
@@ -447,6 +447,7 @@ iota-names = { path = "crates/iota-names" }
 iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }
+iota-node-storage = { path = "crates/iota-node-storage" }
 iota-open-rpc = { path = "crates/iota-open-rpc" }
 iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
 iota-package-dump = { path = "crates/iota-package-dump" }
@@ -457,12 +458,10 @@ iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
-iota-rest-api = { path = "crates/iota-rest-api" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
-iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d8cdab6ab3f2fd9ba8059ba56e80ba950badc88d", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e19c78a1bee17e0bf85fcd5b16a2f080cef26274", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }

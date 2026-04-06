@@ -106,7 +106,7 @@ generate_genesis_files() {
     -v "$TEMP_EXPORT_DIR:/iota/configs/temp" \
     -w /iota \
     iotaledger/iota-tools \
-    /usr/local/bin/iota genesis \
+    /usr/local/bin/iota-localnet genesis \
       --from-config "/iota/configs/$TMP_GENESIS_TEMPLATE" \
       --working-dir "/iota/configs/temp" -f
 

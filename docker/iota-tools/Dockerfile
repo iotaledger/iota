@@ -37,6 +37,7 @@ RUN cargo build --profile ${PROFILE} \
       --bin stress \
       --bin iota-analytics-indexer \
       --bin iota \
+      --bin iota-localnet \
       --bin iota-faucet \
       --bin iota-cluster-test \
       --bin iota-tool \
@@ -46,6 +47,7 @@ RUN cargo build --profile ${PROFILE} \
     cp $TARGET_FOLDER/stress ./stress && \
     cp $TARGET_FOLDER/iota-analytics-indexer ./iota-analytics-indexer && \
     cp $TARGET_FOLDER/iota ./iota && \
+    cp $TARGET_FOLDER/iota-localnet ./iota-localnet && \
     cp $TARGET_FOLDER/iota-faucet ./iota-faucet && \
     cp $TARGET_FOLDER/iota-cluster-test ./iota-cluster-test && \
     cp $TARGET_FOLDER/iota-tool ./iota-tool && \
@@ -64,6 +66,7 @@ COPY --from=builder /iota/iota-node /usr/local/bin
 COPY --from=builder /iota/stress /usr/local/bin
 COPY --from=builder /iota/iota-analytics-indexer /usr/local/bin
 COPY --from=builder /iota/iota /usr/local/bin
+COPY --from=builder /iota/iota-localnet /usr/local/bin
 COPY --from=builder /iota/iota-faucet /usr/local/bin
 COPY --from=builder /iota/iota-cluster-test /usr/local/bin
 COPY --from=builder /iota/iota-tool /usr/local/bin

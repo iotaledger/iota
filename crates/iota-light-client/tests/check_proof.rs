@@ -125,9 +125,9 @@ async fn test_new_committee() {
     );
 
     let committee_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None,
-        targets: ProofTargets::new().set_committee(new_committee.clone()),
+        targets: ProofTargets::new().set_committee(new_committee),
     };
 
     verify_proof(&committee, &committee_proof).unwrap()
@@ -139,7 +139,7 @@ async fn test_incorrect_new_committee() {
     let (committee, full_checkpoint) = read_test_data().await;
 
     let committee_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None,
         targets: ProofTargets::new().set_committee(committee.clone()), // WRONG,
     };
@@ -173,7 +173,7 @@ async fn test_fail_incorrect_cert() {
     );
 
     let committee_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None,
         targets: ProofTargets::new(),
     };
@@ -195,7 +195,7 @@ async fn test_object_target_fail_no_data() {
     let sample_ref = sample_object.compute_object_reference();
 
     let bad_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None, // WRONG
         targets: ProofTargets::new().add_object(sample_ref, sample_object),
     };
@@ -253,7 +253,7 @@ async fn test_event_target_fail_no_data() {
     ));
 
     let bad_proof = Proof {
-        checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
+        checkpoint_summary: full_checkpoint.checkpoint_summary,
         contents_proof: None, // WRONG
         targets: ProofTargets::new().add_event(sample_eid, sample_event),
     };

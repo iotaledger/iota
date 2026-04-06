@@ -68,14 +68,14 @@ use iota_core::{
         reconfiguration::ReconfigurationInitiator,
     },
     execution_cache::build_execution_cache,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     module_cache_metrics::ResolverMetrics,
     overload_monitor::overload_monitor,
-    rest_index::RestIndexStore,
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
     state_accumulator::{StateAccumulator, StateAccumulatorMetrics},
-    storage::{RestReadStore, RocksDbStore},
+    storage::{GrpcReadStore, RocksDbStore},
     traffic_controller::metrics::TrafficControllerMetrics,
     transaction_orchestrator::TransactionOrchestrator,
     validator_tx_finalizer::ValidatorTxFinalizer,
@@ -101,7 +101,6 @@ use iota_network::{
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::ProtocolConfig;
-use iota_rest_api::RestMetrics;
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -139,13 +138,12 @@ pub use simulator::set_jwk_injector;
 use simulator::*;
 use tap::tap::TapFallible;
 use tokio::{
-    runtime::Handle,
     sync::{Mutex, broadcast, mpsc, watch},
     task::{JoinHandle, JoinSet},
 };
 use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
-use tracing::{Instrument, debug, error, error_span, info, warn};
+use tracing::{Instrument, debug, error, error_span, info, trace_span, warn};
 use typed_store::{
     DBMetrics,
     rocks::{check_and_mark_db_corruption, default_db_options, unmark_db_corruption},
@@ -223,11 +221,30 @@ mod simulator {
     }
 }
 
+#[derive(Clone)]
+pub struct ServerVersion {
+    pub bin: &'static str,
+    pub version: &'static str,
+}
+
+impl ServerVersion {
+    pub fn new(bin: &'static str, version: &'static str) -> Self {
+        Self { bin, version }
+    }
+}
+
+impl std::fmt::Display for ServerVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.bin)?;
+        f.write_str("/")?;
+        f.write_str(self.version)
+    }
+}
+
 pub struct IotaNode {
     config: NodeConfig,
     validator_components: Mutex<Option<ValidatorComponents>>,
-    /// The http server responsible for serving JSON-RPC as well as the
-    /// experimental rest service
+    /// The http server responsible for serving JSON-RPC
     _http_server: Option<iota_http::ServerHandle>,
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
@@ -286,9 +303,13 @@ impl IotaNode {
     pub async fn start(
         config: NodeConfig,
         registry_service: RegistryService,
-        custom_rpc_runtime: Option<Handle>,
     ) -> Result<Arc<IotaNode>> {
-        Self::start_async(config, registry_service, custom_rpc_runtime, "unknown").await
+        Self::start_async(
+            config,
+            registry_service,
+            ServerVersion::new("iota-node", "unknown"),
+        )
+        .await
     }
 
     /// Starts the JWK (JSON Web Key) updater tasks for the specified node
@@ -433,8 +454,7 @@ impl IotaNode {
     pub async fn start_async(
         config: NodeConfig,
         registry_service: RegistryService,
-        custom_rpc_runtime: Option<Handle>,
-        software_version: &'static str,
+        server_version: ServerVersion,
     ) -> Result<Arc<IotaNode>> {
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         let mut config = config.clone();
@@ -487,7 +507,7 @@ impl IotaNode {
                 } else {
                     "fullnode"
                 },
-                software_version,
+                server_version.version,
                 &chain_identifier.to_string(),
             ))
             .expect("Failed registering uptime metric");
@@ -580,10 +600,9 @@ impl IotaNode {
             )))
         };
 
-        let chain_id = ChainIdentifier::from(*genesis.checkpoint().digest());
         let chain = match config.chain_override_for_testing {
             Some(chain) => chain,
-            None => ChainIdentifier::from(*genesis.checkpoint().digest()).chain(),
+            None => chain_identifier.chain(),
         };
 
         let epoch_options = default_db_options().optimize_db_for_write_throughput(4);
@@ -599,7 +618,7 @@ impl IotaNode {
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
-            (chain_id, chain),
+            (chain_identifier, chain),
             checkpoint_store
                 .get_highest_executed_checkpoint_seq_number()
                 .expect("checkpoint store read cannot fail")
@@ -663,21 +682,19 @@ impl IotaNode {
                 epoch_store
                     .protocol_config()
                     .max_move_identifier_len_as_option(),
-                config.remove_deprecated_tables,
             )))
         } else {
             None
         };
 
-        let rest_index = if is_full_node && config.enable_rest_api && config.enable_index_processing
-        {
+        let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
+            // Migrate legacy directory names before opening the DB.
+            GrpcIndexesStore::migrate_legacy_dirs(&config.db_path());
             Some(Arc::new(
-                RestIndexStore::new(
-                    config.db_path().join("rest_index"),
-                    &store,
+                GrpcIndexesStore::new(
+                    config.db_path().join(GRPC_INDEXES_DIR),
+                    Arc::clone(&store),
                     &checkpoint_store,
-                    &epoch_store,
-                    &cache_traits.backing_package_store,
                 )
                 .await,
             ))
@@ -764,7 +781,7 @@ impl IotaNode {
             epoch_store.clone(),
             committee_store.clone(),
             index_store.clone(),
-            rest_index,
+            grpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
             &genesis_objects,
@@ -839,12 +856,9 @@ impl IotaNode {
 
         let http_server = build_http_server(
             state.clone(),
-            state_sync_store.clone(),
             &transaction_orchestrator.clone(),
             &config,
             &prometheus_registry,
-            custom_rpc_runtime,
-            software_version,
         )
         .await?;
 
@@ -886,8 +900,15 @@ impl IotaNode {
                 .clone()
                 .map(|o| o as Arc<dyn iota_types::transaction_executor::TransactionExecutor>);
 
-        let grpc_server_handle =
-            build_grpc_server(&config, state.clone(), state_sync_store.clone(), executor).await?;
+        let grpc_server_handle = build_grpc_server(
+            &config,
+            state.clone(),
+            state_sync_store.clone(),
+            executor,
+            &prometheus_registry,
+            server_version,
+        )
+        .await?;
 
         let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
@@ -1558,7 +1579,7 @@ impl IotaNode {
         prometheus_registry: &Registry,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
-            state.clone(),
+            state,
             consensus_adapter,
             Arc::new(ValidatorServiceMetrics::new(prometheus_registry)),
             TrafficControllerMetrics::new(prometheus_registry),
@@ -1834,6 +1855,9 @@ impl IotaNode {
                 spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
                     node_clone
                         .send_signed_capability_notification_to_committee_with_retry(&epoch_store)
+                        .instrument(trace_span!(
+                            "send_signed_capability_notification_to_committee_with_retry"
+                        ))
                         .await;
                 }));
             }
@@ -2423,6 +2447,8 @@ async fn build_grpc_server(
     state: Arc<AuthorityState>,
     state_sync_store: RocksDbStore,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
+    prometheus_registry: &Registry,
+    server_version: ServerVersion,
 ) -> Result<Option<GrpcServerHandle>> {
     // Validators do not expose gRPC APIs
     if config.consensus_config().is_some() || !config.enable_grpc_api {
@@ -2436,33 +2462,35 @@ async fn build_grpc_server(
     // Get chain identifier from state directly
     let chain_id = state.get_chain_identifier();
 
-    let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
+    let grpc_read_store = Arc::new(GrpcReadStore::new(state.clone(), state_sync_store));
 
     // Create cancellation token for proper shutdown hierarchy
     let shutdown_token = CancellationToken::new();
 
     // Create GrpcReader
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(
-        rest_read_store,
-        Some(env!("CARGO_PKG_VERSION").to_string()),
+    let grpc_reader = Arc::new(GrpcReader::new(
+        grpc_read_store,
+        Some(server_version.to_string()),
     ));
 
-    // Pass the same token to both GrpcReader (already done above) and
-    // start_grpc_server
+    // Create gRPC server metrics
+    let grpc_server_metrics = iota_grpc_server::GrpcServerMetrics::new(prometheus_registry);
+
     let handle = start_grpc_server(
         grpc_reader,
         executor,
         grpc_config.clone(),
         shutdown_token,
         chain_id,
+        Some(grpc_server_metrics),
     )
     .await?;
 
     Ok(Some(handle))
 }
 
-/// Builds and starts the HTTP server for the IOTA node, exposing JSON-RPC and
-/// REST APIs based on the node's configuration.
+/// Builds and starts the HTTP server for the IOTA node, exposing the JSON-RPC
+/// API based on the node's configuration.
 ///
 /// This function performs the following tasks:
 /// 1. Checks if the node is a validator by inspecting the consensus
@@ -2473,18 +2501,13 @@ async fn build_grpc_server(
 ///    on the node's state and configuration, including CoinApi,
 ///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and
 ///    IndexerApi.
-/// 4. Optionally, if the REST API is enabled, nests the REST API router under
-///    the `/api/v1` path.
-/// 5. Binds the server to the specified JSON-RPC address and starts listening
+/// 4. Binds the server to the specified JSON-RPC address and starts listening
 ///    for incoming connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
-    store: RocksDbStore,
     transaction_orchestrator: &Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: &NodeConfig,
     prometheus_registry: &Registry,
-    _custom_runtime: Option<Handle>,
-    software_version: &'static str,
 ) -> Result<Option<iota_http::ServerHandle>> {
     // Validators do not expose these APIs
     if config.consensus_config().is_some() {
@@ -2552,27 +2575,6 @@ pub async fn build_http_server(
 
     router = router.merge(json_rpc_router);
 
-    if config.enable_rest_api {
-        let mut rest_service = iota_rest_api::RestService::new(
-            Arc::new(RestReadStore::new(state.clone(), store)),
-            software_version,
-        );
-
-        if let Some(config) = config.rest.clone() {
-            rest_service.with_config(config);
-        }
-
-        rest_service.with_metrics(RestMetrics::new(prometheus_registry));
-
-        if let Some(transaction_orchestrator) = transaction_orchestrator {
-            rest_service.with_executor(transaction_orchestrator.clone())
-        }
-
-        router = router.merge(rest_service.into_router());
-    }
-
-    // TODO: Remove this health check when experimental REST API becomes default
-    // This is a copy of the health check in crates/iota-rest-api/src/health.rs
     router = router
         .route("/health", axum::routing::get(health_check_handler))
         .route_layer(axum::Extension(state));

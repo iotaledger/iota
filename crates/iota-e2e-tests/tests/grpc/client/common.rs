@@ -64,8 +64,15 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> D
 }
 
 /// Check if error is a gRPC error with the specified status code.
+///
+/// Matches both transport-level `Error::Grpc` and per-item `Error::Server`
+/// errors, since batch APIs return per-item failures as `Error::Server`.
 pub fn is_grpc_error(err: &Error, code: tonic::Code) -> bool {
-    matches!(err, Error::Grpc(status) if status.code() == code)
+    match err {
+        Error::Grpc(status) => status.code() == code,
+        Error::Server(status) => tonic::Code::from_i32(status.code) == code,
+        _ => false,
+    }
 }
 
 /// Check if error is a gRPC NotFound error.
@@ -91,9 +98,9 @@ pub fn assert_grpc_not_found<T: std::fmt::Debug>(result: Result<T, Error>) {
     }
 }
 
-/// Check if error is a Server error containing "not found".
+/// Check if error is a Server error with NOT_FOUND status code.
 pub fn is_server_not_found(err: &Error) -> bool {
-    matches!(err, Error::Server(msg) if msg.to_lowercase().contains("not found"))
+    matches!(err, Error::Server(status) if tonic::Code::from_i32(status.code) == tonic::Code::NotFound)
 }
 
 /// Assert that a result is a Server "not found" error.

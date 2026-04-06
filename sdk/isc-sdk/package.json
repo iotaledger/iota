@@ -1,7 +1,7 @@
 {
     "name": "@iota/isc-sdk",
     "author": "IOTA Foundation <info@iota.org>",
-    "version": "0.2.3",
+    "version": "0.2.5",
     "description": "ISC SDK for interacting with IOTA Smart Contracts.",
     "repository": "https://github.com/iotaledger/iota",
     "type": "commonjs",
@@ -18,7 +18,7 @@
     "scripts": {
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "build": "build-package",
-        "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\"",
+        "eslint:check": "eslint --max-warnings=0 \"./src/**/*.{js,ts}\" \"./tests/**/*.{js,ts}\"",
         "eslint:fix": "pnpm eslint:check --fix",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=.prettierignore .",
         "prettier:fix": "prettier -w --ignore-unknown --ignore-path=.prettierignore .",
@@ -42,8 +42,8 @@
         "typescript": "^5.5.3",
         "vite": "^5.4.12",
         "vite-plugin-dts": "^4.3.0",
-        "vitest": "^2.1.9",
-        "zod": "^3.21.4"
+        "vitest": "^3.2.4",
+        "zod": "^3.25.76"
     },
     "lint-staged": {
         "src/**/*.{ts,js,mjs}": [

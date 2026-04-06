@@ -19,9 +19,9 @@ async fn direct_commit() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
@@ -47,7 +47,7 @@ async fn direct_commit() {
         }";
 
     let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
-    dag_builder.persist_all_blocks(dag_state.clone());
+    dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
     tracing::info!("Leader round at wave 1: {leader_round}");
@@ -68,9 +68,9 @@ async fn direct_skip() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
@@ -91,7 +91,7 @@ async fn direct_skip() {
         }";
 
     let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
-    dag_builder.persist_all_blocks(dag_state.clone());
+    dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
     tracing::info!("Leader round at wave 1: {leader_round}");
@@ -112,9 +112,9 @@ async fn direct_undecided() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Round 3 is a leader round
     // D3 is an elected leader for wave 1
@@ -135,7 +135,7 @@ async fn direct_undecided() {
         }";
 
     let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
-    dag_builder.persist_all_blocks(dag_state.clone());
+    dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
     tracing::info!("Leader round at wave 1: {leader_round}");
@@ -156,9 +156,9 @@ async fn indirect_commit() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // Wave 1
     // Round 3 is a leader round
@@ -209,7 +209,7 @@ async fn indirect_commit() {
     }";
 
     let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
-    dag_builder.persist_all_blocks(dag_state.clone());
+    dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
     tracing::info!("Leader round wave 1: {leader_round}");
@@ -264,9 +264,9 @@ async fn indirect_skip() {
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
-    let committer = BaseCommitterBuilder::new(context.clone(), dag_state.clone()).build();
+    let committer = BaseCommitterBuilder::new(context, dag_state.clone()).build();
 
     // There are 3 rounds. Every block is connected except
     // that only f+1 validators connect to the leader of wave 2
@@ -291,7 +291,7 @@ async fn indirect_skip() {
     }";
 
     let dag_builder = parse_dag(dag_str).expect("a DAG should be valid");
-    dag_builder.persist_all_blocks(dag_state.clone());
+    dag_builder.persist_all_blocks(dag_state);
 
     let leader_round = committer.leader_round(1);
     tracing::info!("Leader round wave 1: {leader_round}");

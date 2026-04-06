@@ -19,7 +19,6 @@ use typed_store::{
     DBMapUtils, Map,
     rocks::{DBMap, DBOptions, MetricConf, default_db_options},
     rocksdb::Options,
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 pub struct CommitteeStore {

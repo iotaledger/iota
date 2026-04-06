@@ -4,7 +4,7 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { ampli, setWalletUserGroup, clearWalletUserGroup } from '../../../shared/analytics';
+import { ampli, setAmplitudeIdentity } from '../../../shared/analytics';
 
 interface ConnectButtonL2Props {
     text?: string;
@@ -19,15 +19,15 @@ export function ConnectButtonL2({
         if (l2Account.isConnected && l2Account.address) {
             const walletType = l2Account.connector?.name || 'unknown';
             const chainId = l2Account.chainId?.toString() || 'unknown';
-            setWalletUserGroup({ l2WalletType: walletType, l2ChainId: chainId });
+            setAmplitudeIdentity({ l2WalletType: walletType, l2ChainId: chainId });
             ampli.connectedL2Wallet({ walletType, chainId });
         } else {
-            clearWalletUserGroup('l2');
+            setAmplitudeIdentity({ l2WalletType: '', l2ChainId: '' });
         }
     }, [l2Account.isConnected, l2Account.address, l2Account.connector?.name, l2Account.chainId]);
 
     return (
-        <div className="text-label-lg" data-testid="connect-l2-wallet">
+        <div className="text-label-lg" data-testid="connect-l2-wallet" data-amp-mask>
             <ConnectButton
                 label={text}
                 accountStatus={{

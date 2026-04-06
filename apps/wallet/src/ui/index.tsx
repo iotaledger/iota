@@ -4,13 +4,9 @@
 
 import '@fontsource-variable/inter';
 import { ErrorBoundary } from '_components';
-import { initAppType, setAppViewType } from '_redux/slices/app';
-import {
-    getFromLocationSearch,
-    getAppViewType,
-    ExtensionViewType,
-} from '_src/ui/app/redux/slices/app/appType';
-import { initAmplitude } from '_src/shared/analytics/amplitude';
+import { setAppViewType } from '_redux/slices/app';
+import { getAppViewType, ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { initAmplitude, setAmplitudeIdentity } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { initSentry } from '_src/ui/app/helpers';
 import store from '_store';
@@ -23,7 +19,7 @@ import {
     StardustIndexerClientProvider,
     ThemeProvider,
 } from '@iota/core';
-import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { AppsBackendClientProvider } from '@iota/apps-backend-client';
 import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import cn from 'clsx';
@@ -34,9 +30,9 @@ import { HashRouter } from 'react-router-dom';
 import { App } from './app';
 import { walletApiProvider } from './app/apiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
-import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
+import { UnlockAccountsProvider } from './app/components/accounts/UnlockAccountsContext';
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
-import { growthbook } from './app/experimentation/featureGating';
+import { appsBackendClient } from './app/experimentation/featureGating';
 import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from '_hooks';
 import './styles/global.scss';
@@ -47,7 +43,6 @@ async function init() {
     if (process.env.NODE_ENV === 'development') {
         Object.defineProperty(window, 'store', { value: store });
     }
-    store.dispatch(initAppType(getFromLocationSearch()));
     store.dispatch(setAppViewType(getAppViewType()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
@@ -73,7 +68,7 @@ function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
     const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     return (
-        <GrowthBookProvider growthbook={growthbook}>
+        <AppsBackendClientProvider client={appsBackendClient}>
             <HashRouter>
                 <IotaLedgerClientProvider>
                     {/*
@@ -108,7 +103,7 @@ function AppWrapper() {
                                             <KioskClientProvider>
                                                 <AccountsFormProvider>
                                                     <ThemeProvider appId="iota-wallet">
-                                                        <UnlockAccountProvider>
+                                                        <UnlockAccountsProvider>
                                                             <ClipboardPasteSafetyWrapper>
                                                                 <KeystoneProvider>
                                                                     <div
@@ -131,7 +126,7 @@ function AppWrapper() {
                                                                     </div>
                                                                 </KeystoneProvider>
                                                             </ClipboardPasteSafetyWrapper>
-                                                        </UnlockAccountProvider>
+                                                        </UnlockAccountsProvider>
                                                     </ThemeProvider>
                                                 </AccountsFormProvider>
                                             </KioskClientProvider>
@@ -143,13 +138,20 @@ function AppWrapper() {
                     </Fragment>
                 </IotaLedgerClientProvider>
             </HashRouter>
-        </GrowthBookProvider>
+        </AppsBackendClientProvider>
     );
 }
 
 (async () => {
     await init();
     initSentry();
-    initAmplitude();
+    await initAmplitude();
+
+    const { extensionViewType, network, customRpc } = store.getState().app;
+    setAmplitudeIdentity({
+        network,
+        extensionViewType,
+        customRpc,
+    });
     renderApp();
 })();

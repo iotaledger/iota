@@ -1,0 +1,77 @@
+name: Split Cluster Synchronization Check
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: split-cluster-sync-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: "error"
+  # Don't emit giant backtraces in the CI logs.
+  RUST_BACKTRACE: short
+
+jobs:
+  validate-mainnet:
+    runs-on: self-hosted-x64
+    if: (!cancelled() && !failure())
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+      - name: Run split cluster sync check script
+        id: mn-split-cluster-sync-check
+        run: |
+          WORKING_DIR=/tmp/mainnet-split-cluster-sync-${{ github.run_id }} \
+          IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=mainnet \
+          scripts/compatibility/split-cluster-sync-check.sh origin/mainnet ${{ github.sha }}
+      - name: Upload mainnet split cluster sync logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: mainnet-split-cluster-sync-logs-${{ github.run_id }}
+          path: /tmp/mainnet-split-cluster-sync-${{ github.run_id }}/logs/
+          retention-days: 5
+          if-no-files-found: warn
+      - name: Upload mainnet split cluster sync metrics on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: mainnet-split-cluster-sync-metrics-${{ github.run_id }}
+          path: /tmp/mainnet-split-cluster-sync-${{ github.run_id }}/metrics/
+          retention-days: 5
+          if-no-files-found: warn
+  validate-testnet:
+    runs-on: self-hosted-x64
+    if: (!cancelled() && !failure())
+    steps:
+      - name: Checkout code repository
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+      - name: Run split cluster sync check script
+        id: tn-split-cluster-sync-check
+        run: |
+          WORKING_DIR=/tmp/testnet-split-cluster-sync-${{ github.run_id }} \
+          IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=testnet \
+          scripts/compatibility/split-cluster-sync-check.sh origin/testnet ${{ github.sha }}
+      - name: Upload testnet split cluster sync logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: testnet-split-cluster-sync-logs-${{ github.run_id }}
+          path: /tmp/testnet-split-cluster-sync-${{ github.run_id }}/logs/
+          retention-days: 5
+          if-no-files-found: warn
+      - name: Upload testnet split cluster sync metrics on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: testnet-split-cluster-sync-metrics-${{ github.run_id }}
+          path: /tmp/testnet-split-cluster-sync-${{ github.run_id }}/metrics/
+          retention-days: 5
+          if-no-files-found: warn

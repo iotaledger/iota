@@ -11,7 +11,8 @@ async fn get_reference_gas_price() {
     let gas_price = client
         .get_reference_gas_price()
         .await
-        .expect("Failed to get reference gas price");
+        .expect("Failed to get reference gas price")
+        .into_inner();
 
     assert!(gas_price > 0, "Reference gas price should be positive");
     assert!(

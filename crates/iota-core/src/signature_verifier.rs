@@ -36,7 +36,7 @@ use tokio::{
     sync::oneshot,
     time::{Duration, timeout},
 };
-use tracing::{debug, instrument};
+use tracing::{Instrument, debug, instrument, trace_span};
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
@@ -208,6 +208,7 @@ impl SignatureVerifier {
     }
 
     /// Verifies all certs, returns Ok only if all are valid.
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_certs_and_checkpoints(
         &self,
         certs: Vec<&CertifiedTransaction>,
@@ -296,7 +297,9 @@ impl SignatureVerifier {
             Either::Left(prev_id) => prev_id,
             Either::Right(buffer) => {
                 self.metrics.full_batches.inc();
-                self.process_queue(buffer).await;
+                self.process_queue(buffer)
+                    .instrument(trace_span!("SignatureVerifier::process_queue"))
+                    .await;
                 // unwrap ok - process_queue will have sent the result already
                 return rx.try_recv().unwrap();
             }
@@ -343,6 +346,7 @@ impl SignatureVerifier {
             .expect("Spawn blocking should not fail");
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn process_queue_sync(
         committee: Arc<Committee>,
         metrics: Arc<SignatureVerifierMetrics>,
@@ -425,6 +429,7 @@ impl SignatureVerifier {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_authority_capabilities(
         &self,
         signed_authority_capabilities: &SignedAuthorityCapabilitiesV1,
@@ -614,6 +619,7 @@ impl SignatureVerifierMetrics {
 }
 
 /// Verifies all certificates - if any fail return error.
+#[instrument(level = "trace", skip_all)]
 pub fn batch_verify_all_certificates_and_checkpoints(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
@@ -630,6 +636,7 @@ pub fn batch_verify_all_certificates_and_checkpoints(
 
 /// Verifies certificates in batch mode, but returns a separate result for each
 /// cert.
+#[instrument(level = "trace", skip_all)]
 pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[&CertifiedTransaction],

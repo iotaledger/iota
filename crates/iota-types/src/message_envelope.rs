@@ -12,6 +12,7 @@ use iota_sdk_types::crypto::{Intent, IntentScope};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_name::{DeserializeNameAdapter, SerializeNameAdapter};
+use tracing::instrument;
 
 use crate::{
     base_types::AuthorityName,
@@ -180,6 +181,7 @@ where
 }
 
 impl Envelope<SenderSignedData, AuthoritySignInfo> {
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_committee_sigs_only(&self, committee: &Committee) -> IotaResult {
         self.auth_signature.verify_secure(
             self.data(),

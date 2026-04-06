@@ -9,6 +9,7 @@ use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
+use url::Url;
 
 use crate::{
     IndexerMetrics,
@@ -48,7 +49,7 @@ use crate::{
 ///             .unwrap()
 ///     });
 ///
-/// let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+/// let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
 ///     Arc::new(sim),
 ///     data_ingestion_path,
 ///     None,
@@ -66,7 +67,6 @@ pub enum IndexerTypeConfig {
     Writer {
         snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
-        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -89,8 +89,6 @@ impl IndexerTypeConfig {
                     .epochs_to_keep
                     .map(RetentionConfig::new_with_default_retention_only_for_testing)
             }),
-            optimistic_pruner_batch_size: pruning_options
-                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -123,6 +121,13 @@ pub async fn start_test_indexer(
 
 /// Starts an indexer reader or writer for testing depending on the
 /// `reader_writer_config`.
+///
+/// # Note
+/// For [`IndexerTypeConfig::Writer`] when `data_ingestion_path` is `Some`, the
+/// data ingestion path will be exclusively used to ingest data into the
+/// indexer. To force the indexer to sync from the fullnode via gRPC, set
+/// `data_ingestion_path` to `None` and it will use the `rpc_url` to stream
+/// checkpoints from the fullnode gRPC endpoint.
 pub async fn start_test_indexer_impl(
     db_url: String,
     reset_db: bool,
@@ -163,15 +168,13 @@ pub async fn start_test_indexer_impl(
         IndexerTypeConfig::Writer {
             snapshot_config,
             retention_config,
-            optimistic_pruner_batch_size,
         } => {
+            let fullnode_rpc_url = rpc_url.parse::<Url>().unwrap();
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
-            ingestion_config.sources.remote_store_url = data_ingestion_path
-                .is_none()
-                .then_some(format!("{rpc_url}/api/v1").parse().unwrap());
+            ingestion_config.sources.remote_store_url =
+                data_ingestion_path.is_none().then_some(fullnode_rpc_url);
             ingestion_config.sources.data_ingestion_path = data_ingestion_path;
-            ingestion_config.sources.rpc_client_url = Some(rpc_url.parse().unwrap());
 
             tokio::spawn(async move {
                 Indexer::start_writer_with_config(
@@ -180,7 +183,6 @@ pub async fn start_test_indexer_impl(
                     indexer_metrics,
                     snapshot_config,
                     retention_config,
-                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await
@@ -267,7 +269,7 @@ pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
         test_db.recreate();
     }
 
-    PgIndexerStore::new(test_db.to_connection_pool(), indexer_metrics.clone())
+    PgIndexerStore::new(test_db.to_connection_pool(), indexer_metrics)
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {

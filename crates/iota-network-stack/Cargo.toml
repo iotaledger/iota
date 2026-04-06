@@ -34,3 +34,6 @@ tracing.workspace = true
 
 # internal dependencies
 iota-http.workspace = true
+
+[lints]
+workspace = true

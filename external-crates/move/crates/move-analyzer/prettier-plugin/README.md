@@ -1,5 +1,11 @@
 # Prettier Move Plugin
 
+> **See also:** The published NPM package is
+> [`@mysten/prettier-plugin-move`](https://www.npmjs.com/package/@mysten/prettier-plugin-move) by
+> Mysten Labs, and there is a companion
+> [Move Formatter](https://marketplace.visualstudio.com/items?itemName=mysten.prettier-move) VSCode
+> extension on the Visual Studio Marketplace.
+
 This is a Move language plugin for the
 [Prettier](https://prettier.io/) code formatter. It uses a Move
 [parser](https://github.com/tzakian/tree-sitter-move) built on top of the

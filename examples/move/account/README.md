@@ -13,7 +13,7 @@ cargo install --locked --bin iota --features=iota-names,indexer --path crates/io
 Start localnet with faucet
 
 ```bash
-RUST_LOG="info,consensus=warn,iota_core=warn,fastcrypto_tbls=off,starfish_core=warn" iota start --force-regenesis --with-faucet
+RUST_LOG="info,consensus=warn,iota_core=warn,fastcrypto_tbls=off,starfish_core=warn" iota-localnet start --force-regenesis --with-faucet
 ```
 
 Get funds, publish move package, and create an account

@@ -1,5 +1,98 @@
 # @iota/graphql-transport
 
+## 0.15.0
+
+### Minor Changes
+
+-   0be1d8d: Add a new RequestInspector API to look into requests and responses of an IotaClient
+
+### Patch Changes
+
+-   331b7ab: Refreshed the README with up to date APIs, examples and more.
+-   adea573: Enable declarationMap in TS packages
+-   1359874: Add fallback values to getBalance call if there is no balance for the requested
+    address.
+-   f116b86: fix undefined exchangeRatesId and stakingPoolId
+-   Updated dependencies [fe97265]
+-   Updated dependencies [d2ed95a]
+-   Updated dependencies [379dd4b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [66d0c0d]
+-   Updated dependencies [9c6137c]
+-   Updated dependencies [331b7ab]
+-   Updated dependencies [adea573]
+-   Updated dependencies [bd1fa0b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [3f80310]
+-   Updated dependencies [2a9a1df]
+-   Updated dependencies [c74bcc2]
+-   Updated dependencies [045acb2]
+-   Updated dependencies [999224b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [f3d9079]
+-   Updated dependencies [7849d0e]
+-   Updated dependencies [045acb2]
+-   Updated dependencies [bd1fa0b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [045acb2]
+-   Updated dependencies [0be1d8d]
+-   Updated dependencies [235a8d7]
+-   Updated dependencies [46171b1]
+-   Updated dependencies [9d88461]
+-   Updated dependencies [045acb2]
+    -   @iota/iota-sdk@1.12.0
+    -   @iota/bcs@1.6.0
+
+## 0.14.0
+
+### Minor Changes
+
+-   19c174f: Add enum pagination support to getNormalizedMoveModule and fix type generator for
+    arrays without items
+-   8bd4574: Sync types with the new score integration.
+-   d5923e9: Add the `MoveAuthenticator` variant to the `GenericSignature` to allow the
+    authentication of Abstract Accounts.
+-   ffbb296: Update the GraphQL queries to support new fields
+-   f22df28: Change the thrown error of `getObject` when using the GraphQL transport for it to
+    behave like the JSON-RPC transport.
+
+### Patch Changes
+
+-   54c7803: Update @types/node to v24.
+-   f2b8160: fix graphql transport error
+-   abcdd2f: add transactionBlocksByDigests tests
+-   6f06e01: Bring back unsupportedFilters for `getOwnedObjects`
+-   Updated dependencies [43cfa2b]
+-   Updated dependencies [94b38e1]
+-   Updated dependencies [3bcb711]
+-   Updated dependencies [0296e7d]
+-   Updated dependencies [54c7803]
+-   Updated dependencies [b903c0a]
+-   Updated dependencies [f5a4569]
+-   Updated dependencies [19c174f]
+-   Updated dependencies [8bd4574]
+-   Updated dependencies [5fc7e20]
+-   Updated dependencies [7a61cb5]
+-   Updated dependencies [f2b8160]
+-   Updated dependencies [abcdd2f]
+-   Updated dependencies [d5923e9]
+-   Updated dependencies [6fc20db]
+-   Updated dependencies [b72bfd2]
+-   Updated dependencies [38657f6]
+-   Updated dependencies [7fa1fde]
+-   Updated dependencies [2164846]
+-   Updated dependencies [4dc4b84]
+-   Updated dependencies [58891a9]
+-   Updated dependencies [f445f37]
+-   Updated dependencies [924bf18]
+-   Updated dependencies [21a4820]
+-   Updated dependencies [ffbb296]
+-   Updated dependencies [088c577]
+-   Updated dependencies [0cc417d]
+    -   @iota/iota-sdk@1.11.0
+    -   @iota/bcs@1.5.0
+
 ## 0.13.1
 
 ### Patch Changes

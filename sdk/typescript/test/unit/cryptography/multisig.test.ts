@@ -150,7 +150,7 @@ describe('Multisig scenarios', () => {
         const publicKey = new MultiSigPublicKey(parsed.multisig!.multisig_pk);
 
         await expect(publicKey.verifyPersonalMessage(signData, multisig)).rejects.toThrow(
-            new Error("Cannot read properties of undefined (reading 'pubKey')"),
+            new TypeError("Cannot read properties of undefined (reading 'pubKey')"),
         );
     });
 
@@ -219,7 +219,7 @@ describe('Multisig scenarios', () => {
         const publicKey = new MultiSigPublicKey(parsed.multisig!.multisig_pk);
 
         await expect(publicKey.verifyPersonalMessage(signData, multisig)).rejects.toThrow(
-            new Error("Cannot read properties of undefined (reading 'pubKey')"),
+            new TypeError("Cannot read properties of undefined (reading 'pubKey')"),
         );
     });
 
@@ -476,7 +476,7 @@ describe('Multisig address creation:', () => {
                     { publicKey: pk3, weight: 3 },
                 ],
             }),
-        ).toThrow(new Error('Invalid u8 value: 256. Expected value in range 0-255'));
+        ).toThrow(new TypeError('Invalid u8 value: 256. Expected value in range 0-255'));
 
         expect(() =>
             MultiSigPublicKey.fromPublicKeys({
@@ -487,7 +487,7 @@ describe('Multisig address creation:', () => {
                     { publicKey: pk3, weight: 3 },
                 ],
             }),
-        ).toThrow(new Error('Invalid u16 value: 65536. Expected value in range 0-65535'));
+        ).toThrow(new TypeError('Invalid u16 value: 65536. Expected value in range 0-65535'));
     });
 
     it('with zero weight value', async () => {

@@ -33,6 +33,7 @@ export function ExportPassphrasePage() {
                         <HideShowDisplayBox
                             value={exportMutation.data.join(' ')}
                             copiedMessage="Mnemonic copied"
+                            eventType="mnemonic"
                         />
                     </div>
                 ) : (

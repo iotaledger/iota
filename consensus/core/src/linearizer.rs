@@ -434,8 +434,7 @@ pub(crate) fn median_timestamp_by_stake(
             "Total stake {} < quorum threshold {}",
             total_stake,
             context.committee.quorum_threshold()
-        )
-        .to_string());
+        ));
     }
 
     Ok(median_timestamps_by_stake_inner(timestamps, total_stake))
@@ -569,7 +568,7 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 20, authorities 0 ~ 3.
         let num_rounds: u32 = 20;
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=num_rounds)
             .build()
@@ -583,7 +582,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.handle_commit(leaders);
 
         // Write them in DagState
         dag_state.write().add_scoring_subdags(commits);
@@ -603,7 +602,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.handle_commit(leaders);
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(1), 29),
@@ -637,7 +636,7 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 20, authorities 0 ~ 3.
         let num_rounds: u32 = 20;
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=num_rounds)
             .build()
@@ -651,7 +650,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.handle_commit(leaders);
 
         // Write them in DagState
         dag_state.write().add_unscored_committed_subdags(commits);
@@ -673,7 +672,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.handle_commit(leaders);
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(2), 9),

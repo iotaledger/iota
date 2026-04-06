@@ -2,11 +2,11 @@
 description: The chain's state consists of balances of IOTA objects and a collection of key/value pairs representing use case-specific data stored in the chain by its smart contracts outside the object ledger.
 image: /img/iota-evm/chain0.png
 tags:
- - explanation
- - state
- - evm
+  - explanation
+  - state
+  - evm
 teams:
- - iotaledger/l2-smart-contract
+  - iotaledger/l2-smart-contract
 ---
 
 # State, Transitions, and State Anchoring

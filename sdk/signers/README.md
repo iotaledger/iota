@@ -53,7 +53,7 @@ const signer = await LedgerSigner.fromDerivationPath(
 );
 
 // Log the IOTA address:
-console.log(signer.toIOTAAddress());
+console.log(signer.toIotaAddress());
 
 // Define a test transaction:
 const testTransaction = new Transaction();

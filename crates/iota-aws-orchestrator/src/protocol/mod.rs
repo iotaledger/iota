@@ -119,7 +119,7 @@ pub trait ProtocolMetrics {
                 (instance, {
                     let cmd = format!("curl 'http://localhost:1337/flamegraph{query}'");
                     display::action(format!("\n{cmd}"));
-                    cmd.to_string()
+                    cmd
                 })
             })
             .collect()

@@ -5,20 +5,23 @@
 use std::path::Path;
 
 use iota_types::{
-    accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
-    effects::TransactionEffects, storage::MarkerValue,
+    accumulator::Accumulator,
+    base_types::SequenceNumber,
+    digests::TransactionEventsDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
 use typed_store::{
-    DBMapUtils,
+    DBMapUtils, DbIterator,
     metrics::SamplingInterval,
     rocks::{
         DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
         read_size_from_env,
     },
     rocksdb::compaction_filter::Decision,
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use super::*;
@@ -108,6 +111,9 @@ pub struct AuthorityPerpetualTables {
     // TODO: Figure out what to do with this table in the long run.
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
+
+    // Events keyed by the digest of the transaction that produced them.
+    pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
     /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
@@ -445,7 +451,7 @@ impl AuthorityPerpetualTables {
 
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
-            iter: self.objects.safe_iter(),
+            iter: Box::new(self.objects.safe_iter()),
             tables: self,
             prev: None,
         }
@@ -460,7 +466,7 @@ impl AuthorityPerpetualTables {
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
 
         LiveSetIter {
-            iter: self.objects.safe_iter_with_bounds(lower_bound, upper_bound),
+            iter: Box::new(self.objects.safe_iter_with_bounds(lower_bound, upper_bound)),
             tables: self,
             prev: None,
         }
@@ -476,6 +482,7 @@ impl AuthorityPerpetualTables {
         self.objects.unsafe_clear()?;
         self.live_owned_object_markers.unsafe_clear()?;
         self.executed_effects.unsafe_clear()?;
+        self.events_2.unsafe_clear()?;
         self.events.unsafe_clear()?;
         self.executed_transactions_to_checkpoint.unsafe_clear()?;
         self.root_state_hash_by_epoch.unsafe_clear()?;
@@ -484,7 +491,7 @@ impl AuthorityPerpetualTables {
         self.total_iota_supply.unsafe_clear()?;
         self.expected_storage_fund_imbalance.unsafe_clear()?;
         self.object_per_epoch_marker_table.unsafe_clear()?;
-        self.objects.rocksdb.flush()?;
+        self.objects.db.flush()?;
         Ok(())
     }
 
@@ -556,8 +563,7 @@ impl ObjectStore for AuthorityPerpetualTables {
 }
 
 pub struct LiveSetIter<'a> {
-    iter:
-        <DBMap<ObjectKey, StoreObjectWrapper> as Map<'a, ObjectKey, StoreObjectWrapper>>::SafeIterator,
+    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
     tables: &'a AuthorityPerpetualTables,
     prev: Option<(ObjectKey, StoreObjectWrapper)>,
 }

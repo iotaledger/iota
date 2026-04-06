@@ -118,7 +118,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
     pub(crate) latency_to_process_stream: HistogramVec,
-    pub(crate) blocks_per_commit_count: Histogram,
+    pub(crate) blocks_per_commit_count: HistogramVec,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_add_block_headers_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
@@ -195,8 +195,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) missing_block_headers_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
-    pub(crate) transactions_per_commit_count: Histogram,
-    pub(crate) non_empty_blocks_per_commit_count: Histogram,
+    pub(crate) transactions_per_commit_count: HistogramVec,
+    pub(crate) non_empty_blocks_per_commit_count: HistogramVec,
     pub(crate) committed_non_empty_blocks_per_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_authority: IntCounterVec,
@@ -209,7 +209,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) transactions_synchronizer_inflight_requests: IntGauge,
     pub(crate) reputation_scores: IntGaugeVec,
     pub(crate) scope_processing_time: HistogramVec,
-    pub(crate) sub_dags_per_commit_count: Histogram,
+    pub(crate) sub_dags_per_commit_count: HistogramVec,
     pub(crate) transaction_commit_latency: Histogram,
     pub(crate) block_headers_suspensions: IntCounterVec,
     pub(crate) block_header_unsuspensions: IntCounterVec,
@@ -224,23 +224,25 @@ pub(crate) struct NodeMetrics {
     pub(crate) subscriber_connection_attempts: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
-    pub(crate) commit_sync_inflight_fetches: IntGauge,
-    pub(crate) commit_sync_pending_fetches: IntGauge,
-    pub(crate) commit_sync_fetch_commits_handler_uncertified_skipped: IntCounter,
-    pub(crate) commit_sync_fetched_commits: IntCounter,
+    pub(crate) commit_sync_inflight_fetches: IntGaugeVec,
+    pub(crate) commit_sync_pending_fetches: IntGaugeVec,
+    pub(crate) commit_sync_fetch_commits_handler_uncertified_skipped: IntCounterVec,
+    pub(crate) commit_sync_fetched_commits: IntCounterVec,
     pub(crate) commit_sync_fetched_block_headers: IntCounter,
     pub(crate) commit_sync_total_fetched_block_headers_size: IntCounter,
-    pub(crate) commit_sync_total_fetched_transactions_size: IntCounter,
+    pub(crate) commit_sync_total_fetched_transactions_size: IntCounterVec,
     pub(crate) commit_sync_quorum_index: IntGauge,
-    pub(crate) commit_sync_highest_synced_index: IntGauge,
-    pub(crate) commit_sync_highest_fetched_index: IntGauge,
+    pub(crate) commit_sync_highest_synced_index: IntGaugeVec,
+    pub(crate) commit_sync_highest_fetched_index: IntGaugeVec,
     pub(crate) commit_sync_local_index: IntGauge,
-    pub(crate) commit_sync_gap_on_processing: IntCounter,
+    pub(crate) commit_sync_gap_on_processing: IntCounterVec,
     pub(crate) commit_sync_fetch_loop_latency: Histogram,
-    pub(crate) commit_sync_fetch_once_latency: Histogram,
+    pub(crate) commit_sync_fetch_once_latency: HistogramVec,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
+    pub(crate) commit_sync_voting_block_headers_hits: IntCounter,
+    pub(crate) commit_sync_voting_block_headers_fallbacks: IntCounter,
     pub(crate) uptime: Histogram,
 }
 
@@ -364,9 +366,10 @@ impl NodeMetrics {
                 &["authority", "source"],
                 registry,
             ).unwrap(),
-            blocks_per_commit_count: register_histogram_with_registry!(
+            blocks_per_commit_count: register_histogram_vec_with_registry!(
                 "blocks_per_commit_count",
                 "The number of blocks per commit.",
+                &["source"],
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -666,15 +669,17 @@ impl NodeMetrics {
                 "Number of times this node tried to fetch the last own block header from peers",
                 registry,
             ).unwrap(),
-            transactions_per_commit_count: register_histogram_with_registry!(
+            transactions_per_commit_count: register_histogram_vec_with_registry!(
                 "transactions_per_commit_count",
                 "The number of transactions per commit.",
+                &["source"],
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            non_empty_blocks_per_commit_count: register_histogram_with_registry!(
+            non_empty_blocks_per_commit_count: register_histogram_vec_with_registry!(
                 "non_empty_blocks_per_commit_count",
                 "The number of non-empty blocks per commit.",
+                &["source"],
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -869,9 +874,10 @@ impl NodeMetrics {
                 FINE_GRAINED_LATENCY_SEC_BUCKETS.to_vec(),
                 registry
             ).unwrap(),
-            sub_dags_per_commit_count: register_histogram_with_registry!(
+            sub_dags_per_commit_count: register_histogram_vec_with_registry!(
                 "sub_dags_per_commit_count",
                 "The number of subdags per commit.",
+                &["source"],
                 registry,
             ).unwrap(),
             block_headers_suspensions: register_int_counter_vec_with_registry!(
@@ -947,19 +953,22 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            commit_sync_inflight_fetches: register_int_gauge_with_registry!(
+            commit_sync_inflight_fetches: register_int_gauge_vec_with_registry!(
                 "commit_sync_inflight_fetches",
                 "The number of inflight fetches in commit syncer",
+                &["source"],
                 registry,
             ).unwrap(),
-            commit_sync_pending_fetches: register_int_gauge_with_registry!(
+            commit_sync_pending_fetches: register_int_gauge_vec_with_registry!(
                 "commit_sync_pending_fetches",
                 "The number of pending fetches in commit syncer",
+                &["source"],
                 registry,
             ).unwrap(),
-            commit_sync_fetched_commits: register_int_counter_with_registry!(
+            commit_sync_fetched_commits: register_int_counter_vec_with_registry!(
                 "commit_sync_fetched_commits",
                 "The number of commits fetched via commit syncer",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_fetched_block_headers: register_int_counter_with_registry!(
@@ -972,9 +981,10 @@ impl NodeMetrics {
                 "The total size in bytes of block headers fetched via commit syncer",
                 registry,
             ).unwrap(),
-            commit_sync_total_fetched_transactions_size: register_int_counter_with_registry!(
+            commit_sync_total_fetched_transactions_size: register_int_counter_vec_with_registry!(
                 "commit_sync_total_fetched_transactions_size",
                 "The total size in bytes of transactions fetched via commit syncer",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_quorum_index: register_int_gauge_with_registry!(
@@ -982,14 +992,16 @@ impl NodeMetrics {
                 "The maximum commit index voted by a quorum of authorities",
                 registry,
             ).unwrap(),
-            commit_sync_highest_synced_index: register_int_gauge_with_registry!(
+            commit_sync_highest_synced_index: register_int_gauge_vec_with_registry!(
                 "commit_sync_fetched_index",
                 "The max commit index among local and fetched commits",
+                &["source"],
                 registry,
             ).unwrap(),
-            commit_sync_highest_fetched_index: register_int_gauge_with_registry!(
+            commit_sync_highest_fetched_index: register_int_gauge_vec_with_registry!(
                 "commit_sync_highest_fetched_index",
                 "The max commit index that has been fetched via network",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_local_index: register_int_gauge_with_registry!(
@@ -997,9 +1009,10 @@ impl NodeMetrics {
                 "The local commit index",
                 registry,
             ).unwrap(),
-            commit_sync_gap_on_processing: register_int_counter_with_registry!(
+            commit_sync_gap_on_processing: register_int_counter_vec_with_registry!(
                 "commit_sync_gap_on_processing",
                 "Number of instances where a gap was found in fetched commit processing",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_fetch_loop_latency: register_histogram_with_registry!(
@@ -1008,21 +1021,23 @@ impl NodeMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            commit_sync_fetch_once_latency: register_histogram_with_registry!(
+            commit_sync_fetch_once_latency: register_histogram_vec_with_registry!(
                 "commit_sync_fetch_once_latency",
                 "The time taken to fetch commits and block headers once",
+                &["source"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             commit_sync_fetch_once_errors: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_once_errors",
                 "Number of errors when attempting to fetch commits and block headers from single authority during commit sync.",
-                &["authority", "error"],
+                &["authority", "error", "source"],
                 registry
             ).unwrap(),
-            commit_sync_fetch_commits_handler_uncertified_skipped: register_int_counter_with_registry!(
+            commit_sync_fetch_commits_handler_uncertified_skipped: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_commits_handler_uncertified_skipped",
                 "Number of uncertified commits that got skipped when fetching commits due to lack of votes",
+                &["source"],
                 registry,
             ).unwrap(),
             commit_sync_fetch_missing_block_headers: register_int_counter_vec_with_registry!(
@@ -1034,7 +1049,17 @@ impl NodeMetrics {
             commit_sync_fetch_missing_transactions: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_missing_transactions",
                 "Number of committed transactions that are missing when processing transactions via commit sync.",
-                &["authority"],
+                &["authority", "source"],
+                registry
+            ).unwrap(),
+            commit_sync_voting_block_headers_hits: register_int_counter_with_registry!(
+                "commit_sync_voting_block_headers_hits",
+                "Number of voting block headers served from voting storage during commit sync.",
+                registry
+            ).unwrap(),
+            commit_sync_voting_block_headers_fallbacks: register_int_counter_with_registry!(
+                "commit_sync_voting_block_headers_fallbacks",
+                "Number of voting block headers served from regular storage (fallback) during commit sync.",
                 registry
             ).unwrap(),
             uptime: register_histogram_with_registry!(

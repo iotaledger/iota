@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromExportedKeypair } from '_src/shared/utils';
 import { type Keypair } from '@iota/iota-sdk/cryptography';
 
 import { SeedAccountSource } from '../account-sources/seedAccountSource';
@@ -35,10 +34,8 @@ export function isSeedSerializedUiAccount(
     return account.type === AccountType.SeedDerived;
 }
 
-type SessionStorageData = { keyPair: string };
-
 export class SeedAccount
-    extends Account<SeedSerializedAccount, SessionStorageData>
+    extends Account<SeedSerializedAccount>
     implements PasswordUnlockableAccount, SigningAccount, KeyPairExportableAccount
 {
     readonly unlockType = 'password' as const;
@@ -76,27 +73,29 @@ export class SeedAccount
     }
 
     async isLocked(): Promise<boolean> {
-        return !(await this.#getKeyPair());
+        const seedSource = await this.#getSeedSource();
+        return seedSource.isLocked();
     }
 
-    async lock(allowRead = false): Promise<void> {
-        await this.clearEphemeralValue();
-        await this.onLocked(allowRead);
+    async lock(): Promise<void> {
+        const seedSource = await this.#getSeedSource();
+        const isLocked = await seedSource.isLocked();
+        if (!isLocked) {
+            await seedSource.lock();
+            await this.onLocked();
+        }
     }
 
     async passwordUnlock(password?: string): Promise<void> {
         const seedSource = await this.#getSeedSource();
-        if ((await seedSource.isLocked()) && !password) {
-            throw new Error('Missing password to unlock the account');
-        }
-        const { derivationPath } = await this.getStoredData();
-        if (password) {
+        const isLocked = await seedSource.isLocked();
+        if (isLocked) {
+            if (!password) {
+                throw new Error('Missing password to unlock the account');
+            }
             await seedSource.unlock(password);
+            await this.onUnlocked();
         }
-        await this.setEphemeralValue({
-            keyPair: (await seedSource.deriveKeyPair(derivationPath)).getSecretKey(),
-        });
-        await this.onUnlocked();
     }
 
     async verifyPassword(password: string): Promise<void> {
@@ -124,10 +123,12 @@ export class SeedAccount
     }
 
     async signData(data: Uint8Array): Promise<string> {
-        const keyPair = await this.#getKeyPair();
-        if (!keyPair) {
-            throw new Error(`Account is locked`);
+        const seedSource = await this.#getSeedSource();
+        if (await seedSource.isLocked()) {
+            throw new Error('Account is locked');
         }
+        const { derivationPath } = await this.getStoredData();
+        const keyPair = await seedSource.deriveKeyPair(derivationPath);
         return this.generateSignature(data, keyPair);
     }
 
@@ -144,14 +145,6 @@ export class SeedAccount
         const seedSource = await this.#getSeedSource();
         await seedSource.unlock(password);
         return (await seedSource.deriveKeyPair(derivationPath)).getSecretKey();
-    }
-
-    async #getKeyPair() {
-        const ephemeralData = await this.getEphemeralValue();
-        if (ephemeralData) {
-            return fromExportedKeypair(ephemeralData.keyPair);
-        }
-        return null;
     }
 
     async #getSeedSource() {

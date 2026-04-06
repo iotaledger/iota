@@ -19,9 +19,9 @@ async fn get_objects_scenarios() {
         .get_objects(&[(object_id, None)], None)
         .await
         .expect("Failed to get object");
-    assert_eq!(objects.len(), 1, "Expected exactly one object");
+    assert_eq!(objects.body().len(), 1, "Expected exactly one object");
     assert!(
-        objects[0]
+        objects.body()[0]
             .object_reference()
             .expect("Failed to get object reference")
             .version()
@@ -40,11 +40,11 @@ async fn get_objects_scenarios() {
         .await
         .expect("Failed to get objects");
     assert_eq!(
-        objects.len(),
+        objects.body().len(),
         object_ids.len(),
         "Should return same number of objects as requested"
     );
-    for object in &objects {
+    for object in objects.body() {
         assert!(
             object
                 .object_reference()
@@ -63,12 +63,15 @@ async fn get_objects_scenarios() {
         );
     }
 
-    // Test: empty input returns empty result
-    let objects = client
+    // Test: empty input returns an error
+    let err = client
         .get_objects(&[], None)
         .await
-        .expect("Empty input should succeed");
-    assert!(objects.is_empty(), "Empty input should return empty result");
+        .expect_err("Empty input should return an error");
+    assert!(
+        matches!(err, iota_grpc_client::Error::EmptyRequest),
+        "Expected EmptyRequest error, got: {err}"
+    );
 
     // Test: get object with specific version
     let object_id: ObjectId = "0x2".parse().expect("Invalid object ID");
@@ -76,7 +79,7 @@ async fn get_objects_scenarios() {
         .get_objects(&[(object_id, None)], None)
         .await
         .expect("Failed to get object");
-    let current_version = objects[0]
+    let current_version = objects.body()[0]
         .object_reference()
         .expect("Failed to get object reference")
         .version();
@@ -85,7 +88,7 @@ async fn get_objects_scenarios() {
         .await
         .expect("Failed to get object with specific version");
     assert_eq!(
-        objects_with_version[0]
+        objects_with_version.body()[0]
             .object_reference()
             .expect("Failed to get object reference")
             .version(),

@@ -1,0 +1,49 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.event;
+
+import "google/protobuf/struct.proto";
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/types.proto";
+
+// An event.
+message Event {
+  option (iota.grpc.message_accessors) = "with";
+
+  // This Event serialized as BCS.
+  optional iota.grpc.v1.bcs.BcsData bcs = 1;
+
+  // Package ID of the top-level function invoked by a `MoveCall` command that triggered this
+  // event to be emitted.
+  optional iota.grpc.v1.types.ObjectId package_id = 2;
+
+  // Module name of the top-level function invoked by a `MoveCall` command that triggered this
+  // event to be emitted.
+  optional string module = 3;
+
+  // Address of the account that sent the transaction where this event was emitted.
+  optional iota.grpc.v1.types.Address sender = 4;
+
+  // The type of the event emitted.
+  optional string event_type = 5;
+
+  // BCS serialized bytes of the event.
+  optional iota.grpc.v1.bcs.BcsData bcs_contents = 6;
+
+  // JSON rendering of the event.
+  optional google.protobuf.Value json_contents = 7;
+}
+
+// A list of events.
+message Events {
+  option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
+
+  repeated Event events = 1;
+}

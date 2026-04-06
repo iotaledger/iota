@@ -215,7 +215,7 @@ fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTest
     ));
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
-        Arc::new(MemStore::new()),
+        Arc::new(MemStore::new(context.clone())),
     )));
 
     // Create committer with pipelining and only 1 leader per leader round

@@ -15,15 +15,17 @@ type NonVisualAssetCardProps = {
 export function NonVisualAssetCard({ asset }: NonVisualAssetCardProps): React.JSX.Element {
     const { address, module, name } = parseStructTag(asset.type!);
     return (
-        <ExplorerLink objectID={asset.objectId} type={ExplorerLinkType.Object}>
-            <Card type={CardType.Default} isHoverable>
-                <CardBody
-                    title={formatAddress(asset.objectId!)}
-                    subtitle={`${formatAddress(address)}::${module}::${name}`}
-                    isTextTruncated
-                />
-                <CardAction type={CardActionType.Link} icon={<ArrowTopRight />} />
-            </Card>
-        </ExplorerLink>
+        <div data-amp-mask>
+            <ExplorerLink objectID={asset.objectId} type={ExplorerLinkType.Object}>
+                <Card type={CardType.Default} isHoverable>
+                    <CardBody
+                        title={formatAddress(asset.objectId!)}
+                        subtitle={`${formatAddress(address)}::${module}::${name}`}
+                        isTextTruncated
+                    />
+                    <CardAction type={CardActionType.Link} icon={<ArrowTopRight />} />
+                </Card>
+            </ExplorerLink>
+        </div>
     );
 }

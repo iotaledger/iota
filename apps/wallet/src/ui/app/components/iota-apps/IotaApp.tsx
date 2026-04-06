@@ -36,7 +36,7 @@ function CardView({ name, link, icon }: CardViewProps) {
                     label={name}
                     fallback={name}
                     rounded={false}
-                    size={ImageIconSize.Small}
+                    size={ImageIconSize.Medium}
                 />
             </CardImage>
             <CardBody isTextTruncated title={name} subtitle={originLabel} />
@@ -131,11 +131,8 @@ export function IotaApp({
             title={name}
             className="no-underline"
             onClick={() => {
-                ampli.applicationOpened({ applicationName: name });
+                ampli.openedApplication({ applicationName: name });
             }}
-            type="application"
-            isPublic
-            // Disable tracking for this link since application opened event is triggered here
             trackEvent={false}
         >
             {AppDetails}

@@ -52,7 +52,14 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
                     version,
                     digest,
                 }),
-                _ => {}
+                WriteKind::Unwrap => object_changes.push(ObjectChange::Unwrapped {
+                    sender,
+                    owner,
+                    object_type,
+                    object_id,
+                    version,
+                    digest,
+                }),
             }
         } else if let Some(p) = o.data.try_as_package() {
             if kind == WriteKind::Create {

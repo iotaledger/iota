@@ -207,15 +207,15 @@ impl PrimaryWorker {
 
     fn derive_object_versions(
         object_history_changes: &TransactionObjectChangesToCommit,
-    ) -> Vec<StoredObjectVersion> {
+    ) -> IndexerResult<Vec<StoredObjectVersion>> {
         let mut object_versions = vec![];
         for changed_obj in object_history_changes.changed_objects.iter() {
-            object_versions.push(changed_obj.into());
+            object_versions.push(changed_obj.try_into()?);
         }
         for deleted_obj in object_history_changes.deleted_objects.iter() {
             object_versions.push(deleted_obj.into());
         }
-        object_versions
+        Ok(object_versions)
     }
 
     async fn index_checkpoint(
@@ -233,7 +233,7 @@ impl PrimaryWorker {
         let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data).await?;
-        let object_versions = Self::derive_object_versions(&object_history_changes);
+        let object_versions = Self::derive_object_versions(&object_history_changes)?;
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
             let CheckpointData {
@@ -569,7 +569,7 @@ impl PrimaryWorker {
             .into_iter()
             .map(|o| {
                 let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind)
+                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
             })
             .collect::<Vec<_>>();
         Ok(TransactionObjectChangesToCommit {
@@ -608,7 +608,7 @@ impl PrimaryWorker {
             .into_iter()
             .map(|o| {
                 let df_kind = extract_df_kind(o);
-                IndexedObject::from_object(checkpoint_seq, o.clone(), df_kind)
+                IndexedObject::from_object(Some(checkpoint_seq), o.clone(), df_kind)
             })
             .collect::<Vec<_>>();
 

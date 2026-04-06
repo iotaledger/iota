@@ -1561,7 +1561,7 @@ async fn test_handle_certificate_errors() {
     // Test handle certificate with invalid user input
     let signed_transaction = VerifiedSignedTransaction::new(
         epoch_store.epoch(),
-        VerifiedTransaction::new_unchecked(transfer_transaction.clone().clone()),
+        VerifiedTransaction::new_unchecked(transfer_transaction.clone()),
         authority_state.name,
         &*authority_state.secret,
     );
@@ -1725,7 +1725,7 @@ async fn test_handle_soft_bundle_certificates() {
             .await
             .unwrap();
         let vote = response.status.into_signed_for_testing();
-        sigs.push(vote.clone());
+        sigs.push(vote);
         if let Ok(cert) =
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {
@@ -1883,7 +1883,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .await
             .unwrap();
         let vote = response.status.into_signed_for_testing();
-        sigs.push(vote.clone());
+        sigs.push(vote);
         if let Ok(cert) =
             CertifiedTransaction::new(transaction.clone().into_message(), sigs.clone(), &committee)
         {

@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { Feature } from '@iota/core';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 
 import { ExternalLink } from '_components';
 
@@ -26,9 +26,13 @@ export function AppsPageBanner() {
             {AppsBannerConfig.value?.bannerUrl && (
                 <ExternalLink
                     href={AppsBannerConfig.value?.bannerUrl}
-                    onClick={() => ampli.appsBannerCtaClicked({ sourceFlow: 'Banner - Apps tab' })}
-                    type="application"
-                    isPublic
+                    onClick={() =>
+                        ampli.clickedAppsBannerCta({
+                            sourceFlow: 'Banner - Apps tab',
+                            bannerUrl: AppsBannerConfig.value?.bannerUrl,
+                        })
+                    }
+                    trackEvent={false}
                 >
                     <img
                         className="w-full"

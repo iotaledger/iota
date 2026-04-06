@@ -118,40 +118,43 @@ body,
         grid-template-areas:
             'heroImage name'
             'heroImage description'
-            'objectId type'
-            'owner storageRebate'
-            'version lastTxBlock';
+            'objectId version'
+            'digest owner'
+            'type type'
+            'lastTxBlock storageRebate';
     }
 
     .address-grid-container-top.no-description.no-image {
         @apply grid grid-cols-2 gap-4;
         grid-template-areas:
             'objectId version'
-            'owner type'
+            'digest owner'
+            'type type'
             'lastTxBlock storageRebate';
     }
 
     @screen md {
         .address-grid-container-top {
-            @apply grid-cols-[300px,1fr,1fr] grid-rows-2 gap-md;
+            @apply grid-cols-[300px,1fr,1fr] gap-md;
             grid-template-areas:
-                'heroImage name owner'
-                'heroImage description storageRebate'
+                'heroImage name description'
                 'heroImage objectId version'
-                'heroImage type lastTxBlock';
+                'heroImage digest owner'
+                'heroImage type type'
+                'heroImage lastTxBlock storageRebate';
         }
         .address-grid-container-top.no-description.no-image {
-            @apply grid grid-cols-3 grid-rows-2;
+            @apply grid grid-cols-4;
             grid-template-areas:
-                'objectId version owner'
-                'type lastTxBlock storageRebate';
+                'objectId version digest owner'
+                'type type lastTxBlock storageRebate';
         }
         .address-grid-container-top.no-image {
-            @apply grid grid-cols-3 grid-rows-3;
+            @apply grid grid-cols-4;
             grid-template-areas:
-                'name description type'
-                'objectId version type'
-                'owner lastTxBlock storageRebate';
+                'name objectId version digest'
+                'description owner lastTxBlock storageRebate'
+                'type type type type';
         }
     }
 }
