@@ -5,6 +5,7 @@
 use std::{
     hash::{Hash, Hasher},
     str::FromStr,
+    sync::Arc,
 };
 
 pub use enum_dispatch::enum_dispatch;
@@ -17,6 +18,7 @@ use fastcrypto::{
     secp256r1::Secp256r1PublicKey,
     traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
 };
+pub use iota_sdk_types::MultisigAggregatedSignature as MultiSig;
 use iota_sdk_types::crypto::IntentMessage;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -39,43 +41,25 @@ pub type ThresholdUnit = u16;
 pub type BitmapUnit = u16;
 pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
-/// The struct that contains signatures and public keys necessary for
-/// authenticating a MultiSig.
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MultiSig {
-    /// The plain signature encoded with signature scheme.
-    sigs: Vec<CompressedSignature>,
-    /// A bitmap that indicates the position of which public key the signature
-    /// should be authenticated with.
-    bitmap: BitmapUnit,
-    /// The public key encoded with each public key with its signature scheme
-    /// used along with the corresponding weight.
-    multisig_pk: MultiSigPublicKey,
-    /// A bytes representation of [struct MultiSig]. This helps with
-    /// implementing [trait AsRef<[u8]>].
-    #[serde(skip)]
-    bytes: OnceCell<Vec<u8>>,
-}
 
-/// Necessary trait for [struct SenderSignedData].
-impl PartialEq for MultiSig {
-    fn eq(&self, other: &Self) -> bool {
-        self.sigs == other.sigs
-            && self.bitmap == other.bitmap
-            && self.multisig_pk == other.multisig_pk
-    }
-}
-
-/// Necessary trait for [struct SenderSignedData].
-impl Eq for MultiSig {}
-
-/// Necessary trait for [struct SenderSignedData].
-impl Hash for MultiSig {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
-    }
-}
+// /// The struct that contains signatures and public keys necessary for
+// /// authenticating a MultiSig.
+// #[serde_as]
+// #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
+// pub struct MultiSig {
+//     /// The plain signature encoded with signature scheme.
+//     sigs: Vec<CompressedSignature>,
+//     /// A bitmap that indicates the position of which public key the
+// signature     /// should be authenticated with.
+//     bitmap: BitmapUnit,
+//     /// The public key encoded with each public key with its signature scheme
+//     /// used along with the corresponding weight.
+//     multisig_pk: MultiSigPublicKey,
+//     /// A bytes representation of [struct MultiSig]. This helps with
+//     /// implementing [trait AsRef<[u8]>].
+//     #[serde(skip)]
+//     bytes: OnceCell<Vec<u8>>,
+// }
 
 impl AuthenticatorTrait for MultiSig {
     fn verify_claims<T>(
@@ -87,7 +71,7 @@ impl AuthenticatorTrait for MultiSig {
     where
         T: Serialize,
     {
-        self.multisig_pk
+        self.committee()
             .validate()
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid multisig pubkey".to_string(),
@@ -377,23 +361,6 @@ impl FromStr for MultiSig {
             error: "Invalid multisig bytes".to_string(),
         })?;
         Ok(sig)
-    }
-}
-
-/// This initialize the underlying bytes representation of MultiSig. It encodes
-/// [struct MultiSig] as the MultiSig flag (0x03) concat with the bcs bytes
-/// of [struct MultiSig] i.e. `flag || bcs_bytes(MultiSig)`.
-impl AsRef<[u8]> for MultiSig {
-    fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                let as_bytes = bcs::to_bytes(self).expect("BCS serialization should not fail");
-                let mut bytes = Vec::with_capacity(1 + as_bytes.len());
-                bytes.push(SignatureScheme::MultiSig.flag());
-                bytes.extend_from_slice(as_bytes.as_slice());
-                Ok(bytes)
-            })
-            .expect("OnceCell invariant violated")
     }
 }
 

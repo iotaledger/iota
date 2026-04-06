@@ -240,25 +240,6 @@ impl From<&PublicKey> for IotaAddress {
     }
 }
 
-impl From<&MultiSigPublicKey> for IotaAddress {
-    /// Derive a IotaAddress from [struct MultiSigPublicKey]. A MultiSig address
-    /// is defined as the 32-byte Blake2b hash of serializing the flag, the
-    /// threshold, concatenation of all n flag, public keys and
-    /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
-    /// || ... || flag_n || pk_n || weight_n`.
-    fn from(multisig_pk: &MultiSigPublicKey) -> Self {
-        let mut hasher = DefaultHash::default();
-        hasher.update([SignatureScheme::MultiSig.flag()]);
-        hasher.update(multisig_pk.threshold().to_le_bytes());
-        multisig_pk.pubkeys().iter().for_each(|(pk, w)| {
-            pk.scheme().update_hasher_with_flag(&mut hasher);
-            hasher.update(pk.as_ref());
-            hasher.update(w.to_le_bytes());
-        });
-        IotaAddress::new(hasher.finalize().digest)
-    }
-}
-
 impl TryFrom<&GenericSignature> for IotaAddress {
     type Error = IotaError;
     /// Derive a IotaAddress from a serialized signature in IOTA
@@ -275,7 +256,7 @@ impl TryFrom<&GenericSignature> for IotaAddress {
                 })?;
                 Ok(IotaAddress::from(&pub_key))
             }
-            GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
+            GenericSignature::MultiSig(ms) => Ok(ms.committee().into()),
             #[allow(deprecated)]
             GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
                 Err(IotaError::UnsupportedFeature {
