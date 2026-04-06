@@ -87,10 +87,6 @@ function ValidatorDetails(): JSX.Element {
     const [formattedCurrentStake, currentStakeSymbol] = useFormatCoin({
         balance: Number(activeValidatorData?.stakingPoolIotaBalance ?? 0),
     });
-    const [formattedNextEpochGasPrice, nextEpochGasPriceSymbol] = useFormatCoin({
-        balance: Number(activeValidatorData?.nextEpochGasPrice ?? 0),
-        format: CoinFormat.Full,
-    });
     const [formattedPrevEpochRewards, prevEpochRewardsSymbol] = useFormatCoin({
         balance: validatorRewards,
     });
@@ -244,20 +240,6 @@ function ValidatorDetails(): JSX.Element {
                                     tooltipText="Share of total committee voting power held by this validator, proportional to its stake."
                                     tooltipPosition={TooltipPosition.Right}
                                 />
-                                <LabelText
-                                    size={LabelTextSize.Medium}
-                                    label="Rewards"
-                                    text={
-                                        validatorRewards === null ? '--' : formattedPrevEpochRewards
-                                    }
-                                    supportingLabel={
-                                        validatorRewards !== null
-                                            ? prevEpochRewardsSymbol
-                                            : undefined
-                                    }
-                                    tooltipText="Staking rewards accrued in this validator's pool during the current epoch."
-                                    tooltipPosition={TooltipPosition.Right}
-                                />
                             </div>
                         </Panel>
                         <Panel>
@@ -292,14 +274,6 @@ function ValidatorDetails(): JSX.Element {
                                     label="Commission"
                                     text={`${nextEpochCommission}%`}
                                     tooltipText="The commission rate this validator will charge from the next epoch onwards."
-                                    tooltipPosition={TooltipPosition.Right}
-                                />
-                                <LabelText
-                                    size={LabelTextSize.Medium}
-                                    label="Gas Price"
-                                    text={formattedNextEpochGasPrice}
-                                    supportingLabel={nextEpochGasPriceSymbol}
-                                    tooltipText="The gas price this validator will propose for the next epoch."
                                     tooltipPosition={TooltipPosition.Right}
                                 />
                             </div>

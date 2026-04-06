@@ -25,10 +25,6 @@ export function ValidatorStats({
     apy,
     tallyingScore,
 }: StatsCardProps): JSX.Element {
-    // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
-    const networkStakingParticipation = 0;
-    const votedLastRound = 0;
-
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
 
     const effectiveCommissionRate = getValidatorEffectiveCommission(validatorData);
@@ -108,48 +104,6 @@ export function ValidatorStats({
                         }
                         tooltipPosition={TooltipPosition.Right}
                     />
-                </div>
-            </Panel>
-            <Panel>
-                <Title title="Network Participation" />
-                <div className="grid grid-cols-2 gap-md p-md--rs">
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Checkpoint Participation"
-                            text={networkStakingParticipation || '--'}
-                            tooltipText={
-                                !networkStakingParticipation
-                                    ? 'Coming soon'
-                                    : 'The proportion of checkpoints that this validator has certified to date.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Voted Last Round"
-                            text={votedLastRound || '--'}
-                            tooltipText={
-                                !votedLastRound
-                                    ? 'Coming soon'
-                                    : 'This validator’s participation in the voting for the most recent round.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Tallying Score"
-                            text={tallyingScore ?? '--'}
-                            tooltipText={
-                                !tallyingScore
-                                    ? 'Coming soon'
-                                    : 'A score created by validators to assess each other’s performance during IOTA’s standard operations.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
                 </div>
             </Panel>
         </div>
