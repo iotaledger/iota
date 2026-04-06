@@ -787,60 +787,10 @@ impl LocalExec {
             price: tx_info.gas_price,
             budget: tx_info.gas_budget,
         };
-        let (inner_store, gas_status, effects, result) = if let Some(move_authenticator) =
-            tx_info.sender_signed_data.sender_move_authenticator()
-        {
-            // MoveAuthenticator path: split input objects and run authentication
-            // before PTB execution, matching the production flow.
-            let (_, auth_input_objects, account_object) = tx_info
-                .sender_signed_data
-                .split_input_objects_into_groups_for_reading(input_objects.clone())
-                .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
 
-            let auth_input_objects = auth_input_objects
-                .expect("Auth input objects must be present for MoveAuthenticator transactions");
-            let account_object = account_object
-                .expect("Account object must be present for MoveAuthenticator transactions");
+        let move_authenticators = tx_info.sender_signed_data.move_authenticators();
 
-            let account_version = match &account_object.object {
-                ObjectReadResultKind::Object(obj) => obj.version(),
-                _ => {
-                    return Err(ReplayEngineError::GeneralError {
-                        err: format!("Account object {} is not available", account_object.id()),
-                    });
-                }
-            };
-
-            let authenticator_function_ref =
-                load_authenticator_function_ref(move_authenticator, account_version, |id| {
-                    self.storage
-                        .live_objects_store
-                        .lock()
-                        .expect("Can't lock")
-                        .get(id)
-                        .cloned()
-                })?;
-
-            executor.authenticate_then_execute_transaction_to_effects(
-                &self,
-                protocol_config,
-                metrics.clone(),
-                expensive_checks,
-                &certificate_deny_set,
-                &tx_info.executed_epoch,
-                tx_info.epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                move_authenticator.clone(),
-                authenticator_function_ref,
-                CheckedInputObjects::new_for_replay(auth_input_objects),
-                CheckedInputObjects::new_for_replay(input_objects.clone()),
-                transaction_kind.clone(),
-                tx_info.sender,
-                *tx_digest,
-                &mut None,
-            )
-        } else {
+        let (inner_store, gas_status, effects, result) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
             executor.execute_transaction_to_effects(
                 &self,
@@ -853,6 +803,76 @@ impl LocalExec {
                 CheckedInputObjects::new_for_replay(input_objects.clone()),
                 gas_data,
                 gas_status,
+                transaction_kind.clone(),
+                tx_info.sender,
+                *tx_digest,
+                &mut None,
+            )
+        } else {
+            // MoveAuthenticator path: split input objects and run authentication
+            // before PTB execution, matching the production flow.
+            let (_, per_authenticator_inputs) = tx_info
+                .sender_signed_data
+                .split_input_objects_into_groups_for_reading(input_objects.clone())
+                .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_inputs.len(),
+                "Move authenticators amount must match the number of authenticator inputs"
+            );
+
+            let move_authenticators = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_inputs)
+                .map(
+                    |(move_authenticator, (authenticator_inputs, account_object))| {
+                        let account_version = match &account_object.object {
+                            ObjectReadResultKind::Object(obj) => obj.version(),
+                            _ => {
+                                return Err(ReplayEngineError::GeneralError {
+                                    err: format!(
+                                        "Account object {} is not available",
+                                        account_object.id()
+                                    ),
+                                });
+                            }
+                        };
+
+                        let authenticator_function_ref = load_authenticator_function_ref(
+                            move_authenticator,
+                            account_version,
+                            |id| {
+                                self.storage
+                                    .live_objects_store
+                                    .lock()
+                                    .expect("Can't lock")
+                                    .get(id)
+                                    .cloned()
+                            },
+                        )?;
+
+                        Ok((
+                            move_authenticator.to_owned(),
+                            authenticator_function_ref,
+                            CheckedInputObjects::new_for_replay(authenticator_inputs),
+                        ))
+                    },
+                )
+                .collect::<Result<Vec<_>, ReplayEngineError>>()?;
+
+            executor.authenticate_then_execute_transaction_to_effects(
+                &self,
+                protocol_config,
+                metrics.clone(),
+                expensive_checks,
+                &certificate_deny_set,
+                &tx_info.executed_epoch,
+                tx_info.epoch_start_timestamp,
+                gas_data,
+                gas_status,
+                move_authenticators,
+                CheckedInputObjects::new_for_replay(input_objects.clone()),
                 transaction_kind.clone(),
                 tx_info.sender,
                 *tx_digest,
@@ -1004,84 +1024,9 @@ impl LocalExec {
         let sender_signed_data = &pre_run_sandbox.transaction_info.sender_signed_data;
         let executor = iota_execution::executor(&protocol_config, true, None).unwrap();
 
-        let (_, _, effects, exec_res) = if let Some(move_authenticator) =
-            sender_signed_data.sender_move_authenticator()
-        {
-            // MoveAuthenticator path: read all objects (tx + auth), split, and
-            // run authentication before PTB execution.
-            let all_input_object_kinds = sender_signed_data
-                .collect_all_input_object_kind_for_reading()
-                .unwrap();
-            let all_input_objects: InputObjects = all_input_object_kinds
-                .into_iter()
-                .map(|kind| {
-                    let id = kind.object_id();
-                    let obj = store
-                        .get_object(&id)
-                        .expect("Object must be in store")
-                        .clone();
-                    ObjectReadResult::new(kind, obj.into())
-                })
-                .collect::<Vec<_>>()
-                .into();
+        let move_authenticators = sender_signed_data.move_authenticators();
 
-            let (tx_input_objects, auth_input_objects, account_object) = sender_signed_data
-                .split_input_objects_into_groups_for_reading(all_input_objects)
-                .unwrap();
-
-            let auth_input_objects = auth_input_objects
-                .expect("Auth input objects must be present for MoveAuthenticator transactions");
-            let account_object = account_object
-                .expect("Account object must be present for MoveAuthenticator transactions");
-
-            let account_version = match &account_object.object {
-                ObjectReadResultKind::Object(obj) => obj.version(),
-                _ => {
-                    return Err(ReplayEngineError::GeneralError {
-                        err: format!("Account object {} is not available", account_object.id()),
-                    });
-                }
-            };
-
-            let authenticator_function_ref =
-                load_authenticator_function_ref(move_authenticator, account_version, |id| {
-                    store.get_object(id).cloned()
-                })
-                .unwrap();
-
-            let authenticator_gas_budget = protocol_config.max_auth_gas();
-            let (gas_status, authenticator_checked_input_objects, union_checked_input_objects) =
-                iota_transaction_checks::check_certificate_and_move_authenticator_input(
-                    &executable,
-                    tx_input_objects,
-                    auth_input_objects,
-                    authenticator_gas_budget,
-                    &protocol_config,
-                    reference_gas_price,
-                )
-                .unwrap();
-
-            let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
-            executor.authenticate_then_execute_transaction_to_effects(
-                &store,
-                &protocol_config,
-                Arc::new(LimitsMetrics::new(&Registry::new())),
-                true,
-                &HashSet::new(),
-                &executed_epoch,
-                epoch_start_timestamp,
-                gas_data,
-                gas_status,
-                move_authenticator.clone(),
-                authenticator_function_ref,
-                authenticator_checked_input_objects,
-                union_checked_input_objects,
-                kind,
-                signer,
-                *executable.digest(),
-                &mut None,
-            )
-        } else {
+        let (_, _, effects, exec_res) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
             let input_objects = store
                 .read_input_objects_for_transaction(&Transaction::new(sender_signed_data.clone()));
@@ -1104,6 +1049,123 @@ impl LocalExec {
                 input_objects,
                 gas_data,
                 gas_status,
+                kind,
+                signer,
+                *executable.digest(),
+                &mut None,
+            )
+        } else {
+            // MoveAuthenticator path: read all objects (tx + auth), split, and
+            // run authentication before PTB execution.
+            let all_input_object_kinds = sender_signed_data
+                .collect_all_input_object_kind_for_reading()
+                .unwrap();
+            let all_input_objects: InputObjects = all_input_object_kinds
+                .into_iter()
+                .map(|kind| {
+                    let id = kind.object_id();
+                    let obj = store
+                        .get_object(&id)
+                        .expect("Object must be in store")
+                        .clone();
+                    ObjectReadResult::new(kind, obj.into())
+                })
+                .collect::<Vec<_>>()
+                .into();
+
+            let (tx_input_objects, per_authenticator_inputs) = sender_signed_data
+                .split_input_objects_into_groups_for_reading(all_input_objects)
+                .unwrap();
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_inputs.len(),
+                "Move authenticators amount must match the number of authenticator inputs"
+            );
+
+            let per_authenticator_inputs = move_authenticators
+                .iter()
+                .zip(per_authenticator_inputs)
+                .map(
+                    |(move_authenticator, (authenticator_inputs, account_object))| {
+                        let account_version = match &account_object.object {
+                            ObjectReadResultKind::Object(obj) => obj.version(),
+                            _ => {
+                                return Err(ReplayEngineError::GeneralError {
+                                    err: format!(
+                                        "Account object {} is not available",
+                                        account_object.id()
+                                    ),
+                                });
+                            }
+                        };
+
+                        let authenticator_function_ref = load_authenticator_function_ref(
+                            move_authenticator,
+                            account_version,
+                            |id| store.get_object(id).cloned(),
+                        )
+                        .unwrap();
+
+                        Ok((authenticator_inputs, authenticator_function_ref))
+                    },
+                )
+                .collect::<Result<Vec<_>, ReplayEngineError>>()?;
+
+            let per_authenticator_input_objects = per_authenticator_inputs
+                .iter()
+                .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
+                .collect::<Vec<_>>();
+
+            let authenticator_gas_budget = protocol_config.max_auth_gas();
+            let (gas_status, per_authenticator_checked_input_objects, union_checked_input_objects) =
+                iota_transaction_checks::check_certificate_and_move_authenticator_input(
+                    &executable,
+                    tx_input_objects,
+                    per_authenticator_input_objects,
+                    authenticator_gas_budget,
+                    &protocol_config,
+                    reference_gas_price,
+                )
+                .unwrap();
+
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_checked_input_objects.len(),
+                "Move authenticators amount must match the number of checked authenticator inputs"
+            );
+
+            let move_authenticators = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_inputs)
+                .zip(per_authenticator_checked_input_objects)
+                .map(
+                    |(
+                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
+                        authenticator_checked_input_objects,
+                    )| {
+                        (
+                            move_authenticator.to_owned(),
+                            authenticator_function_ref_for_execution,
+                            authenticator_checked_input_objects,
+                        )
+                    },
+                )
+                .collect::<Vec<_>>();
+
+            let (kind, signer, gas_data) = executable.transaction_data().execution_parts();
+            executor.authenticate_then_execute_transaction_to_effects(
+                &store,
+                &protocol_config,
+                Arc::new(LimitsMetrics::new(&Registry::new())),
+                true,
+                &HashSet::new(),
+                &executed_epoch,
+                epoch_start_timestamp,
+                gas_data,
+                gas_status,
+                move_authenticators,
+                union_checked_input_objects,
                 kind,
                 signer,
                 *executable.digest(),
@@ -2018,9 +2080,9 @@ impl LocalExec {
         self.multi_download_and_store(&loaded_child_refs).await?;
         tokio::task::yield_now().await;
 
-        // If the transaction uses a MoveAuthenticator, download the authenticator
-        // function ref dynamic field object so it is available during execution.
-        if let Some(move_authenticator) = tx_info.sender_signed_data.sender_move_authenticator() {
+        // If the transaction uses MoveAuthenticators, download the authenticator
+        // function ref dynamic field objects so they are available during execution.
+        for move_authenticator in tx_info.sender_signed_data.move_authenticators() {
             let (account_object_id, _, _) = move_authenticator
                 .object_to_authenticate_components()
                 .map_err(|e| ReplayEngineError::GeneralError { err: e.to_string() })?;
