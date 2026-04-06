@@ -16,9 +16,15 @@ use crate::{
         Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, Signature, get_key_pair,
         get_key_pair_from_rng,
     },
-    multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, as_indices},
-    signature::GenericSignature,
-    utils::keys,
+    multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, MultisigMember, as_indices},
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    signature_verification::VerifiedDigestCache,
+    utils::{
+        DEFAULT_ADDRESS_SEED, SHORT_ADDRESS_SEED, keys, load_test_vectors, make_transaction_data,
+        make_zklogin_tx,
+    },
+    zk_login_authenticator::ZkLoginAuthenticator,
+    zk_login_util::DEFAULT_JWK_BYTES,
 };
 #[test]
 fn test_combine_sigs() {

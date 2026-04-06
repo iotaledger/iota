@@ -21,6 +21,7 @@ use fastcrypto::{
 use iota_sdk_types::crypto::IntentMessage;
 pub use iota_sdk_types::{
     MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
+    MultisigMember, MultisigMemberSignature,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -73,11 +74,11 @@ impl AuthenticatorTrait for MultiSig {
     where
         T: Serialize,
     {
-        self.committee()
-            .validate()
-            .map_err(|_| IotaError::InvalidSignature {
+        if !self.committee().is_valid() {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid multisig pubkey".to_string(),
-            })?;
+            });
+        }
 
         if IotaAddress::from(self.committee()) != multisig_address {
             return Err(IotaError::InvalidSignature {
@@ -102,13 +103,13 @@ impl AuthenticatorTrait for MultiSig {
         for (sig, i) in self.signatures().iter().zip(as_indices(self.bitmap)?) {
             let (subsig_pubkey, weight) =
                 self.committee()
-                    .pk_map
+                    .members()
                     .get(i as usize)
                     .ok_or(IotaError::InvalidSignature {
                         error: "Invalid public keys index".to_string(),
                     })?;
             let res = match sig {
-                CompressedSignature::Ed25519(s) => {
+                MultisigMemberSignature::Ed25519(s) => {
                     if verify_params.additional_multisig_checks
                         && !matches!(subsig_pubkey.scheme(), SignatureScheme::ED25519)
                     {
@@ -133,7 +134,7 @@ impl AuthenticatorTrait for MultiSig {
                         })?,
                     )
                 }
-                CompressedSignature::Secp256k1(s) => {
+                MultisigMemberSignature::Secp256k1(s) => {
                     if verify_params.additional_multisig_checks
                         && !matches!(subsig_pubkey.scheme(), SignatureScheme::Secp256k1)
                     {
@@ -158,7 +159,7 @@ impl AuthenticatorTrait for MultiSig {
                         })?,
                     )
                 }
-                CompressedSignature::Secp256r1(s) => {
+                MultisigMemberSignature::Secp256r1(s) => {
                     if verify_params.additional_multisig_checks
                         && !matches!(subsig_pubkey.scheme(), SignatureScheme::Secp256r1)
                     {
@@ -251,65 +252,6 @@ pub fn as_indices(bitmap: u16) -> Result<Vec<u8>, IotaError> {
 }
 
 impl MultiSig {
-    /// Create MultiSig from its fields without validation
-    pub fn insecure_new(
-        sigs: Vec<CompressedSignature>,
-        bitmap: BitmapUnit,
-        multisig_pk: MultiSigPublicKey,
-    ) -> Self {
-        Self {
-            sigs,
-            bitmap,
-            multisig_pk,
-            bytes: OnceCell::new(),
-        }
-    }
-    /// This combines a list of [enum Signature] `flag || signature || pk` to a
-    /// MultiSig. The order of full_sigs must be the same as the order of
-    /// public keys in [enum MultiSigPublicKey]. e.g. for [pk1, pk2, pk3,
-    /// pk4, pk5], [sig1, sig2, sig5] is valid, but [sig2, sig1, sig5] is
-    /// invalid.
-    pub fn combine(
-        full_sigs: Vec<GenericSignature>,
-        multisig_pk: MultiSigPublicKey,
-    ) -> Result<Self, IotaError> {
-        multisig_pk
-            .validate()
-            .map_err(|_| IotaError::InvalidSignature {
-                error: "Invalid multisig public key".to_string(),
-            })?;
-
-        if full_sigs.len() > multisig_pk.pk_map.len() || full_sigs.is_empty() {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid number of signatures".to_string(),
-            });
-        }
-        let mut bitmap = 0;
-        let mut sigs = Vec::with_capacity(full_sigs.len());
-        for s in full_sigs {
-            let pk = s.to_public_key()?;
-            let index = multisig_pk
-                .get_index(&pk)
-                .ok_or(IotaError::IncorrectSigner {
-                    error: format!("pk does not exist: {pk:?}"),
-                })?;
-            if bitmap & (1 << index) != 0 {
-                return Err(IotaError::InvalidSignature {
-                    error: "Duplicate public key".to_string(),
-                });
-            }
-            bitmap |= 1 << index;
-            sigs.push(s.to_compressed()?);
-        }
-
-        Ok(MultiSig {
-            sigs,
-            bitmap,
-            multisig_pk,
-            bytes: OnceCell::new(),
-        })
-    }
-
     pub fn init_and_validate(&mut self) -> Result<Self, FastCryptoError> {
         if self.sigs.len() > self.multisig_pk.pk_map.len()
             || self.sigs.is_empty()
@@ -340,32 +282,32 @@ impl MultiSig {
     }
 }
 
-impl ToFromBytes for MultiSig {
-    fn from_bytes(bytes: &[u8]) -> Result<MultiSig, FastCryptoError> {
-        // The first byte matches the flag of MultiSig.
-        if bytes.first().ok_or(FastCryptoError::InvalidInput)? != &SignatureScheme::MultiSig.flag()
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let mut multisig: MultiSig =
-            bcs::from_bytes(&bytes[1..]).map_err(|_| FastCryptoError::InvalidSignature)?;
-        multisig.init_and_validate()
-    }
-}
+// impl ToFromBytes for MultiSig {
+//     fn from_bytes(bytes: &[u8]) -> Result<MultiSig, FastCryptoError> {
+//         // The first byte matches the flag of MultiSig.
+//         if bytes.first().ok_or(FastCryptoError::InvalidInput)? !=
+// &SignatureScheme::MultiSig.flag()         {
+//             return Err(FastCryptoError::InvalidInput);
+//         }
+//         let mut multisig: MultiSig =
+//             bcs::from_bytes(&bytes[1..]).map_err(|_|
+// FastCryptoError::InvalidSignature)?;         multisig.init_and_validate()
+//     }
+// }
 
-impl FromStr for MultiSig {
-    type Err = IotaError;
+// impl FromStr for MultiSig {
+//     type Err = IotaError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = Base64::decode(s).map_err(|_| IotaError::InvalidSignature {
-            error: "Invalid base64 string".to_string(),
-        })?;
-        let sig = MultiSig::from_bytes(&bytes).map_err(|_| IotaError::InvalidSignature {
-            error: "Invalid multisig bytes".to_string(),
-        })?;
-        Ok(sig)
-    }
-}
+//     fn from_str(s: &str) -> Result<Self, Self::Err> {
+//         let bytes = Base64::decode(s).map_err(|_| IotaError::InvalidSignature
+// {             error: "Invalid base64 string".to_string(),
+//         })?;
+//         let sig = MultiSig::from_bytes(&bytes).map_err(|_|
+// IotaError::InvalidSignature {             error: "Invalid multisig
+// bytes".to_string(),         })?;
+//         Ok(sig)
+//     }
+// }
 
 // /// The struct that contains the public key used for authenticating a
 // MultiSig. #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,

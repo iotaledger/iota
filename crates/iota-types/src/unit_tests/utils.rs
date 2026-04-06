@@ -16,7 +16,7 @@ use crate::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, Signature, Signer,
         get_key_pair, get_key_pair_from_rng,
     },
-    multisig::{MultiSig, MultiSigPublicKey},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
@@ -165,6 +165,53 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
         tx.transaction_data().clone(),
         vec![GenericSignature::MultiSig(multi_sig1)],
     ))
+        let test_data: Vec<TestData> = serde_json::from_reader(file).unwrap();
+        test_data[1].zklogin_inputs.clone()
+    }
+
+    fn get_inputs_with_bad_address_seed() -> ZkLoginInputs {
+        thread_local! {
+        static ZKLOGIN_INPUTS: ZkLoginInputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"17276311605393076686048412951904952585208929623427027497902331765285829154985\",\"2195957390349729412627479867125563520760023859523358729791332629632025124364\",\"1\"],\"b\":[[\"10285059021604767951039627893758482248204478992077021270802057708215366770814\",\"20086937595807139308592304218494658586282197458549968652049579308384943311509\"],[\"7481123765095657256931104563876569626157448050870256177668773471703520958615\",\"11912752790863530118410797223176516777328266521602785233083571774104055633375\"],[\"1\",\"0\"]],\"c\":[\"15742763887654796666500488588763616323599882100448686869458326409877111249163\",\"6112916537574993759490787691149241262893771114597679488354854987586060572876\",\"1\"]},\"issBase64Details\":{\"value\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"indexMod4\":2},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}", SHORT_ADDRESS_SEED).unwrap(); }
+        ZKLOGIN_INPUTS.with(|a| a.clone())
+    }
+
+    pub fn keys() -> Vec<IotaKeyPair> {
+        let mut seed = StdRng::from_seed([0; 32]);
+        let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
+        let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
+        let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
+        vec![kp1, kp2, kp3]
+    }
+
+    pub fn make_upgraded_multisig_tx() -> Transaction {
+        let keys = keys();
+        let pk1 = &keys[0].public();
+        let pk2 = &keys[1].public();
+        let pk3 = &keys[2].public();
+
+        let multisig_pk = MultiSigPublicKey::new(
+            vec![
+                MultisigMember::new(pk1.clone(), 1),
+                MultisigMember::new(pk2.clone(), 1),
+                MultisigMember::new(pk3.clone(), 1),
+            ],
+            2,
+        )
+        .unwrap();
+        let addr = IotaAddress::from(&multisig_pk);
+        let tx = make_transaction(addr, &keys[0]);
+
+        let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
+        let sig1 = Signature::new_secure(&msg, &keys[0]).into();
+        let sig2 = Signature::new_secure(&msg, &keys[1]).into();
+
+        // Any 2 of 3 signatures verifies ok.
+        let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
+        Transaction::new(SenderSignedData::new(
+            tx.transaction_data().clone(),
+            vec![GenericSignature::MultiSig(multi_sig1)],
+        ))
+    }
 }
 
 mod move_authenticator {
