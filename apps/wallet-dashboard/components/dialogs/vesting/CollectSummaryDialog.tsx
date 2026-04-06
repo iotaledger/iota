@@ -35,6 +35,7 @@ export function CollectSummaryDialog({
     transaction,
     activeAddress,
 }: CollectSummaryDialogProps) {
+    // Filter balance changes for specific user address
     const balanceChanges = transaction.balanceChanges || [];
     const userBalanceChanges = balanceChanges.filter((change) => {
         const owner = change.owner;
@@ -44,6 +45,7 @@ export function CollectSummaryDialog({
         return false;
     });
 
+    // Calculate total IOTA received from balance changes
     const iotaReceived = userBalanceChanges
         .filter((change) => change.coinType === IOTA_TYPE_ARG && BigInt(change.amount) > 0n)
         .reduce((sum, change) => sum + BigInt(change.amount), 0n);
@@ -80,6 +82,7 @@ export function CollectSummaryDialog({
             ? `You collected ${collectedItems.join(' and ')}`
             : 'Your collection was completed successfully';
 
+    // Build summary items for the dialog
     const summaryItems: SummaryItem[] = [];
 
     if (timelocksUnlocked > 0) {
