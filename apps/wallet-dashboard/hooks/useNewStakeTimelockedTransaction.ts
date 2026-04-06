@@ -4,6 +4,7 @@
 import {
     createTimelockedStakeTransaction,
     getGasSummary,
+    getUserFriendlyDryRunExecutionError,
     GroupedTimelockObject,
     useMaxTransactionSizeBytes,
 } from '@iota/core';
@@ -46,6 +47,10 @@ export function useNewStakeTimelockedTransaction(
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
+            if (txDryRun.effects.status.status !== 'success') {
+                const errorText = txDryRun.effects.status.error || 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
+            }
             return {
                 transaction,
                 txDryRun,
