@@ -130,133 +130,135 @@ pub trait AuthenticatorTrait {
 //     }
 // }
 
-// impl GenericSignature {
-//     pub fn is_zklogin(&self) -> bool {
-//         matches!(self, GenericSignature::ZkLoginAuthenticator(_))
-//     }
-//     pub fn is_passkey(&self) -> bool {
-//         matches!(self, GenericSignature::PasskeyAuthenticator(_))
-//     }
+pub trait GenericSignatureExt {}
 
-//     pub fn is_upgraded_multisig(&self) -> bool {
-//         matches!(self, GenericSignature::MultiSig(_))
-//     }
+impl GenericSignatureExt for GenericSignature {
+    //     pub fn is_zklogin(&self) -> bool {
+    //         matches!(self, GenericSignature::ZkLoginAuthenticator(_))
+    //     }
+    //     pub fn is_passkey(&self) -> bool {
+    //         matches!(self, GenericSignature::PasskeyAuthenticator(_))
+    //     }
 
-//     pub fn is_move_authenticator(&self) -> bool {
-//         matches!(self, GenericSignature::MoveAuthenticator(_))
-//     }
+    //     pub fn is_upgraded_multisig(&self) -> bool {
+    //         matches!(self, GenericSignature::MultiSig(_))
+    //     }
 
-//     pub fn verify_authenticator<T>(
-//         &self,
-//         value: &IntentMessage<T>,
-//         author: IotaAddress,
-//         epoch: EpochId,
-//         verify_params: &VerifyParams,
-//         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-//     ) -> IotaResult
-//     where
-//         T: Serialize,
-//     {
-//         self.verify_user_authenticator_epoch(
-//             epoch,
-//             verify_params.zklogin_max_epoch_upper_bound_delta,
-//         )?;
-//         self.verify_claims(value, author, verify_params,
-// zklogin_inputs_cache)     }
+    //     pub fn is_move_authenticator(&self) -> bool {
+    //         matches!(self, GenericSignature::MoveAuthenticator(_))
+    //     }
 
-//     /// Parse [enum CompressedSignature] from trait IotaSignature `flag ||
-// sig     /// || pk`. This is useful for the MultiSig to combine partial
-// signature     /// into a MultiSig public key.
-//     pub fn to_compressed(&self) -> Result<CompressedSignature, IotaError> {
-//         match self {
-//             GenericSignature::Signature(s) => {
-//                 let bytes = s.signature_bytes();
-//                 match s.scheme() {
-//                     SignatureScheme::ED25519 =>
-// Ok(CompressedSignature::Ed25519(                         
-// (&Ed25519Signature::from_bytes(bytes).map_err(|_| {                          
-// IotaError::InvalidSignature {                                 error: "Cannot
-// parse ed25519 sig".to_string(),                             }
-//                         })?)
-//                             .into(),
-//                     )),
-//                     SignatureScheme::Secp256k1 =>
-// Ok(CompressedSignature::Secp256k1(                         
-// (&Secp256k1Signature::from_bytes(bytes).map_err(|_| {                        
-// IotaError::InvalidSignature {                                 error: "Cannot
-// parse secp256k1 sig".to_string(),                             }
-//                         })?)
-//                             .into(),
-//                     )),
-//                     SignatureScheme::Secp256r1 |
-// SignatureScheme::PasskeyAuthenticator => {                         
-// Ok(CompressedSignature::Secp256r1(                             
-// (&Secp256r1Signature::from_bytes(bytes).map_err(|_| {                        
-// IotaError::InvalidSignature {                                     error:
-// "Cannot parse secp256r1 sig".to_string(),                                 }
-//                             })?)
-//                                 .into(),
-//                         ))
-//                     }
-//                     _ => Err(IotaError::UnsupportedFeature {
-//                         error: "Unsupported signature scheme".to_string(),
-//                     }),
-//                 }
-//             }
-//             GenericSignature::ZkLoginAuthenticator(s) =>
-// Ok(CompressedSignature::ZkLogin(                 
-// ZkLoginAuthenticatorAsBytes(s.as_ref().to_vec()),             )),
-//             GenericSignature::PasskeyAuthenticator(s) =>
-// Ok(CompressedSignature::Passkey(                 
-// PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),             )),
-//             _ => Err(IotaError::UnsupportedFeature {
-//                 error: "Unsupported signature scheme".to_string(),
-//             }),
-//         }
-//     }
+    //     pub fn verify_authenticator<T>(
+    //         &self,
+    //         value: &IntentMessage<T>,
+    //         author: IotaAddress,
+    //         epoch: EpochId,
+    //         verify_params: &VerifyParams,
+    //         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
+    //     ) -> IotaResult
+    //     where
+    //         T: Serialize,
+    //     {
+    //         self.verify_user_authenticator_epoch(
+    //             epoch,
+    //             verify_params.zklogin_max_epoch_upper_bound_delta,
+    //         )?;
+    //         self.verify_claims(value, author, verify_params,
+    // zklogin_inputs_cache)     }
 
-//     /// Parse [struct PublicKey] from trait IotaSignature `flag || sig ||
-// pk`.     /// This is useful for the MultiSig to construct the bitmap in
-// [struct     /// MultiPublicKey].
-//     pub fn to_public_key(&self) -> Result<PublicKey, IotaError> {
-//         match self {
-//             GenericSignature::Signature(s) => {
-//                 let bytes = s.public_key_bytes();
-//                 match s.scheme() {
-//                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
-//                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
-//                             IotaError::KeyConversion("Cannot parse ed25519
-// pk".to_string())                         })?)
-//                             .into(),
-//                     )),
-//                     SignatureScheme::Secp256k1 => Ok(PublicKey::Secp256k1(
-//                         (&Secp256k1PublicKey::from_bytes(bytes).map_err(|_| {
-//                             IotaError::KeyConversion("Cannot parse secp256k1
-// pk".to_string())                         })?)
-//                             .into(),
-//                     )),
-//                     SignatureScheme::Secp256r1 => Ok(PublicKey::Secp256r1(
-//                         (&Secp256r1PublicKey::from_bytes(bytes).map_err(|_| {
-//                             IotaError::KeyConversion("Cannot parse secp256r1
-// pk".to_string())                         })?)
-//                             .into(),
-//                     )),
-//                     _ => Err(IotaError::UnsupportedFeature {
-//                         error: "Unsupported signature scheme in
-// MultiSig".to_string(),                     }),
-//                 }
-//             }
-//             GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
-//             GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
-//             GenericSignature::MoveAuthenticator(_) =>
-// Err(IotaError::UnsupportedFeature {                 error: "Unsupported in
-// MoveAuthenticator".to_string(),             }),
-//             _ => Err(IotaError::UnsupportedFeature {
-//                 error: "Unsupported signature scheme".to_string(),
-//             }),
-//         }
-//     }
-// }
+    //     /// Parse [enum CompressedSignature] from trait IotaSignature `flag ||
+    // sig     /// || pk`. This is useful for the MultiSig to combine partial
+    // signature     /// into a MultiSig public key.
+    //     pub fn to_compressed(&self) -> Result<CompressedSignature, IotaError> {
+    //         match self {
+    //             GenericSignature::Signature(s) => {
+    //                 let bytes = s.signature_bytes();
+    //                 match s.scheme() {
+    //                     SignatureScheme::ED25519 =>
+    // Ok(CompressedSignature::Ed25519(
+    // (&Ed25519Signature::from_bytes(bytes).map_err(|_| {
+    // IotaError::InvalidSignature {                                 error: "Cannot
+    // parse ed25519 sig".to_string(),                             }
+    //                         })?)
+    //                             .into(),
+    //                     )),
+    //                     SignatureScheme::Secp256k1 =>
+    // Ok(CompressedSignature::Secp256k1(
+    // (&Secp256k1Signature::from_bytes(bytes).map_err(|_| {
+    // IotaError::InvalidSignature {                                 error: "Cannot
+    // parse secp256k1 sig".to_string(),                             }
+    //                         })?)
+    //                             .into(),
+    //                     )),
+    //                     SignatureScheme::Secp256r1 |
+    // SignatureScheme::PasskeyAuthenticator => {
+    // Ok(CompressedSignature::Secp256r1(
+    // (&Secp256r1Signature::from_bytes(bytes).map_err(|_| {
+    // IotaError::InvalidSignature {                                     error:
+    // "Cannot parse secp256r1 sig".to_string(),                                 }
+    //                             })?)
+    //                                 .into(),
+    //                         ))
+    //                     }
+    //                     _ => Err(IotaError::UnsupportedFeature {
+    //                         error: "Unsupported signature scheme".to_string(),
+    //                     }),
+    //                 }
+    //             }
+    //             GenericSignature::ZkLoginAuthenticator(s) =>
+    // Ok(CompressedSignature::ZkLogin(
+    // ZkLoginAuthenticatorAsBytes(s.as_ref().to_vec()),             )),
+    //             GenericSignature::PasskeyAuthenticator(s) =>
+    // Ok(CompressedSignature::Passkey(
+    // PasskeyAuthenticatorAsBytes(s.as_ref().to_vec()),             )),
+    //             _ => Err(IotaError::UnsupportedFeature {
+    //                 error: "Unsupported signature scheme".to_string(),
+    //             }),
+    //         }
+    //     }
+
+    //     /// Parse [struct PublicKey] from trait IotaSignature `flag || sig ||
+    // pk`.     /// This is useful for the MultiSig to construct the bitmap in
+    // [struct     /// MultiPublicKey].
+    //     pub fn to_public_key(&self) -> Result<PublicKey, IotaError> {
+    //         match self {
+    //             GenericSignature::Signature(s) => {
+    //                 let bytes = s.public_key_bytes();
+    //                 match s.scheme() {
+    //                     SignatureScheme::ED25519 => Ok(PublicKey::Ed25519(
+    //                         (&Ed25519PublicKey::from_bytes(bytes).map_err(|_| {
+    //                             IotaError::KeyConversion("Cannot parse ed25519
+    // pk".to_string())                         })?)
+    //                             .into(),
+    //                     )),
+    //                     SignatureScheme::Secp256k1 => Ok(PublicKey::Secp256k1(
+    //                         (&Secp256k1PublicKey::from_bytes(bytes).map_err(|_| {
+    //                             IotaError::KeyConversion("Cannot parse secp256k1
+    // pk".to_string())                         })?)
+    //                             .into(),
+    //                     )),
+    //                     SignatureScheme::Secp256r1 => Ok(PublicKey::Secp256r1(
+    //                         (&Secp256r1PublicKey::from_bytes(bytes).map_err(|_| {
+    //                             IotaError::KeyConversion("Cannot parse secp256r1
+    // pk".to_string())                         })?)
+    //                             .into(),
+    //                     )),
+    //                     _ => Err(IotaError::UnsupportedFeature {
+    //                         error: "Unsupported signature scheme in
+    // MultiSig".to_string(),                     }),
+    //                 }
+    //             }
+    //             GenericSignature::ZkLoginAuthenticator(s) => s.get_pk(),
+    //             GenericSignature::PasskeyAuthenticator(s) => s.get_pk(),
+    //             GenericSignature::MoveAuthenticator(_) =>
+    // Err(IotaError::UnsupportedFeature {                 error: "Unsupported in
+    // MoveAuthenticator".to_string(),             }),
+    //             _ => Err(IotaError::UnsupportedFeature {
+    //                 error: "Unsupported signature scheme".to_string(),
+    //             }),
+    //         }
+    //     }
+}
 
 // /// GenericSignature encodes a single signature [enum Signature] as is `flag
 // || /// signature || pubkey`. [struct Multisig] is encoded as
@@ -271,12 +273,12 @@ pub trait AuthenticatorTrait {
 //                 SignatureScheme::ED25519
 //                 | SignatureScheme::Secp256k1
 //                 | SignatureScheme::Secp256r1 =>
-// Ok(GenericSignature::Signature(                     
+// Ok(GenericSignature::Signature(
 // Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidSignature)?,
 //                 )),
 //                 SignatureScheme::MultiSig => {
-//                     
-// Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))                 
+//
+// Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
 // }                 SignatureScheme::ZkLoginAuthenticator => {
 //                     let zk_login = ZkLoginAuthenticator::from_bytes(bytes)?;
 //                     Ok(GenericSignature::ZkLoginAuthenticator(zk_login))
@@ -292,19 +294,6 @@ pub trait AuthenticatorTrait {
 //                 _ => Err(FastCryptoError::InvalidInput),
 //             },
 //             Err(_) => Err(FastCryptoError::InvalidInput),
-//         }
-//     }
-// }
-
-// /// Trait useful to get the bytes reference for [enum GenericSignature].
-// impl AsRef<[u8]> for GenericSignature {
-//     fn as_ref(&self) -> &[u8] {
-//         match self {
-//             GenericSignature::MultiSig(s) => s.as_ref(),
-//             GenericSignature::Signature(s) => s.as_ref(),
-//             GenericSignature::ZkLoginAuthenticator(s) => s.as_ref(),
-//             GenericSignature::PasskeyAuthenticator(s) => s.as_ref(),
-//             GenericSignature::MoveAuthenticator(s) => s.as_ref(),
 //         }
 //     }
 // }
