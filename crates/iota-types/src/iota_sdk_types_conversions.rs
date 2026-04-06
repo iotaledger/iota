@@ -17,7 +17,7 @@ use iota_sdk_types::{
         CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
         CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
     },
-    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
+    crypto::{Bls12381PublicKey, Bls12381Signature},
     digest::Digest,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -389,22 +389,12 @@ impl TryFrom<crate::messages_checkpoint::CheckpointContents> for CheckpointConte
         Self(
             value
                 .into_iter_with_signatures()
-                .map(|(digests, signatures)| {
-                    let signatures_result = signatures
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<Vec<UserSignature>, _>>();
-
-                    match signatures_result {
-                        Ok(signatures) => Ok(CheckpointTransactionInfo {
-                            transaction: digests.transaction,
-                            effects: digests.effects,
-                            signatures,
-                        }),
-                        Err(e) => Err(SdkTypeConversionError::from(e)),
-                    }
+                .map(|(digests, signatures)| CheckpointTransactionInfo {
+                    transaction: digests.transaction,
+                    effects: digests.effects,
+                    signatures,
                 })
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect(),
         )
         .pipe(Ok)
     }
@@ -421,18 +411,13 @@ impl TryFrom<CheckpointContents> for crate::messages_checkpoint::CheckpointConte
                     transaction: info.transaction,
                     effects: info.effects,
                 });
-                user_signatures.push(
-                    info.signatures
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<_, _>>(),
-                );
+                user_signatures.push(info.signatures);
                 (transactions, user_signatures)
             },
         );
         crate::messages_checkpoint::CheckpointContents::new_with_digests_and_signatures(
             transactions,
-            user_signatures.into_iter().collect::<Result<Vec<_>, _>>()?,
+            user_signatures,
         )
         .pipe(Ok)
     }
@@ -528,22 +513,6 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             }),
             (Err(e), _) | (_, Err(e)) => Err(e),
         }
-    }
-}
-
-impl TryFrom<crate::signature::GenericSignature> for UserSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: crate::signature::GenericSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
-impl TryFrom<UserSignature> for crate::signature::GenericSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: UserSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
     }
 }
 
@@ -746,10 +715,7 @@ impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
 
         Self {
             transaction: intent_message.value.try_into()?,
-            signatures: tx_signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
+            signatures: tx_signatures,
         }
         .pipe(Ok)
     }
@@ -764,14 +730,7 @@ impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
             signatures,
         } = value;
 
-        Self::new(
-            transaction.try_into()?,
-            signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        )
-        .pipe(Ok)
+        Self::new(transaction.try_into()?, signatures).pipe(Ok)
     }
 }
 
