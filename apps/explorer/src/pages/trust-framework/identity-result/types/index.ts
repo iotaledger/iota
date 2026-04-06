@@ -9,7 +9,7 @@ export interface ControllerCap {
 export interface IdentityController extends ControllerCap {
     objectType?: string | null;
     owner?: string | null;
-    ownerType?: string;
+    ownerType?: string | null;
     error?: Error | unknown;
     isError: boolean;
 }
