@@ -18,8 +18,10 @@ use fastcrypto::{
     secp256r1::Secp256r1PublicKey,
     traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
 };
-pub use iota_sdk_types::MultisigAggregatedSignature as MultiSig;
 use iota_sdk_types::crypto::IntentMessage;
+pub use iota_sdk_types::{
+    MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
+};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -77,7 +79,7 @@ impl AuthenticatorTrait for MultiSig {
                 error: "Invalid multisig pubkey".to_string(),
             })?;
 
-        if IotaAddress::from(&self.multisig_pk) != multisig_address {
+        if IotaAddress::from(self.committee()) != multisig_address {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid address derived from pks".to_string(),
             });
@@ -97,9 +99,9 @@ impl AuthenticatorTrait for MultiSig {
         // Verify each signature against its corresponding signature scheme and public
         // key. TODO: further optimization can be done because multiple Ed25519
         // signatures can be batch verified.
-        for (sig, i) in self.sigs.iter().zip(as_indices(self.bitmap)?) {
+        for (sig, i) in self.signatures().iter().zip(as_indices(self.bitmap)?) {
             let (subsig_pubkey, weight) =
-                self.multisig_pk
+                self.committee()
                     .pk_map
                     .get(i as usize)
                     .ok_or(IotaError::InvalidSignature {
@@ -217,13 +219,14 @@ impl AuthenticatorTrait for MultiSig {
                 });
             }
         }
-        if weight_sum >= self.multisig_pk.threshold {
+        if weight_sum >= self.committee().threshold() {
             Ok(())
         } else {
             Err(IotaError::InvalidSignature {
                 error: format!(
                     "Insufficient weight={:?} threshold={:?}",
-                    weight_sum, self.multisig_pk.threshold
+                    weight_sum,
+                    self.committee().threshold()
                 ),
             })
         }
@@ -364,86 +367,12 @@ impl FromStr for MultiSig {
     }
 }
 
-/// The struct that contains the public key used for authenticating a MultiSig.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MultiSigPublicKey {
-    /// A list of public key and its corresponding weight.
-    pk_map: Vec<(PublicKey, WeightUnit)>,
-    /// If the total weight of the public keys corresponding to verified
-    /// signatures is larger than threshold, the MultiSig is verified.
-    threshold: ThresholdUnit,
-}
-
-impl MultiSigPublicKey {
-    /// Construct MultiSigPublicKey without validation.
-    pub fn insecure_new(pk_map: Vec<(PublicKey, WeightUnit)>, threshold: ThresholdUnit) -> Self {
-        Self { pk_map, threshold }
-    }
-
-    pub fn new(
-        pks: Vec<PublicKey>,
-        weights: Vec<WeightUnit>,
-        threshold: ThresholdUnit,
-    ) -> Result<Self, IotaError> {
-        if pks.is_empty()
-            || weights.is_empty()
-            || threshold == 0
-            || pks.len() != weights.len()
-            || pks.len() > MAX_SIGNER_IN_MULTISIG
-            || weights.contains(&0)
-            || weights
-                .iter()
-                .map(|w| *w as ThresholdUnit)
-                .sum::<ThresholdUnit>()
-                < threshold
-            || pks
-                .iter()
-                .enumerate()
-                .any(|(i, pk)| pks.iter().skip(i + 1).any(|other_pk| *pk == *other_pk))
-        {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid multisig public key construction".to_string(),
-            });
-        }
-
-        Ok(MultiSigPublicKey {
-            pk_map: pks.into_iter().zip(weights).collect(),
-            threshold,
-        })
-    }
-
-    pub fn get_index(&self, pk: &PublicKey) -> Option<u8> {
-        self.pk_map.iter().position(|x| &x.0 == pk).map(|x| x as u8)
-    }
-
-    pub fn threshold(&self) -> &ThresholdUnit {
-        &self.threshold
-    }
-
-    pub fn pubkeys(&self) -> &Vec<(PublicKey, WeightUnit)> {
-        &self.pk_map
-    }
-
-    pub fn validate(&self) -> Result<MultiSigPublicKey, FastCryptoError> {
-        let pk_map = self.pubkeys();
-        if self.threshold == 0
-            || pk_map.is_empty()
-            || pk_map.len() > MAX_SIGNER_IN_MULTISIG
-            || pk_map.iter().any(|(_pk, weight)| *weight == 0)
-            || pk_map
-                .iter()
-                .map(|(_pk, weight)| *weight as ThresholdUnit)
-                .sum::<ThresholdUnit>()
-                < self.threshold
-            || pk_map.iter().enumerate().any(|(i, (pk, _weight))| {
-                pk_map
-                    .iter()
-                    .skip(i + 1)
-                    .any(|(other_pk, _weight)| *pk == *other_pk)
-            })
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        Ok(self.to_owned())
-    }
-}
+// /// The struct that contains the public key used for authenticating a
+// MultiSig. #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,
+// JsonSchema)] pub struct MultiSigPublicKey {
+//     /// A list of public key and its corresponding weight.
+//     pk_map: Vec<(PublicKey, WeightUnit)>,
+//     /// If the total weight of the public keys corresponding to verified
+//     /// signatures is larger than threshold, the MultiSig is verified.
+//     threshold: ThresholdUnit,
+// }
