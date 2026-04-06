@@ -8,35 +8,7 @@ import {
     IOTA_CLOCK_OBJECT_ID,
     IOTA_SYSTEM_ADDRESS,
 } from '@iota/iota-sdk/utils';
-import { NestedResultType } from '../../types';
-
-// Timelocked stake: fields.staked_iota.fields.{pool_id, stake_activation_epoch}
-export interface TimelockedStakeObjectInput {
-    objectId: string;
-    content: {
-        dataType: 'moveObject';
-        fields: {
-            staked_iota: {
-                fields: {
-                    pool_id: string;
-                    stake_activation_epoch: string;
-                };
-            };
-        };
-    };
-}
-
-// Regular stake: fields.{pool_id, stake_activation_epoch}
-export interface RegularStakeObjectInput {
-    objectId: string;
-    content: {
-        dataType: 'moveObject';
-        fields: {
-            pool_id: string;
-            stake_activation_epoch: string;
-        };
-    };
-}
+import { NestedResultType, RegularStakeObjectInput, TimelockedStakeObjectInput } from '../../types';
 
 interface CreateCollectAllTimelocksTransactionOptions {
     address: string;

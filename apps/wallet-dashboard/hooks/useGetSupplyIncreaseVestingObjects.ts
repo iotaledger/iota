@@ -125,9 +125,9 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         return filtered;
     })();
 
-    const supplyIncreaseVestingUnlockedObjectIds: string[] = useMemo(() => {
-        return supplyIncreaseVestingUnlocked.map((unlockedObject) => unlockedObject.id.id) || [];
-    }, [supplyIncreaseVestingUnlocked]);
+    const supplyIncreaseVestingUnlockedObjectIds = supplyIncreaseVestingUnlocked.map(
+        (unlockedObject) => unlockedObject.id.id,
+    );
 
     const supplyIncreaseVestingUnlockedMaxSize = supplyIncreaseVestingUnlocked.reduce(
         (acc, curr) => (acc += curr.locked.value),
