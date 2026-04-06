@@ -30,4 +30,6 @@ packages:
   - "!sdk/signers/webcrypto"
   - "!sdk/typescript/test/**/**"
   - "!sdk/examples/src/**/build"
-minimumReleaseAge: 1440
+minimumReleaseAge: 2880
+blockExoticSubdeps: true
+trustPolicy: no-downgrade

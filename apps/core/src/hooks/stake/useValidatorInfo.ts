@@ -3,6 +3,7 @@
 
 import { useGetValidatorsApy } from '..';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { getValidatorEffectiveCommission } from '../../utils';
 
 export function useValidatorInfo({ validatorAddress }: { validatorAddress: string }) {
     const {
@@ -29,17 +30,7 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         apy: null,
     };
 
-    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
-    const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
-
-    const commission = validatorSummary
-        ? hasEffectiveCommissionRate
-            ? Math.max(
-                  Number(validatorSummary.commissionRate),
-                  Number(validatorSummary.votingPower),
-              ) / 100
-            : Number(validatorSummary.commissionRate) / 100
-        : 0;
+    const effectiveCommission = getValidatorEffectiveCommission(validatorSummary);
 
     return {
         system,
@@ -49,7 +40,7 @@ export function useValidatorInfo({ validatorAddress }: { validatorAddress: strin
         validatorSummary,
         name: validatorSummary?.name || '',
         stakingPoolActivationEpoch,
-        commission,
+        effectiveCommission,
         newValidator,
         isAtRisk,
         apy,
