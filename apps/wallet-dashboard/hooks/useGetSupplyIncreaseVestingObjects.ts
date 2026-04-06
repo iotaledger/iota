@@ -139,7 +139,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     const { isActiveValidator } = useIsActiveValidator();
 
     // Get unlocked timelocked staked objects (only for Staker users)
-    const supplyIncreaseVestingUnlockedStakes = useMemo(() => {
+    const availableTimelockedStakes = useMemo(() => {
         if (!timelockedStakedObjects || !clockTimestampMs) return [];
 
         // Only Stakers can collect timelock stakes - Investors must unstake first
@@ -147,20 +147,27 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
 
         return formatDelegatedTimelockedStake(timelockedStakedObjects)
             .filter(isSupplyIncreaseVestingObject)
-            .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs))
-            .filter((stake) => isActiveValidator(stake.validatorAddress)); // skip inactive validators
-    }, [timelockedStakedObjects, clockTimestampMs, userType, isActiveValidator]);
+            .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs));
+    }, [timelockedStakedObjects, clockTimestampMs, userType]);
 
-    // Unlocked stakes whose validator is inactive, cannot be collected, must be unstaked first
-    const inactiveValidatorUnlockedStakes = useMemo(() => {
-        if (!timelockedStakedObjects || !clockTimestampMs) return [];
-        if (userType !== SupplyIncreaseUserType.Staker) return [];
+    // Split by validator status
+    const { supplyIncreaseVestingUnlockedStakes, inactiveValidatorUnlockedStakes } = useMemo(() => {
+        const timelockedDelegatedStakes: ExtendedDelegatedTimelockedStake[] = [];
+        const timelockedStakesDelegatedToInactiveValidator: ExtendedDelegatedTimelockedStake[] = [];
 
-        return formatDelegatedTimelockedStake(timelockedStakedObjects)
-            .filter(isSupplyIncreaseVestingObject)
-            .filter((stake) => isTimelockedUnlockable(stake, clockTimestampMs))
-            .filter((stake) => !isActiveValidator(stake.validatorAddress));
-    }, [timelockedStakedObjects, clockTimestampMs, userType, isActiveValidator]);
+        for (const stake of availableTimelockedStakes) {
+            if (isActiveValidator(stake.validatorAddress)) {
+                timelockedDelegatedStakes.push(stake);
+            } else {
+                timelockedStakesDelegatedToInactiveValidator.push(stake);
+            }
+        }
+
+        return {
+            supplyIncreaseVestingUnlockedStakes: timelockedDelegatedStakes,
+            inactiveValidatorUnlockedStakes: timelockedStakesDelegatedToInactiveValidator,
+        };
+    }, [availableTimelockedStakes, isActiveValidator]);
 
     // Get all timelocked staked object IDs from delegations
     const supplyIncreaseVestingUnlockedStakeObjectData = useMemo(() => {
