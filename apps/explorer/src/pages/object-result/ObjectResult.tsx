@@ -64,8 +64,8 @@ export function ObjectResult(): JSX.Element {
                     )}
                     {isPageError || !data || !resp ? (
                         <InfoBox
-                            title="Error extracting data"
-                            supportingText={`Data could not be extracted on the following specified object ID: ${objID}`}
+                            title="Invalid Object ID"
+                            supportingText={`No object found matching ID: ${objID} on this network. Please verify the ID and try again.`}
                             icon={<Warning />}
                             type={InfoBoxType.Error}
                             style={InfoBoxStyle.Elevated}

@@ -193,7 +193,8 @@ function ValidatorPageResult(): JSX.Element {
             'Stake',
             'APY',
             'Effective Commission',
-            'Commission',
+            'Next Epoch Commission',
+            'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
         ];
@@ -308,7 +309,7 @@ function ValidatorPageResult(): JSX.Element {
                                                 'Validator',
                                                 'Stake',
                                                 'APY',
-                                                'Commission',
+                                                'Effective Commission',
                                                 'Last Epoch Rewards',
                                                 'Voting Power',
                                                 'Status',

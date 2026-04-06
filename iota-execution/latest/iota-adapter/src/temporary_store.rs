@@ -663,7 +663,6 @@ impl TemporaryStore<'_> {
     }
 
     pub fn store_auth_context(&mut self, auth_context: Rc<RefCell<AuthContext>>) {
-        debug_assert!(self.auth_context.is_none());
         self.auth_context = Some(auth_context);
     }
 }

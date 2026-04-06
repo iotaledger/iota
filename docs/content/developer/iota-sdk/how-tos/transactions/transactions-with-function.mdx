@@ -1,0 +1,190 @@
+---
+title: Query Transactions by Function
+description: 'How to query transactions filtered by a Move function call using the GraphQL client.'
+tags:
+  - how-to
+  - rust-sdk
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Query Transactions by Function
+
+<IotaSdk />
+
+This how-to demonstrates how to query transactions filtered by a specific Move function call using the IOTA SDK's [GraphQL client](/developer/references/iota-graphql).
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language
+
+## Steps
+
+### 1. Initialize the GraphQL Client
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/transactions_with_function.rs#L10
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/transactions_with_function/main.go#L14
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/transactions_with_function.py#L10
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/TransactionsWithFunction.kt#L10
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/TransactionsWithFunction.swift#L9
+```
+
+  </TabItem>
+</Tabs>
+
+### 2. Query Transactions Filtered by Function
+
+Pass a `TransactionsFilter` with the fully-qualified Move function identifier to fetch matching transactions.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/transactions_with_function.rs#L12-L20
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/transactions_with_function/main.go#L16-L22
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/transactions_with_function.py#L11-L12
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/TransactionsWithFunction.kt#L11-L14
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/TransactionsWithFunction.swift#L10-L11
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. Print the Transaction Digests
+
+Iterate over the results and print each transaction digest.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/transactions_with_function.rs#L22-L24
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/transactions_with_function/main.go#L24-L26
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/transactions_with_function.py#L13-L14
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/TransactionsWithFunction.kt#L15-L17
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/TransactionsWithFunction.swift#L12-L14
+```
+
+  </TabItem>
+</Tabs>
+
+## Expected Output
+
+```bash
+Digest: <base58-transaction-digest>
+Digest: <base58-transaction-digest>
+...
+```
+
+:::note
+The function identifier format is `<package>::<module>::<function>`.
+:::
+
+## Full Example
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/transactions_with_function.rs
+```
+  </TabItem>
+  <TabItem value="go" label="Go">
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/transactions_with_function/main.go
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/transactions_with_function.py
+```
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/TransactionsWithFunction.kt
+```
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/TransactionsWithFunction.swift
+```
+  </TabItem>
+</Tabs>
+
+
+

@@ -1,10 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
+import { Response } from 'express';
 import {
     NAME_ADDRESS_RESOLUTION_FEATURE,
     KNOWN_ADDRESSES_ALIASES,
@@ -15,6 +16,18 @@ import { RECOGNIZED_DAPPS } from './dapps.constants';
 @Controller('/api/features')
 export class FeaturesController {
     constructor(private readonly configService: ConfigService) {}
+
+    @Get('staging')
+    getStagingRedirect(@Res() res: Response) {
+        const stagingBackend = this.configService.getOrThrow<string>('STAGING_APPS_BACKEND');
+        return res.redirect(`${stagingBackend}/api/features`);
+    }
+
+    @Get('production')
+    getProductionRedirect(@Res() res: Response) {
+        const productionBackend = this.configService.getOrThrow<string>('PROD_APPS_BACKEND');
+        return res.redirect(`${productionBackend}/api/features`);
+    }
 
     @Get()
     getFeatures() {

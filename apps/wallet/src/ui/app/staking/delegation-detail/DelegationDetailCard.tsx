@@ -15,7 +15,8 @@ import {
     formatPercentageDisplay,
     MIN_NUMBER_IOTA_TO_STAKE,
     Validator,
-    getValidatorCommission,
+    getValidatorEffectiveCommission,
+    EFFECTIVE_COMMISSION_TOOLTIP,
     toast,
     useIsValidatorCommitteeMember,
     useIsActiveValidator,
@@ -141,9 +142,6 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
 
-    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
-    const hasEffectiveCommissionRate = Number(system?.protocolVersion ?? 0) >= 20;
-
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);
         ampli.clickedStakeIota({
@@ -202,13 +200,10 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                             fullwidth
                         />
                         <KeyValueInfo
-                            keyText="Commission"
-                            value={getValidatorCommission(
-                                validatorData,
-                                hasEffectiveCommissionRate,
-                            )}
+                            keyText="Effective Commission"
+                            value={getValidatorEffectiveCommission(validatorData)}
                             fullwidth
-                            tooltipText="The share of rewards retained by the validator. This rate includes a protocol-enforced minimum to help maintain network decentralization."
+                            tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                             tooltipPosition={TooltipPosition.Right}
                         />
                     </div>

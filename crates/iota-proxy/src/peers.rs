@@ -139,10 +139,14 @@ impl IotaNodeProvider {
         );
     }
 
-    fn update_pending_validator_set(&self, pending_validators: Vec<ValidatorV1>) {
+    fn update_pending_validator_set(
+        &self,
+        pending_validators: Vec<ValidatorV1>,
+        protocol_version: Option<u64>,
+    ) {
         let summaries = pending_validators
             .into_iter()
-            .map(|v| v.into_iota_validator_summary())
+            .map(|v| v.into_iota_validator_summary(protocol_version))
             .collect_vec();
         let validators = extract_validators_from_summaries(&summaries);
         let mut allow = self.pending_validator_nodes.write().unwrap();
@@ -235,8 +239,10 @@ impl IotaNodeProvider {
                                 .await
                                 {
                                     Ok(pending_validators) => {
-                                        cloned_self
-                                            .update_pending_validator_set(pending_validators);
+                                        cloned_self.update_pending_validator_set(
+                                            pending_validators,
+                                            Some(system_state.protocol_version().as_u64()),
+                                        );
                                         info!("Successfully updated pending validators");
                                     }
                                     Err(e) => {
