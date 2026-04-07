@@ -101,6 +101,12 @@ impl IotaTxValidator {
                 }
 
                 ConsensusTransactionKind::UserTransactionV1(transaction) => {
+                    if !self.epoch_store.protocol_config().enable_white_flag_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "UserTransactionV1 not supported at current protocol version"
+                                .into(),
+                        });
+                    }
                     // TODO: Batch signature verification for UserTransactionV1.
                     //  For now verify individually, but this should be batched for performance
                     //  similar to how certificates are batch-verified above.
@@ -315,19 +321,46 @@ mod tests {
     ///
     /// The exhaustive match forces a compile error when new variants are added,
     /// so the developer must explicitly map each variant to its gating flag.
+    ///
+    /// NOTE: This test is primarily useful for variants that are under
+    /// development or not yet fully rolled out on all networks. Once all
+    /// feature-gated variants are enabled on every network, this test can be
+    /// ignored — its value lies in catching missing gates during the upgrade
+    /// window between code deployment and protocol activation.
     #[sim_test]
     async fn validate_transactions_feature_gating() {
         use iota_protocol_config::ProtocolConfig;
-        use iota_types::crypto::AuthorityPublicKeyBytes;
+        use iota_types::{
+            base_types::ObjectID,
+            crypto::{AccountKeyPair, AuthorityPublicKeyBytes, deterministic_random_account_key},
+        };
+
+        use crate::test_utils::make_transfer_iota_transaction;
+
+        let (sender, sender_key): (_, AccountKeyPair) = deterministic_random_account_key();
+        let gas_object_id = ObjectID::random();
+        let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
 
         let network_config =
-            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+                .with_objects(vec![gas_object.clone()])
+                .build();
 
         let state = TestAuthorityBuilder::new()
             .with_network_config(&network_config, 0)
             .with_chain_override(Chain::Mainnet)
             .build()
             .await;
+
+        let rgp = state.epoch_store_for_testing().reference_gas_price();
+        let gas_ref = state
+            .get_object(&gas_object_id)
+            .await
+            .unwrap()
+            .compute_object_reference();
+        let recipient = iota_types::crypto::get_key_pair::<AccountKeyPair>().0;
+        let signed_tx =
+            make_transfer_iota_transaction(gas_ref, recipient, None, sender, &sender_key, rgp);
 
         let metrics = IotaTxValidatorMetrics::new(&Default::default());
         let validator = IotaTxValidator::new(
@@ -375,12 +408,12 @@ mod tests {
             }
         }
 
-        // Variants that can be validated without signature verification setup.
+        // Variants that can be validated without signature verification setup
+        // (or that carry a valid signature, like UserTransactionV1).
         // CertifiedTransaction, CheckpointSignature, and
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
         // gate check; their gating is verified by the exhaustive match above.
-        #[allow(deprecated)]
         let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
             (
                 "EndOfPublish",
@@ -421,6 +454,10 @@ mod tests {
                         equivocations: vec![],
                     },
                 )),
+            ),
+            (
+                "UserTransactionV1",
+                ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
             ),
         ];
 
