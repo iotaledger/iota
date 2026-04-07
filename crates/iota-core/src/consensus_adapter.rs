@@ -45,7 +45,7 @@ use tokio::{
         Duration, {self},
     },
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
@@ -913,15 +913,7 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
-            // sending message outside of any locks scope
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-            if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority),
-                None,
-                epoch_store,
-            ) {
-                warn!("Error when sending end of publish message: {:?}", err);
-            }
+            self.submit_end_of_publish_with_retry(epoch_store);
         }
         self.metrics
             .sequencing_certificate_success
@@ -1065,6 +1057,59 @@ impl ConsensusAdapter {
         }
         ProcessedMethod::Consensus
     }
+
+    /// Submits an `EndOfPublish` message to consensus with bounded retry and
+    /// exponential backoff. On transient failures (e.g. DB write errors in
+    /// `insert_pending_consensus_transactions`), retries up to
+    /// `MAX_RETRIES` times. If all attempts fail, logs at `error!` level
+    /// and relies on crash recovery via `submit_recovered` as the ultimate
+    /// backstop.
+    fn submit_end_of_publish_with_retry(
+        self: &Arc<Self>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        const MAX_RETRIES: u32 = 5;
+        const INITIAL_BACKOFF: Duration = Duration::from_millis(100);
+
+        info!(
+            epoch = ?epoch_store.epoch(),
+            authority = ?self.authority,
+            "Sending EndOfPublish message to consensus",
+        );
+
+        for attempt in 0..=MAX_RETRIES {
+            match self.submit(
+                ConsensusTransaction::new_end_of_publish(self.authority),
+                None,
+                epoch_store,
+            ) {
+                Ok(_) => return,
+                Err(err) => {
+                    if attempt == MAX_RETRIES {
+                        error!(
+                            epoch = ?epoch_store.epoch(),
+                            authority = ?self.authority,
+                            "Failed to submit EndOfPublish after {} attempts: {:?}. \
+                             Will rely on crash recovery via submit_recovered.",
+                            MAX_RETRIES + 1,
+                            err,
+                        );
+                        return;
+                    }
+                    let backoff = INITIAL_BACKOFF * 2u32.pow(attempt);
+                    warn!(
+                        epoch = ?epoch_store.epoch(),
+                        authority = ?self.authority,
+                        attempt,
+                        "Failed to submit EndOfPublish, retrying in {:?}: {:?}",
+                        backoff,
+                        err,
+                    );
+                    std::thread::sleep(backoff);
+                }
+            }
+        }
+    }
 }
 
 impl CheckConnection for ConnectionMonitorStatus {
@@ -1170,14 +1215,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
         };
 
         if send_end_of_publish {
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-            if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority),
-                None,
-                epoch_store,
-            ) {
-                warn!("Error when sending end of publish message: {:?}", err);
-            }
+            self.submit_end_of_publish_with_retry(epoch_store);
         }
     }
 }
