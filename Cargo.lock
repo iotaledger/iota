@@ -8293,6 +8293,7 @@ dependencies = [
  "iota-sdk",
  "iota-snapshot",
  "iota-storage",
+ "iota-tls",
  "iota-types",
  "itertools 0.13.0",
  "move-core-types",
