@@ -58,6 +58,11 @@
       "type": "object",
       "title": "Move",
       "properties": {
+        "iota-move.auto-imports": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enable/disable auto-imports during auto-completion"
+        },
         "iota-move.force-bundled": {
           "type": "boolean",
           "default": false,
