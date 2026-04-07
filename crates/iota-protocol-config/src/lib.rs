@@ -470,6 +470,10 @@ struct FeatureFlags {
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
     move_native_tx_context: bool,
+
+    // If true, enables the optimistic commit rule (StarfishSpeed) in Starfish consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_starfish_speed: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1662,6 +1666,10 @@ impl ProtocolConfig {
 
     pub fn move_native_tx_context(&self) -> bool {
         self.feature_flags.move_native_tx_context
+    }
+
+    pub fn consensus_starfish_speed(&self) -> bool {
+        self.feature_flags.consensus_starfish_speed
     }
 }
 
@@ -2931,6 +2939,10 @@ impl ProtocolConfig {
 
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
+    }
+
+    pub fn set_consensus_starfish_speed_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_starfish_speed = val;
     }
 }
 
