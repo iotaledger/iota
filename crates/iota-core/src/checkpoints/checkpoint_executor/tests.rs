@@ -12,7 +12,8 @@ use iota_types::{
     gas::GasCostSummary,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
-        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
+        CheckpointCommitment, ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
@@ -457,7 +458,9 @@ async fn sync_end_of_epoch_checkpoint(
         Some(EndOfEpochData {
             next_epoch_committee: new_committee.committee().voting_rights.clone(),
             next_epoch_protocol_version: ProtocolVersion::MIN,
-            epoch_commitments: vec![ECMHLiveObjectSetDigest::default().into()],
+            epoch_commitments: vec![CheckpointCommitment::EcmhLiveObjectSet {
+                digest: ECMHLiveObjectSetDigest::default().digest,
+            }],
             // Do not simulate supply changes in tests.
             // We would need to build this checkpoint after the below execution of advance_epoch to
             // obtain this number from the SystemEpochInfoEvent.

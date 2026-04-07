@@ -19,7 +19,7 @@ use iota_storage::{
         run_manifest_update_loop,
     },
 };
-use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
+use iota_types::messages_checkpoint::CheckpointCommitment;
 use object_store::DynObjectStore;
 use prometheus::{
     IntCounter, IntGauge, Registry, register_int_counter_with_registry,
@@ -148,12 +148,19 @@ impl StateSnapshotUploader {
                     .get_epoch_state_commitments(*epoch)
                     .expect("Expected last checkpoint of epoch to have end of epoch data")
                     .expect("Expected end of epoch data to be present");
-                let ECMHLiveObjectSetDigest(state_hash_commitment) = commitments
+                let CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: state_hash_commitment,
+                } = commitments
                     .last()
                     .expect("Expected at least one commitment")
-                    .clone();
+                    .clone()
+                else {
+                    unimplemented!(
+                        "a new CheckpointCommitment enum variant was added and needs to be handled"
+                    )
+                };
                 state_snapshot_writer
-                    .write(*epoch, db, state_hash_commitment)
+                    .write(*epoch, db, state_hash_commitment.into())
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
                 // Drops marker in the output directory that upload completed successfully

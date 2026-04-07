@@ -1644,7 +1644,9 @@ impl CheckpointBuilder {
                 self.metrics.highest_accumulated_epoch.set(epoch as i64);
                 info!("Epoch {epoch} root state hash digest: {root_state_digest:?}");
 
-                let epoch_commitments = vec![root_state_digest.into()];
+                let epoch_commitments = vec![CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: root_state_digest.digest,
+                }];
 
                 Some(EndOfEpochData {
                     next_epoch_committee: committee.voting_rights,

@@ -11,6 +11,7 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::CheckpointCommitment;
 use iota_sdk_types::crypto::{Intent, IntentScope};
 use once_cell::sync::OnceCell;
 use prometheus::Histogram;
@@ -85,6 +86,7 @@ pub struct CheckpointResponse {
 
 /// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
 /// object set.
+// TODO should we just remove this type?
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub struct ECMHLiveObjectSetDigest {
     #[schemars(with = "[u8; 32]")]
@@ -99,21 +101,15 @@ impl From<fastcrypto::hash::Digest<32>> for ECMHLiveObjectSetDigest {
     }
 }
 
-impl Default for ECMHLiveObjectSetDigest {
-    fn default() -> Self {
-        Accumulator::default().digest().into()
+impl From<Digest> for ECMHLiveObjectSetDigest {
+    fn from(digest: Digest) -> Self {
+        Self { digest }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
-pub enum CheckpointCommitment {
-    ECMHLiveObjectSetDigest(ECMHLiveObjectSetDigest),
-    // Other commitment types (e.g. merkle roots) go here.
-}
-
-impl From<ECMHLiveObjectSetDigest> for CheckpointCommitment {
-    fn from(d: ECMHLiveObjectSetDigest) -> Self {
-        Self::ECMHLiveObjectSetDigest(d)
+impl Default for ECMHLiveObjectSetDigest {
+    fn default() -> Self {
+        Accumulator::default().digest().into()
     }
 }
 

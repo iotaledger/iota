@@ -191,8 +191,12 @@ impl Epoch {
         })?;
 
         let digest = commitments.into_iter().next().map(|commitment| {
-            let EpochCommitment::ECMHLiveObjectSetDigest(digest) = commitment;
-            Base58::encode(digest.digest.into_inner())
+            let EpochCommitment::EcmhLiveObjectSet { digest } = commitment else {
+                unimplemented!(
+                    "a new CheckpointCommitment enum variant was added and needs to be handled"
+                )
+            };
+            Base58::encode(digest.into_inner())
         });
 
         Ok(digest)

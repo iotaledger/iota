@@ -938,13 +938,15 @@ pub async fn download_formal_snapshot(
                 and for testnet, `--epoch` must be > 12.",
             );
         match commitment {
-            CheckpointCommitment::ECMHLiveObjectSetDigest(consensus_digest) => {
+            CheckpointCommitment::EcmhLiveObjectSet {
+                digest: consensus_digest,
+            } => {
                 let local_digest: ECMHLiveObjectSetDigest = root_accumulator.digest().into();
                 assert_eq!(
-                    *consensus_digest, local_digest,
+                    *consensus_digest, local_digest.digest,
                     "End of epoch {} root state digest {} does not match \
                     local root state hash {} computed from snapshot data",
-                    epoch, consensus_digest.digest, local_digest.digest,
+                    epoch, consensus_digest, local_digest.digest,
                 );
                 let progress_bar = m.add(
                     ProgressBar::new(1).with_style(
@@ -956,6 +958,9 @@ pub async fn download_formal_snapshot(
                 );
                 progress_bar.finish_with_message("Verification complete");
             }
+            _ => unimplemented!(
+                "a new CheckpointCommitment enum variant was added and needs to be handled"
+            ),
         };
     } else {
         m.println(
