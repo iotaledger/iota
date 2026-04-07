@@ -1017,19 +1017,22 @@ UnchangedSharedKind:
   ENUM:
     0:
       ReadOnlyRoot:
-        NEWTYPE:
-          TUPLE:
-            - U64
-            - TYPENAME: Digest
+        STRUCT:
+          - version: U64
+          - digest:
+              TYPENAME: Digest
     1:
       MutateDeleted:
-        NEWTYPE: U64
+        STRUCT:
+          - version: U64
     2:
       ReadDeleted:
-        NEWTYPE: U64
+        STRUCT:
+          - version: U64
     3:
       Cancelled:
-        NEWTYPE: U64
+        STRUCT:
+          - version: U64
     4:
       PerEpochConfig: UNIT
 Upgrade:
