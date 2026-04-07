@@ -900,7 +900,7 @@ SystemPackage:
 Transaction:
   ENUM:
     0:
-      "1":
+      V1:
         NEWTYPE:
           TYPENAME: TransactionV1
 TransactionEffects:
