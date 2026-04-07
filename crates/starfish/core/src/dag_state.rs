@@ -130,9 +130,9 @@ pub(crate) struct DagState {
     /// The genesis blocks
     genesis: BTreeMap<BlockRef, VerifiedBlock>,
 
-    /// Contains block headers kept in memory within the per-authority
-    /// retention window. Older headers may be evicted after flush since they
-    /// don't have a chance to be committed due to garbage collection.
+    /// Contains recent block headers within CACHED_ROUNDS from the last
+    /// traversed round per authority. Note: all uncommitted block headers
+    /// are kept in memory.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent verified transactions per authority. To access a
@@ -371,11 +371,7 @@ impl DagState {
         // Reload transactions from storage
         let transactions = self
             .store
-            .scan_transactions_by_author(
-                authority_index,
-                eviction_round + 1,
-                self.context.clone(),
-            )
+            .scan_transactions_by_author(authority_index, eviction_round + 1, self.context.clone())
             .expect("Database error");
         for txn in &transactions {
             self.update_transaction_metadata(txn, data_source);
@@ -1959,6 +1955,7 @@ impl DagState {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            // Take minimum between transaction_gc_round and eviction_round
             let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
 
             // Evict everything below split_key
@@ -2345,30 +2342,14 @@ impl DagState {
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
-        let last_round = self.latest_cached_round_for_authority(authority_index);
-        Self::gc_eviction_round(
-            last_round,
-            self.gc_round_for_last_commit(),
-            self.cached_rounds,
-        )
-    }
-
-    /// Calculates the last eviction round. Starfish runs with GC enabled on
-    /// every network, so eviction is bounded by the global GC round while
-    /// keeping a recent window per authority.
-    ///
-    /// The goal is to
-    /// keep at least `cached_rounds` of the latest blocks for the authority
-    /// while never evicting above the current global GC round.
-    fn gc_eviction_round(last_round: Round, gc_round: Round, cached_rounds: Round) -> Round {
-        gc_round.min(last_round.saturating_sub(cached_rounds))
-    }
-
-    fn latest_cached_round_for_authority(&self, authority_index: AuthorityIndex) -> Round {
-        self.recent_headers_refs_by_authority[authority_index]
+        let last_round = self.recent_headers_refs_by_authority[authority_index]
             .last()
             .map(|block_ref| block_ref.round)
-            .unwrap_or(GENESIS_ROUND)
+            .unwrap_or(GENESIS_ROUND);
+        // Keep at least cached_rounds of blocks, but never evict above the
+        // global GC round derived from the last commit.
+        self.gc_round_for_last_commit()
+            .min(last_round.saturating_sub(self.cached_rounds))
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
@@ -4053,11 +4034,9 @@ mod test {
 
         dag_state.flush();
 
-        let expected_eviction_round = DagState::gc_eviction_round(
-            last_accepted_round,
-            dag_state.gc_round_for_last_commit(),
-            CACHED_ROUNDS,
-        );
+        let expected_eviction_round = dag_state
+            .gc_round_for_last_commit()
+            .min(last_accepted_round.saturating_sub(CACHED_ROUNDS));
         assert_eq!(
             dag_state.evicted_rounds[authority_to_skip],
             expected_eviction_round
