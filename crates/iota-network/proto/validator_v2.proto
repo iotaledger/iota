@@ -14,6 +14,9 @@ service ValidatorV2 {
   // Submit a signed capability notification from a non-committee validator.
   rpc NotifyCapabilities(NotifyCapabilitiesRequest)
       returns (NotifyCapabilitiesResponse);
+
+  // Health check returning validator liveness and load metrics.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
 // Wraps one or more transactions (BCS-encoded payloads)
@@ -77,6 +80,14 @@ message RejectedStatus {
 // Transaction status has expired from the validator's cache.
 message ExpiredStatus {
   uint64 epoch = 1;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  uint64 num_inflight_execution_transactions = 1;
+  uint64 num_inflight_consensus_transactions = 2;
+  uint64 last_locally_built_checkpoint = 3;
 }
 
 message NotifyCapabilitiesRequest {

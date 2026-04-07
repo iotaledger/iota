@@ -580,6 +580,13 @@ where
         self.authority_client.notify_capabilities_v2(request).await
     }
 
+    pub async fn health_check_v2(
+        &self,
+        request: iota_types::messages_grpc::ValidatorHealthRequest,
+    ) -> Result<iota_types::messages_grpc::ValidatorHealthResponse, IotaError> {
+        self.authority_client.health_check_v2(request).await
+    }
+
     // --- ValidatorPeer wrappers ---
 
     pub async fn get_checkpoint_v2(

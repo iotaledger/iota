@@ -10,7 +10,7 @@ use iota_types::{
     messages_grpc::{
         ExecutedData, GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
         HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusQuery,
-        TxStatusUpdate,
+        TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     transaction::Transaction,
 };
@@ -272,6 +272,42 @@ impl From<HandleCapabilityNotificationResponseV1> for api::NotifyCapabilitiesRes
 impl From<api::NotifyCapabilitiesResponse> for HandleCapabilityNotificationResponseV1 {
     fn from(_value: api::NotifyCapabilitiesResponse) -> Self {
         Self { _unused: false }
+    }
+}
+
+// --- HealthCheckRequest ↔ ValidatorHealthRequest ---
+
+impl From<ValidatorHealthRequest> for api::HealthCheckRequest {
+    fn from(_value: ValidatorHealthRequest) -> Self {
+        Self {}
+    }
+}
+
+impl From<api::HealthCheckRequest> for ValidatorHealthRequest {
+    fn from(_value: api::HealthCheckRequest) -> Self {
+        Self {}
+    }
+}
+
+// --- HealthCheckResponse ↔ ValidatorHealthResponse ---
+
+impl From<ValidatorHealthResponse> for api::HealthCheckResponse {
+    fn from(value: ValidatorHealthResponse) -> Self {
+        Self {
+            num_inflight_execution_transactions: value.num_inflight_execution_transactions,
+            num_inflight_consensus_transactions: value.num_inflight_consensus_transactions,
+            last_locally_built_checkpoint: value.last_locally_built_checkpoint,
+        }
+    }
+}
+
+impl From<api::HealthCheckResponse> for ValidatorHealthResponse {
+    fn from(value: api::HealthCheckResponse) -> Self {
+        Self {
+            num_inflight_execution_transactions: value.num_inflight_execution_transactions,
+            num_inflight_consensus_transactions: value.num_inflight_consensus_transactions,
+            last_locally_built_checkpoint: value.last_locally_built_checkpoint,
+        }
     }
 }
 

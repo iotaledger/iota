@@ -4,12 +4,9 @@
 use std::sync::Arc;
 
 use futures::future::Either;
-use iota_network::{
-    api::{
-        GetTxStatusRequest, NotifyCapabilitiesRequest, NotifyCapabilitiesResponse, SubmitTxRequest,
-        TxStatus, ValidatorV2,
-    },
-    tonic::{Request, Response, Status},
+use iota_network::api::{
+    GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
+    NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
 use iota_types::{
     digests::TransactionDigest,
@@ -27,6 +24,7 @@ use iota_types::{
     transaction::Transaction,
 };
 use tokio_stream::wrappers::ReceiverStream;
+use tonic::{Request, Response, Status};
 
 /// Maximum number of transactions allowed in a single `submit_tx` request.
 const MAX_TRANSACTIONS_PER_SUBMIT: usize = 256;
@@ -502,6 +500,35 @@ impl ValidatorService {
             Weight::one(),
         ))
     }
+
+    fn health_check_impl(
+        &self,
+        _request: iota_types::messages_grpc::ValidatorHealthRequest,
+    ) -> Result<(iota_types::messages_grpc::ValidatorHealthResponse, Weight), tonic::Status> {
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        let last_locally_built_checkpoint = epoch_store
+            .last_built_checkpoint_summary()
+            .ok()
+            .flatten()
+            .map(|(seq, _)| seq)
+            .unwrap_or(0);
+
+        Ok((
+            iota_types::messages_grpc::ValidatorHealthResponse {
+                num_inflight_execution_transactions: self
+                    .state
+                    .transaction_manager()
+                    .inflight_queue_len()
+                    as u64,
+                num_inflight_consensus_transactions: self
+                    .consensus_adapter
+                    .num_inflight_transactions(),
+                last_locally_built_checkpoint,
+            },
+            Weight::zero(),
+        ))
+    }
 }
 
 #[async_trait::async_trait]
@@ -532,5 +559,13 @@ impl ValidatorV2 for ValidatorService {
     ) -> Result<Response<NotifyCapabilitiesResponse>, Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_unary(ip, self.notify_capabilities_impl(req).await)
+    }
+
+    async fn health_check(
+        &self,
+        request: Request<HealthCheckRequest>,
+    ) -> Result<Response<HealthCheckResponse>, Status> {
+        let (req, ip) = self.pre_handle(request).await?;
+        self.post_handle_unary(ip, self.health_check_impl(req))
     }
 }

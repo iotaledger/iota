@@ -11,6 +11,7 @@ use iota_types::{
     messages_grpc::{
         GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
         HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusUpdate,
+        ValidatorHealthRequest, ValidatorHealthResponse,
     },
 };
 use tonic::IntoRequest;
@@ -38,6 +39,12 @@ pub trait ValidatorV2API {
         &self,
         request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
+
+    /// Health check via the V2 endpoint.
+    async fn health_check_v2(
+        &self,
+        request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError>;
 }
 
 #[async_trait]
@@ -86,6 +93,20 @@ impl ValidatorV2API for NetworkAuthorityClient {
         let response = self
             .v2_client()?
             .notify_capabilities(proto_request)
+            .await
+            .map_err(IotaError::from)?;
+
+        Ok(response.into_inner().into())
+    }
+
+    async fn health_check_v2(
+        &self,
+        request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        let proto_request: iota_network::api::HealthCheckRequest = request.into();
+        let response = self
+            .v2_client()?
+            .health_check(proto_request)
             .await
             .map_err(IotaError::from)?;
 

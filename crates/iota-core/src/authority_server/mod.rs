@@ -16,10 +16,6 @@ use std::{
     time::SystemTime,
 };
 
-use iota_network::{
-    tonic,
-    tonic::metadata::{Ascii, MetadataValue},
-};
 use iota_types::{
     error::*,
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
@@ -124,7 +120,9 @@ impl ValidatorService {
                 }
             }
             ClientIdSource::XForwardedFor(num_hops) => {
-                let do_header_parse = |op: &MetadataValue<Ascii>| {
+                let do_header_parse = |op: &tonic::metadata::MetadataValue<
+                    tonic::metadata::Ascii,
+                >| {
                     match op.to_str() {
                         Ok(header_val) => {
                             let header_contents =

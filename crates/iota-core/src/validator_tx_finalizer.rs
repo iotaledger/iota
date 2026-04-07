@@ -383,6 +383,13 @@ mod tests {
         > {
             unimplemented!()
         }
+        async fn health_check_v2(
+            &self,
+            _request: iota_types::messages_grpc::ValidatorHealthRequest,
+        ) -> Result<iota_types::messages_grpc::ValidatorHealthResponse, iota_types::error::IotaError>
+        {
+            unimplemented!()
+        }
     }
 
     #[async_trait]

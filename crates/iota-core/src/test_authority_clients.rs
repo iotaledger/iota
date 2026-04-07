@@ -102,6 +102,12 @@ impl ValidatorV2API for LocalAuthorityClient {
     ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
+    async fn health_check_v2(
+        &self,
+        _request: iota_types::messages_grpc::ValidatorHealthRequest,
+    ) -> Result<iota_types::messages_grpc::ValidatorHealthResponse, IotaError> {
+        unimplemented!()
+    }
 }
 #[async_trait]
 impl ValidatorAPI for LocalAuthorityClient {
@@ -397,6 +403,12 @@ impl ValidatorV2API for MockAuthorityApi {
     ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
+    async fn health_check_v2(
+        &self,
+        _request: iota_types::messages_grpc::ValidatorHealthRequest,
+    ) -> Result<iota_types::messages_grpc::ValidatorHealthResponse, IotaError> {
+        unimplemented!()
+    }
 }
 #[async_trait]
 impl ValidatorAPI for MockAuthorityApi {
@@ -554,6 +566,12 @@ impl ValidatorV2API for HandleTransactionTestAuthorityClient {
         &self,
         _request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
     ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+    async fn health_check_v2(
+        &self,
+        _request: iota_types::messages_grpc::ValidatorHealthRequest,
+    ) -> Result<iota_types::messages_grpc::ValidatorHealthResponse, IotaError> {
         unimplemented!()
     }
 }
