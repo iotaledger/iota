@@ -344,9 +344,11 @@ pub(crate) struct StoredDeletedHistoryObject {
     pub checkpoint_sequence_number: i64,
 }
 
-/// Checkpointed objects table: exact copy of the `objects` table schema
-/// (minus `finalized_in_cp`), written only by the checkpoint ingestion
-/// pipeline. Used as the base table for backward diff consistent views.
+/// Snapshot of the `objects` table written exclusively by checkpoint ingestion.
+///
+/// Mirrors all columns of `objects` except `finalized_in_cp`. Used as the
+/// base table for backward-diff consistent views, avoiding race conditions
+/// with optimistic indexing.
 #[derive(Queryable, Selectable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = checkpointed_objects, primary_key(object_id))]
 pub struct StoredCheckpointedObject {

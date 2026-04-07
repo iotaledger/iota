@@ -25,3 +25,15 @@ CREATE INDEX checkpointed_objects_coin ON checkpointed_objects (owner_id, coin_t
 CREATE INDEX checkpointed_objects_package_module_name_full_type ON checkpointed_objects (object_type_package, object_type_module, object_type_name, object_type);
 CREATE INDEX checkpointed_objects_owner_package_module_name_full_type ON checkpointed_objects (owner_id, object_type_package, object_type_module, object_type_name, object_type);
 CREATE STATISTICS checkpointed_objects_type_stats (dependencies, mcv) ON object_type, object_type_package, object_type_module, object_type_name FROM checkpointed_objects;
+
+-- Create checkpointed_objects as a copy of objects.
+INSERT INTO checkpointed_objects (
+    object_id, object_version, object_digest, owner_type, owner_id,
+    object_type, object_type_package, object_type_module, object_type_name,
+    serialized_object, coin_type, coin_balance, df_kind
+)
+SELECT
+    object_id, object_version, object_digest, owner_type, owner_id,
+    object_type, object_type_package, object_type_module, object_type_name,
+    serialized_object, coin_type, coin_balance, df_kind
+FROM objects;
