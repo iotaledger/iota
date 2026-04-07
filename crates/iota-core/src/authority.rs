@@ -5820,6 +5820,16 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
             .try_get_object_by_key(&object_id, version)
     }
 
+    #[instrument(skip_all)]
+    async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        Ok(self
+            .get_object_cache_reader()
+            .multi_get_objects_by_key(object_keys))
+    }
+
     async fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
