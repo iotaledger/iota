@@ -1660,10 +1660,6 @@ impl AuthorityState {
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(protocol_config)?;
 
-        // Serialize the TransactionData for the auth context before decomposing.
-        let tx_data_bytes =
-            bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
-
         let (kind, signer, gas_data) = tx_data.execution_parts();
 
         let move_authenticators = certificate.move_authenticators();
@@ -1753,6 +1749,10 @@ impl AuthorityState {
                 .iter()
                 .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
                 .collect::<Vec<_>>();
+
+            // Serialize the TransactionData for the auth context.
+            let tx_data_bytes =
+                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
 
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
