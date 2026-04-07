@@ -9,7 +9,6 @@ edition = "2024.beta"
 [dependencies]
 MoveStdlib = { local = "../../../move-stdlib/" }
 
-
 [addresses]
 SamePkgAddr = "0xCAFE"
 std = "0x1"
