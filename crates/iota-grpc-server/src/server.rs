@@ -201,7 +201,17 @@ pub async fn start_grpc_server(
 
     // Add services and spawn the server, optionally wrapping with metrics layer
     let server_handle = if let Some(metrics) = metrics {
-        let mut layered_builder = server_builder.layer(GrpcMetricsLayer::new(Arc::new(metrics)));
+        // Build the allowlist of known gRPC service names so the metrics layer
+        // can label unrecognized/non-gRPC traffic under a single "SPAM" bucket instead
+        // of creating unbounded cardinality from arbitrary HTTP paths.
+        let service_names: &[&str] = &[
+            grpc_ledger_service::ledger_service_server::SERVICE_NAME,
+            grpc_tx_service::transaction_execution_service_server::SERVICE_NAME,
+            grpc_state_service::state_service_server::SERVICE_NAME,
+            grpc_move_package_service::move_package_service_server::SERVICE_NAME,
+        ];
+        let mut layered_builder =
+            server_builder.layer(GrpcMetricsLayer::new(Arc::new(metrics), service_names));
         build_and_spawn!(
             layered_builder,
             ledger_service,

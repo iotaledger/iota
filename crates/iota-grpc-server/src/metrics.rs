@@ -17,6 +17,8 @@ use prometheus::{
 use tonic::{Code, Status};
 use tower::{Layer, Service};
 
+const SPAM_LABEL: &str = "SPAM";
+
 const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
 ];
@@ -62,14 +64,31 @@ impl GrpcServerMetrics {
 }
 
 /// Tower [`Layer`] that adds gRPC request metrics to a service.
+///
+/// Only records per-method metrics for paths that belong to a known gRPC
+/// service. All other requests (e.g. non-gRPC HTTP traffic that reaches
+/// the port) are aggregated under a single `"SPAM"` label to prevent
+/// unbounded cardinality.
 #[derive(Clone)]
 pub struct GrpcMetricsLayer {
     metrics: Arc<GrpcServerMetrics>,
+    /// Known gRPC service path prefixes (e.g.
+    /// `"/iota.grpc.v1.ledger_service.LedgerService/"`).
+    /// A request path that starts with one of these is considered a known
+    /// method; everything else is labelled `"SPAM"`.
+    service_prefixes: Arc<Vec<String>>,
 }
 
 impl GrpcMetricsLayer {
-    pub fn new(metrics: Arc<GrpcServerMetrics>) -> Self {
-        Self { metrics }
+    pub fn new(metrics: Arc<GrpcServerMetrics>, service_names: &[&str]) -> Self {
+        let service_prefixes = service_names
+            .iter()
+            .map(|name| format!("/{name}/"))
+            .collect();
+        Self {
+            metrics,
+            service_prefixes: Arc::new(service_prefixes),
+        }
     }
 }
 
@@ -80,6 +99,7 @@ impl<S> Layer<S> for GrpcMetricsLayer {
         GrpcMetricsService {
             inner,
             metrics: self.metrics.clone(),
+            service_prefixes: self.service_prefixes.clone(),
         }
     }
 }
@@ -89,6 +109,7 @@ impl<S> Layer<S> for GrpcMetricsLayer {
 pub struct GrpcMetricsService<S> {
     inner: S,
     metrics: Arc<GrpcServerMetrics>,
+    service_prefixes: Arc<Vec<String>>,
 }
 
 impl<S, ReqBody, ResBody> Service<http::Request<ReqBody>> for GrpcMetricsService<S>
@@ -107,7 +128,16 @@ where
     }
 
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
-        let method = req.uri().path().to_owned();
+        let raw_path = req.uri().path();
+        let method = if self
+            .service_prefixes
+            .iter()
+            .any(|prefix| raw_path.starts_with(prefix))
+        {
+            raw_path.to_owned()
+        } else {
+            SPAM_LABEL.to_owned()
+        };
         let metrics = self.metrics.clone();
 
         metrics
