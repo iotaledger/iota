@@ -8,7 +8,7 @@ use iota_types::{
     error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     messages_grpc::{
-        GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+        ExecutedData, GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
         HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusQuery,
         TxStatusUpdate,
     },
@@ -42,6 +42,34 @@ impl TryFrom<api::TxDigest> for TransactionDigest {
                 error: format!("TxDigest: {}", e),
             }
         })
+    }
+}
+
+// --- TxStatusQuery (domain → proto) ---
+
+impl TryFrom<TxStatusQuery> for api::TxStatusQuery {
+    type Error = IotaError;
+
+    fn try_from(value: TxStatusQuery) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_digest: Some(value.transaction_digest.try_into()?),
+            include_details: value.include_details,
+        })
+    }
+}
+
+// --- GetTxStatusRequest (domain → proto) ---
+
+impl TryFrom<GetTxStatusRequest> for api::GetTxStatusRequest {
+    type Error = IotaError;
+
+    fn try_from(value: GetTxStatusRequest) -> Result<Self, Self::Error> {
+        let queries = value
+            .queries
+            .into_iter()
+            .map(api::TxStatusQuery::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { queries })
     }
 }
 
@@ -149,6 +177,64 @@ impl TryFrom<(TransactionDigest, TxStatusUpdate)> for api::TxStatus {
     }
 }
 
+// --- TxStatus (proto → domain) ---
+
+impl TryFrom<StatusDetail> for TxStatusUpdate {
+    type Error = IotaError;
+
+    fn try_from(value: StatusDetail) -> Result<Self, Self::Error> {
+        let kind = value.kind.ok_or_else(|| IotaError::TransactionSerialization {
+            error: "StatusDetail.kind is None".to_string(),
+        })?;
+        match kind {
+            Kind::Submitted(_) => Ok(TxStatusUpdate::Submitted),
+            Kind::Executed(e) => {
+                let effects_digest =
+                    bcs_deserialize(&e.effects_digest, "ExecutedStatus.effects_digest")?;
+                let details = e
+                    .details
+                    .as_ref()
+                    .map(|d| bcs_deserialize::<ExecutedData>(d, "ExecutedStatus.details"))
+                    .transpose()?
+                    .map(Box::new);
+                Ok(TxStatusUpdate::Executed {
+                    effects_digest,
+                    details,
+                })
+            }
+            Kind::Rejected(r) => {
+                let error = r
+                    .error
+                    .as_ref()
+                    .map(|e| bcs_deserialize(e, "RejectedStatus.error"))
+                    .transpose()?;
+                Ok(TxStatusUpdate::Rejected { error })
+            }
+            Kind::Expired(e) => Ok(TxStatusUpdate::Expired { epoch: e.epoch }),
+        }
+    }
+}
+
+impl TryFrom<api::TxStatus> for (TransactionDigest, TxStatusUpdate) {
+    type Error = IotaError;
+
+    fn try_from(value: api::TxStatus) -> Result<Self, Self::Error> {
+        let digest = value
+            .tx_digest
+            .ok_or_else(|| IotaError::TransactionSerialization {
+                error: "TxStatus.tx_digest is None".to_string(),
+            })?
+            .try_into()?;
+        let status = value
+            .status
+            .ok_or_else(|| IotaError::TransactionSerialization {
+                error: "TxStatus.status is None".to_string(),
+            })?
+            .try_into()?;
+        Ok((digest, status))
+    }
+}
+
 // --- NotifyCapabilitiesRequest ↔ HandleCapabilityNotificationRequestV1 ---
 
 impl TryFrom<HandleCapabilityNotificationRequestV1> for api::NotifyCapabilitiesRequest {
@@ -195,7 +281,7 @@ mod tests {
         messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusUpdate},
     };
 
-    use crate::api::{self, status_detail::Kind};
+    use crate::api::{self, SubmittedStatus, status_detail::Kind};
 
     // --- TxDigest round-trip ---
 
@@ -337,5 +423,135 @@ mod tests {
             Some(Kind::Expired(e)) => assert_eq!(e.epoch, 42),
             _ => panic!("expected Expired"),
         }
+    }
+
+    // --- TxStatusQuery domain → proto round-trip ---
+
+    #[test]
+    fn tx_status_query_round_trip() {
+        use iota_types::messages_grpc::TxStatusQuery;
+        let query = TxStatusQuery {
+            transaction_digest: TransactionDigest::random(),
+            include_details: true,
+        };
+        let proto: api::TxStatusQuery = query.clone().try_into().unwrap();
+        let back: TxStatusQuery = proto.try_into().unwrap();
+        assert_eq!(query.transaction_digest, back.transaction_digest);
+        assert_eq!(query.include_details, back.include_details);
+    }
+
+    // --- GetTxStatusRequest domain → proto round-trip ---
+
+    #[test]
+    fn get_tx_status_request_round_trip() {
+        use iota_types::messages_grpc::TxStatusQuery;
+        let request = GetTxStatusRequest {
+            queries: vec![
+                TxStatusQuery {
+                    transaction_digest: TransactionDigest::random(),
+                    include_details: true,
+                },
+                TxStatusQuery {
+                    transaction_digest: TransactionDigest::random(),
+                    include_details: false,
+                },
+            ],
+        };
+        let proto: api::GetTxStatusRequest = request.clone().try_into().unwrap();
+        let back: GetTxStatusRequest = proto.try_into().unwrap();
+        assert_eq!(request.queries.len(), back.queries.len());
+        for (a, b) in request.queries.iter().zip(back.queries.iter()) {
+            assert_eq!(a.transaction_digest, b.transaction_digest);
+            assert_eq!(a.include_details, b.include_details);
+        }
+    }
+
+    // --- TxStatus proto → domain round-trips ---
+
+    #[test]
+    fn tx_status_submitted_round_trip() {
+        let digest = TransactionDigest::random();
+        let update = TxStatusUpdate::Submitted;
+        let proto: api::TxStatus = (digest, update).try_into().unwrap();
+        let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
+            proto.try_into().unwrap();
+        assert_eq!(digest, back_digest);
+        assert!(matches!(back_update, TxStatusUpdate::Submitted));
+    }
+
+    #[test]
+    fn tx_status_executed_round_trip() {
+        let digest = TransactionDigest::random();
+        let effects_digest = TransactionEffectsDigest::random();
+        let update = TxStatusUpdate::Executed {
+            effects_digest,
+            details: None,
+        };
+        let proto: api::TxStatus = (digest, update).try_into().unwrap();
+        let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
+            proto.try_into().unwrap();
+        assert_eq!(digest, back_digest);
+        match back_update {
+            TxStatusUpdate::Executed {
+                effects_digest: ed,
+                details,
+            } => {
+                assert_eq!(effects_digest, ed);
+                assert!(details.is_none());
+            }
+            _ => panic!("expected Executed"),
+        }
+    }
+
+    #[test]
+    fn tx_status_rejected_round_trip() {
+        let digest = TransactionDigest::random();
+        let update = TxStatusUpdate::Rejected {
+            error: Some(IotaError::TransactionSerialization {
+                error: "test".to_string(),
+            }),
+        };
+        let proto: api::TxStatus = (digest, update).try_into().unwrap();
+        let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
+            proto.try_into().unwrap();
+        assert_eq!(digest, back_digest);
+        assert!(matches!(back_update, TxStatusUpdate::Rejected { error: Some(_) }));
+    }
+
+    #[test]
+    fn tx_status_expired_round_trip() {
+        let digest = TransactionDigest::random();
+        let update = TxStatusUpdate::Expired { epoch: 99 };
+        let proto: api::TxStatus = (digest, update).try_into().unwrap();
+        let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
+            proto.try_into().unwrap();
+        assert_eq!(digest, back_digest);
+        match back_update {
+            TxStatusUpdate::Expired { epoch } => assert_eq!(epoch, 99),
+            _ => panic!("expected Expired"),
+        }
+    }
+
+    #[test]
+    fn tx_status_missing_digest_is_error() {
+        let proto = api::TxStatus {
+            tx_digest: None,
+            status: Some(api::StatusDetail {
+                kind: Some(Kind::Submitted(SubmittedStatus {})),
+            }),
+        };
+        let result = <(TransactionDigest, TxStatusUpdate)>::try_from(proto);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn tx_status_missing_status_is_error() {
+        let digest = TransactionDigest::random();
+        let proto = api::TxStatus {
+            tx_digest: Some(digest.try_into().unwrap()),
+            status: None,
+        };
+        let result = <(TransactionDigest, TxStatusUpdate)>::try_from(proto);
+        assert!(result.is_err());
     }
 }
