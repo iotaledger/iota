@@ -342,21 +342,12 @@ impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for IotaBitmap {
     }
 }
 
-// Deserializes a RoaringBitmap, ensuring entries are unique and sorted.
+// Deserializes a RoaringBitmap.
 // NOTE: roaring 0.11+ validates container key ordering in deserialize_from(),
 // so bitmaps with unsorted/duplicate container keys are already rejected at the
-// deserialization level. The explicit dedup below is kept as defense-in-depth.
+// deserialization level.
 fn deserialize_iota_bitmap(bytes: &[u8]) -> std::io::Result<roaring::RoaringBitmap> {
-    let orig_bitmap = roaring::RoaringBitmap::deserialize_from(bytes)?;
-    // Ensure there are no duplicated entries in the bitmap.
-    let mut seen = std::collections::BTreeSet::new();
-    let mut new_bitmap = roaring::RoaringBitmap::new();
-    for v in orig_bitmap.iter() {
-        if seen.insert(v) {
-            new_bitmap.insert(v);
-        }
-    }
-    Ok(new_bitmap)
+    roaring::RoaringBitmap::deserialize_from(bytes)
 }
 
 #[cfg(test)]
