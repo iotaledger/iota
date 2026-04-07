@@ -135,12 +135,7 @@ where
                 .with_label_values(&[SPAM_LABEL, "Unimplemented"])
                 .inc();
 
-            let response = http::Response::builder()
-                .status(http::StatusCode::OK)
-                .header("content-type", "application/grpc")
-                .header("grpc-status", "12") // Unimplemented
-                .body(ResBody::default())
-                .unwrap();
+            let response = Status::unimplemented("").into_http();
 
             return GrpcMetricsFuture::Rejected {
                 response: Some(response),
