@@ -6,9 +6,9 @@ use std::sync::Arc;
 
 use diesel::prelude::*;
 use iota_json_rpc_types::{
-    BalanceChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
-    ObjectChange,
+    BalanceChange, IotaEvent, IotaExecutionStatus, IotaTransactionBlock,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_types::{
@@ -383,6 +383,11 @@ impl StoredTransaction {
             Default::default()
         };
 
+        let errors = match effects.as_ref().map(|e| e.status()) {
+            Some(IotaExecutionStatus::Failure { error }) => vec![error.clone()],
+            _ => vec![],
+        };
+
         Ok(IotaTransactionBlockResponse {
             digest: tx_digest,
             transaction,
@@ -394,7 +399,7 @@ impl StoredTransaction {
             timestamp_ms,
             checkpoint,
             confirmed_local_execution: None,
-            errors: vec![],
+            errors,
             raw_effects,
         })
     }
