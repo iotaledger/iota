@@ -33,7 +33,10 @@ use crate::{
         utils::{PRIMITIVE_TYPE_COMPLETIONS, completion_item},
     },
     context::Context,
-    symbols::{self, CursorContext, PrecomputedPkgInfo, SymbolicatorRunner, Symbols},
+    symbols::{
+        self, Symbols, compilation::PrecomputedPkgInfo, cursor::CursorContext,
+        runner::SymbolicatorRunner,
+    },
 };
 
 mod dot;

@@ -35,9 +35,12 @@ use crate::{
         import_insertion_info, mod_defs,
     },
     symbols::{
-        AutoImportInsertionInfo, ChainCompletionKind, ChainInfo, CursorContext, DefInfo, FunType,
-        MemberDef, MemberDefInfo, ModuleDefs, Symbols, VariantInfo, expansion_mod_ident_to_map_key,
+        Symbols,
+        cursor::{ChainCompletionKind, ChainInfo, CursorContext},
+        def_info::{DefInfo, FunType, VariantInfo},
+        mod_defs::{AutoImportInsertionInfo, MemberDef, MemberDefInfo, ModuleDefs},
     },
+    utils::expansion_mod_ident_to_map_key,
 };
 
 /// Describes kind of the name access chain component.
