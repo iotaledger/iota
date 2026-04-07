@@ -45,7 +45,7 @@ use iota_core::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
     },
     authority_client::NetworkAuthorityClient,
-    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    authority_server::{ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks},
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
         SubmitCheckpointToConsensus,
@@ -1169,6 +1169,10 @@ impl IotaNode {
             &validator_registry,
         );
 
+        // Create pre-consensus soft locks and wire to consensus adapter.
+        let soft_locks = Arc::new(PreConsensusSoftLocks::new());
+        consensus_adapter.set_soft_locks(soft_locks.clone());
+
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
 
@@ -1177,6 +1181,7 @@ impl IotaNode {
             state.clone(),
             consensus_adapter.clone(),
             &validator_registry,
+            soft_locks.clone(),
         )
         .await?;
 
@@ -1257,6 +1262,26 @@ impl IotaNode {
         let low_scoring_authorities = Arc::new(ArcSwap::new(Arc::new(HashMap::new())));
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
+
+        // Wire pre-consensus soft locks to the epoch store so that dropped
+        // transactions can release their locks promptly. Clear stale locks
+        // from the previous epoch and spawn a background sweep task.
+        if let Some(soft_locks) = consensus_adapter.soft_locks() {
+            soft_locks.clear();
+            epoch_store.set_soft_locks(soft_locks.clone());
+
+            // Spawn a background task that periodically sweeps expired soft
+            // locks as a safety net for transactions lost by consensus.
+            let sweep_locks = soft_locks;
+            let sweep_epoch = epoch_store.clone();
+            spawn_monitored_task!(sweep_epoch.within_alive_epoch(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(10));
+                loop {
+                    interval.tick().await;
+                    sweep_locks.sweep_expired();
+                }
+            }));
+        }
 
         let randomness_manager = RandomnessManager::try_new(
             Arc::downgrade(&epoch_store),
@@ -1396,6 +1421,7 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
+        soft_locks: Arc<PreConsensusSoftLocks>,
     ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state,
@@ -1404,6 +1430,7 @@ impl IotaNode {
             TrafficControllerMetrics::new(prometheus_registry),
             config.policy_config.clone(),
             config.firewall_config.clone(),
+            soft_locks,
         );
 
         let mut server_conf = iota_network_stack::config::Config::new();

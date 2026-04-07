@@ -7,6 +7,7 @@ mod validator_peer;
 mod validator_v2;
 
 pub mod metrics;
+pub mod soft_lock;
 #[cfg(test)]
 mod test_server;
 
@@ -28,6 +29,7 @@ use tracing::error;
 
 use crate::{
     authority::AuthorityState,
+    authority_server::soft_lock::PreConsensusSoftLocks,
     consensus_adapter::ConsensusAdapter,
     traffic_controller::{
         TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
@@ -46,6 +48,7 @@ pub struct ValidatorService {
     metrics: Arc<ValidatorServiceMetrics>,
     traffic_controller: Option<Arc<TrafficController>>,
     client_id_source: Option<ClientIdSource>,
+    soft_locks: Arc<PreConsensusSoftLocks>,
 }
 
 impl ValidatorService {
@@ -57,6 +60,7 @@ impl ValidatorService {
         traffic_controller_metrics: TrafficControllerMetrics,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
+        soft_locks: Arc<PreConsensusSoftLocks>,
     ) -> Self {
         Self {
             state,
@@ -70,6 +74,7 @@ impl ValidatorService {
                 ))
             }),
             client_id_source: policy_config.map(|policy| policy.client_id_source),
+            soft_locks,
         }
     }
 
@@ -84,6 +89,7 @@ impl ValidatorService {
             metrics,
             traffic_controller: None,
             client_id_source: None,
+            soft_locks: Arc::new(PreConsensusSoftLocks::new()),
         }
     }
 

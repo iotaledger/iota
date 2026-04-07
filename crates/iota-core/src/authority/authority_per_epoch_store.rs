@@ -658,6 +658,11 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
+    /// Pre-consensus soft locks for owned objects (pcool / white-flag flow).
+    /// Set during validator setup; `None` when not in white-flag mode.
+    soft_locks:
+        OnceCell<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>>,
+
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,
 
@@ -1148,6 +1153,7 @@ impl AuthorityPerEpochStore {
             running_root_notify_read: NotifyRead::new(),
             executed_digests_notify_read: NotifyRead::new(),
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
+            soft_locks: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
             mutex_table: MutexTable::new(MUTEX_TABLE_SIZE),
@@ -1661,6 +1667,17 @@ impl AuthorityPerEpochStore {
         self.dropped_tx_status_cache
             .notify_read_dropped(digest)
             .await
+    }
+
+    /// Sets the pre-consensus soft lock table. Called once during validator
+    /// setup when white-flag flow is enabled.
+    pub fn set_soft_locks(
+        &self,
+        soft_locks: Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>,
+    ) {
+        self.soft_locks
+            .set(soft_locks)
+            .expect("soft_locks should only be set once");
     }
 
     pub async fn notify_read_running_root(
@@ -3177,6 +3194,13 @@ impl AuthorityPerEpochStore {
             //  consistent view
             if !dropped.is_empty() {
                 self.dropped_tx_status_cache.insert_and_notify(&dropped);
+                // Release pre-consensus soft locks for dropped transactions so
+                // the owned objects can be reused in new transactions.
+                if let Some(soft_locks) = self.soft_locks.get() {
+                    for (digest, _) in &dropped {
+                        soft_locks.release(digest);
+                    }
+                }
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
