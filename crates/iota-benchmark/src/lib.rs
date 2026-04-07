@@ -149,6 +149,9 @@ impl ExecutionEffects {
                         error:
                             ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
                                 ..
+                            }
+                            | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                                ..
                             },
                         ..
                     } => true,
