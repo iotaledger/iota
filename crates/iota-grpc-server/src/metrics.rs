@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashSet,
     future::Future,
     pin::Pin,
     sync::Arc,
@@ -65,29 +66,25 @@ impl GrpcServerMetrics {
 
 /// Tower [`Layer`] that adds gRPC request metrics to a service.
 ///
-/// Only records per-method metrics for paths that belong to a known gRPC
-/// service. All other requests (e.g. non-gRPC HTTP traffic that reaches
+/// Only records per-method metrics for paths that exactly match a known gRPC
+/// method. All other requests (e.g. non-gRPC HTTP traffic that reaches
 /// the port) are aggregated under a single `"SPAM"` label to prevent
 /// unbounded cardinality.
 #[derive(Clone)]
 pub struct GrpcMetricsLayer {
     metrics: Arc<GrpcServerMetrics>,
-    /// Known gRPC service path prefixes (e.g.
-    /// `"/iota.grpc.v1.ledger_service.LedgerService/"`).
-    /// A request path that starts with one of these is considered a known
-    /// method; everything else is labelled `"SPAM"`.
-    service_prefixes: Arc<Vec<String>>,
+    /// Exact set of known gRPC method paths (e.g.
+    /// `"/iota.grpc.v1.ledger_service.LedgerService/GetCheckpoint"`).
+    /// Only paths in this set get their own metric label; everything else
+    /// is labelled `"SPAM"`.
+    known_methods: Arc<HashSet<&'static str>>,
 }
 
 impl GrpcMetricsLayer {
-    pub fn new(metrics: Arc<GrpcServerMetrics>, service_names: &[&str]) -> Self {
-        let service_prefixes = service_names
-            .iter()
-            .map(|name| format!("/{name}/"))
-            .collect();
+    pub fn new(metrics: Arc<GrpcServerMetrics>, method_paths: &[&'static str]) -> Self {
         Self {
             metrics,
-            service_prefixes: Arc::new(service_prefixes),
+            known_methods: Arc::new(method_paths.iter().copied().collect()),
         }
     }
 }
@@ -99,7 +96,7 @@ impl<S> Layer<S> for GrpcMetricsLayer {
         GrpcMetricsService {
             inner,
             metrics: self.metrics.clone(),
-            service_prefixes: self.service_prefixes.clone(),
+            known_methods: self.known_methods.clone(),
         }
     }
 }
@@ -109,7 +106,7 @@ impl<S> Layer<S> for GrpcMetricsLayer {
 pub struct GrpcMetricsService<S> {
     inner: S,
     metrics: Arc<GrpcServerMetrics>,
-    service_prefixes: Arc<Vec<String>>,
+    known_methods: Arc<HashSet<&'static str>>,
 }
 
 impl<S, ReqBody, ResBody> Service<http::Request<ReqBody>> for GrpcMetricsService<S>
@@ -129,11 +126,7 @@ where
 
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
         let raw_path = req.uri().path();
-        let method = if self
-            .service_prefixes
-            .iter()
-            .any(|prefix| raw_path.starts_with(prefix))
-        {
+        let method = if self.known_methods.contains(raw_path) {
             raw_path.to_owned()
         } else {
             SPAM_LABEL.to_owned()
