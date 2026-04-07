@@ -660,8 +660,7 @@ pub struct AuthorityPerEpochStore {
 
     /// Pre-consensus soft locks for owned objects (pcool / white-flag flow).
     /// Set during validator setup; `None` when not in white-flag mode.
-    soft_locks:
-        OnceCell<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>>,
+    soft_locks: OnceCell<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>>,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
     epoch_alive_notify: NotifyOnce,

@@ -45,7 +45,9 @@ use iota_core::{
         AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
     },
     authority_client::NetworkAuthorityClient,
-    authority_server::{ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks},
+    authority_server::{
+        ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks,
+    },
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
         SubmitCheckpointToConsensus,
