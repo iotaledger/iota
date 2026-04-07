@@ -18,6 +18,7 @@ use fastcrypto::{
     // secp256r1::Secp256r1PublicKey,
     traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
 };
+use iota_sdk_crypto::{Verifier, ed25519::Ed25519VerifyingKey, multisig::MultisigVerifier};
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
     MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
@@ -106,10 +107,12 @@ impl AuthenticatorTrait for MultiSig {
         let mut hasher = DefaultHash::default();
         hasher.update(message);
         let digest = hasher.finalize().digest;
+        let verifier = MultisigVerifier::new();
+
         // Verify each signature against its corresponding signature scheme and public
         // key. TODO: further optimization can be done because multiple Ed25519
         // signatures can be batch verified.
-        for (sig, i) in self.signatures().iter().zip(as_indices(self.bitmap)?) {
+        for (sig, i) in self.signatures().iter().zip(as_indices(self.bitmap())?) {
             // let (subsig_pubkey, weight) =
             let member =
                 self.committee()
@@ -118,81 +121,71 @@ impl AuthenticatorTrait for MultiSig {
                     .ok_or(IotaError::InvalidSignature {
                         error: "Invalid public keys index".to_string(),
                     })?;
+
+            if verify_params.additional_multisig_checks
+                && member.public_key().scheme() != sig.scheme()
+            {
+                return Err(IotaError::InvalidSignature {
+                    error: format!(
+                        "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
+                        member.public_key().encode_base64(),
+                        IotaAddress::from(member.public_key())
+                    ),
+                });
+            }
+
+            // verifier
+            //     .verify_member_signature(&digest, member.public_key(), sig)
+            //     .unwrap();
+
             let res = match sig {
                 MultisigMemberSignature::Ed25519(s) => {
-                    if verify_params.additional_multisig_checks
-                        && !matches!(subsig_pubkey.scheme(), SignatureScheme::ED25519)
-                    {
-                        return Err(IotaError::InvalidSignature {
-                            error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
-                                subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
-                            ),
-                        });
-                    }
-                    let pk =
-                        Ed25519PublicKey::from_bytes(subsig_pubkey.as_ref()).map_err(|_| {
-                            IotaError::InvalidSignature {
-                                error: "Invalid ed25519 pk bytes".to_string(),
-                            }
-                        })?;
-                    pk.verify(
-                        &digest,
-                        &s.try_into().map_err(|_| IotaError::InvalidSignature {
-                            error: "Invalid ed25519 signature bytes".to_string(),
-                        })?,
-                    )
+                    // let pk = member.public_key().as_ed25519_opt().ok_or(
+                    //     IotaError::InvalidSignature {
+                    //         error: "Invalid ed25519 pk type".to_string(),
+                    //     },
+                    // )?;
+                    // let verifier = Ed25519VerifyingKey::new(pk).unwrap();
+                    // // let pk =
+                    // //     Ed25519PublicKey::from_bytes(subsig_pubkey.
+                    // as_ref()).map_err(|_| { //
+                    // IotaError::InvalidSignature { //
+                    // error: "Invalid ed25519 pk bytes".to_string(),
+                    // //         }
+                    // //     })?;
+                    // verifier.verify(&digest, s)
                 }
                 MultisigMemberSignature::Secp256k1(s) => {
-                    if verify_params.additional_multisig_checks
-                        && !matches!(subsig_pubkey.scheme(), SignatureScheme::Secp256k1)
-                    {
-                        return Err(IotaError::InvalidSignature {
-                            error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
-                                subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
-                            ),
-                        });
-                    }
-                    let pk =
-                        Secp256k1PublicKey::from_bytes(subsig_pubkey.as_ref()).map_err(|_| {
-                            IotaError::InvalidSignature {
-                                error: "Invalid k1 pk bytes".to_string(),
-                            }
-                        })?;
-                    pk.verify(
-                        &digest,
-                        &s.try_into().map_err(|_| IotaError::InvalidSignature {
-                            error: "Invalid k1 signature bytes".to_string(),
-                        })?,
-                    )
+                    // let pk =
+                    //     Secp256k1PublicKey::from_bytes(subsig_pubkey.
+                    // as_ref()).map_err(|_| {
+                    //         IotaError::InvalidSignature {
+                    //             error: "Invalid k1 pk bytes".to_string(),
+                    //         }
+                    //     })?;
+                    // pk.verify(
+                    //     &digest,
+                    //     &s.try_into().map_err(|_| IotaError::InvalidSignature
+                    // {         error: "Invalid k1
+                    // signature bytes".to_string(),
+                    //     })?,
+                    // )
                 }
                 MultisigMemberSignature::Secp256r1(s) => {
-                    if verify_params.additional_multisig_checks
-                        && !matches!(subsig_pubkey.scheme(), SignatureScheme::Secp256r1)
-                    {
-                        return Err(IotaError::InvalidSignature {
-                            error: format!(
-                                "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
-                                subsig_pubkey.encode_base64(),
-                                IotaAddress::from(subsig_pubkey)
-                            ),
-                        });
-                    }
-                    let pk =
-                        Secp256r1PublicKey::from_bytes(subsig_pubkey.as_ref()).map_err(|_| {
-                            IotaError::InvalidSignature {
-                                error: "Invalid r1 pk bytes".to_string(),
-                            }
-                        })?;
-                    pk.verify(
-                        &digest,
-                        &s.try_into().map_err(|_| IotaError::InvalidSignature {
-                            error: "Invalid r1 signature bytes".to_string(),
-                        })?,
-                    )
+                    // let pk =
+                    //     Secp256r1PublicKey::from_bytes(subsig_pubkey.
+                    // as_ref()).map_err(|_| {
+                    //         IotaError::InvalidSignature {
+                    //             error: "Invalid r1 pk bytes".to_string(),
+                    //         }
+                    //     })?;
+                    // pk.verify(
+                    //     &digest,
+                    //     &s.try_into().map_err(|_| IotaError::InvalidSignature
+                    // {         error: "Invalid r1
+                    // signature bytes".to_string(),
+                    //     })?,
+                    // )
                 }
                 #[allow(deprecated)]
                 CompressedSignature::ZkLoginDeprecated => {

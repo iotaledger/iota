@@ -62,7 +62,8 @@ iota-macros.workspace = true
 iota-network-stack.workspace = true
 iota-proc-macros.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types = { workspace = true, features = ["rand", "serde", "hash"] }
+iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1"] }
+iota-sdk-types = { workspace = true, features = ["rand"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
