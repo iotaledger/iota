@@ -39,6 +39,7 @@ use iota_types::{
     committee::{Committee, EpochId},
     crypto::AuthorityStrongQuorumSignInfo,
     effects::{CertifiedTransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    execution_status::ExecutionFailureStatus,
     gas::GasCostSummary,
     gas_coin::GasCoin,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
@@ -135,6 +136,31 @@ impl ExecutionEffects {
             }
             ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
                 iota_tx_effects.status().is_ok()
+            }
+        }
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        match self {
+            ExecutionEffects::CertifiedTransactionEffects(effects, ..) => {
+                match effects.data().status() {
+                    iota_types::execution_status::ExecutionStatus::Success => false,
+                    iota_types::execution_status::ExecutionStatus::Failure {
+                        error:
+                            ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestion {
+                                ..
+                            }
+                            | ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                                ..
+                            },
+                        ..
+                    } => true,
+                    _ => false,
+                }
+            }
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                let status = format!("{}", iota_tx_effects.status());
+                status.contains("ExecutionCancelledDueToSharedObjectCongestion")
             }
         }
     }
