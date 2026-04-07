@@ -3995,7 +3995,7 @@ mod test {
             .collect::<Vec<_>>();
 
         let total_rounds = 2 * (CACHED_ROUNDS + GC_DEPTH);
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder
             .layers(1..=total_rounds)
             .authorities(active_authorities)
