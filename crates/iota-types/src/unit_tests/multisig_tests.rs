@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
+// TODO move tests to SDK?
+use std::{str::FromStr, sync::Arc};
 
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};

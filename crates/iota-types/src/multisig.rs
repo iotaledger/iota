@@ -7,21 +7,20 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
+use std::sync::Arc;
 
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
-    ed25519::Ed25519PublicKey,
-    encoding::{Base64, Encoding},
+    // ed25519::Ed25519PublicKey,
     error::FastCryptoError,
     hash::HashFunction,
-    secp256k1::Secp256k1PublicKey,
-    secp256r1::Secp256r1PublicKey,
+    // secp256k1::Secp256k1PublicKey,
+    // secp256r1::Secp256r1PublicKey,
     traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
 };
-use iota_sdk_types::crypto::IntentMessage;
-pub use iota_sdk_types::{
-    MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
-    MultisigMember, MultisigMemberSignature,
+pub use iota_sdk_types::crypto::{
+    BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
+    MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -33,15 +32,23 @@ use crate::{
     error::IotaError,
     passkey_authenticator::PasskeyAuthenticator,
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+use iota_sdk_types::{SignatureScheme as SkdSignatureScheme, crypto::IntentMessage};
+use serde::Serialize;
+
+use crate::{
+    base_types::{EpochId, IotaAddress},
+    crypto::{CompressedSignature, DefaultHash, SignatureScheme},
+    digests::ZKLoginInputsDigest,
+    error::IotaError,
+    signature::{AuthenticatorTrait, VerifyParams},
+    signature_verification::VerifiedDigestCache,
+    zk_login_authenticator::ZkLoginAuthenticator,
 };
 
 #[cfg(test)]
 #[path = "unit_tests/multisig_tests.rs"]
 mod multisig_tests;
 
-pub type WeightUnit = u8;
-pub type ThresholdUnit = u16;
-pub type BitmapUnit = u16;
 pub const MAX_SIGNER_IN_MULTISIG: usize = 10;
 pub const MAX_BITMAP_VALUE: BitmapUnit = 0b1111111111;
 
@@ -86,7 +93,9 @@ impl AuthenticatorTrait for MultiSig {
             });
         }
 
-        if self.has_passkey_sigs() && !verify_params.accept_passkey_in_multisig {
+        if self.has_scheme_signatures(SkdSignatureScheme::PasskeyAuthenticator)
+            && !verify_params.accept_passkey_in_multisig
+        {
             return Err(IotaError::InvalidSignature {
                 error: "Passkey sig not supported inside multisig".to_string(),
             });
@@ -101,7 +110,8 @@ impl AuthenticatorTrait for MultiSig {
         // key. TODO: further optimization can be done because multiple Ed25519
         // signatures can be batch verified.
         for (sig, i) in self.signatures().iter().zip(as_indices(self.bitmap)?) {
-            let (subsig_pubkey, weight) =
+            // let (subsig_pubkey, weight) =
+            let member =
                 self.committee()
                     .members()
                     .get(i as usize)
@@ -263,22 +273,8 @@ impl MultiSig {
         Ok(self.to_owned())
     }
 
-    pub fn get_pk(&self) -> &MultiSigPublicKey {
-        &self.multisig_pk
-    }
-
-    pub fn get_sigs(&self) -> &[CompressedSignature] {
-        &self.sigs
-    }
-
     pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {
         as_indices(self.bitmap)
-    }
-
-    pub fn has_passkey_sigs(&self) -> bool {
-        self.sigs
-            .iter()
-            .any(|s| matches!(s, CompressedSignature::Passkey(_)))
     }
 }
 
