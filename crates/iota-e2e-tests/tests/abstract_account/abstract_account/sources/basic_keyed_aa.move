@@ -72,6 +72,28 @@ public fun authenticate_secp256r1(
     );
 }
 
+/// Ed25519 signature authenticator that verifies the signature against
+/// `auth_ctx.signed_tx_bytes()` (instead of `ctx.digest()`), and asserts
+/// the structural invariants of `tx_data_bytes`, `intent_tx_data_bytes`,
+/// and `signed_tx_bytes`.
+public fun authenticate_ed25519_via_signed_tx_bytes(
+    signature: &vector<u8>,
+    public_key: &vector<u8>,
+    auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    let signed = auth_ctx.signed_tx_bytes();
+
+    // signed_tx_bytes is a 32-byte blake2b256 hash.
+    assert!(signed.length() == 32, 14);
+
+    // Verify ed25519 signature against signed_tx_bytes from AuthContext.
+    assert!(
+        iota::ed25519::ed25519_verify(&decode(*signature), public_key, &signed),
+        EEd25519VerificationFailed,
+    );
+}
+
 // === View Functions ===
 
 // === Admin Functions ===
