@@ -6,35 +6,36 @@ import type {
     IotaTransactionBlockResponse,
     MoveCallIotaTransaction,
 } from '@iota/iota-sdk/client';
-import { TIMELOCK_MODULE } from '../..';
+import {
+    TIMELOCK_MODULE,
+    TIMELOCK_PACKAGE_ID,
+    TIMELOCKED_STAKING_MODULE,
+    TIMELOCKED_STAKING_PACKAGE_ID,
+} from '../..';
 
 export function isUnlockTimelockedObjectTransaction(
     transaction: IotaTransactionBlockResponse['transaction'],
 ): boolean {
     if (!transaction || transaction.data.transaction.kind !== 'ProgrammableTransaction')
         return false;
-    const moveCallTxs = transaction.data.transaction.transactions
-        .filter(isMoveCall)
-        .filter((tx) => tx.MoveCall.module === TIMELOCK_MODULE);
-    const isUnlockTimelockedObject =
-        moveCallTxs.length > 0 && moveCallTxs.every((tx) => tx.MoveCall.function === 'unlock');
-    return isUnlockTimelockedObject;
-}
+    const moveCallTxs = transaction.data.transaction.transactions.filter(isMoveCall);
 
-// Detects a collect all vesting transaction
-export function isCollectAllTimelocksTransaction(
-    transaction: IotaTransactionBlockResponse['transaction'],
-): boolean {
-    if (!transaction || transaction.data.transaction.kind !== 'ProgrammableTransaction')
-        return false;
-    const moveCallTxs = transaction.data.transaction.transactions
-        .filter(isMoveCall)
-        .filter((tx) => tx.MoveCall.module === TIMELOCK_MODULE);
-    // At least one call to unlock_with_clock
-    const isCollectAll =
-        moveCallTxs.length > 0 &&
-        moveCallTxs.some((tx) => tx.MoveCall.function === 'unlock_with_clock');
-    return isCollectAll;
+    // Unlock timelocked objects: function unlock or unlock_with_clock
+    const hasTimelockUnlock = moveCallTxs.some(
+        (tx) =>
+            tx.MoveCall.package === TIMELOCK_PACKAGE_ID &&
+            tx.MoveCall.module === TIMELOCK_MODULE &&
+            (tx.MoveCall.function === 'unlock' || tx.MoveCall.function === 'unlock_with_clock'),
+    );
+
+    // Re-stake timelocked objects
+    const hasTimelockedStaking = moveCallTxs.some(
+        (tx) =>
+            tx.MoveCall.package === TIMELOCKED_STAKING_PACKAGE_ID &&
+            tx.MoveCall.module === TIMELOCKED_STAKING_MODULE,
+    );
+
+    return hasTimelockUnlock || hasTimelockedStaking;
 }
 
 function isMoveCall(

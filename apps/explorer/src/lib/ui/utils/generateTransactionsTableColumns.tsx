@@ -5,9 +5,9 @@
 import {
     getTotalGasUsed,
     getTransactionAction,
-    TransactionAction,
     TransactionIcon,
     TransactionIconSize,
+    ACTION_LABELS,
 } from '@iota/core';
 import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -22,19 +22,6 @@ import {
     NANOS_PER_IOTA,
 } from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
-
-const ACTION_LABELS: Record<TransactionAction, string> = {
-    [TransactionAction.Send]: 'Sent',
-    [TransactionAction.Receive]: 'Received',
-    [TransactionAction.Transaction]: 'Transaction',
-    [TransactionAction.Staked]: 'Stake',
-    [TransactionAction.Unstaked]: 'Unstake',
-    [TransactionAction.TimelockedStaked]: 'Stake Vesting',
-    [TransactionAction.TimelockedUnstaked]: 'Unstake Vesting',
-    [TransactionAction.TimelockedCollect]: 'Collect Vesting',
-    [TransactionAction.Migration]: 'Migration',
-    [TransactionAction.PersonalMessage]: 'Personal Message',
-};
 
 /**
  * Generate table columns renderers for the transactions data.
@@ -65,10 +52,10 @@ export function generateTransactionsTableColumns(
                                         size={TransactionIconSize.Small}
                                     />
                                     <div className="flex flex-col">
-                                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
+                                        <span className="dark:text-iota-neutral-60 text-label-lg text-iota-neutral-40">
                                             {isSuccess ? ACTION_LABELS[action] : 'Failed'}
                                         </span>
-                                        <span className="text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
+                                        <span className="dark:text-iota-primary-80 text-body-sm text-iota-primary-30">
                                             {formatDigest(digest)}
                                         </span>
                                     </div>

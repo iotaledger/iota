@@ -5,11 +5,20 @@
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionAction } from '../../interfaces';
 import { checkIfIsTimelockedStaking } from '../stake';
-import {
-    isMigrationTransaction,
-    isUnlockTimelockedObjectTransaction,
-    isCollectAllTimelocksTransaction,
-} from '..';
+import { isMigrationTransaction, isUnlockTimelockedObjectTransaction } from '..';
+
+export const ACTION_LABELS: Record<TransactionAction, string> = {
+    [TransactionAction.Send]: 'Sent',
+    [TransactionAction.Receive]: 'Received',
+    [TransactionAction.Transaction]: 'Transaction',
+    [TransactionAction.Staked]: 'Stake',
+    [TransactionAction.Unstaked]: 'Unstake',
+    [TransactionAction.TimelockedStaked]: 'Stake Vesting',
+    [TransactionAction.TimelockedUnstaked]: 'Unstake Vesting',
+    [TransactionAction.TimelockedCollect]: 'Collect Vesting',
+    [TransactionAction.Migration]: 'Migration',
+    [TransactionAction.PersonalMessage]: 'Personal Message',
+};
 
 export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
@@ -24,13 +33,19 @@ export const getTransactionAction = (
     } = checkIfIsTimelockedStaking(transaction?.events);
 
     const isMigration = isMigrationTransaction(transaction.transaction);
-    const isCollectAllVesting = isCollectAllTimelocksTransaction(transaction.transaction);
-    const isSupplyIncreaseVestingCollect =
-        !isCollectAllVesting && isUnlockTimelockedObjectTransaction(transaction.transaction);
+    const isVestingCollect = isUnlockTimelockedObjectTransaction(transaction.transaction);
+
+    // A coin transfer only has coin-related commands (no contract calls, publish or upgrade)
+    const programmableTx = transaction.transaction?.data.transaction;
+    const isCoinTransfer =
+        programmableTx?.kind === 'ProgrammableTransaction' &&
+        !programmableTx.transactions.some(
+            (cmd) => 'MoveCall' in cmd || 'Publish' in cmd || 'Upgrade' in cmd,
+        );
 
     if (isMigration) {
         return TransactionAction.Migration;
-    } else if (isCollectAllVesting || isSupplyIncreaseVestingCollect) {
+    } else if (isVestingCollect) {
         return TransactionAction.TimelockedCollect;
     } else if (stakeTypeTransaction) {
         return isTimelockedStaking ? TransactionAction.TimelockedStaked : TransactionAction.Staked;
@@ -38,7 +53,7 @@ export const getTransactionAction = (
         return isTimelockedUnstaking
             ? TransactionAction.TimelockedUnstaked
             : TransactionAction.Unstaked;
-    } else if (sender) {
+    } else if (sender && isCoinTransfer) {
         return sender === currentAddress ? TransactionAction.Send : TransactionAction.Receive;
     } else {
         return TransactionAction.Transaction;
