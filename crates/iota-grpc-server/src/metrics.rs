@@ -114,11 +114,11 @@ where
     S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>> + Clone + Send + 'static,
     S::Future: Send + 'static,
     ReqBody: Send + 'static,
-    ResBody: Send + 'static,
+    ResBody: Default + Send + 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = GrpcMetricsFuture<S::Future>;
+    type Future = GrpcMetricsFuture<S::Future, S::Response>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
@@ -126,11 +126,28 @@ where
 
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
         let raw_path = req.uri().path();
-        let method = if self.known_methods.contains(raw_path) {
-            raw_path.to_owned()
-        } else {
-            SPAM_LABEL.to_owned()
-        };
+
+        if !self.known_methods.contains(raw_path) {
+            // SPAM: bump counter and reject immediately without calling the
+            // inner service, avoiding unnecessary router work.
+            self.metrics
+                .num_requests
+                .with_label_values(&[SPAM_LABEL, "Unimplemented"])
+                .inc();
+
+            let response = http::Response::builder()
+                .status(http::StatusCode::OK)
+                .header("content-type", "application/grpc")
+                .header("grpc-status", "12") // Unimplemented
+                .body(ResBody::default())
+                .unwrap();
+
+            return GrpcMetricsFuture::Rejected {
+                response: Some(response),
+            };
+        }
+
+        let method = raw_path.to_owned();
         let metrics = self.metrics.clone();
 
         metrics
@@ -147,7 +164,7 @@ where
 
         let future = self.inner.call(req);
 
-        GrpcMetricsFuture {
+        GrpcMetricsFuture::Inner {
             inner: future,
             guard,
         }
@@ -190,45 +207,57 @@ impl Drop for InFlightGuard {
 }
 
 pin_project! {
-    /// Future that records metrics when the inner response completes.
+    /// Future returned by [`GrpcMetricsService`].
     ///
-    /// On normal completion, records the gRPC status from the response headers.
-    /// If dropped before completion (client disconnect), the [`InFlightGuard`]
-    /// records a `"canceled"` status.
-    pub struct GrpcMetricsFuture<F> {
-        #[pin]
-        inner: F,
-        guard: InFlightGuard,
+    /// - `Inner`: a real request forwarded to the inner service. Records the
+    ///   gRPC status from the response headers on completion. If dropped before
+    ///   completion (client disconnect), the [`InFlightGuard`] records a
+    ///   `"canceled"` status.
+    /// - `Rejected`: a SPAM request that was rejected immediately. Returns the
+    ///   pre-built response on first poll.
+    #[project = GrpcMetricsFutureProj]
+    pub enum GrpcMetricsFuture<F, Res> {
+        Inner {
+            #[pin]
+            inner: F,
+            guard: InFlightGuard,
+        },
+        Rejected {
+            response: Option<Res>,
+        },
     }
 }
 
-impl<F, ResBody, E> Future for GrpcMetricsFuture<F>
+impl<F, ResBody, E> Future for GrpcMetricsFuture<F, http::Response<ResBody>>
 where
     F: Future<Output = Result<http::Response<ResBody>, E>>,
 {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        match self.project() {
+            GrpcMetricsFutureProj::Inner { inner, guard } => match inner.poll(cx) {
+                Poll::Ready(result) => {
+                    let status = match &result {
+                        Ok(response) => grpc_status_from_response(response),
+                        Err(_) => "transport_error",
+                    };
 
-        match this.inner.poll(cx) {
-            Poll::Ready(result) => {
-                let status = match &result {
-                    Ok(response) => grpc_status_from_response(response),
-                    Err(_) => "transport_error",
-                };
+                    guard
+                        .metrics
+                        .num_requests
+                        .with_label_values(&[guard.method.as_str(), status])
+                        .inc();
 
-                this.guard
-                    .metrics
-                    .num_requests
-                    .with_label_values(&[this.guard.method.as_str(), status])
-                    .inc();
+                    guard.completed = true;
 
-                this.guard.completed = true;
-
-                Poll::Ready(result)
+                    Poll::Ready(result)
+                }
+                Poll::Pending => Poll::Pending,
+            },
+            GrpcMetricsFutureProj::Rejected { response } => {
+                Poll::Ready(Ok(response.take().expect("polled after completion")))
             }
-            Poll::Pending => Poll::Pending,
         }
     }
 }
