@@ -336,8 +336,36 @@ mod tests {
         inject_fault: Arc<AtomicBool>,
     }
 
-    impl ValidatorPeerAPI for MockAuthorityClient {}
-    impl ValidatorV2API for MockAuthorityClient {}
+    #[async_trait]
+    impl ValidatorPeerAPI for MockAuthorityClient {
+        async fn get_checkpoint_v2(
+            &self,
+            _request: iota_types::messages_checkpoint::CheckpointRequest,
+        ) -> Result<iota_types::messages_checkpoint::CheckpointResponse, iota_types::error::IotaError> {
+            unimplemented!()
+        }
+    }
+    #[async_trait]
+    impl ValidatorV2API for MockAuthorityClient {
+        async fn submit_tx(
+            &self,
+            _request: iota_types::messages_grpc::SubmitTransactionsRequest,
+        ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, iota_types::error::IotaError> {
+            unimplemented!()
+        }
+        async fn get_tx_status(
+            &self,
+            _request: iota_types::messages_grpc::GetTxStatusRequest,
+        ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, iota_types::error::IotaError> {
+            unimplemented!()
+        }
+        async fn notify_capabilities_v2(
+            &self,
+            _request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
+        ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, iota_types::error::IotaError> {
+            unimplemented!()
+        }
+    }
 
     #[async_trait]
     impl ValidatorAPI for MockAuthorityClient {

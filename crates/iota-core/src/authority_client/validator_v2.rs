@@ -1,8 +1,93 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use async_trait::async_trait;
+use futures::StreamExt;
+use iota_types::{
+    digests::TransactionDigest,
+    error::IotaError,
+    messages_grpc::{
+        GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+        HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusUpdate,
+    },
+};
+
 use crate::authority_client::NetworkAuthorityClient;
 
-pub trait ValidatorV2API {}
+#[async_trait]
+pub trait ValidatorV2API {
+    /// Submit transactions and collect all streamed status updates.
+    async fn submit_tx(
+        &self,
+        request: SubmitTransactionsRequest,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
 
-impl ValidatorV2API for NetworkAuthorityClient {}
+    /// Query transaction status and collect all streamed status updates.
+    async fn get_tx_status(
+        &self,
+        request: GetTxStatusRequest,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
+
+    /// Notify capabilities via the V2 endpoint.
+    async fn notify_capabilities_v2(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
+}
+
+#[async_trait]
+impl ValidatorV2API for NetworkAuthorityClient {
+    async fn submit_tx(
+        &self,
+        request: SubmitTransactionsRequest,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let proto_request: iota_network::api::SubmitTxRequest = request.try_into()?;
+        let response = self
+            .v2_client()?
+            .submit_tx(proto_request)
+            .await
+            .map_err(IotaError::from)?;
+
+        collect_tx_status_stream(response.into_inner()).await
+    }
+
+    async fn get_tx_status(
+        &self,
+        request: GetTxStatusRequest,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        let proto_request: iota_network::api::GetTxStatusRequest = request.try_into()?;
+        let response = self
+            .v2_client()?
+            .get_tx_status(proto_request)
+            .await
+            .map_err(IotaError::from)?;
+
+        collect_tx_status_stream(response.into_inner()).await
+    }
+
+    async fn notify_capabilities_v2(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        let proto_request: iota_network::api::NotifyCapabilitiesRequest = request.try_into()?;
+        let response = self
+            .v2_client()?
+            .notify_capabilities(proto_request)
+            .await
+            .map_err(IotaError::from)?;
+
+        Ok(response.into_inner().into())
+    }
+}
+
+/// Collects all items from a `TxStatus` stream into a `Vec`.
+async fn collect_tx_status_stream(
+    mut stream: tonic::Streaming<iota_network::api::TxStatus>,
+) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+    let mut results = Vec::new();
+    while let Some(item) = stream.next().await {
+        let tx_status = item.map_err(IotaError::from)?;
+        results.push(tx_status.try_into()?);
+    }
+    Ok(results)
+}

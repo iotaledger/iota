@@ -4,11 +4,7 @@
 use std::{collections::BTreeMap, net::SocketAddr, time::Duration};
 
 use anyhow::anyhow;
-use iota_network::{
-    api::ValidatorClient,
-    tonic,
-    tonic::{metadata::KeyAndValueRef, transport::Channel},
-};
+use iota_network::api::{ValidatorClient, ValidatorPeerClient, ValidatorV2Client};
 use iota_network_stack::config::Config;
 use iota_types::{
     base_types::AuthorityName, committee::CommitteeWithNetworkMetadata, crypto::NetworkPublicKey,
@@ -26,7 +22,9 @@ pub mod validator_v2;
 /// A client for the network authority.
 #[derive(Clone)]
 pub struct NetworkAuthorityClient {
-    client: IotaResult<ValidatorClient<Channel>>,
+    client: IotaResult<ValidatorClient<tonic::transport::Channel>>,
+    v2_client: IotaResult<ValidatorV2Client<tonic::transport::Channel>>,
+    peer_client: IotaResult<ValidatorPeerClient<tonic::transport::Channel>>,
 }
 
 impl NetworkAuthorityClient {
@@ -55,28 +53,44 @@ impl NetworkAuthorityClient {
                 None,
             )
         });
-        let client: IotaResult<_> = iota_network_stack::client::connect_lazy(address, tls_config)
-            .map(ValidatorClient::new)
-            .map_err(|err| err.to_string().into());
-        Self { client }
+        let channel: IotaResult<tonic::transport::Channel> =
+            iota_network_stack::client::connect_lazy(address, tls_config)
+                .map_err(|err| err.to_string().into());
+        Self {
+            client: channel.clone().map(ValidatorClient::new),
+            v2_client: channel.clone().map(ValidatorV2Client::new),
+            peer_client: channel.map(ValidatorPeerClient::new),
+        }
     }
 
     /// Creates a new client with a `transport` channel.
-    pub fn new(channel: Channel) -> Self {
+    pub fn new(channel: tonic::transport::Channel) -> Self {
         Self {
-            client: Ok(ValidatorClient::new(channel)),
+            client: Ok(ValidatorClient::new(channel.clone())),
+            v2_client: Ok(ValidatorV2Client::new(channel.clone())),
+            peer_client: Ok(ValidatorPeerClient::new(channel)),
         }
     }
 
     /// Creates a new client with a lazy `transport` channel.
-    fn new_lazy(client: IotaResult<Channel>) -> Self {
+    fn new_lazy(channel: IotaResult<tonic::transport::Channel>) -> Self {
         Self {
-            client: client.map(ValidatorClient::new),
+            client: channel.clone().map(ValidatorClient::new),
+            v2_client: channel.clone().map(ValidatorV2Client::new),
+            peer_client: channel.map(ValidatorPeerClient::new),
         }
     }
 
-    fn client(&self) -> IotaResult<ValidatorClient<Channel>> {
+    fn client(&self) -> IotaResult<ValidatorClient<tonic::transport::Channel>> {
         self.client.clone()
+    }
+
+    fn v2_client(&self) -> IotaResult<ValidatorV2Client<tonic::transport::Channel>> {
+        self.v2_client.clone()
+    }
+
+    fn peer_client(&self) -> IotaResult<ValidatorPeerClient<tonic::transport::Channel>> {
+        self.peer_client.clone()
     }
 }
 
@@ -137,10 +151,10 @@ fn insert_metadata<T>(request: &mut tonic::Request<T>, client_addr: Option<Socke
         metadata
             .iter()
             .for_each(|key_and_value| match key_and_value {
-                KeyAndValueRef::Ascii(key, value) => {
+                tonic::metadata::KeyAndValueRef::Ascii(key, value) => {
                     request.metadata_mut().insert(key, value.clone());
                 }
-                KeyAndValueRef::Binary(key, value) => {
+                tonic::metadata::KeyAndValueRef::Binary(key, value) => {
                     request.metadata_mut().insert_bin(key, value.clone());
                 }
             });

@@ -59,8 +59,36 @@ pub struct LocalAuthorityClient {
     pub fault_config: LocalAuthorityClientFaultConfig,
 }
 
-impl ValidatorPeerAPI for LocalAuthorityClient {}
-impl ValidatorV2API for LocalAuthorityClient {}
+#[async_trait]
+impl ValidatorPeerAPI for LocalAuthorityClient {
+    async fn get_checkpoint_v2(
+        &self,
+        _request: iota_types::messages_checkpoint::CheckpointRequest,
+    ) -> Result<iota_types::messages_checkpoint::CheckpointResponse, IotaError> {
+        unimplemented!()
+    }
+}
+#[async_trait]
+impl ValidatorV2API for LocalAuthorityClient {
+    async fn submit_tx(
+        &self,
+        _request: iota_types::messages_grpc::SubmitTransactionsRequest,
+    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn get_tx_status(
+        &self,
+        _request: iota_types::messages_grpc::GetTxStatusRequest,
+    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn notify_capabilities_v2(
+        &self,
+        _request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
+    ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+}
 #[async_trait]
 impl ValidatorAPI for LocalAuthorityClient {
     async fn handle_transaction(
@@ -312,8 +340,36 @@ impl MockAuthorityApi {
     }
 }
 
-impl ValidatorPeerAPI for MockAuthorityApi {}
-impl ValidatorV2API for MockAuthorityApi {}
+#[async_trait]
+impl ValidatorPeerAPI for MockAuthorityApi {
+    async fn get_checkpoint_v2(
+        &self,
+        _request: iota_types::messages_checkpoint::CheckpointRequest,
+    ) -> Result<iota_types::messages_checkpoint::CheckpointResponse, IotaError> {
+        unimplemented!()
+    }
+}
+#[async_trait]
+impl ValidatorV2API for MockAuthorityApi {
+    async fn submit_tx(
+        &self,
+        _request: iota_types::messages_grpc::SubmitTransactionsRequest,
+    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn get_tx_status(
+        &self,
+        _request: iota_types::messages_grpc::GetTxStatusRequest,
+    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn notify_capabilities_v2(
+        &self,
+        _request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
+    ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+}
 #[async_trait]
 impl ValidatorAPI for MockAuthorityApi {
     /// Initiate a new transaction to an IOTA or Primary account.
@@ -429,8 +485,36 @@ pub struct HandleTransactionTestAuthorityClient {
     pub sleep_duration_before_responding: Option<Duration>,
 }
 
-impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {}
-impl ValidatorV2API for HandleTransactionTestAuthorityClient {}
+#[async_trait]
+impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {
+    async fn get_checkpoint_v2(
+        &self,
+        _request: iota_types::messages_checkpoint::CheckpointRequest,
+    ) -> Result<iota_types::messages_checkpoint::CheckpointResponse, IotaError> {
+        unimplemented!()
+    }
+}
+#[async_trait]
+impl ValidatorV2API for HandleTransactionTestAuthorityClient {
+    async fn submit_tx(
+        &self,
+        _request: iota_types::messages_grpc::SubmitTransactionsRequest,
+    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn get_tx_status(
+        &self,
+        _request: iota_types::messages_grpc::GetTxStatusRequest,
+    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn notify_capabilities_v2(
+        &self,
+        _request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
+    ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+}
 
 #[async_trait]
 impl ValidatorAPI for HandleTransactionTestAuthorityClient {
