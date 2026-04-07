@@ -20,12 +20,11 @@ use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        HandleCertificateRequestV1, HandleCertificateResponseV1,
-        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, HandleTransactionResponse,
+        ObjectInfoRequest, ObjectInfoResponse, SubmitTransactionsRequest,
+        SubmitTransactionsResponse, SystemStateRequest, TransactionInfoRequest,
+        TransactionInfoResponse, ValidatorHealthRequest, ValidatorHealthResponse,
+        WaitForEffectsRequest, WaitForEffectsResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -101,14 +100,6 @@ impl ValidatorAPI for LocalAuthorityClient {
         spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
             .await
             .unwrap()
-    }
-
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV1,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
-        unimplemented!()
     }
 
     async fn handle_object_info_request(
@@ -333,14 +324,6 @@ impl ValidatorAPI for MockAuthorityApi {
         unimplemented!()
     }
 
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV1,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
-        unimplemented!()
-    }
-
     /// Handle Object information requests .
     async fn handle_object_info_request(
         &self,
@@ -454,14 +437,6 @@ impl ValidatorAPI for HandleTransactionTestAuthorityClient {
             tokio::time::sleep(duration).await;
         }
         self.cert_resp_to_return.clone()
-    }
-
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV1,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
-        unimplemented!()
     }
 
     async fn handle_object_info_request(

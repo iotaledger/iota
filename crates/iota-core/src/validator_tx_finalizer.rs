@@ -306,12 +306,11 @@ mod tests {
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
             HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-            HandleCertificateRequestV1, HandleCertificateResponseV1,
-            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-            SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
-            TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-            ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+            HandleCertificateRequestV1, HandleCertificateResponseV1, HandleTransactionResponse,
+            ObjectInfoRequest, ObjectInfoResponse, SubmitTransactionsRequest,
+            SubmitTransactionsResponse, SystemStateRequest, TransactionInfoRequest,
+            TransactionInfoResponse, ValidatorHealthRequest, ValidatorHealthResponse,
+            WaitForEffectsRequest, WaitForEffectsResponse,
         },
         object::Object,
         transaction::{
@@ -388,14 +387,6 @@ mod tests {
                 output_objects: None,
                 auxiliary_data: None,
             })
-        }
-
-        async fn handle_soft_bundle_certificates_v1(
-            &self,
-            _request: HandleSoftBundleCertificatesRequestV1,
-            _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
-            unimplemented!()
         }
 
         async fn handle_object_info_request(

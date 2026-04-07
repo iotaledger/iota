@@ -13,12 +13,11 @@ use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        HandleCertificateRequestV1, HandleCertificateResponseV1,
-        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        HandleCertificateRequestV1, HandleCertificateResponseV1, HandleTransactionResponse,
+        ObjectInfoRequest, ObjectInfoResponse, SubmitTransactionsRequest,
+        SubmitTransactionsResponse, SystemStateRequest, TransactionInfoRequest,
+        TransactionInfoResponse, ValidatorHealthRequest, ValidatorHealthResponse,
+        WaitForEffectsRequest, WaitForEffectsResponse,
     },
     transaction::*,
 };
@@ -40,13 +39,6 @@ pub trait ValidatorAPI {
         request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<HandleCertificateResponseV1, IotaError>;
-
-    /// Execute a Soft Bundle with multiple certificates.
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        request: HandleSoftBundleCertificatesRequestV1,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError>;
 
     /// Handle Object information requests.
     async fn handle_object_info_request(
@@ -129,23 +121,6 @@ impl ValidatorAPI for NetworkAuthorityClient {
         let response = self
             .client()?
             .handle_certificate_v1(request)
-            .await
-            .map(tonic::Response::into_inner);
-
-        response.map_err(Into::into)
-    }
-
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        request: HandleSoftBundleCertificatesRequestV1,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
-        let mut request = request.into_request();
-        insert_metadata(&mut request, client_addr);
-
-        let response = self
-            .client()?
-            .handle_soft_bundle_certificates_v1(request)
             .await
             .map(tonic::Response::into_inner);
 

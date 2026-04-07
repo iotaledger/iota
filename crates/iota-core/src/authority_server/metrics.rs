@@ -18,9 +18,6 @@ pub struct ValidatorServiceMetrics {
     pub submit_certificate_consensus_latency: Histogram,
     pub handle_certificate_consensus_latency: Histogram,
     pub handle_certificate_non_consensus_latency: Histogram,
-    pub handle_soft_bundle_certificates_consensus_latency: Histogram,
-    pub handle_soft_bundle_certificates_count: Histogram,
-    pub handle_soft_bundle_certificates_size_bytes: Histogram,
     pub handle_capability_notification_latency: Histogram,
 
     pub num_rejected_tx_in_epoch_boundary: IntCounter,
@@ -91,27 +88,6 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-                .unwrap(),
-            handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
-                "validator_service_handle_soft_bundle_certificates_consensus_latency",
-                "Latency of handling a consensus soft bundle",
-                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-                .unwrap(),
-            handle_soft_bundle_certificates_count: register_histogram_with_registry!(
-                "validator_service_handle_soft_bundle_certificates_count",
-                "The number of certificates included in a soft bundle",
-                iota_metrics::COUNT_BUCKETS.to_vec(),
-                registry,
-            )
-                .unwrap(),
-            handle_soft_bundle_certificates_size_bytes: register_histogram_with_registry!(
-                "validator_service_handle_soft_bundle_certificates_size_bytes",
-                "The size of soft bundle in bytes",
-                iota_metrics::BYTES_BUCKETS.to_vec(),
                 registry,
             )
                 .unwrap(),

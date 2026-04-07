@@ -12,7 +12,7 @@ use iota_metrics::spawn_monitored_task;
 use iota_network::{api::Validator, tonic};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
-    error::{IotaError, UserInputError},
+    error::IotaError,
     fp_ensure,
     iota_system_state::IotaSystemState,
     message_envelope::Message,
@@ -21,12 +21,11 @@ use iota_types::{
     messages_grpc::{
         ExecutedData, HandleCapabilityNotificationRequestV1,
         HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
-        HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
-        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
+        HandleCertificateResponseV1, HandleTransactionResponse, ObjectInfoRequest,
         ObjectInfoResponse, SubmitCertificateResponse, SubmitTransactionResult, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     },
-    traffic_control::{ClientIdSource, Weight},
+    traffic_control::Weight,
     transaction::*,
 };
 use nonempty::{NonEmpty, nonempty};
@@ -175,31 +174,20 @@ impl ValidatorService {
             .iter()
             .any(|cert| cert.contains_shared_object());
 
-        let metrics = if certificates.len() == 1 {
-            if wait_for_effects {
-                if shared_object_tx {
-                    &self.metrics.handle_certificate_consensus_latency
-                } else {
-                    &self.metrics.handle_certificate_non_consensus_latency
-                }
+        let metrics = if wait_for_effects {
+            if shared_object_tx {
+                &self.metrics.handle_certificate_consensus_latency
             } else {
-                &self.metrics.submit_certificate_consensus_latency
+                &self.metrics.handle_certificate_non_consensus_latency
             }
         } else {
-            // `soft_bundle_validity_check` ensured that all certificates contain shared
-            // objects.
-            &self
-                .metrics
-                .handle_soft_bundle_certificates_consensus_latency
+            &self.metrics.submit_certificate_consensus_latency
         };
 
         let _metrics_guard = metrics.start_timer();
 
-        // 1) Check if the certificate is already executed. This is only needed when we
-        //    have only one certificate (not a soft bundle). When multiple certificates
-        //    are provided, we will either submit all of them or none of them to
-        //    consensus.
-        if certificates.len() == 1 {
+        // 1) Check if the certificate is already executed.
+        {
             let tx_digest = *certificates[0].digest();
 
             if let Some(signed_effects) = self
@@ -456,180 +444,6 @@ impl ValidatorService {
                     )
                     .remove(0),
                 ),
-                spam_weight,
-            )
-        })
-    }
-
-    async fn soft_bundle_validity_check(
-        &self,
-        certificates: &NonEmpty<CertifiedTransaction>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        total_size_bytes: u64,
-    ) -> Result<(), tonic::Status> {
-        let protocol_config = epoch_store.protocol_config();
-
-        // Enforce these checks per [SIP-19](https://github.com/sui-foundation/sips/blob/main/sips/sip-19.md):
-        // - All certs must access at least one shared object.
-        // - All certs must not be already executed.
-        // - All certs must have the same gas price.
-        // - Number of certs must not exceed the max allowed.
-        // - Total size of all certs must not exceed the max allowed.
-        fp_ensure!(
-            certificates.len() as u64 <= protocol_config.max_soft_bundle_size(),
-            IotaError::UserInput {
-                error: UserInputError::TooManyTransactionsInSoftBundle {
-                    limit: protocol_config.max_soft_bundle_size()
-                }
-            }
-            .into()
-        );
-
-        // We set the soft bundle max size to be half of the consensus max transactions
-        // in block size. We do this to account for serialization overheads and
-        // to ensure that the soft bundle is not too large when is attempted to be
-        // posted via consensus. Although half the block size is on the extreme
-        // side, it's should be good enough for now.
-        let soft_bundle_max_size_bytes =
-            protocol_config.consensus_max_transactions_in_block_bytes() / 2;
-        fp_ensure!(
-            total_size_bytes <= soft_bundle_max_size_bytes,
-            IotaError::UserInput {
-                error: UserInputError::SoftBundleTooLarge {
-                    size: total_size_bytes,
-                    limit: soft_bundle_max_size_bytes,
-                },
-            }
-            .into()
-        );
-
-        let mut gas_price = None;
-        for certificate in certificates {
-            let tx_digest = *certificate.digest();
-            fp_ensure!(
-                certificate.contains_shared_object(),
-                IotaError::UserInput {
-                    error: UserInputError::NoSharedObject { digest: tx_digest }
-                }
-                .into()
-            );
-            fp_ensure!(
-                !self.state.try_is_tx_already_executed(&tx_digest)?,
-                IotaError::UserInput {
-                    error: UserInputError::AlreadyExecuted { digest: tx_digest }
-                }
-                .into()
-            );
-            if let Some(gas) = gas_price {
-                fp_ensure!(
-                    gas == certificate.gas_price(),
-                    IotaError::UserInput {
-                        error: UserInputError::GasPriceMismatch {
-                            digest: tx_digest,
-                            expected: gas,
-                            actual: certificate.gas_price()
-                        }
-                    }
-                    .into()
-                );
-            } else {
-                gas_price = Some(certificate.gas_price());
-            }
-        }
-
-        // For Soft Bundle, if at this point we know at least one certificate has
-        // already been processed, reject the entire bundle.  Otherwise, submit
-        // all certificates in one request. This is not a strict check as there
-        // may be race conditions where one or more certificates are
-        // already being processed by another actor, and we could not know it.
-        fp_ensure!(
-            !epoch_store.is_any_tx_certs_consensus_message_processed(certificates.iter())?,
-            IotaError::UserInput {
-                error: UserInputError::CertificateAlreadyProcessed
-            }
-            .into()
-        );
-
-        Ok(())
-    }
-
-    async fn handle_soft_bundle_certificates_v1_impl(
-        &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
-    ) -> WrappedServiceResponse<HandleSoftBundleCertificatesResponseV1> {
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
-
-        // Reject if white flag flow is enabled - certificates are not used in white
-        // flag flow
-        fp_ensure!(
-            !epoch_store.protocol_config().enable_white_flag_flow(),
-            IotaError::UnsupportedFeature {
-                error: "handle_soft_bundle_certificates_v1 is disabled when white flag flow is enabled. Use batch submission via submit_transaction instead.".to_string()
-            }
-            .into()
-        );
-
-        let client_addr = if let Some(client_id_source) = &self.client_id_source {
-            self.get_client_ip_addr(&request, client_id_source)
-        } else {
-            self.get_client_ip_addr(&request, &ClientIdSource::SocketAddr)
-        };
-
-        let request = request.into_inner();
-
-        let certificates =
-            NonEmpty::from_vec(request.certificates).ok_or(IotaError::NoCertificateProvided)?;
-        let mut total_size_bytes = 0;
-        for certificate in &certificates {
-            // We need to check this first because we haven't verified the cert signature.
-            total_size_bytes += certificate
-                .validity_check(epoch_store.protocol_config(), epoch_store.epoch())?
-                as u64;
-        }
-
-        self.metrics
-            .handle_soft_bundle_certificates_count
-            .observe(certificates.len() as f64);
-
-        self.metrics
-            .handle_soft_bundle_certificates_size_bytes
-            .observe(total_size_bytes as f64);
-
-        // Now that individual certificates are valid, we check if the bundle is valid.
-        self.soft_bundle_validity_check(&certificates, &epoch_store, total_size_bytes)
-            .await?;
-
-        info!(
-            "Received Soft Bundle with {} certificates, from {}, tx digests are [{}], total size [{}]bytes",
-            certificates.len(),
-            client_addr
-                .map(|x| x.to_string())
-                .unwrap_or_else(|| "unknown".to_string()),
-            certificates
-                .iter()
-                .map(|x| x.digest().to_string())
-                .collect::<Vec<_>>()
-                .join(", "),
-            total_size_bytes
-        );
-
-        let span = error_span!("handle_soft_bundle_certificates_v1");
-        self.handle_certificates(
-            certificates,
-            request.include_events,
-            request.include_input_objects,
-            request.include_output_objects,
-            request.include_auxiliary_data,
-            &epoch_store,
-            request.wait_for_effects,
-        )
-        .instrument(span)
-        .await
-        .map(|(resp, spam_weight)| {
-            (
-                tonic::Response::new(HandleSoftBundleCertificatesResponseV1 {
-                    responses: resp.unwrap_or_default(),
-                }),
                 spam_weight,
             )
         })
@@ -1195,13 +1009,6 @@ impl Validator for ValidatorService {
         request: tonic::Request<HandleCertificateRequestV1>,
     ) -> Result<tonic::Response<HandleCertificateResponseV1>, tonic::Status> {
         handle_with_decoration!(self, handle_certificate_v1_impl, request)
-    }
-
-    async fn handle_soft_bundle_certificates_v1(
-        &self,
-        request: tonic::Request<HandleSoftBundleCertificatesRequestV1>,
-    ) -> Result<tonic::Response<HandleSoftBundleCertificatesResponseV1>, tonic::Status> {
-        handle_with_decoration!(self, handle_soft_bundle_certificates_v1_impl, request)
     }
 
     /// Submits a `CertifiedTransaction` request.

@@ -48,15 +48,6 @@ fn main() -> Result<()> {
         )
         .method(
             Method::builder()
-                .name("handle_soft_bundle_certificates_v1")
-                .route_name("SoftBundleCertifiedTransactionsV1")
-                .input_type("iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV1")
-                .output_type("iota_types::messages_grpc::HandleSoftBundleCertificatesResponseV1")
-                .codec_path(codec_path)
-                .build(),
-        )
-        .method(
-            Method::builder()
                 .name("submit_certificate")
                 .route_name("SubmitCertificate")
                 .input_type("iota_types::transaction::CertifiedTransaction")
