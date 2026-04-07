@@ -90,6 +90,79 @@ impl Transaction {
     }
 }
 
+/// Compact bitmask representing a subset of authorities.
+/// Supports up to 256 authorities (AuthorityIndex is u8).
+#[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct AuthoritySet([u64; 4]);
+
+impl AuthoritySet {
+    /// Creates an empty authority set.
+    pub fn new() -> Self {
+        Self([0; 4])
+    }
+
+    /// Inserts an authority into the set. Returns true if the authority was
+    /// not already present.
+    pub fn insert(&mut self, index: AuthorityIndex) -> bool {
+        let i = index.value();
+        let array_index = i / 64;
+        let bit_pos = i % 64;
+        let mask = 1u64 << bit_pos;
+        let already_present = (self.0[array_index] & mask) != 0;
+        self.0[array_index] |= mask;
+        !already_present
+    }
+
+    /// Returns true if the set contains the given authority.
+    pub fn contains(&self, index: AuthorityIndex) -> bool {
+        let i = index.value();
+        let array_index = i / 64;
+        let bit_pos = i % 64;
+        (self.0[array_index] & (1u64 << bit_pos)) != 0
+    }
+
+    /// Returns true if the set is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.iter().all(|&bits| bits == 0)
+    }
+
+    /// Returns the number of authorities in the set.
+    pub fn len(&self) -> usize {
+        self.0.iter().map(|bits| bits.count_ones() as usize).sum()
+    }
+
+    /// Iterates over the authority indices in the set, in ascending order.
+    pub fn iter(&self) -> impl Iterator<Item = AuthorityIndex> + '_ {
+        self.0.iter().enumerate().flat_map(|(array_index, &bits)| {
+            let base = array_index * 64;
+            BitIter(bits).map(move |bit| AuthorityIndex::from((base + bit) as u8))
+        })
+    }
+}
+
+impl fmt::Debug for AuthoritySet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let indices: Vec<_> = self.iter().collect();
+        write!(f, "AuthoritySet({indices:?})")
+    }
+}
+
+/// Iterator over set bits in a u64.
+struct BitIter(u64);
+
+impl Iterator for BitIter {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<usize> {
+        if self.0 == 0 {
+            return None;
+        }
+        let bit = self.0.trailing_zeros() as usize;
+        self.0 &= self.0 - 1;
+        Some(bit)
+    }
+}
+
 /// A block header includes references to previous round blocks and a commitment
 /// to transactions that the authority considers valid.
 /// Well behaved authorities produce at most one block header per round, but
@@ -97,6 +170,7 @@ impl Transaction {
 #[derive(Clone, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
 pub enum BlockHeader {
     V1(BlockHeaderV1),
+    V2(BlockHeaderV2),
 }
 
 pub trait BlockHeaderAPI {
@@ -109,6 +183,9 @@ pub trait BlockHeaderAPI {
     fn ancestors(&self) -> &[BlockRef];
     fn commit_votes(&self) -> &[CommitVote];
     fn transactions_commitment(&self) -> TransactionsCommitment;
+    fn strong_vote(&self) -> Option<AuthoritySet>;
+    fn is_strong_vote(&self) -> bool;
+    fn is_strong_blame(&self) -> bool;
 }
 
 #[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
@@ -255,60 +332,210 @@ impl BlockHeaderAPI for BlockHeaderV1 {
     fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transactions_commitment
     }
+
+    fn strong_vote(&self) -> Option<AuthoritySet> {
+        None
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        false
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
+pub struct BlockHeaderV2 {
+    epoch: Epoch,
+    round: Round,
+    author: AuthorityIndex,
+    timestamp_ms: BlockTimestampMs,
+    references: Vec<BlockRef>,
+    overlap_start_index: u8,
+    overlap_end_index: u8,
+    transactions_commitment: TransactionsCommitment,
+    commit_votes: Vec<CommitVote>,
+    strong_vote: Option<AuthoritySet>,
+}
+
+impl BlockHeaderV2 {
+    pub(crate) fn new(
+        epoch: Epoch,
+        round: Round,
+        author: AuthorityIndex,
+        timestamp_ms: BlockTimestampMs,
+        ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
+        commit_votes: Vec<CommitVote>,
+        transactions_commitment: TransactionsCommitment,
+        strong_vote: Option<AuthoritySet>,
+    ) -> BlockHeaderV2 {
+        let (references, overlap_start_index, overlap_end_index) =
+            BlockHeaderV1::compress_references(ancestors, acknowledgments);
+        Self {
+            epoch,
+            round,
+            author,
+            timestamp_ms,
+            references,
+            overlap_start_index,
+            overlap_end_index,
+            transactions_commitment,
+            commit_votes,
+            strong_vote,
+        }
+    }
+
+    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
+        Self {
+            epoch: context.committee.epoch(),
+            round: GENESIS_ROUND,
+            author,
+            timestamp_ms: context.epoch_start_timestamp_ms,
+            references: vec![],
+            overlap_start_index: 0,
+            overlap_end_index: 0,
+            commit_votes: vec![],
+            transactions_commitment: TransactionsCommitment::default(),
+            strong_vote: None,
+        }
+    }
+}
+
+impl BlockHeaderAPI for BlockHeaderV2 {
+    fn epoch(&self) -> Epoch {
+        self.epoch
+    }
+
+    fn round(&self) -> Round {
+        self.round
+    }
+
+    fn author(&self) -> AuthorityIndex {
+        self.author
+    }
+
+    fn slot(&self) -> Slot {
+        Slot::new(self.round, self.author)
+    }
+
+    fn acknowledgments(&self) -> &[BlockRef] {
+        &self.references[self.overlap_start_index as usize..]
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn ancestors(&self) -> &[BlockRef] {
+        &self.references[..self.overlap_end_index as usize]
+    }
+
+    fn commit_votes(&self) -> &[CommitVote] {
+        &self.commit_votes
+    }
+
+    fn transactions_commitment(&self) -> TransactionsCommitment {
+        self.transactions_commitment
+    }
+
+    fn strong_vote(&self) -> Option<AuthoritySet> {
+        self.strong_vote
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        self.strong_vote.is_some_and(|s| s.is_empty())
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        self.strong_vote.is_some_and(|s| !s.is_empty())
+    }
 }
 
 impl BlockHeaderAPI for BlockHeader {
     fn epoch(&self) -> Epoch {
         match self {
             BlockHeader::V1(header) => header.epoch(),
+            BlockHeader::V2(header) => header.epoch(),
         }
     }
 
     fn round(&self) -> Round {
         match self {
             BlockHeader::V1(header) => header.round(),
+            BlockHeader::V2(header) => header.round(),
         }
     }
 
     fn author(&self) -> AuthorityIndex {
         match self {
             BlockHeader::V1(header) => header.author(),
+            BlockHeader::V2(header) => header.author(),
         }
     }
 
     fn slot(&self) -> Slot {
         match self {
             BlockHeader::V1(header) => header.slot(),
+            BlockHeader::V2(header) => header.slot(),
         }
     }
 
     fn acknowledgments(&self) -> &[BlockRef] {
         match self {
             BlockHeader::V1(header) => header.acknowledgments(),
+            BlockHeader::V2(header) => header.acknowledgments(),
         }
     }
 
     fn timestamp_ms(&self) -> BlockTimestampMs {
         match self {
             BlockHeader::V1(header) => header.timestamp_ms(),
+            BlockHeader::V2(header) => header.timestamp_ms(),
         }
     }
 
     fn ancestors(&self) -> &[BlockRef] {
         match self {
             BlockHeader::V1(header) => header.ancestors(),
+            BlockHeader::V2(header) => header.ancestors(),
         }
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
         match self {
             BlockHeader::V1(header) => header.commit_votes(),
+            BlockHeader::V2(header) => header.commit_votes(),
         }
     }
 
     fn transactions_commitment(&self) -> TransactionsCommitment {
         match self {
             BlockHeader::V1(header) => header.transactions_commitment(),
+            BlockHeader::V2(header) => header.transactions_commitment(),
+        }
+    }
+
+    fn strong_vote(&self) -> Option<AuthoritySet> {
+        match self {
+            BlockHeader::V1(header) => header.strong_vote(),
+            BlockHeader::V2(header) => header.strong_vote(),
+        }
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        match self {
+            BlockHeader::V1(header) => header.is_strong_vote(),
+            BlockHeader::V2(header) => header.is_strong_vote(),
+        }
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        match self {
+            BlockHeader::V1(header) => header.is_strong_blame(),
+            BlockHeader::V2(header) => header.is_strong_blame(),
         }
     }
 }
@@ -316,6 +543,12 @@ impl BlockHeaderAPI for BlockHeader {
 impl From<BlockHeaderV1> for BlockHeader {
     fn from(header: BlockHeaderV1) -> Self {
         BlockHeader::V1(header)
+    }
+}
+
+impl From<BlockHeaderV2> for BlockHeader {
+    fn from(header: BlockHeaderV2) -> Self {
+        BlockHeader::V2(header)
     }
 }
 
@@ -1220,6 +1453,7 @@ pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
     acknowledgments: Vec<BlockRef>,
     block_header: BlockHeaderV1,
+    strong_vote: Option<AuthoritySet>,
 }
 
 impl TestBlockHeader {
@@ -1236,6 +1470,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1263,6 +1498,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1294,6 +1530,7 @@ impl TestBlockHeader {
             },
             ancestors: vec![],
             acknowledgments: vec![],
+            strong_vote: None,
         }
     }
 
@@ -1337,6 +1574,11 @@ impl TestBlockHeader {
         self
     }
 
+    pub fn set_strong_vote(mut self, strong_vote: Option<AuthoritySet>) -> Self {
+        self.strong_vote = strong_vote;
+        self
+    }
+
     pub fn build(mut self) -> BlockHeader {
         let (references, overlap_start_index, overlap_end_index) =
             BlockHeaderV1::compress_references(self.ancestors, self.acknowledgments);
@@ -1345,6 +1587,23 @@ impl TestBlockHeader {
         self.block_header.overlap_end_index = overlap_end_index;
 
         BlockHeader::V1(self.block_header)
+    }
+
+    pub fn build_v2(self) -> BlockHeader {
+        let (references, overlap_start_index, overlap_end_index) =
+            BlockHeaderV1::compress_references(self.ancestors, self.acknowledgments);
+        BlockHeader::V2(BlockHeaderV2 {
+            epoch: self.block_header.epoch,
+            round: self.block_header.round,
+            author: self.block_header.author,
+            timestamp_ms: self.block_header.timestamp_ms,
+            references,
+            overlap_start_index,
+            overlap_end_index,
+            transactions_commitment: self.block_header.transactions_commitment,
+            commit_votes: self.block_header.commit_votes,
+            strong_vote: self.strong_vote,
+        })
     }
 }
 
@@ -1357,10 +1616,13 @@ mod tests {
 
     use fastcrypto::error::FastCryptoError;
 
+    use starfish_config::AuthorityIndex;
+
     use crate::{
         BlockHeaderAPI,
         block_header::{
-            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+            AuthoritySet, BlockHeaderDigest, SignedBlockHeader, TestBlockHeader,
+            genesis_block_headers,
         },
         context::Context,
         error::ConsensusError,
@@ -1498,5 +1760,53 @@ mod tests {
         for ack in acknowledgments.iter() {
             assert!(compressed_acknowledgments.contains(ack));
         }
+    }
+
+    #[test]
+    fn test_authority_set_empty() {
+        let set = AuthoritySet::new();
+        assert!(set.is_empty());
+        assert_eq!(set.len(), 0);
+        assert_eq!(set.iter().count(), 0);
+    }
+
+    #[test]
+    fn test_authority_set_insert_and_contains() {
+        let mut set = AuthoritySet::new();
+        let idx = AuthorityIndex::new_for_test(5);
+
+        assert!(!set.contains(idx));
+        assert!(set.insert(idx));
+        assert!(set.contains(idx));
+        assert!(!set.insert(idx)); // duplicate
+        assert_eq!(set.len(), 1);
+    }
+
+    #[test]
+    fn test_authority_set_across_buckets() {
+        let mut set = AuthoritySet::new();
+        set.insert(AuthorityIndex::new_for_test(0));
+        set.insert(AuthorityIndex::new_for_test(63));
+        set.insert(AuthorityIndex::new_for_test(64));
+        set.insert(AuthorityIndex::new_for_test(127));
+        set.insert(AuthorityIndex::new_for_test(128));
+        set.insert(AuthorityIndex::new_for_test(255));
+
+        assert_eq!(set.len(), 6);
+        assert!(set.contains(AuthorityIndex::new_for_test(0)));
+        assert!(set.contains(AuthorityIndex::new_for_test(255)));
+        assert!(!set.contains(AuthorityIndex::new_for_test(1)));
+    }
+
+    #[test]
+    fn test_authority_set_iter_order() {
+        let mut set = AuthoritySet::new();
+        set.insert(AuthorityIndex::new_for_test(200));
+        set.insert(AuthorityIndex::new_for_test(3));
+        set.insert(AuthorityIndex::new_for_test(100));
+        set.insert(AuthorityIndex::new_for_test(65));
+
+        let indices: Vec<_> = set.iter().map(|i| i.value()).collect();
+        assert_eq!(indices, vec![3, 65, 100, 200]);
     }
 }

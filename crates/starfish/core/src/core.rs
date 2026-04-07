@@ -34,7 +34,8 @@ use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_sto
 use crate::{
     Transaction,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
+        GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
         VerifiedOwnShard, VerifiedTransactions,
     },
@@ -892,16 +893,31 @@ impl Core {
         });
 
         // Create the block and insert to storage.
-        let block_header = BlockHeader::V1(BlockHeaderV1::new(
-            self.context.committee.epoch(),
-            clock_round,
-            self.context.own_index,
-            now,
-            ancestors.iter().map(|b| b.reference()).collect(),
-            acknowledgments,
-            commit_votes,
-            transactions_commitment,
-        ));
+        let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
+        let block_header = if self.context.protocol_config.consensus_starfish_speed() {
+            BlockHeader::V2(BlockHeaderV2::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+                None, // strong_vote populated in later StarfishSpeed steps
+            ))
+        } else {
+            BlockHeader::V1(BlockHeaderV1::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+            ))
+        };
 
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
