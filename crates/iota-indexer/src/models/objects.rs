@@ -17,7 +17,9 @@ use serde::de::DeserializeOwned;
 
 use crate::{
     errors::IndexerError,
-    schema::{checkpointed_objects, objects, objects_history, objects_snapshot},
+    schema::{
+        checkpointed_objects, objects, objects_backward_history, objects_history, objects_snapshot,
+    },
     types::{IndexedDeletedObject, IndexedObject, ObjectStatus, owner_to_owner_info},
 };
 
@@ -753,6 +755,62 @@ mod tests {
             None => {
                 panic!("object_type should not be none");
             }
+        }
+    }
+}
+
+/// Status of an object in the backward history table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackwardHistoryObjectStatus {
+    /// The object existed and was active before being superseded.
+    Active = 0,
+    /// The object was wrapped or deleted (no data available).
+    WrappedOrDeleted = 1,
+    /// The object did not exist yet (it was created in this checkpoint).
+    NotYetCreated = 2,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
+#[diesel(table_name = objects_backward_history, primary_key(superseded_at_checkpoint, object_id, object_version))]
+pub struct StoredBackwardHistoryObject {
+    pub object_id: Vec<u8>,
+    pub object_version: i64,
+    pub object_status: i16,
+    pub object_digest: Option<Vec<u8>>,
+    pub superseded_at_checkpoint: i64,
+    pub owner_type: Option<i16>,
+    pub owner_id: Option<Vec<u8>>,
+    pub object_type: Option<String>,
+    pub object_type_package: Option<Vec<u8>>,
+    pub object_type_module: Option<String>,
+    pub object_type_name: Option<String>,
+    pub serialized_object: Option<Vec<u8>>,
+    pub coin_type: Option<String>,
+    pub coin_balance: Option<i64>,
+    pub df_kind: Option<i16>,
+}
+
+impl From<StoredHistoryObject> for StoredBackwardHistoryObject {
+    /// Converts a `StoredHistoryObject` into a `StoredBackwardHistoryObject`.
+    ///
+    /// Maps `checkpoint_sequence_number` to `superseded_at_checkpoint`.
+    fn from(h: StoredHistoryObject) -> Self {
+        Self {
+            object_id: h.object_id,
+            object_version: h.object_version,
+            object_status: h.object_status,
+            object_digest: h.object_digest,
+            superseded_at_checkpoint: h.checkpoint_sequence_number,
+            owner_type: h.owner_type,
+            owner_id: h.owner_id,
+            object_type: h.object_type,
+            object_type_package: h.object_type_package,
+            object_type_module: h.object_type_module,
+            object_type_name: h.object_type_name,
+            serialized_object: h.serialized_object,
+            coin_type: h.coin_type,
+            coin_balance: h.coin_balance,
+            df_kind: h.df_kind,
         }
     }
 }

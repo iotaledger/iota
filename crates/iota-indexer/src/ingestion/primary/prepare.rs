@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     slice,
     sync::Arc,
 };
@@ -42,6 +42,7 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
+        objects::{BackwardHistoryObjectStatus, StoredBackwardHistoryObject, StoredHistoryObject},
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -234,6 +235,7 @@ impl PrimaryWorker {
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data).await?;
         let object_versions = Self::derive_object_versions(&object_history_changes)?;
+        let backward_history_changes = Self::index_objects_backward_history(data)?;
 
         let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
             let CheckpointData {
@@ -289,6 +291,7 @@ impl PrimaryWorker {
             display_updates: db_displays,
             object_changes,
             object_history_changes,
+            backward_history_changes,
             object_versions,
             packages,
             epoch,
@@ -616,6 +619,126 @@ impl PrimaryWorker {
             changed_objects,
             deleted_objects: indexed_deleted_objects,
         })
+    }
+
+    /// Builds backward history entries for a checkpoint.
+    ///
+    /// For each transaction, records the *previous* state of every object that
+    /// was superseded, so that a consistent view at an earlier checkpoint can
+    /// be reconstructed by applying backward diffs to the current
+    /// `checkpointed_objects` snapshot.
+    ///
+    /// The logic is split into three categories:
+    ///
+    /// 1. **Input objects that were mutated or removed** (mutate, delete,
+    ///    wrap): these had an active prior state available in `input_objects` →
+    ///    `ACTIVE` entries with full data.
+    ///
+    /// 2. **Created objects**: did not exist before → `NOT_YET_CREATED`.
+    ///
+    /// 3. **Unwrapped / unwrapped-then-deleted objects**: were previously
+    ///    wrapped so no prior data is available → `WRAPPED_OR_DELETED` with a
+    ///    lamport version approximation.
+    fn index_objects_backward_history(
+        data: &CheckpointData,
+    ) -> Result<Vec<StoredBackwardHistoryObject>, IndexerError> {
+        let checkpoint_seq = data.checkpoint_summary.sequence_number as i64;
+        let mut result = Vec::new();
+
+        for tx in &data.transactions {
+            let effects = &tx.effects;
+
+            // 1. Input objects that were mutated or removed (deleted/wrapped) had an active
+            //    prior state — record it from input_objects. Collect the affected IDs so we
+            //    can iterate input_objects once.
+            let superseded_ids: HashSet<ObjectID> = effects
+                .mutated()
+                .into_iter()
+                .map(|((id, _, _), _)| id)
+                .chain(
+                    effects
+                        .all_removed_objects()
+                        .into_iter()
+                        .map(|((id, _, _), _)| id),
+                )
+                .collect();
+
+            for input_obj in &tx.input_objects {
+                if superseded_ids.contains(&input_obj.id()) {
+                    result.push(Self::build_active_backward_entry(input_obj, checkpoint_seq));
+                }
+            }
+
+            // 2. Created objects did not exist before this transaction.
+            for ((object_id, _, _), _) in effects.created() {
+                result.push(Self::build_empty_backward_entry(
+                    object_id,
+                    -1,
+                    BackwardHistoryObjectStatus::NotYetCreated,
+                    checkpoint_seq,
+                ));
+            }
+
+            // 3. Unwrapped and unwrapped-then-deleted objects were previously wrapped — no
+            //    data available. Use lamport version - 1 as approximation.
+            let unwrapped_refs = effects.unwrapped().into_iter().map(|(r, _)| r);
+            let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
+            for (object_id, version, _) in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
+                result.push(Self::build_empty_backward_entry(
+                    object_id,
+                    version.value() as i64 - 1,
+                    BackwardHistoryObjectStatus::WrappedOrDeleted,
+                    checkpoint_seq,
+                ));
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// Builds a backward history entry for an active object before it was
+    /// superseded.
+    ///
+    /// Reuses `TryFrom<IndexedObject> for StoredHistoryObject` for the
+    /// field-level conversion to avoid duplicating serialization logic.
+    fn build_active_backward_entry(
+        obj: &Object,
+        superseded_at_checkpoint: i64,
+    ) -> StoredBackwardHistoryObject {
+        let df_kind = extract_df_kind(obj);
+        let indexed =
+            IndexedObject::from_object(Some(superseded_at_checkpoint as u64), obj.clone(), df_kind);
+        let history = StoredHistoryObject::try_from(indexed)
+            .expect("StoredHistoryObject conversion should not fail for active objects");
+        StoredBackwardHistoryObject::from(history)
+    }
+
+    /// Builds a backward history entry with no object data.
+    ///
+    /// Used for `NOT_YET_CREATED` and `WRAPPED_OR_DELETED` statuses.
+    fn build_empty_backward_entry(
+        object_id: ObjectID,
+        object_version: i64,
+        status: BackwardHistoryObjectStatus,
+        superseded_at_checkpoint: i64,
+    ) -> StoredBackwardHistoryObject {
+        StoredBackwardHistoryObject {
+            object_id: object_id.to_vec(),
+            object_version,
+            object_status: status as i16,
+            object_digest: None,
+            superseded_at_checkpoint,
+            owner_type: None,
+            owner_id: None,
+            object_type: None,
+            object_type_package: None,
+            object_type_module: None,
+            object_type_name: None,
+            serialized_object: None,
+            coin_type: None,
+            coin_balance: None,
+            df_kind: None,
+        }
     }
 
     fn index_packages(
