@@ -2713,7 +2713,6 @@ mod test {
 
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.protocol_config.set_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
@@ -2850,20 +2849,22 @@ mod test {
         expected = "Attempted to check for slot S8[0] that is <= the last evicted round 8"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
-        /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
+        const GC_DEPTH: Round = 3;
+        // With 14 rounds: gc_round = 14 - 6 = 8, eviction = min(8, 14 - 2) = 8
+        const NUM_ROUNDS: Round = 2 * GC_DEPTH + CACHED_ROUNDS + 6;
 
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.protocol_config.set_gc_depth_for_testing(0);
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store);
 
-        // Create test block headers for round 1 ~ 10 for authority 0
+        // Create test block headers for authority 0
         let mut block_headers = Vec::new();
-        for round in 1..=10 {
+        for round in 1..=NUM_ROUNDS {
             let block_header =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
             block_headers.push(block_header.clone());
@@ -2886,9 +2887,8 @@ mod test {
 
         dag_state.flush();
 
-        // When trying to request a header from authority 0 at round 8, it should panic,
-        // as anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should be
-        // evicted.
+        // Eviction round = min(gc_round, last_round - cached_rounds) = min(8, 12) = 8.
+        // Querying at round 8 should panic since it is <= evicted round.
         let _ = dag_state
             .contains_cached_block_header_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
@@ -3479,26 +3479,27 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
+        expected = "Attempted to request for blocks of rounds < 4, when the last evicted round is 3 for authority [2]"
     )]
     async fn test_get_cached_last_block_header_per_authority_requesting_out_of_round_range() {
         // GIVEN
         const CACHED_ROUNDS: Round = 1;
+        const GC_DEPTH: Round = 3;
+
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.protocol_config.set_gc_depth_for_testing(0);
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
-        // Create one block header (round 1) for authority 1
-        // Create two block headers (rounds 1,2) for authority 2
-        // Create three block headers (rounds 1,2,3) for authority 3
+        // Create block headers for authorities 1..=3, scaled so gc_round > 0.
+        // auth 1: rounds 1..=3, auth 2: rounds 1..=6, auth 3: rounds 1..=9
         let mut all_blocks_headers = Vec::new();
-        for author in 1..=3 {
-            for round in 1..=author {
+        for author in 1..=3u32 {
+            for round in 1..=(author * 3) {
                 let block_header = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author as u8).build(),
                 );
@@ -3520,13 +3521,12 @@ mod test {
             vec![],
         ));
 
-        // Flush to the store so we keep in memory only the last 1 round from the last
-        // commit for each authority.
+        // Flush: gc_round = 9 - 6 = 3. Authority 2 (last_round=6): eviction = min(3, 5) = 3.
         dag_state.flush();
 
-        // THEN the method should panic, as some authorities have already evicted rounds
-        // <= round 2
-        let end_round = 2;
+        // THEN the method should panic, as authority 2 has evicted round 3
+        // and end_round - 1 = 3 <= 3.
+        let end_round = 4;
         dag_state.get_last_cached_block_header_per_authority(end_round);
     }
 
