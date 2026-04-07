@@ -3521,7 +3521,8 @@ mod test {
             vec![],
         ));
 
-        // Flush: gc_round = 9 - 6 = 3. Authority 2 (last_round=6): eviction = min(3, 5) = 3.
+        // Flush: gc_round = 9 - 6 = 3. Authority 2 (last_round=6): eviction = min(3, 5)
+        // = 3.
         dag_state.flush();
 
         // THEN the method should panic, as authority 2 has evicted round 3
