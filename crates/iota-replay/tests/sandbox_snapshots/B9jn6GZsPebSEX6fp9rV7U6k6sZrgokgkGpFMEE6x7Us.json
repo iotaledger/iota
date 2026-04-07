@@ -10,7 +10,7 @@
                         "appId": 0
                     },
                     "value": {
-                        "1": {
+                        "V1": {
                             "kind": {
                                 "kind": "programmable_transaction",
                                 "inputs": [
