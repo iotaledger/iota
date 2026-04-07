@@ -540,4 +540,52 @@ where
     ) -> Result<ValidatorHealthResponse, IotaError> {
         self.authority_client.handle_validator_health(request).await
     }
+
+    // --- ValidatorV2 wrappers ---
+
+    pub async fn submit_tx(
+        &self,
+        request: iota_types::messages_grpc::SubmitTransactionsRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
+        self.authority_client.submit_tx(request, client_addr).await
+    }
+
+    pub async fn get_tx_status(
+        &self,
+        request: iota_types::messages_grpc::GetTxStatusRequest,
+        client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
+        self.authority_client
+            .get_tx_status(request, client_addr)
+            .await
+    }
+
+    pub async fn notify_capabilities_v2(
+        &self,
+        request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
+    ) -> Result<iota_types::messages_grpc::HandleCapabilityNotificationResponseV1, IotaError> {
+        self.authority_client.notify_capabilities_v2(request).await
+    }
+
+    // --- ValidatorPeer wrappers ---
+
+    pub async fn get_checkpoint_v2(
+        &self,
+        request: iota_types::messages_checkpoint::CheckpointRequest,
+    ) -> Result<iota_types::messages_checkpoint::CheckpointResponse, IotaError> {
+        self.authority_client.get_checkpoint_v2(request).await
+    }
 }

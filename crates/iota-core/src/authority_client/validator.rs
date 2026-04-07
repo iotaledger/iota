@@ -21,7 +21,6 @@ use iota_types::{
     },
     transaction::*,
 };
-
 use tonic::IntoRequest;
 
 use crate::authority_client::{NetworkAuthorityClient, insert_metadata};

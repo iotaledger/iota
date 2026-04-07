@@ -11,7 +11,7 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use iota_types::{
     base_types::AuthorityName,
     error::ErrorCategory,
-    messages_grpc::{SubmitTransactionResult, SubmitTransactionsRequest},
+    messages_grpc::{SubmitTransactionsRequest, TxStatusUpdate},
 };
 use tokio::time::timeout;
 use tracing::instrument;
@@ -52,7 +52,7 @@ impl TransactionSubmitter {
         amplification_factor: u64,
         request: SubmitTransactionsRequest,
         options: &SubmitTransactionOptions,
-    ) -> Result<(AuthorityName, SubmitTransactionResult), TransactionDriverError>
+    ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
@@ -191,15 +191,15 @@ impl TransactionSubmitter {
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         validator: AuthorityName,
         display_name: String,
-    ) -> Result<SubmitTransactionResult, TransactionRequestError>
+    ) -> Result<TxStatusUpdate, TransactionRequestError>
     where
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
         let submit_start = Instant::now();
 
-        let resp = timeout(
+        let statuses = timeout(
             SUBMIT_TRANSACTION_TIMEOUT,
-            client.submit_transaction(request.clone(), options.forwarded_client_addr),
+            client.submit_tx(request.clone(), options.forwarded_client_addr),
         )
         .await
         .map_err(|_| {
@@ -225,18 +225,23 @@ impl TransactionSubmitter {
             TransactionRequestError::RejectedAtValidator(error)
         })?;
 
-        let result = resp
-            .results
+        let result = statuses
             .into_iter()
             .next()
-            .unwrap_or(SubmitTransactionResult::Rejected {
-                error: iota_types::error::IotaError::Unknown("No result returned".to_string()),
+            .map(|(_digest, update)| update)
+            .unwrap_or(TxStatusUpdate::Rejected {
+                error: Some(iota_types::error::IotaError::Unknown(
+                    "No result returned".to_string(),
+                )),
             });
 
         // Since only one transaction is submitted, it is ok to return error when the
         // submission is rejected.
-        if let SubmitTransactionResult::Rejected { error } = &result {
-            if is_validator_error(error.categorize()) {
+        if let TxStatusUpdate::Rejected { error } = &result {
+            let err = error.clone().unwrap_or_else(|| {
+                iota_types::error::IotaError::Unknown("rejected without details".to_string())
+            });
+            if is_validator_error(err.categorize()) {
                 client_monitor.record_interaction_result(OperationFeedback {
                     authority_name: validator,
                     display_name,
@@ -245,7 +250,7 @@ impl TransactionSubmitter {
                     result: Err(()),
                 });
             }
-            return Err(TransactionRequestError::RejectedAtValidator(error.clone()));
+            return Err(TransactionRequestError::RejectedAtValidator(err));
         }
 
         let latency = submit_start.elapsed();

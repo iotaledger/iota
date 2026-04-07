@@ -73,13 +73,27 @@ impl ValidatorV2API for LocalAuthorityClient {
     async fn submit_tx(
         &self,
         _request: iota_types::messages_grpc::SubmitTransactionsRequest,
-    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
         unimplemented!()
     }
     async fn get_tx_status(
         &self,
         _request: iota_types::messages_grpc::GetTxStatusRequest,
-    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
         unimplemented!()
     }
     async fn notify_capabilities_v2(
@@ -354,13 +368,27 @@ impl ValidatorV2API for MockAuthorityApi {
     async fn submit_tx(
         &self,
         _request: iota_types::messages_grpc::SubmitTransactionsRequest,
-    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
         unimplemented!()
     }
     async fn get_tx_status(
         &self,
         _request: iota_types::messages_grpc::GetTxStatusRequest,
-    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
         unimplemented!()
     }
     async fn notify_capabilities_v2(
@@ -499,13 +527,27 @@ impl ValidatorV2API for HandleTransactionTestAuthorityClient {
     async fn submit_tx(
         &self,
         _request: iota_types::messages_grpc::SubmitTransactionsRequest,
-    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
         unimplemented!()
     }
     async fn get_tx_status(
         &self,
         _request: iota_types::messages_grpc::GetTxStatusRequest,
-    ) -> Result<Vec<(iota_types::digests::TransactionDigest, iota_types::messages_grpc::TxStatusUpdate)>, IotaError> {
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<
+        Vec<(
+            iota_types::digests::TransactionDigest,
+            iota_types::messages_grpc::TxStatusUpdate,
+        )>,
+        IotaError,
+    > {
         unimplemented!()
     }
     async fn notify_capabilities_v2(

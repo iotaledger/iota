@@ -183,9 +183,11 @@ impl TryFrom<StatusDetail> for TxStatusUpdate {
     type Error = IotaError;
 
     fn try_from(value: StatusDetail) -> Result<Self, Self::Error> {
-        let kind = value.kind.ok_or_else(|| IotaError::TransactionSerialization {
-            error: "StatusDetail.kind is None".to_string(),
-        })?;
+        let kind = value
+            .kind
+            .ok_or_else(|| IotaError::TransactionSerialization {
+                error: "StatusDetail.kind is None".to_string(),
+            })?;
         match kind {
             Kind::Submitted(_) => Ok(TxStatusUpdate::Submitted),
             Kind::Executed(e) => {
@@ -515,7 +517,10 @@ mod tests {
         let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
             proto.try_into().unwrap();
         assert_eq!(digest, back_digest);
-        assert!(matches!(back_update, TxStatusUpdate::Rejected { error: Some(_) }));
+        assert!(matches!(
+            back_update,
+            TxStatusUpdate::Rejected { error: Some(_) }
+        ));
     }
 
     #[test]

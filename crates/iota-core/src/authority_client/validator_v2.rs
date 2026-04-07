@@ -1,6 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::SocketAddr;
+
 use async_trait::async_trait;
 use futures::StreamExt;
 use iota_types::{
@@ -11,8 +13,9 @@ use iota_types::{
         HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusUpdate,
     },
 };
+use tonic::IntoRequest;
 
-use crate::authority_client::NetworkAuthorityClient;
+use crate::authority_client::{NetworkAuthorityClient, insert_metadata};
 
 #[async_trait]
 pub trait ValidatorV2API {
@@ -20,12 +23,14 @@ pub trait ValidatorV2API {
     async fn submit_tx(
         &self,
         request: SubmitTransactionsRequest,
+        client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
 
     /// Query transaction status and collect all streamed status updates.
     async fn get_tx_status(
         &self,
         request: GetTxStatusRequest,
+        client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
 
     /// Notify capabilities via the V2 endpoint.
@@ -40,11 +45,15 @@ impl ValidatorV2API for NetworkAuthorityClient {
     async fn submit_tx(
         &self,
         request: SubmitTransactionsRequest,
+        client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        let proto_request: iota_network::api::SubmitTxRequest = request.try_into()?;
+        let proto: iota_network::api::SubmitTxRequest = request.try_into()?;
+        let mut grpc_request = proto.into_request();
+        insert_metadata(&mut grpc_request, client_addr);
+
         let response = self
             .v2_client()?
-            .submit_tx(proto_request)
+            .submit_tx(grpc_request)
             .await
             .map_err(IotaError::from)?;
 
@@ -54,11 +63,15 @@ impl ValidatorV2API for NetworkAuthorityClient {
     async fn get_tx_status(
         &self,
         request: GetTxStatusRequest,
+        client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        let proto_request: iota_network::api::GetTxStatusRequest = request.try_into()?;
+        let proto: iota_network::api::GetTxStatusRequest = request.try_into()?;
+        let mut grpc_request = proto.into_request();
+        insert_metadata(&mut grpc_request, client_addr);
+
         let response = self
             .v2_client()?
-            .get_tx_status(proto_request)
+            .get_tx_status(grpc_request)
             .await
             .map_err(IotaError::from)?;
 

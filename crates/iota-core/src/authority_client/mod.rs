@@ -144,7 +144,7 @@ pub fn make_authority_clients_with_timeout_config(
     make_network_authority_clients_with_network_config(committee, &network_config)
 }
 
-fn insert_metadata<T>(request: &mut tonic::Request<T>, client_addr: Option<SocketAddr>) {
+pub(crate) fn insert_metadata<T>(request: &mut tonic::Request<T>, client_addr: Option<SocketAddr>) {
     if let Some(client_addr) = client_addr {
         let mut metadata = tonic::metadata::MetadataMap::new();
         metadata.insert("x-forwarded-for", client_addr.to_string().parse().unwrap());
@@ -158,5 +158,36 @@ fn insert_metadata<T>(request: &mut tonic::Request<T>, client_addr: Option<Socke
                     request.metadata_mut().insert_bin(key, value.clone());
                 }
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use super::insert_metadata;
+
+    #[test]
+    fn insert_metadata_sets_x_forwarded_for_header() {
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 42)), 8080);
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, Some(addr));
+
+        let header = request
+            .metadata()
+            .get("x-forwarded-for")
+            .expect("x-forwarded-for header should be set");
+        assert_eq!(header.to_str().unwrap(), "10.0.0.42:8080");
+    }
+
+    #[test]
+    fn insert_metadata_noop_when_no_client_addr() {
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, None);
+
+        assert!(
+            request.metadata().get("x-forwarded-for").is_none(),
+            "x-forwarded-for header should not be set when client_addr is None"
+        );
     }
 }
