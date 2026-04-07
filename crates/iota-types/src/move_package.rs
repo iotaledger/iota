@@ -86,6 +86,7 @@ pub struct FnInfo {
     /// If set, function was marked to represent authenticator function of
     /// given version.
     pub authenticator_version: Option<u8>,
+    pub is_view: bool,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -700,9 +701,31 @@ pub fn get_authenticator_version_from_fun(
         Some(FnInfo {
             is_test: _,
             authenticator_version: Some(v),
+            is_view: _,
         }) => Some(*v),
         _ => None,
     }
+}
+
+/// Returns true if a function is marked as a view function.
+pub fn is_view_function_from_fn_info(
+    name: &IdentStr,
+    module: &CompiledModule,
+    fn_info_map: &FnInfoMap,
+) -> bool {
+    let fn_name = name.to_string();
+    let mod_handle = module.self_handle();
+    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let mod_name = module.name().to_string();
+    let fn_info_key = FnInfoKey {
+        fn_name,
+        mod_name,
+        mod_addr,
+    };
+    fn_info_map
+        .get(&fn_info_key)
+        .map(|info| info.is_view)
+        .unwrap_or(false)
 }
 
 /// If `include_code` is set to `false`, the normalized module will skip
@@ -997,6 +1020,7 @@ impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum IotaAttribute {
     Authenticator(AuthenticatorAttribute),
+    View,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1007,6 +1031,10 @@ pub struct AuthenticatorAttribute {
 impl IotaAttribute {
     pub fn authenticator_attribute(version: u8) -> Self {
         IotaAttribute::Authenticator(AuthenticatorAttribute { version })
+    }
+
+    pub fn view_attribute() -> Self {
+        IotaAttribute::View
     }
 }
 

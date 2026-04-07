@@ -6,19 +6,19 @@ info:
   lint: true
 ---
 warning[Lint W99011]: function could be marked as view
-   ┌─ tests/iota_mode/linter/true_negative_share_owned.move:79:16
+   ┌─ tests/iota_mode/linter/view_function_suggestions.move:11:16
    │
-79 │     public fun sender(_: &TxContext): address {
-   │                ^^^^^^ Function 'sender' could be marked with #[view] attribute
+11 │     public fun get_value(data: &Data): u64 {
+   │                ^^^^^^^^^ Function 'get_value' could be marked with #[view] attribute
    │
    = View functions can be called off-chain without a transaction
    = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99011]: function could be marked as view
-   ┌─ tests/iota_mode/linter/true_negative_share_owned.move:92:16
+   ┌─ tests/iota_mode/linter/view_function_suggestions.move:16:16
    │
-92 │     public fun new(_: &mut iota::tx_context::TxContext): UID {
-   │                ^^^ Function 'new' could be marked with #[view] attribute
+16 │     public fun multiply(a: u64, b: u64): u64 {
+   │                ^^^^^^^^ Function 'multiply' could be marked with #[view] attribute
    │
    = View functions can be called off-chain without a transaction
    = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
