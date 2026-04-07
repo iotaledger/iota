@@ -1,7 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin, TIMELOCK_IOTA_TYPE, TIMELOCK_STAKED_TYPE } from '@iota/core';
+import {
+    useFormatCoin,
+    TIMELOCK_IOTA_TYPE,
+    TIMELOCK_STAKED_TYPE,
+    ViewTxnOnExplorerButton,
+    ExplorerLinkType,
+} from '@iota/core';
 import { CheckmarkFilled, LockUnlocked, Stake } from '@iota/apps-ui-icons';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -15,6 +21,7 @@ import {
     InfoBoxType,
     ListItem,
 } from '@iota/apps-ui-kit';
+import { ExplorerLink } from '@/components';
 
 interface CollectSummaryDialogProps {
     open: boolean;
@@ -137,6 +144,12 @@ export function CollectSummaryDialog({
                                 ))}
                             </div>
                         )}
+                        <ExplorerLink
+                            transactionID={transaction.digest}
+                            type={ExplorerLinkType.Transaction}
+                        >
+                            <ViewTxnOnExplorerButton digest={transaction.digest} />
+                        </ExplorerLink>
                     </div>
                 </DialogBody>
             </DialogContent>

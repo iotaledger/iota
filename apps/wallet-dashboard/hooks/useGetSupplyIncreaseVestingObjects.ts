@@ -242,8 +242,13 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
         const stakeIds = supplyIncreaseVestingUnlockedStakeObjectData
             .map((s) => s.objectId)
             .join(',');
-        return `${objectIds}|${stakeIds}`;
-    }, [supplyIncreaseVestingUnlockedObjectIds, supplyIncreaseVestingUnlockedStakeObjectData]);
+        const existingIds = existingStakedObjects.map((s) => s.objectId).join(',');
+        return `${objectIds}|${stakeIds}|${existingIds}`;
+    }, [
+        supplyIncreaseVestingUnlockedObjectIds,
+        supplyIncreaseVestingUnlockedStakeObjectData,
+        existingStakedObjects,
+    ]);
 
     const [isUnlockError, setIsUnlockError] = useState(false);
     const [unlockError, setUnlockError] = useState<Error | null>(null);
