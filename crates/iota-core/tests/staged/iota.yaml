@@ -128,9 +128,10 @@ ChangeEpochV4:
 CheckpointCommitment:
   ENUM:
     0:
-      ECMHLiveObjectSetDigest:
-        NEWTYPE:
-          TYPENAME: ECMHLiveObjectSetDigest
+      EcmhLiveObjectSet:
+        STRUCT:
+          - digest:
+              TYPENAME: Digest
 CheckpointContents:
   ENUM:
     0:
@@ -308,10 +309,6 @@ DeleteKind:
       Wrap: UNIT
 Digest:
   NEWTYPESTRUCT: BYTES
-ECMHLiveObjectSetDigest:
-  STRUCT:
-    - digest:
-        TYPENAME: Digest
 EffectsObjectChange:
   STRUCT:
     - input_state:
