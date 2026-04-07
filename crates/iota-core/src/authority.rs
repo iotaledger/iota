@@ -931,10 +931,16 @@ impl AuthorityState {
                 per_authenticator_inputs,
             )?;
 
+        // Get the input objects for the authenticators, if there are
+        // `MoveAuthenticator`s.
         let per_authenticator_checked_input_objects = per_authenticator_checked_inputs
             .iter()
             .map(|i| &i.0)
             .collect();
+
+        // Check if any of the sender, the transaction input objects, the receiving
+        // objects and the authenticator input objects are in the coin deny
+        // list, which would prevent the transaction from being signed.
         check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
             &tx_checked_input_objects,
@@ -943,63 +949,67 @@ impl AuthorityState {
             &self.get_object_store(),
         )?;
 
-        let aggregated_authenticator_input_objects =
-            iota_transaction_checks::aggregate_authenticator_input_objects(
-                &per_authenticator_checked_input_objects,
-            )?;
+        // If there are `MoveAuthenticator` signatures, execute them and check if they
+        // all succeed.
+        if !move_authenticators.is_empty() {
+            let aggregated_authenticator_input_objects =
+                iota_transaction_checks::aggregate_authenticator_input_objects(
+                    &per_authenticator_checked_input_objects,
+                )?;
 
-        debug_assert_eq!(
-            move_authenticators.len(),
-            per_authenticator_checked_inputs.len(),
-            "Move authenticators amount must match the number of checked authenticator inputs"
-        );
+            debug_assert_eq!(
+                move_authenticators.len(),
+                per_authenticator_checked_inputs.len(),
+                "Move authenticators amount must match the number of checked authenticator inputs"
+            );
 
-        let move_authenticators = move_authenticators
-            .into_iter()
-            .zip(per_authenticator_checked_inputs)
-            .map(
-                |(
-                    move_authenticator,
-                    (authenticator_checked_input_objects, authenticator_function_ref),
-                )| {
-                    (
-                        move_authenticator.to_owned(),
-                        authenticator_function_ref,
-                        authenticator_checked_input_objects,
-                    )
-                },
-            )
-            .collect();
+            let move_authenticators = move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .map(
+                    |(
+                        move_authenticator,
+                        (authenticator_checked_input_objects, authenticator_function_ref),
+                    )| {
+                        (
+                            move_authenticator.to_owned(),
+                            authenticator_function_ref,
+                            authenticator_checked_input_objects,
+                        )
+                    },
+                )
+                .collect();
 
-        // It is supposed that `MoveAuthenticator` availability is checked in
-        // `SenderSignedData::validity_check`.
+            // It is supposed that `MoveAuthenticator` availability is checked in
+            // `SenderSignedData::validity_check`.
 
-        let (kind, signer, gas_data) = tx_data.execution_parts();
+            let (kind, signer, gas_data) = tx_data.execution_parts();
 
-        // Execute the Move authenticators.
-        let validation_result = epoch_store.executor().authenticate_transaction(
-            self.get_backing_store().as_ref(),
-            protocol_config,
-            self.metrics.limits_metrics.clone(),
-            &epoch_store.epoch_start_config().epoch_data().epoch_id(),
-            epoch_store
-                .epoch_start_config()
-                .epoch_data()
-                .epoch_start_timestamp(),
-            gas_data,
-            gas_status,
-            move_authenticators,
-            aggregated_authenticator_input_objects,
-            kind,
-            signer,
-            transaction.digest().to_owned(),
-            &mut None,
-        );
+            // Execute the Move authenticators.
+            let validation_result = epoch_store.executor().authenticate_transaction(
+                self.get_backing_store().as_ref(),
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                &epoch_store.epoch_start_config().epoch_data().epoch_id(),
+                epoch_store
+                    .epoch_start_config()
+                    .epoch_data()
+                    .epoch_start_timestamp(),
+                gas_data,
+                gas_status,
+                move_authenticators,
+                aggregated_authenticator_input_objects,
+                kind,
+                signer,
+                transaction.digest().to_owned(),
+                &mut None,
+            );
 
-        if let Err(validation_error) = validation_result {
-            return Err(IotaError::MoveAuthenticatorExecutionFailure {
-                error: validation_error.to_string(),
-            });
+            if let Err(validation_error) = validation_result {
+                return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                    error: validation_error.to_string(),
+                });
+            }
         }
 
         let owned_objects = tx_checked_input_objects.inner().filter_owned_objects();
