@@ -41,7 +41,7 @@ use crate::{
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes, default_hash,
+        IotaSignatureInner, RandomnessRound, Signature, Signer, ToFromBytes,
     },
     digests::{
         CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest, ZKLoginInputsDigest,
@@ -985,13 +985,6 @@ pub trait TransactionDataAPI {
     /// Returns the transaction expiration.
     fn expiration(&self) -> &TransactionExpiration;
 
-    /// Checks if the transaction data contains at least one shared object.
-    ///
-    /// IMPORTANT: This function does not check shared objects associated with
-    /// `MoveAuthenticator` signatures. To check those objects as well, use the
-    /// corresponding function from `SenderSignedData`.
-    fn contains_shared_object(&self) -> bool;
-
     /// Returns a list of the transaction data shared input objects.
     ///
     /// IMPORTANT: This function does not return shared objects associated with
@@ -1249,17 +1242,6 @@ pub trait TransactionDataAPI {
     /// Consumes self and returns the transaction kind, sender address, and
     /// gas payment object references as a tuple.
     fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData);
-
-    /// Checks if the transaction data contains the `Random` object as an
-    /// input.
-    ///
-    /// IMPORTANT: This function does not check shared objects associated with
-    /// `MoveAuthenticator` signatures. To check those objects as well, use the
-    /// corresponding function from `SenderSignedData`.
-    fn uses_randomness(&self) -> bool;
-
-    /// Computes and returns the transaction digest.
-    fn digest(&self) -> TransactionDigest;
 }
 
 impl TransactionDataAPI for TransactionData {
@@ -1327,10 +1309,6 @@ impl TransactionDataAPI for TransactionData {
             Self::V1(v1) => &v1.expiration,
             _ => unimplemented!("a new Transaction variant was added and needs to be handled"),
         }
-    }
-
-    fn contains_shared_object(&self) -> bool {
-        self.kind().shared_input_objects().next().is_some()
     }
 
     fn shared_input_objects(&self) -> Vec<SharedObjectRef> {
@@ -1822,16 +1800,6 @@ impl TransactionDataAPI for TransactionData {
 
     fn execution_parts(&self) -> (TransactionKind, IotaAddress, GasData) {
         (self.kind().clone(), self.sender(), self.gas_data().clone())
-    }
-
-    fn uses_randomness(&self) -> bool {
-        self.shared_input_objects()
-            .iter()
-            .any(|obj| obj.object_id == ObjectID::RANDOMNESS_STATE)
-    }
-
-    fn digest(&self) -> TransactionDigest {
-        TransactionDigest::new(default_hash(self))
     }
 }
 
