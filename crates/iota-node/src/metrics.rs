@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use iota_common::metrics::{MetricsPushClient, push_metrics};
+use iota_grpc_server::metrics::{LATENCY_SEC_BUCKETS, SPAM_LABEL, grpc_code_to_str};
 use iota_metrics::RegistryService;
-use iota_network::tonic::Code;
+use iota_network::{api::VALIDATOR_METHOD_PATHS, tonic::Code};
 use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
     HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
@@ -120,40 +121,49 @@ impl IotaNodeMetrics {
 
 #[derive(Clone)]
 pub struct GrpcMetrics {
-    inflight_grpc: IntGaugeVec,
-    grpc_requests: IntCounterVec,
-    grpc_request_latency: HistogramVec,
+    inflight_requests: IntGaugeVec,
+    num_requests: IntCounterVec,
+    request_latency: HistogramVec,
+    /// Known gRPC method paths. Paths not in this set are labelled as `"SPAM"`
+    /// to prevent unbounded metric cardinality from arbitrary HTTP traffic.
+    known_methods: HashSet<&'static str>,
 }
-
-const LATENCY_SEC_BUCKETS: &[f64] = &[
-    0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
-];
 
 impl GrpcMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            inflight_grpc: register_int_gauge_vec_with_registry!(
-                "inflight_grpc",
-                "Total in-flight GRPC requests per route",
-                &["path"],
+            inflight_requests: register_int_gauge_vec_with_registry!(
+                "authority_grpc_inflight_requests",
+                "Total in-flight authority gRPC requests per method",
+                &["method"],
                 registry,
             )
             .unwrap(),
-            grpc_requests: register_int_counter_vec_with_registry!(
-                "grpc_requests",
-                "Total GRPC requests per route",
-                &["path", "status"],
+            num_requests: register_int_counter_vec_with_registry!(
+                "authority_grpc_requests",
+                "Total authority gRPC requests per method and status code",
+                &["method", "status"],
                 registry,
             )
             .unwrap(),
-            grpc_request_latency: register_histogram_vec_with_registry!(
-                "grpc_request_latency",
-                "Latency of GRPC requests per route",
-                &["path"],
+            request_latency: register_histogram_vec_with_registry!(
+                "authority_grpc_request_latency",
+                "Latency of authority gRPC requests per method in seconds",
+                &["method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
+            known_methods: VALIDATOR_METHOD_PATHS.iter().copied().collect(),
+        }
+    }
+
+    /// Returns the path if it is a known gRPC method, or `"SPAM"` otherwise.
+    fn sanitize_path<'a>(&self, path: &'a str) -> &'a str {
+        if self.known_methods.contains(path) {
+            path
+        } else {
+            SPAM_LABEL
         }
     }
 }
@@ -162,20 +172,23 @@ impl MetricsCallbackProvider for GrpcMetrics {
     fn on_request(&self, _path: String) {}
 
     fn on_response(&self, path: String, latency: Duration, _status: u16, grpc_status_code: Code) {
-        self.grpc_requests
-            .with_label_values(&[path.as_str(), format!("{grpc_status_code:?}").as_str()])
+        let method = self.sanitize_path(&path);
+        self.num_requests
+            .with_label_values(&[method, grpc_code_to_str(grpc_status_code)])
             .inc();
-        self.grpc_request_latency
-            .with_label_values(&[path.as_str()])
+        self.request_latency
+            .with_label_values(&[method])
             .observe(latency.as_secs_f64());
     }
 
     fn on_start(&self, path: &str) {
-        self.inflight_grpc.with_label_values(&[path]).inc();
+        let method = self.sanitize_path(path);
+        self.inflight_requests.with_label_values(&[method]).inc();
     }
 
     fn on_drop(&self, path: &str) {
-        self.inflight_grpc.with_label_values(&[path]).dec();
+        let method = self.sanitize_path(path);
+        self.inflight_requests.with_label_values(&[method]).dec();
     }
 }
 

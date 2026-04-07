@@ -18,9 +18,9 @@ use prometheus::{
 use tonic::{Code, Status};
 use tower::{Layer, Service};
 
-const SPAM_LABEL: &str = "SPAM";
+pub const SPAM_LABEL: &str = "SPAM";
 
-const LATENCY_SEC_BUCKETS: &[f64] = &[
+pub const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
 ];
 
@@ -39,22 +39,22 @@ impl GrpcServerMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
             inflight_requests: register_int_gauge_vec_with_registry!(
-                "grpc_server_inflight_requests",
-                "Total in-flight gRPC requests per method",
+                "node_grpc_inflight_requests",
+                "Total in-flight node gRPC requests per method",
                 &["method"],
                 registry,
             )
             .unwrap(),
             num_requests: register_int_counter_vec_with_registry!(
-                "grpc_server_requests",
-                "Total gRPC requests per method and status code",
+                "node_grpc_requests",
+                "Total node gRPC requests per method and status code",
                 &["method", "status"],
                 registry,
             )
             .unwrap(),
             request_latency: register_histogram_vec_with_registry!(
-                "grpc_server_request_latency",
-                "Latency of gRPC requests per method in seconds",
+                "node_grpc_request_latency",
+                "Latency of node gRPC requests per method in seconds",
                 &["method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
@@ -267,7 +267,7 @@ fn grpc_status_from_response<B>(response: &http::Response<B>) -> &'static str {
     grpc_code_to_str(code)
 }
 
-fn grpc_code_to_str(code: Code) -> &'static str {
+pub fn grpc_code_to_str(code: Code) -> &'static str {
     match code {
         Code::Ok => "Ok",
         Code::Cancelled => "Cancelled",
