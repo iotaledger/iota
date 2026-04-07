@@ -8022,6 +8022,7 @@ source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e5613e9797e7ed
 dependencies = [
  "base64ct",
  "bcs",
+ "blake2",
  "bnum",
  "bs58 0.5.1",
  "bytestring",
@@ -8032,6 +8033,7 @@ dependencies = [
  "proptest",
  "rand_core 0.6.4",
  "roaring",
+ "schemars 0.8.22",
  "serde",
  "serde_json",
  "serde_repr",
