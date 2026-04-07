@@ -24,7 +24,7 @@ use iota_types::{
     is_system_package,
     move_package::{
         FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun, is_view_function_from_fn_info
     },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
@@ -164,6 +164,7 @@ impl BuildConfig {
                 let fn_name = s.as_str().to_string();
                 let is_test = mod_is_test || info.attributes.is_test_or_test_only();
                 let authenticator_version = info.attributes.get_authenticator();
+                let is_view = info.attributes.is_view();
                 fn_info_map.insert(
                     FnInfoKey {
                         fn_name,
@@ -173,6 +174,7 @@ impl BuildConfig {
                     FnInfo {
                         is_test,
                         authenticator_version,
+                        is_view,
                     },
                 );
             }
@@ -382,6 +384,10 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
                     IotaAttribute::authenticator_attribute(version),
                 );
             };
+            if is_view_function_from_fn_info(fn_name, module, fn_info_map) {
+                runtime_metadata
+                    .add_function_attribute(fn_name.to_string(), IotaAttribute::view_attribute());
+            }
         }
         if !runtime_metadata.is_empty() {
             module.metadata.push(move_core_types::metadata::Metadata {

@@ -38,3 +38,21 @@ warning[Lint W99000]: possible owned object share
    │         Potential abort from a (potentially) owned object created by a different transaction.
    │
    = This warning can be suppressed with '#[allow(lint(share_owned))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99011]: function could be marked as view
+   ┌─ tests/iota_mode/linter/true_positive_share_owned.move:49:16
+   │
+49 │     public fun sender(_: &TxContext): address {
+   │                ^^^^^^ Function 'sender' could be marked with #[view] attribute
+   │
+   = View functions can be called off-chain without a transaction
+   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[Lint W99011]: function could be marked as view
+   ┌─ tests/iota_mode/linter/true_positive_share_owned.move:65:16
+   │
+65 │     public fun new(_: &mut iota::tx_context::TxContext): UID {
+   │                ^^^ Function 'new' could be marked with #[view] attribute
+   │
+   = View functions can be called off-chain without a transaction
+   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
