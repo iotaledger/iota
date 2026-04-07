@@ -356,7 +356,7 @@ impl DagState {
         committed_round: Round,
         data_source: DataSource,
     ) {
-        let eviction_round = committed_round.saturating_sub(self.cached_rounds);
+        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
         self.evicted_rounds[authority_index] = eviction_round;
 
         // Reload block headers from storage
@@ -2349,7 +2349,13 @@ impl DagState {
         // Keep at least cached_rounds of blocks, but never evict above the
         // global GC round derived from the last commit.
         self.gc_round_for_last_commit()
-            .min(last_round.saturating_sub(self.cached_rounds))
+            .min(Self::eviction_round(last_round, self.cached_rounds))
+    }
+
+    /// Calculates the last eviction round based on the provided `commit_round`.
+    /// Any blocks with round <= the evict round have been cleaned up.
+    fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
+        commit_round.saturating_sub(cached_rounds)
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
