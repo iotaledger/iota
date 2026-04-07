@@ -130,9 +130,9 @@ pub(crate) struct DagState {
     /// The genesis blocks
     genesis: BTreeMap<BlockRef, VerifiedBlock>,
 
-    /// Contains recent block headers within CACHED_ROUNDS from the last
-    /// traversed round per authority. Note: all uncommitted block headers
-    /// are kept in memory.
+    /// Contains block headers kept in memory within the per-authority
+    /// retention window. Older headers may be evicted after flush since they
+    /// don't have a chance to be committed due to garbage collection.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent verified transactions per authority. To access a
@@ -356,7 +356,7 @@ impl DagState {
         committed_round: Round,
         data_source: DataSource,
     ) {
-        let eviction_round = Self::eviction_round(committed_round, self.cached_rounds);
+        let eviction_round = committed_round.saturating_sub(self.cached_rounds);
         self.evicted_rounds[authority_index] = eviction_round;
 
         // Reload block headers from storage
@@ -371,7 +371,11 @@ impl DagState {
         // Reload transactions from storage
         let transactions = self
             .store
-            .scan_transactions_by_author(authority_index, eviction_round + 1, self.context.clone())
+            .scan_transactions_by_author(
+                authority_index,
+                eviction_round + 1,
+                self.context.clone(),
+            )
             .expect("Database error");
         for txn in &transactions {
             self.update_transaction_metadata(txn, data_source);
@@ -1955,7 +1959,6 @@ impl DagState {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            // Take minimum between transaction_gc_round and eviction_round
             let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
 
             // Evict everything below split_key
@@ -2342,14 +2345,30 @@ impl DagState {
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
-        let commit_round = self.last_committed_rounds[authority_index];
-        Self::eviction_round(commit_round, self.cached_rounds)
+        let last_round = self.latest_cached_round_for_authority(authority_index);
+        Self::gc_eviction_round(
+            last_round,
+            self.gc_round_for_last_commit(),
+            self.cached_rounds,
+        )
     }
 
-    /// Calculates the last eviction round based on the provided `commit_round`.
-    /// Any blocks with round <= the evict round have been cleaned up.
-    fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
-        commit_round.saturating_sub(cached_rounds)
+    /// Calculates the last eviction round. Starfish runs with GC enabled on
+    /// every network, so eviction is bounded by the global GC round while
+    /// keeping a recent window per authority.
+    ///
+    /// The goal is to
+    /// keep at least `cached_rounds` of the latest blocks for the authority
+    /// while never evicting above the current global GC round.
+    fn gc_eviction_round(last_round: Round, gc_round: Round, cached_rounds: Round) -> Round {
+        gc_round.min(last_round.saturating_sub(cached_rounds))
+    }
+
+    fn latest_cached_round_for_authority(&self, authority_index: AuthorityIndex) -> Round {
+        self.recent_headers_refs_by_authority[authority_index]
+            .last()
+            .map(|block_ref| block_ref.round)
+            .unwrap_or(GENESIS_ROUND)
     }
 
     /// Detects and returns the blocks of the round that forms the last quorum.
@@ -2707,6 +2726,7 @@ mod test {
 
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
@@ -2848,6 +2868,7 @@ mod test {
 
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3478,6 +3499,7 @@ mod test {
         const CACHED_ROUNDS: Round = 1;
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(0);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
@@ -3834,7 +3856,7 @@ mod test {
         let expected_block_headers = all_block_headers
             .iter()
             .filter(|x| {
-                x.round() > last_committed_round[x.author().value()] - CACHED_ROUNDS
+                x.round() > dag_state.evicted_rounds[x.author().value()]
                     || x.round() == GENESIS_ROUND
             })
             .cloned()
@@ -3960,6 +3982,97 @@ mod test {
                 block_ref.round
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_gc_eviction_advances_for_skipped_authority() {
+        telemetry_subscribers::init_for_testing();
+
+        const COMMITTEE_SIZE: usize = 10;
+        const CACHED_ROUNDS: Round = 5;
+        const GC_DEPTH: Round = 3;
+
+        let (mut context, _) = Context::new_for_test(COMMITTEE_SIZE);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let authority_to_skip = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 2) as u8);
+        let catch_up_index = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 1) as u8);
+        let active_authorities = (0..(COMMITTEE_SIZE - 1) as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect::<Vec<_>>();
+
+        let total_rounds = 2 * (CACHED_ROUNDS + GC_DEPTH);
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder
+            .layers(1..=total_rounds)
+            .authorities(active_authorities)
+            .skip_ancestor_links(vec![authority_to_skip, catch_up_index])
+            .build();
+
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=total_rounds);
+        let subdag_bases = subdags_and_commits
+            .iter()
+            .map(|(subdag, _)| subdag.base.clone())
+            .collect::<Vec<_>>();
+        let commits = subdags_and_commits
+            .into_iter()
+            .map(|(_, commit)| commit)
+            .collect::<Vec<_>>();
+
+        dag_state.accept_block_headers(
+            dag_builder.block_headers(1..=total_rounds),
+            DataSource::Test,
+        );
+        for verified_transactions in dag_builder.transactions(1..=total_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for commit in commits {
+            dag_state.add_commit(commit);
+        }
+        dag_state.update_last_solid_subdag_base(
+            subdag_bases
+                .last()
+                .expect("expected at least one committed subdag")
+                .clone(),
+        );
+
+        let last_accepted_round = dag_builder
+            .block_headers(1..=total_rounds)
+            .into_iter()
+            .filter(|header| header.author() == authority_to_skip)
+            .map(|header| header.round())
+            .max()
+            .expect("skipped authority should have blocks");
+        let skipped_committed_round = dag_state.last_committed_rounds()[authority_to_skip];
+        assert!(skipped_committed_round < last_accepted_round);
+
+        dag_state.flush();
+
+        let expected_eviction_round = DagState::gc_eviction_round(
+            last_accepted_round,
+            dag_state.gc_round_for_last_commit(),
+            CACHED_ROUNDS,
+        );
+        assert_eq!(
+            dag_state.evicted_rounds[authority_to_skip],
+            expected_eviction_round
+        );
+
+        let cached_headers =
+            dag_state.get_cached_block_headers_since_round(authority_to_skip, GENESIS_ROUND + 1);
+        assert_eq!(
+            cached_headers.first().map(|header| header.round()),
+            Some(expected_eviction_round + 1)
+        );
+        assert_eq!(
+            cached_headers.last().map(|header| header.round()),
+            Some(last_accepted_round)
+        );
     }
 
     #[tokio::test]
