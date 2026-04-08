@@ -1,12 +1,14 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
 ---
 processed 2 tasks
 
 init:
 A: object(0,0)
 
-task 1, line 11:
-//# run iota::claim_registry::claim_ed25519 --sender A --args object(0x11) x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
-Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::validate_and_mark_claimed (function index 6) at offset 42, Abort Code: 13835058824081309697
-Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 6, instruction: 42, function_name: Some("validate_and_mark_claimed") }, 13835058824081309697) at command Some(0)
+task 1, lines 9-10:
+//# programmable --sender A --inputs object(0x10) 0u8 x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88"
+//> iota::claim_registry::claim(Input(0), Input(1), Input(2));
+Error: Transaction Effects Status: Move Runtime Abort. Location: iota::claim_registry::claim (function index 1) at offset 39, Abort Code: 13835058476189351943
+Debug of error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("claim_registry") }, function: 1, instruction: 39, function_name: Some("claim") }, 13835058476189351943) at command Some(0)

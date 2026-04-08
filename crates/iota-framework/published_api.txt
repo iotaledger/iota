@@ -1093,9 +1093,27 @@ activate_validators
 DerivedObjectKey
 	public struct
 	0x2::derived_object
+secp256k1_ecrecover
+	public fun
+	0x2::ecdsa_k1
+decompress_pubkey
+	public fun
+	0x2::ecdsa_k1
+secp256k1_verify
+	public fun
+	0x2::ecdsa_k1
+secp256r1_ecrecover
+	public fun
+	0x2::ecdsa_r1
+secp256r1_verify
+	public fun
+	0x2::ecdsa_r1
 ecvrf_verify
 	public fun
 	0x2::ecvrf
+ed25519_verify
+	public fun
+	0x2::ed25519
 hash_to_input
 	public fun
 	0x2::vdf
@@ -2230,75 +2248,6 @@ put_back
 destroy
 	public fun
 	0x2::borrow
-ed25519_verify
-	public fun
-	0x2::ed25519
-secp256r1_ecrecover
-	public fun
-	0x2::ecdsa_r1
-secp256r1_verify
-	public fun
-	0x2::ecdsa_r1
-secp256k1_ecrecover
-	public fun
-	0x2::ecdsa_k1
-decompress_pubkey
-	public fun
-	0x2::ecdsa_k1
-secp256k1_verify
-	public fun
-	0x2::ecdsa_k1
-IotaDefaultAccount
-	public struct
-	0x2::iota_default_account
-new
-	public(package) fun
-	0x2::iota_default_account
-new_with_auth
-	public(package) fun
-	0x2::iota_default_account
-rotate_key
-	public fun
-	0x2::iota_default_account
-rotate_auth_ref
-	public fun
-	0x2::iota_default_account
-authenticate
-	public fun
-	0x2::iota_default_account
-public_key
-	public fun
-	0x2::iota_default_account
-scheme
-	public fun
-	0x2::iota_default_account
-scheme_ed25519
-	public(package) fun
-	0x2::iota_default_account
-scheme_secp256k1
-	public(package) fun
-	0x2::iota_default_account
-scheme_secp256r1
-	public(package) fun
-	0x2::iota_default_account
-scheme_move_authenticator
-	public(package) fun
-	0x2::iota_default_account
-make_auth_ref
-	fun
-	0x2::iota_default_account
-ensure_tx_sender_is_account
-	fun
-	0x2::iota_default_account
-is_move_authenticator_scheme
-	public(package) fun
-	0x2::iota_default_account
-is_valid_scheme
-	public(package) fun
-	0x2::iota_default_account
-is_valid_public_key_length
-	public(package) fun
-	0x2::iota_default_account
 blake2b256
 	public fun
 	0x2::hash
@@ -2308,28 +2257,40 @@ keccak256
 ClaimRegistry
 	public struct
 	0x2::claim_registry
+ClaimedAddressTicket
+	public struct
+	0x2::claim_registry
 create
 	fun
 	0x2::claim_registry
-claim_ed25519
-	public entry fun
-	0x2::claim_registry
-claim_secp256k1
-	public entry fun
-	0x2::claim_registry
-claim_secp256r1
-	public entry fun
-	0x2::claim_registry
-claim_with_auth
+claim
 	public fun
 	0x2::claim_registry
 is_claimed
 	public fun
 	0x2::claim_registry
-validate_and_mark_claimed
-	fun
+scheme_ed25519
+	public(package) fun
+	0x2::claim_registry
+scheme_secp256k1
+	public(package) fun
+	0x2::claim_registry
+scheme_secp256r1
+	public(package) fun
+	0x2::claim_registry
+scheme_move_authenticator
+	public(package) fun
 	0x2::claim_registry
 derive_address
+	fun
+	0x2::claim_registry
+is_valid_scheme
+	fun
+	0x2::claim_registry
+is_move_authenticator_scheme
+	fun
+	0x2::claim_registry
+is_valid_public_key_length
 	fun
 	0x2::claim_registry
 Clock

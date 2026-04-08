@@ -7,13 +7,13 @@ init:
 A: object(0,0)
 
 task 1, line 9:
-//# view-object 0x11
+//# view-object 0x10
 Owner: Shared( 1 )
 Version: 1
 Contents: iota::claim_registry::ClaimRegistry {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: 0x0000000000000000000000000000000000000000000000000000000000000011,
+            bytes: 0x0000000000000000000000000000000000000000000000000000000000000010,
         },
     },
 }
