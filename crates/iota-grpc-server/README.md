@@ -1,6 +1,12 @@
 # IOTA gRPC API
 
-This crate implements a gRPC API for IOTA. The primary goal of this API is to provide a more efficient and lower-latency method for data access, intended to replace existing REST-API polling or filesystem-based synchronization. This reduces the delay between data creation and their subsequent processing by external services.
+This crate implements a gRPC API for IOTA. Clients can subscribe to real-time data streams, enabling low-latency access to on-chain data as it is produced.
+
+## Field Masks
+
+Many endpoints support [field masks](https://protobuf.dev/reference/protobuf/google.protobuf/#field-mask) via an optional `read_mask` parameter. A field mask lets clients specify exactly which fields to include in the response, reducing bandwidth and processing overhead. When no field mask is provided, all fields are returned by default.
+
+Endpoints that support field masks are marked with **[FM]** below.
 
 ## Features
 
@@ -10,23 +16,21 @@ The gRPC API provides the following services:
 
 - `GetHealth`: Check node health with optional latency threshold.
 - `GetServiceInfo`: Query service state (chain ID, epoch, checkpoint height, etc.).
-- `GetObjects`: Stream objects by reference with field mask support.
-- `GetTransactions`: Stream transactions by digest with field mask support.
-- `GetCheckpoint`: Stream checkpoint data by sequence number, digest, or latest, with transaction and event filtering.
-- `StreamCheckpoints`: Stream checkpoints with filtering and progress reporting.
-- `GetEpoch`: Query epoch information.
+- `GetObjects` **[FM]**: Stream objects by reference.
+- `GetTransactions` **[FM]**: Stream transactions by digest.
+- `GetCheckpoint` **[FM]**: Stream checkpoint data by sequence number, digest, or latest, with transaction and event filtering.
+- `StreamCheckpoints` **[FM]**: Stream checkpoints with filtering and progress reporting.
+- `GetEpoch` **[FM]**: Query epoch information.
 
 ### Transaction Execution Service
 
-- `ExecuteTransactions`: Execute a batch of transactions sequentially.
-- `SimulateTransactions`: Simulate a batch of transactions (with suggested gas price).
-
-Both support field masks to control response data, per-item error handling, and configurable checkpoint inclusion waiting.
+- `ExecuteTransactions` **[FM]**: Execute a batch of transactions sequentially, with per-item error handling and configurable checkpoint inclusion waiting.
+- `SimulateTransactions` **[FM]**: Simulate a batch of transactions (with suggested gas price), with per-item error handling and configurable checkpoint inclusion waiting.
 
 ### State Service
 
-- `ListDynamicFields`: List dynamic fields owned by a parent object with pagination.
-- `ListOwnedObjects`: List objects owned by an address with optional type filtering and pagination.
+- `ListDynamicFields` **[FM]**: List dynamic fields owned by a parent object with pagination.
+- `ListOwnedObjects` **[FM]**: List objects owned by an address with optional type filtering and pagination.
 - `GetCoinInfo`: Get coin metadata, treasury cap, and regulated coin metadata.
 
 ### Move Package Service
@@ -37,7 +41,7 @@ Both support field masks to control response data, per-item error handling, and 
 
 The `iota-grpc-server` crate implements the gRPC services. The `iota-node` crate integrates and starts this gRPC server if `enable-grpc-api` is set to `true` and `grpc-api-config` is configured.
 
-Shared gRPC clients are provided by the `iota-grpc-client` crate:
+Shared gRPC clients are provided by the [`iota-sdk-grpc-client`](https://github.com/iotaledger/iota-rust-sdk/tree/develop/crates/iota-sdk-grpc-client) crate in the [iota-rust-sdk](https://github.com/iotaledger/iota-rust-sdk):
 
 - `Client`: Factory for creating service-specific clients (`ledger_service_client()`, `execution_service_client()`, `state_service_client()`, `move_package_service_client()`).
 
@@ -61,7 +65,7 @@ grpc-api-config:
 **Client Example:**
 
 ```rust
-use iota_grpc_client::Client;
+use iota_sdk_grpc_client::Client;
 
 // Connect to gRPC node
 let client = Client::connect("http://localhost:50051").await?;
@@ -73,4 +77,4 @@ let mut state = client.state_service_client();
 let mut packages = client.move_package_service_client();
 ```
 
-Proto definitions are in the `iota-grpc-types` crate at `proto/iota/grpc/v1/`.
+Proto definitions are in the [`iota-sdk-grpc-types`](https://github.com/iotaledger/iota-rust-sdk/tree/develop/crates/iota-sdk-grpc-types/proto/iota/grpc/v1) crate in the [iota-rust-sdk](https://github.com/iotaledger/iota-rust-sdk).
