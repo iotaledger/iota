@@ -33,7 +33,12 @@ import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
 const OWNED_OBJECTS_LOCAL_STORAGE_FILTER = 'owned-objects/filter';
-
+const CATEGORY_LABELS: Record<OwnedObjectCategory, string> = {
+    [OwnedObjectCategory.Nft]: 'NFT',
+    [OwnedObjectCategory.Name]: 'NAME',
+    [OwnedObjectCategory.Kiosk]: 'KIOSK',
+    [OwnedObjectCategory.Other]: 'OTHER',
+};
 interface ItemsRangeFromCurrentPage {
     start: number;
     end: number;
@@ -43,13 +48,6 @@ enum OwnedObjectsContainerHeight {
     Small = 'h-[400px]',
     Default = 'h-[400px] md:h-[570px]',
 }
-
-const FILTER_OPTIONS = [
-    { label: 'NFT', value: OwnedObjectCategory.Nft },
-    { label: 'NAME', value: OwnedObjectCategory.Name },
-    { label: 'KIOSK', value: OwnedObjectCategory.Kiosk },
-    { label: 'OTHER', value: OwnedObjectCategory.Other },
-];
 
 const VIEW_MODES = [
     { icon: <ListViewSmall />, value: ObjectViewMode.List },
@@ -261,22 +259,16 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                     type={SegmentedButtonType.Outlined}
                                     shape={ButtonSegmentType.Rounded}
                                 >
-                                    {availableCategories.map((value) => {
-                                        const option = FILTER_OPTIONS.find(
-                                            (opt) => opt.value === value,
-                                        );
-
-                                        return (
-                                            <ButtonSegment
-                                                key={value}
-                                                type={ButtonSegmentType.Rounded}
-                                                selected={value === filter}
-                                                label={option?.label ?? value.toUpperCase()}
-                                                disabled={isPending}
-                                                onClick={() => setFilter(value)}
-                                            />
-                                        );
-                                    })}
+                                    {availableCategories.map((value) => (
+                                        <ButtonSegment
+                                            key={value}
+                                            type={ButtonSegmentType.Rounded}
+                                            selected={value === filter}
+                                            label={CATEGORY_LABELS[value]}
+                                            disabled={isPending}
+                                            onClick={() => setFilter(value)}
+                                        />
+                                    ))}
                                 </SegmentedButton>
                             </div>
                         )}
@@ -317,7 +309,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         )}
                         <div className="flex items-center gap-sm">
                             {!isPending && showPagination && hasVisualAssets && (
-                                <span className="shrink-0·text-body-sm·text-iota-neutral-40·dark:text-iota-neutral-6">
+                                <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-6">
                                     Showing {start} - {end}
                                 </span>
                             )}

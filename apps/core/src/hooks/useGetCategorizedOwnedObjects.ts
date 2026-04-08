@@ -49,12 +49,12 @@ interface CategorizedOwnedObjectsResult {
 function useVirtualPagination<T>(
     items: T[],
     pageSize: number,
+    resetKey?: string,
 ): CategoryData<T> & { setPage: (page: number) => void } {
     const [currentPage, setCurrentPage] = useState(0);
-
     useEffect(() => {
         setCurrentPage(0);
-    }, [pageSize]);
+    }, [pageSize, resetKey]);
 
     const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
 
@@ -149,10 +149,10 @@ export function useGetCategorizedOwnedObjects(
 
     const kioskItems = useMemo(() => kioskData?.list ?? [], [kioskData?.list]);
 
-    const nftPagination = useVirtualPagination(nftItems, pageSize);
-    const namePagination = useVirtualPagination(nameItems, pageSize);
-    const otherPagination = useVirtualPagination(otherItems, pageSize);
-    const kioskPagination = useVirtualPagination(kioskItems, pageSize);
+    const nftPagination = useVirtualPagination(nftItems, pageSize, OwnedObjectCategory.Nft);
+    const namePagination = useVirtualPagination(nameItems, pageSize, OwnedObjectCategory.Name);
+    const otherPagination = useVirtualPagination(otherItems, pageSize, OwnedObjectCategory.Other);
+    const kioskPagination = useVirtualPagination(kioskItems, pageSize, OwnedObjectCategory.Kiosk);
 
     const hasMore = !!ownedObjectsQuery.hasNextPage;
     const isLoadingMore = ownedObjectsQuery.isFetchingNextPage;
