@@ -229,7 +229,7 @@ fn check_overload_signals(
     (overload_status, load_shedding_percentage)
 }
 
-// Return true if we should reject the txn with `tx_digest`.
+/// Return true if we should reject the txn with `tx_digest`.
 fn should_reject_tx(
     load_shedding_percentage: u32,
     tx_digest: TransactionDigest,
@@ -243,7 +243,7 @@ fn should_reject_tx(
     value % 100 < load_shedding_percentage as u64
 }
 
-// Checks if we can accept the transaction with `tx_digest`.
+/// Checks if we can accept the transaction with `tx_digest`.
 pub fn overload_monitor_accept_tx(
     load_shedding_percentage: u32,
     tx_digest: TransactionDigest,
@@ -268,6 +268,45 @@ pub fn overload_monitor_accept_tx(
         });
     }
     Ok(())
+}
+
+/// Computes the percentage of transactions to shed based on consensus queue
+/// length. Returns 0 if `num_inflight_txs` is below or equal `soft_limit`,
+/// linearly scales to `max_shedding_pct` between soft and hard limits,
+/// and caps at `max_shedding_pct` if `num_inflight_txs` is above or equal
+/// `hard_limit`. Used in the certificate-less (white-flag) flow for graduated
+/// pre-consensus load shedding.
+pub fn compute_consensus_load_shedding_percentage(
+    num_inflight_txs: usize,
+    soft_limit: usize,
+    hard_limit: usize,
+    max_shedding_pct: u32,
+) -> u32 {
+    // No shedding below soft limit, or if limits are misconfigured (soft >= hard).
+    if num_inflight_txs <= soft_limit || soft_limit >= hard_limit {
+        return 0;
+    }
+
+    // At or above hard limit, shed at maximum rate. The binary hard cutoff
+    // in check_consensus_overload() serves as a backstop after this.
+    if num_inflight_txs >= hard_limit {
+        return max_shedding_pct;
+    }
+
+    debug_assert!(
+        hard_limit > soft_limit,
+        "soft_limit >= hard_limit should have returned early above"
+    );
+    let range = hard_limit - soft_limit;
+
+    debug_assert!(
+        num_inflight_txs > soft_limit,
+        "num_inflight_txs <= soft_limit should have returned early above"
+    );
+    let excess = num_inflight_txs - soft_limit;
+
+    // Linear interpolation: 0% at `soft_limit`, `max_shedding_pct` at `hard_limit`.
+    ((excess as u64 * max_shedding_pct as u64) / range as u64).min(max_shedding_pct as u64) as u32
 }
 
 #[cfg(test)]
