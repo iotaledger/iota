@@ -7,9 +7,10 @@ use std::collections::BTreeMap;
 use fastcrypto::traits::KeyPair as KeypairTraits;
 use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    Signer as _, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::crypto::{Ed25519Signature, Intent, IntentMessage, Secp256k1Signature};
 use rand::{SeedableRng, rngs::StdRng};
 
 use crate::{
@@ -136,14 +137,6 @@ pub fn to_sender_signed_transaction_with_multi_signers(
     Transaction::from_data_and_signer(data, signers)
 }
 
-pub fn keys() -> Vec<IotaKeyPair> {
-    let mut seed = StdRng::from_seed([0; 32]);
-    let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
-    let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
-    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
-    vec![kp1, kp2, kp3]
-}
-
 pub fn make_upgraded_multisig_tx() -> Transaction {
     let keys = keys();
     let pk1 = &keys[0].public();
@@ -210,14 +203,15 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
         )
         .unwrap();
         let addr = multisig_pk.derive_address();
-        let tx = make_transaction(addr, &keys[0]);
+        let tx = make_transaction(addr, &IotaKeyPair::from_bytes(&kp1.to_bytes()).unwrap());
 
-        let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
-        let sig1 = Signature::new_secure(&msg, &keys[0]).into();
-        let sig2 = Signature::new_secure(&msg, &keys[1]).into();
+        let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone())
+            .signing_message();
+        let sig1: Ed25519Signature = kp1.sign(&*msg);
+        let sig2: Secp256k1Signature = kp2.sign(&*msg);
 
         // Any 2 of 3 signatures verifies ok.
-        let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
+        let multi_sig1 = MultiSig::combine(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
         Transaction::new(SenderSignedData::new(
             tx.transaction_data().clone(),
             vec![GenericSignature::MultiSig(multi_sig1)],

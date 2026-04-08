@@ -14,7 +14,7 @@ use fastcrypto::hash::HashFunction;
 use iota_sdk_crypto::multisig::MultisigVerifier;
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
-    MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
+    MultisigMember, MultisigMemberPublicKey, MultisigMemberSignature, ThresholdUnit, WeightUnit,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -175,20 +175,6 @@ impl AuthenticatorTrait for MultiSig {
 
 // impl MultiSig {
 
-
-// impl FromStr for MultiSig {
-//     type Err = IotaError;
-
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         let bytes = Base64::decode(s).map_err(|_| IotaError::InvalidSignature
-// {             error: "Invalid base64 string".to_string(),
-//         })?;
-//         let sig = MultiSig::from_bytes(&bytes).map_err(|_|
-// IotaError::InvalidSignature {             error: "Invalid multisig
-// bytes".to_string(),         })?;
-//         Ok(sig)
-//     }
-// }
 
 // /// The struct that contains the public key used for authenticating a
 // MultiSig. #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize,
