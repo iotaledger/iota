@@ -8,12 +8,12 @@ use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    global_state_hash::GlobalStateHash,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -38,7 +38,7 @@ use crate::{
         authority_store::{ExecutionLockWriteGuard, IotaLockResult},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
-    state_accumulator::AccumulatorStore,
+    global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -310,28 +310,28 @@ impl ExecutionCacheWrite for PassthroughCache {
     }
 }
 
-impl AccumulatorStore for PassthroughCache {
-    fn get_root_state_accumulator_for_epoch(
+impl GlobalStateHashStore for PassthroughCache {
+    fn get_root_state_hash_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
-        self.store.get_root_state_accumulator_for_epoch(epoch)
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
+        self.store.get_root_state_hash_for_epoch(epoch)
     }
 
-    fn get_root_state_accumulator_for_highest_epoch(
+    fn get_root_state_hash_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
-        self.store.get_root_state_accumulator_for_highest_epoch()
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
+        self.store.get_root_state_hash_for_highest_epoch()
     }
 
-    fn insert_state_accumulator_for_epoch(
+    fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
-        acc: &Accumulator,
+        acc: &GlobalStateHash,
     ) -> IotaResult {
         self.store
-            .insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc)
+            .insert_state_hash_for_epoch(epoch, checkpoint_seq_num, acc)
     }
 
     fn iter_live_object_set(

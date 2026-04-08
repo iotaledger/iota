@@ -168,13 +168,13 @@ use crate::{
         TransactionCacheRead,
     },
     execution_driver::execution_process,
+    global_state_hasher::{GlobalStateHashStore, GlobalStateHasher},
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
     stake_aggregator::StakeAggregator,
-    state_accumulator::{AccumulatorStore, StateAccumulator},
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
     transaction_manager::TransactionManager,
@@ -3184,8 +3184,8 @@ impl AuthorityState {
         &self.execution_cache_trait_pointers.reconfig_api
     }
 
-    pub fn get_accumulator_store(&self) -> &Arc<dyn AccumulatorStore> {
-        &self.execution_cache_trait_pointers.accumulator_store
+    pub fn get_global_state_hash_store(&self) -> &Arc<dyn GlobalStateHashStore> {
+        &self.execution_cache_trait_pointers.global_state_hash_store
     }
 
     pub fn get_checkpoint_cache(&self) -> &Arc<dyn CheckpointCache> {
@@ -3366,7 +3366,7 @@ impl AuthorityState {
         supported_protocol_versions: SupportedProtocolVersions,
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
         epoch_last_checkpoint: CheckpointSequenceNumber,
@@ -3429,7 +3429,7 @@ impl AuthorityState {
             .clear_state_end_of_epoch(&execution_lock);
         self.check_system_consistency(
             cur_epoch_store,
-            accumulator,
+            state_hasher,
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
@@ -3515,7 +3515,7 @@ impl AuthorityState {
     fn check_system_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
     ) -> IotaResult<()> {
@@ -3538,7 +3538,7 @@ impl AuthorityState {
                 cur_epoch_store.epoch()
             );
             self.expensive_check_is_consistent_state(
-                accumulator,
+                state_hasher,
                 cur_epoch_store,
                 cfg!(debug_assertions), // panic in debug mode only
             );
@@ -3546,7 +3546,7 @@ impl AuthorityState {
 
         if expensive_safety_check_config.enable_secondary_index_checks() {
             if let Some(indexes) = self.indexes.clone() {
-                verify_indexes(self.get_accumulator_store().as_ref(), indexes)
+                verify_indexes(self.get_global_state_hash_store().as_ref(), indexes)
                     .expect("secondary indexes are inconsistent");
             }
         }
@@ -3556,15 +3556,15 @@ impl AuthorityState {
 
     fn expensive_check_is_consistent_state(
         &self,
-        accumulator: Arc<StateAccumulator>,
+        state_hasher: Arc<GlobalStateHasher>,
         cur_epoch_store: &AuthorityPerEpochStore,
         panic: bool,
     ) {
-        let live_object_set_hash = accumulator.digest_live_object_set();
+        let live_object_set_hash = state_hasher.digest_live_object_set();
 
         let root_state_hash: ECMHLiveObjectSetDigest = self
-            .get_accumulator_store()
-            .get_root_state_accumulator_for_epoch(cur_epoch_store.epoch())
+            .get_global_state_hash_store()
+            .get_root_state_hash_for_epoch(cur_epoch_store.epoch())
             .expect("Retrieving root state hash cannot fail")
             .expect("Root state hash for epoch must exist")
             .1
@@ -3588,7 +3588,7 @@ impl AuthorityState {
         }
 
         if !panic {
-            accumulator.set_inconsistent_state(is_inconsistent);
+            state_hasher.set_inconsistent_state(is_inconsistent);
         }
     }
 
@@ -5664,7 +5664,7 @@ impl AuthorityState {
     pub(crate) fn iter_live_object_set_for_testing(
         &self,
     ) -> impl Iterator<Item = authority_store_tables::LiveObject> + '_ {
-        self.get_accumulator_store()
+        self.get_global_state_hash_store()
             .iter_cached_live_object_set_for_testing()
     }
 

@@ -35,7 +35,7 @@ use crate::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
     },
-    state_accumulator::AccumulatorStore,
+    global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -65,7 +65,7 @@ pub struct ExecutionCacheTraitPointers {
     pub backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
     pub object_store: Arc<dyn ObjectStore + Send + Sync>,
     pub reconfig_api: Arc<dyn ExecutionCacheReconfigAPI>,
-    pub accumulator_store: Arc<dyn AccumulatorStore>,
+    pub global_state_hash_store: Arc<dyn GlobalStateHashStore>,
     pub checkpoint_cache: Arc<dyn CheckpointCache>,
     pub state_sync_store: Arc<dyn StateSyncAPI>,
     pub cache_commit: Arc<dyn ExecutionCacheCommit>,
@@ -82,7 +82,7 @@ impl ExecutionCacheTraitPointers {
             + BackingPackageStore
             + ObjectStore
             + ExecutionCacheReconfigAPI
-            + AccumulatorStore
+            + GlobalStateHashStore
             + CheckpointCache
             + StateSyncAPI
             + ExecutionCacheCommit
@@ -97,7 +97,7 @@ impl ExecutionCacheTraitPointers {
             backing_package_store: cache.clone(),
             object_store: cache.clone(),
             reconfig_api: cache.clone(),
-            accumulator_store: cache.clone(),
+            global_state_hash_store: cache.clone(),
             checkpoint_cache: cache.clone(),
             state_sync_store: cache.clone(),
             cache_commit: cache.clone(),

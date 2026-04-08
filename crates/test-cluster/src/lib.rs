@@ -43,7 +43,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::{
-        ProtocolVersionsConfig, StateAccumulatorEnabledCallback, StateAccumulatorV1EnabledConfig,
+        GlobalStateHashV1EnabledCallback, GlobalStateHashV1EnabledConfig, ProtocolVersionsConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::{FullnodeConfigBuilder, ValidatorConfigBuilder},
@@ -1036,7 +1036,7 @@ pub struct TestClusterBuilder {
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
+    validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_address_verification_cooldown: bool,
     chain_override: Option<Chain>,
 }
@@ -1072,7 +1072,9 @@ impl TestClusterBuilder {
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
+            validator_global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig::Global(
+                true,
+            ),
             disable_address_verification_cooldown: false,
         }
     }
@@ -1211,12 +1213,12 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_state_accumulator_callback(
+    pub fn with_global_state_hash_v1_enabled_callback(
         mut self,
-        func: StateAccumulatorEnabledCallback,
+        func: GlobalStateHashV1EnabledCallback,
     ) -> Self {
-        self.validator_state_accumulator_config =
-            StateAccumulatorV1EnabledConfig::PerValidator(func);
+        self.validator_global_state_hash_v1_enabled_config =
+            GlobalStateHashV1EnabledConfig::PerValidator(func);
         self
     }
 
@@ -1406,7 +1408,9 @@ impl TestClusterBuilder {
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
-            .with_state_accumulator_config(self.validator_state_accumulator_config.clone())
+            .with_global_state_hash_v1_enabled_config(
+                self.validator_global_state_hash_v1_enabled_config.clone(),
+            )
             .with_fullnode_count(1)
             .with_fullnode_supported_protocol_versions_config(
                 self.fullnode_supported_protocol_versions_config

@@ -89,7 +89,7 @@ tokio.workspace = true
 url.workspace = true
 
 [[bench]]
-name = "accumulator_bench"
+name = "global_state_hash_bench"
 harness = false
 
 [features]

@@ -7,12 +7,12 @@ use std::{sync::Arc, time::Duration};
 use futures::{FutureExt, future::BoxFuture};
 use iota_config::node::ExecutionCacheTypeAtomicU8;
 use iota_types::{
-    accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    global_state_hash::GlobalStateHash,
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
@@ -34,7 +34,7 @@ use crate::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
-    state_accumulator::AccumulatorStore,
+    global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
 };
 
@@ -281,27 +281,27 @@ impl ExecutionCacheWrite for ProxyCache {
     }
 }
 
-impl AccumulatorStore for ProxyCache {
-    fn get_root_state_accumulator_for_epoch(
+impl GlobalStateHashStore for ProxyCache {
+    fn get_root_state_hash_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
-        delegate_method!(self.get_root_state_accumulator_for_epoch(epoch))
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
+        delegate_method!(self.get_root_state_hash_for_epoch(epoch))
     }
 
-    fn get_root_state_accumulator_for_highest_epoch(
+    fn get_root_state_hash_for_highest_epoch(
         &self,
-    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
-        delegate_method!(self.get_root_state_accumulator_for_highest_epoch())
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, GlobalStateHash))>> {
+        delegate_method!(self.get_root_state_hash_for_highest_epoch())
     }
 
-    fn insert_state_accumulator_for_epoch(
+    fn insert_state_hash_for_epoch(
         &self,
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
-        acc: &Accumulator,
+        acc: &GlobalStateHash,
     ) -> IotaResult {
-        delegate_method!(self.insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc))
+        delegate_method!(self.insert_state_hash_for_epoch(epoch, checkpoint_seq_num, acc))
     }
 
     fn iter_live_object_set(

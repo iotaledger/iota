@@ -30,14 +30,14 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
-    state_accumulator::WrappedObject,
+    global_state_hasher::WrappedObject,
 };
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
 use iota_types::{
-    accumulator::Accumulator,
     base_types::ObjectID,
+    global_state_hash::GlobalStateHash,
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
         get_iota_system_state,
@@ -242,7 +242,7 @@ pub fn create_file_metadata(
 
 pub async fn setup_db_state(
     epoch: u64,
-    accumulator: Accumulator,
+    accumulator: GlobalStateHash,
     perpetual_db: Arc<AuthorityPerpetualTables>,
     checkpoint_store: Arc<CheckpointStore>,
     committee_store: Arc<CommitteeStore>,
@@ -297,7 +297,7 @@ pub async fn accumulate_live_object_iter(
     iter: Box<dyn Iterator<Item = LiveObject> + '_>,
     m: MultiProgress,
     num_live_objects: u64,
-) -> Accumulator {
+) -> GlobalStateHash {
     // Monitor progress of live object accumulation
     let accum_progress_bar = m.add(ProgressBar::new(num_live_objects).with_style(
         ProgressStyle::with_template("[{elapsed_precise}] {wide_bar} {pos}/{len} ({msg})").unwrap(),
@@ -326,7 +326,7 @@ pub async fn accumulate_live_object_iter(
     });
 
     // Accumulate live objects
-    let mut acc = Accumulator::default();
+    let mut acc = GlobalStateHash::default();
     for live_object in iter {
         match live_object {
             LiveObject::Normal(object) => {

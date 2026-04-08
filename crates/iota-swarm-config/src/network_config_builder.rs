@@ -68,12 +68,12 @@ pub enum ProtocolVersionsConfig {
     PerValidator(SupportedProtocolVersionsCallback),
 }
 
-pub type StateAccumulatorEnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
+pub type GlobalStateHashV1EnabledCallback = Arc<dyn Fn(usize) -> bool + Send + Sync + 'static>;
 
 #[derive(Clone)]
-pub enum StateAccumulatorV1EnabledConfig {
+pub enum GlobalStateHashV1EnabledConfig {
     Global(bool),
-    PerValidator(StateAccumulatorEnabledCallback),
+    PerValidator(GlobalStateHashV1EnabledCallback),
 }
 
 pub struct ConfigBuilder<R = OsRng> {
@@ -95,7 +95,7 @@ pub struct ConfigBuilder<R = OsRng> {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_config: Option<StateAccumulatorV1EnabledConfig>,
+    global_state_hash_v1_enabled_config: Option<GlobalStateHashV1EnabledConfig>,
     empty_validator_genesis: bool,
     admin_interface_address: Option<SocketAddr>,
 }
@@ -123,7 +123,7 @@ impl ConfigBuilder {
             firewall_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: Some(StateAccumulatorV1EnabledConfig::Global(true)),
+            global_state_hash_v1_enabled_config: Some(GlobalStateHashV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
             admin_interface_address: None,
         }
@@ -249,16 +249,20 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_callback(
+    pub fn with_global_state_hash_v1_enabled_callback(
         mut self,
-        func: StateAccumulatorEnabledCallback,
+        func: GlobalStateHashV1EnabledCallback,
     ) -> Self {
-        self.state_accumulator_config = Some(StateAccumulatorV1EnabledConfig::PerValidator(func));
+        self.global_state_hash_v1_enabled_config =
+            Some(GlobalStateHashV1EnabledConfig::PerValidator(func));
         self
     }
 
-    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
-        self.state_accumulator_config = Some(c);
+    pub fn with_global_state_hash_v1_enabled_config(
+        mut self,
+        c: GlobalStateHashV1EnabledConfig,
+    ) -> Self {
+        self.global_state_hash_v1_enabled_config = Some(c);
         self
     }
 
@@ -325,7 +329,7 @@ impl<R> ConfigBuilder<R> {
             firewall_config: self.firewall_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_config: self.state_accumulator_config,
+            global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             empty_validator_genesis: self.empty_validator_genesis,
             admin_interface_address: self.admin_interface_address,
         }

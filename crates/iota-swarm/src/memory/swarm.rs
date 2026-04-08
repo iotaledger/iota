@@ -26,7 +26,7 @@ use iota_swarm_config::{
     genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
     network_config::NetworkConfig,
     network_config_builder::{
-        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV1EnabledConfig,
+        CommitteeConfig, ConfigBuilder, GlobalStateHashV1EnabledConfig, ProtocolVersionsConfig,
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
@@ -71,7 +71,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
-    state_accumulator_config: StateAccumulatorV1EnabledConfig,
+    global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
     fullnode_enable_grpc_api: bool,
@@ -108,7 +108,7 @@ impl SwarmBuilder {
             fullnode_fw_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
-            state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
+            global_state_hash_v1_enabled_config: GlobalStateHashV1EnabledConfig::Global(true),
             disable_fullnode_pruning: false,
             iota_names_config: None,
             fullnode_enable_grpc_api: false,
@@ -147,7 +147,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_fw_config: self.fullnode_fw_config,
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
-            state_accumulator_config: self.state_accumulator_config,
+            global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
@@ -274,8 +274,11 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_state_accumulator_config(mut self, c: StateAccumulatorV1EnabledConfig) -> Self {
-        self.state_accumulator_config = c;
+    pub fn with_global_state_hash_v1_enabled_config(
+        mut self,
+        c: GlobalStateHashV1EnabledConfig,
+    ) -> Self {
+        self.global_state_hash_v1_enabled_config = c;
         self
     }
 
@@ -453,7 +456,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 .with_supported_protocol_versions_config(
                     self.supported_protocol_versions_config.clone(),
                 )
-                .with_state_accumulator_config(self.state_accumulator_config.clone())
+                .with_global_state_hash_v1_enabled_config(
+                    self.global_state_hash_v1_enabled_config.clone(),
+                )
                 .build();
             // Populate validator genesis by pointing to the blob
             let genesis_path = dir.join(IOTA_GENESIS_FILENAME);

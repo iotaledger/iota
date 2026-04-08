@@ -30,7 +30,7 @@ use move_core_types::{account_address::AccountAddress, ident_str};
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::{authority::AuthorityState, state_accumulator::StateAccumulator};
+use crate::{authority::AuthorityState, global_state_hasher::GlobalStateHasher};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -61,8 +61,9 @@ pub async fn send_and_confirm_transaction(
     // wrong inside the VM
     //
     // We also check the incremental effects of the transaction on the live object
-    // set against StateAccumulator for testing and regression detection
-    let state_acc = StateAccumulator::new_for_tests(authority.get_accumulator_store().clone());
+    // set against GlobalStateHasher for testing and regression detection
+    let state_acc =
+        GlobalStateHasher::new_for_tests(authority.get_global_state_hash_store().clone());
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();

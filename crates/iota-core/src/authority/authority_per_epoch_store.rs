@@ -35,7 +35,6 @@ use iota_protocol_config::{
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    accumulator::Accumulator,
     authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
@@ -47,6 +46,7 @@ use iota_types::{
     effects::TransactionEffects,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    global_state_hash::GlobalStateHash,
     iota_system_state::epoch_start_iota_system_state::{
         EpochStartSystemState, EpochStartSystemStateTrait,
     },
@@ -611,9 +611,9 @@ pub struct AuthorityPerEpochStore {
     /// the current epoch.
     pub(crate) signature_verifier: SignatureVerifier,
 
-    pub(crate) checkpoint_state_notify_read: NotifyRead<CheckpointSequenceNumber, Accumulator>,
+    pub(crate) checkpoint_state_notify_read: NotifyRead<CheckpointSequenceNumber, GlobalStateHash>,
 
-    running_root_notify_read: NotifyRead<CheckpointSequenceNumber, Accumulator>,
+    running_root_notify_read: NotifyRead<CheckpointSequenceNumber, GlobalStateHash>,
 
     executed_digests_notify_read: NotifyRead<TransactionKey, TransactionDigest>,
 
@@ -767,13 +767,14 @@ pub struct AuthorityEpochTables {
     // Maps checkpoint sequence number to an accumulator with accumulated state
     // only for the checkpoint that the key references. Append-only, i.e.,
     // the accumulator is complete wrt the checkpoint
-    pub state_hash_by_checkpoint: DBMap<CheckpointSequenceNumber, Accumulator>,
+    pub state_hash_by_checkpoint: DBMap<CheckpointSequenceNumber, GlobalStateHash>,
 
     /// Maps checkpoint sequence number to the running (non-finalized) root
     /// state accumulator up th that checkpoint. This should be equivalent
     /// to the root state hash at end of epoch. Guaranteed to be written to
     /// in checkpoint sequence number order.
-    pub running_root_accumulators: DBMap<CheckpointSequenceNumber, Accumulator>,
+    #[rename = "running_root_accumulators"]
+    pub running_root_state_hash: DBMap<CheckpointSequenceNumber, GlobalStateHash>,
 
     /// Record of the capabilities advertised by each authority.
     authority_capabilities_v1: DBMap<AuthorityName, AuthorityCapabilitiesV1>,
@@ -1315,7 +1316,7 @@ impl AuthorityPerEpochStore {
     pub fn get_state_hash_for_checkpoint(
         &self,
         checkpoint: &CheckpointSequenceNumber,
-    ) -> IotaResult<Option<Accumulator>> {
+    ) -> IotaResult<Option<GlobalStateHash>> {
         Ok(self
             .tables()?
             .state_hash_by_checkpoint
@@ -1326,7 +1327,7 @@ impl AuthorityPerEpochStore {
     pub fn insert_state_hash_for_checkpoint(
         &self,
         checkpoint: &CheckpointSequenceNumber,
-        accumulator: &Accumulator,
+        accumulator: &GlobalStateHash,
     ) -> IotaResult {
         self.tables()?
             .state_hash_by_checkpoint
@@ -1335,37 +1336,37 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    pub fn get_running_root_accumulator(
+    pub fn get_running_root_state_hash(
         &self,
         checkpoint: CheckpointSequenceNumber,
-    ) -> IotaResult<Option<Accumulator>> {
+    ) -> IotaResult<Option<GlobalStateHash>> {
         Ok(self
             .tables()?
-            .running_root_accumulators
+            .running_root_state_hash
             .get(&checkpoint)
             .expect("db error"))
     }
 
-    pub fn get_highest_running_root_accumulator(
+    pub fn get_highest_running_root_state_hash(
         &self,
-    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, GlobalStateHash)>> {
         Ok(self
             .tables()?
-            .running_root_accumulators
+            .running_root_state_hash
             .reversed_safe_iter_with_bounds(None, None)?
             .next()
             .transpose()?)
     }
 
-    pub fn insert_running_root_accumulator(
+    pub fn insert_running_root_state_hash(
         &self,
         checkpoint: &CheckpointSequenceNumber,
-        acc: &Accumulator,
+        hash: &GlobalStateHash,
     ) -> IotaResult {
         self.tables()?
-            .running_root_accumulators
-            .insert(checkpoint, acc)?;
-        self.running_root_notify_read.notify(checkpoint, acc);
+            .running_root_state_hash
+            .insert(checkpoint, hash)?;
+        self.running_root_notify_read.notify(checkpoint, hash);
 
         Ok(())
     }
@@ -1646,7 +1647,7 @@ impl AuthorityPerEpochStore {
         &self,
         from_checkpoint: CheckpointSequenceNumber,
         to_checkpoint: CheckpointSequenceNumber,
-    ) -> IotaResult<Vec<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Vec<(CheckpointSequenceNumber, GlobalStateHash)>> {
         self.tables()?
             .state_hash_by_checkpoint
             .safe_range_iter(from_checkpoint..=to_checkpoint)
@@ -1656,10 +1657,10 @@ impl AuthorityPerEpochStore {
 
     /// Returns future containing the state accumulator for the given epoch
     /// once available.
-    pub async fn notify_read_checkpoint_state_accumulator(
+    pub async fn notify_read_checkpoint_state_hasher(
         &self,
         checkpoints: &[CheckpointSequenceNumber],
-    ) -> IotaResult<Vec<Accumulator>> {
+    ) -> IotaResult<Vec<GlobalStateHash>> {
         let tables = self.tables()?;
         self.checkpoint_state_notify_read
             .read(checkpoints, |checkpoints| {
@@ -1674,9 +1675,9 @@ impl AuthorityPerEpochStore {
     pub async fn notify_read_running_root(
         &self,
         checkpoint: CheckpointSequenceNumber,
-    ) -> IotaResult<Accumulator> {
+    ) -> IotaResult<GlobalStateHash> {
         let registration = self.running_root_notify_read.register_one(&checkpoint);
-        let acc = self.tables()?.running_root_accumulators.get(&checkpoint)?;
+        let acc = self.tables()?.running_root_state_hash.get(&checkpoint)?;
 
         let result = match acc {
             Some(ready) => Either::Left(futures::future::ready(ready)),
