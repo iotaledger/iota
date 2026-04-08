@@ -16,7 +16,7 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
+    storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use tracing::instrument;
@@ -212,6 +212,19 @@ impl ObjectCacheRead for ProxyCache {
 
     fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
         delegate_method!(self.try_get_highest_pruned_checkpoint())
+    }
+
+    fn notify_read_input_objects<'a>(
+        &'a self,
+        input_and_receiving_keys: &'a [InputKey],
+        receiving_keys: &'a std::collections::HashSet<InputKey>,
+        epoch: &'a EpochId,
+    ) -> BoxFuture<'a, Vec<()>> {
+        delegate_method!(self.notify_read_input_objects(
+            input_and_receiving_keys,
+            receiving_keys,
+            epoch
+        ))
     }
 }
 

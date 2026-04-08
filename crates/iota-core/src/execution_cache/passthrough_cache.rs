@@ -18,7 +18,7 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use prometheus::Registry;
@@ -205,6 +205,15 @@ impl ObjectCacheRead for PassthroughCache {
             .perpetual_tables
             .get_highest_pruned_checkpoint()
             .map_err(IotaError::from)
+    }
+
+    fn notify_read_input_objects<'a>(
+        &'a self,
+        _input_and_receiving_keys: &'a [InputKey],
+        _receiving_keys: &'a std::collections::HashSet<InputKey>,
+        _epoch: &'a EpochId,
+    ) -> BoxFuture<'a, Vec<()>> {
+        unimplemented!("PassthroughCache does not support notify_read_input_objects")
     }
 }
 

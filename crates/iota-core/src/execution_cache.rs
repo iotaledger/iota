@@ -377,7 +377,7 @@ pub trait ObjectCacheRead: Send + Sync {
         ) {
             assert!(
                 input_key.version().is_none() || input_key.version().unwrap().is_valid(),
-                "Shared objects in cancelled transaction should always be available immediately, 
+                "Shared objects in cancelled transaction should always be available immediately,
                  but it appears that transaction manager is waiting for {input_key:?} to become available"
             );
             // If the key exists at the specified version, then the object is available.
@@ -655,6 +655,20 @@ pub trait ObjectCacheRead: Send + Sync {
         self.try_get_highest_pruned_checkpoint()
             .expect("storage access failed")
     }
+
+    /// Given a list of input and receiving objects for a transaction,
+    /// wait until all of them become available, so that the transaction
+    /// can start execution.
+    /// `input_and_receiving_keys` contains both input objects and receiving
+    /// input objects, including canceled objects.
+    /// TODO: Eventually this can return the objects read results,
+    /// so that execution does not need to load them again.
+    fn notify_read_input_objects<'a>(
+        &'a self,
+        input_and_receiving_keys: &'a [InputKey],
+        receiving_keys: &'a HashSet<InputKey>,
+        epoch: &'a EpochId,
+    ) -> BoxFuture<'a, Vec<()>>;
 }
 
 pub trait TransactionCacheRead: Send + Sync {

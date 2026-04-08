@@ -48,7 +48,7 @@
 //! The above design is used for both objects and markers.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     hash::Hash,
     sync::{Arc, atomic::AtomicU64},
 };
@@ -69,12 +69,11 @@ use iota_types::{
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    storage::{InputKey, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
 use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
-use prometheus::Registry;
 use tap::TapOptional;
 use tracing::{debug, info, instrument, trace, warn};
 
@@ -103,6 +102,10 @@ use crate::{
 #[cfg(test)]
 #[path = "unit_tests/writeback_cache_tests.rs"]
 pub mod writeback_cache_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/notify_read_input_objects_tests.rs"]
+mod notify_read_input_objects_tests;
 
 #[derive(Clone, PartialEq, Eq)]
 enum ObjectEntry {
@@ -438,6 +441,7 @@ pub struct WritebackCache {
     object_locks: ObjectLocks,
 
     executed_effects_digests_notify_read: NotifyRead<TransactionDigest, TransactionEffectsDigest>,
+    object_notify_read: NotifyRead<InputKey, ()>,
     store: Arc<AuthorityStore>,
     backpressure_threshold: u64,
     backpressure_manager: Arc<BackpressureManager>,
@@ -499,6 +503,7 @@ impl WritebackCache {
             packages,
             object_locks: ObjectLocks::new(),
             executed_effects_digests_notify_read: NotifyRead::new(),
+            object_notify_read: NotifyRead::new(),
             store,
             backpressure_manager,
             backpressure_threshold: config.backpressure_threshold(),
@@ -506,11 +511,11 @@ impl WritebackCache {
         }
     }
 
-    pub fn new_for_tests(store: Arc<AuthorityStore>, registry: &Registry) -> Self {
+    pub fn new_for_tests(store: Arc<AuthorityStore>) -> Self {
         Self::new(
             &Default::default(),
             store,
-            ExecutionCacheMetrics::new(registry).into(),
+            ExecutionCacheMetrics::new(&prometheus::Registry::new()).into(),
             BackpressureManager::new_for_tests(),
         )
     }
@@ -571,7 +576,22 @@ impl WritebackCache {
             // See the comment in `MonotonicCache::insert`.
             .ok();
 
-        entry.insert(version, object);
+        entry.insert(version, object.clone());
+
+        if let ObjectEntry::Object(object) = &object {
+            if object.is_package() {
+                self.object_notify_read
+                    .notify(&InputKey::Package { id: *object_id }, &());
+            } else if !object.is_child_object() {
+                self.object_notify_read.notify(
+                    &InputKey::VersionedObject {
+                        id: object.id(),
+                        version: object.version(),
+                    },
+                    &(),
+                );
+            }
+        }
     }
 
     fn write_marker_value(
@@ -1824,6 +1844,76 @@ impl ObjectCacheRead for WritebackCache {
             .perpetual_tables
             .get_highest_pruned_checkpoint()
             .map_err(IotaError::from)
+    }
+
+    fn notify_read_input_objects<'a>(
+        &'a self,
+        input_and_receiving_keys: &'a [InputKey],
+        receiving_keys: &'a HashSet<InputKey>,
+        epoch: &'a EpochId,
+    ) -> BoxFuture<'a, Vec<()>> {
+        async move {
+            self.object_notify_read
+                .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
+                    let mut results = vec![None; keys.len()];
+
+                    let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
+                        .iter()
+                        .enumerate()
+                        .filter(|(idx, key)| {
+                            if key.is_cancelled() {
+                                // Shared objects in canceled transactions are always available.
+                                results[*idx] = Some(());
+                                false
+                            } else {
+                                true
+                            }
+                        })
+                        .partition(|(_, key)| key.version().is_some());
+                    let versioned_object_keys: Vec<_> = keys_with_version
+                        .iter()
+                        .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
+                        .collect();
+                    ObjectCacheRead::multi_get_objects_by_key(self, &versioned_object_keys)
+                        .into_iter()
+                        .zip(keys_with_version.iter())
+                        .for_each(|(o, (idx, input_key))| match o {
+                            Some(_) => results[*idx] = Some(()),
+                            None => {
+                                if receiving_keys.contains(input_key) {
+                                    // There could be a more recent version of this object, and the
+                                    // object at the specified version
+                                    // could have already been pruned. In such a case `has_key` will
+                                    // be false, but since this is a receiving object we should mark
+                                    // it as available if we can determine
+                                    // that an object with a version greater than or equal to the
+                                    // specified version exists or was deleted. We will then let
+                                    // mark it as available to
+                                    // let the transaction
+                                    // through so it can fail at execution.
+                                    let is_available =
+                                        ObjectCacheRead::get_object(self, &input_key.id())
+                                            .map(|obj| {
+                                                obj.version() >= input_key.version().unwrap()
+                                            })
+                                            .unwrap_or(false);
+                                    if is_available {
+                                        results[*idx] = Some(());
+                                    }
+                                }
+                            }
+                        });
+                    keys_without_version.iter().for_each(|(idx, key)| {
+                        if self.get_package_object(&key.id()).is_some() {
+                            results[*idx] = Some(());
+                        }
+                    });
+                    Ok(results)
+                })
+                .await
+                .unwrap()
+        }
+        .boxed()
     }
 }
 
