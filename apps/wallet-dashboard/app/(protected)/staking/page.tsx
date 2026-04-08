@@ -40,7 +40,7 @@ import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { isSupplyIncreaseVestingObject } from '@/lib/utils';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { useRouter } from 'next/navigation';
 
 function StakingDashboardPage(): React.JSX.Element {

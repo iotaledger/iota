@@ -4,10 +4,6 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use move_core_types::{
-    annotated_value::MoveTypeLayout,
-    language_storage::{StructTag, TypeTag},
-};
 use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
@@ -15,8 +11,7 @@ use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
-    digests::{ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
-    dynamic_field::DynamicFieldType,
+    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{
@@ -812,118 +807,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
     }
 }
 
-/// Trait used to provide functionality to the REST API service.
-///
-/// It extends both ObjectStore and ReadStore by adding functionality that may
-/// require more detailed underlying databases or indexes to support.
-pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
-    /// Lowest available checkpoint for which object data can be requested.
-    ///
-    /// Specifically this is the lowest checkpoint for which input/output object
-    /// data will be available.
-    fn get_lowest_available_checkpoint_objects(&self) -> Result<CheckpointSequenceNumber>;
-
-    fn get_chain_identifier(&self) -> Result<ChainIdentifier>;
-
-    fn get_epoch_last_checkpoint(&self, epoch_id: EpochId) -> Result<Option<VerifiedCheckpoint>>;
-
-    // Get a handle to an instance of the RpcIndexes
-    fn indexes(&self) -> Option<&dyn RestIndexes>;
-
-    fn get_type_layout(&self, type_tag: &TypeTag) -> Result<Option<MoveTypeLayout>> {
-        match type_tag {
-            TypeTag::Bool => Ok(Some(MoveTypeLayout::Bool)),
-            TypeTag::U8 => Ok(Some(MoveTypeLayout::U8)),
-            TypeTag::U64 => Ok(Some(MoveTypeLayout::U64)),
-            TypeTag::U128 => Ok(Some(MoveTypeLayout::U128)),
-            TypeTag::Address => Ok(Some(MoveTypeLayout::Address)),
-            TypeTag::Signer => Ok(Some(MoveTypeLayout::Signer)),
-            TypeTag::Vector(type_tag) => Ok(self
-                .get_type_layout(type_tag)?
-                .map(|layout| MoveTypeLayout::Vector(Box::new(layout)))),
-            TypeTag::Struct(struct_tag) => self.get_struct_layout(struct_tag),
-            TypeTag::U16 => Ok(Some(MoveTypeLayout::U16)),
-            TypeTag::U32 => Ok(Some(MoveTypeLayout::U32)),
-            TypeTag::U256 => Ok(Some(MoveTypeLayout::U256)),
-        }
-    }
-
-    fn get_struct_layout(&self, type_tag: &StructTag) -> Result<Option<MoveTypeLayout>>;
-}
-
-pub type DynamicFieldIteratorItem =
-    Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>;
-pub trait RestIndexes: Send + Sync {
-    // only used in "grpc-server"
-    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
-
-    // used in both "grpc-server" and "rest-api"
-    fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
-
-    // only used in "rest-api"
-    fn account_owned_objects_info_iter(
-        &self,
-        owner: IotaAddress,
-        cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
-
-    // only used in "rest-api"
-    fn dynamic_field_iter(
-        &self,
-        parent: ObjectID,
-        cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
-
-    // only used in "rest-api"
-    fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
-}
-
-pub struct AccountOwnedObjectInfo {
-    pub owner: IotaAddress,
-    pub object_id: ObjectID,
-    pub version: SequenceNumber,
-    pub type_: MoveObjectType,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct DynamicFieldKey {
-    pub parent: ObjectID,
-    pub field_id: ObjectID,
-}
-
-impl DynamicFieldKey {
-    pub fn new<P: Into<ObjectID>>(parent: P, field_id: ObjectID) -> Self {
-        Self {
-            parent: parent.into(),
-            field_id,
-        }
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct DynamicFieldIndexInfo {
-    // field_id of this dynamic field is a part of the Key
-    pub dynamic_field_type: DynamicFieldType,
-    pub name_type: TypeTag,
-    pub name_value: Vec<u8>,
-    // TODO do we want to also store the type of the value? We can get this for free for
-    // DynamicFields, but for DynamicObjects it would require a lookup in the DB on init, or
-    // scanning the transaction's output objects for the coorisponding Object to retrieve its type
-    // information.
-    //
-    // pub value_type: TypeTag,
-    /// ObjectId of the child object when `dynamic_field_type ==
-    /// DynamicFieldType::DynamicObject`
-    pub dynamic_object_id: Option<ObjectID>,
-}
-
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinInfo {
-    pub coin_metadata_object_id: Option<ObjectID>,
-    pub treasury_object_id: Option<ObjectID>,
-}
-
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct TransactionInfo {
     pub checkpoint: u64,
     pub object_types: HashMap<ObjectID, ObjectType>,
@@ -964,3 +848,68 @@ pub struct EpochInfo {
     /// System State as of the start of the epoch
     pub system_state: crate::iota_system_state::IotaSystemState,
 }
+
+#[derive(Clone)]
+pub struct AccountOwnedObjectInfo {
+    pub owner: IotaAddress,
+    pub object_id: ObjectID,
+    pub version: SequenceNumber,
+    pub type_: MoveObjectType,
+}
+
+/// Opaque cursor for seeking in the `owner_v2` index.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct OwnedObjectV2Cursor {
+    pub object_type_identifier: u64,
+    pub object_type_params: u64,
+    pub inverted_balance: Option<u64>,
+    pub object_id: ObjectID,
+}
+
+pub type OwnedObjectV2IteratorItem =
+    Result<(AccountOwnedObjectInfo, OwnedObjectV2Cursor), TypedStoreError>;
+
+pub type DynamicFieldIteratorItem = Result<DynamicFieldKey, TypedStoreError>;
+
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct DynamicFieldKey {
+    pub parent: ObjectID,
+    pub field_id: ObjectID,
+}
+
+impl DynamicFieldKey {
+    pub fn new<P: Into<ObjectID>>(parent: P, field_id: ObjectID) -> Self {
+        Self {
+            parent: parent.into(),
+            field_id,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct CoinInfo {
+    pub coin_metadata_object_id: Option<ObjectID>,
+    pub treasury_object_id: Option<ObjectID>,
+}
+
+/// Coin info including optional regulated coin metadata.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct CoinInfoV2 {
+    pub coin_metadata_object_id: Option<ObjectID>,
+    pub treasury_object_id: Option<ObjectID>,
+    pub regulated_coin_metadata_object_id: Option<ObjectID>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct PackageVersionKey {
+    pub original_package_id: ObjectID,
+    pub version: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
+pub struct PackageVersionInfo {
+    pub storage_id: ObjectID,
+}
+
+pub type PackageVersionIteratorItem =
+    Result<(PackageVersionKey, PackageVersionInfo), TypedStoreError>;

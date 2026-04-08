@@ -4,7 +4,7 @@
 
 use iota_grpc_types::{
     field::FieldMaskTree,
-    v0::{
+    v1::{
         bcs::BcsData,
         checkpoint::{Checkpoint, CheckpointContents, CheckpointSummary},
         epoch::{ProtocolAttributes, ProtocolConfig, ProtocolFeatureFlags},
@@ -17,9 +17,9 @@ use iota_grpc_types::{
     },
 };
 use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
-use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
+use iota_types::{base_types::ObjectID, iota_sdk_types_conversions::SdkTypeConversionError};
 
-use crate::error::RpcError;
+use crate::{error::RpcError, validation::object_id_proto};
 
 pub trait Merge<T> {
     type Error;
@@ -249,8 +249,7 @@ impl Merge<&iota_sdk_types::Event> for Event {
         }
 
         if mask.contains(Self::PACKAGE_ID_FIELD.name) {
-            self.package_id =
-                Some(Address::default().with_address(source.package_id.as_bytes().to_vec()));
+            self.package_id = Some(object_id_proto(&ObjectID::from(source.package_id)));
         }
 
         if mask.contains(Self::MODULE_FIELD.name) {
@@ -319,7 +318,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
                 let mut ref_builder = ObjectReference::default();
 
                 if reference_mask.contains(ObjectReference::OBJECT_ID_FIELD.name) {
-                    ref_builder = ref_builder.with_object_id(source.object_id().to_string());
+                    ref_builder = ref_builder.with_object_id(source.object_id());
                 }
 
                 if reference_mask.contains(ObjectReference::VERSION_FIELD.name) {
@@ -334,7 +333,7 @@ impl Merge<&iota_sdk_types::object::Object> for Object {
             } else {
                 // If no subtree, include all reference fields
                 ObjectReference::default()
-                    .with_object_id(source.object_id().to_string())
+                    .with_object_id(source.object_id())
                     .with_version(source.version())
                     .with_digest(source.digest())
             };
@@ -834,7 +833,7 @@ impl Merge<&Transaction> for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_types::{field::FieldMaskUtil, v0::epoch::ProtocolConfig};
+    use iota_grpc_types::{field::FieldMaskUtil, v1::epoch::ProtocolConfig};
     use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
     use prost_types::FieldMask;
 

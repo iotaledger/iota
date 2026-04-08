@@ -4,7 +4,7 @@
 'use client';
 
 import { HOMEPAGE_ROUTE, MIGRATION_ROUTE, VESTING_ROUTE } from '@/lib/constants/routes.constants';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature } from '@iota/core';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';

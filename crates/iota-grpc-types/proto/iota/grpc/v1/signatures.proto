@@ -1,0 +1,36 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.signatures;
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+
+// A signature from a user.
+message UserSignature {
+  option (iota.grpc.message_accessors) = "with";
+
+  // This signature serialized as as BCS.
+  //
+  // When provided as input this will support both the form that is length
+  // prefixed as well as not length prefixed.
+  optional iota.grpc.v1.bcs.BcsData bcs = 1;
+}
+
+// A list of user signatures.
+message UserSignatures {
+  option (iota.grpc.message_accessors) = "with";
+  option (iota.grpc.field_mask_transparent) = true;
+
+  repeated UserSignature signatures = 1;
+}
+
+/// An aggregated signature from multiple validators.
+message ValidatorAggregatedSignature {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional iota.grpc.v1.bcs.BcsData bcs = 1;
+}

@@ -16,12 +16,13 @@
 		"explorer": "turbo --filter iota-explorer",
 		"wallet": "turbo --filter ./apps/wallet",
 		"wallet-dashboard": "turbo --filter ./apps/wallet-dashboard",
-		"sdk-packages": "pnpm turbo run --filter=./sdk/* --filter=./apps/ui-kit --filter=./apps/ui-icons",
+		"sdk-packages": "pnpm turbo run --filter=./sdk/* --filter=./apps/ui-kit --filter=./apps/ui-icons --filter=./apps/apps-backend-client",
 		"sdk": "turbo --filter ./sdk/typescript",
 		"signers": "turbo --filter ./sdk/signers",
 		"bcs": "turbo --filter ./sdk/bcs",
 		"isc-sdk": "turbo --filter ./sdk/isc-sdk",
 		"apps-backend": "turbo --filter apps-backend",
+		"apps-backend-client": "turbo --filter @iota/apps-backend-client",
 		"iota-docs": "turbo --filter iota-docs",
 		"examples": "turbo --filter ./sdk/examples",
 		"changeset-publish": "pnpm changeset publish",
@@ -31,7 +32,8 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"path-to-regexp@<0.1.12": "^0.1.12",
+			"path-to-regexp@<0.1.13": "^0.1.13",
+			"path-to-regexp@>=8.0.0 <8.4.0": "8.4.0",
 			"image-size@<1.1.1": "^1.2.1",
 			"multer@<2.1.1": "^2.1.1",
 			"immutable@>=5.0.0 <5.1.5": "5.1.5",
@@ -52,7 +54,12 @@
 			"minimatch@>=9.0.0": "^9.0.9",
 			"hono@<4.12.4": ">=4.12.4",
 			"axios@<0.30.3": "^0.30.3",
-			"socket.io-parser@<4.2.6": "4.2.6"
+			"socket.io-parser@<4.2.6": "4.2.6",
+			"picomatch@<2.3.2": "^2.3.2",
+			"picomatch@>=4.0.0 <4.0.4": "^4.0.4",
+			"lodash@>=4.0.0 <4.18.0": ">=4.18.0",
+			"lodash-es@>=4.0.0 <4.18.0": ">=4.18.0",
+			"defu@<=6.1.4": ">=6.1.5"
 		}
 	},
 	"engines": {

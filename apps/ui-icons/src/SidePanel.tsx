@@ -16,7 +16,7 @@ export default function SvgSidePanel(props: SVGProps<SVGSVGElement>) {
             <path
                 fill="currentColor"
                 fillRule="evenodd"
-                d="M19.614 3c1.324 0 2.4 1.076 2.4 2.4L22 18.652C22 19.977 20.923 21 19.6 21l-15.2-.054c-1.323 0-2.4-1.023-2.4-2.346l.015-13.253c0-1.324 1.075-2.4 2.4-2.4zM4 18.999h11V5H4zm13 0h3V5h-3z"
+                d="M19.614 3c1.324 0 2.4 1.076 2.4 2.4L22 18.652C22 19.977 20.923 21 19.6 21l-15.2-.054c-1.323 0-2.4-1.023-2.4-2.346l.015-13.253c0-1.324 1.075-2.4 2.4-2.4l15.2.053ZM4 18.999h11V5H4zm13 0h3V5h-3z"
                 clipRule="evenodd"
             />
         </svg>

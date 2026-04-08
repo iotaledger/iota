@@ -3,7 +3,7 @@
 
 //! High-level API for service info queries.
 
-use iota_grpc_types::v0::ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse};
+use iota_grpc_types::v1::ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse};
 
 use crate::{
     Client,

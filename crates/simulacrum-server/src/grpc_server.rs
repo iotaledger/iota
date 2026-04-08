@@ -1,24 +1,31 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! gRPC streaming server for Simulacrum
+//! gRPC server utilities for Simulacrum.
+//!
+//! Provides [`start_simulacrum_grpc_server`] which wires up a complete gRPC
+//! server backed by a [`Simulacrum`] instance, including proper chain ID
+//! resolution and an optional [`TransactionExecutor`].
 
 use std::sync::Arc;
 
 use anyhow::Result;
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
-use iota_types::{
-    storage::RestStateReader, transaction_executor::TransactionExecutor as TransactionExecutorTrait,
-};
-use simulacrum::{
-    Simulacrum, state_reader::SimulacrumGrpcReader, transaction_executor::TransactionExecutor,
-};
+use iota_node_storage::GrpcStateReader;
+use iota_types::transaction_executor::TransactionExecutor as TransactionExecutorTrait;
+use simulacrum::{Simulacrum, transaction_executor::TransactionExecutor};
+use tokio_util::sync::CancellationToken;
 
-/// Start a gRPC server for the given simulacrum instance
+/// Start a gRPC server for the given simulacrum instance.
+///
+/// This creates the full server stack with:
+/// - The [`Simulacrum`] as the state reader (implements [`GrpcStateReader`])
+/// - A [`TransactionExecutor`] for transaction execution/simulation
+/// - The real chain identifier from the simulacrum genesis
 pub async fn start_simulacrum_grpc_server(
     simulacrum: Arc<Simulacrum>,
     config: iota_config::node::GrpcApiConfig,
-    shutdown_token: tokio_util::sync::CancellationToken,
+    shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
     let chain_id = simulacrum
         .get_chain_identifier()
@@ -30,8 +37,7 @@ pub async fn start_simulacrum_grpc_server(
         Some(Arc::new(TransactionExecutor::new(simulacrum.clone()))
             as Arc<dyn TransactionExecutorTrait>);
 
-    let simulacrum_reader = Arc::new(SimulacrumGrpcReader::new(simulacrum.clone(), chain_id));
-    let grpc_reader = Arc::new(GrpcReader::new(simulacrum_reader, None));
+    let grpc_reader = Arc::new(GrpcReader::new(simulacrum, None));
 
     start_grpc_server(
         grpc_reader,
@@ -46,7 +52,7 @@ pub async fn start_simulacrum_grpc_server(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
 
     use iota_config::local_ip_utils;
     use simulacrum::Simulacrum;

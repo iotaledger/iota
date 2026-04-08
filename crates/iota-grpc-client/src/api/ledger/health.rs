@@ -3,7 +3,7 @@
 
 //! High-level API for health check queries.
 
-use iota_grpc_types::v0::ledger_service::{GetHealthRequest, GetHealthResponse};
+use iota_grpc_types::v1::ledger_service::{GetHealthRequest, GetHealthResponse};
 
 use crate::{
     Client,

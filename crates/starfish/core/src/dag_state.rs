@@ -2342,8 +2342,14 @@ impl DagState {
     /// from that authority. For any round that is <= `last_evicted_round`
     /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
-        let commit_round = self.last_committed_rounds[authority_index];
-        Self::eviction_round(commit_round, self.cached_rounds)
+        let last_round = self.recent_headers_refs_by_authority[authority_index]
+            .last()
+            .map(|block_ref| block_ref.round)
+            .unwrap_or(GENESIS_ROUND);
+        // Keep at least cached_rounds of blocks, but never evict above the
+        // global GC round derived from the last commit.
+        self.gc_round_for_last_commit()
+            .min(Self::eviction_round(last_round, self.cached_rounds))
     }
 
     /// Calculates the last eviction round based on the provided `commit_round`.
@@ -2843,19 +2849,22 @@ mod test {
         expected = "Attempted to check for slot S8[0] that is <= the last evicted round 8"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
-        /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
+        const GC_DEPTH: Round = 3;
+        // With 14 rounds: gc_round = 14 - 6 = 8, eviction = min(8, 14 - 2) = 8
+        const NUM_ROUNDS: Round = 2 * GC_DEPTH + CACHED_ROUNDS + 6;
 
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store);
 
-        // Create test block headers for round 1 ~ 10 for authority 0
+        // Create test block headers for authority 0
         let mut block_headers = Vec::new();
-        for round in 1..=10 {
+        for round in 1..=NUM_ROUNDS {
             let block_header =
                 VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build());
             block_headers.push(block_header.clone());
@@ -2878,9 +2887,8 @@ mod test {
 
         dag_state.flush();
 
-        // When trying to request a header from authority 0 at round 8, it should panic,
-        // as anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should be
-        // evicted.
+        // Eviction round = min(gc_round, last_round - cached_rounds) = min(8, 12) = 8.
+        // Querying at round 8 should panic since it is <= evicted round.
         let _ = dag_state
             .contains_cached_block_header_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
@@ -3471,25 +3479,27 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
+        expected = "Attempted to request for blocks of rounds < 4, when the last evicted round is 3 for authority [2]"
     )]
     async fn test_get_cached_last_block_header_per_authority_requesting_out_of_round_range() {
         // GIVEN
         const CACHED_ROUNDS: Round = 1;
+        const GC_DEPTH: Round = 3;
+
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new(context.clone()));
         let mut dag_state = DagState::new(context.clone(), store);
 
         // Create no block headers for authority 0
-        // Create one block header (round 1) for authority 1
-        // Create two block headers (rounds 1,2) for authority 2
-        // Create three block headers (rounds 1,2,3) for authority 3
+        // Create block headers for authorities 1..=3, scaled so gc_round > 0.
+        // auth 1: rounds 1..=3, auth 2: rounds 1..=6, auth 3: rounds 1..=9
         let mut all_blocks_headers = Vec::new();
-        for author in 1..=3 {
-            for round in 1..=author {
+        for author in 1..=3u32 {
+            for round in 1..=(author * 3) {
                 let block_header = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author as u8).build(),
                 );
@@ -3511,13 +3521,13 @@ mod test {
             vec![],
         ));
 
-        // Flush to the store so we keep in memory only the last 1 round from the last
-        // commit for each authority.
+        // Flush: gc_round = 9 - 6 = 3. Authority 2 (last_round=6): eviction = min(3, 5)
+        // = 3.
         dag_state.flush();
 
-        // THEN the method should panic, as some authorities have already evicted rounds
-        // <= round 2
-        let end_round = 2;
+        // THEN the method should panic, as authority 2 has evicted round 3
+        // and end_round - 1 = 3 <= 3.
+        let end_round = 4;
         dag_state.get_last_cached_block_header_per_authority(end_round);
     }
 
@@ -3834,7 +3844,7 @@ mod test {
         let expected_block_headers = all_block_headers
             .iter()
             .filter(|x| {
-                x.round() > last_committed_round[x.author().value()] - CACHED_ROUNDS
+                x.round() > dag_state.evicted_rounds[x.author().value()]
                     || x.round() == GENESIS_ROUND
             })
             .cloned()
@@ -3960,6 +3970,95 @@ mod test {
                 block_ref.round
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_gc_eviction_advances_for_skipped_authority() {
+        telemetry_subscribers::init_for_testing();
+
+        const COMMITTEE_SIZE: usize = 10;
+        const CACHED_ROUNDS: Round = 5;
+        const GC_DEPTH: Round = 3;
+
+        let (mut context, _) = Context::new_for_test(COMMITTEE_SIZE);
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.protocol_config.set_gc_depth_for_testing(GC_DEPTH);
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let authority_to_skip = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 2) as u8);
+        let catch_up_index = AuthorityIndex::new_for_test((COMMITTEE_SIZE - 1) as u8);
+        let active_authorities = (0..(COMMITTEE_SIZE - 1) as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect::<Vec<_>>();
+
+        let total_rounds = 2 * (CACHED_ROUNDS + GC_DEPTH);
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder
+            .layers(1..=total_rounds)
+            .authorities(active_authorities)
+            .skip_ancestor_links(vec![authority_to_skip, catch_up_index])
+            .build();
+
+        let subdags_and_commits = dag_builder.get_sub_dag_and_commits(1..=total_rounds);
+        let subdag_bases = subdags_and_commits
+            .iter()
+            .map(|(subdag, _)| subdag.base.clone())
+            .collect::<Vec<_>>();
+        let commits = subdags_and_commits
+            .into_iter()
+            .map(|(_, commit)| commit)
+            .collect::<Vec<_>>();
+
+        dag_state.accept_block_headers(
+            dag_builder.block_headers(1..=total_rounds),
+            DataSource::Test,
+        );
+        for verified_transactions in dag_builder.transactions(1..=total_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for commit in commits {
+            dag_state.add_commit(commit);
+        }
+        dag_state.update_last_solid_subdag_base(
+            subdag_bases
+                .last()
+                .expect("expected at least one committed subdag")
+                .clone(),
+        );
+
+        let last_accepted_round = dag_builder
+            .block_headers(1..=total_rounds)
+            .into_iter()
+            .filter(|header| header.author() == authority_to_skip)
+            .map(|header| header.round())
+            .max()
+            .expect("skipped authority should have blocks");
+        let skipped_committed_round = dag_state.last_committed_rounds()[authority_to_skip];
+        assert!(skipped_committed_round < last_accepted_round);
+
+        dag_state.flush();
+
+        let expected_eviction_round = dag_state
+            .gc_round_for_last_commit()
+            .min(last_accepted_round.saturating_sub(CACHED_ROUNDS));
+        assert_eq!(
+            dag_state.evicted_rounds[authority_to_skip],
+            expected_eviction_round
+        );
+
+        let cached_headers =
+            dag_state.get_cached_block_headers_since_round(authority_to_skip, GENESIS_ROUND + 1);
+        assert_eq!(
+            cached_headers.first().map(|header| header.round()),
+            Some(expected_eviction_round + 1)
+        );
+        assert_eq!(
+            cached_headers.last().map(|header| header.round()),
+            Some(last_accepted_round)
+        );
     }
 
     #[tokio::test]
