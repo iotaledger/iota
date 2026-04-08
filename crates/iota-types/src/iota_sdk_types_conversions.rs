@@ -750,7 +750,8 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
             }
             crate::transaction::EndOfEpochTransactionKind::ClaimRegistryCreate => {
                 // ClaimRegistryCreate is not yet present in iota-sdk-types.
-                // TODO: add the variant to iota-rust-sdk and update the dep (iotaledger/iota#11039).
+                // TODO: add the variant to iota-rust-sdk and update the dep
+                // (iotaledger/iota#11039).
                 todo!("ClaimRegistryCreate is not yet supported in iota-sdk-types")
             }
             crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {

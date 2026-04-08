@@ -21,7 +21,6 @@ mod checked {
     use iota_types::{
         IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
         IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID, Identifier,
-        claim_registry::{CLAIM_REGISTRY_CREATE_FUNCTION_NAME, CLAIM_REGISTRY_MODULE_NAME},
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1,
@@ -37,6 +36,7 @@ mod checked {
             BALANCE_MODULE_NAME,
         },
         base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext},
+        claim_registry::{CLAIM_REGISTRY_CREATE_FUNCTION_NAME, CLAIM_REGISTRY_MODULE_NAME},
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
         effects::TransactionEffects,

@@ -4,10 +4,7 @@
 use move_core_types::{ident_str, identifier::IdentStr};
 
 use crate::{
-    IOTA_CLAIM_REGISTRY_OBJECT_ID,
-    base_types::SequenceNumber,
-    error::IotaResult,
-    object::Owner,
+    IOTA_CLAIM_REGISTRY_OBJECT_ID, base_types::SequenceNumber, error::IotaResult, object::Owner,
     storage::ObjectStore,
 };
 

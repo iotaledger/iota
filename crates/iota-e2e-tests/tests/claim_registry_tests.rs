@@ -83,7 +83,10 @@ async fn registry_call_arg(cluster: &TestCluster, mutable: bool) -> CallArg {
         .get_object_from_fullnode_store(&IOTA_CLAIM_REGISTRY_OBJECT_ID)
         .await
         .expect("ClaimRegistry must exist at genesis");
-    let Owner::Shared { initial_shared_version } = obj.owner() else {
+    let Owner::Shared {
+        initial_shared_version,
+    } = obj.owner()
+    else {
         panic!("ClaimRegistry must be a shared object");
     };
     CallArg::Object(ObjectArg::SharedObject {
@@ -94,8 +97,9 @@ async fn registry_call_arg(cluster: &TestCluster, mutable: bool) -> CallArg {
 }
 
 /// Build a PTB that calls `claim_registry::claim` twice on the same address.
-/// The first call succeeds (marks the address), the second aborts with EAlreadyClaimed.
-/// Used to test the duplicate-claim rejection without needing to consume the ticket.
+/// The first call succeeds (marks the address), the second aborts with
+/// EAlreadyClaimed. Used to test the duplicate-claim rejection without needing
+/// to consume the ticket.
 fn build_double_claim_pt(
     registry_arg: CallArg,
     scheme: u8,
@@ -122,7 +126,8 @@ fn build_double_claim_pt(
     Ok(b.finish())
 }
 
-/// Build a PTB that calls `claim_registry::claim` once (expects abort at call site).
+/// Build a PTB that calls `claim_registry::claim` once (expects abort at call
+/// site).
 fn build_claim_pt(
     registry_arg: CallArg,
     scheme: u8,
@@ -146,10 +151,11 @@ fn build_claim_pt(
 // Tests
 // ---------------------------------------------------------------------------
 
-/// Claiming the same address twice in one PTB must abort with `EAlreadyClaimed` (code 1).
-/// Both calls share the same registry input: the first adds the dynamic field,
-/// the second sees it and aborts. The unconsumed ticket from the first call is
-/// never an issue because the whole transaction rolls back on abort.
+/// Claiming the same address twice in one PTB must abort with `EAlreadyClaimed`
+/// (code 1). Both calls share the same registry input: the first adds the
+/// dynamic field, the second sees it and aborts. The unconsumed ticket from the
+/// first call is never an issue because the whole transaction rolls back on
+/// abort.
 #[sim_test]
 async fn test_claim_registry_duplicate_claim_fails() -> anyhow::Result<()> {
     telemetry_subscribers::init_for_testing();
@@ -187,7 +193,11 @@ async fn test_claim_registry_duplicate_claim_fails() -> anyhow::Result<()> {
         .execute_transaction_return_raw_effects(cluster.wallet.sign_transaction(&tx))
         .await?;
 
-    assert!(eff2.status().is_err(), "Second claim must fail; got {:?}", eff2.status());
+    assert!(
+        eff2.status().is_err(),
+        "Second claim must fail; got {:?}",
+        eff2.status()
+    );
 
     let (failure, _) = eff2.status().clone().unwrap_err();
     assert!(
@@ -236,7 +246,11 @@ async fn test_claim_registry_wrong_pubkey_fails() -> anyhow::Result<()> {
         .execute_transaction_return_raw_effects(cluster.wallet.sign_transaction(&tx))
         .await?;
 
-    assert!(effects.status().is_err(), "Wrong-pubkey claim must fail; got {:?}", effects.status());
+    assert!(
+        effects.status().is_err(),
+        "Wrong-pubkey claim must fail; got {:?}",
+        effects.status()
+    );
 
     let (failure, _) = effects.status().clone().unwrap_err();
     assert!(
