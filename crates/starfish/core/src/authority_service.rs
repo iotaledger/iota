@@ -196,12 +196,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             return Err(e);
         }
 
-        let (transaction_commitment, our_shard, proof_for_shard) = TransactionsCommitment::compute_merkle_root_shard_and_proof(
-            &serialized_transactions,
-            &self.context,
-            encoder,
-        )
-            .expect("we should expect correct computation of the transactions commitment, our shard and its proof");
+        let (transaction_commitment, our_shard, proof_for_shard) =
+            TransactionsCommitment::compute_merkle_root_shard_and_proof(
+                &serialized_transactions,
+                &self.context,
+                encoder,
+            )?;
         if signed_block_header.transactions_commitment() != transaction_commitment {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
