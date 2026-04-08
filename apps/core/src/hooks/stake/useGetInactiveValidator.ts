@@ -16,7 +16,6 @@ export function useGetInactiveValidator(validatorAddress: string) {
             if (!inactivePoolsId) {
                 throw Error('Missing params');
             }
-
             const inactiveValidators = await iotaClient.getDynamicFields({
                 parentId: normalizeIotaAddress(inactivePoolsId),
             });
