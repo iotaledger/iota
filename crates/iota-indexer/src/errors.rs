@@ -9,6 +9,7 @@ use iota_names::error::IotaNamesError;
 use iota_types::{
     base_types::{ObjectID, ObjectIDParseError, SequenceNumber},
     error::{IotaError, IotaObjectResponseError, UserInputError},
+    iota_sdk_types_conversions::SdkTypeConversionError,
 };
 use jsonrpsee::{core::ClientError as RpcError, types::ErrorObjectOwned};
 use thiserror::Error;
@@ -164,6 +165,12 @@ pub enum IndexerError {
 
     #[error("Missing data due to pruning: `{0}`")]
     DataPruned(String),
+
+    #[error("grpc error: `{0}`")]
+    Grpc(String),
+
+    #[error(transparent)]
+    SdkTypeConversion(#[from] SdkTypeConversionError),
 }
 
 pub type IndexerResult<T> = Result<T, IndexerError>;
@@ -205,5 +212,17 @@ impl From<reqwest::Error> for IndexerError {
 impl From<url::ParseError> for IndexerError {
     fn from(err: url::ParseError) -> Self {
         IndexerError::Generic(format!("URL parse error: {}", err))
+    }
+}
+
+impl From<iota_grpc_client::Error> for IndexerError {
+    fn from(err: iota_grpc_client::Error) -> Self {
+        IndexerError::Grpc(err.to_string())
+    }
+}
+
+impl From<iota_grpc_types::proto::TryFromProtoError> for IndexerError {
+    fn from(err: iota_grpc_types::proto::TryFromProtoError) -> Self {
+        IndexerError::Grpc(err.to_string())
     }
 }

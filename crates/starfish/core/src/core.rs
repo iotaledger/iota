@@ -1224,7 +1224,7 @@ impl Core {
 
         // Propose only ancestors of higher rounds than what has already been proposed.
         // And always include own last proposed block first among ancestors.
-        let included_ancestors = iter::once(self.last_proposed_block_header().clone())
+        let included_ancestors = iter::once(self.last_proposed_block_header())
             .chain(all_ancestors.into_iter().flat_map(|(ancestor, _)| {
                 if ancestor.author() == self.context.own_index {
                     return None;
@@ -1422,8 +1422,8 @@ impl CoreTextFixture {
         sync_last_known_own_block: bool,
         with_rocksdb: bool,
     ) -> Self {
-        let (committee, mut signers) = local_committee_and_keys(0, authorities.clone());
-        let mut context = context.clone();
+        let (committee, mut signers) = local_committee_and_keys(0, authorities);
+        let mut context = context;
         context = context
             .with_committee(committee)
             .with_authority_index(own_index);
@@ -1454,7 +1454,7 @@ impl CoreTextFixture {
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(commit_sender.clone(), 0),
+            CommitConsumer::new(commit_sender, 0),
             dag_state.clone(),
             store.clone(),
             leader_schedule.clone(),
@@ -2054,9 +2054,9 @@ mod test {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            store.clone(),
+            store,
             leader_schedule.clone(),
         );
 
@@ -2069,7 +2069,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             true,
         );
 
@@ -2270,9 +2270,9 @@ mod test {
         let (sender, _receiver) = unbounded_channel("consensus_output");
         let commit_observer = CommitObserver::new(
             context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            store.clone(),
+            store,
             leader_schedule.clone(),
         );
 
@@ -2286,7 +2286,7 @@ mod test {
             commit_observer,
             signals,
             key_pairs.remove(context.own_index.value()).1,
-            dag_state.clone(),
+            dag_state,
             false,
         );
 
@@ -2769,7 +2769,7 @@ mod test {
 
         // The corresponding blocks of the certified commits should be accepted and
         // stored before linearizing and committing the DAG.
-        core.add_certified_commits(CertifiedCommits::new(certified_commits.clone()))
+        core.add_certified_commits(CertifiedCommits::new(certified_commits))
             .expect("Should not fail");
 
         let commits = store.scan_commits((6..=10).into()).unwrap();

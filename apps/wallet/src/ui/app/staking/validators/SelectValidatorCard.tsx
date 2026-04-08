@@ -171,7 +171,7 @@ export function SelectValidatorCard() {
                 fullWidth
                 data-testid="select-validator-cta"
                 onClick={() => {
-                    ampli.validatorSelected({
+                    ampli.selectedValidator({
                         validatorName: selectedValidator?.name,
                         validatorAddress: selectedValidator?.address,
                         validatorAPY: selectedValidator?.apy || 0,

@@ -6,8 +6,8 @@ use std::{ops::RangeInclusive, sync::Arc};
 
 use dashmap::DashMap;
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, IngestionError, ReaderOptions, ShimProgressStore,
-    WorkerPool,
+    DataIngestionMetrics, IndexerExecutor, ReaderOptions, ShimProgressStore, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
@@ -78,28 +78,13 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
         );
         executor.register(worker_pool).await?;
 
-        let remote_store_url: Option<String> = config
-            .sources
-            .remote_store_url
-            .as_ref()
-            .map(Url::to_string)
-            .or_else(|| {
-                config
-                    .sources
-                    .rpc_client_url
-                    .map(|rpc_url| format!("{rpc_url}/api/v1"))
-            });
+        let remote_store_url = config.sources.remote_store_url.as_ref().map(Url::to_string);
 
-        let executor = executor.run(
-            config
-                .sources
-                .data_ingestion_path
-                .clone()
-                .unwrap_or(tempfile::tempdir().map_err(IngestionError::Io)?.keep()),
-            remote_store_url,
-            vec![],
+        let executor = executor.run_with_config(CheckpointReaderConfig {
+            ingestion_path: config.sources.data_ingestion_path.clone(),
+            remote_store_url: remote_store_url.map(RemoteUrl::Fullnode),
             reader_options,
-        );
+        });
 
         tokio::spawn(async move {
             if let Err(join_err) = executor.await {

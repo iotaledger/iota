@@ -3,7 +3,7 @@
     "questionText": "Which command is used to start the IOTA CLI Client?",
     "answerOptions": [
       { "answerText": "iota client", "isCorrect": true },
-      { "answerText": "iota start", "isCorrect": false },
+      { "answerText": "iota-localnet start", "isCorrect": false },
       { "answerText": "iota connect", "isCorrect": false },
       { "answerText": "iota run", "isCorrect": false }
     ]

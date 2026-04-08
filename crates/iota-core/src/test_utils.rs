@@ -50,11 +50,10 @@ pub async fn send_and_confirm_transaction(
 
     // Collect signatures from a quorum of authorities
     let committee = authority.clone_committee_for_testing();
-    let certificate =
-        CertifiedTransaction::new(transaction.into_message(), vec![vote.clone()], &committee)
-            .unwrap()
-            .try_into_verified_for_testing(&committee, &Default::default())
-            .unwrap();
+    let certificate = CertifiedTransaction::new(transaction.into_message(), vec![vote], &committee)
+        .unwrap()
+        .try_into_verified_for_testing(&committee, &Default::default())
+        .unwrap();
 
     // Submit the confirmation. *Now* execution actually happens, and it should fail
     // when we try to look up our dummy module. we unfortunately don't get a

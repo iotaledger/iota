@@ -8,13 +8,15 @@ import { useCopyToClipboard } from '../../hooks';
 interface OutlinedCopyButtonProps {
     onCopySuccess?: () => void;
     textToCopy: string;
+    successMessage?: string;
 }
 
 export function OutlinedCopyButton({
     onCopySuccess,
     textToCopy,
+    successMessage,
 }: OutlinedCopyButtonProps): React.JSX.Element {
-    const copyToClipboard = useCopyToClipboard(onCopySuccess);
+    const copyToClipboard = useCopyToClipboard(onCopySuccess, successMessage);
 
     const handleCopy = async () => {
         await copyToClipboard(textToCopy);

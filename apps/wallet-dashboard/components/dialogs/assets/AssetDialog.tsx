@@ -96,7 +96,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
             toast.success('Transfer transaction successful');
             setView(AssetsDialogView.TransactionDetails);
             ampli.sentCollectible({
-                objectId,
+                collectibleType: objectData?.type || undefined,
             });
         } catch {
             toast.error('Transfer transaction failed');

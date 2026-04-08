@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
     },
-    base_types::{IotaAddress, ObjectRef, TxContext},
+    base_types::{IotaAddress, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -21,7 +21,7 @@ use iota_types::{
     metrics::LimitsMetrics,
     move_authenticator::MoveAuthenticator,
     storage::BackingStore,
-    transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
+    transaction::{CheckedInputObjects, GasData, ProgrammableTransaction, TransactionKind},
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -41,7 +41,7 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
@@ -69,7 +69,7 @@ pub trait Executor {
         // Transaction Inputs
         input_objects: CheckedInputObjects,
         // Gas related
-        gas_coins: Vec<ObjectRef>,
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         // Transaction
         transaction_kind: TransactionKind,
@@ -95,8 +95,8 @@ pub trait Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
+        gas_data: GasData,
         gas_status: IotaGasStatus,
-        gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
         authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
@@ -125,6 +125,7 @@ pub trait Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
+        gas_data: GasData,
         gas_status: IotaGasStatus,
         // Authenticator
         authenticator: MoveAuthenticator,
@@ -145,7 +146,7 @@ pub trait Executor {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         // Genesis State
-        tx_context: &mut TxContext,
+        tx_context: Rc<RefCell<TxContext>>,
         // Transaction
         input_objects: CheckedInputObjects,
         pt: ProgrammableTransaction,

@@ -804,7 +804,7 @@ impl PgIndexerStore {
         // as chain identifier.
         if first_checkpoint.sequence_number == 0 {
             let checkpoint_digest = first_checkpoint.checkpoint_digest.into_inner().to_vec();
-            self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())?;
+            self.persist_protocol_configs_and_feature_flags(checkpoint_digest)?;
             transactional_blocking_with_retry!(
                 &self.blocking_cp,
                 |conn| {

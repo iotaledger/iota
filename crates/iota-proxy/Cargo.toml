@@ -52,3 +52,6 @@ tower.workspace = true
 
 [build-dependencies]
 prost-build = "0.13.1"
+
+[lints]
+workspace = true

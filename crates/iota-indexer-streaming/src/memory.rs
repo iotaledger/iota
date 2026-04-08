@@ -185,7 +185,6 @@ impl InMemory {
             let event_tx = event_tx.clone();
             let transaction_tx = transaction_tx.clone();
             let metrics = metrics.clone();
-            let pg_config = pg_config.clone();
 
             async move {
                 loop {
@@ -558,7 +557,7 @@ impl InMemory {
                 module: native.transaction_module.to_string(),
                 event_type: native.type_.to_canonical_string(with_prefix),
                 timestamp_ms: tx.timestamp_ms,
-                bcs: native.contents.clone(),
+                bcs: native.contents,
             })
             .collect();
         Ok(stored)

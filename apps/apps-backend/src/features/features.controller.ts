@@ -181,7 +181,7 @@ export class FeaturesController {
                     defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
                 [Feature.ExplorerTFIdentity]: {
-                    defaultValue: false,
+                    defaultValue: true,
                 },
             },
             dateUpdated: new Date().toISOString(),

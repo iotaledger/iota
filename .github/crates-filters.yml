@@ -90,6 +90,8 @@ iota-ledger-signer:
   - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
+iota-localnet:
+  - "crates/iota-localnet/**"
 iota-macros:
   - "crates/iota-macros/**"
 iota-mainnet-unlocks:

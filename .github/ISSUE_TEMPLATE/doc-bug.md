@@ -1,7 +1,7 @@
 ---
 name: docs-issue
 about: Creates an issue for IOTA documentation
-title: 'IOTA documentation content issue or request'
+title: "IOTA documentation content issue or request"
 labels: documentation, devrel
 ---
 

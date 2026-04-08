@@ -56,3 +56,6 @@ telemetry-subscribers.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
+
+[lints]
+workspace = true

@@ -6,7 +6,7 @@ import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { bcs } from '@iota/iota-sdk/bcs';
 import { type IotaClient } from '@iota/iota-sdk/client';
 import { messageWithIntent } from '@iota/iota-sdk/cryptography';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 
 import type { BackgroundClient } from '.';
 import { type SignedMessage, type SignedTransaction, WalletSigner } from '../walletSigner';
@@ -39,7 +39,7 @@ export class BackgroundServiceSigner extends WalletSigner {
         );
 
         return {
-            bytes: toB64(input.message),
+            bytes: toBase64(input.message),
             signature,
         };
     }
@@ -51,7 +51,7 @@ export class BackgroundServiceSigner extends WalletSigner {
         );
 
         return {
-            bytes: toB64(bytes),
+            bytes: toBase64(bytes),
             signature,
         };
     }

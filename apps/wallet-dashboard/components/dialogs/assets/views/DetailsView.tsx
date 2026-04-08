@@ -17,6 +17,7 @@ import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { useExternalLink } from '@/hooks';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -46,22 +47,14 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
     const { data: iotaName } = useGetDefaultIotaName(ownerAddress);
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
-    function handleMoreAboutKiosk() {
-        window.open(
-            'https://docs.iota.org/developer/ts-sdk/kiosk/',
-            '_blank',
-            'noopener noreferrer',
-        );
-    }
+    const handleMoreAboutKiosk = useExternalLink('https://docs.iota.org/developer/ts-sdk/kiosk/', {
+        type: 'ts-sdk-documentation',
+    });
 
-    function handleMarketplace() {
-        // TODO: https://github.com/iotaledger/iota/issues/4024
-        window.open(
-            'https://docs.iota.org/developer/ts-sdk/kiosk/',
-            '_blank',
-            'noopener noreferrer',
-        );
-    }
+    // TODO: https://github.com/iotaledger/iota/issues/4024
+    const handleMarketplace = useExternalLink('https://docs.iota.org/developer/ts-sdk/kiosk/', {
+        type: 'marketplace',
+    });
 
     return (
         <>

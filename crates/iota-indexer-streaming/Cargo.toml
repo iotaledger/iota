@@ -8,7 +8,6 @@ publish = false
 
 [dependencies]
 # external dependencies
-async-trait.workspace = true
 backoff.workspace = true
 futures.workspace = true
 prometheus.workspace = true
@@ -23,3 +22,6 @@ tracing.workspace = true
 # internal dependencies
 iota-indexer.workspace = true
 iota-types.workspace = true
+
+[lints]
+workspace = true

@@ -665,7 +665,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
                 .map_or(Ok(None), |contents| {
                     iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
                         store,
-                        contents.clone(),
+                        contents,
                     )
                 })
         })
@@ -682,7 +682,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
             .map_or(Ok(None), |contents| {
                 iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
                     store,
-                    contents.clone(),
+                    contents,
                 )
             })
         })

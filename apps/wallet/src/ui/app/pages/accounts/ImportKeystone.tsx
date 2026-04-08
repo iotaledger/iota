@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Link, useNavigate } from 'react-router-dom';
-import { AccountsFormType, useAccountsFormContext, PageTemplate, AccountList } from '_components';
+import {
+    AccountsFormType,
+    useAccountsFormContext,
+    PageTemplate,
+    AccountList,
+    useBootstrapSourceFlow,
+} from '_components';
 import { AnimatedQRScanner } from '@keystonehq/animated-qr';
 import { Button, ButtonType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { UR, URType } from '@keystonehq/keystone-sdk';
@@ -37,6 +43,7 @@ export function ImportKeystone() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
+    useBootstrapSourceFlow();
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));

@@ -2,6 +2,41 @@
 
 This file instructs Claude Code on how to conduct code reviews in the IOTA monorepo. Read it fully before reviewing any pull request.
 
+---
+
+## Access control — check this FIRST
+
+Before doing any review work, determine whether you are authorized to proceed. Only the following people are authorized to trigger a full Claude Code review:
+
+- Alexander Sporn (`alexsporn`)
+- Levente Pap (`lzpap`)
+- Piotr Macek (`piotrm50`)
+- Maximilian Hase (`muXxer`)
+- Mirko Zichichi (`miker83z`)
+- Thibault Martinez (`thibault-martinez`)
+- Thoralf Müller (`Thoralf-M`)
+- Konstantinos Demartinos (`kodemartin`)
+- Luigi Vigneri (`vekkiokonio`)
+- Thomas Shufps (`shufps`)
+- Begoña Álvarez de la Cruz (`begonaalvarezd`)
+- Lukas Möller (`lmoe`)
+- Luca Moser (`luca-moser`)
+
+This check applies to **every** review invocation — both the initial manual trigger and any subsequent automatic reviews on new pushes to the same PR.
+
+**How to decide:**
+
+1. **If this is a manual review trigger:** Check whether the person who requested the review is in the list above. If yes, proceed with the full review. If no, short-circuit (see below).
+2. **If this is an automatic review on a subsequent push:** Check the PR's review history to see whether any whitelisted person has previously manually triggered a Claude Code review on this PR. If yes, proceed with the full review. If no whitelisted person has ever manually triggered a review on this PR, short-circuit (see below).
+
+**Short-circuit behavior:** Do not perform the review. Instead, post a single comment stating:
+
+> This review was not executed. Only users whitelisted in `REVIEW.md` can trigger a manual Claude Code review.
+
+Then stop — do not continue with any of the sections below.
+
+---
+
 `RUST_CONVENTIONS.md` is the canonical source for Rust coding conventions. This file adds **review-specific guidance** across all languages (Rust, TypeScript, Move) and defines review depth, cross-cutting checks, and output format. Do not duplicate rules already in `RUST_CONVENTIONS.md` — reference it instead.
 
 ---

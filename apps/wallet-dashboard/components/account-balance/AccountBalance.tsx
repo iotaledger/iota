@@ -6,14 +6,15 @@ import {
     useBalance,
     useFormatCoin,
     useGetFiatBalance,
-    toast,
     useGetAllBalances,
     NamedAddress,
+    toast,
 } from '@iota/core';
 import { Button, ButtonSize, ButtonType, LoadingIndicator, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { trackElementCopied } from '@/lib/utils';
 
 export function AccountBalance() {
     const account = useCurrentAccount();
@@ -36,9 +37,10 @@ export function AccountBalance() {
         setIsReceiveDialogOpen(true);
     }
 
-    function handleOnCopySuccess() {
+    const onCopySuccess = useCallback(() => {
         toast('Address copied');
-    }
+        trackElementCopied('address');
+    }, []);
 
     const sendTokenCoin = coinBalance?.totalBalance === '0' ? coinBalances?.[0] : coinBalance;
 
@@ -60,7 +62,7 @@ export function AccountBalance() {
                                         copyText={address}
                                         isExternal
                                         externalLink={explorerLink}
-                                        onCopySuccess={handleOnCopySuccess}
+                                        onCopySuccess={onCopySuccess}
                                         addMarginRightToCenter
                                     />
                                 </div>

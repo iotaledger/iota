@@ -67,32 +67,32 @@ fn main() {
     // Define boxing configuration for prost-build
     // These fields are boxed by prost in the generated structs
     let boxed_types_prost = vec![
-        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
-        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
-        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
-        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
-        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
+        ".iota.grpc.v1.filter.EventFilter.negation".to_string(),
+        ".iota.grpc.v1.filter.TransactionFilter.negation".to_string(),
+        ".iota.grpc.v1.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v1.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v1.types.TypeTag.vector_tag".to_string(),
     ];
 
     // for field info and accessor generation
     let boxed_types_field_info = vec![
-        ".iota.grpc.v0.filter.AllEventFilter.filters".to_string(),
-        ".iota.grpc.v0.filter.AnyEventFilter.filters".to_string(),
-        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
-        ".iota.grpc.v0.filter.AllTransactionFilter.filters".to_string(),
-        ".iota.grpc.v0.filter.AnyTransactionFilter.filters".to_string(),
-        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
-        ".iota.grpc.v0.types.TypeTagVector.inner_type".to_string(),
+        ".iota.grpc.v1.filter.AllEventFilter.filters".to_string(),
+        ".iota.grpc.v1.filter.AnyEventFilter.filters".to_string(),
+        ".iota.grpc.v1.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v1.filter.AllTransactionFilter.filters".to_string(),
+        ".iota.grpc.v1.filter.AnyTransactionFilter.filters".to_string(),
+        ".iota.grpc.v1.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v1.types.TypeTagVector.inner_type".to_string(),
     ];
 
     // for accessor generation - includes both boxed proto fields and fields where
     // we want the accessor to accept boxed types for ergonomics
     let boxed_types_accessor = vec![
-        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
-        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
-        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
-        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
-        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
+        ".iota.grpc.v1.filter.EventFilter.negation".to_string(),
+        ".iota.grpc.v1.filter.TransactionFilter.negation".to_string(),
+        ".iota.grpc.v1.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v1.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v1.types.TypeTag.vector_tag".to_string(),
     ];
 
     let mut tonic_prost_builder = tonic_prost_build::configure()
@@ -182,14 +182,14 @@ fn main() {
             .name
             .as_ref()
             .and_then(|name| {
-                // Extract version from file path like "iota/grpc/v0/types.proto" -> "v0"
+                // Extract version from file path like "iota/grpc/v1/types.proto" -> "v1"
                 name.split('/').find(|part| {
                     part.starts_with('v')
                         && part.len() > 1
                         && part[1..].chars().all(|c| c.is_ascii_digit())
                 })
             })
-            .unwrap_or("v0")
+            .unwrap_or("v1")
             .to_string();
     }
 

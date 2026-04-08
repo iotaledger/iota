@@ -157,10 +157,10 @@ mod tests {
         let connection_config = ConnectionConfig::default();
         let service_config = ServiceConfig::default();
         let state = AppState::new(
-            connection_config.clone(),
-            service_config.clone(),
-            metrics.clone(),
-            cancellation_token.clone(),
+            connection_config,
+            service_config,
+            metrics,
+            cancellation_token,
             version,
         );
 

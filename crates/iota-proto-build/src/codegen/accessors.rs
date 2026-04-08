@@ -228,7 +228,7 @@ fn generate_accessors_functions_for_field(
     accessor_map: &AccessorMap,
 ) -> TokenStream {
     // Extract the simple message name from the fully qualified type name
-    // e.g., ".iota.grpc.v0.ledger_service.ObjectRequest" -> "ObjectRequest"
+    // e.g., ".iota.grpc.v1.ledger_service.ObjectRequest" -> "ObjectRequest"
     let message_name = message
         .type_name
         .rsplit('.')
@@ -396,7 +396,7 @@ fn generate_selective_accessors_for_field(
         let storage_type = if is_enum {
             TokenStream::from_str("i32").unwrap()
         } else {
-            field_type_path.clone()
+            field_type_path
         };
 
         if accessor_types.contains(AccessorTypes::GETTER) {

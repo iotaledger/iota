@@ -117,7 +117,7 @@ impl RocksDBStore {
             // Voting block headers are much fewer than regular block headers,
             // so using standard options is sufficient.
             (Self::VOTING_BLOCK_HEADERS_CF, cf_options.clone()),
-            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options.clone()),
+            (Self::FAST_COMMIT_SYNC_FLAG_CF, cf_options),
         ];
         let rocksdb = open_cf_opts(
             path,

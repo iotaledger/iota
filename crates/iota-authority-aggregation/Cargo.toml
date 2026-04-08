@@ -20,3 +20,6 @@ iota-types.workspace = true
 ignored = [
   "tracing", # imported through a declarative macro
 ]
+
+[lints]
+workspace = true

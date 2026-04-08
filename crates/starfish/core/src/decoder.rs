@@ -224,8 +224,8 @@ mod tests {
     async fn decode_should_fail_cases() {
         let (context, _) = Context::new_for_test(4); // info=2, parity=2
         let context = Arc::new(context);
-        let mut encoder = create_encoder(&context.clone());
-        let mut decoder = create_decoder(&context.clone());
+        let mut encoder = create_encoder(&context);
+        let mut decoder = create_decoder(&context);
 
         let transactions = Transaction::random_transactions(3, 64);
         let serialized = Transaction::serialize(&transactions).expect("serialization should work");

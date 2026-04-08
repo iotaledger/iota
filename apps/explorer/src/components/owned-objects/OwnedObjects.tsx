@@ -244,6 +244,14 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                                                     onClick={() => {
                                                         setViewMode(mode.value);
                                                     }}
+                                                    aria-label={
+                                                        mode.value === ObjectViewMode.List
+                                                            ? 'List view'
+                                                            : mode.value ===
+                                                                ObjectViewMode.SmallThumbnail
+                                                              ? 'Small thumbnail view'
+                                                              : 'Thumbnail view'
+                                                    }
                                                 />
                                             </div>
                                         );

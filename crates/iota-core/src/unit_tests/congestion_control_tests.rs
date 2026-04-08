@@ -172,7 +172,7 @@ impl TestSetup {
     // Converts an object to a genesis object by setting its previous_transaction to
     // a genesis marker.
     fn convert_to_genesis_obj(obj: Object) -> Object {
-        let mut genesis_obj = obj.clone();
+        let mut genesis_obj = obj;
         genesis_obj.previous_transaction = TransactionDigest::genesis_marker();
         genesis_obj
     }

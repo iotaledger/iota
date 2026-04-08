@@ -2,8 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTransactionData } from '_hooks';
-import { type Transaction } from '@iota/iota-sdk/transactions';
+import { useTransactionData, useTransactionDryRun } from '_hooks';
+import type {
+    TransactionInput,
+    Command as TxCommand,
+    Transaction,
+} from '@iota/iota-sdk/transactions';
 import { Command } from './Command';
 import { Input } from './Input';
 import { Collapsible } from '@iota/core';
@@ -53,6 +57,12 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
         isError,
         error,
     } = useTransactionData(sender, transaction);
+
+    const { data: dryRunData } = useTransactionDryRun(sender, transaction);
+    const dryRunInputs =
+        dryRunData?.input.transaction.kind === 'ProgrammableTransaction'
+            ? dryRunData.input.transaction.inputs
+            : undefined;
     useEffect(() => {
         if (transactionData) {
             const defaultCategory =
@@ -110,17 +120,25 @@ export function TransactionDetails({ sender, transaction }: TransactionDetailsPr
                             {selectedDetailsCategory === DetailsCategory.Commands &&
                                 !!transactionData?.commands.length && (
                                     <div className="flex flex-col gap-md">
-                                        {transactionData?.commands.map((command, index) => (
-                                            <Command key={index} command={command} />
-                                        ))}
+                                        {(transactionData?.commands as TxCommand[]).map(
+                                            (command, index) => (
+                                                <Command key={index} command={command} />
+                                            ),
+                                        )}
                                     </div>
                                 )}
                             {selectedDetailsCategory === DetailsCategory.Inputs &&
                                 !!transactionData?.inputs.length && (
                                     <div className="flex flex-col gap-md">
-                                        {transactionData?.inputs.map((input, index) => (
-                                            <Input key={index} input={input} />
-                                        ))}
+                                        {(transactionData?.inputs as TransactionInput[]).map(
+                                            (input, index) => (
+                                                <Input
+                                                    key={index}
+                                                    input={input}
+                                                    dryRunInput={dryRunInputs?.[index]}
+                                                />
+                                            ),
+                                        )}
                                     </div>
                                 )}
                         </div>

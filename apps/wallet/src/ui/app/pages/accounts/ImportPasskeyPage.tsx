@@ -4,7 +4,12 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Form } from '../../shared/forms/Form';
 
-import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_components';
+import {
+    AccountsFormType,
+    PageTemplate,
+    useAccountsFormContext,
+    useBootstrapSourceFlow,
+} from '_components';
 import { Input, Button, ButtonHtmlType, ButtonType, InputType } from '@iota/apps-ui-kit';
 import { Theme, useTheme, useZodForm } from '@iota/core';
 import PasskeyAuthenticationRequired from '_assets/images/passkey_authentication_required.png';
@@ -16,6 +21,7 @@ export function ImportPasskeyPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const accountID = searchParams.get('accountID') || '';
+    useBootstrapSourceFlow();
 
     return (
         <PageTemplate

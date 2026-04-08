@@ -319,7 +319,7 @@ mod tests {
             .skip_block()
             .build();
 
-        let mut scoring_subdag = ScoringSubdag::new(context.clone());
+        let mut scoring_subdag = ScoringSubdag::new(context);
 
         for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
             scoring_subdag.add_subdags(vec![sub_dag.base]);

@@ -85,7 +85,7 @@ However, in the cases where it can be problematic, you can consider one of the f
   You can find an [example implementation](https://github.com/iotaledger/iota/blob/develop/examples/move/random/random_nft/sources/example.move#L121-L147) in the IOTA Repository.
 - Write the function so that the happy flow consumes more gas than the unhappy one.
   - Keep in mind that external functions or native ones can change in the future, potentially resulting in different costs compared to the time you conducted your tests.
-  - [profile-transaction](../../developer/references/cli/client.mdx#profile-a-transaction) can be used to profile the costs of a transaction.
+  - Transaction profiling via `iota-tool` can be used to profile the costs of a transaction. See [Profile a transaction](../../developer/references/cli/iota-tool.mdx#profile-a-transaction) for details.
 
 ## Use (non-public) `entry` Functions
 

@@ -10,10 +10,11 @@ use cursor::TxLookup;
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
+    apis::ReadApi,
     models::transactions::{OptimisticTransaction, StoredTransaction},
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
-use iota_json_rpc_api::ReadApiClient;
+use iota_json_rpc_api::ReadApiServer;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
@@ -32,7 +33,7 @@ use crate::{
     consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
-    server::{builder::get_write_api, watermark_task::Watermark},
+    server::watermark_task::Watermark,
     types::{
         address::Address,
         base64::Base64,
@@ -323,10 +324,8 @@ impl TransactionBlock {
             // dry-run transactions are never indexed
             return Ok(Some(false));
         };
-        let write_api = get_write_api(ctx).extend()?;
         Ok(Some(
-            write_api
-                .fullnode_client()
+            ctx.data::<ReadApi>()?
                 .is_transaction_indexed_on_node(digest)
                 .await?,
         ))

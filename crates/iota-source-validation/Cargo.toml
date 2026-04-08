@@ -46,3 +46,6 @@ tracing.workspace = true
 # internal dependencies
 iota-test-transaction-builder.workspace = true
 test-cluster.workspace = true
+
+[lints]
+workspace = true

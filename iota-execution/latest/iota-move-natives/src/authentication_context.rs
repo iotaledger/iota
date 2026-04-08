@@ -10,13 +10,12 @@ use iota_types::{
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
-    gas_algebra::AbstractMemorySize,
-    runtime_value::{MoveStructLayout, MoveTypeLayout},
-    vm_status::StatusCode,
+    gas_algebra::AbstractMemorySize, runtime_value::MoveTypeLayout, vm_status::StatusCode,
 };
 use move_vm_runtime::native_extensions::NativeExtensionMarker;
 use move_vm_types::values::{GlobalValue, StructRef, Value};
-use serde::{Serialize, de::DeserializeOwned};
+
+use crate::utils;
 
 // AuthenticationContext is a wrapper around AuthContext that is exposed to
 // NativeContextExtensions in order to provide authentication context
@@ -76,7 +75,7 @@ impl AuthenticationContext {
             let rust_value = (auth_context.digest(),);
             let digest_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
 
-            self.cached_digest = Some(to_global_value(&rust_value, digest_move_layout)?.0);
+            self.cached_digest = Some(utils::to_global_value(&rust_value, digest_move_layout)?.0);
         }
 
         self.cached_digest
@@ -105,7 +104,7 @@ impl AuthenticationContext {
             let rust_value = (auth_context.tx_inputs(),);
             let inputs_move_layout = MoveTypeLayout::Vector(Box::new(input_move_layout));
 
-            self.cached_tx_inputs = Some(to_global_value(&rust_value, inputs_move_layout)?);
+            self.cached_tx_inputs = Some(utils::to_global_value(&rust_value, inputs_move_layout)?);
         }
 
         let (cached_tx_inputs, move_value_size) = self.cached_tx_inputs.as_ref().unwrap();
@@ -137,7 +136,8 @@ impl AuthenticationContext {
             let rust_value = (auth_context.tx_commands(),);
             let commands_move_layout = MoveTypeLayout::Vector(Box::new(command_move_layout));
 
-            self.cached_tx_commands = Some(to_global_value(&rust_value, commands_move_layout)?);
+            self.cached_tx_commands =
+                Some(utils::to_global_value(&rust_value, commands_move_layout)?);
         }
 
         let (cached_tx_commands, move_value_size) = self.cached_tx_commands.as_ref().unwrap();
@@ -174,12 +174,12 @@ impl AuthenticationContext {
 
         let tx_commands = tx_commands_value
             .into_iter()
-            .map(|value| from_value(value, &command_move_layout))
+            .map(|value| utils::from_value(value, &command_move_layout))
             .collect::<PartialVMResult<Vec<MoveCommand>>>()?;
 
         let tx_inputs = tx_inputs_value
             .into_iter()
-            .map(|value| from_value(value, &input_move_layout))
+            .map(|value| utils::from_value(value, &input_move_layout))
             .collect::<PartialVMResult<Vec<MoveCallArg>>>()?;
 
         let auth_digest =
@@ -200,51 +200,4 @@ impl AuthenticationContext {
 
         Ok(())
     }
-}
-
-fn struct_layout_with_field(field: MoveTypeLayout) -> MoveTypeLayout {
-    MoveTypeLayout::Struct(Box::new(MoveStructLayout(Box::new(vec![field]))))
-}
-
-fn to_global_value<T: ?Sized + Serialize>(
-    field: &T,
-    field_move_layout: MoveTypeLayout,
-) -> PartialVMResult<(GlobalValue, AbstractMemorySize)> {
-    let move_layout = struct_layout_with_field(field_move_layout);
-
-    let move_value = to_value(field, &move_layout)?;
-    let move_value_size = move_value.legacy_size();
-
-    Ok((
-        GlobalValue::cached(move_value).expect("Failed to cache global value"),
-        move_value_size,
-    ))
-}
-
-fn to_value<T: ?Sized + Serialize>(
-    input: &T,
-    input_move_layout: &MoveTypeLayout,
-) -> PartialVMResult<Value> {
-    let bytes = bcs::to_bytes(input).map_err(|err| {
-        PartialVMError::new(StatusCode::VALUE_SERIALIZATION_ERROR)
-            .with_message(format!("Failed to serialize an input: {err}"))
-    })?;
-    Value::simple_deserialize(&bytes, input_move_layout).ok_or_else(|| {
-        PartialVMError::new(StatusCode::UNEXPECTED_DESERIALIZATION_ERROR)
-            .with_message("Failed to deserialize an input to a Move value".to_string())
-    })
-}
-
-fn from_value<T: DeserializeOwned>(
-    value: Value,
-    value_move_layout: &MoveTypeLayout,
-) -> PartialVMResult<T> {
-    let bytes = value.simple_serialize(value_move_layout).ok_or_else(|| {
-        PartialVMError::new(StatusCode::VALUE_SERIALIZATION_ERROR)
-            .with_message("Failed to serialize a value".to_string())
-    })?;
-    bcs::from_bytes::<T>(&bytes).map_err(|err| {
-        PartialVMError::new(StatusCode::UNEXPECTED_DESERIALIZATION_ERROR)
-            .with_message(format!("Failed to deserialize a value: {err}"))
-    })
 }

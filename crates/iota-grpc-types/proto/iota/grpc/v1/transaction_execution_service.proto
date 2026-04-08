@@ -1,0 +1,145 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.transaction_execution_service;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/rpc/status.proto";
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/command.proto";
+import "iota/grpc/v1/signatures.proto";
+import "iota/grpc/v1/transaction.proto";
+
+service TransactionExecutionService {
+  rpc ExecuteTransactions(ExecuteTransactionsRequest) returns (ExecuteTransactionsResponse);
+  rpc SimulateTransactions(SimulateTransactionsRequest) returns (SimulateTransactionsResponse);
+}
+
+// A single transaction to execute, along with its authorizing signatures.
+message ExecuteTransactionItem {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The transaction to execute.
+  optional iota.grpc.v1.transaction.Transaction transaction = 1;
+
+  // Set of `iota.grpc.v1.signatures.UserSignature`s authorizing the execution of the provided
+  // transaction.
+  optional iota.grpc.v1.signatures.UserSignatures signatures = 2;
+}
+
+message ExecuteTransactionsRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // List of transactions to execute. Transactions are executed sequentially in order.
+  // For a single transaction, provide a list with one item.
+  repeated ExecuteTransactionItem transactions = 1;
+
+  // Mask specifying which fields to read, applied to each ExecutedTransaction in the response.
+  // If no mask is specified, defaults to `transaction.digest,effects,events,input_objects,output_objects`.
+  optional google.protobuf.FieldMask read_mask = 2;
+
+  // Optional timeout in milliseconds for waiting for checkpoint inclusion.
+  // If set and > 0, after executing all transactions, the server waits up to
+  // this duration for them to be included in a checkpoint, populating the
+  // `checkpoint` and `timestamp` fields in the response, if specified in `read_mask`.
+  // If not set or zero, no waiting is done (default behavior).
+  // The server may clamp this to a configured maximum.
+  optional uint64 checkpoint_inclusion_timeout_ms = 3;
+}
+
+// The result of executing a single transaction: either the executed transaction or an error.
+message ExecuteTransactionResult {
+  option (iota.grpc.message_accessors) = "with";
+
+  oneof result {
+    iota.grpc.v1.transaction.ExecutedTransaction executed_transaction = 1;
+    google.rpc.Status error = 2;
+  }
+}
+
+// Response message for `TransactionExecutionService.ExecuteTransactions`.
+message ExecuteTransactionsResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Results for each transaction in the request, in the same order.
+  repeated ExecuteTransactionResult transaction_results = 1;
+}
+
+// A single transaction to simulate, along with simulation options.
+message SimulateTransactionItem {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional iota.grpc.v1.transaction.Transaction transaction = 1;
+
+  // Individual check modes that can be enabled/disabled
+  enum TransactionCheckModes {
+    /// WARNING! Using this mode will bypass all normal checks around Move entry functions! This
+    /// includes the various rules for function arguments, meaning any object can be created just from
+    /// BCS bytes!
+    DISABLE_VM_CHECKS = 0;
+  }
+
+  // List of checks to disable. If empty, all checks are enabled (default).
+  repeated TransactionCheckModes tx_checks = 2;
+}
+
+message SimulateTransactionsRequest {
+  option (iota.grpc.message_accessors) = "with";
+
+  // List of transactions to simulate. Transactions are simulated sequentially in order.
+  // For a single transaction, provide a list with one item.
+  repeated SimulateTransactionItem transactions = 1;
+
+  // Mask specifying which fields to read, applied to each SimulatedTransaction in the response.
+  optional google.protobuf.FieldMask read_mask = 2;
+}
+
+message ExecutionError {
+  option (iota.grpc.message_accessors) = "with";
+
+  // The execution error kind as BCS-encoded data
+  optional iota.grpc.v1.bcs.BcsData bcs_kind = 1;
+
+  // Optional error source as string
+  optional string source = 2;
+
+  // Optional command index
+  optional uint64 command_index = 3;
+}
+
+// The result of simulating a single transaction.
+message SimulatedTransaction {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional iota.grpc.v1.transaction.ExecutedTransaction executed_transaction = 1;
+  optional uint64 suggested_gas_price = 2;
+
+  oneof execution_result {
+    iota.grpc.v1.command.CommandResults command_results = 3;
+    ExecutionError execution_error = 4;
+  }
+}
+
+// The result of simulating a single transaction: either the simulated transaction or an error.
+message SimulateTransactionResult {
+  option (iota.grpc.message_accessors) = "with";
+
+  oneof result {
+    SimulatedTransaction simulated_transaction = 1;
+    google.rpc.Status error = 2;
+  }
+}
+
+// Response message for `TransactionExecutionService.SimulateTransactions`.
+message SimulateTransactionsResponse {
+  option (iota.grpc.message_accessors) = "with";
+
+  // Results for each transaction in the request, in the same order.
+  repeated SimulateTransactionResult transaction_results = 1;
+}

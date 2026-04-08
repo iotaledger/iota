@@ -25,6 +25,7 @@ import devnetStardustCategoryLink from '../developer/references/framework/devnet
 const developer = [
     'developer/developer',
     'developer/network-overview',
+    'developer/account-abstraction',
     {
         type: 'category',
         label: 'Getting Started',
@@ -691,8 +692,19 @@ const developer = [
                     'developer/references/cli/keytool',
                     'developer/references/cli/move',
                     'developer/references/cli/validator',
-                    'developer/references/cli/ceremony',
                     'developer/references/cli/cheatsheet',
+                ],
+            },
+            'developer/references/cli/localnet',
+            {
+                type: 'category',
+                label: 'IOTA Tool CLI',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/cli/iota-tool',
+                },
+                items: [
+                    'developer/references/cli/ceremony',
                 ],
             },
         ],

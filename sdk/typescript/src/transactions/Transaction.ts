@@ -15,7 +15,6 @@ import type { TransactionArgument } from './Commands.js';
 import { Commands } from './Commands.js';
 import type { CallArg, Command } from './data/internal.js';
 import { Argument, NormalizedCallArg, ObjectRef, TransactionExpiration } from './data/internal.js';
-import { serializeV1TransactionData } from './data/v1.js';
 import { SerializedTransactionDataV2 } from './data/v2.js';
 import { Inputs } from './Inputs.js';
 import type {
@@ -176,16 +175,14 @@ export class Transaction {
         return newTransaction;
     }
 
-    /** @deprecated global plugins should be registered with a name */
-    static registerGlobalSerializationPlugin(step: TransactionPlugin): void;
     static registerGlobalSerializationPlugin(name: string, step: TransactionPlugin): void;
     static registerGlobalSerializationPlugin(
-        stepOrStep: TransactionPlugin | string,
+        stepOrName: TransactionPlugin | string,
         step?: TransactionPlugin,
     ) {
         getGlobalPluginRegistry().serializationPlugins.set(
-            stepOrStep,
-            step ?? (stepOrStep as TransactionPlugin),
+            stepOrName,
+            step ?? (stepOrName as TransactionPlugin),
         );
     }
 
@@ -193,16 +190,14 @@ export class Transaction {
         getGlobalPluginRegistry().serializationPlugins.delete(name);
     }
 
-    /** @deprecated global plugins should be registered with a name */
-    static registerGlobalBuildPlugin(step: TransactionPlugin): void;
     static registerGlobalBuildPlugin(name: string, step: TransactionPlugin): void;
     static registerGlobalBuildPlugin(
-        stepOrStep: TransactionPlugin | string,
+        stepOrName: TransactionPlugin | string,
         step?: TransactionPlugin,
     ) {
         getGlobalPluginRegistry().buildPlugins.set(
-            stepOrStep,
-            step ?? (stepOrStep as TransactionPlugin),
+            stepOrName,
+            step ?? (stepOrName as TransactionPlugin),
         );
     }
 
@@ -242,31 +237,26 @@ export class Transaction {
         this.#data.expiration = expiration ? parse(TransactionExpiration, expiration) : null;
     }
     setGasPrice(price: number | bigint) {
-        this.#data.gasConfig.price = String(price);
+        this.#data.gasData.price = String(price);
     }
     setGasBudget(budget: number | bigint) {
-        this.#data.gasConfig.budget = String(budget);
+        this.#data.gasData.budget = String(budget);
     }
 
     setGasBudgetIfNotSet(budget: number | bigint) {
         if (this.#data.gasData.budget == null) {
-            this.#data.gasConfig.budget = String(budget);
+            this.#data.gasData.budget = String(budget);
         }
     }
 
     setGasOwner(owner: string) {
-        this.#data.gasConfig.owner = owner;
+        this.#data.gasData.owner = owner;
     }
     setGasPayment(payments: ObjectRef[]) {
-        this.#data.gasConfig.payment = payments.map((payment) => parse(ObjectRef, payment));
+        this.#data.gasData.payment = payments.map((payment) => parse(ObjectRef, payment));
     }
 
     #data: TransactionDataBuilder;
-
-    /** @deprecated Use `getData()` instead. */
-    get blockData() {
-        return serializeV1TransactionData(this.#data.snapshot());
-    }
 
     /** Get a snapshot of the transaction data, in JSON form: */
     getData() {
@@ -534,14 +524,6 @@ export class Transaction {
                 elements: elements.map((obj) => this.object(obj)),
             }),
         );
-    }
-
-    /**
-     * @deprecated Use toJSON instead.
-     * For synchronous serialization, you can use `getData()`
-     * */
-    serialize() {
-        return JSON.stringify(serializeV1TransactionData(this.#data.snapshot()));
     }
 
     async toJSON(options: SerializeTransactionOptions = {}): Promise<string> {

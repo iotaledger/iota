@@ -38,7 +38,7 @@ mod ingestion_tests {
     use tempfile::tempdir;
 
     use crate::common::{
-        indexer_wait_for_checkpoint, start_simulacrum_rest_api_with_write_indexer,
+        indexer_wait_for_checkpoint, start_simulacrum_grpc_with_write_indexer,
         wait_for_objects_snapshot,
     };
 
@@ -60,7 +60,7 @@ mod ingestion_tests {
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -93,7 +93,7 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -144,7 +144,7 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         let _ = sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -200,7 +200,7 @@ mod ingestion_tests {
             let _ = sim.create_checkpoint();
         }
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -273,7 +273,7 @@ mod ingestion_tests {
         // Create a checkpoint which should include the transaction we executed.
         sim.create_checkpoint();
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -349,7 +349,7 @@ mod ingestion_tests {
                 .unwrap()
             };
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -394,7 +394,7 @@ mod ingestion_tests {
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -431,7 +431,7 @@ mod ingestion_tests {
         let data_ingestion_path = tempdir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,
@@ -474,7 +474,7 @@ mod ingestion_tests {
         sim.create_checkpoint(); // checkpoint 3
         assert!(err.is_none());
 
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
             Arc::new(sim),
             data_ingestion_path,
             None,

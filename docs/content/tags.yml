@@ -285,6 +285,14 @@ iota-cli:
   label: IOTA CLI
   description: IOTA Command Line Interface
 
+iota-localnet:
+  label: IOTA Localnet
+  description: IOTA Localnet Command Line Interface
+
+iota-tool:
+  label: IOTA Tool
+  description: IOTA Tool Command Line Interface
+
 rust-sdk:
   label: IOTA Rust SDK
   description: The IOTA Rust Software Development Kit

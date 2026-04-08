@@ -6,9 +6,11 @@ import { withSentryConfig } from '@sentry/nextjs';
 import { execSync } from 'child_process';
 const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 const NEXT_PUBLIC_BUILD_ENV = process.env.BUILD_ENV;
+const APPS_BACKEND = process.env.APPS_BACKEND;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    transpilePackages: ['@iota/core'],
     async redirects() {
         return [
             {
@@ -25,6 +27,7 @@ const nextConfig = {
     env: {
         NEXT_PUBLIC_DASHBOARD_REV,
         NEXT_PUBLIC_BUILD_ENV,
+        APPS_BACKEND,
     },
     webpack(config) {
         const fileLoaderRule = config.module.rules.find((rule) => rule.test?.test?.('.svg'));

@@ -659,7 +659,7 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
         let a_src =
             copy_published_package(&a_fixtures, "versioned-a-depends-on-b", IotaAddress::ZERO)
                 .await?;
-        compile_package(a_src.clone())
+        compile_package(a_src)
     };
 
     let client = context.get_client().await?;

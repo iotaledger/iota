@@ -6,6 +6,7 @@ import type { IotaClient } from '../../client/index.js';
 import type { MoveAuthenticatorCallArg, MoveAuthenticatorData } from './types.js';
 
 /**
+ * @experimental
  * Error thrown when an invalid argument is provided to MoveAuthenticator.
  */
 export class InvalidMoveAuthArgError extends Error {
@@ -16,6 +17,7 @@ export class InvalidMoveAuthArgError extends Error {
 }
 
 /**
+ * @experimental
  * Error thrown when an invalid objectToAuthenticate is provided to MoveAuthenticator.
  */
 export class InvalidMoveAuthAccountError extends Error {
@@ -26,6 +28,7 @@ export class InvalidMoveAuthAccountError extends Error {
 }
 
 /**
+ * @experimental
  * A function call to authorize a transaction via Move.
  * This builder creates a MoveAuthenticator which can be used to execute
  * a transaction with Account Abstraction.

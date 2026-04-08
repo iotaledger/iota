@@ -44,6 +44,7 @@
 /crates/iota-ledger/ @iotaledger/dev-tools @alexsporn
 /crates/iota-ledger-signer/ @iotaledger/dev-tools @alexsporn
 /crates/iota-light-client/ @iotaledger/dev-tools
+/crates/iota-localnet/ @iotaledger/dev-tools
 /crates/iota-macros/ @iotaledger/dev-tools
 /crates/iota-mainnet-unlocks/ @iotaledger/infrastructure
 /crates/iota-metric-checker/ @iotaledger/node

@@ -15,3 +15,6 @@ bin-version.workspace = true
 iota-move-build.workspace = true
 iota-package-management.workspace = true
 move-analyzer.workspace = true
+
+[lints]
+workspace = true

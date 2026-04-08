@@ -319,6 +319,22 @@ pub struct GrpcApiConfig {
     /// in bytes.
     #[serde(default = "default_grpc_api_max_json_move_value_size")]
     pub max_json_move_value_size: usize,
+
+    /// Maximum number of transactions allowed in a single ExecuteTransactions
+    /// batch request.
+    #[serde(default = "default_grpc_api_max_execute_transaction_batch_size")]
+    pub max_execute_transaction_batch_size: u32,
+
+    /// Maximum number of transactions allowed in a single SimulateTransactions
+    /// batch request.
+    #[serde(default = "default_grpc_api_max_simulate_transaction_batch_size")]
+    pub max_simulate_transaction_batch_size: u32,
+
+    /// Maximum allowed timeout in milliseconds for waiting for checkpoint
+    /// inclusion in ExecuteTransactions requests. Client-specified timeouts
+    /// are clamped to this value.
+    #[serde(default = "default_grpc_api_max_checkpoint_inclusion_timeout_ms")]
+    pub max_checkpoint_inclusion_timeout_ms: u64,
 }
 
 fn default_grpc_api_address() -> SocketAddr {
@@ -337,6 +353,18 @@ fn default_grpc_api_max_json_move_value_size() -> usize {
     1024 * 1024 // 1 MB
 }
 
+fn default_grpc_api_max_execute_transaction_batch_size() -> u32 {
+    20
+}
+
+fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
+    20
+}
+
+fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
+    60_000 // 60 seconds
+}
+
 impl Default for GrpcApiConfig {
     fn default() -> Self {
         Self {
@@ -345,6 +373,12 @@ impl Default for GrpcApiConfig {
             max_message_size_bytes: default_grpc_api_max_message_size_bytes(),
             broadcast_buffer_size: default_grpc_api_broadcast_buffer_size(),
             max_json_move_value_size: default_grpc_api_max_json_move_value_size(),
+            max_execute_transaction_batch_size: default_grpc_api_max_execute_transaction_batch_size(
+            ),
+            max_simulate_transaction_batch_size:
+                default_grpc_api_max_simulate_transaction_batch_size(),
+            max_checkpoint_inclusion_timeout_ms:
+                default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
     }
 }

@@ -6,11 +6,14 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useRef,
     type MutableRefObject,
     type ReactNode,
 } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AmpliSourceFlow } from '_src/shared/analytics';
 
 export enum AccountsFormType {
     NewMnemonic = 'new-mnemonic',
@@ -59,6 +62,8 @@ export type AccountsFormValues =
 type AccountsFormContextType = [
     MutableRefObject<AccountsFormValues>,
     (values: AccountsFormValues) => void,
+    MutableRefObject<AmpliSourceFlow>,
+    (sourceFlow: AmpliSourceFlow) => void,
 ];
 
 const AccountsFormContext = createContext<AccountsFormContextType | null>(null);
@@ -67,12 +72,25 @@ interface AccountsFormProviderProps {
     children: ReactNode;
 }
 
+const SOURCE_FLOW_SESSION_KEY = 'ampli_source_flow';
+
 export function AccountsFormProvider({ children }: AccountsFormProviderProps) {
     const valuesRef = useRef<AccountsFormValues>(null);
     const setter = useCallback((values: AccountsFormValues) => {
         valuesRef.current = values;
     }, []);
-    const value = useMemo(() => [valuesRef, setter] as AccountsFormContextType, [setter]);
+    const sourceFlowRef = useRef<AmpliSourceFlow>(
+        (sessionStorage.getItem(SOURCE_FLOW_SESSION_KEY) as AmpliSourceFlow) ??
+            AmpliSourceFlow.Unknown,
+    );
+    const sourceFlowSetter = useCallback((sourceFlow: AmpliSourceFlow) => {
+        sourceFlowRef.current = sourceFlow;
+        sessionStorage.setItem(SOURCE_FLOW_SESSION_KEY, sourceFlow);
+    }, []);
+    const value = useMemo(
+        () => [valuesRef, setter, sourceFlowRef, sourceFlowSetter] as AccountsFormContextType,
+        [setter, sourceFlowSetter],
+    );
     return <AccountsFormContext.Provider value={value}>{children}</AccountsFormContext.Provider>;
 }
 
@@ -84,4 +102,37 @@ export function useAccountsFormContext() {
         throw new Error('useAccountsFormContext must be used within the AccountsFormProvider');
     }
     return context;
+}
+
+/**
+ * Hook to get and set the sourceFlow analytics value for the current account creation flow.
+ * Set once at the start of the flow (WelcomePage / AddAccountPage), read wherever needed.
+ */
+export function useSourceFlow() {
+    const context = useContext(AccountsFormContext);
+    if (!context) {
+        throw new Error('useSourceFlow must be used within the AccountsFormProvider');
+    }
+    const [, , sourceFlowRef, setSourceFlow] = context;
+    const resetSourceFlow = useCallback(() => {
+        sourceFlowRef.current = AmpliSourceFlow.Unknown;
+        sessionStorage.removeItem(SOURCE_FLOW_SESSION_KEY);
+    }, [sourceFlowRef]);
+    return { sourceFlowRef, setSourceFlow, resetSourceFlow };
+}
+
+/**
+ * Bootstraps sourceFlow from the `sourceFlow` URL query param.
+ * Use this in pages that can be opened in a new browser tab (e.g. Ledger, Keystone, Passkey
+ * popup flows) so the analytics value is preserved across the tab boundary.
+ */
+export function useBootstrapSourceFlow() {
+    const [searchParams] = useSearchParams();
+    const { setSourceFlow } = useSourceFlow();
+    const urlSourceFlow = searchParams.get('sourceFlow');
+    useEffect(() => {
+        if (urlSourceFlow) {
+            setSourceFlow(urlSourceFlow as AmpliSourceFlow);
+        }
+    }, [urlSourceFlow, setSourceFlow]);
 }

@@ -2716,7 +2716,7 @@ async fn init_sim_executor(
             key_pair: Some(default_account_kp.1),
             gas: o.id(),
         };
-        objects.push(o.clone());
+        objects.push(o);
 
         if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
             let o = store.owned_objects(v_addr).next().unwrap();

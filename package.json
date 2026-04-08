@@ -9,6 +9,7 @@
 		"explorer-dev": "turbo --filter iota-explorer --filter apps-backend dev",
 		"wallet-dev": "turbo --filter ./apps/wallet --filter apps-backend dev",
 		"wallet-dashboard-dev": "turbo --filter ./apps/wallet-dashboard --filter apps-backend dev",
+		"multisig": "turbo --filter ./dapps/multisig-toolkit",
 		"evm-bridge": "turbo --filter ./apps/evm-bridge",
 		"evm-bridge-dev": "turbo --filter ./apps/evm-bridge --filter apps-backend dev",
 		"ui-kit": "turbo --filter ./apps/ui-kit",
@@ -24,7 +25,7 @@
 		"iota-docs": "turbo --filter iota-docs",
 		"examples": "turbo --filter ./sdk/examples",
 		"changeset-publish": "pnpm changeset publish",
-		"changeset-version": "pnpm changeset version && pnpm --filter @iota/iota-sdk codegen:version",
+		"changeset-version": "pnpm changeset version",
 		"prepare": "husky",
 		"codegen": "turbo run codegen"
 	},
@@ -45,17 +46,18 @@
 			"glob@>=10.2.0 <10.5.0": "10.5.0",
 			"qs@<6.14.1": "6.14.1",
 			"preact@>=10.28.0 <10.28.2": "10.28.2",
-			"h3@<=1.15.4": "1.15.5",
+			"h3@<1.15.6": "1.15.8",
 			"minimatch@>=3.0.0": "^3.1.5",
 			"minimatch@>=5.0.0": "^5.1.9",
 			"minimatch@>=9.0.0": "^9.0.9",
 			"hono@<4.12.4": ">=4.12.4",
-			"axios@<0.30.3": "^0.30.3"
+			"axios@<0.30.3": "^0.30.3",
+			"socket.io-parser@<4.2.6": "4.2.6"
 		}
 	},
 	"engines": {
 		"node": ">=24",
-		"pnpm": ">=9.6.0 <=9.15.9"
+		"pnpm": ">=10"
 	},
 	"manypkg": {
 		"ignoredRules": [
@@ -94,5 +96,5 @@
 	"dependencies": {
 		"copy-text-to-clipboard": "^3.2.0"
 	},
-	"packageManager": "pnpm@9.6.0"
+	"packageManager": "pnpm@10.30.0"
 }

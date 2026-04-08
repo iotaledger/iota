@@ -68,94 +68,25 @@ export type LoadOptions =
     | LoadOptionsWithApiKey
     | LoadOptionsWithClientInstance;
 
-export interface AccountCreationStartedProperties {
-    accountOrigin?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    accountType?: string;
-    isFirstAccount?: boolean;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
-}
-
-export interface AccountDeletedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    accountType?: string;
-}
-
-export interface AccountKeysExportedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    accountType?: string;
-}
-
-export interface AccountsAddedProperties {
-    accountOrigin?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    accountType?: string;
-    isFirstAccount?: boolean;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    numberOfAccounts?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
+export interface IdentifyProperties {
+    network?: string;
 }
 
 export interface AddedAccountsProperties {
+    accountOrigin?: string;
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
     accountType?: string;
+    isFirstAccount?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
      * | Type | number |
      */
     numberOfAccounts?: number;
-}
-
-export interface ApplicationDisconnectedProperties {
-    applicationName?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    applicationUrl?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    disconnectedAccounts?: number;
-    partial?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -164,40 +95,16 @@ export interface ApplicationDisconnectedProperties {
     sourceFlow?: string;
 }
 
-export interface ApplicationOpenedProperties {
-    applicationName?: string;
+export interface ChangedSidePanelProperties {
+    enabled: boolean;
 }
 
-export interface AppsBannerCtaClickedProperties {
-    bannerUrl?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
-}
-
-export interface AutoLockUpdatedProperties {
-    autoLock: boolean;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    lockTimeSeconds: number;
-}
-
-export interface BalanceFinderUsedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    accountType?: string;
+export interface ChangedThemeProperties {
+    theme: string;
 }
 
 export interface ClickedAppsBannerCtaProperties {
+    bannerUrl?: string;
     /**
      * | Rule | Value |
      * |---|---|
@@ -213,24 +120,17 @@ export interface ClickedCollectibleCardProperties {
      * | Regex |  |
      */
     collectibleType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    objectId?: string;
 }
 
 export interface ClickedCreateNewAccountProperties {
+    accountOrigin?: string;
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
-    sourceFlow?: string;
-}
-
-export interface ClickedCreatePasskeyProperties {
+    accountType?: string;
+    isFirstAccount?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -246,39 +146,15 @@ export interface ClickedHideAssetProperties {
      * | Regex |  |
      */
     collectibleType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    objectId?: string;
 }
 
-export interface ClickedImportKeystoneProperties {
+export interface ClickedShowAssetProperties {
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
-    sourceFlow?: string;
-}
-
-export interface ClickedImportPassphraseProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
-}
-
-export interface ClickedImportPrivateKeyProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
+    collectibleType?: string;
 }
 
 export interface ClickedStakeIotaProperties {
@@ -306,107 +182,24 @@ export interface ClickedUnstakeIotaProperties {
     validatorAddress?: string;
 }
 
-export interface CoinPinnedProperties {
+export interface CopiedElementProperties {
+    type?: string;
+    value?: string;
     /**
      * | Rule | Value |
      * |---|---|
-     * | Regex |  |
+     * | Enum Values | private, public |
      */
-    coinType?: string;
+    visibility?: 'private' | 'public';
 }
 
-export interface CoinSelectedProperties {
+export interface DeletedAccountProperties {
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
-    coinType?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    totalBalance?: number;
-}
-
-export interface CoinUnpinnedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    coinType?: string;
-}
-
-export interface CoinsSentProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    amount?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    coinType?: string;
-}
-
-export interface CollectibleCardClickedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    collectibleType?: string;
-}
-
-export interface CollectibleHiddenProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    collectibleType?: string;
-}
-
-export interface CollectibleSentProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    collectibleType?: string;
-}
-
-export interface CollectibleUnHiddenProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    collectibleType?: string;
-}
-
-export interface ConnectedHardwareWalletProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    hardwareWalletType?: string;
-}
-
-export interface DappConnectStartedProperties {
-    applicationName?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    applicationUrl?: string;
+    accountType?: string;
 }
 
 export interface DisconnectedApplicationProperties {
@@ -423,6 +216,7 @@ export interface DisconnectedApplicationProperties {
      * | Type | number |
      */
     disconnectedAccounts?: number;
+    partial?: boolean;
     /**
      * | Rule | Value |
      * |---|---|
@@ -431,101 +225,33 @@ export interface DisconnectedApplicationProperties {
     sourceFlow?: string;
 }
 
-export interface ElementCopiedProperties {
-    type: string;
-}
-
-export interface ExternalLinkOpenedProperties {
-    type: string;
-}
-export interface IotaStakedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
+export interface ExportedAccountKeysProperties {
     /**
      * | Rule | Value |
      * |---|---|
      * | Regex |  |
      */
-    validatorAddress?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    validatorAPY?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    validatorName?: string;
-}
-
-export interface IotaUnstakedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    rewards?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    validatorAddress?: string;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    validatorName?: string;
-}
-
-export interface NetworkSwitchedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    toNetwork?: string;
+    accountType?: string;
 }
 
 export interface OpenedApplicationProperties {
     applicationName?: string;
 }
 
-export interface OpenedConnectLedgerFlowProperties {
+export interface OpenedLinkProperties {
+    type?: string;
+    value?: string;
     /**
      * | Rule | Value |
      * |---|---|
-     * | Regex |  |
+     * | Enum Values | private, public |
      */
-    sourceFlow?: string;
+    visibility?: 'private' | 'public';
 }
 
-export interface OpenedLinkProperties {
-    url: string;
-}
-
-export interface OpenedWalletExtensionProperties {
-    activeAccountType?: string;
-    activeNetwork?: string;
-    activeOrigin?: string;
-    pagePath?: string;
-    pagePathFragment?: string;
-    walletAppMode?: string;
-    walletVersion?: string;
+export interface OpenedTransactionProperties {
+    success?: boolean;
+    transactionType?: string;
 }
 
 export interface PinnedCoinProperties {
@@ -599,6 +325,12 @@ export interface SentCoinsProperties {
     /**
      * | Rule | Value |
      * |---|---|
+     * | Type | number |
+     */
+    amount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
      * | Regex |  |
      */
     coinType?: string;
@@ -610,22 +342,9 @@ export interface SentCollectibleProperties {
      * |---|---|
      * | Regex |  |
      */
-    objectId?: string;
+    collectibleType?: string;
 }
 
-export interface SidePanelChangedProperties {
-    enabled: boolean;
-}
-
-export interface StakeClickedProperties {
-    isCurrentlyStaking?: boolean;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
-}
 export interface StakedIotaProperties {
     /**
      * | Rule | Value |
@@ -633,57 +352,6 @@ export interface StakedIotaProperties {
      * | Type | number |
      */
     stakedAmount?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    validatorAddress?: string;
-}
-
-export interface SwitchedNetworkProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    toNetwork?: string;
-}
-
-export interface ThemeChangedProperties {
-    theme: string;
-}
-
-export interface TransactionOpenedProperties {
-    success?: boolean;
-    transactionType?: string;
-}
-
-export interface UnpinnedCoinProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    coinType?: string;
-}
-
-export interface UnstakedIotaProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    validatorAddress?: string;
-}
-
-export interface ValidatorSelectedProperties {
     /**
      * | Rule | Value |
      * |---|---|
@@ -704,38 +372,86 @@ export interface ValidatorSelectedProperties {
     validatorName?: string;
 }
 
-export class AccountCreationStarted implements BaseEvent {
-    event_type = 'account creation started';
-
-    constructor(public event_properties?: AccountCreationStartedProperties) {
-        this.event_properties = event_properties;
-    }
+export interface StartedDappConnectionProperties {
+    applicationName?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    applicationUrl?: string;
 }
 
-export class AccountDeleted implements BaseEvent {
-    event_type = 'account deleted';
-
-    constructor(public event_properties?: AccountDeletedProperties) {
-        this.event_properties = event_properties;
-    }
+export interface SwitchedNetworkProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    toNetwork?: string;
 }
 
-export class AccountKeysExported implements BaseEvent {
-    event_type = 'account keys exported';
+export interface UnpinnedCoinProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    coinType?: string;
+}
 
-    constructor(public event_properties?: AccountKeysExportedProperties) {
+export interface UnstakedIotaProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    rewards?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorAddress?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    validatorName?: string;
+}
+
+export interface UpdatedAutoLockProperties {
+    autoLock: boolean;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    lockTimeSeconds: number;
+}
+
+export interface UsedBalanceFinderProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    accountType?: string;
+}
+
+export class Identify implements BaseEvent {
+    event_type = amplitude.Types.SpecialEventType.IDENTIFY;
+
+    constructor(public event_properties?: IdentifyProperties) {
         this.event_properties = event_properties;
     }
-}
-export class AccountsAdded implements BaseEvent {
-    event_type = 'accounts added';
-
-    constructor(public event_properties?: AccountsAddedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-export class AccountRenamed implements BaseEvent {
-    event_type = 'account renamed';
 }
 
 export class AddedAccounts implements BaseEvent {
@@ -746,42 +462,18 @@ export class AddedAccounts implements BaseEvent {
     }
 }
 
-export class ApplicationDisconnected implements BaseEvent {
-    event_type = 'application disconnected';
+export class ChangedSidePanel implements BaseEvent {
+    event_type = 'changed side panel';
 
-    constructor(public event_properties?: ApplicationDisconnectedProperties) {
+    constructor(public event_properties: ChangedSidePanelProperties) {
         this.event_properties = event_properties;
     }
 }
 
-export class ApplicationOpened implements BaseEvent {
-    event_type = 'application opened';
+export class ChangedTheme implements BaseEvent {
+    event_type = 'changed theme';
 
-    constructor(public event_properties?: ApplicationOpenedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class AppsBannerCtaClicked implements BaseEvent {
-    event_type = 'apps banner cta clicked';
-
-    constructor(public event_properties?: AppsBannerCtaClickedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class AutoLockUpdated implements BaseEvent {
-    event_type = 'auto lock updated';
-
-    constructor(public event_properties: AutoLockUpdatedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class BalanceFinderUsed implements BaseEvent {
-    event_type = 'balance finder used';
-
-    constructor(public event_properties?: BalanceFinderUsedProperties) {
+    constructor(public event_properties: ChangedThemeProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -810,14 +502,6 @@ export class ClickedCreateNewAccount implements BaseEvent {
     }
 }
 
-export class ClickedCreatePasskey implements BaseEvent {
-    event_type = 'clicked create passkey';
-
-    constructor(public event_properties?: ClickedCreatePasskeyProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
 export class ClickedHideAsset implements BaseEvent {
     event_type = 'clicked hide asset';
 
@@ -826,34 +510,10 @@ export class ClickedHideAsset implements BaseEvent {
     }
 }
 
-export class ClickedImportKeystone implements BaseEvent {
-    event_type = 'clicked import keystone';
+export class ClickedShowAsset implements BaseEvent {
+    event_type = 'clicked show asset';
 
-    constructor(public event_properties?: ClickedImportKeystoneProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ClickedImportPassphrase implements BaseEvent {
-    event_type = 'clicked import passphrase';
-
-    constructor(public event_properties?: ClickedImportPassphraseProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ClickedImportPrivateKey implements BaseEvent {
-    event_type = 'clicked import private key';
-
-    constructor(public event_properties?: ClickedImportPrivateKeyProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ClickedImportSeed implements BaseEvent {
-    event_type = 'clicked import seed';
-
-    constructor(public event_properties?: ClickedImportSeedProperties) {
+    constructor(public event_properties?: ClickedShowAssetProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -874,82 +534,18 @@ export class ClickedUnstakeIota implements BaseEvent {
     }
 }
 
-export class CoinPinned implements BaseEvent {
-    event_type = 'coin pinned';
+export class CopiedElement implements BaseEvent {
+    event_type = 'copied element';
 
-    constructor(public event_properties?: CoinPinnedProperties) {
+    constructor(public event_properties?: CopiedElementProperties) {
         this.event_properties = event_properties;
     }
 }
 
-export class CoinSelected implements BaseEvent {
-    event_type = 'coin selected';
+export class DeletedAccount implements BaseEvent {
+    event_type = 'deleted account';
 
-    constructor(public event_properties?: CoinSelectedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CoinUnpinned implements BaseEvent {
-    event_type = 'coin unpinned';
-
-    constructor(public event_properties?: CoinUnpinnedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CoinsSent implements BaseEvent {
-    event_type = 'coins sent';
-
-    constructor(public event_properties?: CoinsSentProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CollectibleCardClicked implements BaseEvent {
-    event_type = 'collectible card clicked';
-
-    constructor(public event_properties?: CollectibleCardClickedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CollectibleHidden implements BaseEvent {
-    event_type = 'collectible hidden';
-
-    constructor(public event_properties?: CollectibleHiddenProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CollectibleSent implements BaseEvent {
-    event_type = 'collectible sent';
-
-    constructor(public event_properties?: CollectibleSentProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class CollectibleUnHidden implements BaseEvent {
-    event_type = 'collectible un-hidden';
-
-    constructor(public event_properties?: CollectibleUnHiddenProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ConnectedHardwareWallet implements BaseEvent {
-    event_type = 'connected hardware wallet';
-
-    constructor(public event_properties?: ConnectedHardwareWalletProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class DappConnectStarted implements BaseEvent {
-    event_type = 'dapp connect started';
-
-    constructor(public event_properties?: DappConnectStartedProperties) {
+    constructor(public event_properties?: DeletedAccountProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -962,42 +558,10 @@ export class DisconnectedApplication implements BaseEvent {
     }
 }
 
-export class ElementCopied implements BaseEvent {
-    event_type = 'element copied';
+export class ExportedAccountKeys implements BaseEvent {
+    event_type = 'exported account keys';
 
-    constructor(public event_properties: ElementCopiedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ExternalLinkOpened implements BaseEvent {
-    event_type = 'external link opened';
-
-    constructor(public event_properties: ExternalLinkOpenedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class IotaStaked implements BaseEvent {
-    event_type = 'iota staked';
-
-    constructor(public event_properties?: IotaStakedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class IotaUnstaked implements BaseEvent {
-    event_type = 'iota unstaked';
-
-    constructor(public event_properties?: IotaUnstakedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class NetworkSwitched implements BaseEvent {
-    event_type = 'network switched';
-
-    constructor(public event_properties?: NetworkSwitchedProperties) {
+    constructor(public event_properties?: ExportedAccountKeysProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1010,26 +574,18 @@ export class OpenedApplication implements BaseEvent {
     }
 }
 
-export class OpenedConnectLedgerFlow implements BaseEvent {
-    event_type = 'opened connect ledger flow';
-
-    constructor(public event_properties?: OpenedConnectLedgerFlowProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
 export class OpenedLink implements BaseEvent {
     event_type = 'opened link';
 
-    constructor(public event_properties: OpenedLinkProperties) {
+    constructor(public event_properties?: OpenedLinkProperties) {
         this.event_properties = event_properties;
     }
 }
 
-export class OpenedWalletExtension implements BaseEvent {
-    event_type = 'opened wallet extension';
+export class OpenedTransaction implements BaseEvent {
+    event_type = 'opened transaction';
 
-    constructor(public event_properties?: OpenedWalletExtensionProperties) {
+    constructor(public event_properties?: OpenedTransactionProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1040,6 +596,14 @@ export class PinnedCoin implements BaseEvent {
     constructor(public event_properties?: PinnedCoinProperties) {
         this.event_properties = event_properties;
     }
+}
+
+export class RenamedAccount implements BaseEvent {
+    event_type = 'renamed account';
+}
+
+export class ResetWallet implements BaseEvent {
+    event_type = 'reset wallet';
 }
 
 export class RespondedToConnectionRequest implements BaseEvent {
@@ -1090,22 +654,6 @@ export class SentCollectible implements BaseEvent {
     }
 }
 
-export class SidePanelChanged implements BaseEvent {
-    event_type = 'side panel changed';
-
-    constructor(public event_properties: SidePanelChangedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class StakeClicked implements BaseEvent {
-    event_type = 'stake clicked';
-
-    constructor(public event_properties?: StakeClickedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
 export class StakedIota implements BaseEvent {
     event_type = 'staked IOTA';
 
@@ -1114,26 +662,18 @@ export class StakedIota implements BaseEvent {
     }
 }
 
+export class StartedDappConnection implements BaseEvent {
+    event_type = 'started dapp connection';
+
+    constructor(public event_properties?: StartedDappConnectionProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class SwitchedNetwork implements BaseEvent {
     event_type = 'switched network';
 
     constructor(public event_properties?: SwitchedNetworkProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class ThemeChanged implements BaseEvent {
-    event_type = 'theme changed';
-
-    constructor(public event_properties: ThemeChangedProperties) {
-        this.event_properties = event_properties;
-    }
-}
-
-export class TransactionOpened implements BaseEvent {
-    event_type = 'transaction opened';
-
-    constructor(public event_properties?: TransactionOpenedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -1154,20 +694,20 @@ export class UnstakedIota implements BaseEvent {
     }
 }
 
-export class ValidatorSelected implements BaseEvent {
-    event_type = 'validator selected';
+export class UpdatedAutoLock implements BaseEvent {
+    event_type = 'updated auto lock';
 
-    constructor(public event_properties?: ValidatorSelectedProperties) {
+    constructor(public event_properties: UpdatedAutoLockProperties) {
         this.event_properties = event_properties;
     }
 }
 
-export class ViewedLedgerTutorial implements BaseEvent {
-    event_type = 'viewed ledger tutorial';
-}
+export class UsedBalanceFinder implements BaseEvent {
+    event_type = 'used balance finder';
 
-export class WalletReset implements BaseEvent {
-    event_type = 'wallet reset';
+    constructor(public event_properties?: UsedBalanceFinderProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };
@@ -1233,10 +773,12 @@ export class Ampli {
    * Identify a user and set user properties.
    *
    * @param userId The user's id.
+   * @param properties The user properties.
    * @param options Optional event options.
    */
   identify(
     userId: string | undefined,
+    properties?: IdentifyProperties,
     options?: EventOptions,
   ): PromiseResult<Result> {
     if (!this.isInitializedAndEnabled()) {
@@ -1248,6 +790,12 @@ export class Ampli {
     }
 
     const amplitudeIdentify = new amplitude.Identify();
+    const eventProperties = properties;
+    if (eventProperties != null) {
+      for (const [key, value] of Object.entries(eventProperties)) {
+        amplitudeIdentify.set(key, value);
+      }
+    }
     return this.amplitude!.identify(
       amplitudeIdentify,
       options,
@@ -1280,96 +828,13 @@ export class Ampli {
   }
 
   /**
-   * account deleted
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20deleted)
-   *
-   * Fires when the user clicks on the “Delete” option on one of his accounts.
-   *
-   * @param properties The event's properties (e.g. accountType)
-   * @param options Amplitude event options.
-   */
-  accountDeleted(
-    properties?: AccountDeletedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new AccountDeleted(properties), options);
-  }
-
-  /**
-   * account keys exported
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20keys%20exported)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. accountType)
-   * @param options Amplitude event options.
-   */
-  accountKeysExported(
-    properties?: AccountKeysExportedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new AccountKeysExported(properties), options);
-  }
-
-  /**
-   * account renamed
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20renamed)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param options Amplitude event options.
-   */
-  accountRenamed(
-    options?: EventOptions,
-  ) {
-    return this.track(new AccountRenamed(), options);
-  }
-
-  /**
-   * account creation started
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/account%20creation%20started)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. sourceFlow)
-   * @param options Amplitude event options.
-   */
-  accountCreationStarted(
-    properties?: AccountCreationStartedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new AccountCreationStarted(properties), options);
-  }
-
-  /**
-   * accounts added
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/accounts%20added)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. accountType)
-   * @param options Amplitude event options.
-   */
-  accountsAdded(
-    properties?: AccountsAddedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new AccountsAdded(properties), options);
-  }
-
-  /**
    * added accounts
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/added%20accounts)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. accountType)
+   * @param properties The event's properties (e.g. accountOrigin)
    * @param options Amplitude event options.
    */
   addedAccounts(
@@ -1380,88 +845,37 @@ export class Ampli {
   }
 
   /**
-   * application disconnected
+   * changed side panel
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/application%20disconnected)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/changed%20side%20panel)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. applicationName)
+   * @param properties The event's properties (e.g. enabled)
    * @param options Amplitude event options.
    */
-  applicationDisconnected(
-    properties?: ApplicationDisconnectedProperties,
+  changedSidePanel(
+    properties: ChangedSidePanelProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ApplicationDisconnected(properties), options);
+    return this.track(new ChangedSidePanel(properties), options);
   }
 
   /**
-   * application opened
+   * changed theme
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/application%20opened)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. applicationName)
-   * @param options Amplitude event options.
-   */
-  applicationOpened(
-    properties?: ApplicationOpenedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ApplicationOpened(properties), options);
-  }
-
-  /**
-   * apps banner cta clicked
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/apps%20banner%20cta%20clicked)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/changed%20theme)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. sourceFlow)
+   * @param properties The event's properties (e.g. theme)
    * @param options Amplitude event options.
    */
-  appsBannerCtaClicked(
-    properties?: AppsBannerCtaClickedProperties,
+  changedTheme(
+    properties: ChangedThemeProperties,
     options?: EventOptions,
   ) {
-    return this.track(new AppsBannerCtaClicked(properties), options);
-  }
-
-  /**
-   * auto lock updated
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/auto%20lock%20updated)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. autolock)
-   * @param options Amplitude event options.
-   */
-  autoLockUpdated(
-    properties: AutoLockUpdatedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new AutoLockUpdated(properties), options);
-  }
-
-  /**
-   * balance finder used
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/balance%20finder%20used)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. accountType)
-   * @param options Amplitude event options.
-   */
-  balanceFinderUsed(
-    properties?: BalanceFinderUsedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new BalanceFinderUsed(properties), options);
+    return this.track(new ChangedTheme(properties), options);
   }
 
   /**
@@ -1471,7 +885,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. sourceFlow)
+   * @param properties The event's properties (e.g. bannerUrl)
    * @param options Amplitude event options.
    */
   clickedAppsBannerCta(
@@ -1505,7 +919,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. sourceFlow)
+   * @param properties The event's properties (e.g. accountOrigin)
    * @param options Amplitude event options.
    */
   clickedCreateNewAccount(
@@ -1513,23 +927,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedCreateNewAccount(properties), options);
-  }
-
-  /**
-   * clicked create passkey
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20create%20passkey)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. sourceFlow)
-   * @param options Amplitude event options.
-   */
-  clickedCreatePasskey(
-    properties?: ClickedCreatePasskeyProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedCreatePasskey(properties), options);
   }
 
   /**
@@ -1550,71 +947,20 @@ export class Ampli {
   }
 
   /**
-   * clicked import keystone
+   * clicked show asset
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20keystone)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. sourceFlow)
-   * @param options Amplitude event options.
-   */
-  clickedImportKeystone(
-    properties?: ClickedImportKeystoneProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedImportKeystone(properties), options);
-  }
-
-  /**
-   * clicked import passphrase
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20passphrase)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20show%20asset)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. sourceFlow)
+   * @param properties The event's properties (e.g. collectibleType)
    * @param options Amplitude event options.
    */
-  clickedImportPassphrase(
-    properties?: ClickedImportPassphraseProperties,
+  clickedShowAsset(
+    properties?: ClickedShowAssetProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ClickedImportPassphrase(properties), options);
-  }
-
-  /**
-   * clicked import private key
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20private%20key)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. sourceFlow)
-   * @param options Amplitude event options.
-   */
-  clickedImportPrivateKey(
-    properties?: ClickedImportPrivateKeyProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedImportPrivateKey(properties), options);
-  }
-
-  /**
-   * clicked import seed
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20seed)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. sourceFlow)
-   * @param options Amplitude event options.
-   */
-  clickedImportSeed(
-    properties?: ClickedImportSeedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ClickedImportSeed(properties), options);
+    return this.track(new ClickedShowAsset(properties), options);
   }
 
   /**
@@ -1652,173 +998,37 @@ export class Ampli {
   }
 
   /**
-   * coin pinned
+   * copied element
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/coin%20pinned)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/copied%20element)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. coinType)
+   * @param properties The event's properties (e.g. type)
    * @param options Amplitude event options.
    */
-  coinPinned(
-    properties?: CoinPinnedProperties,
+  copiedElement(
+    properties?: CopiedElementProperties,
     options?: EventOptions,
   ) {
-    return this.track(new CoinPinned(properties), options);
+    return this.track(new CopiedElement(properties), options);
   }
 
   /**
-   * coin selected
+   * deleted account
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/coin%20selected)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/deleted%20account)
    *
-   * Event has no description in tracking plan.
+   * Fires when the user clicks on the “Delete” option on one of his accounts.
    *
-   * @param properties The event's properties (e.g. coinType)
+   * @param properties The event's properties (e.g. accountType)
    * @param options Amplitude event options.
    */
-  coinSelected(
-    properties?: CoinSelectedProperties,
+  deletedAccount(
+    properties?: DeletedAccountProperties,
     options?: EventOptions,
   ) {
-    return this.track(new CoinSelected(properties), options);
-  }
-
-  /**
-   * coin unpinned
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/coin%20unpinned)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. coinType)
-   * @param options Amplitude event options.
-   */
-  coinUnpinned(
-    properties?: CoinUnpinnedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CoinUnpinned(properties), options);
-  }
-
-  /**
-   * coins sent
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/coins%20sent)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. coinType)
-   * @param options Amplitude event options.
-   */
-  coinsSent(
-    properties?: CoinsSentProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CoinsSent(properties), options);
-  }
-
-  /**
-   * collectible card clicked
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/collectible%20card%20clicked)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. collectibleType)
-   * @param options Amplitude event options.
-   */
-  collectibleCardClicked(
-    properties?: CollectibleCardClickedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CollectibleCardClicked(properties), options);
-  }
-
-  /**
-   * collectible hidden
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/collectible%20hidden)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. collectibleType)
-   * @param options Amplitude event options.
-   */
-  collectibleHidden(
-    properties?: CollectibleHiddenProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CollectibleHidden(properties), options);
-  }
-
-  /**
-   * collectible sent
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/collectible%20sent)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. collectibleType)
-   * @param options Amplitude event options.
-   */
-  collectibleSent(
-    properties?: CollectibleSentProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CollectibleSent(properties), options);
-  }
-
-  /**
-   * collectible un-hidden
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/collectible%20un-hidden)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. collectibleType)
-   * @param options Amplitude event options.
-   */
-  collectibleUnHidden(
-    properties?: CollectibleUnHiddenProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new CollectibleUnHidden(properties), options);
-  }
-
-  /**
-   * connected hardware wallet
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/connected%20hardware%20wallet)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. hardwareWalletType)
-   * @param options Amplitude event options.
-   */
-  connectedHardwareWallet(
-    properties?: ConnectedHardwareWalletProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ConnectedHardwareWallet(properties), options);
-  }
-
-  /**
-   * dapp connect started
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/dapp%20connect%20started)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. applicationName)
-   * @param options Amplitude event options.
-   */
-  dappConnectStarted(
-    properties?: DappConnectStartedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new DappConnectStarted(properties), options);
+    return this.track(new DeletedAccount(properties), options);
   }
 
   /**
@@ -1839,89 +1049,20 @@ export class Ampli {
   }
 
   /**
-   * element copied
+   * exported account keys
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/element%20copied)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. type)
-   * @param options Amplitude event options.
-   */
-  elementCopied(
-    properties: ElementCopiedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ElementCopied(properties), options);
-  }
-
-  /*
-  /**
-   * external link opened
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/external%20link%20opened)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/exported%20account%20keys)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. type)
+   * @param properties The event's properties (e.g. accountType)
    * @param options Amplitude event options.
    */
-  externalLinkOpened(
-    properties: ExternalLinkOpenedProperties,
+  exportedAccountKeys(
+    properties?: ExportedAccountKeysProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ExternalLinkOpened(properties), options);
-  }
-
-  /**
-   * iota staked
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/iota%20staked)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. stakedAmount)
-   * @param options Amplitude event options.
-   */
-  iotaStaked(
-    properties?: IotaStakedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new IotaStaked(properties), options);
-  }
-
-  /**
-   * iota unstaked
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/iota%20unstaked)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. stakedAmount)
-   * @param options Amplitude event options.
-   */
-  iotaUnstaked(
-    properties?: IotaUnstakedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new IotaUnstaked(properties), options);
-  }
-
-  /**
-   * network switched
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/network%20switched)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. toNetwork)
-   * @param options Amplitude event options.
-   */
-  networkSwitched(
-    properties?: NetworkSwitchedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new NetworkSwitched(properties), options);
+    return this.track(new ExportedAccountKeys(properties), options);
   }
 
   /**
@@ -1942,54 +1083,37 @@ export class Ampli {
   }
 
   /**
-   * opened connect ledger flow
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20connect%20ledger%20flow)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. sourceFlow)
-   * @param options Amplitude event options.
-   */
-  openedConnectLedgerFlow(
-    properties?: OpenedConnectLedgerFlowProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new OpenedConnectLedgerFlow(properties), options);
-  }
-
-  /**
    * opened link
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20link)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. url)
+   * @param properties The event's properties (e.g. type)
    * @param options Amplitude event options.
    */
   openedLink(
-    properties: OpenedLinkProperties,
+    properties?: OpenedLinkProperties,
     options?: EventOptions,
   ) {
     return this.track(new OpenedLink(properties), options);
   }
 
   /**
-   * opened wallet extension
+   * opened transaction
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20wallet%20extension)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20transaction)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. activeAccountType)
+   * @param properties The event's properties (e.g. success)
    * @param options Amplitude event options.
    */
-  openedWalletExtension(
-    properties?: OpenedWalletExtensionProperties,
+  openedTransaction(
+    properties?: OpenedTransactionProperties,
     options?: EventOptions,
   ) {
-    return this.track(new OpenedWalletExtension(properties), options);
+    return this.track(new OpenedTransaction(properties), options);
   }
 
   /**
@@ -2007,6 +1131,36 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new PinnedCoin(properties), options);
+  }
+
+  /**
+   * renamed account
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/renamed%20account)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  renamedAccount(
+    options?: EventOptions,
+  ) {
+    return this.track(new RenamedAccount(), options);
+  }
+
+  /**
+   * reset wallet
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/reset%20wallet)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  resetWallet(
+    options?: EventOptions,
+  ) {
+    return this.track(new ResetWallet(), options);
   }
 
   /**
@@ -2084,7 +1238,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. coinType)
+   * @param properties The event's properties (e.g. amount)
    * @param options Amplitude event options.
    */
   sentCoins(
@@ -2099,9 +1253,9 @@ export class Ampli {
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/sent%20collectible)
    *
-   * Event has no description in tracking plan.
+   * This event need to join with `collectible sent` later
    *
-   * @param properties The event's properties (e.g. objectId)
+   * @param properties The event's properties (e.g. collectibleType)
    * @param options Amplitude event options.
    */
   sentCollectible(
@@ -2109,40 +1263,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new SentCollectible(properties), options);
-  }
-
-  /**
-   * side panel changed
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/side%20panel%20changed)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. enabled)
-   * @param options Amplitude event options.
-   */
-  sidePanelChanged(
-    properties: SidePanelChangedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new SidePanelChanged(properties), options);
-  }
-  
-  /**
-   * stake clicked
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/stake%20clicked)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. isCurrentlyStaking)
-   * @param options Amplitude event options.
-   */
-  stakeClicked(
-    properties?: StakeClickedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new StakeClicked(properties), options);
   }
 
   /**
@@ -2163,6 +1283,23 @@ export class Ampli {
   }
 
   /**
+   * started dapp connection
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/started%20dapp%20connection)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. applicationName)
+   * @param options Amplitude event options.
+   */
+  startedDappConnection(
+    properties?: StartedDappConnectionProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new StartedDappConnection(properties), options);
+  }
+
+  /**
    * switched network
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/switched%20network)
@@ -2177,40 +1314,6 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new SwitchedNetwork(properties), options);
-  }
-
-  /**
-   * theme changed
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/theme%20changed)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. theme)
-   * @param options Amplitude event options.
-   */
-  themeChanged(
-    properties: ThemeChangedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new ThemeChanged(properties), options);
-  }
-
-  /**
-   * transaction opened
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/transaction%20opened)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param properties The event's properties (e.g. success)
-   * @param options Amplitude event options.
-   */
-  transactionOpened(
-    properties?: TransactionOpenedProperties,
-    options?: EventOptions,
-  ) {
-    return this.track(new TransactionOpened(properties), options);
   }
 
   /**
@@ -2237,7 +1340,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. rewards)
    * @param options Amplitude event options.
    */
   unstakedIota(
@@ -2248,50 +1351,37 @@ export class Ampli {
   }
 
   /**
-   * validator selected
+   * updated auto lock
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/validator%20selected)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/updated%20auto%20lock)
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. autoLock)
    * @param options Amplitude event options.
    */
-  validatorSelected(
-    properties?: ValidatorSelectedProperties,
+  updatedAutoLock(
+    properties: UpdatedAutoLockProperties,
     options?: EventOptions,
   ) {
-    return this.track(new ValidatorSelected(properties), options);
+    return this.track(new UpdatedAutoLock(properties), options);
   }
 
   /**
-   * viewed ledger tutorial
+   * used balance finder
    *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/viewed%20ledger%20tutorial)
-   *
-   * Event has no description in tracking plan.
-   *
-   * @param options Amplitude event options.
-   */
-  viewedLedgerTutorial(
-    options?: EventOptions,
-  ) {
-    return this.track(new ViewedLedgerTutorial(), options);
-  }
-
-  /**
-   * wallet reset
-   *
-   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/wallet%20reset)
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/used%20balance%20finder)
    *
    * Event has no description in tracking plan.
    *
+   * @param properties The event's properties (e.g. accountType)
    * @param options Amplitude event options.
    */
-  walletReset(
+  usedBalanceFinder(
+    properties?: UsedBalanceFinderProperties,
     options?: EventOptions,
   ) {
-    return this.track(new WalletReset(), options);
+    return this.track(new UsedBalanceFinder(properties), options);
   }
 }
 

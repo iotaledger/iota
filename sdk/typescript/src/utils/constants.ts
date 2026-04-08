@@ -14,3 +14,4 @@ export const IOTA_CLOCK_OBJECT_ID = normalizeIotaObjectId('0x6');
 export const IOTA_SYSTEM_MODULE_NAME = 'iota_system';
 export const IOTA_TYPE_ARG = `${IOTA_FRAMEWORK_ADDRESS}::iota::IOTA`;
 export const IOTA_SYSTEM_STATE_OBJECT_ID: string = normalizeIotaObjectId('0x5');
+export const IOTA_RANDOM_OBJECT_ID = normalizeIotaObjectId('0x8');

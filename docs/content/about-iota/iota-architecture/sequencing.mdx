@@ -75,3 +75,46 @@ Instead, IOTA's sequencing algorithm carefully places `Tx3` before `Tx2` in the 
 The case is illustrated in the following image.
 
 ![Sequencing example, final sequencing](/img/about-iota/iota-architecture/sequencing2.svg)
+
+## Gas Price Feedback for Cancelled Transactions
+
+When a transaction is cancelled due to shared object congestion, IOTA provides
+a **suggested gas price** in the execution status of that cancelled transaction.
+This suggested gas price informs the sender about the minimum gas price they
+should have paid for their transaction to have been successfully scheduled in
+the _same_ consensus commit.
+
+Other networks such as Sui only report which shared objects were congested, but
+not what gas price would have been enough for successful execution. Users on
+those networks have to rely on dry-run simulations to figure out a sufficient
+gas price. The IOTA protocol instead provides gas price feedback based on the
+actual scheduling decisions in the latest commits, which helps the sender
+estimate a sufficient gas price for a retry.
+
+### How the suggested gas price is calculated
+
+- The gas price feedback algorithm simulates the allocation of the
+cancelled transaction at the latest possible execution start time within the
+commit's capacity, so that only the last scheduled transactions on each
+congested object overlap with it.
+- The clearing gas price for each object is the maximum gas price across those
+last scheduled transactions that overlap with the simulated allocation of the
+cancelled transaction.
+- The suggested gas price is then calculated as the maximum clearing gas price
+across all input objects of the cancelled transaction plus one, ensuring
+that it would outbid competing transactions and get scheduled.
+- The suggested gas price value is capped at the protocol's maximum gas price.
+
+### Using the suggested gas price
+
+The sender can then retry the cancelled transaction with a gas price equal to
+or greater than the suggested value.
+
+:::note Suggested gas price is an estimate
+
+If the same congestion pattern repeats in a future commit, paying the suggested
+gas price guarantees scheduling. In practice, congestion changes between
+commits, so the suggested value should be considered as a good starting
+estimate but not as a hard guarantee to be scheduled.
+
+:::

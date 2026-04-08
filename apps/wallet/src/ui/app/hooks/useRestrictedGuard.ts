@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MILLISECONDS_PER_MINUTE } from '@iota/core';
-import { getAppsBackend } from '@iota/iota-sdk/client';
+import { MILLISECONDS_PER_MINUTE, getAppsBackend } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
 import { getEnvironmentKey } from '_src/shared/experimentation/features';
 import { useEffect } from 'react';

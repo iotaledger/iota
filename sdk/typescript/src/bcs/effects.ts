@@ -10,7 +10,7 @@ const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     UnableToFetchPackage: bcs.struct('UnableToFetchPackage', { packageId: Address }),
     NotAPackage: bcs.struct('NotAPackage', { objectId: Address }),
     IncompatibleUpgrade: null,
-    DigestDoesNotMatch: bcs.struct('DigestDoesNotMatch', { digest: bcs.vector(bcs.u8()) }),
+    DigestDoesNotMatch: bcs.struct('DigestDoesNotMatch', { digest: bcs.byteVector() }),
     UnknownUpgradePolicy: bcs.struct('UnknownUpgradePolicy', { policy: bcs.u8() }),
     PackageIDDoesNotMatch: bcs.struct('PackageIDDoesNotMatch', {
         packageId: Address,

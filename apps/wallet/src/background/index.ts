@@ -100,7 +100,11 @@ accountSourcesEvents.on('accountSourcesChanged', () => {
 
 Browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === AUTO_LOCK_ALARM_NAME) {
-        lockAllAccountsAndSources();
+        (async () => {
+            await lockAllAccountsAndSources();
+            accountSourcesEvents.emit('accountSourcesChanged');
+            accountsEvents.emit('accountsChanged');
+        })();
     } else if (alarm.name === CLEAN_UP_ALARM_NAME) {
         Transactions.clearStaleTransactions();
     }

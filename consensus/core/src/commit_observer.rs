@@ -59,7 +59,7 @@ impl CommitObserver {
         let mut observer = Self {
             commit_interpreter: Linearizer::new(
                 context.clone(),
-                dag_state.clone(),
+                dag_state,
                 leader_schedule.clone(),
             ),
             context,
@@ -438,7 +438,6 @@ mod tests {
             &mut observer
                 .handle_commit(
                     leaders
-                        .clone()
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
@@ -469,10 +468,10 @@ mod tests {
         // Re-create commit observer starting from index 2 which represents the
         // last processed index from the consumer over consensus output channel
         let _observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, expected_last_processed_index as CommitIndex),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -536,7 +535,7 @@ mod tests {
         // Commit all of the leaders and "receive" the subdags as the consumer of
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
-        let commits = observer.handle_commit(leaders.clone()).unwrap();
+        let commits = observer.handle_commit(leaders).unwrap();
 
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;
@@ -563,10 +562,10 @@ mod tests {
         // Re-create commit observer starting from index 3 which represents the
         // last processed index from the consumer over consensus output channel
         let _observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, expected_last_processed_index as CommitIndex),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 

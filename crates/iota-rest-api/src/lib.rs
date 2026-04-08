@@ -14,7 +14,6 @@ use tap::Pipe;
 pub mod accept;
 mod accounts;
 mod checkpoints;
-pub mod client;
 mod coins;
 mod committee;
 pub mod content_type;
@@ -31,11 +30,30 @@ mod system;
 pub mod transactions;
 pub mod types;
 
-pub use client::Client;
 pub use error::{RestError, Result};
 pub use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
 pub use metrics::RestMetrics;
 pub use transactions::ExecuteTransactionQueryParameters;
+
+#[derive(Clone)]
+pub struct ServerVersion {
+    pub bin: &'static str,
+    pub version: &'static str,
+}
+
+impl ServerVersion {
+    pub fn new(bin: &'static str, version: &'static str) -> Self {
+        Self { bin, version }
+    }
+}
+
+impl std::fmt::Display for ServerVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.bin)?;
+        f.write_str("/")?;
+        f.write_str(self.version)
+    }
+}
 
 pub const TEXT_PLAIN_UTF_8: &str = "text/plain; charset=utf-8";
 pub const APPLICATION_BCS: &str = "application/bcs";
@@ -106,7 +124,7 @@ pub struct RestService {
     reader: StateReader,
     executor: Option<Arc<dyn TransactionExecutor>>,
     chain_id: iota_types::digests::ChainIdentifier,
-    software_version: &'static str,
+    server_version: Option<ServerVersion>,
     metrics: Option<Arc<RestMetrics>>,
     config: Config,
 }
@@ -124,20 +142,21 @@ impl axum::extract::FromRef<RestService> for Option<Arc<dyn TransactionExecutor>
 }
 
 impl RestService {
-    pub fn new(reader: Arc<dyn RestStateReader>, software_version: &'static str) -> Self {
+    pub fn new(reader: Arc<dyn RestStateReader>) -> Self {
         let chain_id = reader.get_chain_identifier().unwrap();
         Self {
             reader: StateReader::new(reader),
             executor: None,
             chain_id,
-            software_version,
+            server_version: None,
             metrics: None,
             config: Config::default(),
         }
     }
 
-    pub fn new_without_version(reader: Arc<dyn RestStateReader>) -> Self {
-        Self::new(reader, "unknown")
+    pub fn with_server_version(&mut self, server_version: ServerVersion) -> &mut Self {
+        self.server_version = Some(server_version);
+        self
     }
 
     pub fn with_config(&mut self, config: Config) {
@@ -156,14 +175,18 @@ impl RestService {
         self.chain_id
     }
 
-    pub fn software_version(&self) -> &'static str {
-        self.software_version
+    pub fn server_version(&self) -> Option<&ServerVersion> {
+        self.server_version.as_ref()
     }
 
     pub fn into_router(self) -> Router {
         let metrics = self.metrics.clone();
 
-        let mut api = openapi::Api::new(info(self.software_version()));
+        let version = self
+            .server_version()
+            .map(|v| v.version)
+            .unwrap_or("unknown");
+        let mut api = openapi::Api::new(info(version));
 
         api.register_endpoints(
             ENDPOINTS

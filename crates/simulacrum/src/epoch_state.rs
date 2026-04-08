@@ -146,7 +146,7 @@ impl EpochState {
         )?;
 
         let transaction_data = transaction.data().transaction_data();
-        let (kind, signer, gas) = transaction_data.execution_parts();
+        let (kind, signer, gas_data) = transaction_data.execution_parts();
         Ok(self.executor.execute_transaction_to_effects(
             store.backing_store(),
             &self.protocol_config,
@@ -156,7 +156,7 @@ impl EpochState {
             &self.epoch_start_state.epoch(),
             self.epoch_start_state.epoch_start_timestamp_ms(),
             checked_input_objects,
-            gas,
+            gas_data,
             gas_status,
             kind,
             signer,
@@ -254,7 +254,7 @@ impl EpochState {
         };
 
         // Execute the simulation
-        let (kind, signer, gas_coins) = transaction.execution_parts();
+        let (kind, signer, gas_data) = transaction.execution_parts();
         let (inner_temp_store, _, effects, execution_result) =
             self.executor.dev_inspect_transaction(
                 store.backing_store(),
@@ -265,7 +265,7 @@ impl EpochState {
                 &self.epoch_start_state.epoch(),
                 self.epoch_start_state.epoch_start_timestamp_ms(),
                 checked_input_objects,
-                gas_coins,
+                gas_data,
                 gas_status,
                 kind,
                 signer,

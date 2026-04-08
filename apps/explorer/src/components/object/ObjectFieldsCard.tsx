@@ -32,7 +32,7 @@ const DEFAULT_FIELDS_COUNT_TO_SHOW_SEARCH = 10;
 interface ObjectFieldsProps {
     id: string;
     normalizedStructData?: IotaMoveNormalizedStruct;
-    iotaObjectResponseData?: IotaObjectResponse;
+    iotaObjectResponseData?: IotaObjectResponse | null;
     loading: boolean;
     error: boolean;
     objectType?: string;

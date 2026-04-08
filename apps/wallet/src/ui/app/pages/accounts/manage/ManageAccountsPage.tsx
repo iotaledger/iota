@@ -9,15 +9,19 @@ import { useNavigate } from 'react-router-dom';
 import { Overlay, useUnlockAccounts } from '_components';
 import { AccountGroup } from './AccountGroup';
 import { LockLocked } from '@iota/apps-ui-icons';
+import { AmpliSourceFlow } from '_src/shared/analytics';
+import { useSourceFlow } from '_components/accounts/AccountsFormContext';
 
 export function ManageAccountsPage() {
     const navigate = useNavigate();
     const groupedAccounts = useAccountGroups();
     const { lockAccounts } = useUnlockAccounts();
     const outerRef = useRef<HTMLDivElement>(null);
+    const { setSourceFlow } = useSourceFlow();
     useInitializedGuard(true);
 
     function handleAdd() {
+        setSourceFlow(AmpliSourceFlow.ManageAccounts);
         navigate('/accounts/add-account');
     }
 

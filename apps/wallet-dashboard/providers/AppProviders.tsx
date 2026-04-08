@@ -25,7 +25,7 @@ import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 import { captureException } from '@/instrumentation';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
-import Link from 'next/link';
+import { ExternalLink } from '@/components/ExternalLink';
 
 growthbook.init();
 
@@ -94,15 +94,13 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                                         {LEGAL_LINKS.map(
                                                             ({ title, href }, index) => (
                                                                 <React.Fragment key={href}>
-                                                                    <Link
-                                                                        key={href}
+                                                                    <ExternalLink
                                                                         href={href}
-                                                                        target="_blank"
-                                                                        rel="noopener noreferrer"
+                                                                        type="legal"
                                                                         className="text-iota-primary-30 hover:text-iota-primary-50 dark:text-iota-primary-80 dark:hover:text-iota-primary-60"
                                                                     >
                                                                         {title}
-                                                                    </Link>
+                                                                    </ExternalLink>
                                                                     {index < LEGAL_LINKS.length - 1
                                                                         ? ', '
                                                                         : ''}

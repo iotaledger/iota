@@ -19,7 +19,7 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<description>Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure</description>
 		<releaseNotes>https://github.com/iotaledger/iota/releases/tag/v$version$</releaseNotes>
 		<dependencies>
-    		<dependency id="postgresql" version="14.0.1" />
+    		<dependency id="postgresql" version="15.15.0" />
 		</dependencies>
 	</metadata>
 	<files>

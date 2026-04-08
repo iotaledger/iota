@@ -54,7 +54,7 @@ export function StakedTimelockObject({
     const name = validatorMeta?.name || timelockedStakedObject.validatorAddress;
 
     return (
-        <Card onClick={() => handleUnstake(timelockedStakedObject)}>
+        <Card onClick={() => handleUnstake(timelockedStakedObject)} aria-label="Unstake">
             <CardImage>
                 <ImageIcon
                     src={validatorMeta?.imageUrl || null}

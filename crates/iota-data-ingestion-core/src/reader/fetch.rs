@@ -10,9 +10,11 @@ use std::{
     sync::Arc,
 };
 
-use iota_rest_api::{CheckpointData, Client};
+use iota_grpc_client::Client as GrpcClient;
 use iota_storage::blob::Blob;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
 #[cfg(not(target_os = "macos"))]
 use notify::{RecommendedWatcher, RecursiveMode};
 use object_store::{ObjectStore, ObjectStoreExt, path::Path as ObjectStorePath};
@@ -23,6 +25,8 @@ use crate::{
 };
 
 pub type CheckpointResult = IngestionResult<(Arc<CheckpointData>, usize)>;
+
+pub(crate) const GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES: usize = 125 * 1024 * 1024;
 
 /// Managing and processing checkpoint files in a directory.
 pub(crate) trait LocalRead {
@@ -80,7 +84,7 @@ pub(crate) trait LocalRead {
     fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
         // files are already sorted by sequence number in ascending order
         let files = self.list_unprocessed_checkpoint_files()?;
-        debug!("unprocessed local files {:?}", files);
+        debug!("unprocessed local files {files:?}");
         let mut checkpoints = vec![];
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
             let checkpoint = self.read_checkpoint_file(filename)?;
@@ -200,12 +204,22 @@ pub async fn fetch_from_object_store(
     ))
 }
 
-/// Fetches and deserializes a checkpoint from a full node via REST API.
+/// Fetches and deserializes a checkpoint from a full node via gRPC API.
 pub async fn fetch_from_full_node(
-    client: &Client,
+    client: &GrpcClient,
     checkpoint_number: CheckpointSequenceNumber,
 ) -> CheckpointResult {
-    let checkpoint = client.get_full_checkpoint(checkpoint_number).await?;
+    let checkpoint: CheckpointData = client
+        .get_checkpoint_by_sequence_number(
+            checkpoint_number,
+            Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA),
+            None,
+            None,
+        )
+        .await?
+        .into_inner()
+        .checkpoint_data()?
+        .try_into()?;
     let size = bcs::serialized_size(&checkpoint)?;
     Ok((Arc::new(checkpoint), size))
 }

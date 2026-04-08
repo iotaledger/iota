@@ -8,18 +8,13 @@ import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
 import tmp from 'tmp';
-import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
 import { WebSocket } from 'ws';
 
 import type { IotaObjectChangePublished } from '../../../src/client/index.js';
 import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '../../../src/client/index.js';
 import type { Keypair } from '../../../src/cryptography/index.js';
-import {
-    FaucetRateLimitError,
-    getFaucetHost,
-    requestIotaFromFaucetV1,
-} from '../../../src/faucet/index.js';
+import { getFaucetHost, requestIotaFromFaucet } from '../../../src/faucet/index.js';
 import { Ed25519Keypair } from '../../../src/keypairs/ed25519/index.js';
 import { Transaction, UpgradePolicy } from '../../../src/transactions/index.js';
 import { IOTA_TYPE_ARG } from '../../../src/utils/index.js';
@@ -60,17 +55,38 @@ class TestPackageRegistry {
     }
 
     #packages: Map<string, string>;
+    #pendingPublishes: Map<string, Promise<string>>;
 
     constructor() {
         this.#packages = new Map();
+        this.#pendingPublishes = new Map();
     }
 
-    async getPackage(path: string, toolbox?: TestToolbox) {
-        if (!this.#packages.has(path)) {
-            this.#packages.set(path, (await publishPackage(path, toolbox)).packageId);
+    async getPackage(name: string, toolbox?: TestToolbox) {
+        // Return cached package if available
+        if (this.#packages.has(name)) {
+            return this.#packages.get(name)!;
         }
 
-        return this.#packages.get(path)!;
+        // If a publish is already in progress, wait for it
+        if (this.#pendingPublishes.has(name)) {
+            return await this.#pendingPublishes.get(name)!;
+        }
+
+        // Start a new publish and track it
+        const publishPromise = (async () => {
+            try {
+                const { packageId } = await publishPackage(name, toolbox);
+                this.#packages.set(name, packageId);
+                return packageId;
+            } finally {
+                // Clean up the pending promise once done
+                this.#pendingPublishes.delete(name);
+            }
+        })();
+
+        this.#pendingPublishes.set(name, publishPromise);
+        return await publishPromise;
     }
 }
 
@@ -147,31 +163,7 @@ export async function setupWithFundedAddress(
     configPath: string,
     { rpcURL }: { graphQLURL?: string; rpcURL?: string } = {},
 ) {
-    const client = getClient(rpcURL);
-    await retry(() => requestIotaFromFaucetV1({ host: DEFAULT_FAUCET_URL, recipient: address }), {
-        backoff: 'EXPONENTIAL',
-        // overall timeout in 60 seconds
-        timeout: 1000 * 60,
-        // skip retry if we hit the rate-limit error
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        retryIf: (error: any) => !(error instanceof FaucetRateLimitError),
-        logger: (msg) => console.warn('Retrying requesting from faucet: ' + msg),
-    });
-
-    await retry(
-        async () => {
-            const balance = await client.getBalance({ owner: address });
-
-            if (balance.totalBalance === '0') {
-                throw new Error('Balance is still 0');
-            }
-        },
-        {
-            backoff: () => 3000,
-            timeout: 60 * 1000,
-            retryIf: () => true,
-        },
-    );
+    await requestIotaFromFaucet({ host: DEFAULT_FAUCET_URL, recipient: address });
 
     execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
     return new TestToolbox(keypair, rpcURL, configPath);
