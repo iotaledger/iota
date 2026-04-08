@@ -225,6 +225,12 @@ mod tests {
 
     use crate::epoch::consensus_store_pruner::{ConsensusStorePruner, Metrics};
 
+    fn temp_dir() -> std::path::PathBuf {
+        iota_common::tempdir()
+            .expect("Failed to open temporary directory")
+            .keep()
+    }
+
     #[tokio::test]
     async fn test_remove_old_epoch_data() {
         telemetry_subscribers::init_for_testing();
@@ -235,7 +241,7 @@ mod tests {
             let epoch_retention = 0;
             let current_epoch = 0;
 
-            let base_directory = tempfile::tempdir().unwrap().keep();
+            let base_directory = temp_dir();
 
             create_epoch_directories(&base_directory, vec!["0", "other"]);
 
@@ -259,7 +265,7 @@ mod tests {
             let epoch_retention = 1;
             let current_epoch = 100;
 
-            let base_directory = tempfile::tempdir().unwrap().keep();
+            let base_directory = temp_dir();
 
             create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
 
@@ -285,7 +291,7 @@ mod tests {
             let epoch_retention = 0;
             let current_epoch = 100;
 
-            let base_directory = tempfile::tempdir().unwrap().keep();
+            let base_directory = temp_dir();
 
             create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
 
@@ -309,7 +315,7 @@ mod tests {
         let epoch_retention = 1;
         let epoch_prune_period = std::time::Duration::from_millis(500);
 
-        let base_directory = tempfile::tempdir().unwrap().keep();
+        let base_directory = temp_dir();
 
         // We create some directories up to epoch 100
         create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);

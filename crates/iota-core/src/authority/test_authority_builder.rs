@@ -16,18 +16,13 @@ use iota_config::{
     },
     transaction_deny_config::TransactionDenyConfig,
 };
-use iota_macros::nondeterministic;
 use iota_network::randomness;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID},
-    crypto::AuthorityKeyPair,
-    digests::ChainIdentifier,
-    executable_transaction::VerifiedExecutableTransaction,
-    iota_system_state::IotaSystemStateTrait,
-    object::Object,
-    supported_protocol_versions::SupportedProtocolVersions,
+    base_types::AuthorityName, crypto::AuthorityKeyPair, digests::ChainIdentifier,
+    executable_transaction::VerifiedExecutableTransaction, iota_system_state::IotaSystemStateTrait,
+    object::Object, supported_protocol_versions::SupportedProtocolVersions,
     transaction::VerifiedTransaction,
 };
 use prometheus::Registry;
@@ -208,13 +203,9 @@ impl<'a> TestAuthorityBuilder<'a> {
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
-        let path = self.store_base_path.unwrap_or_else(|| {
-            let dir = std::env::temp_dir();
-            let store_base_path =
-                dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
-            std::fs::create_dir(&store_base_path).unwrap();
-            store_base_path
-        });
+        let path = self
+            .store_base_path
+            .unwrap_or_else(|| iota_common::tempdir().unwrap().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
         let mut pruner_db = None;

@@ -26,7 +26,6 @@ use iota_types::{
 use more_asserts as ma;
 use object_store::DynObjectStore;
 use prometheus::Registry;
-use tempfile::tempdir;
 
 use crate::{
     Manifest, read_manifest,
@@ -48,7 +47,7 @@ struct TestState {
 }
 
 fn temp_dir() -> std::path::PathBuf {
-    tempdir()
+    iota_common::tempdir()
         .expect("Failed to open temporary directory")
         .keep()
 }

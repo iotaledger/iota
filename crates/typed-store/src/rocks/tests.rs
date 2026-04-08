@@ -11,7 +11,7 @@ use super::*;
 use crate::{reopen, traits::Map};
 
 fn temp_dir() -> std::path::PathBuf {
-    tempfile::tempdir()
+    iota_common::tempdir()
         .expect("Failed to open temporary directory")
         .keep()
 }

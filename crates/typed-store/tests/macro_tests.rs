@@ -16,10 +16,11 @@ use typed_store::{
 };
 
 fn temp_dir() -> std::path::PathBuf {
-    tempfile::tempdir()
+    iota_common::tempdir()
         .expect("Failed to open temporary directory")
         .keep()
 }
+
 /// This struct is used to illustrate how the utility works
 #[derive(DBMapUtils)]
 struct Tables {

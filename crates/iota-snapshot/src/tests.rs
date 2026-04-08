@@ -16,12 +16,11 @@ use iota_types::{
     accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
     object::Object,
 };
-use tempfile::tempdir;
 
 use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
 
 fn temp_dir() -> std::path::PathBuf {
-    tempdir()
+    iota_common::tempdir()
         .expect("Failed to open temporary directory")
         .keep()
 }

@@ -2366,7 +2366,7 @@ async fn diagnose_split_brain(
         Datetime: {time:?}"
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
-    let path = tempfile::tempdir()
+    let path = iota_common::tempdir()
         .expect("Failed to create tempdir")
         .keep()
         .join(Path::new("checkpoint_fork_dump.txt"));
@@ -2800,7 +2800,7 @@ mod tests {
             mpsc::channel::<CertifiedCheckpointSummary>(10);
         let store = Arc::new(store);
 
-        let ckpt_dir = tempfile::tempdir().unwrap();
+        let ckpt_dir = iota_common::tempdir().unwrap();
         let checkpoint_store = CheckpointStore::new(ckpt_dir.path());
         let epoch_store = state.epoch_store_for_testing();
 

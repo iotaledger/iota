@@ -623,7 +623,7 @@ async fn file_progress_store() {
 }
 
 fn temp_dir() -> std::path::PathBuf {
-    tempfile::tempdir()
+    iota_common::tempdir()
         .expect("failed to open temporary directory")
         .keep()
 }
