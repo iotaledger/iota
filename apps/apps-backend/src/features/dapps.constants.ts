@@ -66,13 +66,13 @@ export const RECOGNIZED_DAPPS: RecognizedDapp[] = [
     {
         name: 'Houdini Swap',
         link: 'https://houdiniswap.com/',
-        icon: 'https://files.iota.org/media/tooling/dapps/houdiniswap-logo.png',
+        icon: 'https://files.iota.org/media/tooling/dapps/houdiniswap-logo.svg',
         tags: ['DeFi', 'DEX'],
     },
     {
         name: 'Tradeport',
         link: 'https://tradeport.xyz/',
-        icon: 'https://files.iota.org/media/tooling/dapps/tradeport-logo.png',
+        icon: 'https://files.iota.org/media/tooling/dapps/tradeport-logo.svg',
         tags: ['NFT'],
     },
     {
