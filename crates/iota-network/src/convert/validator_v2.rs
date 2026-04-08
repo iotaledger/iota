@@ -595,4 +595,64 @@ mod tests {
         let result = <(TransactionDigest, TxStatusUpdate)>::try_from(proto);
         assert!(result.is_err());
     }
+
+    // --- SubmitTxRequest round-trip ---
+
+    #[test]
+    fn submit_tx_request_empty_round_trip() {
+        use iota_types::messages_grpc::SubmitTransactionsRequest;
+        let request = SubmitTransactionsRequest {
+            transactions: vec![],
+        };
+        let proto: api::SubmitTxRequest = request.clone().try_into().unwrap();
+        let back: SubmitTransactionsRequest = proto.try_into().unwrap();
+        assert_eq!(request.transactions.len(), back.transactions.len());
+    }
+
+    // --- NotifyCapabilitiesResponse round-trip ---
+
+    #[test]
+    fn notify_capabilities_response_round_trip() {
+        use iota_types::messages_grpc::HandleCapabilityNotificationResponseV1;
+        let response = HandleCapabilityNotificationResponseV1 { _unused: false };
+        let proto: api::NotifyCapabilitiesResponse = response.into();
+        let back: HandleCapabilityNotificationResponseV1 = proto.into();
+        assert!(!back._unused);
+    }
+
+    // --- HealthCheckRequest round-trip ---
+
+    #[test]
+    fn health_check_request_round_trip() {
+        use iota_types::messages_grpc::ValidatorHealthRequest;
+        let request = ValidatorHealthRequest {};
+        let proto: api::HealthCheckRequest = request.into();
+        let _back: ValidatorHealthRequest = proto.into();
+    }
+
+    // --- HealthCheckResponse round-trip ---
+
+    #[test]
+    fn health_check_response_round_trip() {
+        use iota_types::messages_grpc::ValidatorHealthResponse;
+        let response = ValidatorHealthResponse {
+            num_inflight_execution_transactions: 42,
+            num_inflight_consensus_transactions: 7,
+            last_locally_built_checkpoint: 100,
+        };
+        let proto: api::HealthCheckResponse = response.clone().into();
+        let back: ValidatorHealthResponse = proto.into();
+        assert_eq!(
+            response.num_inflight_execution_transactions,
+            back.num_inflight_execution_transactions
+        );
+        assert_eq!(
+            response.num_inflight_consensus_transactions,
+            back.num_inflight_consensus_transactions
+        );
+        assert_eq!(
+            response.last_locally_built_checkpoint,
+            back.last_locally_built_checkpoint
+        );
+    }
 }

@@ -24,7 +24,6 @@ pub use metrics::ValidatorServiceMetrics;
 #[cfg(test)]
 pub use test_server::{AuthorityServer, AuthorityServerHandle};
 use tokio_stream::StreamExt;
-use tonic::transport::server::TcpConnectInfo;
 use tracing::error;
 
 use crate::{
@@ -314,7 +313,7 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
     // simulate a TCP connection, which would have added extensions to
     // the request object that would be used downstream
     let mut request = tonic::Request::new(message);
-    let tcp_connect_info = TcpConnectInfo {
+    let tcp_connect_info = tonic::transport::server::TcpConnectInfo {
         local_addr: None,
         remote_addr: Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
     };

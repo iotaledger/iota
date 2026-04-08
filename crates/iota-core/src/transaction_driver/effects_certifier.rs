@@ -75,7 +75,8 @@ impl EffectsCertifier {
         tx_digest: Option<TransactionDigest>,
         // This keeps track of the current target for getting full effects.
         mut current_target: AuthorityName,
-        // Guaranteed to be not the Rejected variant.
+        // Expected to be Submitted or Executed; Rejected and Expired are handled
+        // as errors inside this function.
         submit_txn_result: TxStatusUpdate,
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError>
@@ -277,6 +278,10 @@ impl EffectsCertifier {
                 }
                 Some((_, TxStatusUpdate::Rejected { error })) => match error {
                     Some(e) => Err(TransactionRequestError::RejectedAtValidator(e)),
+                    // Rejected { error: None } means consensus dropped the tx
+                    // (e.g. duplicate or epoch change). RejectedByConsensus maps
+                    // to ErrorCategory::Aborted, which the retry loop treats as
+                    // retriable — the client will resubmit to a (possibly new) validator.
                     None => Err(TransactionRequestError::RejectedByConsensus),
                 },
                 Some((_, TxStatusUpdate::Expired { epoch })) => {

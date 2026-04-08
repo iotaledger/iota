@@ -5,7 +5,8 @@ syntax = "proto3";
 package iota.validator.v2;
 
 service ValidatorV2 {
-  // Submit transaction(s) and stream all status updates until finality
+  // Submit transaction(s) and stream submission status per transaction.
+  // Use GetTxStatus to poll for finality.
   rpc SubmitTx(SubmitTxRequest) returns (stream TxStatus);
 
   // Stream status updates for a previously submitted transaction

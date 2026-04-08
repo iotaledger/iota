@@ -115,6 +115,8 @@ impl ValidatorV2API for NetworkAuthorityClient {
 }
 
 /// Collects all items from a `TxStatus` stream into a `Vec`.
+// TODO(#11180): return per-item results so a mid-stream transport or
+// deserialization error does not discard already-received statuses.
 async fn collect_tx_status_stream(
     mut stream: tonic::Streaming<iota_network::api::TxStatus>,
 ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {

@@ -305,13 +305,14 @@ mod tests {
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
-            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-            HandleCertificateRequestV1, HandleCertificateResponseV1,
-            HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-            HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-            SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
-            TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-            ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+            GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+            HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
+            HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
+            HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
+            ObjectInfoResponse, SubmitTransactionsRequest, SubmitTransactionsResponse,
+            SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
+            ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
+            WaitForEffectsResponse,
         },
         object::Object,
         transaction::{
@@ -340,9 +341,8 @@ mod tests {
     impl ValidatorPeerAPI for MockAuthorityClient {
         async fn get_checkpoint_v2(
             &self,
-            _request: iota_types::messages_checkpoint::CheckpointRequest,
-        ) -> Result<iota_types::messages_checkpoint::CheckpointResponse, iota_types::error::IotaError>
-        {
+            _request: CheckpointRequest,
+        ) -> Result<CheckpointResponse, IotaError> {
             unimplemented!()
         }
     }
@@ -350,44 +350,28 @@ mod tests {
     impl ValidatorV2API for MockAuthorityClient {
         async fn submit_tx(
             &self,
-            _request: iota_types::messages_grpc::SubmitTransactionsRequest,
-            _client_addr: Option<std::net::SocketAddr>,
-        ) -> Result<
-            Vec<(
-                iota_types::digests::TransactionDigest,
-                iota_types::messages_grpc::TxStatusUpdate,
-            )>,
-            iota_types::error::IotaError,
-        > {
+            _request: SubmitTransactionsRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
         }
         async fn get_tx_status(
             &self,
-            _request: iota_types::messages_grpc::GetTxStatusRequest,
-            _client_addr: Option<std::net::SocketAddr>,
-        ) -> Result<
-            Vec<(
-                iota_types::digests::TransactionDigest,
-                iota_types::messages_grpc::TxStatusUpdate,
-            )>,
-            iota_types::error::IotaError,
-        > {
+            _request: GetTxStatusRequest,
+            _client_addr: Option<SocketAddr>,
+        ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
         }
         async fn notify_capabilities_v2(
             &self,
-            _request: iota_types::messages_grpc::HandleCapabilityNotificationRequestV1,
-        ) -> Result<
-            iota_types::messages_grpc::HandleCapabilityNotificationResponseV1,
-            iota_types::error::IotaError,
-        > {
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
         }
         async fn health_check_v2(
             &self,
-            _request: iota_types::messages_grpc::ValidatorHealthRequest,
-        ) -> Result<iota_types::messages_grpc::ValidatorHealthResponse, iota_types::error::IotaError>
-        {
+            _request: ValidatorHealthRequest,
+        ) -> Result<ValidatorHealthResponse, IotaError> {
             unimplemented!()
         }
     }

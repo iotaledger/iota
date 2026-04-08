@@ -10,7 +10,7 @@ use std::{
 use futures::stream::{FuturesUnordered, StreamExt};
 use iota_types::{
     base_types::AuthorityName,
-    error::ErrorCategory,
+    error::{ErrorCategory, IotaError},
     messages_grpc::{SubmitTransactionsRequest, TxStatusUpdate},
 };
 use tokio::time::timeout;
@@ -230,17 +230,15 @@ impl TransactionSubmitter {
             .next()
             .map(|(_digest, update)| update)
             .unwrap_or(TxStatusUpdate::Rejected {
-                error: Some(iota_types::error::IotaError::Unknown(
-                    "No result returned".to_string(),
-                )),
+                error: Some(IotaError::Unknown("No result returned".to_string())),
             });
 
         // Since only one transaction is submitted, it is ok to return error when the
         // submission is rejected.
         if let TxStatusUpdate::Rejected { error } = &result {
-            let err = error.clone().unwrap_or_else(|| {
-                iota_types::error::IotaError::Unknown("rejected without details".to_string())
-            });
+            let err = error
+                .clone()
+                .unwrap_or_else(|| IotaError::Unknown("rejected without details".to_string()));
             if is_validator_error(err.categorize()) {
                 client_monitor.record_interaction_result(OperationFeedback {
                     authority_name: validator,

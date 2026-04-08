@@ -1918,17 +1918,8 @@ where
             self.committee.clone(),
             self.authority_clients.clone(),
             CapabilityNotificationState::default(),
-            |name, client| {
-                Box::pin(async move {
-                    let concise_name = name.concise_owned();
-                    client
-                        .authority_client()
-                        .notify_capabilities_v2(request.clone())
-                        .instrument(
-                            trace_span!("notify_capabilities_v2", authority = ?concise_name),
-                        )
-                        .await
-                })
+            |_name, client| {
+                Box::pin(async move { client.notify_capabilities_v2(request.clone()).await })
             },
             |mut state, name, weight, response| {
                 let display_name = validator_display_names
