@@ -112,7 +112,7 @@ impl AuthenticatorTrait for MultiSig {
         // Verify each signature against its corresponding signature scheme and public
         // key. TODO: further optimization can be done because multiple Ed25519
         // signatures can be batch verified.
-        for (sig, i) in self.signatures().iter().zip(as_indices(self.bitmap())?) {
+        for (signature, i) in self.signatures().iter().zip(as_indices(self.bitmap())?) {
             // let (subsig_pubkey, weight) =
             let member =
                 self.committee()
@@ -123,7 +123,7 @@ impl AuthenticatorTrait for MultiSig {
                     })?;
 
             if verify_params.additional_multisig_checks
-                && member.public_key().scheme() != sig.scheme()
+                && member.public_key().scheme() != signature.scheme()
             {
                 return Err(IotaError::InvalidSignature {
                     error: format!(
@@ -134,84 +134,30 @@ impl AuthenticatorTrait for MultiSig {
                 });
             }
 
-            // verifier
-            //     .verify_member_signature(&digest, member.public_key(), sig)
-            //     .unwrap();
-
-            let res = match sig {
-                MultisigMemberSignature::Ed25519(s) => {
-                    // let pk = member.public_key().as_ed25519_opt().ok_or(
-                    //     IotaError::InvalidSignature {
-                    //         error: "Invalid ed25519 pk type".to_string(),
-                    //     },
-                    // )?;
-                    // let verifier = Ed25519VerifyingKey::new(pk).unwrap();
-                    // // let pk =
-                    // //     Ed25519PublicKey::from_bytes(subsig_pubkey.
-                    // as_ref()).map_err(|_| { //
-                    // IotaError::InvalidSignature { //
-                    // error: "Invalid ed25519 pk bytes".to_string(),
-                    // //         }
-                    // //     })?;
-                    // verifier.verify(&digest, s)
-                }
-                MultisigMemberSignature::Secp256k1(s) => {
-                    // let pk =
-                    //     Secp256k1PublicKey::from_bytes(subsig_pubkey.
-                    // as_ref()).map_err(|_| {
-                    //         IotaError::InvalidSignature {
-                    //             error: "Invalid k1 pk bytes".to_string(),
-                    //         }
-                    //     })?;
-                    // pk.verify(
-                    //     &digest,
-                    //     &s.try_into().map_err(|_| IotaError::InvalidSignature
-                    // {         error: "Invalid k1
-                    // signature bytes".to_string(),
-                    //     })?,
-                    // )
-                }
-                MultisigMemberSignature::Secp256r1(s) => {
-                    // let pk =
-                    //     Secp256r1PublicKey::from_bytes(subsig_pubkey.
-                    // as_ref()).map_err(|_| {
-                    //         IotaError::InvalidSignature {
-                    //             error: "Invalid r1 pk bytes".to_string(),
-                    //         }
-                    //     })?;
-                    // pk.verify(
-                    //     &digest,
-                    //     &s.try_into().map_err(|_| IotaError::InvalidSignature
-                    // {         error: "Invalid r1
-                    // signature bytes".to_string(),
-                    //     })?,
-                    // )
-                }
-                #[allow(deprecated)]
-                CompressedSignature::ZkLoginDeprecated => {
-                    return Err(IotaError::InvalidSignature {
-                        error: "zkLogin is not supported".to_string(),
-                    });
-                }
-                CompressedSignature::Passkey(bytes) => {
-                    let authenticator =
-                        PasskeyAuthenticator::from_bytes(&bytes.0).map_err(|_| {
-                            IotaError::InvalidSignature {
-                                error: "Invalid passkey authenticator bytes".to_string(),
-                            }
-                        })?;
-                    authenticator
-                        .verify_claims(value, IotaAddress::from(subsig_pubkey), verify_params)
-                        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
-                }
-                CompressedSignature::Move(_move_authenticator_as_bytes) => {
-                    return Err(IotaError::InvalidSignature {
-                        error: "Move authenticator cannot be used for multisig".to_string(),
-                    });
-                }
+            let res = match signature {
+                 // MultisigMemberSignature::Passkey(bytes) => {
+                //     let authenticator =
+                //         PasskeyAuthenticator::from_bytes(&bytes.0).map_err(|_| {
+                //             IotaError::InvalidSignature {
+                //                 error: "Invalid passkey authenticator bytes".to_string(),
+                //             }
+                //         })?;
+                //     authenticator
+                //         .verify_claims(
+                //             value,
+                //             IotaAddress::from(subsig_pubkey),
+                //             verify_params,
+                //             zklogin_inputs_cache.clone(),
+                //         )
+                //         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+                // }
+                _ => verifier
+                    .verify_member_signature(&digest, member.public_key(), signature)
+                    .unwrap(),
             };
+
             if res.is_ok() {
-                weight_sum += *weight as u16;
+                weight_sum += member.weight() as u16;
             } else {
                 return res.map_err(|e| IotaError::InvalidSignature {
                     error: format!(
@@ -223,6 +169,7 @@ impl AuthenticatorTrait for MultiSig {
                 });
             }
         }
+
         if weight_sum >= self.committee().threshold() {
             Ok(())
         } else {
