@@ -10,3 +10,5 @@ pub use validator::{
     validator_client::ValidatorClient,
     validator_server::{Validator, ValidatorServer},
 };
+
+include!(concat!(env!("OUT_DIR"), "/validator_method_paths.rs"));

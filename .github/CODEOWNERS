@@ -49,6 +49,7 @@
 /crates/iota-mainnet-unlocks/ @iotaledger/infrastructure
 /crates/iota-metric-checker/ @iotaledger/node
 /crates/iota-metrics/ @iotaledger/core-protocol
+/crates/iota-metrics-push-client/ @iotaledger/core-protocol
 /crates/iota-move/ @iotaledger/vm-language
 /crates/iota-move-build/ @iotaledger/vm-language
 /crates/iota-move-lsp/ @iotaledger/vm-language

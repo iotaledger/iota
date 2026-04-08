@@ -38,9 +38,12 @@ jobs:
           node-version: "24"
           cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
+        env:
+          # Clearing NODE_AUTH_TOKEN allows OIDC to authenticate instead of a static token.
+          # See: https://github.com/orgs/community/discussions/176761
+          NODE_AUTH_TOKEN: ""
 
       - name: Update npm
-        if: github.event.inputs.release_type != 'latest'
         run: npm install -g npm@latest
 
       - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792

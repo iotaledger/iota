@@ -57,6 +57,7 @@ iota-replay.workspace = true
 iota-sdk.workspace = true
 iota-snapshot.workspace = true
 iota-storage.workspace = true
+iota-tls.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true
 telemetry-subscribers.workspace = true

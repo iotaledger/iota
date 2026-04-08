@@ -16,6 +16,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::Object,
+    storage::ObjectKey,
     transaction::Transaction,
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
@@ -477,7 +478,7 @@ impl KeyValueStoreClient for HttpRestKVClient {
     ) -> IndexerResult<Vec<Option<Object>>> {
         let keys = object_refs
             .iter()
-            .map(|(object_id, version)| Key::ObjectKey(*object_id, *version))
+            .map(|(object_id, version)| Key::ObjectKey(ObjectKey(*object_id, *version)))
             .collect::<Vec<_>>();
 
         let fetches = self.multi_fetch(keys).await?;
