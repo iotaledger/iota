@@ -16,7 +16,7 @@ use iota_types::{
     move_authenticator::MoveAuthenticator,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    transaction::{SharedObjectRef, Transaction, TransactionData},
+    transaction::{SharedObjectRef, Transaction, TransactionData, TransactionDataAPI},
 };
 use tracing::{debug, error};
 

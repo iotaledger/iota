@@ -20,7 +20,7 @@ use iota_types::{
         SignatureScheme, get_key_pair, get_key_pair_from_rng,
     },
     signature::GenericSignature,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use tempfile::TempDir;

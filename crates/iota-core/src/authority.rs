@@ -67,10 +67,7 @@ use iota_types::{
     authenticator_state::get_authenticator_state,
     base_types::{TypeTag, *},
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{
-        AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
-        default_hash,
-    },
+    crypto::{AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, Digest},
     dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
@@ -2322,7 +2319,7 @@ impl AuthorityState {
         let mut transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
             sender,
-            gas_data: GasData {
+            gas_payment: GasData {
                 objects: payment,
                 owner,
                 price,
@@ -2444,7 +2441,7 @@ impl AuthorityState {
             },
             transaction,
         );
-        let transaction_digest = TransactionDigest::new(default_hash(&intent_msg.value));
+        let transaction_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
             self.get_backing_store().as_ref(),
             protocol_config,

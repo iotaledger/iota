@@ -8,7 +8,7 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::{EncodeDecodeBase64, IotaKeyPair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::TransactionData,
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use tracing::debug;
 

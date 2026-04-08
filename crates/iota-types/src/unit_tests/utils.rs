@@ -23,6 +23,7 @@ use crate::{
     signature::GenericSignature,
     transaction::{
         SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+        TransactionDataAPI,
     },
     zk_login_authenticator::ZkLoginAuthenticator,
 };

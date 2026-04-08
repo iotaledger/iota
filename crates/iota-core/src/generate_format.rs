@@ -46,8 +46,8 @@ use iota_types::{
         Argument, AuthenticatorStateUpdateV1, CallArg, Command, EndOfEpochTransactionKind,
         GenesisObject, GenesisTransaction, MakeMoveVector, MergeCoins, ProgrammableMoveCall,
         ProgrammableTransaction, Publish, RandomnessStateUpdate, SenderSignedData, SharedObjectRef,
-        SplitCoins, Transaction, TransactionData, TransactionExpiration, TransactionKind,
-        TransferObjects, Upgrade,
+        SplitCoins, Transaction, TransactionData, TransactionDataAPI, TransactionExpiration,
+        TransactionKind, TransferObjects, Upgrade,
     },
     utils::DEFAULT_ADDRESS_SEED,
 };

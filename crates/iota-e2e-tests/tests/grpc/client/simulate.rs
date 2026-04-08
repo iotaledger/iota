@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_sdk_types::Transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::base_types::IotaAddress;
 use tonic::Code;
@@ -77,11 +76,10 @@ async fn simulate_transaction_scenarios() {
         .unwrap()
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
-    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(None, sender)
         .with_gas_budget(1)
         .build();
-    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let result = client.simulate_transaction(transaction, false, None).await;
     assert_grpc_error(result, Code::Internal);
 
@@ -96,10 +94,9 @@ async fn simulate_transaction_scenarios() {
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
     let fake_recipient = IotaAddress::random();
-    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+    let transaction = TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(Some(1_000_000_000_000_000_000), fake_recipient)
         .build();
-    let transaction: Transaction = tx_data.try_into().expect("SDK type conversion failed");
     let response = client
         .simulate_transaction(transaction, false, None)
         .await

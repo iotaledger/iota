@@ -13,7 +13,7 @@ use iota_types::{
     move_package::{PACKAGE_METADATA_MODULE_NAME, PACKAGE_METADATA_V1_STRUCT_NAME},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction, TransactionData},
+    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use tracing::info;
 
