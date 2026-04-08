@@ -735,20 +735,19 @@ impl DagState {
 
         // Handle pending acknowledgments for recent blocks
         let has_transactions = transactions.has_transactions();
+        let block_digest = transactions.block_ref().map(|br| br.digest);
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
+        let clock_round_gap = clock_round.saturating_sub(transaction_ref.round);
+
+        self.update_data_availability(transaction_ref, block_digest);
+
         let hostname = self
             .context
             .committee
             .authority(transaction_ref.author)
             .hostname
-            .clone();
-        let clock_round_gap = clock_round.saturating_sub(transaction_ref.round);
-
-        self.update_data_availability(
-            transaction_ref,
-            transactions.block_ref().map(|br| br.digest),
-        );
+            .as_str();
 
         if has_transactions {
             // Record metrics
@@ -756,7 +755,7 @@ impl DagState {
                 .metrics
                 .node_metrics
                 .accepted_transactions_source
-                .with_label_values(&[source.as_str(), hostname.as_str()])
+                .with_label_values(&[source.as_str(), hostname])
                 .inc();
             self.context
                 .metrics
@@ -771,7 +770,7 @@ impl DagState {
             {
                 self.add_pending_acknowledgment(
                     transaction_ref,
-                    transactions.block_ref().map(|br| br.digest),
+                    block_digest,
                     source,
                 );
             }
@@ -780,7 +779,7 @@ impl DagState {
                 .metrics
                 .node_metrics
                 .skipped_empty_transaction_acknowledgments
-                .with_label_values(&[hostname.as_str()])
+                .with_label_values(&[hostname])
                 .inc()
         }
     }
