@@ -23,7 +23,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, Command, InputObjectKind, ProgrammableTransactionExt, TransactionData,
-        TransactionKind, TransactionKindExt,
+        TransactionDataAPI, TransactionKind, TransactionKindExt,
     },
 };
 

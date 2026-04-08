@@ -34,7 +34,9 @@ use iota_types::{
     committee::EpochId,
     crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
     multiaddr::{Multiaddr, Protocol},
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData, TransactionDataAPI,
+    },
 };
 use tracing::info;
 

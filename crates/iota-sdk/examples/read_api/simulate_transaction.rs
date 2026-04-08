@@ -11,7 +11,7 @@ mod utils;
 
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionKind},
+    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
 };
 use utils::setup_for_write;
 

@@ -57,8 +57,8 @@ use iota_types::{
     signature::VerifyParams,
     storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
     transaction::{
-        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
-        VerifiedTransaction,
+        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionDataAPI,
+        TransactionKind, VerifiedTransaction,
     },
 };
 use rand::rngs::OsRng;

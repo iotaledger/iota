@@ -177,7 +177,7 @@ async fn simulate_single_transaction(
     item: &SimulateTransactionItem,
     read_mask: &FieldMaskTree,
 ) -> Result<SimulatedTransaction, RpcError> {
-    let sdk_transaction = super::parse_transaction_proto(item.transaction.as_ref())?;
+    let mut transaction_data = super::parse_transaction_proto(item.transaction.as_ref())?;
 
     // Determine VM checks from request
     let vm_checks = if item
@@ -188,14 +188,6 @@ async fn simulate_single_transaction(
     } else {
         VmChecks::Enabled
     };
-
-    let mut transaction_data = iota_types::transaction::TransactionData::try_from(sdk_transaction)
-        .map_err(|e| {
-            RpcError::new(
-                tonic::Code::InvalidArgument,
-                format!("failed to convert transaction to internal type: {e}"),
-            )
-        })?;
 
     // If the transaction has a zero gas budget and VM checks are disabled, we'll
     // set the gas budget in the result to the actual cost from the simulation.
@@ -264,13 +256,11 @@ async fn simulate_single_transaction(
             transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
         }
 
-        let transaction: iota_sdk_types::Transaction = transaction_data.try_into()?;
-
         // Create a source for the merge
         let source = TransactionReadSource {
             reader: reader.clone(),
             config,
-            transaction: Some(transaction),
+            transaction: Some(transaction_data),
             signatures: None,
             effects: Some(effects),
             events,

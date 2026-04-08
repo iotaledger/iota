@@ -13,7 +13,9 @@ use iota_types::{
     crypto::get_key_pair,
     effects::TransactionEffectsAPI,
     object::Owner,
-    transaction::{CallArg, Command, SharedObjectRef, Transaction, TransactionData},
+    transaction::{
+        CallArg, Command, SharedObjectRef, Transaction, TransactionData, TransactionDataAPI,
+    },
     utils::to_sender_signed_transaction,
 };
 use rand::{

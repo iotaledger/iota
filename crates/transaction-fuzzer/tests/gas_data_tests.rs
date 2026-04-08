@@ -6,7 +6,7 @@ use iota_types::{
     base_types::{address_from_iota_pub_key, dbg_addr},
     crypto::KeypairTraits,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionKind},
+    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, test_runner::TestCaseError};

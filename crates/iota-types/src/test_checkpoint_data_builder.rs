@@ -27,7 +27,7 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, EndOfEpochTransactionKind, SenderSignedData, SharedObjectRef, Transaction,
-        TransactionData, TransactionKind,
+        TransactionData, TransactionDataAPI, TransactionKind,
     },
 };
 

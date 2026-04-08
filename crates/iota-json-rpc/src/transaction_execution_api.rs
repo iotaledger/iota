@@ -29,7 +29,6 @@ use iota_sdk_types::crypto::{Intent, IntentAppId, IntentMessage, IntentScope, In
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
-    crypto::default_hash,
     digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     iota_serde::BigInt,
@@ -329,7 +328,7 @@ impl TransactionExecutionApi {
             },
             tx_data,
         );
-        let txn_digest = TransactionDigest::new(default_hash(&intent_msg.value));
+        let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
         Ok((intent_msg.value, txn_digest, input_objs))
     }
 

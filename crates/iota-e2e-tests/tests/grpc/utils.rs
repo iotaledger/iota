@@ -144,11 +144,9 @@ pub async fn create_transaction_for_simulation(test_cluster: &TestCluster) -> Tr
 
     let rgp = test_cluster.get_reference_gas_price().await;
 
-    let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
+    TestTransactionBuilder::new(sender, gas, rgp)
         .transfer_iota(None, sender)
-        .build();
-
-    tx_data.try_into().expect("SDK type conversion failed")
+        .build()
 }
 
 /// Execute a transaction and return its digest.

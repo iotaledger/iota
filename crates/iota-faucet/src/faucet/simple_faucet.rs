@@ -27,7 +27,7 @@ use iota_types::{
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 use prometheus::Registry;
 use tap::tap::TapFallible;
