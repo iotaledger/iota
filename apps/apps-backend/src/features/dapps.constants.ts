@@ -58,12 +58,6 @@ export const RECOGNIZED_DAPPS: RecognizedDapp[] = [
         tags: ['DeFi', 'EVM', 'DEX'],
     },
     {
-        name: 'LiquidLink',
-        link: 'https://iota.liquidlink.io/',
-        icon: 'https://files.iota.org/media/tooling/dapps/liquidlink-logo.png',
-        tags: ['DeFi', 'Utility'],
-    },
-    {
         name: 'Houdini Swap',
         link: 'https://houdiniswap.com/',
         icon: 'https://files.iota.org/media/tooling/dapps/houdiniswap-logo.svg',
@@ -78,19 +72,25 @@ export const RECOGNIZED_DAPPS: RecognizedDapp[] = [
     {
         name: 'Stargate',
         link: 'https://stargate.finance/',
-        icon: 'https://files.iota.org/media/tooling/dapps/stargate-logo.png',
+        icon: 'https://files.iota.org/media/tooling/dapps/stargate-logo.svg',
         tags: ['DeFi', 'EVM', 'Bridge'],
     },
     {
         name: 'Echo Protocol',
         link: 'https://echo-protocol.xyz/',
-        icon: 'https://files.iota.org/media/tooling/dapps/echo-protocol-logo.png',
+        icon: 'https://files.iota.org/media/tooling/dapps/echo-protocol-logo.svg',
         tags: ['DeFi', 'EVM', 'Bridge'],
+    },
+    {
+        name: 'LiquidLink',
+        link: 'https://iota.liquidlink.io/',
+        icon: 'https://files.iota.org/media/tooling/dapps/liquidlink-logo.png',
+        tags: ['DeFi', 'Utility'],
     },
     {
         name: 'IOTA Gives',
         link: 'https://iota.gives/',
-        icon: 'https://files.iota.org/media/tooling/dapps/iotagives-logo.png',
+        icon: 'https://files.iota.org/media/tooling/dapps/iotagives-logo.svg',
         tags: ['Utility'],
     },
 ];
