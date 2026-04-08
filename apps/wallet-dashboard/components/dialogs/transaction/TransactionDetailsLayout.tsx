@@ -9,16 +9,16 @@ import {
     ExplorerLinkType,
     TransactionReceipt,
     useRecognizedPackages,
-    ExtendedTransaction,
     OutlinedCopyButton,
 } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { trackElementCopied } from '@/lib/utils';
 import { useCallback } from 'react';
 
 interface TransactionDialogDetailsProps {
-    transaction: ExtendedTransaction;
+    transaction: IotaTransactionBlockResponse;
     onClose: () => void;
 }
 export function TransactionDetailsLayout({ transaction, onClose }: TransactionDialogDetailsProps) {
@@ -26,7 +26,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
 
     const recognizedPackagesList = useRecognizedPackages();
     const summary = useTransactionSummary({
-        transaction: transaction.raw,
+        transaction,
         currentAddress: address,
         recognizedPackagesList,
     });
@@ -42,7 +42,7 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
             <Header title="Transaction" onClose={onClose} />
             <DialogLayoutBody>
                 <TransactionReceipt
-                    txn={transaction.raw}
+                    txn={transaction}
                     activeAddress={address}
                     summary={summary}
                     renderExplorerLink={ExplorerLink}
@@ -53,14 +53,14 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
                     <div className="flex w-full [&_a]:w-full">
                         <ExplorerLink
                             type={ExplorerLinkType.Transaction}
-                            transactionID={transaction.raw.digest}
+                            transactionID={transaction.digest}
                         >
-                            <ViewTxnOnExplorerButton digest={transaction.raw.digest} />
+                            <ViewTxnOnExplorerButton digest={transaction.digest} />
                         </ExplorerLink>
                     </div>
                     <div className="self-center">
                         <OutlinedCopyButton
-                            textToCopy={transaction.raw.digest ?? ''}
+                            textToCopy={transaction.digest ?? ''}
                             onCopySuccess={onCopySuccess}
                             successMessage="Transaction digest copied to clipboard"
                         />

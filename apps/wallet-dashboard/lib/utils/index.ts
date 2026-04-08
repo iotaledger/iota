@@ -6,7 +6,6 @@ export * from './vesting';
 export * from './time';
 export * from './timelock';
 export * from './migration';
-export * from './transaction';
 export * from './apps-backend';
 export * from './isSizeExceededError';
 export * from './trackElementCopied';

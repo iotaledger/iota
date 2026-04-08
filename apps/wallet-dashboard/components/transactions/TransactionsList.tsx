@@ -4,7 +4,6 @@
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionTile } from '@/components';
 import { NoData, VirtualList, useQueryTransactionsByAddress } from '@iota/core';
-import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 interface TransactionsListProps {
@@ -24,8 +23,7 @@ export function TransactionsList({
         return <div>{error?.message}</div>;
     }
 
-    const virtualItem = (rawTransaction: IotaTransactionBlockResponse): JSX.Element => {
-        const transaction = getExtendedTransaction(rawTransaction, currentAccount?.address || '');
+    const virtualItem = (transaction: IotaTransactionBlockResponse): JSX.Element => {
         return <TransactionTile transaction={transaction} />;
     };
 

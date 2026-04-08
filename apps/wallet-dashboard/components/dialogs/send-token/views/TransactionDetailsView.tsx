@@ -4,8 +4,6 @@
 import { useGetTransaction } from '@iota/core';
 import { InfoBoxType, InfoBox, InfoBoxStyle } from '@iota/apps-ui-kit';
 import { Warning, Loader } from '@iota/apps-ui-icons';
-import { getExtendedTransaction } from '@/lib/utils';
-import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../../transaction';
 
 interface TransactionDetailsViewProps {
@@ -14,7 +12,6 @@ interface TransactionDetailsViewProps {
 }
 
 export function TransactionDetailsView({ digest, onClose }: TransactionDetailsViewProps) {
-    const currentAccount = useCurrentAccount();
     const { data, isError, error, isFetching } = useGetTransaction(digest || '');
 
     if (isError) {
@@ -39,9 +36,5 @@ export function TransactionDetailsView({ digest, onClose }: TransactionDetailsVi
         );
     }
 
-    const transaction = data && getExtendedTransaction(data, currentAccount?.address || '');
-
-    return transaction ? (
-        <TransactionDetailsLayout transaction={transaction} onClose={onClose} />
-    ) : null;
+    return data ? <TransactionDetailsLayout transaction={data} onClose={onClose} /> : null;
 }
