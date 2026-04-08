@@ -51,8 +51,6 @@ RUN BINARIES="\
       else \
         cargo build --profile ${PROFILE} --bin "$binary" --features "$features"; \
       fi; \
-    done && \
-    for binary in $BINARIES; do \
       cp $TARGET_FOLDER/$binary ./$binary; \
     done
 
