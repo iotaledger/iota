@@ -3,12 +3,10 @@
 
 import {
     useFormatCoin,
-    TIMELOCK_MODULE,
-    TIMELOCKED_STAKING_MODULE,
     ViewTxnOnExplorerButton,
     ExplorerLinkType,
-    TIMELOCK_PACKAGE_ID,
-    TIMELOCKED_STAKING_PACKAGE_ID,
+    TIMELOCK_IOTA_TYPE,
+    TIMELOCK_STAKED_TYPE,
 } from '@iota/core';
 import { CheckmarkFilled, LockUnlocked, Stake } from '@iota/apps-ui-icons';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
@@ -61,28 +59,16 @@ export function CollectSummaryDialog({
 
     const [formattedReceived, receivedSymbol] = useFormatCoin({ balance: iotaReceived });
 
-    // Count unlocked timelocks & converted stakes using MoveCall
-    // (effects.deleted has no object type)
-    const txData = transaction.transaction?.data.transaction;
-    const transactions =
-        txData && 'kind' in txData && txData.kind === 'ProgrammableTransaction'
-            ? txData.transactions
-            : [];
+    // Count unlocked timelocks and converted stakes from objectChanges
+    // The SDK uses indexer by default for test networks, which includes deleted objects in objectChanges
+    const objectChanges = transaction.objectChanges || [];
 
-    const timelocksUnlocked = transactions.filter(
-        (tx) =>
-            'MoveCall' in tx &&
-            tx.MoveCall.package === TIMELOCK_PACKAGE_ID &&
-            tx.MoveCall.module === TIMELOCK_MODULE &&
-            tx.MoveCall.function === 'unlock_with_clock',
+    const timelocksUnlocked = objectChanges.filter(
+        (change) => change.type === 'deleted' && change.objectType === TIMELOCK_IOTA_TYPE,
     ).length;
 
-    const timelockStakesConverted = transactions.filter(
-        (tx) =>
-            'MoveCall' in tx &&
-            tx.MoveCall.package === TIMELOCKED_STAKING_PACKAGE_ID &&
-            tx.MoveCall.module === TIMELOCKED_STAKING_MODULE &&
-            tx.MoveCall.function === 'unlock_with_clock',
+    const timelockStakesConverted = objectChanges.filter(
+        (change) => change.type === 'deleted' && change.objectType === TIMELOCK_STAKED_TYPE,
     ).length;
 
     // Build description
