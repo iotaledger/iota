@@ -1,5 +1,57 @@
 # @iota/iota-sdk
 
+## 1.12.0
+
+### Minor Changes
+
+-   d2ed95a: Mark all Account Abstraction (Move Authenticator) APIs as experimental.
+-   1a2b37f: Use bcs.byteVector and bcs.bytes instead of bcs.vector(bcs.u8()) and bcs.fixedArray(n,
+    bcs.u8()) to improve performance
+-   66d0c0d: New `requestIotaFromFaucet` with built-in request tracking.
+-   bd1fa0b: Removed deprecated APIs. (Transaction.blockData, Transaction.serialize(),
+    TransactionData.gasConfig)
+-   1a2b37f: Add TransactionData.insertTransaction method
+-   3f80310: Fix the default ordering of queryEvents() to be ascending.
+-   999224b: Remove unused metadata headers passed in the client json rpc transport
+-   7849d0e: Support MoveAuthenticator versioning.
+-   0be1d8d: Add a new RequestInspector API to look into requests and responses of an IotaClient
+-   46171b1: Remove getAppsBackend function
+
+### Patch Changes
+
+-   fe97265: Adds `deriveObjectID` helper to calculate `derived_object` addresses.
+-   379dd4b: Fix remaining balance check in ParallelExecutor
+-   1a2b37f: fix safeEnum type inference
+-   9c6137c: Add `FormatBalanceOptions` interface to `formatBalance` function to support custom
+    BigNumber formatting options. This enables disabling group separators for analytics and data
+    processing use cases where plain numeric strings are required.
+-   331b7ab: Refreshed the README with up to date APIs, examples and more.
+-   adea573: Enable declarationMap in TS packages
+-   2a9a1df: Bring back the sdk type header in the ts-sdk http transport client
+-   1a2b37f: Add IOTA_RANDOM_OBJECT_ID constant
+-   f3d9079: Fix tx.pure return type when used with a typename
+-   235a8d7: Deduplicate storageCost in ParallelTransactionExecutor
+-   9d88461: Fix system objects to avoid unnecessary network calls
+
+    -   Clock (0x6) and Random (0x8) now return fully resolved SharedObject references with mutable:
+        false
+    -   System (0x5) and DenyList (0x403) now accept optional `mutable` parameter:
+        -   When undefined, returns UnresolvedObject with initialSharedVersion for backward
+            compatibility
+        -   When explicitly set, returns SharedObjectRef with the specified mutability
+    -   Improves transaction building performance by avoiding unnecessary network lookups
+
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [adea573]
+-   Updated dependencies [c74bcc2]
+-   Updated dependencies [045acb2]
+-   Updated dependencies [045acb2]
+-   Updated dependencies [bd1fa0b]
+-   Updated dependencies [1a2b37f]
+-   Updated dependencies [045acb2]
+-   Updated dependencies [045acb2]
+    -   @iota/bcs@1.6.0
+
 ## 1.11.0
 
 ### Minor Changes

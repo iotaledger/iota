@@ -21,9 +21,8 @@
     "dependencies": {
         "@amplitude/analytics-browser": "^2.32.2",
         "@fontsource-variable/inter": "^5.0.5",
-        "@growthbook/growthbook": "^1.0.0",
-        "@growthbook/growthbook-react": "^1.0.0",
         "@headlessui/react": "^1.7.15",
+        "@iota/apps-backend-client": "workspace:*",
         "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
@@ -32,6 +31,7 @@
         "@iota/iota-names-sdk": "^0.6.1",
         "@iota/iota-sdk": "workspace:*",
         "@sentry/react": "^7.120.3",
+        "@sentry/vite-plugin": "^2.22.5",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-query-devtools": "^5.58.0",
         "@tanstack/react-table": "^8.9.3",
@@ -48,7 +48,6 @@
         "clsx": "^2.1.1",
         "d3-array": "^3.2.4",
         "date-fns": "^2.30.0",
-        "framer-motion": "^10.12.22",
         "prism-react-renderer": "^2.3.1",
         "prism-themes": "^1.9.0",
         "prismjs": "^1.30.0",
@@ -59,7 +58,7 @@
         "react-resizable-panels": "^0.0.39",
         "react-router-dom": "^6.30.3",
         "throttle-debounce": "^5.0.0",
-        "zod": "^3.21.4"
+        "zod": "^3.25.76"
     },
     "devDependencies": {
         "@amplitude/ampli": "^1.36.2",

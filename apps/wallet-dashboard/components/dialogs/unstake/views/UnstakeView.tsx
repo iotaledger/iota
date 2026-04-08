@@ -50,7 +50,6 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
-
     const {
         data: unstakeData,
         isPending: isUnstakeTxPending,
@@ -121,7 +120,7 @@ export function UnstakeView({
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
 
-                    ampli.iotaUnstaked({
+                    ampli.unstakedIota({
                         stakedAmount: Number(stakedFormattedPlain),
                         validatorAddress: extendedStake.validatorAddress,
                         rewards: Number(rewardsFormattedPlain),

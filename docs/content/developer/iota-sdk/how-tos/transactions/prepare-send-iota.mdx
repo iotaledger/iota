@@ -1,0 +1,268 @@
+---
+title: Prepare and Send IOTA
+description: 'How to build, inspect, and dry-run an IOTA transfer transaction before submission.'
+tags:
+  - how-to
+  - rust-sdk
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Prepare and Send IOTA
+
+<IotaSdk />
+
+This how-to demonstrates how to build, inspect, and dry-run an IOTA transfer transaction before submission.
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language
+- A valid sender address with sufficient balance on the testnet
+- A valid recipient address
+
+## Steps
+
+### 1. Initialize the GraphQL Client
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/prepare_send_iota.rs#L11
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/prepare_send_iota/main.go#L21
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/prepare_send_iota.py#L10
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/PrepareSendIota.kt#L9
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/PrepareSendIota.swift#L10
+```
+
+  </TabItem>
+</Tabs>
+
+### 2. Define the Sender and Recipient Addresses
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/prepare_send_iota.rs#L13-L16
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/prepare_send_iota/main.go#L23-L25
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/prepare_send_iota.py#L12-L16
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/PrepareSendIota.kt#L11-L15
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/PrepareSendIota.swift#L12-L16
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. Build the Transaction
+
+Set the transfer amount in nanos (1 IOTA = 1,000,000,000 nanos) and build the transaction with the sender, recipient, and amount.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/prepare_send_iota.rs#L18-L22
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/prepare_send_iota/main.go#L27-L33
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/prepare_send_iota.py#L18-L21
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/PrepareSendIota.kt#L17-L21
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/PrepareSendIota.swift#L18-L21
+```
+
+  </TabItem>
+</Tabs>
+
+### 4. Inspect the Transaction
+
+Print the signing digest and Base64-encoded transaction bytes for inspection before signing.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/prepare_send_iota.rs#L24-L25
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/prepare_send_iota/main.go#L35-L36
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/prepare_send_iota.py#L23-L24
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/PrepareSendIota.kt#L23-L24
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/PrepareSendIota.swift#L23-L24
+```
+
+  </TabItem>
+</Tabs>
+
+### 5. Dry-Run the Transaction
+
+Dry-run the transaction to verify it will execute correctly without submitting it to the network.
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/prepare_send_iota.rs#L27-L33
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/prepare_send_iota/main.go#L38-L48
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/prepare_send_iota.py#L26-L30
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/PrepareSendIota.kt#L26-L32
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/PrepareSendIota.swift#L26-L33
+```
+
+  </TabItem>
+</Tabs>
+
+## Expected Output
+
+```bash
+Signing Digest: <hex-digest>
+Txn Bytes: <base64-encoded-transaction>
+Send IOTA dry run was successful!
+```
+
+## Full Example
+
+<Tabs groupId="language">
+  <TabItem value="rust" label="Rust" default>
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/prepare_send_iota.rs
+```
+  </TabItem>
+  <TabItem value="go" label="Go">
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/prepare_send_iota/main.go
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/prepare_send_iota.py
+```
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/PrepareSendIota.kt
+```
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/PrepareSendIota.swift
+```
+  </TabItem>
+</Tabs>
+

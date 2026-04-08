@@ -1,0 +1,63 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.dynamic_field;
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/object.proto";
+import "iota/grpc/v1/types.proto";
+
+message DynamicField {
+  option (iota.grpc.message_accessors) = "with";
+
+  enum DynamicFieldKind {
+    DYNAMIC_FIELD_KIND_UNKNOWN = 0;
+    FIELD = 1;
+    OBJECT = 2;
+  }
+
+  optional DynamicFieldKind kind = 1;
+
+  // ObjectId of this dynamic field's parent.
+  optional iota.grpc.v1.types.ObjectId parent = 2;
+
+  // ObjectId of this dynamic field.
+  optional iota.grpc.v1.types.ObjectId field_id = 3;
+
+  // The field object itself
+  optional iota.grpc.v1.object.Object field_object = 4;
+
+  // The dynamic field's "name"
+  optional iota.grpc.v1.bcs.BcsData name = 5;
+
+  // The dynamic field's "value".
+  //
+  // For regular dynamic fields this contains the BCS-encoded value whose type
+  // is given by `value_type`. For dynamic *object* fields this contains the
+  // BCS-encoded ObjectID of the child object; use `child_object` to access the
+  // full object.
+  optional iota.grpc.v1.bcs.BcsData value = 6;
+
+  // The type of the dynamic field "value".
+  //
+  // For regular dynamic fields this is the Move type of the value stored
+  // in the `value` field. For dynamic *object* fields this is the Move type
+  // of the child object itself (e.g. `0x2::coin::Coin<0x2::iota::IOTA>`),
+  // not `0x2::object::ID` — clients should use `child_object` rather than
+  // BCS-decoding `value` with this type.
+  optional string value_type = 7;
+
+  // The ObjectId of the child object when a child is a dynamic
+  // object field.
+  //
+  // The presence or absence of this field can be used to determine if a child
+  // is a dynamic field or a dynamic child object
+  optional iota.grpc.v1.types.ObjectId child_id = 8;
+
+  // The object itself when a child is a dynamic object field.
+  optional iota.grpc.v1.object.Object child_object = 9;
+}

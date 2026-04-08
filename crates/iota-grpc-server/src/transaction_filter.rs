@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
-use iota_grpc_types::v0::filter as proto_filter;
+use iota_grpc_types::v1::filter as proto_filter;
 use iota_metrics::monitored_scope;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -16,7 +14,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{GrpcStateReader, event_filter::EventFilter};
+use crate::event_filter::EventFilter;
 
 /// Maximum allowed depth for nested filters to prevent DoS attacks
 const MAX_FILTER_DEPTH: usize = 10;
@@ -152,7 +150,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                 let package_bytes = call_filter
                     .package_id
                     .ok_or("package_id is missing")?
-                    .address;
+                    .object_id;
                 let package = ObjectID::from_bytes(&package_bytes)
                     .map_err(|e| format!("invalid package_id: {}", e))?;
                 Ok(CommandFilter::MoveCall {
@@ -170,7 +168,7 @@ impl TryFrom<proto_filter::CommandFilter> for CommandFilter {
                 let package = upgrade_filter
                     .package_id
                     .map(|addr| {
-                        ObjectID::from_bytes(&addr.address)
+                        ObjectID::from_bytes(&addr.object_id)
                             .map_err(|e| format!("invalid package_id: {}", e))
                     })
                     .transpose()?;
@@ -304,11 +302,13 @@ impl TryFrom<proto_filter::TransactionFilter> for TransactionFilter {
                 Ok(TransactionFilter::Receiver(iota_address))
             }
             ProtoFilter::AffectedObject(obj_filter) => {
-                // TODO: add a function to convert ObjectReference to ObjectID
                 let object_ref = obj_filter.object_ref.ok_or("object_ref is missing")?;
-                let object_id_str = object_ref.object_id.ok_or("object_id is missing")?;
-                let object_id: ObjectID = object_id_str
-                    .parse()
+                let object_id: ObjectID = object_ref
+                    .object_id
+                    .as_ref()
+                    .ok_or("object_id is missing")?
+                    .object_id()
+                    .map(Into::into)
                     .map_err(|e| format!("invalid object_id: {}", e))?;
                 Ok(TransactionFilter::AffectedObject(object_id))
             }
@@ -341,26 +341,16 @@ fn is_system_transaction(transaction_kind: &TransactionKind) -> bool {
 }
 
 impl TransactionFilter {
-    pub fn matches_transaction(
-        &self,
-        state_reader: Arc<dyn GrpcStateReader>,
-        item: &CheckpointTransaction,
-    ) -> bool {
+    pub fn matches_transaction(&self, item: &CheckpointTransaction) -> bool {
         let _scope = monitored_scope("TransactionFilter::matches_transaction");
         let tx_data = item.transaction.data().transaction_data();
 
         match self {
-            TransactionFilter::All(filters) => filters
-                .iter()
-                .all(|f| f.matches_transaction(state_reader.clone(), item)),
+            TransactionFilter::All(filters) => filters.iter().all(|f| f.matches_transaction(item)),
 
-            TransactionFilter::Any(filters) => filters
-                .iter()
-                .any(|f| f.matches_transaction(state_reader.clone(), item)),
+            TransactionFilter::Any(filters) => filters.iter().any(|f| f.matches_transaction(item)),
 
-            TransactionFilter::Not(filter) => {
-                !filter.matches_transaction(state_reader.clone(), item)
-            }
+            TransactionFilter::Not(filter) => !filter.matches_transaction(item),
 
             TransactionFilter::TransactionKind(kinds) => {
                 let actual_kind = TransactionKind::from(tx_data.kind());
@@ -395,7 +385,7 @@ impl TransactionFilter {
             TransactionFilter::Events(event_filter) => item.events.as_ref().is_some_and(|evts| {
                 evts.data
                     .iter()
-                    .any(|event| event_filter.matches_event(state_reader.clone(), event))
+                    .any(|event| event_filter.matches_event(event))
             }),
 
             TransactionFilter::ExecutionStatus(status_filter) => {

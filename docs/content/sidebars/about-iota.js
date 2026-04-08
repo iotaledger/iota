@@ -35,7 +35,6 @@ const aboutIota = [
             'about-iota/tokenomics/proof-of-stake',
             'about-iota/tokenomics/validators-staking',
             'about-iota/tokenomics/staking-unstaking',
-            'about-iota/tokenomics/gas-in-iota',
             'about-iota/tokenomics/gas-pricing',
         ],
     },

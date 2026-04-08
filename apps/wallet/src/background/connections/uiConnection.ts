@@ -19,7 +19,7 @@ import { isTransactionRequestResponse } from '_src/shared/messaging/messages/pay
 import Permissions from '_src/background/permissions';
 import Tabs from '_src/background/tabs';
 import Transactions from '_src/background/transactions';
-import { growthbook } from '_src/shared/experimentation/features';
+import { appsBackendClient } from '_src/shared/experimentation/features';
 import {
     isMethodPayload,
     type MethodPayload,
@@ -125,13 +125,13 @@ export class UiConnection extends Connection {
                 await Permissions.delete(payload.origin, payload.specificAccounts);
                 this.send(createMessage({ type: 'done' }, id));
             } else if (isBasePayload(payload) && payload.type === 'get-features') {
-                await growthbook.refreshFeatures();
+                await appsBackendClient.refreshFeatures();
                 this.send(
                     createMessage<LoadedFeaturesPayload>(
                         {
                             type: 'features-response',
-                            features: growthbook.getFeatures(),
-                            attributes: growthbook.getAttributes(),
+                            features: appsBackendClient.getFeatures(),
+                            attributes: appsBackendClient.getAttributes(),
                         },
                         id,
                     ),

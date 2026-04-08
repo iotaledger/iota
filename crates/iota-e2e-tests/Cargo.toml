@@ -57,7 +57,6 @@ iota-move-build.workspace = true
 iota-network.workspace = true
 iota-node.workspace = true
 iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
 iota-sdk.workspace = true
 iota-sdk-types.workspace = true
 iota-simulator.workspace = true

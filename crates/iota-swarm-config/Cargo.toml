@@ -28,7 +28,6 @@ iota-config.workspace = true
 iota-genesis-builder.workspace = true
 iota-names.workspace = true
 iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 

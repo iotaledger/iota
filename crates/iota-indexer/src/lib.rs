@@ -4,8 +4,6 @@
 
 #![recursion_limit = "256"]
 
-use std::time::Duration;
-
 use anyhow::Result;
 use errors::IndexerError;
 use iota_grpc_client::Client as GrpcClient;
@@ -13,7 +11,6 @@ use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_metrics::spawn_monitored_task;
 use metrics::IndexerMetrics;
 use prometheus::Registry;
-use system_package_task::SystemPackageTask;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -53,7 +50,7 @@ pub async fn build_json_rpc_server(
     reader: IndexerReader,
     config: &JsonRpcConfig,
     metrics: IndexerMetrics,
-) -> Result<ServerHandle, IndexerError> {
+) -> Result<(ServerHandle, CancellationToken), IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
 
@@ -76,13 +73,15 @@ pub async fn build_json_rpc_server(
     ))?;
 
     let cancel = CancellationToken::new();
-    let system_package_task =
-        SystemPackageTask::new(reader, cancel.clone(), Duration::from_secs(10));
 
-    tracing::info!("Starting system package task");
-    spawn_monitored_task!(async move { system_package_task.run().await });
+    let handle = builder
+        .start(
+            config.rpc_address,
+            None,
+            ServerType::Http,
+            Some(cancel.clone()),
+        )
+        .await?;
 
-    Ok(builder
-        .start(config.rpc_address, None, ServerType::Http, Some(cancel))
-        .await?)
+    Ok((handle, cancel))
 }

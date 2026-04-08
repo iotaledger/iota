@@ -313,10 +313,12 @@ mod checked {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForExecution,
+            CheckedInputObjects,
+        )>,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
@@ -390,42 +392,68 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
+        // Prepare the authenticators for execution.
+        // Store the loaded object metadata in the `TemporaryStore` before the
+        // authenticators are executed.
+        // The temporary store must contain all the required information at this
+        // point.
+        let authenticators = authenticators
+            .into_iter()
+            .map(
+                |(
+                    authenticator,
+                    authenticator_function_ref_for_execution,
+                    authenticator_input_objects,
+                )| {
+                    let AuthenticatorFunctionRefForExecution {
+                        authenticator_function_ref,
+                        loaded_object_id,
+                        loaded_object_metadata,
+                    } = authenticator_function_ref_for_execution;
+
+                    // Save the loaded object metadata, i.e., the field object containing the
+                    // AuthenticatorFunctionRef, in the temporary store.
+                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                        loaded_object_id,
+                        loaded_object_metadata,
+                    )]));
+
+                    (
+                        authenticator,
+                        authenticator_function_ref,
+                        authenticator_input_objects,
+                    )
+                },
+            )
+            .collect::<Vec<_>>();
+
         // Authentication execution.
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        let AuthenticatorFunctionRefForExecution {
-            authenticator_function_ref,
-            loaded_object_id,
-            loaded_object_metadata,
-        } = authenticator_function_ref_for_execution;
-
-        let authentication_execution_result = match authenticator_function_ref {
-            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                // Save the loaded object metadata, i.e., the field object containing the
-                // AuthenticatorFunctionRef, in the temporary store.
-                temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                    loaded_object_id,
-                    loaded_object_metadata,
-                )]));
-
-                // Run the authentication execution.
-                authenticate_transaction_inner(
-                    &mut temporary_store,
-                    protocol_config,
-                    metrics.clone(),
-                    &mut gas_charger,
-                    authenticator,
-                    authenticator_function_ref_v1,
-                    &authenticator_input_objects.into_inner(),
-                    transaction_kind.clone(),
-                    transaction_digest,
-                    tx_ctx.clone(),
-                    trace_builder_opt,
-                    move_vm,
-                )
-            }
-        };
+        // Run each authenticator in sequence; the first failure aborts the chain.
+        let authentication_execution_result = authenticators.into_iter().try_for_each(
+            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                match authenticator_function_ref {
+                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                        authenticate_transaction_inner(
+                            &mut temporary_store,
+                            protocol_config,
+                            metrics.clone(),
+                            &mut gas_charger,
+                            authenticator,
+                            authenticator_function_ref_v1,
+                            &authenticator_input_objects.into_inner(),
+                            transaction_kind.clone(),
+                            transaction_digest,
+                            tx_ctx.clone(),
+                            trace_builder_opt,
+                            move_vm,
+                        )
+                    }
+                }
+            },
+        );
 
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
@@ -473,10 +501,13 @@ mod checked {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRef,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
@@ -487,18 +518,6 @@ mod checked {
         move_vm: &Arc<MoveVM>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
-        let input_objects = authenticator_input_objects.into_inner();
-
-        // Prepare the temporary store for the authentication execution.
-        let mut temporary_store = TemporaryStore::new(
-            store,
-            input_objects.clone(),
-            vec![],
-            transaction_digest,
-            protocol_config,
-            *epoch_id,
-        );
-
         // Prepare the gas charger for authentication execution.
         let sponsor = resolve_sponsor(&gas_data, &transaction_signer);
         let gas_price = gas_status.gas_price();
@@ -521,25 +540,38 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Run the authentication.
-        match authenticator_function_ref {
-            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                authenticate_transaction_inner(
-                    &mut temporary_store,
-                    protocol_config,
-                    metrics,
-                    &mut gas_charger,
-                    authenticator,
-                    authenticator_function_ref_v1,
-                    &input_objects,
-                    transaction_kind,
-                    transaction_digest,
-                    tx_ctx,
-                    trace_builder_opt,
-                    move_vm,
-                )
-            }
-        }
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            aggregated_authenticator_input_objects.into_inner(),
+            vec![],
+            transaction_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
+        // Run each authenticator in sequence; return on first failure.
+        authenticators.into_iter().try_for_each(
+            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
+                match authenticator_function_ref {
+                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                        authenticate_transaction_inner(
+                            &mut temporary_store,
+                            protocol_config,
+                            metrics.clone(),
+                            &mut gas_charger,
+                            authenticator,
+                            authenticator_function_ref_v1,
+                            &authenticator_input_objects.into_inner(),
+                            transaction_kind.clone(),
+                            transaction_digest,
+                            tx_ctx.clone(),
+                            trace_builder_opt,
+                            move_vm,
+                        )
+                    }
+                }
+            },
+        )
     }
 
     // This function implements the authentication execution. It checks that the
@@ -669,11 +701,6 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
-        debug_assert!(
-            gas_charger.no_charges(),
-            "At this point no gas charges must be applied yet"
-        );
-
         // It must NOT charge gas for reading the Move authenticator input objects from
         // the storage. It will be done later during the transaction execution.
         // Then execute the authentication.

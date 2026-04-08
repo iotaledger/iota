@@ -59,7 +59,7 @@ export function DisconnectApp({
                 connectedAccounts.length > 1 &&
                 accountsToDisconnect.length < connectedAccounts.length;
 
-            ampli.applicationDisconnected({
+            ampli.disconnectedApplication({
                 sourceFlow: 'Application page',
                 disconnectedAccounts: accountsToDisconnect.length || 1,
                 applicationName: permission.name,

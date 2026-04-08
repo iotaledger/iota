@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
     ExtendedDelegatedStake,
     ImageIcon,
     ImageIconSize,
@@ -68,7 +69,7 @@ export function DetailsView({
         apy,
         isApyApproxZero,
         newValidator,
-        commission,
+        effectiveCommission,
     } = useValidatorInfo({
         validatorAddress,
     });
@@ -180,9 +181,11 @@ export function DetailsView({
                                 fullwidth
                             />
                             <KeyValueInfo
-                                keyText="Commission"
-                                value={`${commission ? commission.toString() : '--'}%`}
+                                keyText="Effective Commission"
+                                value={effectiveCommission}
                                 fullwidth
+                                tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
+                                tooltipPosition={TooltipPosition.Right}
                             />
                         </div>
                     </Panel>

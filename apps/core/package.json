@@ -24,8 +24,8 @@
         "@amplitude/analytics-browser": "^2.32.2",
         "@amplitude/analytics-client-common": "^2.4.18",
         "@amplitude/analytics-core": "^2.34.1",
-        "@growthbook/growthbook-react": "^1.0.0",
         "@hookform/resolvers": "^3.9.0",
+        "@iota/apps-backend-client": "workspace:*",
         "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/dapp-kit": "workspace:*",
@@ -49,7 +49,7 @@
         "react-hot-toast": "^2.4.1",
         "vanilla-cookieconsent": "^2.9.1",
         "yup": "^1.1.1",
-        "zod": "^3.21.4"
+        "zod": "^3.25.76"
     },
     "devDependencies": {
         "@amplitude/analytics-types": "^2.11.0",

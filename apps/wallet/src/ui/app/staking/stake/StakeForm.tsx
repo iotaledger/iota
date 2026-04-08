@@ -153,7 +153,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         try {
             await stakeTokenMutateAsync(undefined, {
                 onSuccess(data) {
-                    ampli.iotaStaked({
+                    ampli.stakedIota({
                         stakedAmount: Number(stakedAmountFormattedPlain),
                         validatorAddress: validatorAddress || '',
                         validatorAPY: validatorApy,

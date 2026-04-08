@@ -1,0 +1,88 @@
+---
+title: Getting Started with Python
+description: Get started with the IOTA SDK Python bindings to interact with the IOTA network.
+tags: [ python, mainnet, testnet, devnet, setup, install, getting-started ]
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with Python
+
+<IotaSdk />
+
+The IOTA SDK Python bindings allow you to interact with the IOTA network using Python. These bindings wrap the core Rust SDK, providing a high-level and "pythonic" interface for developers.
+
+## Prerequisites
+
+Before using the Python bindings, ensure you have:
+* **Python**: Version 3.8 or higher.
+* **pip**: Python package installer.
+* **Virtual Environment** (Recommended): To manage dependencies cleanly.
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
+You can install the IOTA SDK directly from PyPI:
+
+```bash
+pip install iota-sdk==3.0.0-alpha.1
+```
+
+The package includes pre-compiled binary wheels for Windows, macOS, and Linux, so no Rust compiler is required for standard installation.
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+The PyPI package includes precompiled binary wheels for common platforms (Windows, macOS, and Linux). However, if you are using a Python version or CPU architecture that is not supported by the prebuilt binaries, you may need to build the bindings from source.
+
+To do this, you will need:
+
+- **Rust toolchain** (installed via https://rustup.rs)
+- **maturin** for building Python extensions
+
+You can then build and install the SDK from the source repository:
+
+```bash
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+cd iota-rust-sdk/bindings/python
+pip install maturin
+maturin develop
+```
+
+For detailed instructions and development setup, refer to the [Python bindings README](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/python) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+
+### 1. Create a script
+
+Create a new file named `main.py` and paste the following code:
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/chain_id.py#L1-L17
+```
+
+## 2. Run the code
+
+In your terminal, run:
+
+```bash
+python main.py
+```
+
+## What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* Accounts & Wallets: Use the IotaWallet class to manage multiple accounts and addresses.
+* Transactions: Build and sign transactions using the built-in builders.
+* Events: Subscribe to real-time events on the IOTA network.
+
+View more comprehensive examples in the official [Python examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/python/examples).
+    

@@ -10,11 +10,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
-use typed_store::{
-    DBMapUtils, Map, TypedStoreError,
-    rocks::DBMap,
-    traits::{TableSummary, TypedStoreDebug},
-};
+use typed_store::{DBMapUtils, Map, TypedStoreError, rocks::DBMap};
 use uuid::Uuid;
 
 /// Persistent log of transactions paying out iota from the faucet, keyed by the
