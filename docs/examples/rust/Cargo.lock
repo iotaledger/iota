@@ -3439,7 +3439,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=98e3dba17aca8688243186260e098017586b69d4#98e3dba17aca8688243186260e098017586b69d4"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ef00c39e6c6db0271a26f58d70028ae568af736f#ef00c39e6c6db0271a26f58d70028ae568af736f"
 dependencies = [
  "ed25519-dalek",
  "iota-sdk-types",

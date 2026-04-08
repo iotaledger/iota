@@ -201,34 +201,9 @@ pub fn as_indices(bitmap: u16) -> Result<Vec<u8>, IotaError> {
     Ok(res)
 }
 
-impl MultiSig {
-    pub fn init_and_validate(&mut self) -> Result<Self, FastCryptoError> {
-        if self.sigs.len() > self.multisig_pk.pk_map.len()
-            || self.sigs.is_empty()
-            || self.bitmap > MAX_BITMAP_VALUE
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        self.multisig_pk.validate()?;
-        Ok(self.to_owned())
-    }
-
-    pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {
-        as_indices(self.bitmap)
-    }
-}
-
-// impl ToFromBytes for MultiSig {
-//     fn from_bytes(bytes: &[u8]) -> Result<MultiSig, FastCryptoError> {
-//         // The first byte matches the flag of MultiSig.
-//         if bytes.first().ok_or(FastCryptoError::InvalidInput)? !=
-// &SignatureScheme::MultiSig.flag()         {
-//             return Err(FastCryptoError::InvalidInput);
-//         }
-//         let mut multisig: MultiSig =
-//             bcs::from_bytes(&bytes[1..]).map_err(|_|
-// FastCryptoError::InvalidSignature)?;         multisig.init_and_validate()
-//     }
+// pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {
+//     as_indices(self.bitmap)
+// }
 // }
 
 // impl FromStr for MultiSig {
