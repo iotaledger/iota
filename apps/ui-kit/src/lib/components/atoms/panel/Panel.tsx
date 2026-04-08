@@ -21,7 +21,7 @@ export function Panel({
 }: React.PropsWithChildren<PanelProps>): React.JSX.Element {
     const borderClass = hasBorder ? 'border panel-border-color' : 'border border-transparent';
     return (
-        <div className={cx('flex w-full flex-col rounded-xl', bgColor, borderClass)}>
+        <div className={cx('flex w-full flex-col rounded-xl pt-sm--rs', bgColor, borderClass)}>
             {children}
         </div>
     );

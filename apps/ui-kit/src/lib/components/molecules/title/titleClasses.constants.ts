@@ -4,8 +4,8 @@
 import { TitleSize } from './titleSize.enums';
 
 export const TITLE_PADDINGS: Record<TitleSize, string> = {
-    [TitleSize.Small]: 'px-md pt-md pb-sm--rs',
-    [TitleSize.Medium]: 'px-md--rs pt-md--rs pb-sm--rs',
+    [TitleSize.Small]: 'px-md py-sm--rs',
+    [TitleSize.Medium]: 'px-md--rs py-sm--rs',
 };
 
 export const TITLE_SIZE: Record<TitleSize, string> = {
