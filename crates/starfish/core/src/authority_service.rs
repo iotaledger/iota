@@ -1452,12 +1452,12 @@ impl SubscriptionCounter {
 
     fn decrement(&self, peer: AuthorityIndex) -> Result<(), ConsensusError> {
         let mut counter = self.counter.lock();
+        if counter.subscriptions_by_authority[peer] == 0 {
+            warn!("Subscription count for peer {peer} is already zero, skipping decrement");
+            return Ok(());
+        }
         counter.count -= 1;
         let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
-
-        if counter.subscriptions_by_authority[peer] == 0 {
-            panic!("Subscription count for peer {peer} is already zero, cannot decrement");
-        }
         counter.subscriptions_by_authority[peer] -= 1;
         let mut total_stake = 0;
         for (authority_index, _) in self.context.committee.authorities() {
