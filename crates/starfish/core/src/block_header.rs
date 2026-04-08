@@ -344,7 +344,8 @@ impl BlockHeaderV2 {
         }
     }
 
-    // Will be used when genesis block construction is gated on consensus_starfish_speed.
+    // Will be used when genesis block construction is gated on
+    // consensus_starfish_speed.
     #[expect(dead_code)]
     fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
@@ -1599,7 +1600,6 @@ mod tests {
     use std::sync::Arc;
 
     use fastcrypto::error::FastCryptoError;
-
     use starfish_config::AuthorityIndex;
 
     use crate::{

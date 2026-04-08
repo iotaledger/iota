@@ -35,9 +35,8 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
-        GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedOwnShard, VerifiedTransactions,
+        GENESIS_ROUND, Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommitAPI, PendingSubDag},
