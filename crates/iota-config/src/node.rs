@@ -1183,54 +1183,74 @@ pub struct TransactionKeyValueStoreWriteConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorityOverloadConfig {
+    /// Maximum time a transaction can wait in the transaction manager execution
+    /// queue before it triggers an overload detection on the object it depends
+    /// on.
     #[serde(default = "default_max_txn_age_in_queue")]
     pub max_txn_age_in_queue: Duration,
 
-    // The interval of checking overload signal.
+    /// The interval of checking overload signal.
     #[serde(default = "default_overload_monitor_interval")]
     pub overload_monitor_interval: Duration,
 
-    // The execution queueing latency when entering load shedding mode.
+    /// The execution queueing latency when entering load shedding mode.
     #[serde(default = "default_execution_queue_latency_soft_limit")]
     pub execution_queue_latency_soft_limit: Duration,
 
-    // The execution queueing latency when entering aggressive load shedding mode.
+    /// The execution queueing latency when entering aggressive load shedding
+    /// mode.
     #[serde(default = "default_execution_queue_latency_hard_limit")]
     pub execution_queue_latency_hard_limit: Duration,
 
-    // The maximum percentage of transactions to shed in load shedding mode.
+    /// The maximum percentage of transactions to shed in load shedding mode.
     #[serde(default = "default_max_load_shedding_percentage")]
     pub max_load_shedding_percentage: u32,
 
-    // When in aggressive load shedding mode, the minimum percentage of
-    // transactions to shed.
+    /// When in aggressive load shedding mode, the minimum percentage of
+    /// transactions to shed.
     #[serde(default = "default_min_load_shedding_percentage_above_hard_limit")]
     pub min_load_shedding_percentage_above_hard_limit: u32,
 
-    // If transaction ready rate is below this rate, we consider the validator
-    // is well under used, and will not enter load shedding mode.
+    /// If transaction ready rate is below this rate, we consider the validator
+    /// is well under used, and will not enter load shedding mode.
     #[serde(default = "default_safe_transaction_ready_rate")]
     pub safe_transaction_ready_rate: u32,
 
-    // When set to true, transaction signing may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction signing may be rejected when the validator
+    /// is overloaded.
     #[serde(default = "default_check_system_overload_at_signing")]
     pub check_system_overload_at_signing: bool,
 
-    // When set to true, transaction execution may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction execution may be rejected when the
+    /// validator is overloaded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub check_system_overload_at_execution: bool,
 
-    // Reject a transaction if transaction manager queue length is above this threshold.
-    // 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+    /// Reject a transaction if transaction manager queue length is above this
+    /// threshold. 100_000 = 10k TPS * 5s resident time in transaction
+    /// manager (pending + executing) * 2.
     #[serde(default = "default_max_transaction_manager_queue_length")]
     pub max_transaction_manager_queue_length: usize,
 
-    // Reject a transaction if the number of pending transactions depending on the object
-    // is above the threshold.
+    /// Reject a transaction if the number of pending transactions depending on
+    /// the object is above the threshold.
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
+
+    /// Consensus queue length at which graduated pre-consensus load shedding
+    /// begins. This is used in the certificate-less (white-flag) mode.
+    #[serde(default = "default_consensus_queue_length_soft_limit")]
+    pub consensus_queue_length_soft_limit: usize,
+
+    /// Consensus queue length at which max pre-consensus load shedding is
+    /// applied. This is used in the certificate-less (white-flag) mode.
+    #[serde(default = "default_consensus_queue_length_hard_limit")]
+    pub consensus_queue_length_hard_limit: usize,
+
+    /// Max percentage of transactions to shed due to consensus queue overload.
+    /// This is used in the certificate-less (white-flag) mode.
+    #[serde(default = "default_max_consensus_load_shedding_percentage")]
+    pub max_consensus_load_shedding_percentage: u32,
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -1273,6 +1293,31 @@ fn default_max_transaction_manager_per_object_queue_length() -> usize {
     20
 }
 
+/// Default consensus queue length at which graduated pre-consensus load
+/// shedding begins. It is set to 50% of hard limit
+/// `ConsensusConfig::max_pending_transactions` = 20_000. This is used in the
+/// certificate-less (white-flag) mode.
+fn default_consensus_queue_length_soft_limit() -> usize {
+    10_000
+}
+
+/// Default consensus queue length at which max pre-consensus load shedding is
+/// applied. It is set to 100% of hard limit
+/// `ConsensusConfig::max_pending_transactions` = 20_000. This is used in the
+/// certificate-less (white-flag) mode.
+fn default_consensus_queue_length_hard_limit() -> usize {
+    20_000
+}
+
+/// Default max percentage of transactions to shed due to consensus queue
+/// overload. Set to 95% rather than 100% because the existing binary hard
+/// cutoff in `ConsensusAdapter::check_consensus_overload()` serves as a
+/// backstop for the remaining 5% fraction. This is used in the certificate-less
+/// (white-flag) mode.
+fn default_max_consensus_load_shedding_percentage() -> u32 {
+    95
+}
+
 impl Default for AuthorityOverloadConfig {
     fn default() -> Self {
         Self {
@@ -1289,6 +1334,10 @@ impl Default for AuthorityOverloadConfig {
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
+            consensus_queue_length_soft_limit: default_consensus_queue_length_soft_limit(),
+            consensus_queue_length_hard_limit: default_consensus_queue_length_hard_limit(),
+            max_consensus_load_shedding_percentage: default_max_consensus_load_shedding_percentage(
+            ),
         }
     }
 }
