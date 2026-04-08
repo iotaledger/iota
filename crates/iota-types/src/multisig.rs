@@ -104,7 +104,8 @@ impl AuthenticatorTrait for MultiSig {
         // Verify each signature against its corresponding signature scheme and public
         // key. TODO: further optimization can be done because multiple Ed25519
         // signatures can be batch verified.
-        for (signature, i) in self.signatures().iter().zip(as_indices(self.bitmap())?) {
+        // TODO unwrap
+        for (signature, i) in self.signatures().iter().zip(self.get_indices().unwrap()) {
             // let (subsig_pubkey, weight) =
             let member =
                 self.committee()
@@ -172,27 +173,8 @@ impl AuthenticatorTrait for MultiSig {
     }
 }
 
-/// Interpret a bitmap of 01s as a list of indices that is set to 1s.
-/// e.g. 22 = 0b10110, then the result is [1, 2, 4].
-pub fn as_indices(bitmap: u16) -> Result<Vec<u8>, IotaError> {
-    if bitmap > MAX_BITMAP_VALUE {
-        return Err(IotaError::InvalidSignature {
-            error: "Invalid bitmap".to_string(),
-        });
-    }
-    let mut res = Vec::new();
-    for i in 0..10 {
-        if bitmap & (1 << i) != 0 {
-            res.push(i as u8);
-        }
-    }
-    Ok(res)
-}
+// impl MultiSig {
 
-// pub fn get_indices(&self) -> Result<Vec<u8>, IotaError> {
-//     as_indices(self.bitmap)
-// }
-// }
 
 // impl FromStr for MultiSig {
 //     type Err = IotaError;

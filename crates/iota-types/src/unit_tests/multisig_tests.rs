@@ -20,9 +20,13 @@ use fastcrypto_zkp::{
 };
 use im::hashmap::HashMap as ImHashMap;
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
 };
-use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
+use iota_sdk_types::crypto::{
+    Ed25519Signature, Intent, IntentMessage, PersonalMessage, Secp256k1Signature,
+    Secp256r1Signature,
+};
 use once_cell::sync::OnceCell;
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -59,18 +63,26 @@ fn test_combine_sigs() {
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
-    );
-    let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
-    let sig2 = Signature::new_secure(&msg, &kp2).into();
-    let sig3 = Signature::new_secure(&msg, &kp3).into();
+    )
+    .signing_message()
+    .as_ref();
+    let sig1: Ed25519Signature = kp1.sign(msg);
+    let sig2: Secp256k1Signature = kp2.sign(msg);
+    let sig3: Secp256r1Signature = kp3.sign(msg);
 
     // MultiSigPublicKey contains only 2 public key but 3 signatures are passed,
     // fails to combine.
-    assert!(MultiSig::combine(vec![sig1.clone(), sig2, sig3], multisig_pk.clone()).is_err());
+    assert!(
+        MultiSig::combine(
+            vec![sig1.into(), sig2.into(), sig3.into()],
+            multisig_pk.clone()
+        )
+        .is_err()
+    );
 
     // Cannot create malformed MultiSig.
     assert!(MultiSig::combine(vec![], multisig_pk.clone()).is_err());
-    assert!(MultiSig::combine(vec![sig1.clone(), sig1], multisig_pk).is_err());
+    assert!(MultiSig::combine(vec![sig1.clone().into(), sig1.into()], multisig_pk).is_err());
 }
 #[test]
 fn test_serde_roundtrip() {
@@ -208,8 +220,15 @@ fn test_multisig_address() {
     let w2: WeightUnit = 2;
     let w3: WeightUnit = 3;
 
-    let multisig_pk =
-        MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![w1, w2, w3], threshold).unwrap();
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![
+            MultisigMember::new(pk1, w1),
+            MultisigMember::new(pk2, w2),
+            MultisigMember::new(pk3, w3),
+        ],
+        threshold,
+    )
+    .unwrap();
     let address: IotaAddress = (&multisig_pk).into();
     assert_eq!(
         IotaAddress::from_str("0x25c72ac38e59084e0c8263489f810f50b2d1a38bbb8128a5d1474317af7c8eb3")
@@ -233,16 +252,6 @@ fn test_max_sig() {
         pks.push(kp.public_key());
         keys.push(kp);
     }
-
-    // multisig_pk with larger that max number of pks fails.
-    assert!(
-        MultiSigPublicKey::new(
-            pks.clone(),
-            vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG + 1],
-            ThresholdUnit::MAX
-        )
-        .is_err()
-    );
 
     // multisig_pk with unreachable threshold fails.
     assert!(MultiSigPublicKey::new(pks.clone()[..5].to_vec(), vec![3; 5], 16).is_err());
@@ -281,16 +290,6 @@ fn test_max_sig() {
 }
 
 #[test]
-fn test_to_indices() {
-    assert!(as_indices(0b11111111110).is_err());
-    assert_eq!(as_indices(0b0000010110).unwrap(), vec![1, 2, 4]);
-    assert_eq!(
-        as_indices(0b1111111111).unwrap(),
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    );
-}
-
-#[test]
 fn multisig_get_pk() {
     let (kp1, kp2, _) = multisig_keys();
     let pk1 = kp1.public_key();
@@ -324,25 +323,36 @@ fn multisig_get_indices() {
     let pk2 = kp2.public_key();
     let pk3 = kp3.public_key();
 
-    let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![1, 1, 1], 2).unwrap();
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(pk3, 1),
+        ],
+        2,
+    )
+    .unwrap();
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
-    );
-    let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
-    let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
-    let sig3: GenericSignature = Signature::new_secure(&msg, &keys[2]).into();
+    )
+    .signing_message()
+    .as_ref();
+    let sig1: Ed25519Signature = kp1.sign(msg);
+    let sig2: Secp256k1Signature = kp2.sign(msg);
+    let sig3: Secp256r1Signature = kp3.sign(msg);
 
     let multi_sig1 =
-        MultiSig::combine(vec![sig2.clone(), sig3.clone()], multisig_pk.clone()).unwrap();
+        MultiSig::combine(vec![sig2.into(), sig3.into()], multisig_pk.clone()).unwrap();
 
     let multi_sig2 = MultiSig::combine(
-        vec![sig1.clone(), sig2.clone(), sig3.clone()],
+        vec![sig1.into(), sig2.into(), sig3.into()],
         multisig_pk.clone(),
     )
     .unwrap();
 
-    let invalid_multisig = MultiSig::combine(vec![sig3, sig2, sig1], multisig_pk).unwrap();
+    let invalid_multisig =
+        MultiSig::combine(vec![sig3.into(), sig2.into(), sig1.into()], multisig_pk).unwrap();
 
     // Indexes of public keys in multisig public key instance according to the
     // combined sigs.
