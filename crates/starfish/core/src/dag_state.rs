@@ -738,7 +738,6 @@ impl DagState {
         let block_digest = transactions.block_ref().map(|br| br.digest);
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
-        let clock_round_gap = clock_round.saturating_sub(transaction_ref.round);
 
         self.update_data_availability(transaction_ref, block_digest);
 
@@ -748,6 +747,7 @@ impl DagState {
             .authority(transaction_ref.author)
             .hostname
             .as_str();
+        let clock_round_gap = clock_round.saturating_sub(transaction_ref.round);
 
         if has_transactions {
             // Record metrics
