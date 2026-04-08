@@ -64,7 +64,7 @@ impl AuthoritySet {
     }
 
     /// Converts to a BTreeSet of AuthorityIndex.
-    pub fn to_btreeset(&self) -> BTreeSet<AuthorityIndex> {
+    pub fn to_btreeset(self) -> BTreeSet<AuthorityIndex> {
         self.iter().collect()
     }
 }
