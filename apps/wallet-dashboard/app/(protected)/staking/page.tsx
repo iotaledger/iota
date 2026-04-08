@@ -33,14 +33,12 @@ import {
     useFormatCoin,
     useGetAllOwnedObjects,
     TIMELOCK_IOTA_TYPE,
-    Feature,
     mapTimelockObjects,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { useMemo } from 'react';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { isSupplyIncreaseVestingObject } from '@/lib/utils';
-import { useFeature } from '@iota/apps-backend-client';
 import { useRouter } from 'next/navigation';
 
 function StakingDashboardPage(): React.JSX.Element {
@@ -57,8 +55,6 @@ function StakingDashboardPage(): React.JSX.Element {
     const hasAvailableVestedStaking = mapTimelockObjects(timelockedObjects || []).some(
         isSupplyIncreaseVestingObject,
     );
-    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
-
     const {
         isDialogStakeOpen,
         stakeDialogView,
@@ -264,7 +260,7 @@ function StakingDashboardPage(): React.JSX.Element {
                         <StartStaking />
                     </div>
                 )}
-                {hasAvailableVestedStaking && supplyIncreaseVestingEnabled && (
+                {hasAvailableVestedStaking && (
                     <Panel bgColor="bg-iota-secondary-90 dark:bg-iota-secondary-10">
                         <div className="py-sm">
                             <Title

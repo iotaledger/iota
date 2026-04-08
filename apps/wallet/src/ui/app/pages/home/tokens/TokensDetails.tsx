@@ -66,9 +66,6 @@ export function TokenDetails() {
     const network = useAppSelector((state) => state.app.network);
     const shouldOpenNewTab = useShouldOpenInNewTab();
     const isMainnet = network === Network.Mainnet;
-    const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
-    const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
-
     const OBJECT_PER_REQ = 1;
 
     const client = useAppsBackendClient();
@@ -136,22 +133,15 @@ export function TokenDetails() {
         OBJECT_PER_REQ,
     );
 
-    let hasSupplyIncreaseVestingObjects = false;
-    let needsMigration = false;
+    const hasSupplyIncreaseVestingObjects =
+        haveSupplyIncreaseLabel(supplyIncreaseVestingObjects?.pages || []) ||
+        haveSupplyIncreaseLabel(supplyIncreaseVestingObjectsStaked?.pages || []);
 
-    if (supplyIncreaseVestingEnabled) {
-        hasSupplyIncreaseVestingObjects =
-            haveSupplyIncreaseLabel(supplyIncreaseVestingObjects?.pages || []) ||
-            haveSupplyIncreaseLabel(supplyIncreaseVestingObjectsStaked?.pages || []);
-    }
-
-    if (migrationEnabled) {
-        needsMigration =
-            !!basicOutputObjects?.pages?.[0]?.data?.length ||
-            !!nftOutputObjects?.pages?.[0]?.data?.length ||
-            !!stardustSharedBasicObjects?.length ||
-            !!stardustSharedNftObjects?.length;
-    }
+    const needsMigration =
+        !!basicOutputObjects?.pages?.[0]?.data?.length ||
+        !!nftOutputObjects?.pages?.[0]?.data?.length ||
+        !!stardustSharedBasicObjects?.length ||
+        !!stardustSharedNftObjects?.length;
 
     const walletInterstitialConfig = useFeature<InterstitialConfig>(
         Feature.WalletInterstitialConfig,

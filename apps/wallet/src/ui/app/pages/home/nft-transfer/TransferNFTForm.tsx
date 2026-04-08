@@ -4,7 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useActiveAccount, useSigner, useActiveAddress, useAppSelector } from '_hooks';
+import { useActiveAccount, useSigner, useActiveAddress } from '_hooks';
 import {
     createNftSendValidationSchema,
     AddressInput,
@@ -15,8 +15,6 @@ import {
     toast,
     type SendNftFormValues,
     RECEIVING_ADDRESS_FIELD_IDS,
-    useFeatureEnabledByNetwork,
-    Feature,
 } from '@iota/core';
 import { CoinFormat } from '@iota/iota-sdk/utils';
 import { useQueryClient } from '@tanstack/react-query';
@@ -75,12 +73,10 @@ function GasBudgetComponent({
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
     const activeAddress = useActiveAddress();
-    const network = useAppSelector((state) => state.app.network);
-    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
 
     const validationSchema = useMemo(
-        () => createNftSendValidationSchema(activeAddress || '', objectId, isNameResolutionEnabled),
-        [activeAddress, objectId, isNameResolutionEnabled],
+        () => createNftSendValidationSchema(activeAddress || '', objectId),
+        [activeAddress, objectId],
     );
     const activeAccount = useActiveAccount();
     const signer = useSigner(activeAccount);

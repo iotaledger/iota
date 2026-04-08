@@ -4,20 +4,8 @@
 import { PROTECTED_ROUTES } from '@/lib/constants/routes.constants';
 import { IotaLogoMark } from '@iota/apps-ui-icons';
 import { SidebarItem } from './SidebarItem';
-import { Feature } from '@iota/core';
-import { useFeature } from '@iota/apps-backend-client';
-import { ProtectedRouteTitle } from '@/lib/enums';
 
 export function Sidebar() {
-    const featureFlags = {
-        [ProtectedRouteTitle.Migration]: useFeature<boolean>(Feature.StardustMigration).value,
-        [ProtectedRouteTitle.Vesting]: useFeature<boolean>(Feature.SupplyIncreaseVesting).value,
-    };
-
-    const filteredRoutes = PROTECTED_ROUTES.filter(({ title }) => {
-        return title in featureFlags ? featureFlags[title as keyof typeof featureFlags] : true;
-    });
-
     return (
         <nav
             data-testid="sidebar"
@@ -25,7 +13,7 @@ export function Sidebar() {
         >
             <IotaLogoMark className="h-10 w-10 text-iota-neutral-10 dark:text-iota-neutral-92" />
             <div className="flex flex-col gap-y-xs">
-                {filteredRoutes.map((route) => (
+                {PROTECTED_ROUTES.map((route) => (
                     <SidebarItem key={route.path} {...route} />
                 ))}
             </div>

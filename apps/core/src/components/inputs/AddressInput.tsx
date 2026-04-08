@@ -8,11 +8,8 @@ import { useField, useFormikContext } from 'formik';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { shouldResolveInputAsName } from '../../utils/validation/names';
-import { useFeatureEnabledByNetwork, useGetIotaNameRecord } from '../../hooks';
+import { useGetIotaNameRecord } from '../../hooks';
 import { useEffect } from 'react';
-import { useNetwork } from '../../hooks/useNetwork';
-import { getNetwork } from '@iota/iota-sdk/client';
-import { Feature } from '../../enums';
 
 const ICON_COMMON_CLASSES = 'h-5 w-5 text-iota-primary-30 dark:text-iota-primary-70';
 
@@ -35,19 +32,13 @@ export function AddressInput({
     const [field, meta, helpers] = useField<string>(fieldId);
     const [resolvedAddressField] = useField<string>(resolvedNameFieldId);
 
-    const networkName = useNetwork();
-    const network = getNetwork(networkName).id;
-    const isNameResolutionEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
-
-    const isNameInput = isNameResolutionEnabled ? shouldResolveInputAsName(field.value) : false;
+    const isNameInput = shouldResolveInputAsName(field.value);
 
     const { data: nameRecord, isLoading: isNameRecordLoading } = useGetIotaNameRecord(
         isNameInput ? field.value : null,
     );
 
     useEffect(() => {
-        if (!isNameResolutionEnabled) return;
-
         const resolvedAddress: string | null | undefined = nameRecord
             ? nameRecord.targetAddress
             : undefined;

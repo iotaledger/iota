@@ -5,20 +5,13 @@
 
 import { ConnectButton } from '@iota/dapp-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
-import { Feature, Theme, ThemeSwitcher, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
-import { Network } from '@iota/iota-sdk/client';
-import { usePersistedNetwork } from '@/hooks';
+import { Theme, ThemeSwitcher, useTheme } from '@iota/core';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
 import { ExternalLink } from '@/components/ExternalLink';
 import { ampli } from '@/lib/utils/analytics';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();
-    const { persistedNetwork } = usePersistedNetwork();
-    const iotaNamesEnabled = useFeatureEnabledByNetwork(
-        Feature.IotaNames,
-        persistedNetwork as Network,
-    );
 
     const CURRENT_YEAR = new Date().getFullYear();
     const videoSrc =
@@ -57,7 +50,7 @@ function HomeDashboardPage(): JSX.Element {
                     <div className="[&_button]:!bg-iota-neutral-90 [&_button]:dark:!bg-iota-neutral-20">
                         <ConnectButton
                             connectText="Connect"
-                            iotaNamesEnabled={iotaNamesEnabled}
+                            iotaNamesEnabled={true}
                             onConnected={(args) => {
                                 ampli.connectedWallet({ wallet: args.wallet.name });
                             }}

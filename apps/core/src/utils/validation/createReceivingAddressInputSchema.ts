@@ -15,7 +15,7 @@ export { ValidationError };
 const MIN_NAME_LENGTH = 3;
 const MAX_NAME_LENGTH = 64;
 
-export function createReceivingAddressInputSchema(isNameResolutionEnabled: boolean = false) {
+export function createReceivingAddressInputSchema() {
     return {
         to: Yup.string()
             .ensure()
@@ -23,7 +23,7 @@ export function createReceivingAddressInputSchema(isNameResolutionEnabled: boole
             .required('Recipient address is required')
             .test('is-valid-address', 'Invalid address. Please check again.', (value) => {
                 const isNameInput = shouldResolveInputAsName(value);
-                if (isNameInput && isNameResolutionEnabled) {
+                if (isNameInput) {
                     return true;
                 }
 
@@ -31,7 +31,7 @@ export function createReceivingAddressInputSchema(isNameResolutionEnabled: boole
             })
             .test('is-valid-name', 'Invalid name. Please check again.', (value) => {
                 const isNameInput = shouldResolveInputAsName(value);
-                if (isNameInput && isNameResolutionEnabled) {
+                if (isNameInput) {
                     try {
                         if (value === '' || !value || value === '@') return false;
 
@@ -55,8 +55,6 @@ export function createReceivingAddressInputSchema(isNameResolutionEnabled: boole
                 'target-address-is-valid',
                 'Invalid name target address.',
                 (value, { createError, parent }) => {
-                    if (!isNameResolutionEnabled) return true;
-
                     const { resolvedAddress } = parent as ReceiverInputFormValues;
                     const isNameInput = shouldResolveInputAsName(value);
 

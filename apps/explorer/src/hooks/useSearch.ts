@@ -2,14 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Feature, useFeatureEnabledByNetwork, useIotaNamesClient } from '@iota/core';
+import { Feature, useIotaNamesClient } from '@iota/core';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { type IotaNamesClient, isValidIotaName } from '@iota/iota-names-sdk';
-import {
-    getNetwork,
-    type IotaClient,
-    type LatestIotaSystemStateSummary,
-} from '@iota/iota-sdk/client';
+import { type IotaClient, type LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import {
     isValidTransactionDigest,
     isValidIotaAddress,
@@ -17,7 +13,6 @@ import {
     normalizeIotaObjectId,
 } from '@iota/iota-sdk/utils';
 import { type UseQueryResult, useQuery } from '@tanstack/react-query';
-import { useNetwork } from './useNetwork';
 import { type IdentityClientReadOnly } from '@iota/identity-wasm/web';
 import { useFeatureIsOn } from '@iota/apps-backend-client';
 import {
@@ -139,10 +134,9 @@ const getResultsForEpoch = async (client: IotaClient, query: string): Promise<Re
 const getResultsForAddress = async (
     client: IotaClient,
     query: string,
-    isNamesEnabled: boolean,
     iotaNamesClient: IotaNamesClient | null,
 ): Promise<Results | null> => {
-    if (iotaNamesClient && isNamesEnabled && isValidIotaName(query)) {
+    if (iotaNamesClient && isValidIotaName(query)) {
         const nameRecord = await iotaNamesClient.getNameRecord(query.toLowerCase());
 
         if (!nameRecord || !nameRecord.targetAddress) return null;
@@ -239,10 +233,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
     const client = useIotaClient();
     const identityClient = useIdentityClient();
     const { data: systemStateSummary } = useIotaClientQuery('getLatestIotaSystemState');
-    const [networkId] = useNetwork();
-    const network = getNetwork(networkId).id;
 
-    const isNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
     const isTFIdentityEnabled = useFeatureIsOn(Feature.ExplorerTFIdentity as string);
     const { iotaNamesClient } = useIotaNamesClient();
 
@@ -255,7 +246,7 @@ export function useSearch(query: string): UseQueryResult<Results, Error> {
                     getResultsForTransaction(client, query),
                     getResultsForCheckpoint(client, query),
                     getResultsForEpoch(client, query),
-                    getResultsForAddress(client, query, isNamesEnabled, iotaNamesClient),
+                    getResultsForAddress(client, query, iotaNamesClient),
                     getResultsForDid(identityClient, isTFIdentityEnabled, query),
                     getResultsForObject(client, query),
                     getResultsForValidatorByPoolIdOrIotaAddress(systemStateSummary || null, query),
