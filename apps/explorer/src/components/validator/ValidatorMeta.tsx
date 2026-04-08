@@ -1,17 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import {
-    Badge,
-    BadgeType,
-    Chip,
-    ChipSize,
-    ChipType,
-    KeyValueInfo,
-    Panel,
-    Tooltip,
-    TooltipPosition,
-} from '@iota/apps-ui-kit';
+import { Badge, BadgeType, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
 import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight, IotaLogoMark } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
@@ -21,6 +11,7 @@ import { onCopySuccess } from '~/lib/utils';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
+    atRiskRemainingEpochs?: number | null;
 };
 
 export function InactiveValidators({
@@ -99,7 +90,7 @@ export function InactiveValidators({
     );
 }
 
-export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Element {
+export function ValidatorMeta({ validatorData, atRiskRemainingEpochs }: ValidatorMetaProps): JSX.Element {
     const validatorPublicKey = validatorData.protocolPubkeyBytes;
     const validatorName = validatorData.name;
     const logo = validatorData.imageUrl;
@@ -139,24 +130,12 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                             </div>
                             <div className="flex flex-wrap items-center gap-xs">
                                 <Badge type={BadgeType.Neutral} label="Validator" />
-                                <Badge type={BadgeType.PrimarySoft} label="Active" />
-                                {isValidatorCommitteeMember && (
-                                    <Tooltip
-                                        text="This validator is in the active committee and currently participating in consensus this epoch."
-                                        position={TooltipPosition.Right}
-                                    >
-                                        <Chip
-                                            type={ChipType.Success}
-                                            size={ChipSize.Small}
-                                            leadingElement={
-                                                <span className="relative flex h-[5px] w-[5px] shrink-0">
-                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-iota-tertiary-40 opacity-75 dark:bg-iota-tertiary-60" />
-                                                    <span className="relative inline-flex h-[5px] w-[5px] rounded-full bg-iota-tertiary-40 dark:bg-iota-tertiary-60" />
-                                                </span>
-                                            }
-                                            label="Committee"
-                                        />
-                                    </Tooltip>
+                                {isValidatorCommitteeMember ? (
+                                    <Badge type={BadgeType.Success} label="Committee" />
+                                ) : atRiskRemainingEpochs != null ? (
+                                    <Badge type={BadgeType.Neutral} label="Candidate" />
+                                ) : (
+                                    <Badge type={BadgeType.PrimarySoft} label="Active" />
                                 )}
                             </div>
                             {description && (

@@ -1,14 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    Badge,
-    BadgeType,
-    TableCellBase,
-    TableCellText,
-    Tooltip,
-    TooltipPosition,
-} from '@iota/apps-ui-kit';
+import { Badge, BadgeSize, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef, Row } from '@tanstack/react-table';
 import {
     type ApyByValidator,
@@ -17,14 +10,8 @@ import {
     ImageIcon,
     ImageIconSize,
     useCopyToClipboard,
-    useIsValidatorCommitteeMember,
 } from '@iota/core';
-import {
-    ampli,
-    getValidatorMoveEvent,
-    type IotaValidatorSummaryExtended,
-    VALIDATOR_LOW_STAKE_GRACE_PERIOD,
-} from '~/lib';
+import { ampli, getValidatorMoveEvent, type IotaValidatorSummaryExtended } from '~/lib';
 import { StakeColumn } from '~/components';
 import type { IotaEvent, IotaValidatorSummary } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
@@ -48,52 +35,48 @@ function ValidatorWithImage({
     validator,
     highlightValidatorName,
     committeeMembers = [],
+    atRiskAddresses = new Set(),
 }: {
     validator: IotaValidatorSummaryExtended;
     highlightValidatorName?: boolean;
     committeeMembers?: string[];
+    atRiskAddresses?: Set<string>;
 }) {
-    const { isCommitteeMember } = useIsValidatorCommitteeMember();
-
     const validatorAddress = validator.iotaAddress;
-    const isValidatorCommitteeMember = isCommitteeMember(validatorAddress);
+    const isValidatorCommitteeMember = committeeMembers.includes(validatorAddress);
+    const isAtRisk = atRiskAddresses.has(validatorAddress);
     const truncatedAddress = `${validatorAddress.slice(0, 8)}\u2026${validatorAddress.slice(-6)}`;
     const copyToClipboard = useCopyToClipboard();
+
+    const statusBadge = validator.isPending
+        ? { type: BadgeType.Warning, label: 'Pending' }
+        : isValidatorCommitteeMember
+          ? { type: BadgeType.Success, label: 'Committee' }
+          : isAtRisk
+            ? { type: BadgeType.Neutral, label: 'Candidate' }
+            : { type: BadgeType.PrimarySoft, label: 'Active' };
 
     const validatorNameContainer = (
         <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex items-center gap-1.5">
                 <span
                     className={clsx('truncate text-label-lg', {
-                        'text-iota-neutral-10 dark:text-iota-neutral-92': highlightValidatorName,
-                        'text-iota-neutral-40 dark:text-iota-neutral-60': !highlightValidatorName,
+                        'dark:text-iota-neutral-92 text-iota-neutral-10': highlightValidatorName,
+                        'dark:text-iota-neutral-60 text-iota-neutral-40': !highlightValidatorName,
                     })}
                 >
                     {validator.name}
                 </span>
-                {isValidatorCommitteeMember && (
-                    <Tooltip
-                        text="Active committee member — currently participating in consensus this epoch."
-                        position={TooltipPosition.Right}
-                    >
-                        <span className="flex shrink-0 items-center gap-1 text-iota-tertiary-40 dark:text-iota-tertiary-60">
-                            <span className="relative flex h-1.5 w-1.5">
-                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-iota-tertiary-40 opacity-75 dark:bg-iota-tertiary-60" />
-                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-iota-tertiary-40 dark:bg-iota-tertiary-60" />
-                            </span>
-                            <span className="text-label-sm font-medium">Committee</span>
-                        </span>
-                    </Tooltip>
-                )}
+                <Badge type={statusBadge.type} label={statusBadge.label} size={BadgeSize.Small} />
             </div>
             <div className="flex items-center gap-1">
-                <span className="text-label-sm tabular-nums text-iota-neutral-40 dark:text-iota-neutral-60">
+                <span className="dark:text-iota-neutral-60 text-label-sm tabular-nums text-iota-neutral-40">
                     {truncatedAddress}
                 </span>
                 <button
                     type="button"
                     aria-label="Copy address"
-                    className="flex items-center text-iota-neutral-40 transition-colors hover:text-iota-neutral-10 dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92"
+                    className="dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92 flex items-center text-iota-neutral-40 transition-colors hover:text-iota-neutral-10"
                     onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
@@ -119,7 +102,7 @@ function ValidatorWithImage({
     );
 
     return validator.isPending ? (
-        <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
+        <div className="dark:text-iota-neutral-60 flex items-center gap-x-2.5 text-iota-neutral-40">
             {avatarElement}
             {validatorNameContainer}
         </div>
@@ -135,7 +118,7 @@ function ValidatorWithImage({
                 })
             }
             label={
-                <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
+                <div className="dark:text-iota-neutral-60 flex items-center gap-x-2.5 text-iota-neutral-40">
                     {avatarElement}
                     {validatorNameContainer}
                 </div>
@@ -145,10 +128,8 @@ function ValidatorWithImage({
 }
 
 export function generateValidatorsTableColumns({
-    allValidators = [],
     committeeMembers = [],
     atRiskValidators = [],
-    maxCommitteeSize,
     validatorEvents = [],
     rollingAverageApys,
     showValidatorIcon = true,
@@ -156,8 +137,7 @@ export function generateValidatorsTableColumns({
     highlightValidatorName,
     currentEpoch,
 }: GenerateValidatorsTableColumnsArgs): ColumnDef<IotaValidatorSummaryExtended>[] {
-    const validatorsSortedByStake = allValidators.toSorted(sortByStakingBalanceDesc);
-    const topValidators = validatorsSortedByStake.slice(0, maxCommitteeSize);
+    const atRiskAddressSet = new Set(atRiskValidators.map(([address]) => address));
 
     let columns: ColumnDef<IotaValidatorSummaryExtended>[] = [
         {
@@ -179,13 +159,14 @@ export function generateValidatorsTableColumns({
                                 validator={validator}
                                 highlightValidatorName={highlightValidatorName}
                                 committeeMembers={committeeMembers}
+                                atRiskAddresses={atRiskAddressSet}
                             />
                         ) : (
                             <TableCellText>
                                 <span
                                     className={
                                         highlightValidatorName
-                                            ? 'text-iota-neutral-10 dark:text-iota-neutral-92'
+                                            ? 'dark:text-iota-neutral-92 text-iota-neutral-10'
                                             : undefined
                                     }
                                 >
@@ -256,31 +237,23 @@ export function generateValidatorsTableColumns({
                 );
             },
         },
+
         {
-            header: 'Next Epoch Commission',
-            accessorKey: 'nextEpochCommissionRate',
+            header: 'Voting Power',
+            meta: {
+                tooltip:
+                    "This validator's share of total committee voting power, proportional to its stake. Determines influence over consensus.",
+            },
+            accessorKey: 'votingPower',
             enableSorting: true,
             sortingFn: sortByNumber,
             cell({ getValue }) {
+                const votingPower = getValue<string>();
                 return (
                     <TableCellBase>
-                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Next Epoch Stake',
-            accessorKey: 'nextEpochStake',
-            id: 'nextEpochStake',
-            enableSorting: true,
-            sortingFn: (rowA, rowB, columnId) =>
-                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
-            cell({ getValue }) {
-                const nextEpochStake = getValue<string>();
-                return (
-                    <TableCellBase>
-                        <StakeColumn stake={nextEpochStake} />
+                        <TableCellText>
+                            {votingPower ? Number(votingPower) / 100 + '%' : '--'}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
@@ -315,146 +288,6 @@ export function generateValidatorsTableColumns({
                 );
             },
         },
-        {
-            header: 'Voting Power',
-            meta: {
-                tooltip:
-                    "This validator's share of total committee voting power, proportional to its stake. Determines influence over consensus.",
-            },
-            accessorKey: 'votingPower',
-            enableSorting: true,
-            sortingFn: sortByNumber,
-            cell({ getValue }) {
-                const votingPower = getValue<string>();
-                return (
-                    <TableCellBase>
-                        <TableCellText>
-                            {votingPower ? Number(votingPower) / 100 + '%' : '--'}
-                        </TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Status',
-            meta: {
-                tooltip:
-                    'Active: in the committee earning rewards. At risk: stake below the threshold, may be removed. Pending: awaiting activation next epoch.',
-            },
-            accessorKey: 'status',
-            id: 'status',
-            enableSorting: true,
-            sortingFn: (rowA, rowB) => {
-                const { label: labelA } = determineRisk(committeeMembers, atRiskValidators, rowA);
-                const { label: labelB } = determineRisk(committeeMembers, atRiskValidators, rowB);
-                return sortByString(labelA, labelB);
-            },
-            cell({ row }) {
-                const { atRisk, label, isPending } = determineRisk(
-                    committeeMembers,
-                    atRiskValidators,
-                    row,
-                );
-
-                if (isPending) {
-                    return (
-                        <TableCellBase>
-                            <Badge type={BadgeType.Neutral} label={label} />
-                        </TableCellBase>
-                    );
-                }
-
-                return (
-                    <TableCellBase>
-                        <Badge
-                            type={
-                                atRisk === null
-                                    ? BadgeType.Success
-                                    : atRisk > 1
-                                      ? BadgeType.Warning
-                                      : BadgeType.Error
-                            }
-                            label={label}
-                        />
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Current Epoch Rewards',
-            accessorKey: 'isEarningCurrent',
-            id: 'isEarningCurrent',
-            enableSorting: true,
-            sortingFn: (rowA, rowB) => {
-                const isCommitteeMemberA = committeeMembers.some(
-                    (address) => address === rowA.original.iotaAddress,
-                );
-                const isCommitteeMemberB = committeeMembers.some(
-                    (address) => address === rowB.original.iotaAddress,
-                );
-                return sortByBoolean(isCommitteeMemberA, isCommitteeMemberB);
-            },
-            cell({ row }) {
-                const isCommitteeMember = committeeMembers.find(
-                    (committeeMemberAddress) => committeeMemberAddress === row.original.iotaAddress,
-                );
-                const label = isCommitteeMember ? 'Earning' : 'Not Earning';
-                return (
-                    <TableCellBase>
-                        <Badge
-                            type={isCommitteeMember ? BadgeType.PrimarySoft : BadgeType.Neutral}
-                            label={label}
-                        />
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Next Epoch Rewards',
-            accessorKey: 'isEarningNext',
-            id: 'isEarningNext',
-            enableSorting: true,
-            sortingFn: (rowA, rowB) => {
-                const { atRisk: atRiskA } = determineRisk(committeeMembers, atRiskValidators, rowA);
-                const { atRisk: atRiskB } = determineRisk(committeeMembers, atRiskValidators, rowB);
-
-                const isInTopStakersA = topValidators.some(
-                    (v) => v.iotaAddress === rowA.original.iotaAddress,
-                );
-                const isInTopStakersB = topValidators.some(
-                    (v) => v.iotaAddress === rowB.original.iotaAddress,
-                );
-
-                const isEarningNextA = (atRiskA === null || atRiskA > 1) && isInTopStakersA;
-                const isEarningNextB = (atRiskB === null || atRiskB > 1) && isInTopStakersB;
-
-                return sortByBoolean(isEarningNextA, isEarningNextB);
-            },
-            cell({ row }) {
-                const { atRisk } = determineRisk(committeeMembers, atRiskValidators, row);
-
-                const isInTopStakers = !!topValidators.find(
-                    (v) => v.iotaAddress === row.original.iotaAddress,
-                );
-
-                // if its active or pending validator (all validators in this context are either active or pending),
-                // not at high risk (high risk, not normal risk),
-                // and is part of the top X stakers,
-                // it will generate rewards in the next epoch, otherwise not.
-                const isEarningNext = (atRisk === null || atRisk > 1) && isInTopStakers;
-
-                const label = isEarningNext ? 'Earning' : 'Not Earning';
-
-                return (
-                    <TableCellBase>
-                        <Badge
-                            type={isEarningNext ? BadgeType.PrimarySoft : BadgeType.Neutral}
-                            label={label}
-                        />
-                    </TableCellBase>
-                );
-            },
-        },
     ];
 
     if (includeColumns) {
@@ -468,18 +301,13 @@ export function generateValidatorsTableColumns({
 function sortByString(value1: string, value2: string) {
     return value1.localeCompare(value2, undefined, { sensitivity: 'base' });
 }
-function sortByBoolean(value1: boolean, value2: boolean) {
-    return Number(value1) - Number(value2);
-}
+
 function sortByNumber(
     rowA: Row<IotaValidatorSummary>,
     rowB: Row<IotaValidatorSummary>,
     columnId: string,
 ) {
     return Number(rowA.getValue(columnId)) - Number(rowB.getValue(columnId)) > 0 ? 1 : -1;
-}
-function sortByStakingBalanceDesc(left: IotaValidatorSummary, right: IotaValidatorSummary) {
-    return BigInt(left.stakingPoolIotaBalance) > BigInt(right.stakingPoolIotaBalance) ? -1 : 1;
 }
 function getLastReward(
     validatorEvents: IotaEvent[],
@@ -491,31 +319,4 @@ function getLastReward(
         pool_staking_reward?: string;
     };
     return event?.pool_staking_reward ? Number(event.pool_staking_reward) : null;
-}
-function determineRisk(
-    committeeMembers: string[],
-    atRiskValidators: [string, string][],
-    row: Row<IotaValidatorSummaryExtended>,
-) {
-    const { original: validator } = row;
-    const isCommitteeMember = committeeMembers.find(
-        (committeeMemberAddress) => committeeMemberAddress === row.original.iotaAddress,
-    );
-    const atRiskValidator = atRiskValidators.find(([address]) => address === validator.iotaAddress);
-    const isAtRisk = !!atRiskValidator;
-    const atRisk = isAtRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1]) : null;
-    const isPending = validator.isPending;
-    const label = isPending
-        ? 'Pending'
-        : atRisk === null
-          ? 'Active'
-          : atRisk > 1
-            ? `At Risk in ${atRisk} epochs`
-            : 'At Risk next epoch';
-    return {
-        label,
-        atRisk,
-        isPending,
-        isCommitteeMember,
-    };
 }

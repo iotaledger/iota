@@ -12,7 +12,11 @@ import { useGetNetworkMetrics } from '~/hooks';
 import { ampli } from '~/lib/utils';
 import { useEpochProgress } from '~/pages/epochs/utils';
 
-export function CurrentEpoch(): JSX.Element {
+interface CurrentEpochProps {
+    hideCheckpoint?: boolean;
+}
+
+export function CurrentEpoch({ hideCheckpoint = false }: CurrentEpochProps): JSX.Element {
     const { epoch, progress, label, end, start } = useEpochProgress();
     const { data: networkData } = useGetNetworkMetrics();
 
@@ -48,29 +52,34 @@ export function CurrentEpoch(): JSX.Element {
             onClick={() => ampli.clickedCurrentEpochCard({ epoch: Number(epoch) })}
         >
             <Panel>
-                <Title title={`Epoch ${epoch ?? '--'}`} subtitle={epochSubtitle} />
+                <Title
+                    title={`Epoch ${epoch ?? '--'}`}
+                    subtitle={!hideCheckpoint ? epochSubtitle : undefined}
+                />
                 <div className="flex flex-col gap-md p-md--rs">
                     <div className="flex flex-row gap-md">
                         <div className="flex flex-1">
                             <LabelText
                                 size={LabelTextSize.Large}
-                                label="Time Left"
+                                label={!hideCheckpoint ? 'Time Left' : ''}
                                 text={label || '--'}
                             />
                         </div>
-                        <div className="flex flex-1">
-                            <LabelText
-                                size={LabelTextSize.Large}
-                                label="Checkpoint"
-                                text={
-                                    networkData?.currentCheckpoint
-                                        ? BigInt(
-                                              networkData.currentCheckpoint || 0,
-                                          ).toLocaleString()
-                                        : '--'
-                                }
-                            />
-                        </div>
+                        {!hideCheckpoint && (
+                            <div className="flex flex-1">
+                                <LabelText
+                                    size={LabelTextSize.Large}
+                                    label="Checkpoint"
+                                    text={
+                                        networkData?.currentCheckpoint
+                                            ? BigInt(
+                                                  networkData.currentCheckpoint || 0,
+                                              ).toLocaleString()
+                                            : '--'
+                                    }
+                                />
+                            </div>
+                        )}
                     </div>
                     <ProgressBar progress={progress || 0} />
                 </div>
