@@ -176,7 +176,10 @@ use crate::{
     jsonrpc_index::{CoinInfo, IndexStore, ObjectIndexChanges},
     metrics::{LatencyObserver, RateTracker},
     module_cache_metrics::ResolverMetrics,
-    overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
+    overload_monitor::{
+        AuthorityOverloadInfo, compute_consensus_load_shedding_percentage,
+        overload_monitor_accept_tx,
+    },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
     transaction_input_loader::TransactionInputLoader,
@@ -288,16 +291,18 @@ pub struct AuthorityMetrics {
 
     pub(crate) authority_overload_status: IntGauge,
     pub(crate) authority_load_shedding_percentage: IntGauge,
+    /// Percentage of transactions shed due to consensus queue length.
+    pub(crate) consensus_queue_load_shedding_percentage: IntGauge,
 
     pub(crate) transaction_overload_sources: IntCounterVec,
 
-    /// Post processing metrics
+    // Post processing metrics
     post_processing_total_events_emitted: IntCounter,
     post_processing_total_tx_indexed: IntCounter,
     post_processing_total_tx_had_event_processed: IntCounter,
     post_processing_total_failures: IntCounter,
 
-    /// Consensus handler metrics
+    // Consensus handler metrics
     pub consensus_handler_processed: IntCounterVec,
     pub consensus_handler_transaction_sizes: HistogramVec,
     pub consensus_handler_num_low_scoring_authorities: IntGauge,
@@ -543,6 +548,11 @@ impl AuthorityMetrics {
             authority_load_shedding_percentage: register_int_gauge_with_registry!(
                 "authority_load_shedding_percentage",
                 "The percentage of transactions is shed when the authority is in load shedding mode.",
+                registry)
+                .unwrap(),
+            consensus_queue_load_shedding_percentage: register_int_gauge_with_registry!(
+                "consensus_queue_load_shedding_percentage",
+                "Percentage of transactions shed due to consensus queue length.",
                 registry)
                 .unwrap(),
             transaction_manager_object_cache_misses: register_int_counter_with_registry!(
@@ -1133,9 +1143,16 @@ impl AuthorityState {
         white_flag_flow_enabled: bool,
     ) -> IotaResult {
         if white_flag_flow_enabled {
-            // TODO: maybe add graduated consensus overload check: as consensus
-            // queue fills, an increasing percentage of transactions are shed
-            // proportionally.
+            // Graduated shedding: 0% to 95% as consensus queue fills from soft to hard
+            // limit.
+            self.check_consensus_queue_overload(consensus_adapter, tx_data)
+                .tap_err(|_| {
+                    self.update_overload_metrics("consensus");
+                })?;
+
+            // Binary hard cutoff backstop: catches the remaining 5% if queue
+            // exceeds `max_pending_transactions`. Graduated shedding caps at 95%,
+            // so this ensures we never actually exceed the hard limit.
             consensus_adapter.check_consensus_overload().tap_err(|_| {
                 self.update_overload_metrics("consensus");
             })?;
@@ -1171,6 +1188,37 @@ impl AuthorityState {
         }
 
         Ok(())
+    }
+
+    /// Graduated pre-consensus load shedding based on consensus queue length.
+    /// Computes a shedding percentage based on current consensus queue length
+    /// and deterministically rejects transactions using
+    /// `overload_monitor_accept_tx`. Updates the
+    /// `consensus_queue_load_shedding_percentage` metric on each call.
+    fn check_consensus_queue_overload(
+        &self,
+        consensus_adapter: &Arc<ConsensusAdapter>,
+        tx_data: &SenderSignedData,
+    ) -> IotaResult {
+        let num_inflight_txs = consensus_adapter.num_inflight_transactions() as usize;
+        let config = self.overload_config();
+
+        let shedding_pct = compute_consensus_load_shedding_percentage(
+            num_inflight_txs,
+            config.consensus_queue_length_soft_limit,
+            config.consensus_queue_length_hard_limit,
+            config.max_consensus_load_shedding_percentage,
+        );
+
+        self.metrics
+            .consensus_queue_load_shedding_percentage
+            .set(shedding_pct as i64);
+
+        if shedding_pct == 0 {
+            return Ok(());
+        }
+
+        overload_monitor_accept_tx(shedding_pct, tx_data.digest())
     }
 
     fn check_authority_overload(&self, tx_data: &SenderSignedData) -> IotaResult {
