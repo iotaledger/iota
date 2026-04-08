@@ -150,7 +150,7 @@ export function PkgView({ data }: PkgViewProps): JSX.Element {
                                     tooltipText={
                                         <>
                                             {upgradePolicy.description}{' '}
-                                            <Link href={UPGRADE_DOCS_URL} variant="textHeroDark">
+                                            <Link href={UPGRADE_DOCS_URL} variant="mono">
                                                 Read more
                                             </Link>
                                         </>
