@@ -3,12 +3,12 @@
 
 import type { IotaClient } from '@iota/iota-sdk/client';
 import { normalizeIotaAddress, toBase64 } from '@iota/iota-sdk/utils';
-import { InactiveValidatorData, ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
+import { ValidatorOverviewData, ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
 
-export async function getInactiveValidatorsMetadata(
+export async function getValidatorsMetadata(
     client: IotaClient,
     validatorObjectId: string,
-): Promise<InactiveValidatorData | null> {
+): Promise<ValidatorOverviewData | null> {
     const validatorObject = await client.getObject({
         id: normalizeIotaAddress(validatorObjectId),
         options: {

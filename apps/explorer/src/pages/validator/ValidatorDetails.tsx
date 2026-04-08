@@ -9,7 +9,7 @@ import {
     useGetValidatorsEvents,
 } from '@iota/core';
 import { useParams } from 'react-router-dom';
-import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
+import { ValidatorOverview, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
@@ -82,7 +82,7 @@ function ValidatorDetails(): JSX.Element {
                             style={InfoBoxStyle.Elevated}
                         />
                         {inactiveValidatorData && (
-                            <InactiveValidators validatorData={inactiveValidatorData} />
+                            <ValidatorOverview validatorData={inactiveValidatorData} />
                         )}
                     </div>
                 }
@@ -101,7 +101,7 @@ function ValidatorDetails(): JSX.Element {
                             type={InfoBoxType.Default}
                             style={InfoBoxStyle.Elevated}
                         />
-                        <InactiveValidators validatorData={validatorCandidateData} />
+                        <ValidatorOverview validatorData={validatorCandidateData} />
                     </div>
                 }
             />

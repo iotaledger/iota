@@ -6,14 +6,14 @@ import { type IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { ArrowTopRight } from '@iota/apps-ui-icons';
 import { AddressLink } from '~/components/ui';
 import { ImageIcon, ImageIconSize } from '@iota/core';
-import type { InactiveValidatorData } from '@iota/core/src/types';
+import type { ValidatorOverviewData } from '@iota/core/src/types';
 import { onCopySuccess } from '~/lib/utils';
 
 type ValidatorMetaProps = {
     validatorData: IotaValidatorSummary;
 };
 
-export function InactiveValidators({
+export function ValidatorOverview({
     validatorData: {
         imageUrl,
         name,
@@ -24,7 +24,7 @@ export function InactiveValidators({
         validatorStakingPoolId,
     },
 }: {
-    validatorData: InactiveValidatorData;
+    validatorData: ValidatorOverviewData;
 }): JSX.Element {
     return (
         <div className="flex flex-col gap-y-md">

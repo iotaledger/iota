@@ -4,7 +4,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
-import { getInactiveValidatorsMetadata } from '../../utils';
+import { getValidatorsMetadata } from '../../utils';
 
 export function useGetValidatorCandidate(validatorAddress: string) {
     const iotaClient = useIotaClient();
@@ -22,7 +22,7 @@ export function useGetValidatorCandidate(validatorAddress: string) {
             });
             return Promise.all(
                 candidateValidators.data.map((validator) =>
-                    getInactiveValidatorsMetadata(iotaClient, validator.objectId),
+                    getValidatorsMetadata(iotaClient, validator.objectId),
                 ),
             );
         },
