@@ -83,6 +83,10 @@ jobs:
           file: ./apps/apps-backend/Dockerfile
           push: true
           tags: ghcr.io/iotaledger/iota/apps-backend-${{ needs.resolve-deploy-type.outputs.deploy_type }}:${{ env.VERSION }}
+          build-args: |
+            DEPLOY_TYPE=${{ needs.resolve-deploy-type.outputs.deploy_type }}
+            STAGING_APPS_BACKEND=${{ secrets.STAGING_APPS_BACKEND }}
+            PROD_APPS_BACKEND=${{ secrets.PROD_APPS_BACKEND }}
 
       - name: Add SSH key
         uses: webfactory/ssh-agent@v0.9.0

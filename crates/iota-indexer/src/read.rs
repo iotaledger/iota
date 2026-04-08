@@ -71,6 +71,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
+        system_state::StoredSystemState,
         transactions::{
             OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
@@ -575,7 +576,7 @@ impl IndexerReader {
             None => return Err(IndexerError::InvalidArgument("Invalid epoch".into())),
         };
 
-        (&stored_epoch).try_into()
+        Ok(StoredSystemState::try_from(&stored_epoch)?.into())
     }
 
     pub async fn get_chain_identifier_in_blocking_task(

@@ -332,6 +332,7 @@ pub fn get_validator_from_table<K>(
     object_store: &dyn ObjectStore,
     table_id: ObjectID,
     key: &K,
+    protocol_version: Option<u64>,
 ) -> Result<IotaValidatorSummary, IotaError>
 where
     K: MoveTypeTagTrait + Serialize + DeserializeOwned + fmt::Debug,
@@ -353,7 +354,7 @@ where
                             "Failed to load inner validator from the wrapper: {err:?}"
                         ))
                     })?;
-            Ok(validator.into_iota_validator_summary())
+            Ok(validator.into_iota_validator_summary(protocol_version))
         }
         #[cfg(msim)]
         IOTA_SYSTEM_STATE_SIM_TEST_V1 => {

@@ -76,17 +76,13 @@ export function EpochDetail() {
             (committeeMemberIndex) => epochData.validators[Number(committeeMemberIndex)],
         ) ?? [];
 
-    // Temporarily needed to compute the effectiveCommissionRate until infra exposes it in commissionRate directly
-    const hasEffectiveCommissionRate = Number(systemState?.protocolVersion ?? 0) >= 20;
-
     const tableColumns = useMemo(() => {
         if (!epochData?.validators || epochData.validators.length === 0) return null;
         const includeColumns = [
             'Name',
             'Stake',
             'APY',
-            'Commission',
-            ...(hasEffectiveCommissionRate ? ['Effective Commission'] : []),
+            'Effective Commission',
             'Last Epoch Rewards',
             'Voting Power',
             'Status',
@@ -101,7 +97,7 @@ export function EpochDetail() {
             includeColumns,
             currentEpoch: epochData.epoch,
         });
-    }, [epochData, validatorEvents, committeeMembers, hasEffectiveCommissionRate]);
+    }, [epochData, validatorEvents, committeeMembers]);
 
     if (isPending) return <PageLayout content={<LoadingIndicator />} />;
 

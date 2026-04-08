@@ -3,7 +3,13 @@
 
 import { Badge, BadgeType, TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef, Row } from '@tanstack/react-table';
-import { type ApyByValidator, formatPercentageDisplay, ImageIcon, ImageIconSize } from '@iota/core';
+import {
+    type ApyByValidator,
+    formatPercentageDisplay,
+    getValidatorEffectiveCommission,
+    ImageIcon,
+    ImageIconSize,
+} from '@iota/core';
 import {
     ampli,
     getValidatorMoveEvent,
@@ -189,43 +195,13 @@ export function generateValidatorsTableColumns({
             accessorKey: 'effectiveCommissionRate',
             id: 'effectiveCommissionRate',
             enableSorting: true,
-            sortingFn: (rowA, rowB) => {
-                // TODO: This function should be reverted to 'sortByNumber'
-                // once the effectiveCommission is available directly from validator data
-                const { original: validatorA } = rowA;
-                const { original: validatorB } = rowB;
-                const rowAEffectiveRate = Math.max(
-                    Number(validatorA.commissionRate),
-                    Number(validatorA.votingPower),
-                );
-                const rowBEffectiveRate = Math.max(
-                    Number(validatorB.commissionRate),
-                    Number(validatorB.votingPower),
-                );
-                return rowAEffectiveRate - rowBEffectiveRate > 0 ? 1 : -1;
-            },
-            cell({ row }) {
-                const { original: validator } = row;
-                const commissionRate = Number(validator.commissionRate);
-                const votingPower = Number(validator.votingPower);
-                const effectiveCommissionRate = Math.max(commissionRate, votingPower);
-
-                return (
-                    <TableCellBase>
-                        <TableCellText>{`${effectiveCommissionRate / 100}%`}</TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Commission',
-            accessorKey: 'commissionRate',
-            enableSorting: true,
             sortingFn: sortByNumber,
-            cell({ getValue }) {
+            cell({ row }) {
                 return (
                     <TableCellBase>
-                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                        <TableCellText>
+                            {getValidatorEffectiveCommission(row.original)}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },

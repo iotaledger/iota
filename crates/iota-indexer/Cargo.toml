@@ -19,6 +19,7 @@ cached.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["env"] }
 dashmap.workspace = true
+derive_more.workspace = true
 diesel = { workspace = true, features = ["chrono", "r2d2", "serde_json", "postgres"] }
 diesel_migrations = "2.2.0"
 downcast.workspace = true

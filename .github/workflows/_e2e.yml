@@ -51,7 +51,6 @@ env:
   RUST_LOG: warn
   VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
   VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
-  DEPLOY_TYPE: staging
 
 jobs:
   localnet:
