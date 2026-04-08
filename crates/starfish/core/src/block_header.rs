@@ -93,7 +93,7 @@ impl Transaction {
 /// Compact bitmask representing a subset of authorities.
 /// Supports up to 256 authorities (AuthorityIndex is u8).
 #[derive(Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct AuthoritySet([u64; 4]);
+pub struct AuthoritySet([u64; 4]);
 
 impl AuthoritySet {
     /// Creates an empty authority set.
@@ -284,6 +284,7 @@ impl BlockHeaderAPI for BlockHeaderV1 {
         self.transactions_commitment
     }
 
+    // V1 blocks do not carry a strong vote; always returns None.
     fn strong_vote(&self) -> Option<AuthoritySet> {
         None
     }
@@ -308,6 +309,10 @@ pub struct BlockHeaderV2 {
     overlap_end_index: u8,
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
+    // Bitmask of authorities whose transaction data (announced by the leader)
+    // is not available. None means no vote. Some(empty) means all data is
+    // available (strong vote). Some(nonempty) means some data is missing
+    // (strong blame).
     strong_vote: Option<AuthoritySet>,
 }
 
@@ -339,6 +344,8 @@ impl BlockHeaderV2 {
         }
     }
 
+    // Will be used when genesis block construction is gated on consensus_starfish_speed.
+    #[expect(dead_code)]
     fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
             epoch: context.committee.epoch(),
