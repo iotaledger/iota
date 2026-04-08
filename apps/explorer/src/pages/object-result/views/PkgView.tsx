@@ -16,7 +16,7 @@ import {
     PkgModulesWrapper,
     TransactionBlocksForAddress,
 } from '~/components';
-import { usePackageUpgradePolicy, UPGRADE_DOCS_URL } from '~/hooks';
+import { usePackageUpgradePolicy } from '~/hooks';
 import { getOwnerStr, trimStdLibPrefix } from '~/lib/utils';
 import { type DataType } from '../ObjectResultType';
 
