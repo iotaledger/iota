@@ -32,6 +32,7 @@ import {
     Title,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
+import { UPGRADE_DOCS_URL } from '~/lib';
 
 const GENESIS_TX_DIGEST = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
