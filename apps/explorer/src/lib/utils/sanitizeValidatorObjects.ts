@@ -27,11 +27,12 @@ interface MoveStructFields {
     fields: { [key: string]: MoveValue };
 }
 
-export function sanitizePendingValidators(
-    allPendings: IotaObjectResponse[] | undefined,
+export function sanitizeValidatorObjects(
+    objects: IotaObjectResponse[] | undefined,
+    flags: Pick<IotaValidatorSummaryExtended, 'isPending' | 'isCandidate'>,
 ): IotaValidatorSummaryExtended[] {
     return (
-        allPendings?.map(({ data }) => {
+        objects?.map(({ data }) => {
             const fields =
                 (data &&
                     data.content &&
@@ -45,7 +46,7 @@ export function sanitizePendingValidators(
             const exchangeRates = (stakingPool.exchange_rates as MoveStructFields)?.fields || {};
 
             return {
-                isPending: true,
+                ...flags,
                 authorityPubkeyBytes: '',
                 commissionRate: String(value?.fields.commission_rate),
                 description: String(metadata.description),

@@ -31,8 +31,8 @@ import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/compon
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
-import { useEnhancedRpcClient } from '~/hooks';
-import { sanitizePendingValidators } from '~/lib';
+import { useEnhancedRpcClient, useGetValidatorCandidates } from '~/hooks';
+import { sanitizeValidatorObjects } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 function ValidatorPageResult(): JSX.Element {
@@ -68,7 +68,11 @@ function ValidatorPageResult(): JSX.Element {
         showContent: true,
     });
 
-    const sanitizedPendingValidatorsData = sanitizePendingValidators(pendingValidatorsData);
+    const sanitizedPendingValidatorsData = sanitizeValidatorObjects(pendingValidatorsData, {
+        isPending: true,
+    });
+
+    const { data: sanitizedCandidateValidatorsData } = useGetValidatorCandidates();
 
     const { data: validatorsApy } = useGetValidatorsApy();
     const { data: totalSupplyData } = useIotaClientQuery('getTotalSupply', {
@@ -129,11 +133,23 @@ function ValidatorPageResult(): JSX.Element {
         return formatPercentageDisplay(ratio);
     })();
 
-    const activeAndPendingValidators = data
-        ? Number(data.pendingActiveValidatorsSize) > 0
-            ? activeValidators?.concat(sanitizedPendingValidatorsData)
-            : activeValidators
-        : [];
+    const allValidators = useMemo(
+        () => [
+            ...(activeValidators || []),
+            ...(Number(data?.pendingActiveValidatorsSize) > 0
+                ? sanitizedPendingValidatorsData
+                : []),
+            ...(sanitizedCandidateValidatorsData.length > 0
+                ? sanitizedCandidateValidatorsData
+                : []),
+        ],
+        [
+            activeValidators,
+            data?.pendingActiveValidatorsSize,
+            sanitizedPendingValidatorsData,
+            sanitizedCandidateValidatorsData,
+        ],
+    );
 
     const tableColumns = useMemo(() => {
         if (!data || !maxCommitteeSize || !validatorEvents) return null;
@@ -152,7 +168,7 @@ function ValidatorPageResult(): JSX.Element {
         ];
 
         return generateValidatorsTableColumns({
-            allValidators: activeAndPendingValidators,
+            allValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             maxCommitteeSize,
@@ -162,7 +178,7 @@ function ValidatorPageResult(): JSX.Element {
             includeColumns,
             currentEpoch: data.epoch,
         });
-    }, [data, activeAndPendingValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
+    }, [data, allValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
 
     const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
@@ -243,7 +259,7 @@ function ValidatorPageResult(): JSX.Element {
                                     <span className="ml-1">
                                         <Badge
                                             type={BadgeType.PrimarySoft}
-                                            label={numberOfValidators.toString()}
+                                            label={allValidators.length.toString()}
                                         />
                                     </span>
                                 }
@@ -272,14 +288,14 @@ function ValidatorPageResult(): JSX.Element {
                                     )}
                                     {isSuccess &&
                                         isMaxCommitteeSizeSuccess &&
-                                        activeAndPendingValidators &&
+                                        allValidators &&
                                         tableColumns && (
                                             <TableCard
                                                 sortTable
                                                 defaultSorting={[
                                                     { id: 'stakingPoolIotaBalance', desc: true },
                                                 ]}
-                                                data={activeAndPendingValidators}
+                                                data={allValidators}
                                                 columns={tableColumns}
                                                 areHeadersCentered={false}
                                             />

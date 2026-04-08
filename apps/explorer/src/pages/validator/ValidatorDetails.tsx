@@ -2,12 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    useGetInactiveValidator,
-    useGetValidatorCandidate,
-    useGetValidatorsApy,
-    useGetValidatorsEvents,
-} from '@iota/core';
+import { useGetInactiveValidator, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { ValidatorOverview, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
@@ -16,6 +11,7 @@ import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps
 import { Warning } from '@iota/apps-ui-icons';
 import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { useIotaClientQuery } from '@iota/dapp-kit';
+import { useGetValidatorCandidates } from '~/hooks';
 
 const getAtRiskRemainingEpochs = (
     data: LatestIotaSystemStateSummary | undefined,
@@ -35,13 +31,15 @@ function ValidatorDetails(): JSX.Element {
     const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
         useGetInactiveValidator(id || '');
 
-    const { data: validatorCandidateData, isLoading: isValidatorCandidateLoading } =
-        useGetValidatorCandidate(id || '');
+    const { data: candidateMatches, isLoading: isValidatorCandidateLoading } =
+        useGetValidatorCandidates(id || '');
 
-    const numberOfValidators = systemStateData?.activeValidators.length ?? null;
+    const validatorCandidateData = candidateMatches?.[0] ?? null;
+
+    const numberOfActiveValidators = systemStateData?.activeValidators.length ?? null;
     const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();
     const { data: validatorEvents, isLoading: isValidatorsEventsLoading } = useGetValidatorsEvents({
-        limit: numberOfValidators,
+        limit: numberOfActiveValidators,
         order: 'descending',
     });
     const epochId = systemStateData?.epoch;
@@ -91,6 +89,15 @@ function ValidatorDetails(): JSX.Element {
     }
 
     if (validatorCandidateData && !activeValidatorData) {
+        const candidateOverview = {
+            imageUrl: validatorCandidateData.imageUrl,
+            name: validatorCandidateData.name,
+            description: validatorCandidateData.description,
+            projectUrl: validatorCandidateData.projectUrl,
+            validatorPublicKey: validatorCandidateData.protocolPubkeyBytes,
+            validatorAddress: validatorCandidateData.iotaAddress,
+            validatorStakingPoolId: validatorCandidateData.stakingPoolId,
+        };
         return (
             <PageLayout
                 content={
@@ -101,7 +108,7 @@ function ValidatorDetails(): JSX.Element {
                             type={InfoBoxType.Default}
                             style={InfoBoxStyle.Elevated}
                         />
-                        <ValidatorOverview validatorData={validatorCandidateData} />
+                        <ValidatorOverview validatorData={candidateOverview} />
                     </div>
                 }
             />

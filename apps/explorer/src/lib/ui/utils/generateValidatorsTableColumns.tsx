@@ -152,7 +152,11 @@ export function generateValidatorsTableColumns({
             accessorKey: 'stakingPoolIotaBalance',
             enableSorting: true,
             sortingFn: (rowA, rowB, columnId) =>
-                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
+                parseBigIntSafe(rowA.getValue(columnId)) -
+                    parseBigIntSafe(rowB.getValue(columnId)) >
+                0
+                    ? 1
+                    : -1,
             cell({ getValue }) {
                 const stakingPoolIotaBalance = getValue<string>();
                 return (
@@ -176,7 +180,15 @@ export function generateValidatorsTableColumns({
 
                 return apyA - apyB;
             },
-            cell({ getValue }) {
+            cell({ getValue, row }) {
+                const validator = row.original as IotaValidatorSummaryExtended;
+                if (validator.isCandidate || validator.isPending) {
+                    return (
+                        <TableCellBase>
+                            <TableCellText>--</TableCellText>
+                        </TableCellBase>
+                    );
+                }
                 const iotaAddress = getValue<string>();
                 const { apy, isApyApproxZero } = rollingAverageApys?.[iotaAddress] ?? {
                     apy: null,
@@ -211,10 +223,17 @@ export function generateValidatorsTableColumns({
             accessorKey: 'nextEpochCommissionRate',
             enableSorting: true,
             sortingFn: sortByNumber,
-            cell({ getValue }) {
+            cell({ getValue, row }) {
+                const validator = row.original as IotaValidatorSummaryExtended;
+                const value = getValue<string>();
+                const commission = Number(value);
                 return (
                     <TableCellBase>
-                        <TableCellText>{`${Number(getValue()) / 100}%`}</TableCellText>
+                        <TableCellText>
+                            {validator.isCandidate || validator.isPending || isNaN(commission)
+                                ? '--'
+                                : `${commission / 100}%`}
+                        </TableCellText>
                     </TableCellBase>
                 );
             },
@@ -225,12 +244,21 @@ export function generateValidatorsTableColumns({
             id: 'nextEpochStake',
             enableSorting: true,
             sortingFn: (rowA, rowB, columnId) =>
-                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
+                parseBigIntSafe(rowA.getValue(columnId)) -
+                    parseBigIntSafe(rowB.getValue(columnId)) >
+                0
+                    ? 1
+                    : -1,
             cell({ getValue }) {
                 const nextEpochStake = getValue<string>();
+                const isValid = nextEpochStake && !isNaN(Number(nextEpochStake));
                 return (
                     <TableCellBase>
-                        <StakeColumn stake={nextEpochStake} />
+                        {isValid ? (
+                            <StakeColumn stake={nextEpochStake} />
+                        ) : (
+                            <TableCellText>--</TableCellText>
+                        )}
                     </TableCellBase>
                 );
             },
@@ -266,12 +294,19 @@ export function generateValidatorsTableColumns({
             accessorKey: 'votingPower',
             enableSorting: true,
             sortingFn: sortByNumber,
-            cell({ getValue }) {
+            cell({ getValue, row }) {
+                const validator = row.original as IotaValidatorSummaryExtended;
                 const votingPower = getValue<string>();
+                const numericPower = Number(votingPower);
                 return (
                     <TableCellBase>
                         <TableCellText>
-                            {votingPower ? Number(votingPower) / 100 + '%' : '--'}
+                            {validator.isCandidate ||
+                            validator.isPending ||
+                            !votingPower ||
+                            isNaN(numericPower)
+                                ? '--'
+                                : numericPower / 100 + '%'}
                         </TableCellText>
                     </TableCellBase>
                 );
@@ -288,13 +323,13 @@ export function generateValidatorsTableColumns({
                 return sortByString(labelA, labelB);
             },
             cell({ row }) {
-                const { atRisk, label, isPending } = determineRisk(
+                const { atRisk, label, isPending, isCandidate } = determineRisk(
                     committeeMembers,
                     atRiskValidators,
                     row,
                 );
 
-                if (isPending) {
+                if (isPending || isCandidate) {
                     return (
                         <TableCellBase>
                             <Badge type={BadgeType.Neutral} label={label} />
@@ -353,6 +388,17 @@ export function generateValidatorsTableColumns({
             id: 'isEarningNext',
             enableSorting: true,
             sortingFn: (rowA, rowB) => {
+                const valA = rowA.original as IotaValidatorSummaryExtended;
+                const valB = rowB.original as IotaValidatorSummaryExtended;
+
+                // Candidates and pending validators never earn
+                if (valA.isCandidate || valA.isPending) {
+                    return valB.isCandidate || valB.isPending ? 0 : -1;
+                }
+                if (valB.isCandidate || valB.isPending) {
+                    return 1;
+                }
+
                 const { atRisk: atRiskA } = determineRisk(committeeMembers, atRiskValidators, rowA);
                 const { atRisk: atRiskB } = determineRisk(committeeMembers, atRiskValidators, rowB);
 
@@ -369,14 +415,25 @@ export function generateValidatorsTableColumns({
                 return sortByBoolean(isEarningNextA, isEarningNextB);
             },
             cell({ row }) {
+                const validator = row.original as IotaValidatorSummaryExtended;
+
+                // Candidates and pending validators are not part of the active set
+                // and cannot earn rewards in the next epoch.
+                if (validator.isCandidate || validator.isPending) {
+                    return (
+                        <TableCellBase>
+                            <Badge type={BadgeType.Neutral} label="Not Earning" />
+                        </TableCellBase>
+                    );
+                }
+
                 const { atRisk } = determineRisk(committeeMembers, atRiskValidators, row);
 
                 const isInTopStakers = !!topValidators.find(
                     (v) => v.iotaAddress === row.original.iotaAddress,
                 );
 
-                // if its active or pending validator (all validators in this context are either active or pending),
-                // not at high risk (high risk, not normal risk),
+                // if its active validator, not at high risk,
                 // and is part of the top X stakers,
                 // it will generate rewards in the next epoch, otherwise not.
                 const isEarningNext = (atRisk === null || atRisk > 1) && isInTopStakers;
@@ -417,7 +474,17 @@ function sortByNumber(
     return Number(rowA.getValue(columnId)) - Number(rowB.getValue(columnId)) > 0 ? 1 : -1;
 }
 function sortByStakingBalanceDesc(left: IotaValidatorSummary, right: IotaValidatorSummary) {
-    return BigInt(left.stakingPoolIotaBalance) > BigInt(right.stakingPoolIotaBalance) ? -1 : 1;
+    const leftBalance = parseBigIntSafe(left.stakingPoolIotaBalance);
+    const rightBalance = parseBigIntSafe(right.stakingPoolIotaBalance);
+    return leftBalance > rightBalance ? -1 : leftBalance < rightBalance ? 1 : 0;
+}
+
+function parseBigIntSafe(value: string | undefined | null): bigint {
+    try {
+        return BigInt(value ?? 0);
+    } catch {
+        return 0n;
+    }
 }
 function getLastReward(
     validatorEvents: IotaEvent[],
@@ -443,17 +510,21 @@ function determineRisk(
     const isAtRisk = !!atRiskValidator;
     const atRisk = isAtRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1]) : null;
     const isPending = validator.isPending;
-    const label = isPending
-        ? 'Pending'
-        : atRisk === null
-          ? 'Active'
-          : atRisk > 1
-            ? `At Risk in ${atRisk} epochs`
-            : 'At Risk next epoch';
+    const isCandidate = validator.isCandidate;
+    const label = isCandidate
+        ? 'Candidate'
+        : isPending
+          ? 'Pending'
+          : atRisk === null
+            ? 'Active'
+            : atRisk > 1
+              ? `At Risk in ${atRisk} epochs`
+              : 'At Risk next epoch';
     return {
         label,
         atRisk,
         isPending,
+        isCandidate,
         isCommitteeMember,
     };
 }
