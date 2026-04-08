@@ -276,7 +276,7 @@ pub fn overload_monitor_accept_tx(
 /// and caps at `max_shedding_pct` if `num_inflight_txs` is above or equal
 /// `hard_limit`. Used in the certificate-less (white-flag) flow for graduated
 /// pre-consensus load shedding.
-pub fn compute_consensus_load_shedding_percentage(
+pub(crate) fn compute_consensus_load_shedding_percentage(
     num_inflight_txs: usize,
     soft_limit: usize,
     hard_limit: usize,
