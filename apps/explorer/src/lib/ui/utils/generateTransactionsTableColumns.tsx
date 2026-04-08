@@ -52,10 +52,10 @@ export function generateTransactionsTableColumns(
                                         size={TransactionIconSize.Small}
                                     />
                                     <div className="flex flex-col">
-                                        <span className="dark:text-iota-neutral-60 text-label-lg text-iota-neutral-40">
+                                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                                             {isSuccess ? ACTION_LABELS[action] : 'Failed'}
                                         </span>
-                                        <span className="dark:text-iota-primary-80 text-body-sm text-iota-primary-30">
+                                        <span className="text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                             {formatDigest(digest)}
                                         </span>
                                     </div>
