@@ -6,7 +6,22 @@ use std::str::FromStr;
 // TODO move tests to SDK?
 use std::{str::FromStr, sync::Arc};
 
-use fastcrypto::traits::ToFromBytes;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    encoding::{Base64, Encoding},
+    traits::ToFromBytes,
+};
+use fastcrypto_zkp::{
+    bn254::{
+        zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs, parse_jwks},
+        zk_login_api::ZkLoginEnv,
+    },
+    zk_login_utils::Bn254FrElement,
+};
+use im::hashmap::HashMap as ImHashMap;
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+};
 use iota_sdk_types::crypto::{Intent, IntentMessage, PersonalMessage};
 use once_cell::sync::OnceCell;
 use rand::{SeedableRng, rngs::StdRng};
@@ -23,21 +38,23 @@ use crate::{
     signature_verification::VerifiedDigestCache,
     utils::{
         DEFAULT_ADDRESS_SEED, SHORT_ADDRESS_SEED, keys, load_test_vectors, make_transaction_data,
-        make_zklogin_tx,
+        make_zklogin_tx, multisig_keys,
     },
     zk_login_authenticator::ZkLoginAuthenticator,
     zk_login_util::DEFAULT_JWK_BYTES,
 };
 #[test]
 fn test_combine_sigs() {
-    let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair().1);
-    let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair().1);
+    let (kp1, kp2, kp3) = multisig_keys();
 
-    let pk1 = kp1.public();
-    let pk2 = kp2.public();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
 
-    let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![MultisigMember::new(pk1, 1), MultisigMember::new(pk2, 1)],
+        2,
+    )
+    .unwrap();
 
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
@@ -62,7 +79,7 @@ fn test_serde_roundtrip() {
         PersonalMessage("Hello".as_bytes().to_vec().into()),
     );
 
-    for kp in keys() {
+    for kp in multisig_keys() {
         let pk = kp.public();
         let multisig_pk = MultiSigPublicKey::new(vec![pk], vec![1], 1).unwrap();
         let sig = Signature::new_secure(&msg, &kp).into();
@@ -128,16 +145,19 @@ fn test_serde_roundtrip() {
 
 #[test]
 fn test_multisig_pk_new() {
-    let keys = keys();
-    let pk1 = keys[0].public();
-    let pk2 = keys[1].public();
-    let pk3 = keys[2].public();
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
+    let pk3 = kp3.public_key();
 
     // Fails on weight 0.
     assert!(
         MultiSigPublicKey::new(
-            vec![pk1.clone(), pk2.clone(), pk3.clone()],
-            vec![0, 1, 1],
+            vec![
+                MultisigMember::new(pk1, 0),
+                MultisigMember::new(pk2, 1),
+                MultisigMember::new(pk3, 1)
+            ],
             2
         )
         .is_err()
@@ -146,24 +166,30 @@ fn test_multisig_pk_new() {
     // Fails on threshold 0.
     assert!(
         MultiSigPublicKey::new(
-            vec![pk1.clone(), pk2.clone(), pk3.clone()],
-            vec![1, 1, 1],
+            vec![
+                MultisigMember::new(pk1, 1),
+                MultisigMember::new(pk2, 1),
+                MultisigMember::new(pk3, 1)
+            ],
             0
         )
         .is_err()
     );
 
-    // Fails on incorrect array length.
-    assert!(
-        MultiSigPublicKey::new(vec![pk1.clone(), pk2.clone(), pk3.clone()], vec![1], 2).is_err()
-    );
-
     // Fails on empty array length.
-    assert!(MultiSigPublicKey::new(vec![pk1.clone(), pk2, pk3], vec![], 2).is_err());
+    assert!(MultiSigPublicKey::new(vec![], 2).is_err());
 
     // Fails on dup pks.
     assert!(
-        MultiSigPublicKey::new(vec![pk1.clone(), pk1.clone(), pk1], vec![1, 2, 3], 4,).is_err()
+        MultiSigPublicKey::new(
+            vec![
+                MultisigMember::new(pk1, 1),
+                MultisigMember::new(pk1, 2),
+                MultisigMember::new(pk1, 3)
+            ],
+            4
+        )
+        .is_err()
     );
 }
 
@@ -172,10 +198,10 @@ fn test_multisig_address() {
     // Pin an hardcoded multisig address generation here. If this fails, the address
     // generation logic may have changed. If this is intended, update the hardcoded
     // value below.
-    let keys = keys();
-    let pk1 = keys[0].public();
-    let pk2 = keys[1].public();
-    let pk3 = keys[2].public();
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
+    let pk3 = kp3.public_key();
 
     let threshold: ThresholdUnit = 2;
     let w1: WeightUnit = 1;
@@ -203,9 +229,9 @@ fn test_max_sig() {
     let mut pks = Vec::new();
 
     for _ in 0..11 {
-        let k = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
-        pks.push(k.public());
-        keys.push(k);
+        let kp = Ed25519PrivateKey::generate(rand::thread_rng());
+        pks.push(kp.public_key());
+        keys.push(kp);
     }
 
     // multisig_pk with larger that max number of pks fails.
@@ -266,11 +292,15 @@ fn test_to_indices() {
 
 #[test]
 fn multisig_get_pk() {
-    let keys = keys();
-    let pk1 = keys[0].public();
-    let pk2 = keys[1].public();
+    let (kp1, kp2, _) = multisig_keys();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
 
-    let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
+    let multisig_pk = MultiSigPublicKey::new(
+        vec![MultisigMember::new(pk1, 1), MultisigMember::new(pk2, 1)],
+        2,
+    )
+    .unwrap();
     let msg = IntentMessage::new(
         Intent::iota_transaction(),
         PersonalMessage("Hello".as_bytes().to_vec().into()),
@@ -289,10 +319,10 @@ fn multisig_get_pk() {
 
 #[test]
 fn multisig_get_indices() {
-    let keys = keys();
-    let pk1 = keys[0].public();
-    let pk2 = keys[1].public();
-    let pk3 = keys[2].public();
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk1 = kp1.public_key();
+    let pk2 = kp2.public_key();
+    let pk3 = kp3.public_key();
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![1, 1, 1], 2).unwrap();
     let msg = IntentMessage::new(

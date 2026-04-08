@@ -5,6 +5,10 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
+use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+};
 use iota_sdk_types::crypto::{Intent, IntentMessage};
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -183,11 +187,18 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
         vec![kp1, kp2, kp3]
     }
 
+    pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
+        let kp1 = Ed25519PrivateKey::generate(rand::thread_rng());
+        let kp2 = Secp256k1PrivateKey::generate(rand::thread_rng());
+        let kp3 = Secp256r1PrivateKey::generate(rand::thread_rng());
+        (kp1, kp2, kp3)
+    }
+
     pub fn make_upgraded_multisig_tx() -> Transaction {
-        let keys = keys();
-        let pk1 = &keys[0].public();
-        let pk2 = &keys[1].public();
-        let pk3 = &keys[2].public();
+        let (kp1, kp2, kp3) = multisig_keys();
+        let pk1 = kp1.public_key();
+        let pk2 = kp2.public_key();
+        let pk3 = kp3.public_key();
 
         let multisig_pk = MultiSigPublicKey::new(
             vec![
@@ -198,7 +209,7 @@ pub fn make_upgraded_multisig_tx() -> Transaction {
             2,
         )
         .unwrap();
-        let addr = IotaAddress::from(&multisig_pk);
+        let addr = multisig_pk.derive_address();
         let tx = make_transaction(addr, &keys[0]);
 
         let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());

@@ -7999,10 +7999,10 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4db4132698df6906511a2c845432cc7ce9e6f983#4db4132698df6906511a2c845432cc7ce9e6f983"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=70ff0b08c650c5e96fb02e9e5ede8e79bfcc7dcb#70ff0b08c650c5e96fb02e9e5ede8e79bfcc7dcb"
 dependencies = [
  "ed25519-dalek",
- "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4db4132698df6906511a2c845432cc7ce9e6f983)",
+ "iota-sdk-types 0.0.1-alpha.1 (git+https://github.com/iotaledger/iota-rust-sdk.git?rev=70ff0b08c650c5e96fb02e9e5ede8e79bfcc7dcb)",
  "k256",
  "p256",
  "rand_core 0.6.4",
