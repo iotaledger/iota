@@ -149,7 +149,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) dag_state_pending_commit_votes: IntGauge,
     pub(crate) dag_state_pending_acknowledgments: IntGauge,
-    pub(crate) dag_state_data_availability: IntGauge,
     pub(crate) cordial_knowledge_message_batch_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
     pub(crate) cordial_knowledge_entries: IntGauge,
@@ -537,11 +536,6 @@ impl NodeMetrics {
             dag_state_pending_acknowledgments: register_int_gauge_with_registry!(
                 "dag_state_pending_acknowledgments",
                 "Number of pending acknowledgments in the DagState",
-                registry,
-            ).unwrap(),
-            dag_state_data_availability: register_int_gauge_with_registry!(
-                "dag_state_data_availability",
-                "Number of blocks with locally available transaction data in the DagState",
                 registry,
             ).unwrap(),
             cordial_knowledge_message_batch_size: register_histogram_with_registry!(

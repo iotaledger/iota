@@ -221,10 +221,6 @@ pub(crate) struct DagState {
     /// the previous window.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
-    /// Per-authority set of block references with locally available transaction
-    /// data. Only tracked when consensus_starfish_speed is enabled.
-    data_availability: Vec<BTreeSet<BlockRef>>,
-
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
 
@@ -329,7 +325,6 @@ impl DagState {
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
             scoring_subdag,
-            data_availability: vec![BTreeSet::new(); num_authorities],
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
@@ -415,7 +410,6 @@ impl DagState {
         self.tx_ref_to_block_digest_by_authority = vec![BTreeMap::new(); num_authorities];
         self.pending_commit_votes.clear();
         self.pending_acknowledgments.clear();
-        self.data_availability = vec![BTreeSet::new(); num_authorities];
 
         // 2. Reinitialize threshold_clock with current round
         let current_round = self.threshold_clock.get_round();
@@ -738,8 +732,6 @@ impl DagState {
         let block_digest = transactions.block_ref().map(|br| br.digest);
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
-
-        self.update_data_availability(transaction_ref, block_digest);
 
         let hostname = self
             .context
@@ -1909,32 +1901,20 @@ impl DagState {
     /// Check if a block's transaction data is locally available.
     // Will be used by strong-vote computation in a later StarfishSpeed step.
     #[expect(dead_code)]
-    pub(crate) fn is_data_available(&self, reference: &BlockRef) -> bool {
-        self.data_availability[reference.author].contains(reference)
-    }
-
-    /// Mark a block's data as available. Only tracked when
-    /// consensus_starfish_speed is enabled.
-    pub(crate) fn update_data_availability(
-        &mut self,
-        transaction_ref: TransactionRef,
-        block_digest: Option<BlockHeaderDigest>,
-    ) {
-        if !self.context.protocol_config.consensus_starfish_speed() {
-            return;
-        }
-        let block_ref = if let Some(digest) = block_digest {
-            BlockRef::new(transaction_ref.round, transaction_ref.author, digest)
-        } else {
-            let Some(br) = self.resolve_block_ref(&transaction_ref) else {
-                error!(
-                    "block_digest not found for {transaction_ref:?} when updating data availability"
-                );
-                return;
+    pub(crate) fn is_data_available(&self, block_ref: &BlockRef) -> bool {
+        let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
+            let Some(header) = self.recent_block_headers.get(block_ref) else {
+                return false;
             };
-            br
+            GenericTransactionRef::from(TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: header.transactions_commitment(),
+            })
+        } else {
+            GenericTransactionRef::from(*block_ref)
         };
-        self.data_availability[block_ref.author].insert(block_ref);
+        self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
     /// Clean up old cached data for each authority, all cached blocks
@@ -2064,16 +2044,6 @@ impl DagState {
             if eviction_sender.send(eviction_rounds).is_err() {
                 warn!("Failed to send cordial knowledge eviction message: channel closed");
             }
-        }
-    }
-
-    fn evict_data_availability(&mut self) {
-        for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let split_key =
-                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
-            self.data_availability[authority_index] =
-                self.data_availability[authority_index].split_off(&split_key);
         }
     }
 
@@ -2303,9 +2273,6 @@ impl DagState {
         // Clean up old cordial knowledge.
         self.evict_cordial_knowledge();
 
-        // Clean up old data availability tracking.
-        self.evict_data_availability();
-
         // Update metrics
         let metrics = &self.context.metrics.node_metrics;
         metrics
@@ -2335,12 +2302,6 @@ impl DagState {
         metrics
             .dag_state_pending_acknowledgments
             .set(self.pending_acknowledgments.len() as i64);
-        metrics.dag_state_data_availability.set(
-            self.data_availability
-                .iter()
-                .map(BTreeSet::len)
-                .sum::<usize>() as i64,
-        );
     }
 
     pub(crate) fn recover_last_commit_info(&self) -> Option<(CommitRef, CommitInfo)> {
