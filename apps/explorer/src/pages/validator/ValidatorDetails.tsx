@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetInactiveValidator, useGetValidatorsApy, useGetValidatorsEvents } from '@iota/core';
+import {
+    useGetInactiveValidator,
+    useGetValidatorCandidate,
+    useGetValidatorsApy,
+    useGetValidatorsEvents,
+} from '@iota/core';
 import { useParams } from 'react-router-dom';
 import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
@@ -30,6 +35,9 @@ function ValidatorDetails(): JSX.Element {
     const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
         useGetInactiveValidator(id || '');
 
+    const { data: validatorCandidateData, isLoading: isValidatorCandidateLoading } =
+        useGetValidatorCandidate(id || '');
+
     const numberOfValidators = systemStateData?.activeValidators.length ?? null;
     const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();
     const { data: validatorEvents, isLoading: isValidatorsEventsLoading } = useGetValidatorsEvents({
@@ -56,7 +64,8 @@ function ValidatorDetails(): JSX.Element {
         isLoadingSystemState ||
         isValidatorsEventsLoading ||
         isValidatorsApysLoading ||
-        isInactiveValidatorLoading
+        isInactiveValidatorLoading ||
+        isValidatorCandidateLoading
     ) {
         return <PageLayout content={<LoadingIndicator />} />;
     }
@@ -75,6 +84,24 @@ function ValidatorDetails(): JSX.Element {
                         {inactiveValidatorData && (
                             <InactiveValidators validatorData={inactiveValidatorData} />
                         )}
+                    </div>
+                }
+            />
+        );
+    }
+
+    if (validatorCandidateData && !activeValidatorData) {
+        return (
+            <PageLayout
+                content={
+                    <div className="mb-10">
+                        <InfoBox
+                            title="Validator candidate"
+                            icon={<Warning />}
+                            type={InfoBoxType.Default}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                        <InactiveValidators validatorData={validatorCandidateData} />
                     </div>
                 }
             />

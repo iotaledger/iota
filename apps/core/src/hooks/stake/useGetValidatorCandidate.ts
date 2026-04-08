@@ -6,22 +6,22 @@ import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { getInactiveValidatorsMetadata } from '../../utils';
 
-export function useGetInactiveValidator(validatorAddress: string) {
+export function useGetValidatorCandidate(validatorAddress: string) {
     const iotaClient = useIotaClient();
     const { data } = useIotaClientQuery('getLatestIotaSystemState');
-    const inactivePoolsId = data?.inactivePoolsId;
+    const validatorCandidatesId = data?.validatorCandidatesId;
     return useQuery({
-        queryKey: ['inactive-validators', inactivePoolsId],
+        queryKey: ['validator-candidates', validatorCandidatesId],
         async queryFn() {
-            if (!inactivePoolsId) {
+            if (!validatorCandidatesId) {
                 throw Error('Missing params');
             }
 
-            const inactiveValidators = await iotaClient.getDynamicFields({
-                parentId: normalizeIotaAddress(inactivePoolsId),
+            const candidateValidators = await iotaClient.getDynamicFields({
+                parentId: normalizeIotaAddress(validatorCandidatesId),
             });
             return Promise.all(
-                inactiveValidators.data.map((validator) =>
+                candidateValidators.data.map((validator) =>
                     getInactiveValidatorsMetadata(iotaClient, validator.objectId),
                 ),
             );
@@ -29,6 +29,6 @@ export function useGetInactiveValidator(validatorAddress: string) {
         select(data) {
             return data.find((v) => v?.validatorAddress === validatorAddress) ?? null;
         },
-        enabled: !!inactivePoolsId,
+        enabled: !!validatorCandidatesId,
     });
 }
