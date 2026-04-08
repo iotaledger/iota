@@ -487,6 +487,10 @@ struct FeatureFlags {
     // If true, only sponsor Move authentication is performed pre-consensus.
     #[serde(skip_serializing_if = "is_false")]
     pre_consensus_sponsor_only_move_authentication: bool,
+
+    // If true, enables the optimistic commit rule (StarfishSpeed) in Starfish consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_starfish_speed: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1722,6 +1726,10 @@ impl ProtocolConfig {
             );
         }
         pre_consensus_sponsor_only_move_authentication
+    }
+
+    pub fn consensus_starfish_speed(&self) -> bool {
+        self.feature_flags.consensus_starfish_speed
     }
 }
 
@@ -3052,6 +3060,10 @@ impl ProtocolConfig {
     pub fn set_pre_consensus_sponsor_only_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags
             .pre_consensus_sponsor_only_move_authentication = val;
+    }
+
+    pub fn set_consensus_starfish_speed_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_starfish_speed = val;
     }
 }
 
