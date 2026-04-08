@@ -37,7 +37,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::{coin_type::CoinType, output::NftOutput},
     timelock::timelock::TimeLock,
-    transaction::{Argument, CallArg, Transaction, TransactionData},
+    transaction::{Argument, CallArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use test_cluster::TestClusterBuilder;
 

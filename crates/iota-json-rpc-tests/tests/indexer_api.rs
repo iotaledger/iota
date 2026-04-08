@@ -27,7 +27,7 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, Command, TransactionData},
+    transaction::{CallArg, Command, TransactionData, TransactionDataAPI},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;

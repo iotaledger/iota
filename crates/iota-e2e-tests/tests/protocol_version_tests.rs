@@ -83,7 +83,7 @@ mod sim_only_tests {
         supported_protocol_versions::SupportedProtocolVersions,
         transaction::{
             CallArg, Command, ProgrammableMoveCall, ProgrammableTransaction,
-            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionKind,
+            TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;

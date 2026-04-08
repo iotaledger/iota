@@ -8,7 +8,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::IotaError,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
+    transaction::{ProgrammableTransaction, TransactionData, TransactionDataAPI, TransactionKind},
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};

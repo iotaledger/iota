@@ -117,11 +117,7 @@ impl WriteApi {
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.clone().try_into()?,
-                false,
-                Some(readmask.as_str()),
-            )
+            .simulate_transaction(transaction_data.clone(), false, Some(readmask.as_str()))
             .await?
             .into_inner();
 
@@ -237,7 +233,7 @@ impl WriteApi {
         let transaction_data = TransactionData::V1(TransactionDataV1 {
             kind,
             sender: sender_address,
-            gas_data: GasData {
+            gas_payment: GasData {
                 objects: payment,
                 owner,
                 price,
@@ -257,11 +253,7 @@ impl WriteApi {
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.try_into()?,
-                skip_checks,
-                Some(readmask.as_str()),
-            )
+            .simulate_transaction(transaction_data, skip_checks, Some(readmask.as_str()))
             .await?
             .into_inner();
 

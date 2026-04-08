@@ -15,7 +15,7 @@ use iota_types::{
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{Data, ObjectRead, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
 use move_binary_format::CompiledModule;

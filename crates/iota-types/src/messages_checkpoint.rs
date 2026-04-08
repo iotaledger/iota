@@ -38,7 +38,7 @@ use crate::{
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
     signature::GenericSignature,
     storage::ReadStore,
-    transaction::{Transaction, TransactionData},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
 
 pub type CheckpointSequenceNumber = u64;

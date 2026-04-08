@@ -22,7 +22,7 @@ use iota_types::{
     messages_grpc::HandleTransactionResponse,
     transaction::{
         CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-        VerifiedCertificate, VerifiedTransaction,
+        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
         make_move_authenticator_tx, to_sender_signed_transaction,

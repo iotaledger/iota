@@ -46,7 +46,8 @@ use iota_types::{
         Argument, CallArg, Command, EndOfEpochTransactionKind, GenesisObject, GenesisTransaction,
         MakeMoveVector, MergeCoins, ProgrammableMoveCall, ProgrammableTransaction, Publish,
         RandomnessStateUpdate, SenderSignedData, SharedObjectRef, SplitCoins, Transaction,
-        TransactionData, TransactionExpiration, TransactionKind, TransferObjects, Upgrade,
+        TransactionData, TransactionDataAPI, TransactionExpiration, TransactionKind,
+        TransferObjects, Upgrade,
     },
 };
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
