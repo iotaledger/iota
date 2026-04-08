@@ -12,6 +12,7 @@ import {
     useDisconnectWallet,
     useWallets,
 } from '../../src/index.js';
+import { DEFAULT_STORAGE_KEY } from '../../src/constants/walletDefaults.js';
 import { createMockAccount } from '../mocks/mockAccount.js';
 import { iotaFeatures, superCoolFeature } from '../mocks/mockFeatures.js';
 import { createWalletProviderContextWrapper, registerMockWallet } from '../test-utils.js';
@@ -280,6 +281,418 @@ describe('WalletProvider', () => {
             expect(updatedResult.current.isConnected).toBeFalsy();
 
             act(() => unregister());
+        });
+    });
+
+    describe('cross-tab synchronization', () => {
+        // ---------------------------------------------------------------------------
+        // Helpers
+        // ---------------------------------------------------------------------------
+
+        function dispatchStorageEvent(key: string, newValue: string | null) {
+            window.dispatchEvent(
+                new StorageEvent('storage', {
+                    key,
+                    newValue,
+                    storageArea: localStorage,
+                }),
+            );
+        }
+
+        function serializePersistedState(walletName: string | null, accountAddress: string | null) {
+            return JSON.stringify({
+                state: {
+                    lastConnectedWalletName: walletName,
+                    lastConnectedAccountAddress: accountAddress,
+                },
+            });
+        }
+
+        // ---------------------------------------------------------------------------
+        // Scenario: wallet not connected
+        // The tab has never connected. Storage events should be safely ignored when
+        // syncTabs is off, and should trigger a connect when syncTabs is on.
+        // ---------------------------------------------------------------------------
+
+        describe('wallet not connected', () => {
+            test('ignores storage events when syncTabs is false (default)', async () => {
+                const account = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: false });
+                const { result } = renderHook(
+                    () => ({
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+
+                // Another tab connects — this tab should stay disconnected
+                act(() => {
+                    dispatchStorageEvent(
+                        DEFAULT_STORAGE_KEY,
+                        serializePersistedState(mockWallet.name, account.address),
+                    );
+                });
+
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+                expect(result.current.currentAccount).toBeNull();
+
+                act(() => unregister());
+            });
+
+            test('ignores storage events for unrelated localStorage keys', async () => {
+                const account = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: true });
+                const { result } = renderHook(
+                    () => ({
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+
+                // Event for an unrelated key — must be ignored
+                act(() => {
+                    dispatchStorageEvent(
+                        'some-other-key',
+                        serializePersistedState(mockWallet.name, account.address),
+                    );
+                });
+
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+
+                act(() => unregister());
+            });
+        });
+
+        // ---------------------------------------------------------------------------
+        // Scenario: wallet connected, tab opened for the first time
+        // Another tab is already connected. When this tab opens it auto-connects via
+        // the normal autoConnect path (not via storage events). The storage event path
+        // is only relevant for tabs that are already open and idle.
+        // We verify that a storage event while disconnected triggers a connection.
+        // ---------------------------------------------------------------------------
+
+        describe('wallet connected, opened for the first time', () => {
+            test('connects when a storage event arrives on a freshly opened disconnected tab', async () => {
+                const account = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: true });
+                const { result } = renderHook(
+                    () => ({
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                // Tab starts with no wallet connected
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+
+                // Simulate another (already-open) tab writing the connect event to storage
+                act(() => {
+                    dispatchStorageEvent(
+                        DEFAULT_STORAGE_KEY,
+                        serializePersistedState(mockWallet.name, account.address),
+                    );
+                });
+
+                await waitFor(() => expect(result.current.currentWallet.isConnected).toBe(true));
+                expect(result.current.currentAccount?.address).toBe(account.address);
+
+                act(() => unregister());
+            });
+
+            test('stays disconnected when storage event arrives but syncTabs is false', async () => {
+                const account = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: false });
+                const { result } = renderHook(
+                    () => ({
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+
+                act(() => {
+                    dispatchStorageEvent(
+                        DEFAULT_STORAGE_KEY,
+                        serializePersistedState(mockWallet.name, account.address),
+                    );
+                });
+
+                // syncTabs is off — tab must not react
+                expect(result.current.currentWallet.isDisconnected).toBe(true);
+
+                act(() => unregister());
+            });
+        });
+
+        // ---------------------------------------------------------------------------
+        // Scenario: wallet connected, 2+ tabs open, account switched in another tab
+        // ---------------------------------------------------------------------------
+
+        describe('wallet connected, 2+ tabs, account switched in another tab', () => {
+            test('switches to the new account without triggering a full reconnect', async () => {
+                const account1 = createMockAccount();
+                const account2 = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account1, account2],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: true });
+                const { result } = renderHook(
+                    () => ({
+                        connectWallet: useConnectWallet(),
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                // Connect to account1 first
+                result.current.connectWallet.mutate({
+                    wallet: mockWallet,
+                    accountAddress: account1.address,
+                });
+                await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
+                expect(result.current.currentAccount?.address).toBe(account1.address);
+
+                // Another tab switches to account2
+                act(() => {
+                    dispatchStorageEvent(
+                        DEFAULT_STORAGE_KEY,
+                        serializePersistedState(mockWallet.name, account2.address),
+                    );
+                });
+
+                await waitFor(() =>
+                    expect(result.current.currentAccount?.address).toBe(account2.address),
+                );
+                // Wallet must still be connected — only the active account changed
+                expect(result.current.currentWallet.isConnected).toBe(true);
+
+                act(() => unregister());
+            });
+
+            test('does not switch account when syncTabs is false', async () => {
+                const account1 = createMockAccount();
+                const account2 = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account1, account2],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: false });
+                const { result } = renderHook(
+                    () => ({
+                        connectWallet: useConnectWallet(),
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                result.current.connectWallet.mutate({
+                    wallet: mockWallet,
+                    accountAddress: account1.address,
+                });
+                await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
+                expect(result.current.currentAccount?.address).toBe(account1.address);
+
+                // Another tab switches to account2 — should be ignored
+                act(() => {
+                    dispatchStorageEvent(
+                        DEFAULT_STORAGE_KEY,
+                        serializePersistedState(mockWallet.name, account2.address),
+                    );
+                });
+
+                // Active account must not change
+                expect(result.current.currentAccount?.address).toBe(account1.address);
+
+                act(() => unregister());
+            });
+
+            test('does not trigger an infinite loop when account is switched', async () => {
+                const account1 = createMockAccount();
+                const account2 = createMockAccount();
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    accounts: [account1, account2],
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: true });
+                const { result } = renderHook(
+                    () => ({
+                        connectWallet: useConnectWallet(),
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                result.current.connectWallet.mutate({
+                    wallet: mockWallet,
+                    accountAddress: account1.address,
+                });
+                await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
+
+                const connectSpy = mockWallet.mocks.connect;
+                const callsBefore = connectSpy.mock.calls.length;
+
+                // Simulate the storage event that another tab emits on account switch
+                act(() => {
+                    dispatchStorageEvent(
+                        DEFAULT_STORAGE_KEY,
+                        serializePersistedState(mockWallet.name, account2.address),
+                    );
+                });
+
+                await waitFor(() =>
+                    expect(result.current.currentAccount?.address).toBe(account2.address),
+                );
+
+                // The wallet connect() must NOT have been called again —
+                // setAccountSwitched handles same-wallet account changes without a
+                // round-trip to the extension, which would write to localStorage and
+                // produce another storage event, causing an infinite loop.
+                expect(connectSpy.mock.calls.length).toBe(callsBefore);
+
+                act(() => unregister());
+            });
+        });
+
+        // ---------------------------------------------------------------------------
+        // Scenario: wallet connected, 2+ tabs open, disconnected in another tab
+        // ---------------------------------------------------------------------------
+
+        describe('wallet connected, 2+ tabs, disconnected in another tab', () => {
+            test('disconnects when another tab clears the storage key', async () => {
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: true });
+                const { result } = renderHook(
+                    () => ({
+                        connectWallet: useConnectWallet(),
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                result.current.connectWallet.mutate({ wallet: mockWallet });
+                await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
+                expect(result.current.currentWallet.isConnected).toBe(true);
+
+                // Another tab disconnects — newValue becomes null
+                act(() => {
+                    dispatchStorageEvent(DEFAULT_STORAGE_KEY, null);
+                });
+
+                await waitFor(() => expect(result.current.currentWallet.isDisconnected).toBe(true));
+                expect(result.current.currentAccount).toBeNull();
+
+                act(() => unregister());
+            });
+
+            test('disconnects when another tab writes empty wallet fields', async () => {
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: true });
+                const { result } = renderHook(
+                    () => ({
+                        connectWallet: useConnectWallet(),
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                result.current.connectWallet.mutate({ wallet: mockWallet });
+                await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
+                expect(result.current.currentWallet.isConnected).toBe(true);
+
+                // Disconnect represented as null fields inside the persisted state object
+                act(() => {
+                    dispatchStorageEvent(DEFAULT_STORAGE_KEY, serializePersistedState(null, null));
+                });
+
+                await waitFor(() => expect(result.current.currentWallet.isDisconnected).toBe(true));
+                expect(result.current.currentAccount).toBeNull();
+
+                act(() => unregister());
+            });
+
+            test('stays connected when syncTabs is false and another tab disconnects', async () => {
+                const { unregister, mockWallet } = registerMockWallet({
+                    walletName: 'Mock Wallet 1',
+                    features: iotaFeatures,
+                });
+
+                const wrapper = createWalletProviderContextWrapper({ syncTabs: false });
+                const { result } = renderHook(
+                    () => ({
+                        connectWallet: useConnectWallet(),
+                        currentWallet: useCurrentWallet(),
+                        currentAccount: useCurrentAccount(),
+                    }),
+                    { wrapper },
+                );
+
+                result.current.connectWallet.mutate({ wallet: mockWallet });
+                await waitFor(() => expect(result.current.connectWallet.isSuccess).toBe(true));
+                expect(result.current.currentWallet.isConnected).toBe(true);
+
+                // syncTabs is off — disconnect from another tab must be ignored
+                act(() => {
+                    dispatchStorageEvent(DEFAULT_STORAGE_KEY, null);
+                });
+
+                expect(result.current.currentWallet.isConnected).toBe(true);
+                expect(result.current.currentAccount).toBeTruthy();
+
+                act(() => unregister());
+            });
         });
     });
 });

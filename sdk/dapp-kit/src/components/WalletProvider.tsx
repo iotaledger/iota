@@ -15,6 +15,7 @@ import {
 } from '../constants/walletDefaults.js';
 import { WalletContext } from '../contexts/walletContext.js';
 import { useAutoConnectWallet } from '../hooks/wallet/useAutoConnectWallet.js';
+import { useStorageEventListener } from '../hooks/wallet/useStorageEventListener.js';
 import { useUnsafeBurnerWallet } from '../hooks/wallet/useUnsafeBurnerWallet.js';
 import { useWalletPropertiesChanged } from '../hooks/wallet/useWalletPropertiesChanged.js';
 import { useWalletsChanged } from '../hooks/wallet/useWalletsChanged.js';
@@ -45,6 +46,9 @@ export type WalletProviderProps = {
     /** The key to use to store the most recently connected wallet account. */
     storageKey?: string;
 
+    /** Enables cross-tab wallet state synchronization via localStorage storage events. Defaults to false. */
+    syncTabs?: boolean;
+
     /** The theme to use for styling UI components. Defaults to using the light theme. */
     theme?: Theme | null;
 
@@ -62,6 +66,7 @@ export function WalletProvider({
     storageKey = DEFAULT_STORAGE_KEY,
     enableUnsafeBurner = false,
     autoConnect = false,
+    syncTabs = false,
     theme = lightTheme,
     children,
     chain,
@@ -86,6 +91,8 @@ export function WalletProvider({
                 preferredWallets={preferredWallets}
                 walletFilter={walletFilter}
                 enableUnsafeBurner={enableUnsafeBurner}
+                syncTabs={syncTabs}
+                storageKey={storageKey}
             >
                 {/* TODO: We ideally don't want to inject styles if people aren't using the UI components */}
                 {theme ? <InjectedThemeStyles theme={theme} /> : null}
@@ -97,19 +104,22 @@ export function WalletProvider({
 
 type WalletConnectionManagerProps = Pick<
     WalletProviderProps,
-    'preferredWallets' | 'walletFilter' | 'enableUnsafeBurner' | 'children'
->;
+    'preferredWallets' | 'walletFilter' | 'enableUnsafeBurner' | 'syncTabs' | 'children'
+> & { storageKey: string };
 
 function WalletConnectionManager({
     preferredWallets = DEFAULT_PREFERRED_WALLETS,
     walletFilter = DEFAULT_WALLET_FILTER,
     enableUnsafeBurner = false,
+    syncTabs = false,
+    storageKey,
     children,
 }: WalletConnectionManagerProps) {
     useWalletsChanged(preferredWallets, walletFilter);
     useWalletPropertiesChanged();
     useUnsafeBurnerWallet(enableUnsafeBurner);
     useAutoConnectWallet();
+    useStorageEventListener(syncTabs, storageKey);
 
     return children;
 }
