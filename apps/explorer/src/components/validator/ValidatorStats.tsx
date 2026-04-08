@@ -16,15 +16,9 @@ type StatsCardProps = {
     epoch: number | string;
     epochRewards: number | null;
     apy: number | string | null;
-    tallyingScore: string | null;
 };
 
-export function ValidatorStats({
-    validatorData,
-    epochRewards,
-    apy,
-    tallyingScore,
-}: StatsCardProps): JSX.Element {
+export function ValidatorStats({ validatorData, epochRewards, apy }: StatsCardProps): JSX.Element {
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
 
     const effectiveCommissionRate = getValidatorEffectiveCommission(validatorData);

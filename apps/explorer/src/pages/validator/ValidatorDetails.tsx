@@ -152,14 +152,6 @@ function ValidatorDetails(): JSX.Element {
     const isEarningNextEpoch =
         (atRiskRemainingEpochs === null || atRiskRemainingEpochs > 1) && isInTopStakers;
 
-    const tallyingScore =
-        (
-            validatorEvents as {
-                parsedJson?: { tallying_rule_global_score?: string; validator_address?: string };
-            }[]
-        ).find(({ parsedJson }) => parsedJson?.validator_address === id)?.parsedJson
-            ?.tallying_rule_global_score || null;
-
     return (
         <PageLayout
             content={
@@ -170,7 +162,6 @@ function ValidatorDetails(): JSX.Element {
                         epoch={systemStateData.epoch}
                         epochRewards={validatorRewards}
                         apy={isApyApproxZero ? '~0' : apy}
-                        tallyingScore={tallyingScore}
                     />
                     <div className="flex flex-col gap-lg md:flex-row">
                         <Panel>
