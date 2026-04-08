@@ -822,13 +822,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             // asynchronously.
             let now = context.clock.timestamp_utc_ms();
             if now < verified_block_header.timestamp_ms() {
-                warn!(
-                    "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
+                trace!(
+                    "Synced block header {} timestamp {} is in the future (now={}). Will not ignore as median based timestamp is enabled.",
                     verified_block_header.reference(),
                     verified_block_header.timestamp_ms(),
                     now
                 );
-                continue;
             }
 
             verified_block_headers.push(verified_block_header);

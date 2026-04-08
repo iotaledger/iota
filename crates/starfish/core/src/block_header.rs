@@ -205,6 +205,25 @@ impl BlockHeaderV1 {
         )
     }
 
+    /// Validates that overlap_start_index and overlap_end_index are within
+    /// bounds of the references vector. Must be called before accessing
+    /// ancestors() or acknowledgments() on deserialized headers to prevent
+    /// panics from adversarial index values.
+    pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
+        let len = self.references.len();
+        if self.overlap_end_index as usize > len
+            || self.overlap_start_index as usize > len
+            || self.overlap_start_index > self.overlap_end_index
+        {
+            return Err(ConsensusError::InvalidOverlapIndices {
+                overlap_start: self.overlap_start_index,
+                overlap_end: self.overlap_end_index,
+                references_len: len,
+            });
+        }
+        Ok(())
+    }
+
     fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
             epoch: context.committee.epoch(),
@@ -309,6 +328,14 @@ impl BlockHeaderAPI for BlockHeader {
     fn transactions_commitment(&self) -> TransactionsCommitment {
         match self {
             BlockHeader::V1(header) => header.transactions_commitment(),
+        }
+    }
+}
+
+impl BlockHeader {
+    pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
+        match self {
+            BlockHeader::V1(header) => header.verify_references_indices(),
         }
     }
 }
@@ -633,8 +660,11 @@ impl TransactionsCommitment {
         let mut hasher = DefaultHashFunction::new();
         hasher.update(shard.shard());
         let leaf = hasher.finalize().into();
-        let proof =
-            MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone()).unwrap();
+        let proof = match MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof().clone())
+        {
+            Ok(proof) => proof,
+            Err(_) => return false,
+        };
         proof.verify(
             shard.transaction_commitment().0,
             &[leaf_index],
