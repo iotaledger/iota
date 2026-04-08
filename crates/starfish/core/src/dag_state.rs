@@ -768,11 +768,7 @@ impl DagState {
                 && source != DataSource::CommitSyncer
                 && source != DataSource::Recover
             {
-                self.add_pending_acknowledgment(
-                    transaction_ref,
-                    block_digest,
-                    source,
-                );
+                self.add_pending_acknowledgment(transaction_ref, block_digest, source);
             }
         } else {
             self.context
