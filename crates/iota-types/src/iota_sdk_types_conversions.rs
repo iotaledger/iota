@@ -1304,6 +1304,10 @@ impl From<crate::execution_status::ExecutionFailureStatus> for ExecutionError {
                 suggested_gas_price,
             },
             ExecutionFailureStatus::InvalidLinkage => Self::InvalidLinkage,
+            // TODO: add BuiltinAuthenticatorVerificationError to iota-sdk-types.
+            ExecutionFailureStatus::BuiltinAuthenticatorVerificationError { .. } => {
+                Self::InvariantViolation
+            }
         }
     }
 }

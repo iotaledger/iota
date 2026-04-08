@@ -362,7 +362,18 @@ pub enum UserInputError {
         "Invalid authenticator function ref field value found for the account {account_object_id:?}"
     )]
     InvalidAuthenticatorFunctionRefField { account_object_id: ObjectID },
-
+    #[error("Unable to get a PublicKey object ID for account {account_object_id:?}")]
+    UnableToGetAccountPublicKeyId { account_object_id: ObjectID },
+    #[error(
+        "PublicKey field {public_key_id:?} not found for account {account_object_id:?} with version {account_object_version:?}"
+    )]
+    AccountPublicKeyNotFound {
+        public_key_id: ObjectID,
+        account_object_id: ObjectID,
+        account_object_version: SequenceNumber,
+    },
+    #[error("Invalid PublicKey field value found for the account {account_object_id:?}")]
+    InvalidAccountPublicKeyField { account_object_id: ObjectID },
     #[error("Package {package_id:?} is in the `MoveAuthenticator` input that is unsupported")]
     PackageIsInMoveAuthenticatorInput { package_id: ObjectID },
     #[error(

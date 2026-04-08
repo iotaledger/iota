@@ -17,7 +17,7 @@ use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRefForExecution, AuthenticatorFunctionRefForSigning,
     },
     base_types::{IotaAddress, TxContext},
     committee::EpochId,
@@ -242,7 +242,7 @@ impl executor::Executor for Executor {
         // Authentication
         move_authenticators: Vec<(
             MoveAuthenticator,
-            AuthenticatorFunctionRef,
+            AuthenticatorFunctionRefForSigning,
             CheckedInputObjects,
         )>,
         aggregated_authenticator_input_objects: CheckedInputObjects,

@@ -69,6 +69,15 @@ public fun function_name<Account: key>(self: &AuthenticatorFunctionRefV1<Account
     &self.function_name
 }
 
+/// Create an `AuthenticatorFunctionRefV1` instance for built-in authenticator functions.
+public(package) fun create_auth_function_ref_v1_inner<Account: key>(
+    package: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorFunctionRefV1<Account> {
+    AuthenticatorFunctionRefV1 { package: package.to_id(), module_name, function_name }
+}
+
 /// Create an `AuthenticatorFunctionRefV1` instance for testing, skipping validation.
 #[test_only]
 public fun create_auth_function_ref_v1_for_testing<Account: key>(
