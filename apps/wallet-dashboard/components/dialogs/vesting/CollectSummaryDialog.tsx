@@ -59,14 +59,13 @@ export function CollectSummaryDialog({
 
     const [formattedReceived, receivedSymbol] = useFormatCoin({ balance: iotaReceived });
 
-    // Count unlocked timelocks and converted stakes from objectChanges
-    // The SDK uses indexer by default for test networks, which includes deleted objects in objectChanges
     const objectChanges = transaction.objectChanges || [];
 
+    // Count unlocked timelocks (deleted objects of type timelock)
     const timelocksUnlocked = objectChanges.filter(
         (change) => change.type === 'deleted' && change.objectType === TIMELOCK_IOTA_TYPE,
     ).length;
-
+    // Count converted timelock stakes (deleted objects of type timelocked_staking)
     const timelockStakesConverted = objectChanges.filter(
         (change) => change.type === 'deleted' && change.objectType === TIMELOCK_STAKED_TYPE,
     ).length;
