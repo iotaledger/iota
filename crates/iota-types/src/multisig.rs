@@ -10,15 +10,8 @@ use std::{
 use std::sync::Arc;
 
 pub use enum_dispatch::enum_dispatch;
-use fastcrypto::{
-    // ed25519::Ed25519PublicKey,
-    error::FastCryptoError,
-    hash::HashFunction,
-    // secp256k1::Secp256k1PublicKey,
-    // secp256r1::Secp256r1PublicKey,
-    traits::{EncodeDecodeBase64, ToFromBytes, VerifyingKey},
-};
-use iota_sdk_crypto::{Verifier, ed25519::Ed25519VerifyingKey, multisig::MultisigVerifier};
+use fastcrypto::hash::HashFunction;
+use iota_sdk_crypto::multisig::MultisigVerifier;
 pub use iota_sdk_types::crypto::{
     BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
     MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
@@ -38,12 +31,11 @@ use serde::Serialize;
 
 use crate::{
     base_types::{EpochId, IotaAddress},
-    crypto::{CompressedSignature, DefaultHash, SignatureScheme},
+    crypto::DefaultHash,
     digests::ZKLoginInputsDigest,
     error::IotaError,
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 
 #[cfg(test)]
@@ -88,7 +80,7 @@ impl AuthenticatorTrait for MultiSig {
             });
         }
 
-        if IotaAddress::from(self.committee()) != multisig_address {
+        if self.committee().derive_address() != multisig_address {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid address derived from pks".to_string(),
             });
@@ -128,8 +120,8 @@ impl AuthenticatorTrait for MultiSig {
                 return Err(IotaError::InvalidSignature {
                     error: format!(
                         "Invalid sig for pk={} address={:?} error=signature/pubkey type mismatch",
-                        member.public_key().encode_base64(),
-                        IotaAddress::from(member.public_key())
+                        member.public_key().to_base64(),
+                        member.public_key().derive_address(),
                     ),
                 });
             }
@@ -151,22 +143,19 @@ impl AuthenticatorTrait for MultiSig {
                 //         )
                 //         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
                 // }
-                _ => verifier
-                    .verify_member_signature(&digest, member.public_key(), signature)
-                    .unwrap(),
+                _ => verifier.verify_member_signature(&digest, member.public_key(), signature),
             };
 
-            if res.is_ok() {
-                weight_sum += member.weight() as u16;
-            } else {
-                return res.map_err(|e| IotaError::InvalidSignature {
+            if let Err(e) = res {
+                return Err(IotaError::InvalidSignature {
                     error: format!(
-                        "Invalid sig for pk={} address={:?} error={:?}",
-                        subsig_pubkey.encode_base64(),
-                        IotaAddress::from(subsig_pubkey),
-                        e.to_string()
+                        "Invalid sig for pk={} address={:?} error={e:?}",
+                        member.public_key().to_base64(),
+                        member.public_key().derive_address(),
                     ),
                 });
+            } else {
+                weight_sum += member.weight() as u16
             }
         }
 
@@ -175,8 +164,7 @@ impl AuthenticatorTrait for MultiSig {
         } else {
             Err(IotaError::InvalidSignature {
                 error: format!(
-                    "Insufficient weight={:?} threshold={:?}",
-                    weight_sum,
+                    "Insufficient weight={weight_sum:?} threshold={:?}",
                     self.committee().threshold()
                 ),
             })
