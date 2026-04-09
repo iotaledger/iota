@@ -79,7 +79,7 @@ pub(crate) fn list_owned_objects(
     let cursor = page_token.as_ref().map(|t| &t.cursor);
 
     let mut iter =
-        reader.account_owned_objects_info_iter_v2(owner_address, cursor, type_filter.clone())?;
+        reader.account_owned_objects_info_iter(owner_address, cursor, type_filter.clone())?;
 
     let mut objects = Vec::with_capacity(page_size);
     let mut size_bytes = 0usize;

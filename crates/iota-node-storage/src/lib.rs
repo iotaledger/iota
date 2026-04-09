@@ -79,12 +79,12 @@ pub trait GrpcIndexes: Send + Sync {
 
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
-    /// Iterate over objects owned by `owner` using the v2 index, optionally
-    /// filtered by `object_type`.
+    /// Iterate over objects owned by `owner`, optionally filtered by
+    /// `object_type`.
     ///
     /// Each item includes an [`OwnedObjectV2Cursor`] for seek-based pagination.
     /// The `cursor` bound is **inclusive**.
-    fn account_owned_objects_info_iter_v2(
+    fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
         cursor: Option<&OwnedObjectV2Cursor>,
@@ -101,8 +101,8 @@ pub trait GrpcIndexes: Send + Sync {
         cursor: Option<ObjectID>,
     ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
-    /// Get unified coin info from the `coin_v2` table.
-    fn get_coin_v2_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
+    /// Get unified coin info.
+    fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfoV2>>;
 
     /// Iterate over all versions of a package by its original package ID.
     fn package_versions_iter(
@@ -110,19 +110,4 @@ pub trait GrpcIndexes: Send + Sync {
         original_package_id: ObjectID,
         cursor: Option<u64>,
     ) -> Result<Box<dyn Iterator<Item = PackageVersionIteratorItem> + '_>>;
-
-    /// Returns `true` once the `owner_v2` backfill has completed.
-    fn is_owner_v2_index_ready(&self) -> bool {
-        true
-    }
-
-    /// Returns `true` once the `coin_v2` backfill has completed.
-    fn is_coin_v2_index_ready(&self) -> bool {
-        true
-    }
-
-    /// Returns `true` once the `package_version` backfill has completed.
-    fn is_package_version_index_ready(&self) -> bool {
-        true
-    }
 }

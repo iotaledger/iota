@@ -32,5 +32,5 @@ pub use state_service::StateGrpcService;
 pub use transaction_execution_service::TransactionExecutionGrpcService;
 pub use types::{
     DynamicFieldIterItem, GrpcCheckpointDataBroadcaster, GrpcReader, OwnedObjectIterItem,
-    OwnedObjectV2Cursor, OwnedObjectV2IterItem, PackageVersionIterItem,
+    OwnedObjectV2Cursor, PackageVersionIterItem,
 };
