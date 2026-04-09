@@ -6,9 +6,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use either::Either;
 use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use futures::pin_mut;
-use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
 use iota_sdk_types::crypto::Intent;
 use iota_types::{
@@ -25,7 +23,7 @@ use iota_types::{
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
 use itertools::{Itertools as _, izip};
-use parking_lot::{Mutex, MutexGuard, RwLock};
+use parking_lot::{Mutex, MutexGuard};
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use tap::TapFallible;
 use tokio::{
@@ -33,7 +31,7 @@ use tokio::{
     sync::oneshot,
     time::{Duration, timeout},
 };
-use tracing::{Instrument, debug, instrument, trace_span};
+use tracing::{Instrument, instrument, trace_span};
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
@@ -100,9 +98,6 @@ pub struct SignatureVerifier {
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
     authority_capability_cache: VerifiedDigestCache<AuthorityCapabilitiesDigest>,
 
-    /// Map from JwkId (iss, kid) to the fetched JWK for that key.
-    jwks: RwLock<ImHashMap<JwkId, JWK>>,
-
     /// Params for signature verification.
     verify_params: VerifyParams,
 
@@ -137,7 +132,6 @@ impl SignatureVerifier {
                 metrics.authority_capabilities_cache_misses.clone(),
                 metrics.authority_capabilities_cache_evictions.clone(),
             ),
-            jwks: Default::default(),
             queue: Mutex::new(CertBuffer::new(batch_size)),
             metrics,
             verify_params: VerifyParams::new(
@@ -327,30 +321,6 @@ impl SignatureVerifier {
             })
             .ok();
         });
-    }
-
-    /// Insert a JWK into the verifier state. Pre-existing entries for a given
-    /// JwkId will not be overwritten.
-    pub(crate) fn insert_jwk(&self, jwk_id: &JwkId, jwk: &JWK) {
-        let mut jwks = self.jwks.write();
-        match jwks.entry(jwk_id.clone()) {
-            im::hashmap::Entry::Occupied(_) => {
-                debug!("JWK with kid {:?} already exists", jwk_id);
-            }
-            im::hashmap::Entry::Vacant(entry) => {
-                debug!("inserting JWK with kid: {:?}", jwk_id);
-                entry.insert(jwk.clone());
-            }
-        }
-    }
-
-    pub fn has_jwk(&self, jwk_id: &JwkId, jwk: &JWK) -> bool {
-        let jwks = self.jwks.read();
-        jwks.get(jwk_id) == Some(jwk)
-    }
-
-    pub fn get_jwks(&self) -> ImHashMap<JwkId, JWK> {
-        self.jwks.read().clone()
     }
 
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?signed_tx.digest()))]

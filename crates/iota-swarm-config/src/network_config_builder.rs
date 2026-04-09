@@ -7,7 +7,6 @@ use std::{
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
 };
 
 use fastcrypto::traits::KeyPair;
@@ -85,7 +84,6 @@ pub struct ConfigBuilder<R = OsRng> {
     genesis_config: Option<GenesisConfig>,
     reference_gas_price: Option<u64>,
     additional_objects: Vec<Object>,
-    jwk_fetch_interval: Option<Duration>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     execution_cache_type: Option<ExecutionCacheType>,
@@ -113,7 +111,6 @@ impl ConfigBuilder {
             genesis_config: None,
             reference_gas_price: None,
             additional_objects: vec![],
-            jwk_fetch_interval: None,
             num_unpruned_validators: None,
             authority_overload_config: None,
             execution_cache_type: None,
@@ -182,11 +179,6 @@ impl<R> ConfigBuilder<R> {
 
     pub fn with_num_unpruned_validators(mut self, n: usize) -> Self {
         self.num_unpruned_validators = Some(n);
-        self
-    }
-
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
         self
     }
 
@@ -316,7 +308,6 @@ impl<R> ConfigBuilder<R> {
             reference_gas_price: self.reference_gas_price,
             additional_objects: self.additional_objects,
             num_unpruned_validators: self.num_unpruned_validators,
-            jwk_fetch_interval: self.jwk_fetch_interval,
             authority_overload_config: self.authority_overload_config,
             execution_cache_type: self.execution_cache_type,
             execution_cache_config: self.execution_cache_config,
@@ -517,10 +508,6 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 {
                     builder = builder
                         .with_submit_delay_step_override_millis(submit_delay_step_override_millis);
-                }
-
-                if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-                    builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
                 }
 
                 if let Some(authority_overload_config) = &self.authority_overload_config {

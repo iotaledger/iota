@@ -63,16 +63,6 @@ pub struct ConsensusCommitPrologueV1 {
     pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
 }
 
-// In practice, JWKs are about 500 bytes of json each, plus a bit more for the
-// ID. 4096 should give us plenty of space for any imaginable JWK while
-// preventing DoSes.
-static MAX_TOTAL_JWK_SIZE: usize = 4096;
-
-pub fn check_total_jwk_size(id: &JwkId, jwk: &JWK) -> bool {
-    id.iss.len() + id.kid.len() + jwk.kty.len() + jwk.alg.len() + jwk.e.len() + jwk.n.len()
-        <= MAX_TOTAL_JWK_SIZE
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConsensusTransaction {
     /// Encodes an u64 unique tracking id to allow us trace a message between
@@ -572,16 +562,6 @@ impl ConsensusTransaction {
         Self {
             tracking_id,
             kind: ConsensusTransactionKind::CertifiedTransaction(Box::new(certificate)),
-        }
-    }
-
-    pub fn new_jwk_fetched(authority: AuthorityName, id: JwkId, jwk: JWK) -> Self {
-        let mut hasher = DefaultHasher::new();
-        id.hash(&mut hasher);
-        let tracking_id = hasher.finish().to_le_bytes();
-        Self {
-            tracking_id,
-            kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),
         }
     }
 

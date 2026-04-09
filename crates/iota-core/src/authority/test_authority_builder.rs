@@ -300,7 +300,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             EpochMetrics::new(&registry),
             epoch_start_configuration,
             cache_traits.backing_package_store.clone(),
-            cache_traits.object_store.clone(),
             cache_metrics,
             signature_verifier_metrics,
             &expensive_safety_checks,

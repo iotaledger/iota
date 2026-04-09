@@ -5,7 +5,7 @@
 #[cfg(msim)]
 use std::sync::atomic::Ordering;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt,
     future::Future,
     path::PathBuf,
@@ -20,7 +20,6 @@ use anemo_tower::{
 };
 use anyhow::{Result, anyhow};
 use arc_swap::ArcSwap;
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId, OIDCProvider};
 use futures::future::BoxFuture;
 pub use handle::IotaNodeHandle;
 use iota_archival::{reader::ArchiveReaderBalancer, writer::ArchiveWriter};
@@ -123,7 +122,7 @@ use iota_types::{
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
-        SignedAuthorityCapabilitiesV1, check_total_jwk_size,
+        SignedAuthorityCapabilitiesV1,
     },
     messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
@@ -131,8 +130,6 @@ use iota_types::{
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
-#[cfg(msim)]
-pub use simulator::set_jwk_injector;
 #[cfg(msim)]
 use simulator::*;
 use tap::tap::TapFallible;
@@ -187,30 +184,6 @@ mod simulator {
                 _leak_detector: iota_simulator::NodeLeakDetector::new(),
             }
         }
-    }
-
-    type JwkInjector = dyn Fn(AuthorityName, &OIDCProvider) -> IotaResult<Vec<(JwkId, JWK)>>
-        + Send
-        + Sync
-        + 'static;
-
-    fn default_fetch_jwks(
-        _authority: AuthorityName,
-        _provider: &OIDCProvider,
-    ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        Ok(vec![])
-    }
-
-    thread_local! {
-        static JWK_INJECTOR: std::cell::RefCell<Arc<JwkInjector>> = std::cell::RefCell::new(Arc::new(default_fetch_jwks));
-    }
-
-    pub(super) fn get_jwk_injector() -> Arc<JwkInjector> {
-        JWK_INJECTOR.with(|injector| injector.borrow().clone())
-    }
-
-    pub fn set_jwk_injector(injector: Arc<JwkInjector>) {
-        JWK_INJECTOR.with(|cell| *cell.borrow_mut() = injector);
     }
 }
 
@@ -290,8 +263,6 @@ impl fmt::Debug for IotaNode {
     }
 }
 
-static MAX_JWK_KEYS_PER_FETCH: usize = 100;
-
 impl IotaNode {
     pub async fn start(
         config: NodeConfig,
@@ -303,140 +274,6 @@ impl IotaNode {
             ServerVersion::new("iota-node", "unknown"),
         )
         .await
-    }
-
-    /// Starts the JWK (JSON Web Key) updater tasks for the specified node
-    /// configuration.
-    /// This function ensures continuous fetching, validation, and submission of
-    /// JWKs, maintaining up-to-date keys for the specified providers.
-    fn start_jwk_updater(
-        config: &NodeConfig,
-        metrics: Arc<IotaNodeMetrics>,
-        authority: AuthorityName,
-        epoch_store: Arc<AuthorityPerEpochStore>,
-        consensus_adapter: Arc<ConsensusAdapter>,
-    ) {
-        let epoch = epoch_store.epoch();
-
-        // zkLogin has been removed; no OAuth providers to fetch JWKs for.
-        let supported_providers: Vec<OIDCProvider> = Vec::new();
-
-        let fetch_interval = Duration::from_secs(config.jwk_fetch_interval_seconds);
-
-        info!(
-            ?fetch_interval,
-            "Starting JWK updater tasks with supported providers: {:?}", supported_providers
-        );
-
-        fn validate_jwk(
-            metrics: &Arc<IotaNodeMetrics>,
-            provider: &OIDCProvider,
-            id: &JwkId,
-            jwk: &JWK,
-        ) -> bool {
-            let Ok(iss_provider) = OIDCProvider::from_iss(&id.iss) else {
-                warn!(
-                    "JWK iss {:?} (retrieved from {:?}) is not a valid provider",
-                    id.iss, provider
-                );
-                metrics
-                    .invalid_jwks
-                    .with_label_values(&[&provider.to_string()])
-                    .inc();
-                return false;
-            };
-
-            if iss_provider != *provider {
-                warn!(
-                    "JWK iss {:?} (retrieved from {:?}) does not match provider {:?}",
-                    id.iss, provider, iss_provider
-                );
-                metrics
-                    .invalid_jwks
-                    .with_label_values(&[&provider.to_string()])
-                    .inc();
-                return false;
-            }
-
-            if !check_total_jwk_size(id, jwk) {
-                warn!("JWK {:?} (retrieved from {:?}) is too large", id, provider);
-                metrics
-                    .invalid_jwks
-                    .with_label_values(&[&provider.to_string()])
-                    .inc();
-                return false;
-            }
-
-            true
-        }
-
-        // metrics is:
-        //  pub struct IotaNodeMetrics {
-        //      pub jwk_requests: IntCounterVec,
-        //      pub jwk_request_errors: IntCounterVec,
-        //      pub total_jwks: IntCounterVec,
-        //      pub unique_jwks: IntCounterVec,
-        //  }
-
-        for p in supported_providers.into_iter() {
-            let provider_str = p.to_string();
-            let epoch_store = epoch_store.clone();
-            let consensus_adapter = consensus_adapter.clone();
-            let metrics = metrics.clone();
-            spawn_monitored_task!(epoch_store.clone().within_alive_epoch(
-                async move {
-                    // note: restart-safe de-duplication happens after consensus, this is
-                    // just best-effort to reduce unneeded submissions.
-                    let mut seen = HashSet::new();
-                    loop {
-                        info!("fetching JWK for provider {:?}", p);
-                        metrics.jwk_requests.with_label_values(&[&provider_str]).inc();
-                        match Self::fetch_jwks(authority, &p).await {
-                            Err(e) => {
-                                metrics.jwk_request_errors.with_label_values(&[&provider_str]).inc();
-                                warn!("Error when fetching JWK for provider {:?} {:?}", p, e);
-                                // Retry in 30 seconds
-                                tokio::time::sleep(Duration::from_secs(30)).await;
-                                continue;
-                            }
-                            Ok(mut keys) => {
-                                metrics.total_jwks
-                                    .with_label_values(&[&provider_str])
-                                    .inc_by(keys.len() as u64);
-
-                                keys.retain(|(id, jwk)| {
-                                    validate_jwk(&metrics, &p, id, jwk) &&
-                                    !epoch_store.jwk_active_in_current_epoch(id, jwk) &&
-                                    seen.insert((id.clone(), jwk.clone()))
-                                });
-
-                                metrics.unique_jwks
-                                    .with_label_values(&[&provider_str])
-                                    .inc_by(keys.len() as u64);
-
-                                // prevent oauth providers from sending too many keys,
-                                // inadvertently or otherwise
-                                if keys.len() > MAX_JWK_KEYS_PER_FETCH {
-                                    warn!("Provider {:?} sent too many JWKs, only the first {} will be used", p, MAX_JWK_KEYS_PER_FETCH);
-                                    keys.truncate(MAX_JWK_KEYS_PER_FETCH);
-                                }
-
-                                for (id, jwk) in keys.into_iter() {
-                                    info!("Submitting JWK to consensus: {:?}", id);
-
-                                    let txn = ConsensusTransaction::new_jwk_fetched(authority, id, jwk);
-                                    consensus_adapter.submit(txn, None, &epoch_store)
-                                        .tap_err(|e| warn!("Error when submitting JWKs to consensus {:?}", e))
-                                        .ok();
-                                }
-                            }
-                        }
-                        tokio::time::sleep(fetch_interval).await;
-                    }
-                }
-                .instrument(error_span!("jwk_updater_task", epoch)),
-            ));
-        }
     }
 
     pub async fn start_async(
@@ -602,7 +439,6 @@ impl IotaNode {
             EpochMetrics::new(&registry_service.default_registry()),
             epoch_start_configuration,
             cache_traits.backing_package_store.clone(),
-            cache_traits.object_store.clone(),
             cache_metrics,
             signature_verifier_metrics,
             &config.expensive_safety_check_config,
@@ -917,7 +753,6 @@ impl IotaNode {
                     backpressure_manager.clone(),
                     connection_monitor_status.clone(),
                     &registry_service,
-                    iota_node_metrics.clone(),
                 ),
                 Self::reexecute_pending_consensus_certs(&epoch_store, &state,)
             );
@@ -1294,7 +1129,6 @@ impl IotaNode {
         backpressure_manager: Arc<BackpressureManager>,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         registry_service: &RegistryService,
-        iota_node_metrics: Arc<IotaNodeMetrics>,
     ) -> Result<ValidatorComponents> {
         let mut config_clone = config.clone();
         let consensus_config = config_clone
@@ -1375,7 +1209,6 @@ impl IotaNode {
             validator_server_handle,
             validator_overload_monitor_handle,
             checkpoint_metrics,
-            iota_node_metrics,
             iota_tx_validator_metrics,
             validator_registry_id,
         )
@@ -1399,7 +1232,6 @@ impl IotaNode {
         validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
-        iota_node_metrics: Arc<IotaNodeMetrics>,
         iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
         validator_registry_id: RegistryID,
     ) -> Result<ValidatorComponents> {
@@ -1461,16 +1293,6 @@ impl IotaNode {
 
         info!("Spawning checkpoint service");
         let checkpoint_service_tasks = checkpoint_service.spawn().await;
-
-        if epoch_store.authenticator_state_enabled() {
-            Self::start_jwk_updater(
-                config,
-                iota_node_metrics,
-                state.name,
-                epoch_store.clone(),
-                consensus_adapter.clone(),
-            );
-        }
 
         Ok(ValidatorComponents {
             validator_server_handle,
@@ -2015,7 +1837,6 @@ impl IotaNode {
                             validator_server_handle,
                             validator_overload_monitor_handle,
                             checkpoint_metrics,
-                            self.metrics.clone(),
                             iota_tx_validator_metrics,
                             validator_registry_id,
                         )
@@ -2061,7 +1882,6 @@ impl IotaNode {
                         self.backpressure_manager.clone(),
                         self.connection_monitor_status.clone(),
                         &self.registry_service,
-                        self.metrics.clone(),
                     )
                     .await?;
 
@@ -2298,20 +2118,6 @@ impl IotaNode {
     }
 }
 
-#[cfg(not(msim))]
-impl IotaNode {
-    async fn fetch_jwks(
-        _authority: AuthorityName,
-        provider: &OIDCProvider,
-    ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        use fastcrypto_zkp::bn254::zk_login::fetch_jwks;
-        let client = reqwest::Client::new();
-        fetch_jwks(provider, &client)
-            .await
-            .map_err(|_| IotaError::JWKRetrieval)
-    }
-}
-
 #[cfg(msim)]
 impl IotaNode {
     pub fn get_sim_node_id(&self) -> iota_simulator::task::NodeId {
@@ -2323,13 +2129,6 @@ impl IotaNode {
         self.sim_state
             .sim_safe_mode_expected
             .store(new_value, Ordering::Relaxed);
-    }
-
-    async fn fetch_jwks(
-        authority: AuthorityName,
-        provider: &OIDCProvider,
-    ) -> IotaResult<Vec<(JwkId, JWK)>> {
-        get_jwk_injector()(authority, provider)
     }
 }
 

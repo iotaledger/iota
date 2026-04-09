@@ -8,7 +8,6 @@ use std::{
     num::NonZeroUsize,
     ops,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -60,7 +59,6 @@ pub struct SwarmBuilder<R = OsRng> {
     // Default to supported_protocol_versions_config, but can be overridden.
     fullnode_supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
     db_checkpoint_config: DBCheckpointConfig,
-    jwk_fetch_interval: Option<Duration>,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     execution_cache_type: Option<ExecutionCacheType>,
@@ -97,7 +95,6 @@ impl SwarmBuilder {
             supported_protocol_versions_config: ProtocolVersionsConfig::Default,
             fullnode_supported_protocol_versions_config: None,
             db_checkpoint_config: DBCheckpointConfig::default(),
-            jwk_fetch_interval: None,
             num_unpruned_validators: None,
             authority_overload_config: None,
             execution_cache_type: None,
@@ -136,7 +133,6 @@ impl<R> SwarmBuilder<R> {
             fullnode_supported_protocol_versions_config: self
                 .fullnode_supported_protocol_versions_config,
             db_checkpoint_config: self.db_checkpoint_config,
-            jwk_fetch_interval: self.jwk_fetch_interval,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
             execution_cache_type: self.execution_cache_type,
@@ -196,11 +192,6 @@ impl<R> SwarmBuilder<R> {
     pub fn with_num_unpruned_validators(mut self, n: usize) -> Self {
         assert!(self.network_config.is_none());
         self.num_unpruned_validators = Some(n);
-        self
-    }
-
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
         self
     }
 
@@ -412,10 +403,6 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             if let Some(num_unpruned_validators) = self.num_unpruned_validators {
                 config_builder =
                     config_builder.with_num_unpruned_validators(num_unpruned_validators);
-            }
-
-            if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-                config_builder = config_builder.with_jwk_fetch_interval(jwk_fetch_interval);
             }
 
             if let Some(authority_overload_config) = self.authority_overload_config {

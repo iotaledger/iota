@@ -62,7 +62,6 @@ use iota_types::{
             AuthenticatorFunctionRefV1,
         },
     },
-    authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
@@ -1470,35 +1469,14 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        if let TransactionKind::AuthenticatorStateUpdateV1(auth_state) =
+        if let TransactionKind::AuthenticatorStateUpdateV1(_auth_state) =
             certificate.data().transaction_data().kind()
         {
+            // AuthenticatorStateUpdateV1 was used for zkLogin JWK management. Since zkLogin
+            // has been removed, this is now a no-op. The enum variant is kept for backward
+            // compatibility with existing chain data and snapshots.
             if let Some(err) = &execution_error_opt {
                 debug_fatal!("Authenticator state update failed: {:?}", err);
-            }
-            epoch_store.update_authenticator_state(auth_state);
-
-            // double check that the signature verifier always matches the authenticator
-            // state
-            if cfg!(debug_assertions) {
-                let authenticator_state = get_authenticator_state(self.get_object_store())
-                    .expect("Read cannot fail")
-                    .expect("Authenticator state must exist");
-
-                let mut sys_jwks: Vec<_> = authenticator_state
-                    .active_jwks
-                    .into_iter()
-                    .map(|jwk| (jwk.jwk_id, jwk.jwk))
-                    .collect();
-                let mut active_jwks: Vec<_> = epoch_store
-                    .signature_verifier
-                    .get_jwks()
-                    .into_iter()
-                    .collect();
-                sys_jwks.sort();
-                active_jwks.sort();
-
-                assert_eq!(sys_jwks, active_jwks);
             }
         }
 
@@ -3480,7 +3458,6 @@ impl AuthorityState {
             ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
         let new_epoch_store = epoch_store.new_at_next_epoch_for_testing(
             self.get_backing_package_store().clone(),
-            self.get_object_store().clone(),
             &self.config.expensive_safety_check_config,
             self.checkpoint_store
                 .get_epoch_last_checkpoint(epoch_store.epoch())
@@ -5394,7 +5371,6 @@ impl AuthorityState {
             new_committee,
             epoch_start_configuration,
             self.get_backing_package_store().clone(),
-            self.get_object_store().clone(),
             expensive_safety_check_config,
             epoch_last_checkpoint,
         )?;

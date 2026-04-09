@@ -204,9 +204,6 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction_kv_store_write_config: Option<TransactionKeyValueStoreWriteConfig>,
 
-    #[serde(default = "default_jwk_fetch_interval_seconds")]
-    pub jwk_fetch_interval_seconds: u64,
-
     /// Configuration for defining thresholds and settings
     /// for managing system overload conditions in a node.
     #[serde(default = "default_authority_overload_config")]
@@ -633,10 +630,6 @@ fn default_base_url() -> String {
 
 fn default_cache_size() -> u64 {
     100_000
-}
-
-fn default_jwk_fetch_interval_seconds() -> u64 {
-    3600
 }
 
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {

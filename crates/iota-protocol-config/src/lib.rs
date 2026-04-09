@@ -1358,12 +1358,6 @@ impl ProtocolConfig {
         false
     }
 
-    // this function only exists for readability in the genesis code.
-    pub fn create_authenticator_state_in_genesis(&self) -> bool {
-        // Deprecated: authenticator state is no longer created in genesis.
-        false
-    }
-
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)

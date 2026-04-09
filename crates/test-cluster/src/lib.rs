@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use futures::{StreamExt, future::join_all};
+use futures::future::join_all;
 use iota_common::fatal;
 use iota_config::{
     Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
@@ -27,7 +27,7 @@ use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClie
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, TransactionFilter,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
@@ -67,9 +67,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{
-        CertifiedTransaction, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    },
+    transaction::{CertifiedTransaction, Transaction, TransactionData},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -528,37 +526,6 @@ impl TestCluster {
             })
             .await;
         }
-    }
-
-    pub async fn wait_for_authenticator_state_update(&self) {
-        timeout(
-            Duration::from_secs(60),
-            self.fullnode_handle
-                .iota_node
-                .with_async(|node| async move {
-                    let mut txns = node.state().subscription_handler.subscribe_transactions(
-                        TransactionFilter::ChangedObject(
-                            ObjectID::from_hex_literal("0x7").unwrap(),
-                        ),
-                    );
-                    let state = node.state();
-
-                    while let Some(tx) = txns.next().await {
-                        let digest = *tx.transaction_digest();
-                        let tx = state
-                            .get_transaction_cache_reader()
-                            .get_transaction_block(&digest)
-                            .unwrap();
-                        match &tx.data().intent_message().value.kind() {
-                            TransactionKind::EndOfEpochTransaction(_) => (),
-                            TransactionKind::AuthenticatorStateUpdateV1(_) => break,
-                            _ => panic!("received unexpected transaction kind: {tx:?}"),
-                        }
-                    }
-                }),
-        )
-        .await
-        .expect("timed out waiting for authenticator state update");
     }
 
     /// Return the highest observed protocol version in the test cluster.
@@ -1022,9 +989,7 @@ pub struct TestClusterBuilder {
     db_checkpoint_config_validators: DBCheckpointConfig,
     db_checkpoint_config_fullnodes: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
-    jwk_fetch_interval: Option<Duration>,
     config_dir: Option<PathBuf>,
-    default_jwks: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     execution_cache_type: Option<ExecutionCacheType>,
     execution_cache_config: Option<ExecutionCacheConfig>,
@@ -1058,9 +1023,7 @@ impl TestClusterBuilder {
             db_checkpoint_config_validators: DBCheckpointConfig::default(),
             db_checkpoint_config_fullnodes: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
-            jwk_fetch_interval: None,
             config_dir: None,
-            default_jwks: false,
             authority_overload_config: None,
             execution_cache_type: None,
             execution_cache_config: None,
@@ -1182,11 +1145,6 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_jwk_fetch_interval(mut self, i: Duration) -> Self {
-        self.jwk_fetch_interval = Some(i);
-        self
-    }
-
     pub fn with_fullnode_supported_protocol_versions_config(
         mut self,
         c: SupportedProtocolVersions,
@@ -1263,11 +1221,6 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_default_jwks(mut self) -> Self {
-        self.default_jwks = true;
-        self
-    }
-
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         assert!(self.network_config.is_none());
         self.authority_overload_config = Some(config);
@@ -1335,35 +1288,6 @@ impl TestClusterBuilder {
                 ))),
             }
         });
-
-        // All test clusters receive a continuous stream of random JWKs.
-        // If we later use zklogin authenticated transactions in tests we will need to
-        // supply valid JWKs as well.
-        #[cfg(msim)]
-        if !self.default_jwks {
-            iota_node::set_jwk_injector(Arc::new(|_authority, provider| {
-                use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-                use rand::Rng;
-
-                // generate random (and possibly conflicting) id/key pairings.
-                let id_num = rand::thread_rng().gen_range(1..=4);
-                let key_num = rand::thread_rng().gen_range(1..=4);
-
-                let id = JwkId {
-                    iss: provider.get_config().iss,
-                    kid: format!("kid{}", id_num),
-                };
-
-                let jwk = JWK {
-                    kty: "kty".to_string(),
-                    e: "e".to_string(),
-                    n: format!("n{}", key_num),
-                    alg: "alg".to_string(),
-                };
-
-                Ok(vec![(id, jwk)])
-            }));
-        }
 
         let swarm = self.start_swarm().await.unwrap();
         let working_dir = swarm.dir();
@@ -1450,10 +1374,6 @@ impl TestClusterBuilder {
 
         if let Some(num_unpruned_validators) = self.num_unpruned_validators {
             builder = builder.with_num_unpruned_validators(num_unpruned_validators);
-        }
-
-        if let Some(jwk_fetch_interval) = self.jwk_fetch_interval {
-            builder = builder.with_jwk_fetch_interval(jwk_fetch_interval);
         }
 
         if let Some(config_dir) = self.config_dir.take() {

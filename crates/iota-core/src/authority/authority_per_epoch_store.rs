@@ -13,7 +13,6 @@ use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use futures::{
     FutureExt, StreamExt,
     future::{Either, join_all, select},
@@ -33,7 +32,6 @@ use iota_protocol_config::{
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
     accumulator::Accumulator,
-    authenticator_state::{ActiveJwk, get_authenticator_state},
     base_types::{
         AuthorityName, CommitRound, ConciseableName, EpochId, ObjectID, ObjectRef, SequenceNumber,
         TransactionDigest,
@@ -54,17 +52,17 @@ use iota_types::{
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
         ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
-        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, check_total_jwk_size,
+        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation,
     },
     signature::GenericSignature,
-    storage::{BackingPackageStore, InputKey, ObjectStore},
+    storage::{BackingPackageStore, InputKey},
     transaction::{
-        AuthenticatorStateUpdateV1, CertifiedTransaction, InputObjectKind, SenderSignedData,
-        Transaction, TransactionDataAPI, TransactionKey, TransactionKind, VerifiedCertificate,
-        VerifiedSignedTransaction, VerifiedTransaction,
+        CertifiedTransaction, InputObjectKind, SenderSignedData, Transaction, TransactionDataAPI,
+        TransactionKey, TransactionKind, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
 };
-use itertools::{Itertools, izip};
+use itertools::izip;
 use move_bytecode_utils::module_cache::SyncModuleCache;
 use nonempty::NonEmpty;
 use parking_lot::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -121,7 +119,7 @@ use crate::{
     module_cache_metrics::ResolverMetrics,
     post_consensus_tx_reorder::PostConsensusTxReorder,
     signature_verifier::*,
-    stake_aggregator::{GenericMultiStakeAggregator, StakeAggregator},
+    stake_aggregator::StakeAggregator,
 };
 
 /// The key where the latest consensus index is stored in the database.
@@ -169,8 +167,6 @@ impl CertLockGuard {
         Self(lock.try_lock_arc().unwrap())
     }
 }
-
-type JwkAggregator = GenericMultiStakeAggregator<(JwkId, JWK), true>;
 
 /// Container for congestion control parameters commonly used in
 /// `SharedObjectCongestionTracker` and `SuggestedGasPriceCalculator`.
@@ -666,9 +662,6 @@ pub struct AuthorityPerEpochStore {
     /// purposes.
     chain: (ChainIdentifier, Chain),
 
-    /// aggregator for JWK votes
-    jwk_aggregator: Mutex<JwkAggregator>,
-
     /// State machine managing randomness DKG and generation.
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
@@ -783,16 +776,6 @@ pub struct AuthorityEpochTables {
     /// association here
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, CheckpointSequenceNumber>,
-
-    /// JWKs that have been voted for by one or more authorities but are not yet
-    /// active.
-    pending_jwks: DBMap<(AuthorityName, JwkId, JWK), ()>,
-
-    /// JWKs that are currently available for zklogin authentication, and the
-    /// round in which they became active.
-    /// This would normally be stored as (JwkId, JWK) -> u64, but we need to be
-    /// able to scan to find all Jwks for a given round
-    active_jwks: DBMap<(u64, (JwkId, JWK)), ()>,
 
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
@@ -996,7 +979,6 @@ impl AuthorityPerEpochStore {
         metrics: Arc<EpochMetrics>,
         epoch_start_configuration: EpochStartConfiguration,
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-        object_store: Arc<dyn ObjectStore + Send + Sync>,
         cache_metrics: Arc<ResolverMetrics>,
         signature_verifier_metrics: Arc<SignatureVerifierMetrics>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
@@ -1081,36 +1063,6 @@ impl AuthorityPerEpochStore {
             protocol_config.additional_multisig_checks(),
         );
 
-        let authenticator_state_exists = epoch_start_configuration
-            .authenticator_obj_initial_shared_version()
-            .is_some();
-        let authenticator_state_enabled =
-            authenticator_state_exists && protocol_config.enable_jwk_consensus_updates();
-
-        if authenticator_state_enabled {
-            info!("authenticator_state enabled");
-            let authenticator_state = get_authenticator_state(&*object_store)
-                .expect("Read cannot fail")
-                .expect("Authenticator state must exist");
-
-            for active_jwk in &authenticator_state.active_jwks {
-                let ActiveJwk { jwk_id, jwk, epoch } = active_jwk;
-                assert!(epoch <= &epoch_id);
-                signature_verifier.insert_jwk(jwk_id, jwk);
-            }
-        } else {
-            info!("authenticator_state disabled");
-        }
-
-        let mut jwk_aggregator = JwkAggregator::new(committee.clone());
-
-        for item in tables.pending_jwks.safe_iter() {
-            let ((authority, id, jwk), _) = item?;
-            jwk_aggregator.insert(authority, (id, jwk));
-        }
-
-        let jwk_aggregator = Mutex::new(jwk_aggregator);
-
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
         let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
@@ -1147,7 +1099,6 @@ impl AuthorityPerEpochStore {
             epoch_start_configuration,
             execution_component,
             chain,
-            jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
             scorer: Arc::new(Scorer::new(voting_power, &protocol_config)),
@@ -1173,12 +1124,6 @@ impl AuthorityPerEpochStore {
         // When the logic to release DB handles becomes obsolete, it may still be useful
         // to make sure AuthorityEpochTables is not used after the next epoch starts.
         self.tables.store(None);
-    }
-
-    // Returns true if authenticator state is enabled in the protocol config *and*
-    // the authenticator state object already exists
-    pub fn authenticator_state_enabled(&self) -> bool {
-        self.protocol_config().enable_jwk_consensus_updates() && self.authenticator_state_exists()
     }
 
     pub fn authenticator_state_exists(&self) -> bool {
@@ -1239,7 +1184,6 @@ impl AuthorityPerEpochStore {
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-        object_store: Arc<dyn ObjectStore + Send + Sync>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         previous_epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> IotaResult<Arc<Self>> {
@@ -1254,7 +1198,6 @@ impl AuthorityPerEpochStore {
             self.metrics.clone(),
             epoch_start_configuration,
             backing_package_store,
-            object_store,
             self.execution_component.metrics(),
             self.signature_verifier.metrics.clone(),
             expensive_safety_check_config,
@@ -1266,7 +1209,6 @@ impl AuthorityPerEpochStore {
     pub fn new_at_next_epoch_for_testing(
         &self,
         backing_package_store: Arc<dyn BackingPackageStore + Send + Sync>,
-        object_store: Arc<dyn ObjectStore + Send + Sync>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         previous_epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> Arc<Self> {
@@ -1281,7 +1223,6 @@ impl AuthorityPerEpochStore {
             self.epoch_start_configuration
                 .new_at_next_epoch_for_testing(),
             backing_package_store,
-            object_store,
             expensive_safety_check_config,
             previous_epoch_last_checkpoint,
         )
@@ -2644,68 +2585,6 @@ impl AuthorityPerEpochStore {
             .collect::<Result<Vec<_>, _>>()?)
     }
 
-    fn record_jwk_vote(
-        &self,
-        output: &mut ConsensusCommitOutput,
-        round: u64,
-        authority: AuthorityName,
-        id: &JwkId,
-        jwk: &JWK,
-    ) -> IotaResult {
-        info!(
-            "received jwk vote from {:?} for jwk ({:?}, {:?})",
-            authority.concise(),
-            id,
-            jwk
-        );
-
-        if !self.authenticator_state_enabled() {
-            info!(
-                "ignoring vote because authenticator state object does exist yet
-                (it will be created at the end of this epoch)"
-            );
-            return Ok(());
-        }
-
-        let mut jwk_aggregator = self.jwk_aggregator.lock();
-
-        let votes = jwk_aggregator.votes_for_authority(authority);
-        if votes
-            >= self
-                .protocol_config()
-                .max_jwk_votes_per_validator_per_epoch()
-        {
-            warn!(
-                "validator {:?} has already voted {} times this epoch, ignoring vote",
-                authority, votes,
-            );
-            return Ok(());
-        }
-
-        output.insert_pending_jwk(authority, id.clone(), jwk.clone());
-
-        let key = (id.clone(), jwk.clone());
-        let previously_active = jwk_aggregator.has_quorum_for_key(&key);
-        let insert_result = jwk_aggregator.insert(authority, key.clone());
-
-        if !previously_active && insert_result.is_quorum_reached() {
-            info!(epoch = ?self.epoch(), ?round, jwk = ?key, "jwk became active");
-            output.insert_active_jwk(round, key);
-        }
-
-        Ok(())
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn get_new_jwks(&self, round: u64) -> IotaResult<Vec<ActiveJwk>> {
-        self.consensus_quarantine.read().get_new_jwks(self, round)
-    }
-
-    pub fn jwk_active_in_current_epoch(&self, jwk_id: &JwkId, jwk: &JWK) -> bool {
-        let jwk_aggregator = self.jwk_aggregator.lock();
-        jwk_aggregator.has_quorum_for_key(&(jwk_id.clone(), jwk.clone()))
-    }
-
     pub(crate) fn get_randomness_last_round_timestamp(&self) -> IotaResult<Option<TimestampMs>> {
         if let Some(ts) = self
             .consensus_quarantine
@@ -2967,23 +2846,11 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),
+                kind: ConsensusTransactionKind::NewJWKFetched(..),
                 ..
             }) => {
-                if transaction.sender_authority() != *authority {
-                    warn!(
-                        "NewJWKFetched authority {} does not match its author from consensus {}",
-                        authority, transaction.certificate_author_index,
-                    );
-                    return None;
-                }
-                if !check_total_jwk_size(id, jwk) {
-                    warn!(
-                        "{:?} sent jwk that exceeded max size",
-                        transaction.sender_authority().concise()
-                    );
-                    return None;
-                }
+                // JWK consensus updates are no longer supported after ZkLogin
+                // removal
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::RandomnessDkgMessage(authority, _bytes),
@@ -4039,7 +3906,7 @@ impl AuthorityPerEpochStore {
         let VerifiedSequencedConsensusTransaction(SequencedConsensusTransaction {
             certificate_author_index: _,
             certificate_author,
-            consensus_index,
+            consensus_index: _,
             transaction,
         }) = transaction;
         let tracking_id = transaction.get_tracking_id();
@@ -4351,26 +4218,11 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::NewJWKFetched(authority, jwk_id, jwk),
+                kind: ConsensusTransactionKind::NewJWKFetched(..),
                 ..
             }) => {
-                if self
-                    .get_reconfig_state_read_lock_guard()
-                    .should_accept_consensus_certs()
-                {
-                    self.record_jwk_vote(
-                        output,
-                        consensus_index.last_committed_round,
-                        *authority,
-                        jwk_id,
-                        jwk,
-                    )?;
-                } else {
-                    debug!(
-                        "Ignoring NewJWKFetched from {:?} because of end of epoch",
-                        authority.concise()
-                    );
-                }
+                // JWK consensus updates are no longer supported after ZkLogin removal
+                debug!("Ignoring NewJWKFetched transaction");
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -4746,14 +4598,6 @@ impl AuthorityPerEpochStore {
         self.metrics
             .epoch_total_duration
             .set(self.epoch_open_time.elapsed().as_millis() as i64);
-    }
-
-    pub(crate) fn update_authenticator_state(&self, update: &AuthenticatorStateUpdateV1) {
-        info!("Updating authenticator state: {:?}", update);
-        for active_jwk in &update.new_active_jwks {
-            let ActiveJwk { jwk_id, jwk, .. } = active_jwk;
-            self.signature_verifier.insert_jwk(jwk_id, jwk);
-        }
     }
 
     pub fn clear_signature_cache(&self) {
