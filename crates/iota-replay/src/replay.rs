@@ -877,7 +877,8 @@ impl LocalExec {
                 transaction_kind.clone(),
                 tx_info.sender,
                 *tx_digest,
-                bcs::to_bytes(tx_info.sender_signed_data.transaction_data()).expect("TransactionData serialization cannot fail"),
+                bcs::to_bytes(tx_info.sender_signed_data.transaction_data())
+                    .expect("TransactionData serialization cannot fail"),
                 &mut None,
             )
         };
@@ -1171,7 +1172,8 @@ impl LocalExec {
                 kind,
                 signer,
                 *executable.digest(),
-                bcs::to_bytes(sender_signed_data.transaction_data()).expect("TransactionData serialization cannot fail"),
+                bcs::to_bytes(sender_signed_data.transaction_data())
+                    .expect("TransactionData serialization cannot fail"),
                 &mut None,
             )
         };
