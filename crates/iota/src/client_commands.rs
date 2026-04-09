@@ -18,7 +18,6 @@ use clap::*;
 use colored::Colorize;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    hash::HashFunction,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use futures::{StreamExt, TryStreamExt};
@@ -58,7 +57,7 @@ use iota_types::{
         account::AuthenticatorFunctionRefV1Key, authenticator_function::AuthenticatorFunctionRefV1,
     },
     base_types::{Identifier, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TypeTag},
-    crypto::{DefaultHash, EmptySignInfo, SignatureScheme},
+    crypto::{EmptySignInfo, SignatureScheme},
     digests::{ChainIdentifier, TransactionDigest},
     dynamic_field::{self, DynamicFieldInfo, Field},
     error::IotaError,

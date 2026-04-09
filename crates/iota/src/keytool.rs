@@ -48,8 +48,8 @@ use iota_types::{
     },
     error::IotaResult,
     multisig::{
-        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey, ThresholdUnit,
-        WeightUnit,
+        MultiSig, MultiSigPublicKey, MultisigMember, MultisigMemberPublicKey,
+        MultisigMemberSignature, ThresholdUnit, WeightUnit,
     },
     passkey_authenticator::PasskeyAuthenticator,
     signature::{GenericSignature, VerifyParams},
@@ -185,7 +185,7 @@ pub enum KeyToolCommand {
     /// [sig2, sig1, sig5] is invalid.
     MultiSigCombinePartialSig {
         #[arg(long, num_args(1..))]
-        sigs: Vec<GenericSignature>,
+        sigs: Vec<MultisigMemberSignature>,
         #[arg(long, num_args(1..))]
         pks: Vec<MultisigMemberPublicKey>,
         #[arg(long, num_args(1..))]
@@ -743,19 +743,19 @@ impl KeyToolCommand {
                 pks,
                 weights,
             } => {
-                let members = Vec::new();
+                let mut members = Vec::new();
                 let mut multisig_output = Vec::new();
                 for (pk, w) in pks.into_iter().zip(weights) {
-                    members.push(MultisigMember::new(pk, w));
                     multisig_output.push(MultiSigOutput {
                         address: IotaAddress::from(&pk),
                         public_base64_key_with_flag: pk.to_base64(),
                         weight: w,
                     });
+                    members.push(MultisigMember::new(pk, w));
                 }
                 let multisig_pk = MultiSigPublicKey::new(members, threshold)?;
                 let address: IotaAddress = (&multisig_pk).into();
-                let mut output = MultiSigAddress {
+                let output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: multisig_output,
                     threshold,
