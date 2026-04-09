@@ -44,7 +44,7 @@ export function InactiveValidators({
                             <div>
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
-                            <div className="flex flex-row items-center gap-x-xs text-iota-neutral-10 dark:text-iota-neutral-92">
+                            <div className="dark:text-iota-neutral-92 flex flex-row items-center gap-x-xs text-iota-neutral-10">
                                 <span className="text-headline-md">{name}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
@@ -55,10 +55,10 @@ export function InactiveValidators({
                         </div>
                     </div>
                     <div className="flex w-full flex-col gap-y-md md:w-1/2">
-                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
+                        <span className="dark:text-iota-neutral-60 text-label-lg text-iota-neutral-40">
                             Description
                         </span>
-                        <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                        <span className="dark:text-iota-neutral-92 text-body-md text-iota-neutral-10">
                             {description ?? '--'}
                         </span>
                     </div>
@@ -103,53 +103,56 @@ export function ValidatorMeta({
     const isValidatorCommitteeMember = isCommitteeMember(validatorData.iotaAddress);
 
     return (
-        <div className="flex flex-col gap-y-md">
-            <Panel>
-                <div className="flex flex-col gap-lg p-md--rs md:flex-row">
-                    <div className="flex flex-row gap-lg">
-                        <div className="h-[120px] w-[120px] shrink-0">
-                            <ImageIcon
-                                src={logo}
-                                label={validatorName}
-                                fallback={validatorName}
-                                size={ImageIconSize.Full}
-                            />
-                        </div>
-                        <div className="flex min-w-0 flex-col gap-sm">
-                            <div className="flex flex-row flex-wrap items-center gap-x-sm gap-y-xs">
-                                <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
-                                    {validatorName}
-                                </span>
-                                {projectUrl && (
-                                    <a
-                                        href={projectUrl}
-                                        target="_blank"
-                                        rel="noreferrer noopener"
-                                        className="text-iota-neutral-40 hover:text-iota-neutral-10 dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92"
-                                    >
-                                        <ArrowTopRight />
-                                    </a>
-                                )}
+        <div className="flex flex-col gap-md md:flex-row">
+            <div className="flex w-full md:w-1/3">
+                <Panel>
+                    <div className="flex flex-col gap-lg p-md--rs">
+                        <div className="flex flex-row gap-lg">
+                            <div className="h-[80px] w-[80px] shrink-0">
+                                <ImageIcon
+                                    src={logo}
+                                    label={validatorName}
+                                    fallback={validatorName}
+                                    size={ImageIconSize.Full}
+                                />
                             </div>
-                            <div className="flex flex-wrap items-center gap-xs">
-                                <Badge type={BadgeType.Neutral} label="Validator" />
-                                {isValidatorCommitteeMember ? (
-                                    <Badge type={BadgeType.Success} label="Committee" />
-                                ) : atRiskRemainingEpochs != null ? (
-                                    <Badge type={BadgeType.Neutral} label="Candidate" />
-                                ) : (
-                                    <Badge type={BadgeType.PrimarySoft} label="Active" />
-                                )}
+                            <div className="flex min-w-0 flex-col gap-sm">
+                                <div className="flex flex-row items-center gap-x-sm gap-y-xs">
+                                    <span className="dark:text-iota-neutral-92 text-headline-md text-iota-neutral-10">
+                                        {validatorName}
+                                    </span>
+                                    {projectUrl && (
+                                        <a
+                                            href={projectUrl}
+                                            target="_blank"
+                                            rel="noreferrer noopener"
+                                            className="dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92 text-iota-neutral-40 hover:text-iota-neutral-10"
+                                        >
+                                            <ArrowTopRight />
+                                        </a>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-xs">
+                                    <Badge type={BadgeType.Neutral} label="Validator" />
+                                    {isValidatorCommitteeMember ? (
+                                        <Badge type={BadgeType.Success} label="Committee" />
+                                    ) : atRiskRemainingEpochs != null ? (
+                                        <Badge type={BadgeType.Neutral} label="Candidate" />
+                                    ) : (
+                                        <Badge type={BadgeType.PrimarySoft} label="Active" />
+                                    )}
+                                </div>
                             </div>
-                            {description && (
-                                <p className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
-                                    {description}
-                                </p>
-                            )}
                         </div>
+                        {description && (
+                            <p className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
+                                {description}
+                            </p>
+                        )}
                     </div>
-                </div>
-            </Panel>
+                </Panel>
+            </div>
+
             <Panel>
                 <div className="flex flex-col gap-md p-md--rs">
                     <KeyValueInfo
@@ -162,7 +165,7 @@ export function ValidatorMeta({
                         keyText="Address"
                         value={
                             <div className="flex flex-col gap-xxs">
-                                <div className="flex items-center gap-xs text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <div className="dark:text-iota-neutral-60 flex items-center gap-xs text-iota-neutral-40">
                                     <IotaLogoMark className="h-3.5 w-3.5 shrink-0" />
                                     <span className="text-body-sm">{validatorName}</span>
                                 </div>

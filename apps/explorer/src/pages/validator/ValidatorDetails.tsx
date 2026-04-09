@@ -155,7 +155,7 @@ function ValidatorDetails(): JSX.Element {
     return (
         <PageLayout
             content={
-                <div className="flex flex-col gap-2xl">
+                <div className="flex flex-col gap-xl">
                     <ValidatorMeta
                         validatorData={activeValidatorData}
                         atRiskRemainingEpochs={atRiskRemainingEpochs}
