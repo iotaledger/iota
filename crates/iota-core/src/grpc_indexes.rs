@@ -45,6 +45,12 @@ use crate::{
 /// A version mismatch triggers a full re-index via
 /// `needs_to_do_initialization`.
 ///
+/// NOTE: Adding a *new* table does NOT require a version bump.  New tables
+/// start empty and are populated by a background backfill task tracked via
+/// dedicated `Watermark` variants (`PackageVersionBackfilled`,
+/// `CoinV2Backfilled`, `OwnerV2Backfilled`).  While the backfill runs, affected
+/// endpoints return `Code::Unavailable` with a `RetryInfo` hint.
+///
 /// Version history:
 /// - 1: Initial version with deprecated CF migration + background backfill.
 /// - 2: Removed deprecated CFs (`transactions`, `owner`, `dynamic_field`,
