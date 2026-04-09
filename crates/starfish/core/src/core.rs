@@ -120,6 +120,7 @@ pub(crate) enum ReasonToCreateBlock {
     MinBlockDelayTimeout,
     AddBlock,
     AddBlockHeader,
+    RelaxedTimeout,
     MaxLeaderTimeout,
     Recover,
     QuorumSubscribersExist,
@@ -135,6 +136,7 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => "AddBlock",
             ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
             ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
+            ReasonToCreateBlock::RelaxedTimeout => "RelaxedTimeout",
             ReasonToCreateBlock::Recover => "Recover",
             ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
             ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
@@ -150,11 +152,16 @@ impl ReasonToCreateBlock {
             ReasonToCreateBlock::AddBlock => false,
             ReasonToCreateBlock::MaxLeaderTimeout => true,
             ReasonToCreateBlock::AddBlockHeader => false,
+            ReasonToCreateBlock::RelaxedTimeout => false,
             ReasonToCreateBlock::Recover => true,
             ReasonToCreateBlock::QuorumSubscribersExist => true,
             ReasonToCreateBlock::KnownLastBlock => true,
             ReasonToCreateBlock::FastSyncComplete => true,
         }
+    }
+
+    fn is_relaxed(&self) -> bool {
+        matches!(self, ReasonToCreateBlock::RelaxedTimeout)
     }
 }
 
@@ -765,7 +772,8 @@ impl Core {
                 return None;
             }
 
-            if self.context.protocol_config.consensus_starfish_speed()
+            if !reason.is_relaxed()
+                && self.context.protocol_config.consensus_starfish_speed()
                 && !self.has_strong_vote_quorum(quorum_round)
             {
                 return None;

@@ -43,6 +43,8 @@ pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
     new_block_receiver: broadcast::Receiver<VerifiedBlock>,
     leader_timeout: Duration,
     min_block_delay: Duration,
+    relaxed_leader_timeout: Duration,
+    starfish_speed_enabled: bool,
     stop: Receiver<()>,
 }
 
@@ -64,6 +66,8 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
             new_round_receiver: signals_receivers.new_round_receiver(),
             leader_timeout: context.parameters.leader_timeout,
             min_block_delay: context.parameters.min_block_delay,
+            relaxed_leader_timeout: context.parameters.relaxed_leader_timeout,
+            starfish_speed_enabled: context.protocol_config.consensus_starfish_speed(),
         };
         let handle = tokio::spawn(async move { me.run().await });
 
@@ -88,12 +92,15 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
         let mut clock_round: Round = *new_clock_round.borrow_and_update();
         let mut last_own_block_round: Option<Round> = None;
         let mut min_block_delay_timed_out = false;
+        let mut relaxed_timed_out = false;
         let mut max_leader_round_timed_out = false;
         let timer_start = Instant::now();
         let min_block_delay_timeout = sleep_until(timer_start + self.min_block_delay);
+        let relaxed_timeout = sleep_until(timer_start + self.relaxed_leader_timeout);
         let max_leader_timeout = sleep_until(timer_start + self.leader_timeout);
 
         tokio::pin!(min_block_delay_timeout);
+        tokio::pin!(relaxed_timeout);
         tokio::pin!(max_leader_timeout);
 
         loop {
@@ -127,6 +134,33 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                         }
                     }
                     min_block_delay_timed_out = true;
+                },
+                // When the relaxed timeout expires, attempt block creation without requiring
+                // a strong-vote quorum. Only active when starfish speed is enabled.
+                () = &mut relaxed_timeout, if !relaxed_timed_out && self.starfish_speed_enabled => {
+                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::RelaxedTimeout).await {
+                        Ok(missing_committed_txns) => {
+                            if !missing_committed_txns.is_empty() {
+                                debug!(
+                                    "Missing committed transactions after creating new block: {:?}",
+                                    missing_committed_txns
+                                );
+                                if let Err(err) = self.transactions_synchronizer
+                                    .fetch_transactions(missing_committed_txns)
+                                    .await
+                                {
+                                    warn!(
+                                        "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
+                                    );
+                                }
+                            }
+                        },
+                        Err(err) => {
+                            warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
+                            return;
+                        }
+                    }
+                    relaxed_timed_out = true;
                 },
                 // When the max leader timer expires then we attempt to trigger the creation of a new block. This
                 // call is made with reason MaxLeaderTimeout to bypass any checks that allow to propose immediately if block
@@ -164,12 +198,16 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     let _span = tracing::trace_span!("new_consensus_round_received", round = ?clock_round).entered();
 
                     max_leader_round_timed_out = false;
+                    relaxed_timed_out = false;
 
                     let now = Instant::now();
 
                     max_leader_timeout
                     .as_mut()
                     .reset(now + self.leader_timeout);
+                    relaxed_timeout
+                    .as_mut()
+                    .reset(now + self.relaxed_leader_timeout);
                 },
                  // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
@@ -177,9 +215,11 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     last_own_block_round = Some(block.round());
 
                     min_block_delay_timed_out = false;
+                    relaxed_timed_out = false;
 
                     let now = Instant::now();
                     min_block_delay_timeout.as_mut().reset(now + self.min_block_delay);
+                    relaxed_timeout.as_mut().reset(now + self.relaxed_leader_timeout);
                 },
                 _ = &mut self.stop => {
                     debug!("Stop signal has been received, now shutting down");

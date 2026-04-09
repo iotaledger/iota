@@ -36,6 +36,11 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_min_block_delay")]
     pub min_block_delay: Duration,
 
+    /// Timeout after which block creation falls back to pre-StarfishSpeed
+    /// behavior, allowing blocks without a strong-vote quorum.
+    #[serde(default = "Parameters::default_relaxed_leader_timeout")]
+    pub relaxed_leader_timeout: Duration,
+
     /// Maximum forward time drift (how far in future) allowed for received
     /// blocks.
     #[serde(default = "Parameters::default_max_forward_time_drift")]
@@ -147,6 +152,10 @@ impl Parameters {
             // block rate to 20 blocks/sec
             Duration::from_millis(50)
         }
+    }
+
+    pub(crate) fn default_relaxed_leader_timeout() -> Duration {
+        Duration::from_millis(125)
     }
 
     pub(crate) fn default_max_forward_time_drift() -> Duration {
@@ -272,6 +281,7 @@ impl Default for Parameters {
             db_path: PathBuf::default(),
             leader_timeout: Parameters::default_leader_timeout(),
             min_block_delay: Parameters::default_min_block_delay(),
+            relaxed_leader_timeout: Parameters::default_relaxed_leader_timeout(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),
