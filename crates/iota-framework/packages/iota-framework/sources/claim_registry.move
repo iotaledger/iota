@@ -18,6 +18,8 @@ use iota::hash;
 const SCHEME_ED25519: u8 = 0x00;
 const SCHEME_SECP256K1: u8 = 0x01;
 const SCHEME_SECP256R1: u8 = 0x02;
+// TODO: passkey - 0x06.
+
 /// Matches `SignatureScheme::MoveAuthenticator` (0x07).
 /// For this scheme address derivation is skipped — `public_key` may be empty
 /// or carry arbitrary data; ownership is proved by the transaction signature.
@@ -97,7 +99,7 @@ public fun claim(
         let derived = derive_address(scheme, &public_key);
         assert!(derived == ctx.sender(), EAddressMismatch);
     };
-    assert!(!df::exists_(&registry.id, ctx.sender()), EAlreadyClaimed);
+    assert!(!is_claimed(registry, ctx.sender()), EAlreadyClaimed);
     df::add(&mut registry.id, ctx.sender(), true);
     ClaimedAddressTicket { account: ctx.sender(), public_key, flag: scheme }
 }
