@@ -181,7 +181,7 @@ pub fn get_rpc_url(
 fn test_yaml() {
     let mut set = ReplayableNetworkConfigSet::default();
 
-    let path = iota_common::tempdir().keep();
+    let path = iota_common::tempdir().keep().join("config.yaml");
     let path_str = path.to_str().unwrap().to_owned();
 
     let final_path = set.save_config(Some(path_str.clone())).unwrap();
