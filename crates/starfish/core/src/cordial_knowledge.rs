@@ -456,13 +456,23 @@ impl CordialKnowledge {
     ) -> bool {
         let mut changed = false;
         for (authority, new_round) in updates {
-            if let Some(existing_round) = &mut target[authority.value()] {
+            let index = authority.value();
+            if index >= target.len() {
+                debug!(
+                    "Ignoring out-of-range authority index {} (max {}) in cordial knowledge update",
+                    index,
+                    target.len().saturating_sub(1),
+                );
+                continue;
+            }
+
+            if let Some(existing_round) = &mut target[index] {
                 if new_round > *existing_round {
                     *existing_round = new_round;
                     changed = true;
                 }
             } else {
-                target[authority.value()] = Some(new_round);
+                target[index] = Some(new_round);
                 changed = true;
             }
         }
