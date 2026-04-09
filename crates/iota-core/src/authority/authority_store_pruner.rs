@@ -1064,7 +1064,6 @@ mod tests {
             HashSet::from_iter(to_keep),
             get_keys_after_pruning(&path).unwrap()
         );
-        run_pruner(&temp_dir(), 3, 2, 1000).await;
     }
 
     // Tests pruning deleted objects (object tombstones).
