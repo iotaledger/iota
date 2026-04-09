@@ -10,7 +10,7 @@ import {
     UnstakeDialog,
     SupplyIncreaseVestingOverview,
     StakeDialogView,
-    CollectSummaryDialog,
+    CollectTransactionDialog,
 } from '@/components';
 import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
@@ -53,7 +53,6 @@ import {
     MIN_NUMBER_IOTA_TO_STAKE,
     NOT_ENOUGH_BALANCE_ID,
     Banner,
-    useGetTransactionWithSummary,
 } from '@iota/core';
 import {
     useCurrentAccount,
@@ -73,7 +72,7 @@ export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
         useState<TimelockedStakedObjectsGrouped | null>(null);
     const [collectTxDigest, setCollectTxDigest] = useState<string | null>(null);
-    const [showCollectSummary, setShowCollectSummary] = useState(false);
+    const [showCollectTransaction, setShowCollectTransaction] = useState(false);
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
@@ -113,11 +112,6 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const inactiveValidatorAddresses = new Set(
         inactiveValidatorUnlockedStakes.map((stake) => stake.validatorAddress),
-    );
-
-    const { data: collectTransaction } = useGetTransactionWithSummary(
-        collectTxDigest ?? '',
-        address,
     );
 
     const {
@@ -225,7 +219,7 @@ export default function VestingDashboardPage(): JSX.Element {
             {
                 onSuccess: (tx) => {
                     setCollectTxDigest(tx.digest);
-                    setShowCollectSummary(true);
+                    setShowCollectTransaction(true);
                     ampli.timelockCollect();
                     toast.success('Collect transaction has been sent');
 
@@ -442,15 +436,14 @@ export default function VestingDashboardPage(): JSX.Element {
                         supplyIncreaseVestingSchedule.availableStaking,
                     )}
                 />
-                {collectTransaction && (
-                    <CollectSummaryDialog
-                        open={showCollectSummary}
+                {showCollectTransaction && collectTxDigest && (
+                    <CollectTransactionDialog
+                        open={showCollectTransaction}
+                        txDigest={collectTxDigest}
                         onClose={() => {
-                            setShowCollectSummary(false);
+                            setShowCollectTransaction(false);
                             refreshStakeList();
                         }}
-                        transaction={collectTransaction}
-                        activeAddress={address}
                     />
                 )}
             </>
