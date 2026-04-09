@@ -255,6 +255,7 @@ enum Command {
 pub(crate) struct HeaderSynchronizerHandle {
     commands_sender: Sender<Command>,
     tasks: tokio::sync::Mutex<JoinSet<()>>,
+    verified_headers_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
 }
 
 impl HeaderSynchronizerHandle {
@@ -275,6 +276,10 @@ impl HeaderSynchronizerHandle {
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
         receiver.await.map_err(|_err| ConsensusError::Shutdown)?
+    }
+
+    pub(crate) fn clear_verified_headers_cache(&self) {
+        self.verified_headers_cache.lock().clear();
     }
 
     pub(crate) async fn stop(&self) -> Result<(), JoinError> {
@@ -389,6 +394,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         let commands_sender_clone = commands_sender.clone();
+        let verified_headers_cache_clone = verified_headers_cache.clone();
 
         if sync_last_known_own_block {
             commands_sender
@@ -420,6 +426,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         Arc::new(HeaderSynchronizerHandle {
             commands_sender,
             tasks: tokio::sync::Mutex::new(tasks),
+            verified_headers_cache: verified_headers_cache_clone,
         })
     }
 
