@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use typed_store::{
     DBMapUtils, TypedStoreError,
+    database::Database,
     rocks::{DBMap, MetricConf},
     traits::Map,
 };
@@ -50,12 +51,7 @@ use crate::{
 /// dedicated `Watermark` variants (`PackageVersionBackfilled`,
 /// `CoinV2Backfilled`, `OwnerV2Backfilled`).  While the backfill runs, affected
 /// endpoints return `Code::Unavailable` with a `RetryInfo` hint.
-///
-/// Version history:
-/// - 1: Initial version with deprecated CF migration + background backfill.
-/// - 2: Removed deprecated CFs (`transactions`, `owner`, `dynamic_field`,
-///   `coin`) and background backfill infrastructure.
-const CURRENT_DB_VERSION: u64 = 2;
+const CURRENT_DB_VERSION: u64 = 1;
 
 /// On-disk directory name for the gRPC indexes store.
 pub const GRPC_INDEXES_DIR: &str = "grpc_indexes";
@@ -361,6 +357,13 @@ struct IndexStoreTables {
     /// the main database.
     transaction_checkpoints: DBMap<TransactionDigest, CheckpointSequenceNumber>,
 
+    /// Deprecated: migrated to `owner`.
+    // TODO(cleanup): Remove this field and `migrate_owner_v2_to_owner` in the
+    // next release once all nodes have migrated.
+    #[allow(dead_code)]
+    #[deprecated_db_map(migration = "migrate_owner_v2_to_owner")]
+    owner_v2: Option<DBMap<OwnerIndexKey, OwnerIndexInfo>>,
+
     /// An index of object ownership.
     ///
     /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
@@ -372,12 +375,27 @@ struct IndexStoreTables {
     /// address-owned object).
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
+    /// Deprecated: migrated to `dynamic_field`.
+    // TODO(cleanup): Remove this field and
+    // `migrate_dynamic_field_v2_to_dynamic_field` in the next release once
+    // all nodes have migrated.
+    #[allow(dead_code)]
+    #[deprecated_db_map(migration = "migrate_dynamic_field_v2_to_dynamic_field")]
+    dynamic_field_v2: Option<DBMap<DynamicFieldKey, ()>>,
+
     /// An index of dynamic fields (children objects).
     ///
     /// Allows an efficient iterator to list all of the dynamic fields owned by
     /// a particular ObjectID. Only the key is stored; field metadata is loaded
     /// on demand from the object store.
     dynamic_field: DBMap<DynamicFieldKey, ()>,
+
+    /// Deprecated: migrated to `coin`.
+    // TODO(cleanup): Remove this field and `migrate_coin_v2_to_coin` in the
+    // next release once all nodes have migrated.
+    #[allow(dead_code)]
+    #[deprecated_db_map(migration = "migrate_coin_v2_to_coin")]
+    coin_v2: Option<DBMap<CoinIndexKey, CoinIndexInfo>>,
 
     /// Coin info with regulated coin metadata.
     /// Bounded by the live object set (one entry per coin type).
@@ -393,6 +411,122 @@ struct IndexStoreTables {
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
     // - are prune-able and have corresponding logic in the `prune` function
+}
+
+// ---------------------------------------------------------------------------
+// CF migrations: owner_v2 → owner, dynamic_field_v2 → dynamic_field,
+// coin_v2 → coin.
+//
+// TODO(cleanup): Remove these functions in the next release once all nodes
+// have migrated.
+// ---------------------------------------------------------------------------
+
+/// Migration: copy entries from the deprecated `owner_v2` CF into `owner`.
+fn migrate_owner_v2_to_owner(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
+    let old = DBMap::<OwnerIndexKey, OwnerIndexInfo>::reopen(
+        db,
+        Some("owner_v2"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        true,
+    )?;
+    let new = DBMap::<OwnerIndexKey, OwnerIndexInfo>::reopen(
+        db,
+        Some("owner"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        false,
+    )?;
+
+    const BATCH_SIZE: usize = 10_000;
+    let mut batch = new.batch();
+    let mut count = 0usize;
+    for item in old.safe_iter() {
+        let (key, value) = item?;
+        batch.insert_batch(&new, std::iter::once((key, value)))?;
+        count += 1;
+        if count.is_multiple_of(BATCH_SIZE) {
+            batch.write()?;
+            batch = new.batch();
+        }
+    }
+    if !count.is_multiple_of(BATCH_SIZE) {
+        batch.write()?;
+    }
+
+    info!("migrated owner_v2 -> owner ({count} entries)");
+    Ok(())
+}
+
+/// Migration: copy entries from the deprecated `dynamic_field_v2` CF into
+/// `dynamic_field`.
+fn migrate_dynamic_field_v2_to_dynamic_field(
+    db: &std::sync::Arc<Database>,
+) -> Result<(), TypedStoreError> {
+    let old = DBMap::<DynamicFieldKey, ()>::reopen(
+        db,
+        Some("dynamic_field_v2"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        true,
+    )?;
+    let new = DBMap::<DynamicFieldKey, ()>::reopen(
+        db,
+        Some("dynamic_field"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        false,
+    )?;
+
+    const BATCH_SIZE: usize = 10_000;
+    let mut batch = new.batch();
+    let mut count = 0usize;
+    for item in old.safe_iter() {
+        let (key, ()) = item?;
+        batch.insert_batch(&new, std::iter::once((key, ())))?;
+        count += 1;
+        if count.is_multiple_of(BATCH_SIZE) {
+            batch.write()?;
+            batch = new.batch();
+        }
+    }
+    if !count.is_multiple_of(BATCH_SIZE) {
+        batch.write()?;
+    }
+
+    info!("migrated dynamic_field_v2 -> dynamic_field ({count} entries)");
+    Ok(())
+}
+
+/// Migration: copy entries from the deprecated `coin_v2` CF into `coin`.
+fn migrate_coin_v2_to_coin(db: &std::sync::Arc<Database>) -> Result<(), TypedStoreError> {
+    let old = DBMap::<CoinIndexKey, CoinIndexInfo>::reopen(
+        db,
+        Some("coin_v2"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        true,
+    )?;
+    let new = DBMap::<CoinIndexKey, CoinIndexInfo>::reopen(
+        db,
+        Some("coin"),
+        &typed_store::rocks::ReadWriteOptions::default(),
+        false,
+    )?;
+
+    const BATCH_SIZE: usize = 10_000;
+    let mut batch = new.batch();
+    let mut count = 0usize;
+    for item in old.safe_iter() {
+        let (key, value) = item?;
+        batch.insert_batch(&new, std::iter::once((key, value)))?;
+        count += 1;
+        if count.is_multiple_of(BATCH_SIZE) {
+            batch.write()?;
+            batch = new.batch();
+        }
+    }
+    if !count.is_multiple_of(BATCH_SIZE) {
+        batch.write()?;
+    }
+
+    info!("migrated coin_v2 -> coin ({count} entries)");
+    Ok(())
 }
 
 impl IndexStoreTables {
