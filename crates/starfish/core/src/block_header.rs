@@ -22,6 +22,7 @@ use starfish_config::{
 use tracing::instrument;
 
 use crate::{
+    authority_set::AuthoritySet,
     commit::CommitVote,
     context::Context,
     encoder::ShardEncoder,
@@ -97,6 +98,7 @@ impl Transaction {
 #[derive(Clone, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
 pub enum BlockHeader {
     V1(BlockHeaderV1),
+    V2(BlockHeaderV2),
 }
 
 pub trait BlockHeaderAPI {
@@ -109,6 +111,9 @@ pub trait BlockHeaderAPI {
     fn ancestors(&self) -> &[BlockRef];
     fn commit_votes(&self) -> &[CommitVote];
     fn transactions_commitment(&self) -> TransactionsCommitment;
+    fn strong_vote(&self) -> Option<AuthoritySet>;
+    fn is_strong_vote(&self) -> bool;
+    fn is_strong_blame(&self) -> bool;
 }
 
 #[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
@@ -142,7 +147,7 @@ impl BlockHeaderV1 {
         transactions_commitment: TransactionsCommitment,
     ) -> BlockHeaderV1 {
         let (references, overlap_start_index, overlap_end_index) =
-            Self::compress_references(ancestors, acknowledgments);
+            BlockHeader::compress_references(ancestors, acknowledgments);
         Self {
             epoch,
             round,
@@ -154,55 +159,6 @@ impl BlockHeaderV1 {
             transactions_commitment,
             commit_votes,
         }
-    }
-    /// Compresses ancestors and acknowledgments into a single references
-    /// vector, and returns the overlap indices. The first ancestor is
-    /// always the first reference (ref0). If it is also in acknowledgments,
-    /// it is appended to the end of references.
-    pub(crate) fn compress_references(
-        ancestors: Vec<BlockRef>,
-        acknowledgments: Vec<BlockRef>,
-    ) -> (Vec<BlockRef>, u8, u8) {
-        if ancestors.is_empty() {
-            return (acknowledgments, 0, 0);
-        }
-        // Sets for membership checks
-        let ancestor_set: HashSet<_> = ancestors.iter().cloned().collect();
-        let ack_set: HashSet<_> = acknowledgments.into_iter().collect();
-        // ref0 is the first ancestor, and is also always the first reference
-        let ref0 = ancestors[0];
-        // if it is also in acknowledgments, it is appended to the end of references
-        let append_ref0 = ack_set.contains(&ref0);
-
-        // partition ancestors into overlap and ancestors_only (excluding ref0)
-        let (overlap, mut ancestors_only): (Vec<_>, Vec<_>) = ancestors
-            .into_iter()
-            .skip(1)
-            .partition(|a| ack_set.contains(a));
-        // insert ref0 back to the front of ancestors_only
-        ancestors_only.insert(0, ref0);
-
-        // acknowledgments_only excludes any overlap with ancestors
-        let acknowledgments_only: Vec<_> = ack_set
-            .into_iter()
-            .filter(|a| !ancestor_set.contains(a))
-            .collect();
-
-        let overlap_start_index = ancestors_only.len();
-        let overlap_end_index = overlap_start_index + overlap.len();
-        // combine all parts into references
-        // |ancestors_only|overlap|acknowledgments_only|ref0?|
-        let mut references = ancestors_only;
-        references.extend(overlap);
-        references.extend(acknowledgments_only);
-        if append_ref0 {
-            references.push(ref0);
-        }
-        (
-            references,
-            overlap_start_index as u8,
-            overlap_end_index as u8,
-        )
     }
 
     /// Validates that overlap_start_index and overlap_end_index are within
@@ -274,60 +230,220 @@ impl BlockHeaderAPI for BlockHeaderV1 {
     fn transactions_commitment(&self) -> TransactionsCommitment {
         self.transactions_commitment
     }
+
+    // V1 blocks do not carry a strong vote; always returns None.
+    fn strong_vote(&self) -> Option<AuthoritySet> {
+        None
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        false
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
+pub struct BlockHeaderV2 {
+    epoch: Epoch,
+    round: Round,
+    author: AuthorityIndex,
+    timestamp_ms: BlockTimestampMs,
+    references: Vec<BlockRef>,
+    overlap_start_index: u8,
+    overlap_end_index: u8,
+    transactions_commitment: TransactionsCommitment,
+    commit_votes: Vec<CommitVote>,
+    // Bitmask of authorities whose transaction data (announced by the leader)
+    // is not available. None means no vote. Some(empty) means all data is
+    // available (strong vote). Some(nonempty) means some data is missing
+    // (strong blame).
+    strong_vote: Option<AuthoritySet>,
+}
+
+impl BlockHeaderV2 {
+    // Will be used when block construction is gated on consensus_starfish_speed.
+    #[expect(dead_code)]
+    pub(crate) fn new(
+        epoch: Epoch,
+        round: Round,
+        author: AuthorityIndex,
+        timestamp_ms: BlockTimestampMs,
+        ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
+        commit_votes: Vec<CommitVote>,
+        transactions_commitment: TransactionsCommitment,
+        strong_vote: Option<AuthoritySet>,
+    ) -> BlockHeaderV2 {
+        let (references, overlap_start_index, overlap_end_index) =
+            BlockHeader::compress_references(ancestors, acknowledgments);
+        Self {
+            epoch,
+            round,
+            author,
+            timestamp_ms,
+            references,
+            overlap_start_index,
+            overlap_end_index,
+            transactions_commitment,
+            commit_votes,
+            strong_vote,
+        }
+    }
+
+    // Will be used when genesis block construction is gated on
+    // consensus_starfish_speed.
+    #[expect(dead_code)]
+    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
+        Self {
+            epoch: context.committee.epoch(),
+            round: GENESIS_ROUND,
+            author,
+            timestamp_ms: context.epoch_start_timestamp_ms,
+            references: vec![],
+            overlap_start_index: 0,
+            overlap_end_index: 0,
+            commit_votes: vec![],
+            transactions_commitment: TransactionsCommitment::default(),
+            strong_vote: None,
+        }
+    }
+}
+
+impl BlockHeaderAPI for BlockHeaderV2 {
+    fn epoch(&self) -> Epoch {
+        self.epoch
+    }
+
+    fn round(&self) -> Round {
+        self.round
+    }
+
+    fn author(&self) -> AuthorityIndex {
+        self.author
+    }
+
+    fn slot(&self) -> Slot {
+        Slot::new(self.round, self.author)
+    }
+
+    fn acknowledgments(&self) -> &[BlockRef] {
+        &self.references[self.overlap_start_index as usize..]
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn ancestors(&self) -> &[BlockRef] {
+        &self.references[..self.overlap_end_index as usize]
+    }
+
+    fn commit_votes(&self) -> &[CommitVote] {
+        &self.commit_votes
+    }
+
+    fn transactions_commitment(&self) -> TransactionsCommitment {
+        self.transactions_commitment
+    }
+
+    fn strong_vote(&self) -> Option<AuthoritySet> {
+        self.strong_vote
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        self.strong_vote.is_some_and(|s| s.is_empty())
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        self.strong_vote.is_some_and(|s| !s.is_empty())
+    }
 }
 
 impl BlockHeaderAPI for BlockHeader {
     fn epoch(&self) -> Epoch {
         match self {
             BlockHeader::V1(header) => header.epoch(),
+            BlockHeader::V2(header) => header.epoch(),
         }
     }
 
     fn round(&self) -> Round {
         match self {
             BlockHeader::V1(header) => header.round(),
+            BlockHeader::V2(header) => header.round(),
         }
     }
 
     fn author(&self) -> AuthorityIndex {
         match self {
             BlockHeader::V1(header) => header.author(),
+            BlockHeader::V2(header) => header.author(),
         }
     }
 
     fn slot(&self) -> Slot {
         match self {
             BlockHeader::V1(header) => header.slot(),
+            BlockHeader::V2(header) => header.slot(),
         }
     }
 
     fn acknowledgments(&self) -> &[BlockRef] {
         match self {
             BlockHeader::V1(header) => header.acknowledgments(),
+            BlockHeader::V2(header) => header.acknowledgments(),
         }
     }
 
     fn timestamp_ms(&self) -> BlockTimestampMs {
         match self {
             BlockHeader::V1(header) => header.timestamp_ms(),
+            BlockHeader::V2(header) => header.timestamp_ms(),
         }
     }
 
     fn ancestors(&self) -> &[BlockRef] {
         match self {
             BlockHeader::V1(header) => header.ancestors(),
+            BlockHeader::V2(header) => header.ancestors(),
         }
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
         match self {
             BlockHeader::V1(header) => header.commit_votes(),
+            BlockHeader::V2(header) => header.commit_votes(),
         }
     }
 
     fn transactions_commitment(&self) -> TransactionsCommitment {
         match self {
             BlockHeader::V1(header) => header.transactions_commitment(),
+            BlockHeader::V2(header) => header.transactions_commitment(),
+        }
+    }
+
+    fn strong_vote(&self) -> Option<AuthoritySet> {
+        match self {
+            BlockHeader::V1(header) => header.strong_vote(),
+            BlockHeader::V2(header) => header.strong_vote(),
+        }
+    }
+
+    fn is_strong_vote(&self) -> bool {
+        match self {
+            BlockHeader::V1(header) => header.is_strong_vote(),
+            BlockHeader::V2(header) => header.is_strong_vote(),
+        }
+    }
+
+    fn is_strong_blame(&self) -> bool {
+        match self {
+            BlockHeader::V1(header) => header.is_strong_blame(),
+            BlockHeader::V2(header) => header.is_strong_blame(),
         }
     }
 }
@@ -343,6 +459,64 @@ impl BlockHeader {
 impl From<BlockHeaderV1> for BlockHeader {
     fn from(header: BlockHeaderV1) -> Self {
         BlockHeader::V1(header)
+    }
+}
+
+impl From<BlockHeaderV2> for BlockHeader {
+    fn from(header: BlockHeaderV2) -> Self {
+        BlockHeader::V2(header)
+    }
+}
+
+impl BlockHeader {
+    /// Compresses ancestors and acknowledgments into a single references
+    /// vector, and returns the overlap indices. The first ancestor is
+    /// always the first reference (ref0). If it is also in acknowledgments,
+    /// it is appended to the end of references.
+    pub(crate) fn compress_references(
+        ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
+    ) -> (Vec<BlockRef>, u8, u8) {
+        if ancestors.is_empty() {
+            return (acknowledgments, 0, 0);
+        }
+        // Sets for membership checks
+        let ancestor_set: HashSet<_> = ancestors.iter().cloned().collect();
+        let ack_set: HashSet<_> = acknowledgments.into_iter().collect();
+        // ref0 is the first ancestor, and is also always the first reference
+        let ref0 = ancestors[0];
+        // if it is also in acknowledgments, it is appended to the end of references
+        let append_ref0 = ack_set.contains(&ref0);
+
+        // partition ancestors into overlap and ancestors_only (excluding ref0)
+        let (overlap, mut ancestors_only): (Vec<_>, Vec<_>) = ancestors
+            .into_iter()
+            .skip(1)
+            .partition(|a| ack_set.contains(a));
+        // insert ref0 back to the front of ancestors_only
+        ancestors_only.insert(0, ref0);
+
+        // acknowledgments_only excludes any overlap with ancestors
+        let acknowledgments_only: Vec<_> = ack_set
+            .into_iter()
+            .filter(|a| !ancestor_set.contains(a))
+            .collect();
+
+        let overlap_start_index = ancestors_only.len();
+        let overlap_end_index = overlap_start_index + overlap.len();
+        // combine all parts into references
+        // |ancestors_only|overlap|acknowledgments_only|ref0?|
+        let mut references = ancestors_only;
+        references.extend(overlap);
+        references.extend(acknowledgments_only);
+        if append_ref0 {
+            references.push(ref0);
+        }
+        (
+            references,
+            overlap_start_index as u8,
+            overlap_end_index as u8,
+        )
     }
 }
 
@@ -1381,7 +1555,7 @@ impl TestBlockHeader {
 
     pub fn build(mut self) -> BlockHeader {
         let (references, overlap_start_index, overlap_end_index) =
-            BlockHeaderV1::compress_references(self.ancestors, self.acknowledgments);
+            BlockHeader::compress_references(self.ancestors, self.acknowledgments);
         self.block_header.references = references;
         self.block_header.overlap_start_index = overlap_start_index;
         self.block_header.overlap_end_index = overlap_end_index;
@@ -1469,7 +1643,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b];
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
+            crate::block_header::BlockHeader::compress_references(ancestors, acknowledgments);
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
@@ -1483,7 +1657,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b, ref_c];
         let acknowledgments = vec![ref_c, ref_d];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
+            crate::block_header::BlockHeader::compress_references(ancestors, acknowledgments);
         let expected = [ref_a, ref_b, ref_c, ref_d];
         assert_eq!(references.len(), expected.len());
         for r in references.iter() {
@@ -1498,7 +1672,7 @@ mod tests {
         let acknowledgments = vec![ref_a, ref_c, ref_d, ref_e];
 
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(ancestors, acknowledgments);
+            crate::block_header::BlockHeader::compress_references(ancestors, acknowledgments);
 
         let expected = [ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
         assert_eq!(references.len(), expected.len());
@@ -1515,7 +1689,7 @@ mod tests {
         let ancestors = vec![ref_a, ref_b, ref_c];
         let acknowledgments = vec![ref_a, ref_b, ref_c];
         let (references, overlap_start_index, overlap_end_index) =
-            crate::block_header::BlockHeaderV1::compress_references(
+            crate::block_header::BlockHeader::compress_references(
                 ancestors.clone(),
                 acknowledgments.clone(),
             );
