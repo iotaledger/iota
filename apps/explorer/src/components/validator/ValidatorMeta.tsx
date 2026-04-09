@@ -104,7 +104,7 @@ export function ValidatorMeta({
 
     return (
         <div className="flex flex-col gap-md md:flex-row">
-            <div className="flex w-full md:w-1/3">
+            <div className="flex w-full md:w-2/5">
                 <Panel>
                     <div className="flex flex-col gap-lg p-md--rs">
                         <div className="flex flex-row gap-lg">

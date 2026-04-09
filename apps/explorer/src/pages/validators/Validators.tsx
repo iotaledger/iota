@@ -350,7 +350,6 @@ function ValidatorPageResult(): JSX.Element {
                                     tooltipText={stat.tooltipText}
                                     value={stat.value}
                                     supportingLabel={stat.supportingLabel}
-                                    type={DisplayStatsType.Secondary}
                                     size={DisplayStatsSize.Large}
                                     tooltipPosition={TooltipPosition.Right}
                                 />
@@ -366,7 +365,6 @@ function ValidatorPageResult(): JSX.Element {
                                     tooltipText={stat.tooltipText}
                                     value={stat.value}
                                     supportingLabel={stat.supportingLabel}
-                                    type={DisplayStatsType.Secondary}
                                     size={DisplayStatsSize.Default}
                                     tooltipPosition={TooltipPosition.Right}
                                 />

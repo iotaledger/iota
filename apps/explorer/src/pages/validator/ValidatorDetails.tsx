@@ -14,9 +14,16 @@ import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import {
+    Badge,
+    BadgeSize,
+    BadgeType,
+    DisplayStats,
+    DisplayStatsSize,
+    DisplayStatsType,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
+    KeyValueInfo,
     LabelText,
     LabelTextSize,
     LoadingIndicator,
@@ -26,7 +33,6 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { Info, Warning } from '@iota/apps-ui-icons';
-import { CoinFormat } from '@iota/iota-sdk/utils';
 import type { LatestIotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
@@ -51,12 +57,11 @@ function ValidatorDetails(): JSX.Element {
     const { data: systemStateData, isLoading: isLoadingSystemState } = useIotaClientQuery(
         'getLatestIotaSystemState',
     );
-
+    const { data: maxCommitteeSize } = useMaxCommitteeSize();
     const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
         useGetInactiveValidator(id || '');
 
     const numberOfValidators = systemStateData?.activeValidators.length ?? null;
-    const { data: maxCommitteeSize } = useMaxCommitteeSize();
     const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();
     const { data: validatorEvents, isLoading: isValidatorsEventsLoading } = useGetValidatorsEvents({
         limit: numberOfValidators,
@@ -80,13 +85,7 @@ function ValidatorDetails(): JSX.Element {
     const [formattedNextEpochStake, nextEpochStakeSymbol] = useFormatCoin({
         balance: Number(activeValidatorData?.nextEpochStake ?? 0),
     });
-    const [formattedGasPrice, gasPriceSymbol] = useFormatCoin({
-        balance: Number(activeValidatorData?.gasPrice ?? 0),
-        format: CoinFormat.Full,
-    });
-    const [formattedCurrentStake, currentStakeSymbol] = useFormatCoin({
-        balance: Number(activeValidatorData?.stakingPoolIotaBalance ?? 0),
-    });
+
     const [formattedPrevEpochRewards, prevEpochRewardsSymbol] = useFormatCoin({
         balance: validatorRewards,
     });
@@ -139,7 +138,6 @@ function ValidatorDetails(): JSX.Element {
     const { apy, isApyApproxZero } = rollingAverageApys?.[id] ?? { apy: null };
 
     const nextEpochCommission = Number(activeValidatorData.nextEpochCommissionRate) / 100;
-    const votingPower = Number(activeValidatorData.votingPower) / 100;
 
     const isEarningCurrentEpoch = systemStateData.committeeMembers.some(
         (member) => member.iotaAddress === id,
@@ -151,7 +149,6 @@ function ValidatorDetails(): JSX.Element {
     const isInTopStakers = topValidators.some((v) => v.iotaAddress === id);
     const isEarningNextEpoch =
         (atRiskRemainingEpochs === null || atRiskRemainingEpochs > 1) && isInTopStakers;
-
     return (
         <PageLayout
             content={
@@ -165,6 +162,7 @@ function ValidatorDetails(): JSX.Element {
                         epoch={systemStateData.epoch}
                         epochRewards={validatorRewards}
                         apy={isApyApproxZero ? '~0' : apy}
+                        isEarningCurrentEpoch={isEarningCurrentEpoch}
                     />
                     <div className="flex flex-col gap-lg md:flex-row">
                         <Panel>
@@ -194,44 +192,6 @@ function ValidatorDetails(): JSX.Element {
                                             : undefined
                                     }
                                     tooltipText="Total staking rewards distributed to this validator's pool at the last epoch boundary."
-                                    tooltipPosition={TooltipPosition.Right}
-                                />
-                            </div>
-                        </Panel>
-                        <Panel>
-                            <Title
-                                title="Current Epoch"
-                                trailingElement={
-                                    <EpochStatusIndicator
-                                        active={isEarningCurrentEpoch}
-                                        activeLabel="Earning rewards"
-                                        inactiveLabel="Not earning"
-                                        tooltipText="Whether this validator is in the active committee and earning staking rewards this epoch."
-                                    />
-                                }
-                            />
-                            <div className="grid grid-cols-2 gap-md p-md--rs">
-                                <LabelText
-                                    size={LabelTextSize.Medium}
-                                    label="Stake"
-                                    text={formattedCurrentStake}
-                                    supportingLabel={currentStakeSymbol}
-                                    tooltipText="Total IOTA currently staked in this validator's pool."
-                                    tooltipPosition={TooltipPosition.Right}
-                                />
-                                <LabelText
-                                    size={LabelTextSize.Medium}
-                                    label="Gas Price"
-                                    text={formattedGasPrice}
-                                    supportingLabel={gasPriceSymbol}
-                                    tooltipText="The reference gas price proposed by this validator for the current epoch."
-                                    tooltipPosition={TooltipPosition.Right}
-                                />
-                                <LabelText
-                                    size={LabelTextSize.Medium}
-                                    label="Voting Power"
-                                    text={`${votingPower}%`}
-                                    tooltipText="Share of total committee voting power held by this validator, proportional to its stake."
                                     tooltipPosition={TooltipPosition.Right}
                                 />
                             </div>
@@ -302,7 +262,7 @@ type EpochStatusIndicatorProps = {
     loadingLabel?: string;
 };
 
-function EpochStatusIndicator({
+export function EpochStatusIndicator({
     active,
     activeLabel,
     inactiveLabel,
