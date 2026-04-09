@@ -130,7 +130,7 @@ export function AddAccountPage() {
         const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[actionType];
 
         if (ampliData) {
-            ampli.accountCreationStarted({
+            ampli.clickedCreateNewAccount({
                 accountType: ampliData.accountType,
                 accountOrigin: ampliData.accountOrigin,
                 isFirstAccount: isFirstAccount(accounts),

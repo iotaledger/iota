@@ -727,6 +727,7 @@ pub async fn get_validator_summary(
         pending_active_validators_id,
         validator_candidates_id,
         inactive_pools_id,
+        protocol_version,
     ) = match iota_system_state {
         IotaSystemStateSummary::V1(v1) => (
             None,
@@ -734,6 +735,7 @@ pub async fn get_validator_summary(
             v1.pending_active_validators_id,
             v1.validator_candidates_id,
             v1.inactive_pools_id,
+            v1.protocol_version,
         ),
         IotaSystemStateSummary::V2(v2) => (
             Some(v2.committee_members),
@@ -741,6 +743,7 @@ pub async fn get_validator_summary(
             v2.pending_active_validators_id,
             v2.validator_candidates_id,
             v2.inactive_pools_id,
+            v2.protocol_version,
         ),
         _ => bail!(
             "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
@@ -777,7 +780,7 @@ pub async fn get_validator_summary(
     let pending_validator_summary =
         get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
             .await?
-            .map(|v| v.into_iota_validator_summary());
+            .map(|v| v.into_iota_validator_summary(Some(protocol_version)));
 
     if let Some(pending_validator_summary) = pending_validator_summary {
         return Ok(Some((ValidatorStatus::Pending, pending_validator_summary)));
@@ -795,7 +798,8 @@ pub async fn get_validator_summary(
     if res.error.is_none() {
         let object_id = res.data.expect("no data in result").object_id;
         let validator_summary =
-            get_validator_summary_from_validator_wrapper(client, object_id).await?;
+            get_validator_summary_from_validator_wrapper(client, object_id, Some(protocol_version))
+                .await?;
         return Ok(Some((ValidatorStatus::Candidate, validator_summary)));
     };
 
@@ -807,9 +811,12 @@ pub async fn get_validator_summary(
             .await
     });
     while let Some(dynamic_field_info) = stream.try_next().await? {
-        let validator_summary =
-            get_validator_summary_from_validator_wrapper(client, dynamic_field_info.object_id)
-                .await?;
+        let validator_summary = get_validator_summary_from_validator_wrapper(
+            client,
+            dynamic_field_info.object_id,
+            Some(protocol_version),
+        )
+        .await?;
         if validator_summary.iota_address == validator_address {
             return Ok(Some((ValidatorStatus::Inactive, validator_summary)));
         }
@@ -821,6 +828,7 @@ pub async fn get_validator_summary(
 async fn get_validator_summary_from_validator_wrapper(
     client: &IotaClient,
     validator_object_id: ObjectID,
+    protocol_version: Option<u64>,
 ) -> anyhow::Result<IotaValidatorSummary> {
     let validator = client
         .read_api()
@@ -852,7 +860,9 @@ async fn get_validator_summary_from_validator_wrapper(
         .expect("invalid move type")
         .deserialize::<Field<u64, ValidatorV1>>()?;
 
-    Ok(validator.value.into_iota_validator_summary())
+    Ok(validator
+        .value
+        .into_iota_validator_summary(protocol_version))
 }
 
 async fn display_metadata(

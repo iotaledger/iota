@@ -124,10 +124,10 @@ jobs:
         if: ${{ matrix.os_type == 'windows-x86_64' }}
         shell: bash
         run: |
-          choco install postgresql16 --force --params '/Password:root'
-          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
-          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
-          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
+          choco install postgresql15 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\15\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\15\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\15\lib" >> $GITHUB_ENV
           echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
@@ -135,7 +135,7 @@ jobs:
         if: ${{ matrix.os_type == 'macos-arm64' }}
         shell: bash
         run: |
-          brew install postgresql
+          brew install postgresql@15
 
           PQ_PREFIX="$(brew --prefix libpq)"
           echo "PQ_LIB_DIR=${PQ_PREFIX}/lib" >> $GITHUB_ENV

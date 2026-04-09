@@ -173,7 +173,7 @@ export function useCreateAccountsMutation() {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);
             }
 
-            ampli.accountsAdded({
+            ampli.addedAccounts({
                 ...ampliData,
                 sourceFlow,
                 numberOfAccounts: createdAccounts.length,

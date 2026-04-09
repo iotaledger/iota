@@ -53,6 +53,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "hash",
             "hex",
             "hmac",
+            "intent",
             "iota",
             "kiosk",
             "kiosk_extension",

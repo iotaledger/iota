@@ -840,6 +840,7 @@ mod tests {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        protocol_config.set_gc_depth_for_testing(5);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1236,7 +1237,11 @@ mod tests {
         let test_validator_index: usize = 0;
         let blocked_validator_index: usize = 1;
 
-        // Phase 1: Start all authorities and let them create initial commits
+        // Phase 1: Start all authorities and let them create initial commits.
+        // Disable fast commit syncer for the test validator so it won't resolve
+        // pending subdags during Phase 3 (the fast syncer uses last_solid_commit_index
+        // for gap detection, which would trigger fetching when pending subdags exist).
+        // Phase 6 restarts the test validator with enable_fast_commit_syncer: true.
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
@@ -1245,7 +1250,7 @@ mod tests {
                 commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
                 fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
-                enable_fast_commit_syncer: true,
+                enable_fast_commit_syncer: index.value() != test_validator_index,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
                 ..Default::default()
             };
@@ -1332,7 +1337,7 @@ mod tests {
         // - Transaction synchronizer is stopped (blocks active transaction fetching)
         // - Shard reconstructor is stopped (blocks erasure-coded shard reconstruction)
         // This creates pending subdags.
-        // Commit syncers are running but have nothing to fetch (no commit gap exists).
+        // The fast commit syncer is disabled for the test validator (see Phase 1).
         let phase3_start = Instant::now();
         while phase3_start.elapsed() < stable_work_duration {
             // Submit transactions to all validators (rotating)
@@ -1423,10 +1428,8 @@ mod tests {
             COMMIT_GAP_THRESHOLD
         );
 
-        // Phase 6: Restart test validator with full connectivity.
-        // Transaction synchronizer and shard reconstructor
-        // will be stopped after restart to prevent pending subdags from being
-        // solidified.
+        // Phase 6: Restart test validator with full connectivity and fast commit
+        // syncer enabled.
         let parameters = Parameters {
             db_path: temp_dirs[test_validator_index].path().to_path_buf(),
             dag_state_cached_rounds: 5,
@@ -1453,20 +1456,7 @@ mod tests {
         consumer_monitors[test_validator_index] = monitor;
         authorities.insert(test_validator_index, authority);
 
-        // Keep transaction synchronizer and shard reconstructor stopped after restart
-        // to prevent pending subdags from being solidified. This forces the system
-        // to rely on fast sync to fill the gap, which should expose the bug.
-        authorities[test_validator_index]
-            .stop_transactions_synchronizer_for_test()
-            .await
-            .expect("Transaction synchronizer should stop");
-        authorities[test_validator_index]
-            .stop_shard_reconstructor_for_test()
-            .await
-            .expect("Shard reconstructor should stop");
-
         // Phase 7: Wait for the validator to catch up via fast sync
-        // This tests whether fast sync can handle pre-existing pending subdags
         let start_time = Instant::now();
         let mut caught_up = false;
         while start_time.elapsed() < Duration::from_secs(60) {

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { FiltersPortal, ConnectedAppsCard, type DAppEntry, AppsPlayGround } from '_components';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storageUtils';
 import { Feature } from '@iota/core';

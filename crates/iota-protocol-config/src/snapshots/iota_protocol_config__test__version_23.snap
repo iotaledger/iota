@@ -177,6 +177,7 @@ transfer_receive_object_cost_base: 100
 tx_context_derive_id_cost_base: 52
 tx_context_fresh_id_cost_base: 52
 tx_context_sender_cost_base: 30
+tx_context_digest_cost_base: 30
 tx_context_epoch_cost_base: 30
 tx_context_epoch_timestamp_ms_cost_base: 30
 tx_context_sponsor_cost_base: 30

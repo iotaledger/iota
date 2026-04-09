@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
     ExtendedDelegatedStake,
     ImageIcon,
     ImageIconSize,
@@ -33,7 +34,7 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, CoinFormat } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
 import { ampli } from '@/lib/utils/analytics';
@@ -68,7 +69,7 @@ export function DetailsView({
         apy,
         isApyApproxZero,
         newValidator,
-        commission,
+        effectiveCommission,
     } = useValidatorInfo({
         validatorAddress,
     });
@@ -78,6 +79,11 @@ export function DetailsView({
     const iotaEarned = BigInt(stakedDetails?.estimatedReward || 0n);
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
+    const [totalStakeFormattedPlain] = useFormatCoin({
+        balance: totalStake,
+        format: CoinFormat.Full,
+        useGroupSeparator: false,
+    });
 
     const { data: inactiveValidatorSummary } = useGetInactiveValidator(validatorAddress);
     const validatorName =
@@ -99,7 +105,7 @@ export function DetailsView({
         if (handleUnstake) {
             handleUnstake();
             ampli.clickedUnstakeIota({
-                stakedAmount: Number(totalStakeFormatted),
+                stakedAmount: Number(totalStakeFormattedPlain),
                 validatorAddress: stakedDetails?.validatorAddress,
             });
         }
@@ -175,9 +181,11 @@ export function DetailsView({
                                 fullwidth
                             />
                             <KeyValueInfo
-                                keyText="Commission"
-                                value={`${commission ? commission.toString() : '--'}%`}
+                                keyText="Effective Commission"
+                                value={effectiveCommission}
                                 fullwidth
+                                tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
+                                tooltipPosition={TooltipPosition.Right}
                             />
                         </div>
                     </Panel>

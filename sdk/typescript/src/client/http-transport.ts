@@ -108,6 +108,7 @@ export class IotaHTTPTransport implements IotaTransport {
                 signal: input.signal,
                 headers: {
                     'Content-Type': 'application/json',
+                    'Client-Sdk-Type': 'typescript',
                     ...this.#options.rpc?.headers,
                 },
                 body: JSON.stringify({

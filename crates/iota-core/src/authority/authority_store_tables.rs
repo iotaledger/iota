@@ -14,14 +14,14 @@ use iota_types::{
 use serde::{Deserialize, Serialize};
 use tracing::error;
 use typed_store::{
-    DBMapUtils,
+    DBMapUtils, DbIterator,
     metrics::SamplingInterval,
     rocks::{
         DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
         read_size_from_env,
     },
     rocksdb::compaction_filter::Decision,
-    traits::{Map, TableSummary, TypedStoreDebug},
+    traits::Map,
 };
 
 use super::*;
@@ -451,7 +451,7 @@ impl AuthorityPerpetualTables {
 
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
-            iter: self.objects.safe_iter(),
+            iter: Box::new(self.objects.safe_iter()),
             tables: self,
             prev: None,
         }
@@ -466,7 +466,7 @@ impl AuthorityPerpetualTables {
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
 
         LiveSetIter {
-            iter: self.objects.safe_iter_with_bounds(lower_bound, upper_bound),
+            iter: Box::new(self.objects.safe_iter_with_bounds(lower_bound, upper_bound)),
             tables: self,
             prev: None,
         }
@@ -475,24 +475,6 @@ impl AuthorityPerpetualTables {
     pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
         // This checkpoints the entire db and not just objects table
         self.objects.checkpoint_db(path).map_err(Into::into)
-    }
-
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        // TODO: Add new tables that get added to the db automatically
-        self.objects.unsafe_clear()?;
-        self.live_owned_object_markers.unsafe_clear()?;
-        self.executed_effects.unsafe_clear()?;
-        self.events_2.unsafe_clear()?;
-        self.events.unsafe_clear()?;
-        self.executed_transactions_to_checkpoint.unsafe_clear()?;
-        self.root_state_hash_by_epoch.unsafe_clear()?;
-        self.epoch_start_configuration.unsafe_clear()?;
-        self.pruned_checkpoint.unsafe_clear()?;
-        self.total_iota_supply.unsafe_clear()?;
-        self.expected_storage_fund_imbalance.unsafe_clear()?;
-        self.object_per_epoch_marker_table.unsafe_clear()?;
-        self.objects.rocksdb.flush()?;
-        Ok(())
     }
 
     pub fn get_root_state_hash(
@@ -563,8 +545,7 @@ impl ObjectStore for AuthorityPerpetualTables {
 }
 
 pub struct LiveSetIter<'a> {
-    iter:
-        <DBMap<ObjectKey, StoreObjectWrapper> as Map<'a, ObjectKey, StoreObjectWrapper>>::SafeIterator,
+    iter: DbIterator<'a, (ObjectKey, StoreObjectWrapper)>,
     tables: &'a AuthorityPerpetualTables,
     prev: Option<(ObjectKey, StoreObjectWrapper)>,
 }

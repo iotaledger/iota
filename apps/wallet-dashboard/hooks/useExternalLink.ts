@@ -35,7 +35,7 @@ export function useExternalLink(url: string, options?: UseExternalLinkOptions) {
 
     const open = useCallback(() => {
         if (trackEvent && type) {
-            ampli.externalLinkOpened({ type });
+            ampli.openedLink({ type });
         }
         window.open(url, '_blank', 'noopener,noreferrer');
     }, [url, type, trackEvent]);

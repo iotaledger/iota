@@ -109,7 +109,7 @@ export function SiteConnectPage() {
                 permissionRequest.name,
                 permissionRequest.origin,
             );
-            ampli.dappConnectStarted({
+            ampli.startedDappConnection({
                 applicationName: resolvedAppName,
                 applicationUrl: permissionRequest.origin,
             });

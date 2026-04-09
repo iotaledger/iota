@@ -6,6 +6,9 @@ edition = "2021"
 license = "Apache-2.0"
 publish = false
 
+[features]
+tracing = ["iota-execution/tracing"]
+
 [dependencies]
 # external dependencies
 anyhow.workspace = true
@@ -53,7 +56,9 @@ move-vm-config.workspace = true
 [dev-dependencies]
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-replay = { path = ".", features = ["tracing"] }
 iota-simulator.workspace = true
+move-vm-profiler.workspace = true
 test-cluster.workspace = true
 
 [[example]]

@@ -131,7 +131,7 @@ export function IotaApp({
             title={name}
             className="no-underline"
             onClick={() => {
-                ampli.applicationOpened({ applicationName: name });
+                ampli.openedApplication({ applicationName: name });
             }}
             trackEvent={false}
         >

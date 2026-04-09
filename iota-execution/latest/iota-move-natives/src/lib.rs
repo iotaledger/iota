@@ -85,6 +85,7 @@ use crate::{
         poseidon::PoseidonBN254CostParams,
         zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
     },
+    tx_context::TxContextDigestCostParams,
 };
 
 mod address;
@@ -103,6 +104,7 @@ pub mod transaction_context;
 mod transfer;
 mod tx_context;
 mod types;
+mod utils;
 mod validator;
 
 impl NativeExtensionMarker<'_> for NativesCostTable {}
@@ -146,6 +148,7 @@ pub struct NativesCostTable {
     pub tx_context_derive_id_cost_params: TxContextDeriveIdCostParams,
     pub tx_context_fresh_id_cost_params: TxContextFreshIdCostParams,
     pub tx_context_sender_cost_params: TxContextSenderCostParams,
+    pub tx_context_digest_cost_params: TxContextDigestCostParams,
     pub tx_context_epoch_cost_params: TxContextEpochCostParams,
     pub tx_context_epoch_timestamp_ms_cost_params: TxContextEpochTimestampMsCostParams,
     pub tx_context_sponsor_cost_params: TxContextSponsorCostParams,
@@ -157,6 +160,7 @@ pub struct NativesCostTable {
 
     // AuthContext
     pub auth_context_digest_cost_params: AuthContextDigestCostParams,
+    pub auth_context_tx_data_bytes_cost_params: auth_context::AuthContextTxDataBytesCostParams,
     pub auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams,
     pub auth_context_tx_inputs_cost_params: AuthContextTxInputsCostParams,
     pub auth_context_replace_cost_params: AuthContextReplaceCostParams,
@@ -402,6 +406,13 @@ impl NativesCostTable {
                     DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
                 },
             },
+            tx_context_digest_cost_params: TxContextDigestCostParams {
+                tx_context_digest_cost_base: if protocol_config.move_native_tx_context() {
+                    protocol_config.tx_context_digest_cost_base().into()
+                } else {
+                    DEFAULT_UNUSED_TX_CONTEXT_ENTRY_COST.into()
+                },
+            },
             tx_context_epoch_cost_params: TxContextEpochCostParams {
                 tx_context_epoch_cost_base: if protocol_config.move_native_tx_context() {
                     protocol_config.tx_context_epoch_cost_base().into()
@@ -466,6 +477,15 @@ impl NativesCostTable {
                     .auth_context_digest_cost_base_as_option()
                     .map(Into::into),
             },
+            auth_context_tx_data_bytes_cost_params:
+                auth_context::AuthContextTxDataBytesCostParams {
+                    auth_context_tx_data_bytes_cost_base: protocol_config
+                        .auth_context_tx_data_bytes_cost_base_as_option()
+                        .map(Into::into),
+                    auth_context_tx_data_bytes_cost_per_byte: protocol_config
+                        .auth_context_tx_data_bytes_cost_per_byte_as_option()
+                        .map(Into::into),
+                },
             auth_context_tx_commands_cost_params: AuthContextTxCommandsCostParams {
                 auth_context_tx_commands_cost_base: protocol_config
                     .auth_context_tx_commands_cost_base_as_option()
@@ -934,6 +954,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
         ),
         (
             "auth_context",
+            "native_tx_data_bytes",
+            make_native!(auth_context::native_tx_data_bytes),
+        ),
+        (
+            "auth_context",
             "native_tx_commands",
             make_native!(auth_context::native_tx_commands),
         ),
@@ -1205,6 +1230,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "tx_context",
             "native_sender",
             make_native!(tx_context::sender),
+        ),
+        (
+            "tx_context",
+            "native_digest",
+            make_native!(tx_context::digest),
         ),
         (
             "tx_context",

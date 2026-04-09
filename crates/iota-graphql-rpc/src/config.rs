@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeSet, fmt::Display, time::Duration};
+use std::{collections::BTreeSet, fmt::Display};
 
 use async_graphql::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
@@ -12,8 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::functional_group::FunctionalGroup;
 
-pub(crate) const RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD: Duration = Duration::from_millis(10_000);
-pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 pub(crate) const DEFAULT_PAGE_SIZE: u32 = 20;
 pub(crate) const MAX_PAGE_SIZE: u32 = 50;
 

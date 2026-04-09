@@ -34,7 +34,13 @@ export function TopNav() {
                 }
             />
             <div data-amp-mask>
-                <ConnectButton size="md" iotaNamesEnabled={iotaNamesEnabled} />
+                <ConnectButton
+                    size="md"
+                    iotaNamesEnabled={iotaNamesEnabled}
+                    onConnected={(args) => {
+                        ampli.connectedWallet({ wallet: args.wallet.name });
+                    }}
+                />
             </div>
             <SettingsDialog
                 isOpen={isSettingsDialogOpen}
@@ -42,7 +48,7 @@ export function TopNav() {
                 view={settingsDialogView}
                 setView={setSettingsDialogView}
             />
-            <ThemeSwitcher onThemeChange={(theme) => ampli.themeChanged({ theme })} />
+            <ThemeSwitcher onThemeChange={(theme) => ampli.changedTheme({ theme })} />
             <Button
                 icon={<Settings />}
                 type={ButtonType.Ghost}

@@ -6,8 +6,9 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_indexer::apis::ReadApi;
 use iota_json::IotaJsonValue;
-use iota_json_rpc_api::{ReadApiClient, WriteApiServer};
+use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_types::{
     TypeTag,
@@ -236,9 +237,8 @@ impl Query {
         ctx: &Context<'_>,
         digest: Digest,
     ) -> Result<bool> {
-        let write_api = get_write_api(ctx).extend()?;
-        Ok(write_api
-            .fullnode_client()
+        Ok(ctx
+            .data::<ReadApi>()?
             .is_transaction_indexed_on_node(digest.into())
             .await?)
     }

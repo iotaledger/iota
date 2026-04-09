@@ -6,7 +6,6 @@ import { ExplorerLinkHelper, UserApproveContainer } from '_components';
 import {
     useActiveAddress,
     useAppDispatch,
-    useTransactionData,
     useTransactionDryRun,
     useAccountByAddress,
     useSigner,
@@ -55,7 +54,6 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
         }
         return tx;
     }, [txRequest.tx.data, addressForTransaction]);
-    const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
     const [isConfirmationVisible, setConfirmationVisible] = useState(false);
 
     const {
@@ -79,7 +77,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const dryRunExecutionSupportingText = dryRunExecutionError
         ? getUserFriendlyDryRunExecutionError(dryRunExecutionError)
         : undefined;
-    const txHasErrors = isError || isDryRunExecutionFailed;
+    const txHasErrors = isDryRunError || isDryRunExecutionFailed;
 
     return (
         <>
@@ -89,7 +87,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                 approveTitle="Approve"
                 rejectTitle="Reject"
                 onSubmit={async (approved: boolean) => {
-                    if (isPending) return;
+                    if (isDryRunLoading) return;
                     if (approved && txHasErrors) {
                         setConfirmationVisible(true);
                         return;
@@ -110,7 +108,8 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                     }
                 }}
                 address={addressForTransaction}
-                approveLoading={isPending || isConfirmationVisible}
+                approveDisabled={isDryRunLoading}
+                approveLoading={isDryRunLoading || isConfirmationVisible}
                 checkAccountLock
             >
                 <PageMainLayoutTitle title="Approve Transaction" />
@@ -152,13 +151,17 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
                             sender={addressForTransaction}
                             gasSummary={summary?.gas}
                             isEstimate
-                            isError={isError}
+                            isError={isDryRunError}
                             isPending={isDryRunLoading}
                             activeAddress={activeAddress}
                             renderExplorerLink={ExplorerLinkHelper}
                         />
                     </div>
-                    <TransactionDetails sender={addressForTransaction} transaction={transaction} />
+                    <TransactionDetails
+                        sender={addressForTransaction}
+                        transaction={transaction}
+                        chain={chain}
+                    />
                 </div>
             </UserApproveContainer>
             <ConfirmationModal

@@ -21,6 +21,23 @@ pub use verifier::{
 
 pub const IOTA_VALIDATOR_SERVER_NAME: &str = "iota";
 
+/// Create a TLS server config by loading PEM formatted certificate chain and
+/// private key files from the filesystem. No client authentication is required.
+pub fn create_rustls_server_config_from_pem(
+    cert_file: impl AsRef<std::path::Path>,
+    private_key_file: impl AsRef<std::path::Path>,
+) -> Result<ServerConfig, Box<dyn std::error::Error + Send + Sync>> {
+    use rustls::pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject};
+
+    let certs = CertificateDer::pem_file_iter(cert_file)?.collect::<Result<_, _>>()?;
+    let private_key = PrivateKeyDer::from_pem_file(private_key_file)?;
+    let tls_config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, private_key)?;
+
+    Ok(tls_config)
+}
+
 pub fn create_rustls_server_config(
     private_key: Ed25519PrivateKey,
     server_name: String,
