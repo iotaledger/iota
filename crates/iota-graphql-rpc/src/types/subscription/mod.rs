@@ -8,11 +8,11 @@ use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::read::IndexerReader;
 use iota_indexer_streaming::{
     error::IndexerStreamingError,
-    memory::{Config, InMemory},
+    memory::{Config, InMemory, RecoveryPoint},
     metrics::InMemoryStreamMetrics,
 };
 use iota_json_rpc_types::Filter;
-use iota_types::supported_protocol_versions::Chain;
+use iota_types::{digests::TransactionDigest, supported_protocol_versions::Chain};
 use prometheus::Registry;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;
@@ -21,6 +21,7 @@ use crate::{
     error::Error,
     types::{
         chain_identifier::ChainIdentifierCache,
+        digest::Digest,
         event::Event,
         subscription::filter::{SubscriptionEventFilter, SubscriptionTransactionFilter},
         transaction_block::{TransactionBlock, TransactionBlockInner},
@@ -65,9 +66,17 @@ impl Subscription {
     /// Subscribe to incoming transactions from the IOTA network.
     ///
     /// If no filter is provided, all transactions will be returned.
+    ///
+    /// # Stream recovery
+    ///
+    /// When `start_after` is provided with the digest of the last transaction
+    /// the client received, the stream resumes from the transaction
+    /// immediately after it. The identified transaction itself is not
+    /// emitted.
     async fn transactions(
         &self,
         ctx: &Context<'_>,
+        start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
     ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>>>
     {
@@ -91,15 +100,35 @@ impl Subscription {
         }
 
         let streams = ctx.data_unchecked::<GraphQLStream>();
-        Ok(streams.subscribe_transactions(filter))
+        Ok(streams.subscribe_transactions(start_after, filter))
     }
 
     /// Subscribe to incoming events from the IOTA network.
     ///
     /// If no filter is provided, all events will be returned.
+    ///
+    /// # Stream recovery
+    ///
+    /// Events are streamed in transaction order, all events from a single
+    /// transaction arrive contiguously before any events from the next one.
+    ///
+    /// When `start_after` is provided with a transaction digest, the stream
+    /// resumes from the transaction immediately after it.
+    ///
+    /// Because a single transaction can emit multiple events, a disconnection
+    /// may leave the client with only a partial set of events from the
+    /// transaction it was last receiving. A transaction is considered fully
+    /// received only once the client has seen an event from the following
+    /// transaction (a digest change signals the previous transaction is
+    /// complete).
+    ///
+    /// On reconnect, clients should pass the digest of the last fully
+    /// received transaction as `start_after`. The stream resumes from the
+    /// next transaction, so no partial transaction is ever observed.
     async fn events(
         &self,
         ctx: &Context<'_>,
+        start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
     ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<Event>, Error>>> {
         let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
@@ -122,7 +151,7 @@ impl Subscription {
         }
 
         let streams = ctx.data_unchecked::<GraphQLStream>();
-        Ok(streams.subscribe_events(filter))
+        Ok(streams.subscribe_events(start_after, filter))
     }
 }
 
@@ -167,10 +196,13 @@ impl GraphQLStream {
     /// Subscribe to transactions from IOTA Network.
     pub(crate) fn subscribe_transactions(
         &self,
+        start_after: Option<Digest>,
         filter: Option<SubscriptionTransactionFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         self.streamer
-            .subscribe_transactions(None)
+            .subscribe_transactions(
+                start_after.map(|digest| RecoveryPoint::Exclusive(TransactionDigest::from(digest))),
+            )
             .try_filter(move |stored| future::ready(Self::matches_filter(filter.as_ref(), stored)))
             .then(|stored| {
                 let subscription_item = match stored {
@@ -205,10 +237,13 @@ impl GraphQLStream {
     /// Subscribe to events from IOTA Network.
     pub(crate) fn subscribe_events(
         &self,
+        start_after: Option<Digest>,
         filter: Option<SubscriptionEventFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         self.streamer
-            .subscribe_events(None)
+            .subscribe_events(
+                start_after.map(|digest| RecoveryPoint::Exclusive(TransactionDigest::from(digest))),
+            )
             .try_filter(move |stored| future::ready(Self::matches_filter(filter.as_ref(), stored)))
             .then(|stored| {
                 let subscription_item = match stored {

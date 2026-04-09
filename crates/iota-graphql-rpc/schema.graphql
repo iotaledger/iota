@@ -4390,14 +4390,40 @@ type Subscription {
 	Subscribe to incoming transactions from the IOTA network.
 	
 	If no filter is provided, all transactions will be returned.
+	
+	# Stream recovery
+	
+	When `start_after` is provided with the digest of the last transaction
+	the client received, the stream resumes from the transaction
+	immediately after it. The identified transaction itself is not
+	emitted.
 	"""
-	transactions(filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
+	transactions(startAfter: String, filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
 	"""
 	Subscribe to incoming events from the IOTA network.
 	
 	If no filter is provided, all events will be returned.
+	
+	# Stream recovery
+	
+	Events are streamed in transaction order, all events from a single
+	transaction arrive contiguously before any events from the next one.
+	
+	When `start_after` is provided with a transaction digest, the stream
+	resumes from the transaction immediately after it.
+	
+	Because a single transaction can emit multiple events, a disconnection
+	may leave the client with only a partial set of events from the
+	transaction it was last receiving. A transaction is considered fully
+	received only once the client has seen an event from the following
+	transaction (a digest change signals the previous transaction is
+	complete).
+	
+	On reconnect, clients should pass the digest of the last fully
+	received transaction as `start_after`. The stream resumes from the
+	next transaction, so no partial transaction is ever observed.
 	"""
-	events(filter: SubscriptionEventFilter): EventSubscriptionPayload!
+	events(startAfter: String, filter: SubscriptionEventFilter): EventSubscriptionPayload!
 }
 
 """
