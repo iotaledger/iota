@@ -1288,11 +1288,11 @@ impl Core {
         }
 
         let leader_round = clock_round.saturating_sub(1);
-        let leader_authority = self.leader_schedule.elect_leader(leader_round, 0);
+        let leaders = self.leaders(leader_round);
 
-        let leader_header = ancestors
-            .iter()
-            .find(|a| a.round() == leader_round && a.author() == leader_authority)?;
+        let leader_header = ancestors.iter().find(|a| {
+            a.round() == leader_round && leaders.iter().any(|s| s.authority == a.author())
+        })?;
 
         let dag_state = self.dag_state.read();
         let mut missing = AuthoritySet::new();
