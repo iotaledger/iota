@@ -122,13 +122,6 @@ impl BlockVerifier for SignedBlockVerifier {
             ));
         }
 
-        if block.acknowledgments().len() > committee.size() {
-            return Err(ConsensusError::TooManyAncestors(
-                block.acknowledgments().len(),
-                committee.size(),
-            ));
-        }
-
         if block.ancestors().is_empty() {
             return Err(ConsensusError::InsufficientParentStakes {
                 parent_stakes: 0,
