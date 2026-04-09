@@ -943,8 +943,10 @@ impl HistoricalFetch {
                             Ok(cursor) => state.cursor.store(cursor, Ordering::Relaxed),
                             Err(e) => {
                                 state.should_close_stream = true;
-                                let e = IndexerStreamingError::Postgres(e.to_string());
-                                error!("failed to resolve tx digest into its sequence number: {e}");
+                                let e = IndexerStreamingError::Postgres(format!(
+                                    "unable to resolve transaction, may not exist or has been pruned: {e}"
+                                ));
+                                error!("{e}");
                                 return Some((Err(e), state));
                             }
                         }
