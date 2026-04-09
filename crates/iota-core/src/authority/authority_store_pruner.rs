@@ -1049,16 +1049,10 @@ mod tests {
         to_keep
     }
 
-    fn temp_dir() -> std::path::PathBuf {
-        iota_common::tempdir()
-            .expect("Failed to open temporary directory")
-            .keep()
-    }
-
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
-        let path = temp_dir();
+        let path = iota_common::tempdir().keep();
         let to_keep = run_pruner(&path, 3, 2, 1000).await;
         assert_eq!(
             HashSet::from_iter(to_keep),
@@ -1069,12 +1063,12 @@ mod tests {
     // Tests pruning deleted objects (object tombstones).
     #[tokio::test]
     async fn test_pruning_tombstones() {
-        let path = temp_dir();
+        let path = iota_common::tempdir().keep();
         let to_keep = run_pruner(&path, 0, 0, 1000).await;
         assert_eq!(to_keep.len(), 0);
         assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
 
-        let path = temp_dir();
+        let path = iota_common::tempdir().keep();
         let to_keep = run_pruner(&path, 3, 0, 1000).await;
         assert_eq!(to_keep.len(), 0);
         assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
@@ -1083,7 +1077,7 @@ mod tests {
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn test_db_size_after_compaction() -> Result<(), anyhow::Error> {
-        let primary_path = temp_dir();
+        let primary_path = iota_common::tempdir().keep();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;

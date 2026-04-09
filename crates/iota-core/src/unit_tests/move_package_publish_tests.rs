@@ -188,7 +188,7 @@ async fn test_generate_lock_file() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", "generate_move_lock_file"]);
 
-    let tmp = iota_common::tempdir().expect("Could not create temp dir for Move.lock");
+    let tmp = iota_common::tempdir();
     let lock_file_path = tmp.path().join("Move.lock");
 
     let mut build_config = BuildConfig::new_for_testing();

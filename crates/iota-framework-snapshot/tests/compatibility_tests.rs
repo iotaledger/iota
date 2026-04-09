@@ -108,7 +108,7 @@ mod compatibility_tests {
     }
 
     fn clone_repo_to_temp() -> (TempDir, PathBuf) {
-        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let temp_dir = iota_common::tempdir();
         let repo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let clone_path = temp_dir.path().join("repo");
 

@@ -19,12 +19,6 @@ use iota_types::{
 
 use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
 
-fn temp_dir() -> std::path::PathBuf {
-    iota_common::tempdir()
-        .expect("Failed to open temporary directory")
-        .keep()
-}
-
 pub fn insert_keys(
     db: &AuthorityPerpetualTables,
     total_unique_object_ids: u64,
@@ -63,11 +57,11 @@ fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> Accumu
 
 #[tokio::test]
 async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
-    let db_path = temp_dir();
-    let restored_db_path = temp_dir();
-    let local = temp_dir().join("local_dir");
-    let remote = temp_dir().join("remote_dir");
-    let restored_local = temp_dir().join("local_dir_restore");
+    let db_path = iota_common::tempdir().keep();
+    let restored_db_path = iota_common::tempdir().keep();
+    let local = iota_common::tempdir().keep().join("local_dir");
+    let remote = iota_common::tempdir().keep().join("remote_dir");
+    let restored_local = iota_common::tempdir().keep().join("local_dir_restore");
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(local),
@@ -118,11 +112,11 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
-    let db_path = temp_dir();
-    let restored_db_path = temp_dir();
-    let local = temp_dir().join("local_dir");
-    let remote = temp_dir().join("remote_dir");
-    let restored_local = temp_dir().join("local_dir_restore");
+    let db_path = iota_common::tempdir().keep();
+    let restored_db_path = iota_common::tempdir().keep();
+    let local = iota_common::tempdir().keep().join("local_dir");
+    let remote = iota_common::tempdir().keep().join("remote_dir");
+    let restored_local = iota_common::tempdir().keep().join("local_dir_restore");
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(local),

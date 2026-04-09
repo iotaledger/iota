@@ -46,12 +46,6 @@ struct TestState {
     committee: CommitteeFixture,
 }
 
-fn temp_dir() -> std::path::PathBuf {
-    iota_common::tempdir()
-        .expect("Failed to open temporary directory")
-        .keep()
-}
-
 async fn write_new_checkpoints_to_store(
     test_state: &TestState,
     store: SharedInMemoryStore,
@@ -163,7 +157,7 @@ async fn insert_checkpoints_and_verify_manifest(
 #[tokio::test]
 async fn test_archive_basic() -> Result<(), anyhow::Error> {
     let test_store = SharedInMemoryStore::default();
-    let test_state = setup_test_state(temp_dir()).await?;
+    let test_state = setup_test_state(iota_common::tempdir().keep()).await?;
     let kill = test_state.archive_writer.start(test_store.clone()).await?;
     insert_checkpoints_and_verify_manifest(&test_state, test_store, None).await?;
     kill.send(())?;
@@ -173,14 +167,14 @@ async fn test_archive_basic() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_archive_resumes() -> Result<(), anyhow::Error> {
     let test_store = SharedInMemoryStore::default();
-    let test_state = setup_test_state(temp_dir()).await?;
+    let test_state = setup_test_state(iota_common::tempdir().keep()).await?;
     let kill = test_state.archive_writer.start(test_store.clone()).await?;
     let prev_checkpoint =
         insert_checkpoints_and_verify_manifest(&test_state, test_store.clone(), None).await?;
 
     // Kill the archive writer so we can restart it again
     drop(kill);
-    let test_state = setup_test_state(temp_dir()).await?;
+    let test_state = setup_test_state(iota_common::tempdir().keep()).await?;
     let kill = test_state.archive_writer.start(test_store.clone()).await?;
     insert_checkpoints_and_verify_manifest(&test_state, test_store, prev_checkpoint).await?;
     kill.send(())?;
@@ -192,7 +186,7 @@ async fn test_manifest_serde() -> Result<()> {
     let original_manifest = Manifest::new(0, 100);
     let remote_store = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(temp_dir()),
+        directory: Some(iota_common::tempdir().keep()),
         ..Default::default()
     }
     .make()?;
@@ -205,7 +199,7 @@ async fn test_manifest_serde() -> Result<()> {
 #[tokio::test]
 async fn test_archive_reader_e2e() -> Result<(), anyhow::Error> {
     let test_store = SharedInMemoryStore::default();
-    let test_state = setup_test_state(temp_dir()).await?;
+    let test_state = setup_test_state(iota_common::tempdir().keep()).await?;
     let kill = test_state.archive_writer.start(test_store.clone()).await?;
     let mut latest_archived_checkpoint_seq_num = 0;
     while latest_archived_checkpoint_seq_num < 10 {
@@ -266,7 +260,7 @@ async fn test_archive_reader_e2e() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_verify_archive_with_oneshot_store() -> Result<(), anyhow::Error> {
     let test_store = SharedInMemoryStore::default();
-    let test_state = setup_test_state(temp_dir()).await?;
+    let test_state = setup_test_state(iota_common::tempdir().keep()).await?;
     let kill = test_state.archive_writer.start(test_store.clone()).await?;
     let mut latest_archived_checkpoint_seq_num = 0;
     while latest_archived_checkpoint_seq_num < 10 {
@@ -314,7 +308,7 @@ async fn test_verify_archive_with_oneshot_store() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_verify_archive_with_oneshot_store_bad_data() -> Result<(), anyhow::Error> {
     let test_store = SharedInMemoryStore::default();
-    let test_state = setup_test_state(temp_dir()).await?;
+    let test_state = setup_test_state(iota_common::tempdir().keep()).await?;
     let kill = test_state.archive_writer.start(test_store.clone()).await?;
     let mut latest_archived_checkpoint_seq_num = 0;
     while latest_archived_checkpoint_seq_num < 10 {

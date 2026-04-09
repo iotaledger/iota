@@ -23,7 +23,7 @@ const PUBLISHED_API_FILE: &str = "published_api.txt";
 #[test]
 fn build_system_packages() {
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-    let tempdir = tempfile::tempdir().unwrap();
+    let tempdir = iota_common::tempdir();
     let out_dir = if std::env::var_os("UPDATE").is_some() {
         let crate_root = Path::new(CRATE_ROOT);
         let _ = std::fs::remove_dir_all(crate_root.join(COMPILED_PACKAGES_DIR));

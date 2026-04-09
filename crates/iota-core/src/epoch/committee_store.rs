@@ -60,7 +60,7 @@ impl CommitteeStore {
     }
 
     pub fn new_for_testing(genesis_committee: &Committee) -> Self {
-        let path = iota_common::tempdir().unwrap().keep();
+        let path = iota_common::tempdir().keep();
         Self::new(path, genesis_committee, None)
     }
 

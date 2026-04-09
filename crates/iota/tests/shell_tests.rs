@@ -38,7 +38,7 @@ async fn test_shell_snapshot(path: &Path) -> Result<(), Box<dyn std::error::Erro
 
     // copy files into temporary directory
     let srcdir = path.parent().unwrap();
-    let tmpdir = tempfile::tempdir()?;
+    let tmpdir = iota_common::tempdir();
     let sandbox = tmpdir.path();
 
     fs_extra::dir::copy(srcdir, sandbox, &CopyOptions::new().content_only(true))?;

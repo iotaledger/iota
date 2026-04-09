@@ -58,7 +58,7 @@ pub async fn start_cluster(
     internal_data_source_rpc_port: Option<u16>,
     service_config: ServiceConfig,
 ) -> Cluster {
-    let data_ingestion_path = tempfile::tempdir().unwrap().keep();
+    let data_ingestion_path = iota_common::tempdir().keep();
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode

@@ -15,12 +15,6 @@ use typed_store::{
     traits::Map,
 };
 
-fn temp_dir() -> std::path::PathBuf {
-    iota_common::tempdir()
-        .expect("Failed to open temporary directory")
-        .keep()
-}
-
 /// This struct is used to illustrate how the utility works
 #[derive(DBMapUtils)]
 struct Tables {
@@ -66,7 +60,7 @@ struct TablesSingle {
 
 #[tokio::test]
 async fn macro_test() {
-    let primary_path = temp_dir();
+    let primary_path = iota_common::tempdir().keep();
     let tbls_primary =
         Tables::open_tables_read_write(primary_path.clone(), MetricConf::default(), None, None);
 
@@ -161,7 +155,7 @@ async fn macro_test() {
 
 #[tokio::test]
 async fn rename_test() {
-    let dbdir = temp_dir();
+    let dbdir = iota_common::tempdir().keep();
 
     let key = "key".to_string();
     let value = "value".to_string();
@@ -190,7 +184,7 @@ struct DeprecatedTables {
 
 #[tokio::test]
 async fn deprecate_test() {
-    let dbdir = temp_dir();
+    let dbdir = iota_common::tempdir().keep();
     let key = "key".to_string();
     let value = "value".to_string();
     {
@@ -253,7 +247,7 @@ struct DeprecatedTablesTypeErased {
 
 #[tokio::test]
 async fn deprecate_type_erased_test() {
-    let dbdir = temp_dir();
+    let dbdir = iota_common::tempdir().keep();
     let key = "key".to_string();
     let value = "value".to_string();
 
@@ -341,7 +335,7 @@ fn migrate_old_to_new(
 
 #[tokio::test]
 async fn migration_test() {
-    let dbdir = temp_dir();
+    let dbdir = iota_common::tempdir().keep();
     let key = "migrate_key".to_string();
     let value = "migrate_value".to_string();
 
@@ -422,7 +416,7 @@ async fn migration_test() {
 
 #[tokio::test]
 async fn read_only_with_deprecated_and_migration_test() {
-    let dbdir = temp_dir();
+    let dbdir = iota_common::tempdir().keep();
     let old_key = "old_key".to_string();
     let old_value = "old_value".to_string();
 

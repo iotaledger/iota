@@ -205,7 +205,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let genesis_committee = genesis.committee().unwrap();
         let path = self
             .store_base_path
-            .unwrap_or_else(|| iota_common::tempdir().unwrap().keep());
+            .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
         let mut pruner_db = None;

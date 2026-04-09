@@ -30,7 +30,6 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use simulacrum::Simulacrum;
-use tempfile::tempdir;
 use typed_store::{
     DBMapUtils, Map,
     metrics::SamplingInterval,
@@ -114,7 +113,7 @@ impl PersistedStore {
     where
         R: rand::RngCore + rand::CryptoRng,
     {
-        let path: PathBuf = path.unwrap_or(tempdir().unwrap().keep());
+        let path: PathBuf = path.unwrap_or(iota_common::tempdir().keep());
 
         let mut builder = ConfigBuilder::new_with_temp_dir()
             .rng(&mut rng)

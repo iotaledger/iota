@@ -119,7 +119,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         .find(|refe| matches!(refe.owner, Owner::Immutable))
         .unwrap();
     let package_id = package.reference.object_id;
-    let tmp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let upgrade_pkg_path =
         copy_with_published_at_manifest(&package_path, &tmp_dir.path().to_path_buf(), package_id);
     // Run the upgrade.
@@ -151,7 +151,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         })],
     };
 
-    let fixtures = tempfile::tempdir()?;
+    let fixtures = iota_common::tempdir();
     fs::create_dir(fixtures.path().join("localnet"))?;
     fs_extra::dir::copy(
         PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
@@ -292,11 +292,11 @@ fn copy_with_published_at_manifest(
 #[tokio::test]
 async fn test_api_route() -> anyhow::Result<()> {
     let config = Config { packages: vec![] };
-    let tmp_dir = tempfile::tempdir()?;
+    let tmp_dir = iota_common::tempdir();
     initialize(&config, tmp_dir.path()).await?;
 
     // set up sample lookup to serve
-    let fixtures = tempfile::tempdir()?;
+    let fixtures = iota_common::tempdir();
     fs_extra::dir::copy(
         PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
         fixtures.path(),

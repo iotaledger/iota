@@ -42,6 +42,6 @@ pub type TempDir = tempfile::TempDir;
 
 /// Creates a temporary directory with random name.
 /// Ensure the name is randomized even in simtests.
-pub fn tempdir() -> std::io::Result<TempDir> {
-    nondeterministic!(tempfile::tempdir())
+pub fn tempdir() -> TempDir {
+    nondeterministic!(tempfile::tempdir()).expect("Failed to open temporary directory")
 }

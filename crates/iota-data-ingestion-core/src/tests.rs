@@ -194,7 +194,7 @@ async fn basic_flow() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
@@ -220,7 +220,7 @@ async fn basic_flow_with_checkpoint_upper_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     // range not inclusive actual chk files generated 0.chk .. 24.chk
     for checkpoint_number in 0..25 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
@@ -256,7 +256,7 @@ async fn basic_flow_with_custom_callback_checkpoint_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     // range not inclusive actual chk files generated 0.chk .. 24.chk
     for checkpoint_number in 0..25 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
@@ -296,7 +296,7 @@ async fn basic_flow_with_epoch_upper_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     // range not inclusive actual chk files generated 0.chk .. 14.chk
     for checkpoint_number in 0..15 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
@@ -338,7 +338,7 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     // range not inclusive actual chk files generated 0.chk .. 14.chk
     for checkpoint_number in 0..15 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
@@ -392,7 +392,7 @@ async fn basic_flow_with_custom_callback() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
 
     let tx_data = TransactionData::new(
         TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
@@ -470,7 +470,7 @@ async fn graceful_shutdown_faulty_worker() {
     add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
@@ -503,7 +503,7 @@ async fn worker_pool_with_reducer() {
     );
     bundle.executor.register(pool).await.unwrap();
 
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
@@ -544,7 +544,7 @@ async fn graceful_shutdown_faulty_reducer() {
     );
     bundle.executor.register(pool).await.unwrap();
 
-    let path = temp_dir();
+    let path = iota_common::tempdir().keep();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
@@ -620,12 +620,6 @@ async fn file_progress_store() {
     // Confirm the value is updated
     let value = store.load("task1".to_string()).await.unwrap();
     assert_eq!(value, 100);
-}
-
-fn temp_dir() -> std::path::PathBuf {
-    iota_common::tempdir()
-        .expect("failed to open temporary directory")
-        .keep()
 }
 
 async fn create_executor_bundle() -> ExecutorBundle {

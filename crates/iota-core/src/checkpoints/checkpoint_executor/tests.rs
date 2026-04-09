@@ -16,7 +16,6 @@ use iota_types::{
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
-use tempfile::tempdir;
 use tokio::time::timeout;
 use typed_store::Map;
 
@@ -38,7 +37,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
     telemetry_subscribers::init_for_testing();
 
     let buffer_size = num_cpus::get() * 2;
-    let tempdir = tempdir().unwrap();
+    let tempdir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(tempdir.path());
 
     let (state, executor, accumulator, committee): (
@@ -132,7 +131,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
 pub async fn test_checkpoint_executor_cross_epoch() {
     let buffer_size = 10;
     let num_to_sync_per_epoch = buffer_size * 2;
-    let tempdir = tempdir().unwrap();
+    let tempdir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(tempdir.path());
 
     let (authority_state, executor, accumulator, first_committee): (
@@ -311,7 +310,7 @@ pub async fn test_checkpoint_executor_cross_epoch() {
 #[tokio::test]
 #[ignore]
 pub async fn test_reconfig_crash_recovery() {
-    let tempdir = tempdir().unwrap();
+    let tempdir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(tempdir.path());
 
     // new Node (syncing from checkpoint 0)

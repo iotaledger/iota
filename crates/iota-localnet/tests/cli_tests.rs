@@ -20,7 +20,7 @@ use iota_swarm_config::{
 
 #[sim_test]
 async fn test_genesis() -> Result<(), anyhow::Error> {
-    let temp_dir = tempfile::tempdir()?;
+    let temp_dir = iota_common::tempdir();
     let working_dir = temp_dir.path();
 
     // Genesis
@@ -95,7 +95,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
-    let temp_dir = tempfile::tempdir()?;
+    let temp_dir = iota_common::tempdir();
     let working_dir = temp_dir.path();
 
     if let Ok(res) = tokio::time::timeout(

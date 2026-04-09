@@ -2793,7 +2793,7 @@ async fn test_authority_persist() {
     let committee = genesis.committee().unwrap();
 
     // Create a random directory to store the DB
-    let tmp_dir = iota_common::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));

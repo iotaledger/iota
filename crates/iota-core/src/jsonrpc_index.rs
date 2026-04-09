@@ -1726,7 +1726,7 @@ mod tests {
         // again and read balance. The balance should be 700 and verified from
         // both db and cache. This tests make sure we are invalidating entries
         // in the cache and always reading latest balance.
-        let tmp_dir = iota_common::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let index_store = IndexStore::new(
             tmp_dir.path().to_path_buf(),
             &Registry::default(),
@@ -1846,7 +1846,7 @@ mod tests {
         use iota_types::base_types::ObjectID;
         use typed_store::Map;
 
-        let tmp_dir = iota_common::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let index_store = IndexStore::new(
             tmp_dir.path().to_path_buf(),
             &Registry::default(),

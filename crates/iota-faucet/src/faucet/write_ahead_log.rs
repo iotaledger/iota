@@ -142,7 +142,7 @@ mod tests {
 
     #[tokio::test]
     async fn reserve_reclaim_reclaim() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = iota_common::tempdir();
         let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
 
         let uuid = Uuid::new_v4();
@@ -172,7 +172,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_increment_wal() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = iota_common::tempdir();
         let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
         let uuid = Uuid::new_v4();
         let coin = random_object_ref();
@@ -188,7 +188,7 @@ mod tests {
 
     #[tokio::test]
     async fn reserve_reserve() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = iota_common::tempdir();
         let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
 
         let uuid = Uuid::new_v4();
@@ -208,7 +208,7 @@ mod tests {
 
     #[tokio::test]
     async fn reserve_reclaim_commit_reclaim() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = iota_common::tempdir();
         let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
 
         let uuid = Uuid::new_v4();
@@ -235,7 +235,7 @@ mod tests {
 
     #[tokio::test]
     async fn reserve_commit_reserve() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = iota_common::tempdir();
         let mut wal = WriteAheadLog::open(&tmp.path().join("wal"));
 
         let uuid = Uuid::new_v4();
