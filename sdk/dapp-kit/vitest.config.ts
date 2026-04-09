@@ -6,8 +6,7 @@
 
 import { config } from 'dotenv';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
-import { defineConfig } from 'vite';
-import { configDefaults } from 'vitest/config';
+import { defineConfig, configDefaults } from 'vitest/config';
 
 export default defineConfig({
     plugins: [vanillaExtractPlugin()],
