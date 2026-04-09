@@ -137,6 +137,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Move.
 // Version 24: Switch consensus protocol to Starfish in all networks.
 //             Enable Move-based sponsor account authentication in devnet.
+//             Add AuthContext native functions cost for reading tx_data_bytes.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1300,6 +1301,9 @@ pub struct ProtocolConfig {
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
     auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_data_bytes(): &vector<u8>`
+    auth_context_tx_data_bytes_cost_base: Option<u64>,
+    auth_context_tx_data_bytes_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
     auth_context_tx_commands_cost_per_byte: Option<u64>,
@@ -1307,7 +1311,7 @@ pub struct ProtocolConfig {
     auth_context_tx_inputs_cost_base: Option<u64>,
     auth_context_tx_inputs_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
-    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
 }
@@ -2241,6 +2245,8 @@ impl ProtocolConfig {
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
+            auth_context_tx_data_bytes_cost_base: None,
+            auth_context_tx_data_bytes_cost_per_byte: None,
             auth_context_tx_commands_cost_base: None,
             auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
@@ -2705,6 +2711,11 @@ impl ProtocolConfig {
                         // Enable Move-based sponsor account authentication in devnet.
                         cfg.feature_flags.enable_move_authentication_for_sponsor = true;
                     }
+
+                    // Add tx_data_bytes to AuthContext for intent-based signature
+                    // verification in account abstraction.
+                    cfg.auth_context_tx_data_bytes_cost_base = Some(30);
+                    cfg.auth_context_tx_data_bytes_cost_per_byte = Some(2);
                 }
 
                 // Use this template when making changes:

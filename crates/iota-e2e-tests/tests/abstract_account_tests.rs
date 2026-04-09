@@ -65,6 +65,8 @@ const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
 const AA_AUTHENTICATE_FN_NAME_WITH_SPONSOR_AND_SENDER: &str =
     "authenticate_with_sponsor_and_sender";
+const AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNED_TX_BYTES: &str =
+    "authenticate_ed25519_via_signed_tx_bytes";
 const AA_RECEIVE_OBJECT_FN_NAME: &str = "receive_object";
 const AA_RECEIVE_OBJECT_FN_NAME_NO_SENDER_CHECK: &str = "receive_object_without_sender_check";
 
@@ -112,6 +114,50 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     test_env
         .execute_and_check_tx_correctness(aa_simple_tx)
         .await
+}
+
+/// Test that the AuthContext byte fields are correctly populated during
+/// authentication and that an ed25519 signature can be verified against
+/// `signed_tx_bytes`.
+///
+/// The Move authenticator (`authenticate_ed25519_via_signed_tx_bytes`) asserts:
+/// 1. `signed_tx_bytes` == `blake2b256(intent_tx_data_bytes)` and is 32 bytes
+/// 2. ed25519 signature over `signed_tx_bytes` is valid
+#[sim_test]
+async fn test_auth_context_tx_bytes_and_signature() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // Build a test environment and create an abstract account with the new
+    // authenticator
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519_VIA_SIGNED_TX_BYTES)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender = aa_ref.0.into();
+
+    // Fund the AbstractAccount with gas
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
+        .await;
+
+    // Create a transaction from the AA
+    let pt = test_env.craft_aa_simple_ptb(AA_MODULE_NAME)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // sign_secure signs blake2b256(intent || bcs(TransactionData)), which is
+    // exactly what auth_ctx.signed_tx_bytes() returns on the Move side.
+    let signatures =
+        vec![test_env.create_move_authenticator_for_ed25519_via_signed_tx_bytes(&tx_data)?];
+
+    // Execute — the Move authenticator asserts all structural invariants
+    // and verifies the ed25519 signature against signed_tx_bytes.
+    let tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    test_env.execute_and_check_tx_correctness(tx).await
 }
 
 /// Test the issuance of a sponsored transaction from an Abstract Account
@@ -2007,7 +2053,7 @@ impl TestEnvironment {
     }
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator for an
-    // explicit object reference(not necessarily the stored `aa_ref`):
+    // explicit object reference (not necessarily the stored `aa_ref`):
     // public fun authenticate_ed25519(
     //    self: &AbstractAccount,
     //    signature: vector<u8>,
@@ -2021,23 +2067,53 @@ impl TestEnvironment {
         let Some(owner) = self.owner else {
             anyhow::bail!("Abstract account not created yet");
         };
+        let signature = self
+            .test_cluster
+            .wallet
+            .config()
+            .keystore()
+            .sign_hashed(&owner, tx_digest)?;
+        Self::move_authenticator_from_ed25519_sig(aa_obj_ref, signature)
+    }
+
+    /// Create the MoveAuthenticator for the ed25519 authenticator that verifies
+    /// against `auth_ctx.signed_tx_bytes()`. Uses `sign_secure` which signs
+    /// `blake2b256(intent || bcs(TransactionData))` — exactly what
+    /// `signed_tx_bytes` returns on the Move side.
+    fn create_move_authenticator_for_ed25519_via_signed_tx_bytes(
+        &self,
+        tx_data: &TransactionData,
+    ) -> anyhow::Result<GenericSignature> {
+        let Some(aa_ref) = self.aa_ref else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let Some(owner) = self.owner else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let signature = self.test_cluster.wallet.config().keystore().sign_secure(
+            &owner,
+            tx_data,
+            Intent::iota_transaction(),
+        )?;
+        Self::move_authenticator_from_ed25519_sig(aa_ref, signature)
+    }
+
+    /// Build a `GenericSignature::MoveAuthenticator` from a raw ed25519
+    /// `Signature` and the abstract-account object reference.
+    fn move_authenticator_from_ed25519_sig(
+        aa_obj_ref: ObjectRef,
+        signature: iota_types::crypto::Signature,
+    ) -> anyhow::Result<GenericSignature> {
         let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
             id: aa_obj_ref.0,
             initial_shared_version: aa_obj_ref.1,
             mutable: false,
         });
-        // Sign the tx data with the owner key
-        let hex_encoded_signature: String = Hex::encode(
-            self.test_cluster
-                .wallet
-                .config()
-                .keystore()
-                .sign_hashed(&owner, tx_digest)?,
-        )
-        .chars()
-        .skip(2) // flag prefix length
-        .take(Ed25519Signature::LENGTH * 2)
-        .collect();
+        let hex_encoded_signature: String = Hex::encode(signature)
+            .chars()
+            .skip(2) // flag prefix length
+            .take(Ed25519Signature::LENGTH * 2)
+            .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_v1(vec![signature_call_arg], vec![], self_call_arg),

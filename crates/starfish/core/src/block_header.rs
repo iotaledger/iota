@@ -595,15 +595,13 @@ impl TransactionsCommitment {
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
-        let encoded_shards = encoder
-            .encode_serialized_data(serialized_transactions, info_length, parity_length)
-            .expect("We should expect correct encoding of the shards");
+        let encoded_shards =
+            encoder.encode_serialized_data(serialized_transactions, info_length, parity_length)?;
 
         let (transactions_commitment, _) = TransactionsCommitment::compute_merkle_root_and_proof(
             &encoded_shards,
             context.own_index,
-        )
-        .expect("We should expect correct computation of the Merkle root for encoded transactions");
+        )?;
         Ok(transactions_commitment)
     }
 
@@ -619,10 +617,7 @@ impl TransactionsCommitment {
             leaves.push(leaf);
         }
         let merkle_tree = MerkleTree::<DefaultHashFunctionWrapper>::from_leaves(&leaves);
-        let merkle_root = merkle_tree
-            .root()
-            .ok_or("couldn't get the merkle root")
-            .unwrap();
+        let merkle_root = merkle_tree.root().ok_or(ConsensusError::EmptyMerkleTree)?;
 
         let indices_to_prove = vec![own_index.value()];
         let merkle_proof = merkle_tree.proof(&indices_to_prove);

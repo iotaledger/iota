@@ -4,7 +4,7 @@
 #[test_only]
 module iota::auth_context_tests;
 
-use iota::auth_context::{new_with_tx_inputs, digest};
+use iota::auth_context::{new_with_tx_inputs, digest, tx_data_bytes, intent_tx_data_bytes, signed_tx_bytes};
 use iota::ptb::new_programmable_transaction_for_testing;
 use iota::ptb_call_arg::{
     new_call_arg_pure_for_testing,
@@ -48,7 +48,7 @@ fun test_call_arg_pure_data() {
     let pure_arg = new_call_arg_pure_for_testing(b"hello");
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[pure_arg], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[pure_arg], vector[cmd], vector[]);
 
     let inputs = ctx.tx_inputs();
     assert!(inputs.length() == 1);
@@ -67,7 +67,7 @@ fun test_call_arg_object_data() {
     let call_arg = new_call_arg_object_for_testing(obj_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
 
     let inputs = ctx.tx_inputs();
     assert!(inputs.length() == 1);
@@ -89,7 +89,7 @@ fun test_object_arg_imm_or_owned() {
     let call_arg = new_call_arg_object_for_testing(obj_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -111,7 +111,7 @@ fun test_object_arg_shared() {
     let call_arg = new_call_arg_object_for_testing(shared_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -133,7 +133,7 @@ fun test_object_arg_shared_immutable() {
     let call_arg = new_call_arg_object_for_testing(shared_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -152,7 +152,7 @@ fun test_object_arg_receiving() {
     let call_arg = new_call_arg_object_for_testing(recv_arg);
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[call_arg], vector[cmd], vector[]);
 
     let inputs = ctx.tx_inputs();
     let extracted_obj = inputs[0].as_object_data().destroy_some();
@@ -179,7 +179,7 @@ fun test_argument_gas_coin() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -200,7 +200,7 @@ fun test_argument_input() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -221,7 +221,7 @@ fun test_argument_result() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -242,7 +242,7 @@ fun test_argument_nested_result() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     let call = commands[0].as_move_call().destroy_some();
@@ -271,7 +271,7 @@ fun test_command_move_call() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands.length() == 1);
@@ -290,7 +290,7 @@ fun test_command_transfer_objects() {
     let data = new_transfer_objects_for_testing(objects, recipient);
     let cmd = new_transfer_objects_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_transfer_objects());
@@ -307,7 +307,7 @@ fun test_command_split_coins() {
     let data = new_split_coins_for_testing(coin, amounts);
     let cmd = new_split_coins_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_split_coins());
@@ -323,7 +323,7 @@ fun test_command_merge_coins() {
     let data = new_merge_coins_for_testing(target, sources);
     let cmd = new_merge_coins_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_merge_coins());
@@ -339,7 +339,7 @@ fun test_command_publish() {
     let data = new_publish_for_testing(modules, vector[dep_id]);
     let cmd = new_publish_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_publish());
@@ -355,7 +355,7 @@ fun test_command_make_move_vec() {
     let data = new_make_move_vec_for_testing(option::some(tn), elements);
     let cmd = new_make_move_vec_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_make_move_vec());
@@ -370,7 +370,7 @@ fun test_command_make_move_vec_no_type() {
     let data = new_make_move_vec_for_testing(option::none(), elements);
     let cmd = new_make_move_vec_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_make_move_vec());
@@ -387,7 +387,7 @@ fun test_command_upgrade() {
     let data = new_upgrade_for_testing(modules, vector[dep_id], package_id, ticket);
     let cmd = new_upgrade_command_for_testing(data);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let commands = ctx.tx_commands();
     assert!(commands[0].is_upgrade());
@@ -487,7 +487,7 @@ fun test_programmable_transaction() {
     assert!(ptb.commands().length() == 7);
 
     // Also verify round-trip through auth context
-    let ctx = new_with_tx_inputs(DIGEST, inputs, commands);
+    let ctx = new_with_tx_inputs(DIGEST, inputs, commands, vector[]);
     let digest = DIGEST;
 
     assert!(ctx.digest() == &digest);
@@ -546,7 +546,7 @@ fun test_all_call_arg_and_object_arg_variants() {
     let all_inputs = vector[pure, imm, shared, recv];
     let cmd = make_noop_move_call_command();
 
-    let ctx = new_with_tx_inputs(DIGEST, all_inputs, vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, all_inputs, vector[cmd], vector[]);
 
     let rt = ctx.tx_inputs();
     assert!(rt.length() == 4);
@@ -576,7 +576,7 @@ fun test_all_argument_variants_in_move_call() {
     );
     let cmd = new_move_call_command_for_testing(move_call);
 
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
 
     let call = ctx.tx_commands()[0].as_move_call().destroy_some();
     let args = call.arguments();
@@ -597,7 +597,7 @@ fun test_all_argument_variants_in_move_call() {
 
 #[test]
 fun test_empty_inputs_and_commands() {
-    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[]);
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[], vector[]);
     let digest = DIGEST;
 
     assert!(ctx.digest() == &digest);
@@ -615,7 +615,7 @@ fun test_several_auth_context_instances_in_test_scenario() {
     let pure_arg1 = new_call_arg_pure_for_testing(b"hello");
     let cmd1 = make_noop_move_call_command();
 
-    let ctx1 = new_with_tx_inputs(digest1, vector[pure_arg1], vector[cmd1]);
+    let ctx1 = new_with_tx_inputs(digest1, vector[pure_arg1], vector[cmd1], vector[]);
 
     let ctx1_digest_ref = ctx1.digest();
     let ctx1_tx_inputs_ref = ctx1.tx_inputs();
@@ -634,7 +634,7 @@ fun test_several_auth_context_instances_in_test_scenario() {
         ),
     );
 
-    let ctx2 = new_with_tx_inputs(digest2, vector[pure_arg2], vector[cmd2]);
+    let ctx2 = new_with_tx_inputs(digest2, vector[pure_arg2], vector[cmd2], vector[]);
 
     // The data returned by the `ctx1` instance should be updated
     assert!(ctx1.digest() == digest2);
@@ -652,13 +652,91 @@ fun test_several_auth_context_instances_in_test_scenario() {
 }
 
 // ---------------------------------------------------------------------------
+// tx_data_bytes, intent_tx_data_bytes, signed_tx_bytes
+// ---------------------------------------------------------------------------
+
+#[test]
+fun test_tx_data_bytes_round_trip() {
+    let tx_bytes = b"fake_serialized_transaction_data";
+    let cmd = make_noop_move_call_command();
+
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
+
+    assert!(ctx.tx_data_bytes() == &tx_bytes);
+}
+
+#[test]
+fun test_tx_data_bytes_empty() {
+    let cmd = make_noop_move_call_command();
+
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], vector[]);
+
+    assert!(ctx.tx_data_bytes() == &vector[]);
+}
+
+#[test]
+fun test_intent_tx_data_bytes() {
+    let tx_bytes = b"tx_payload";
+    let cmd = make_noop_move_call_command();
+
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
+
+    let intent_bytes = ctx.intent_tx_data_bytes();
+    // Intent for IOTA transaction: scope=0, version=0, app_id=0
+    // followed by the tx_data_bytes
+    assert!(intent_bytes.length() == 3 + tx_bytes.length());
+    assert!(intent_bytes[0] == 0); // scope_transaction_data
+    assert!(intent_bytes[1] == 0); // version_v0
+    assert!(intent_bytes[2] == 0); // app_id_iota
+    // Remaining bytes must be the tx_data_bytes
+    let mut i = 0;
+    while (i < tx_bytes.length()) {
+        assert!(intent_bytes[i + 3] == tx_bytes[i]);
+        i = i + 1;
+    };
+}
+
+#[test]
+fun test_signed_tx_bytes() {
+    let tx_bytes = b"tx_payload";
+    let cmd = make_noop_move_call_command();
+
+    let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
+
+    let signed = ctx.signed_tx_bytes();
+    // signed_tx_bytes = blake2b256(intent_tx_data_bytes)
+    let expected = iota::hash::blake2b256(&ctx.intent_tx_data_bytes());
+    assert!(signed == expected);
+    // Blake2b256 always produces 32 bytes
+    assert!(signed.length() == 32);
+}
+
+#[test]
+fun test_tx_data_bytes_survives_replace() {
+    let tx_bytes1 = b"first_tx_data";
+    let cmd = make_noop_move_call_command();
+
+    let ctx1 = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes1);
+    assert!(ctx1.tx_data_bytes() == &tx_bytes1);
+
+    // Replace with different tx_data_bytes
+    let tx_bytes2 = b"second_tx_data_longer";
+    let digest2 = b"11111111111111111111111111111111";
+    let ctx2 = new_with_tx_inputs(digest2, vector[], vector[cmd], tx_bytes2);
+
+    // After replace, both contexts see the new data (shared native state)
+    assert!(ctx1.tx_data_bytes() == &tx_bytes2);
+    assert!(ctx2.tx_data_bytes() == &tx_bytes2);
+}
+
+// ---------------------------------------------------------------------------
 // Error case: bad digest length
 // ---------------------------------------------------------------------------
 
 #[test]
 #[expected_failure(abort_code = iota::auth_context::EBadAuthDigestLength)]
 fun test_bad_digest_length() {
-    let _ctx = new_with_tx_inputs(b"too_short", vector[], vector[]);
+    let _ctx = new_with_tx_inputs(b"too_short", vector[], vector[], vector[]);
 }
 
 // ---------------------------------------------------------------------------

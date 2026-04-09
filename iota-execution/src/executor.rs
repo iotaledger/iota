@@ -108,6 +108,8 @@ pub trait Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        // BCS-serialized `TransactionData` bytes for the auth context.
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -140,6 +142,8 @@ pub trait Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        // BCS-serialized `TransactionData` bytes for the auth context.
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError>;

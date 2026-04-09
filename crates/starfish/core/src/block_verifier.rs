@@ -122,6 +122,13 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
+        for acknowledgment in block.acknowledgments() {
+            ConsensusError::quick_validation_authority_indices(
+                &[acknowledgment.author],
+                committee,
+            )?;
+        }
+
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
@@ -161,9 +168,6 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
-
-        // TODO: transaction verification is removed from here. It should be done when
-        // the transaction data gets available by Data/Transaction Manager
         Ok(())
     }
 

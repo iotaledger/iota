@@ -36,6 +36,7 @@ pub struct AuthenticationContext {
     cached_digest: Option<GlobalValue>,
     cached_tx_inputs: Option<(GlobalValue, AbstractMemorySize)>,
     cached_tx_commands: Option<(GlobalValue, AbstractMemorySize)>,
+    cached_tx_data_bytes: Option<(GlobalValue, AbstractMemorySize)>,
 }
 
 impl NativeExtensionMarker<'_> for AuthenticationContext {}
@@ -48,6 +49,7 @@ impl AuthenticationContext {
             cached_digest: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
+            cached_tx_data_bytes: None,
         }
     }
 
@@ -58,6 +60,7 @@ impl AuthenticationContext {
             cached_digest: None,
             cached_tx_inputs: None,
             cached_tx_commands: None,
+            cached_tx_data_bytes: None,
         }
     }
 
@@ -119,6 +122,36 @@ impl AuthenticationContext {
         ))
     }
 
+    /// Returns a `Value` containing tx data bytes ref.
+    /// Caches the result to avoid redundant conversions and allocations on
+    /// subsequent calls.
+    pub fn tx_data_bytes_ref(&mut self) -> PartialVMResult<(Value, AbstractMemorySize)> {
+        if self.cached_tx_data_bytes.is_none() {
+            let auth_context = self.auth_context.borrow();
+
+            // Wrap in a tuple to match the expected Move layout of
+            // `struct AuthContext {
+            //     tx_data_bytes: vector<u8>
+            // }`
+            let rust_value = (auth_context.tx_data_bytes(),);
+            let bytes_move_layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
+
+            self.cached_tx_data_bytes =
+                Some(utils::to_global_value(&rust_value, bytes_move_layout)?);
+        }
+
+        let (cached_tx_data_bytes, move_value_size) = self.cached_tx_data_bytes.as_ref().unwrap();
+
+        Ok((
+            cached_tx_data_bytes
+                .borrow_global()
+                .inspect_err(|err| assert!(err.major_status() != StatusCode::MISSING_DATA))?
+                .value_as::<StructRef>()?
+                .borrow_field(0)?,
+            *move_value_size,
+        ))
+    }
+
     /// Returns a `Value` containing an auth tx commands ref.
     /// Caches the result to avoid redundant conversions and allocations on
     /// subsequent calls.
@@ -164,6 +197,7 @@ impl AuthenticationContext {
         input_move_layout: MoveTypeLayout,
         tx_commands_value: Vec<Value>,
         command_move_layout: MoveTypeLayout,
+        tx_data_bytes_opt: Option<Vec<u8>>,
     ) -> PartialVMResult<()> {
         if !self.test_only {
             return Err(
@@ -188,15 +222,19 @@ impl AuthenticationContext {
                     .with_message(err.to_string())
             })?;
 
+        let tx_data_bytes =
+            tx_data_bytes_opt.unwrap_or_else(|| self.auth_context.borrow().tx_data_bytes().clone());
+
         self.auth_context
             .borrow_mut()
-            .replace(auth_digest, tx_inputs, tx_commands);
+            .replace(auth_digest, tx_inputs, tx_commands, tx_data_bytes);
 
         // Drop cached values to ensure they are recreated with the updated AuthContext
         // data
         self.cached_digest = None;
         self.cached_tx_inputs = None;
         self.cached_tx_commands = None;
+        self.cached_tx_data_bytes = None;
 
         Ok(())
     }

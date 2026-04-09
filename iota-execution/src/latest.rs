@@ -197,6 +197,7 @@ impl executor::Executor for Executor {
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -220,6 +221,7 @@ impl executor::Executor for Executor {
             transaction_kind,
             transaction_signer,
             transaction_digest,
+            transaction_data_bytes,
             trace_builder_opt,
             &self.0,
         )
@@ -248,6 +250,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
@@ -264,6 +267,7 @@ impl executor::Executor for Executor {
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
+            transaction_data_bytes,
             trace_builder_opt,
             &self.0,
         )

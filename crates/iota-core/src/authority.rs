@@ -983,6 +983,10 @@ impl AuthorityState {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
+            // Serialize the TransactionData for the auth context before decomposing.
+            let tx_data_bytes =
+                bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+
             let (kind, signer, gas_data) = tx_data.execution_parts();
 
             // Execute the Move authenticators.
@@ -1002,6 +1006,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
+                tx_data_bytes,
                 &mut None,
             );
 
@@ -1755,6 +1760,10 @@ impl AuthorityState {
                 .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
                 .collect::<Vec<_>>();
 
+            // Serialize the TransactionData for the auth context.
+            let tx_data_bytes =
+                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
@@ -1821,6 +1830,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
+                    tx_data_bytes,
                     &mut None,
                 )
         };

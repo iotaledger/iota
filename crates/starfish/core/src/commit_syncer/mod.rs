@@ -295,15 +295,14 @@ pub(crate) fn verify_transactions_with_headers(
         // the ones that were included in the block when it was created.
         let block_header = block_headers
             .get(&block_ref)
-            .expect("header for fetched transactions must exist");
+            .ok_or(ConsensusError::MissingBlockHeader { block_ref })?;
 
         if block_header.transactions_commitment()
             != TransactionsCommitment::compute_transactions_commitment(
                 &inner_serialized_transactions,
                 &context,
                 &mut encoder,
-            )
-            .expect("correct computation of the transactions commitment should be successful")
+            )?
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: block_ref.round,
@@ -359,8 +358,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
                 &inner_serialized_transactions,
                 context,
                 &mut encoder,
-            )
-            .expect("correct computation of the transactions commitment should be successful")
+            )?
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: transaction_ref.round,
