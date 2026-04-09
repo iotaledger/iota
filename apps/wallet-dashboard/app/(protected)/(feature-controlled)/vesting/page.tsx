@@ -78,7 +78,8 @@ export default function VestingDashboardPage(): JSX.Element {
     const iotaClient = useIotaClient();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
+        useSignAndExecuteTransaction();
     const { theme } = useTheme();
     const { data: balance } = useBalance(address);
 
@@ -284,7 +285,8 @@ export default function VestingDashboardPage(): JSX.Element {
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
                                         supplyIncreaseVestingSchedule.availableClaiming === 0n ||
                                         isUnlockPending ||
-                                        inactiveValidatorUnlockedStakes.length > 0
+                                        inactiveValidatorUnlockedStakes.length > 0 ||
+                                        isSendingTransaction
                                     }
                                     fullWidth
                                 />
