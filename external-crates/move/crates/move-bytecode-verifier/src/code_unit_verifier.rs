@@ -17,13 +17,14 @@ use move_binary_format::{
         CompiledModule, FunctionDefinition, FunctionDefinitionIndex, IdentifierIndex, TableIndex,
     },
 };
-use move_bytecode_verifier_meter::{Meter, Scope};
+use move_bytecode_verifier_meter::{Meter, Scope, bound::BoundMeter};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
 
 use crate::{
     ability_cache::AbilityCache, acquires_list_verifier::AcquiresVerifier, control_flow,
-    locals_safety, reference_safety, stack_usage_verifier::StackUsageVerifier, type_safety,
+    locals_safety, reference_safety, regex_reference_safety,
+    stack_usage_verifier::StackUsageVerifier, type_safety,
 };
 
 pub struct CodeUnitVerifier<'env, 'a> {
@@ -156,14 +157,13 @@ fn verify_function<'env>(
         function_context,
         name_def_map,
     };
-    code_unit_verifier.verify_common(verifier_config, ability_cache, meter)?;
-    AcquiresVerifier::verify(
-        module,
-        index,
-        function_definition,
+    code_unit_verifier.verify_common(
+        verifier_config,
+        ability_cache,
         meter,
         regex_reference_safety_meter,
     )?;
+    AcquiresVerifier::verify(module, index, function_definition, meter)?;
 
     meter.transfer(Scope::Function, Scope::Module, 1.0)?;
 
