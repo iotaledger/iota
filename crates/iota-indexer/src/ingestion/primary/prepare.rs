@@ -665,13 +665,25 @@ impl PrimaryWorker {
 
             for input_obj in &tx.input_objects {
                 if superseded_ids.contains(&input_obj.id()) {
-                    result.push(Self::build_active_backward_entry(input_obj, checkpoint_seq));
+                    let df_kind = extract_df_kind(input_obj);
+                    let indexed = IndexedObject::from_object(
+                        Some(checkpoint_seq as u64),
+                        input_obj.clone(),
+                        df_kind,
+                    );
+                    let history = StoredHistoryObject::try_from(indexed).expect(
+                        "StoredHistoryObject conversion should not fail for active objects",
+                    );
+                    result.push(
+                        StoredBackwardHistoryObject::from_active(history)
+                            .expect("input object should have active status"),
+                    );
                 }
             }
 
             // 2. Created objects did not exist before this transaction.
             for ((object_id, _, _), _) in effects.created() {
-                result.push(Self::build_empty_backward_entry(
+                result.push(StoredBackwardHistoryObject::from_empty(
                     object_id,
                     -1,
                     BackwardHistoryObjectStatus::NotYetCreated,
@@ -684,7 +696,7 @@ impl PrimaryWorker {
             let unwrapped_refs = effects.unwrapped().into_iter().map(|(r, _)| r);
             let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
             for (object_id, version, _) in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
-                result.push(Self::build_empty_backward_entry(
+                result.push(StoredBackwardHistoryObject::from_empty(
                     object_id,
                     version.value() as i64 - 1,
                     BackwardHistoryObjectStatus::WrappedOrDeleted,
@@ -694,51 +706,6 @@ impl PrimaryWorker {
         }
 
         Ok(result)
-    }
-
-    /// Builds a backward history entry for an active object before it was
-    /// superseded.
-    ///
-    /// Reuses `TryFrom<IndexedObject> for StoredHistoryObject` for the
-    /// field-level conversion to avoid duplicating serialization logic.
-    fn build_active_backward_entry(
-        obj: &Object,
-        superseded_at_checkpoint: i64,
-    ) -> StoredBackwardHistoryObject {
-        let df_kind = extract_df_kind(obj);
-        let indexed =
-            IndexedObject::from_object(Some(superseded_at_checkpoint as u64), obj.clone(), df_kind);
-        let history = StoredHistoryObject::try_from(indexed)
-            .expect("StoredHistoryObject conversion should not fail for active objects");
-        StoredBackwardHistoryObject::from(history)
-    }
-
-    /// Builds a backward history entry with no object data.
-    ///
-    /// Used for `NOT_YET_CREATED` and `WRAPPED_OR_DELETED` statuses.
-    fn build_empty_backward_entry(
-        object_id: ObjectID,
-        object_version: i64,
-        status: BackwardHistoryObjectStatus,
-        superseded_at_checkpoint: i64,
-    ) -> StoredBackwardHistoryObject {
-        StoredBackwardHistoryObject {
-            object_id: object_id.to_vec(),
-            object_version,
-            object_status: status as i16,
-            object_digest: None,
-            superseded_at_checkpoint,
-            owner_type: None,
-            owner_id: None,
-            object_type: None,
-            object_type_package: None,
-            object_type_module: None,
-            object_type_name: None,
-            serialized_object: None,
-            coin_type: None,
-            coin_balance: None,
-            df_kind: None,
-        }
     }
 
     fn index_packages(

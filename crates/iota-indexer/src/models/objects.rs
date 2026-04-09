@@ -790,15 +790,24 @@ pub struct StoredBackwardHistoryObject {
     pub df_kind: Option<i16>,
 }
 
-impl From<StoredHistoryObject> for StoredBackwardHistoryObject {
-    /// Converts a `StoredHistoryObject` into a `StoredBackwardHistoryObject`.
+impl StoredBackwardHistoryObject {
+    /// Builds a backward history entry for an active object from its stored
+    /// history representation.
     ///
     /// Maps `checkpoint_sequence_number` to `superseded_at_checkpoint`.
-    fn from(h: StoredHistoryObject) -> Self {
-        Self {
+    /// Returns an error if the input object is not active.
+    pub fn from_active(h: StoredHistoryObject) -> Result<Self, IndexerError> {
+        if h.object_status != ObjectStatus::Active as i16 {
+            return Err(IndexerError::InvalidArgument(format!(
+                "expected active object status ({}), got {}",
+                ObjectStatus::Active as i16,
+                h.object_status,
+            )));
+        }
+        Ok(Self {
             object_id: h.object_id,
             object_version: h.object_version,
-            object_status: h.object_status,
+            object_status: BackwardHistoryObjectStatus::Active as i16,
             object_digest: h.object_digest,
             superseded_at_checkpoint: h.checkpoint_sequence_number,
             owner_type: h.owner_type,
@@ -811,6 +820,34 @@ impl From<StoredHistoryObject> for StoredBackwardHistoryObject {
             coin_type: h.coin_type,
             coin_balance: h.coin_balance,
             df_kind: h.df_kind,
+        })
+    }
+
+    /// Builds a backward history entry with no object data.
+    ///
+    /// Used for `NotYetCreated` and `WrappedOrDeleted` statuses.
+    pub fn from_empty(
+        object_id: ObjectID,
+        object_version: i64,
+        status: BackwardHistoryObjectStatus,
+        superseded_at_checkpoint: i64,
+    ) -> Self {
+        Self {
+            object_id: object_id.to_vec(),
+            object_version,
+            object_status: status as i16,
+            object_digest: None,
+            superseded_at_checkpoint,
+            owner_type: None,
+            owner_id: None,
+            object_type: None,
+            object_type_package: None,
+            object_type_module: None,
+            object_type_name: None,
+            serialized_object: None,
+            coin_type: None,
+            coin_balance: None,
+            df_kind: None,
         }
     }
 }

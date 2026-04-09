@@ -7,13 +7,7 @@
 
 use std::str::FromStr;
 
-use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper};
-use iota_indexer::{
-    errors::IndexerError,
-    models::objects::{BackwardHistoryObjectStatus, StoredBackwardHistoryObject},
-    schema::objects_backward_history,
-    store::PgIndexerStore,
-};
+use iota_indexer::{models::objects::BackwardHistoryObjectStatus, store::PgIndexerStore};
 use iota_json::{IotaJsonValue, call_args};
 use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{
@@ -28,41 +22,11 @@ use jsonrpsee::http_client::HttpClient;
 use crate::{
     coin_api::execute_move_call,
     common::{
-        ApiTestSetup, indexer_wait_for_object, indexer_wait_for_transaction,
-        publish_test_move_package,
+        ApiTestSetup,
+        backward_history::{find_all_entries_for_object, find_backward_entry},
+        indexer_wait_for_object, indexer_wait_for_transaction, publish_test_move_package,
     },
 };
-
-/// Look up a backward history entry by object_id and superseded_at_checkpoint.
-fn find_backward_entry(
-    store: &PgIndexerStore,
-    object_id: &[u8],
-    checkpoint: i64,
-) -> Result<Option<StoredBackwardHistoryObject>, IndexerError> {
-    iota_indexer::read_only_blocking!(&store.blocking_cp(), |conn| {
-        objects_backward_history::table
-            .filter(objects_backward_history::object_id.eq(object_id))
-            .filter(objects_backward_history::superseded_at_checkpoint.eq(checkpoint))
-            .select(StoredBackwardHistoryObject::as_select())
-            .first::<StoredBackwardHistoryObject>(conn)
-            .optional()
-    })
-}
-
-/// Look up all backward history entries for an object_id, ordered by
-/// superseded_at_checkpoint.
-fn find_all_entries_for_object(
-    store: &PgIndexerStore,
-    object_id: &[u8],
-) -> Result<Vec<StoredBackwardHistoryObject>, IndexerError> {
-    iota_indexer::read_only_blocking!(&store.blocking_cp(), |conn| {
-        objects_backward_history::table
-            .filter(objects_backward_history::object_id.eq(object_id))
-            .order(objects_backward_history::superseded_at_checkpoint.asc())
-            .select(StoredBackwardHistoryObject::as_select())
-            .load::<StoredBackwardHistoryObject>(conn)
-    })
-}
 
 /// Helper to call a function from the backward_history_test package, wait for
 /// indexer to catch up, and return the response (with checkpoint populated).
