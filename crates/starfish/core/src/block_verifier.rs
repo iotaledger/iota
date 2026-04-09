@@ -123,7 +123,10 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
         for acknowledgment in block.acknowledgments() {
-            ConsensusError::quick_validation_authority_indices(&[acknowledgment.author], committee)?;
+            ConsensusError::quick_validation_authority_indices(
+                &[acknowledgment.author],
+                committee,
+            )?;
         }
 
         let mut seen_ancestors = vec![false; committee.size()];

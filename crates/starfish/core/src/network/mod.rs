@@ -342,10 +342,7 @@ fn validate_authority_bitmask(bitmask: [u64; 4], committee: &Committee) -> Conse
 }
 
 impl SerializedBlockBundleParts {
-    pub(crate) fn validate_useful_authorities(
-        &self,
-        committee: &Committee,
-    ) -> ConsensusResult<()> {
+    pub(crate) fn validate_useful_authorities(&self, committee: &Committee) -> ConsensusResult<()> {
         validate_authority_bitmask(self.useful_headers_authors_bitmask, committee)?;
         validate_authority_bitmask(self.useful_shards_authors_bitmask, committee)?;
         Ok(())
