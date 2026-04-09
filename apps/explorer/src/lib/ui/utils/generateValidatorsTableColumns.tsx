@@ -61,8 +61,8 @@ function ValidatorWithImage({
             <div className="flex items-center gap-1.5">
                 <span
                     className={clsx('truncate text-label-lg', {
-                        'dark:text-iota-neutral-92 text-iota-neutral-10': highlightValidatorName,
-                        'dark:text-iota-neutral-60 text-iota-neutral-40': !highlightValidatorName,
+                        'text-iota-neutral-10 dark:text-iota-neutral-92': highlightValidatorName,
+                        'text-iota-neutral-40 dark:text-iota-neutral-60': !highlightValidatorName,
                     })}
                 >
                     {validator.name}
@@ -70,13 +70,13 @@ function ValidatorWithImage({
                 <Badge type={statusBadge.type} label={statusBadge.label} size={BadgeSize.Small} />
             </div>
             <div className="flex items-center gap-1">
-                <span className="dark:text-iota-neutral-60 text-label-sm tabular-nums text-iota-neutral-40">
+                <span className="text-label-sm tabular-nums text-iota-neutral-40 dark:text-iota-neutral-60">
                     {truncatedAddress}
                 </span>
                 <button
                     type="button"
                     aria-label="Copy address"
-                    className="dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92 flex items-center text-iota-neutral-40 transition-colors hover:text-iota-neutral-10"
+                    className="flex items-center text-iota-neutral-40 transition-colors hover:text-iota-neutral-10 dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92"
                     onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
@@ -102,7 +102,7 @@ function ValidatorWithImage({
     );
 
     return validator.isPending ? (
-        <div className="dark:text-iota-neutral-60 flex items-center gap-x-2.5 text-iota-neutral-40">
+        <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
             {avatarElement}
             {validatorNameContainer}
         </div>
@@ -118,7 +118,7 @@ function ValidatorWithImage({
                 })
             }
             label={
-                <div className="dark:text-iota-neutral-60 flex items-center gap-x-2.5 text-iota-neutral-40">
+                <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
                     {avatarElement}
                     {validatorNameContainer}
                 </div>
@@ -166,7 +166,7 @@ export function generateValidatorsTableColumns({
                                 <span
                                     className={
                                         highlightValidatorName
-                                            ? 'dark:text-iota-neutral-92 text-iota-neutral-10'
+                                            ? 'text-iota-neutral-10 dark:text-iota-neutral-92'
                                             : undefined
                                     }
                                 >

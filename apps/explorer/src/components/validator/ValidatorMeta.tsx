@@ -90,7 +90,10 @@ export function InactiveValidators({
     );
 }
 
-export function ValidatorMeta({ validatorData, atRiskRemainingEpochs }: ValidatorMetaProps): JSX.Element {
+export function ValidatorMeta({
+    validatorData,
+    atRiskRemainingEpochs,
+}: ValidatorMetaProps): JSX.Element {
     const validatorPublicKey = validatorData.protocolPubkeyBytes;
     const validatorName = validatorData.name;
     const logo = validatorData.imageUrl;

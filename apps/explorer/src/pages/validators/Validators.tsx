@@ -35,7 +35,7 @@ import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
-import { CoinFormat, IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { ValidatorFilters, ValidatorSearch } from '~/components/validator';
 import type { ValidatorStatus } from '~/components/validator';
 import type { IotaValidatorSummaryExtended } from '~/lib/types/validator.types';
@@ -282,7 +282,8 @@ function ValidatorPageResult(): JSX.Element {
         },
         {
             title: 'Protocol Version',
-            value: protocolVersion ?? '--',        },
+            value: protocolVersion ?? '--',
+        },
         {
             title: 'Active Validators',
             value: numberOfValidators || '--',
@@ -290,7 +291,6 @@ function ValidatorPageResult(): JSX.Element {
         {
             title: 'Active Committee Size',
             value: activeCommitteeSize ?? '--',
-            
         },
         {
             title: 'Max Committee Size',
@@ -298,6 +298,33 @@ function ValidatorPageResult(): JSX.Element {
         },
     ];
 
+    const validatorRoles = [
+        {
+            type: BadgeType.Success,
+            label: 'Committee',
+            description: 'In the committee with voting power',
+        },
+        {
+            type: BadgeType.PrimarySoft,
+            label: 'Active',
+            description: 'Eligible, not in committee',
+        },
+        {
+            type: BadgeType.Warning,
+            label: 'Pending',
+            description: 'Activating in the next epoch',
+        },
+        {
+            type: BadgeType.Neutral,
+            label: 'Candidate',
+            description: 'Candidate for future epochs',
+        },
+        {
+            type: BadgeType.Error,
+            label: 'At Risk',
+            description: 'At risk of being slashed or penalized',
+        },
+    ];
     return (
         <PageLayout
             content={
@@ -311,7 +338,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="dark:text-iota-neutral-92 pt-md--rs text-display-sm text-iota-neutral-10">
+                        <div className="pt-md--rs text-display-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                             Validators
                         </div>
 
@@ -347,35 +374,13 @@ function ValidatorPageResult(): JSX.Element {
                         </div>
                         <Panel>
                             <div className="bg-shader-neutral-light-4 flex flex-col gap-y-sm border-b border-t border-shader-neutral-light-8 py-sm">
-                                <Title size={TitleSize.Small} title="Validator Roles" />
-                                <div className="flex flex-wrap gap-x-2xl px-md ">
-                                    {[
-                                        {
-                                            type: BadgeType.Success,
-                                            label: 'Committee',
-                                            description: 'In the committee with voting power',
-                                        },
-                                        {
-                                            type: BadgeType.PrimarySoft,
-                                            label: 'Active',
-                                            description: 'Eligible, not in committee',
-                                        },
-                                        {
-                                            type: BadgeType.Warning,
-                                            label: 'Pending',
-                                            description: 'Activating in the next epoch',
-                                        },
-                                        {
-                                            type: BadgeType.Neutral,
-                                            label: 'Candidate',
-                                            description: 'Candidate for future epochs',
-                                        },
-                                        {
-                                            type: BadgeType.Error,
-                                            label: 'At Risk',
-                                            description: 'At risk of being slashed or penalized',
-                                        },
-                                    ].map(({ type, label, description }) => (
+                                <Title
+                                    size={TitleSize.Small}
+                                    title="Status Legend"
+                                    tooltipText="Each validator is assigned a role reflecting their current standing in the network."
+                                />
+                                <div className="grid grid-cols-2 gap-xl px-md md:grid-cols-3 lg:grid-cols-5 ">
+                                    {validatorRoles.map(({ type, label, description }) => (
                                         <div
                                             key={label}
                                             className="flex flex-col items-start gap-xs"
@@ -385,7 +390,7 @@ function ValidatorPageResult(): JSX.Element {
                                                 label={label}
                                                 size={BadgeSize.Small}
                                             />
-                                            <span className="dark:text-iota-neutral-60 text-label-sm text-iota-neutral-40">
+                                            <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                                 {description}
                                             </span>
                                         </div>
