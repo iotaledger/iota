@@ -729,8 +729,10 @@ impl DagState {
 
         // Handle pending acknowledgments for recent blocks
         let has_transactions = transactions.has_transactions();
+        let block_digest = transactions.block_ref().map(|br| br.digest);
         let clock_round = self.threshold_clock_round();
         let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
+
         let hostname = self
             .context
             .committee
@@ -758,11 +760,7 @@ impl DagState {
                 && source != DataSource::CommitSyncer
                 && source != DataSource::Recover
             {
-                self.add_pending_acknowledgment(
-                    transaction_ref,
-                    transactions.block_ref().map(|br| br.digest),
-                    source,
-                );
+                self.add_pending_acknowledgment(transaction_ref, block_digest, source);
             }
         } else {
             self.context
@@ -1898,6 +1896,25 @@ impl DagState {
             votes.push(self.pending_commit_votes.pop_front().unwrap());
         }
         votes
+    }
+
+    /// Check if a block's transaction data is locally available.
+    // Will be used by strong-vote computation in a later StarfishSpeed step.
+    #[expect(dead_code)]
+    pub(crate) fn is_data_available(&self, block_ref: &BlockRef) -> bool {
+        let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
+            let Some(header) = self.recent_block_headers.get(block_ref) else {
+                return false;
+            };
+            GenericTransactionRef::from(TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: header.transactions_commitment(),
+            })
+        } else {
+            GenericTransactionRef::from(*block_ref)
+        };
+        self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
     /// Clean up old cached data for each authority, all cached blocks
