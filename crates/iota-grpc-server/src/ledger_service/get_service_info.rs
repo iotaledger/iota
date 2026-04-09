@@ -3,18 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil},
-    google::rpc::bad_request::FieldViolation,
     proto::timestamp_ms_to_proto,
     read_masks::GET_SERVICE_INFO_READ_MASK,
-    v0::{
-        error_reason::ErrorReason,
-        ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
-    },
+    v1::ledger_service::{GetServiceInfoRequest, GetServiceInfoResponse},
 };
-use prost_types::FieldMask;
 
-use crate::{error::RpcError, ledger_service::LedgerGrpcService};
+use crate::{error::RpcError, ledger_service::LedgerGrpcService, validation::validate_read_mask};
 
 /// Available Read Mask Fields
 ///
@@ -45,19 +39,10 @@ pub fn get_service_info(
     service: &LedgerGrpcService,
     request: GetServiceInfoRequest,
 ) -> Result<GetServiceInfoResponse, RpcError> {
-    let read_mask = {
-        let read_mask = request
-            .read_mask
-            .unwrap_or_else(|| FieldMask::from_str(GET_SERVICE_INFO_READ_MASK));
-        read_mask
-            .validate::<GetServiceInfoResponse>()
-            .map_err(|path| {
-                FieldViolation::new("read_mask")
-                    .with_description(format!("invalid read_mask path: {path}"))
-                    .with_reason(ErrorReason::FieldInvalid)
-            })?;
-        FieldMaskTree::from(read_mask)
-    };
+    let read_mask = validate_read_mask::<GetServiceInfoResponse>(
+        request.read_mask,
+        GET_SERVICE_INFO_READ_MASK,
+    )?;
 
     let latest_checkpoint = service.reader.get_latest_checkpoint()?;
 

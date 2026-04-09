@@ -19,8 +19,10 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 23;
+pub const MAX_PROTOCOL_VERSION: u64 = 24;
 
+/// Protocol version that IIP8 took effect.
+pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Record history of protocol version allocations here:
 //
 // Version 1:  Original version.
@@ -133,6 +135,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 23;
 //             instead of being deserialized from a BCS-encoded struct.
 //             Enables sponsor, rgp, gas_price, and gas_budget to be exposed to
 //             Move.
+// Version 24: Switch consensus protocol to Starfish in all networks.
+//             Enable Move-based sponsor account authentication in devnet.
+//             Add AuthContext native functions cost for reading tx_data_bytes.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -434,6 +439,10 @@ struct FeatureFlags {
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     enable_move_authentication: bool,
+
+    // If true, enables the authentication of a sponsor account using Move code.
+    #[serde(skip_serializing_if = "is_false")]
+    enable_move_authentication_for_sponsor: bool,
 
     // If true, the change epoch transaction will contain validator scores.
     #[serde(skip_serializing_if = "is_false")]
@@ -1292,6 +1301,9 @@ pub struct ProtocolConfig {
     // `auth_context` module
     // Cost params for the Move native function `native_digest(): vector<u8>`
     auth_context_digest_cost_base: Option<u64>,
+    // Cost params for the Move native function `native_tx_data_bytes(): &vector<u8>`
+    auth_context_tx_data_bytes_cost_base: Option<u64>,
+    auth_context_tx_data_bytes_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `native_tx_commands<C>(): vector<C>`
     auth_context_tx_commands_cost_base: Option<u64>,
     auth_context_tx_commands_cost_per_byte: Option<u64>,
@@ -1299,7 +1311,7 @@ pub struct ProtocolConfig {
     auth_context_tx_inputs_cost_base: Option<u64>,
     auth_context_tx_inputs_cost_per_byte: Option<u64>,
     // Cost params for the Move native function `fun native_replace<I, C>(auth_digest: vector<u8>,
-    // tx_inputs: vector<I>, tx_commands: vector<C>)`
+    // tx_inputs: vector<I>, tx_commands: vector<C>, tx_data_bytes: vector<u8>)`
     auth_context_replace_cost_base: Option<u64>,
     auth_context_replace_cost_per_byte: Option<u64>,
 }
@@ -1597,6 +1609,16 @@ impl ProtocolConfig {
 
     pub fn enable_move_authentication(&self) -> bool {
         self.feature_flags.enable_move_authentication
+    }
+
+    pub fn enable_move_authentication_for_sponsor(&self) -> bool {
+        let enable_move_authentication_for_sponsor =
+            self.feature_flags.enable_move_authentication_for_sponsor;
+        assert!(
+            !enable_move_authentication_for_sponsor || self.enable_move_authentication(),
+            "enable_move_authentication_for_sponsor requires enable_move_authentication to be set"
+        );
+        enable_move_authentication_for_sponsor
     }
 
     pub fn pass_validator_scores_to_advance_epoch(&self) -> bool {
@@ -2223,6 +2245,8 @@ impl ProtocolConfig {
 
             // `auth_context` module
             auth_context_digest_cost_base: None,
+            auth_context_tx_data_bytes_cost_base: None,
+            auth_context_tx_data_bytes_cost_per_byte: None,
             auth_context_tx_commands_cost_base: None,
             auth_context_tx_commands_cost_per_byte: None,
             auth_context_tx_inputs_cost_base: None,
@@ -2679,6 +2703,20 @@ impl ProtocolConfig {
                     cfg.tx_context_ids_created_cost_base = Some(30);
                     cfg.tx_context_replace_cost_base = Some(30);
                 }
+                24 => {
+                    // Switch consensus protocol to Starfish in all networks.
+                    cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable Move-based sponsor account authentication in devnet.
+                        cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    }
+
+                    // Add tx_data_bytes to AuthContext for intent-based signature
+                    // verification in account abstraction.
+                    cfg.auth_context_tx_data_bytes_cost_base = Some(30);
+                    cfg.auth_context_tx_data_bytes_cost_per_byte = Some(2);
+                }
 
                 // Use this template when making changes:
                 //
@@ -2897,6 +2935,11 @@ impl ProtocolConfig {
     pub fn set_enable_move_authentication_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_move_authentication = val;
     }
+
+    pub fn set_enable_move_authentication_for_sponsor_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_move_authentication_for_sponsor = val;
+    }
+
     pub fn set_consensus_fast_commit_sync_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_fast_commit_sync = val;
     }

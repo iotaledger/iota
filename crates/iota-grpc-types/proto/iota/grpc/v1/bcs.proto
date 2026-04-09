@@ -1,0 +1,15 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.bcs;
+
+import "iota/grpc/options.proto";
+
+// BCS-serialized data container
+message BcsData {
+  option (iota.grpc.message_accessors) = "with";
+
+  bytes data = 1;
+}

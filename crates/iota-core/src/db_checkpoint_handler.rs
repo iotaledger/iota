@@ -27,7 +27,7 @@ use crate::{
         authority_store_tables::AuthorityPerpetualTables,
     },
     checkpoints::CheckpointStore,
-    rest_index::RestIndexStore,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
 };
 
 pub const SUCCESS_MARKER: &str = "_SUCCESS";
@@ -146,13 +146,13 @@ impl DBCheckpointHandler {
     /// remote store configuration.
     pub fn start(self: Arc<Self>) -> tokio::sync::broadcast::Sender<()> {
         let (kill_sender, _kill_receiver) = tokio::sync::broadcast::channel::<()>(1);
-        if self.output_object_store.is_some() {
+        if let Some(output_object_store) = &self.output_object_store {
             tokio::task::spawn(Self::run_db_checkpoint_upload_loop(
                 self.clone(),
                 kill_sender.subscribe(),
             ));
             tokio::task::spawn(run_manifest_update_loop(
-                self.output_object_store.as_ref().unwrap().clone(),
+                output_object_store.clone(),
                 kill_sender.subscribe(),
             ));
         } else {
@@ -276,7 +276,7 @@ impl DBCheckpointHandler {
         let checkpoint_store = Arc::new(CheckpointStore::new_for_db_checkpoint_handler(
             &db_path.join("checkpoints"),
         ));
-        let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
+        let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
         let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
         info!(
             "Pruning db checkpoint in {:?} for epoch: {epoch}",
@@ -285,7 +285,7 @@ impl DBCheckpointHandler {
         AuthorityStorePruner::prune_objects_for_eligible_epochs(
             &perpetual_db,
             &checkpoint_store,
-            Some(&rest_index),
+            Some(&grpc_indexes_store),
             None,
             self.pruning_config.clone(),
             metrics,

@@ -224,7 +224,7 @@ mod tests {
         reset_database(&mut conn).unwrap();
 
         let objects: Vec<StoredObject> = BuiltInFramework::iter_system_packages()
-            .map(|pkg| IndexedObject::from_object(1, pkg.genesis_object(), None).into())
+            .map(|pkg| IndexedObject::from_object(Some(1), pkg.genesis_object(), None).into())
             .collect();
 
         let expect = objects.len();

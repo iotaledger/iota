@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashSet,
     future::Future,
     pin::Pin,
     sync::Arc,
@@ -17,7 +18,9 @@ use prometheus::{
 use tonic::{Code, Status};
 use tower::{Layer, Service};
 
-const LATENCY_SEC_BUCKETS: &[f64] = &[
+pub const SPAM_LABEL: &str = "SPAM";
+
+pub const LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
 ];
 
@@ -36,22 +39,22 @@ impl GrpcServerMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
             inflight_requests: register_int_gauge_vec_with_registry!(
-                "grpc_server_inflight_requests",
-                "Total in-flight gRPC requests per method",
+                "node_grpc_inflight_requests",
+                "Total in-flight node gRPC requests per method",
                 &["method"],
                 registry,
             )
             .unwrap(),
             num_requests: register_int_counter_vec_with_registry!(
-                "grpc_server_requests",
-                "Total gRPC requests per method and status code",
+                "node_grpc_requests",
+                "Total node gRPC requests per method and status code",
                 &["method", "status"],
                 registry,
             )
             .unwrap(),
             request_latency: register_histogram_vec_with_registry!(
-                "grpc_server_request_latency",
-                "Latency of gRPC requests per method in seconds",
+                "node_grpc_request_latency",
+                "Latency of node gRPC requests per method in seconds",
                 &["method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
@@ -62,14 +65,27 @@ impl GrpcServerMetrics {
 }
 
 /// Tower [`Layer`] that adds gRPC request metrics to a service.
+///
+/// Only records per-method metrics for paths that exactly match a known gRPC
+/// method. All other requests (e.g. non-gRPC HTTP traffic that reaches
+/// the port) are aggregated under a single `"SPAM"` label to prevent
+/// unbounded cardinality.
 #[derive(Clone)]
 pub struct GrpcMetricsLayer {
     metrics: Arc<GrpcServerMetrics>,
+    /// Exact set of known gRPC method paths (e.g.
+    /// `"/iota.grpc.v1.ledger_service.LedgerService/GetCheckpoint"`).
+    /// Only paths in this set get their own metric label; everything else
+    /// is labelled `"SPAM"`.
+    known_methods: Arc<HashSet<&'static str>>,
 }
 
 impl GrpcMetricsLayer {
-    pub fn new(metrics: Arc<GrpcServerMetrics>) -> Self {
-        Self { metrics }
+    pub fn new(metrics: Arc<GrpcServerMetrics>, method_paths: &[&'static str]) -> Self {
+        Self {
+            metrics,
+            known_methods: Arc::new(method_paths.iter().copied().collect()),
+        }
     }
 }
 
@@ -80,6 +96,7 @@ impl<S> Layer<S> for GrpcMetricsLayer {
         GrpcMetricsService {
             inner,
             metrics: self.metrics.clone(),
+            known_methods: self.known_methods.clone(),
         }
     }
 }
@@ -89,6 +106,7 @@ impl<S> Layer<S> for GrpcMetricsLayer {
 pub struct GrpcMetricsService<S> {
     inner: S,
     metrics: Arc<GrpcServerMetrics>,
+    known_methods: Arc<HashSet<&'static str>>,
 }
 
 impl<S, ReqBody, ResBody> Service<http::Request<ReqBody>> for GrpcMetricsService<S>
@@ -96,18 +114,35 @@ where
     S: Service<http::Request<ReqBody>, Response = http::Response<ResBody>> + Clone + Send + 'static,
     S::Future: Send + 'static,
     ReqBody: Send + 'static,
-    ResBody: Send + 'static,
+    ResBody: Default + Send + 'static,
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = GrpcMetricsFuture<S::Future>;
+    type Future = GrpcMetricsFuture<S::Future, S::Response>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
-        let method = req.uri().path().to_owned();
+        let raw_path = req.uri().path();
+
+        if !self.known_methods.contains(raw_path) {
+            // SPAM: bump counter and reject immediately without calling the
+            // inner service, avoiding unnecessary router work.
+            self.metrics
+                .num_requests
+                .with_label_values(&[SPAM_LABEL, "Unimplemented"])
+                .inc();
+
+            let response = Status::unimplemented("").into_http();
+
+            return GrpcMetricsFuture::Rejected {
+                response: Some(response),
+            };
+        }
+
+        let method = raw_path.to_owned();
         let metrics = self.metrics.clone();
 
         metrics
@@ -124,7 +159,7 @@ where
 
         let future = self.inner.call(req);
 
-        GrpcMetricsFuture {
+        GrpcMetricsFuture::Inner {
             inner: future,
             guard,
         }
@@ -167,45 +202,57 @@ impl Drop for InFlightGuard {
 }
 
 pin_project! {
-    /// Future that records metrics when the inner response completes.
+    /// Future returned by [`GrpcMetricsService`].
     ///
-    /// On normal completion, records the gRPC status from the response headers.
-    /// If dropped before completion (client disconnect), the [`InFlightGuard`]
-    /// records a `"canceled"` status.
-    pub struct GrpcMetricsFuture<F> {
-        #[pin]
-        inner: F,
-        guard: InFlightGuard,
+    /// - `Inner`: a real request forwarded to the inner service. Records the
+    ///   gRPC status from the response headers on completion. If dropped before
+    ///   completion (client disconnect), the [`InFlightGuard`] records a
+    ///   `"canceled"` status.
+    /// - `Rejected`: a SPAM request that was rejected immediately. Returns the
+    ///   pre-built response on first poll.
+    #[project = GrpcMetricsFutureProj]
+    pub enum GrpcMetricsFuture<F, Res> {
+        Inner {
+            #[pin]
+            inner: F,
+            guard: InFlightGuard,
+        },
+        Rejected {
+            response: Option<Res>,
+        },
     }
 }
 
-impl<F, ResBody, E> Future for GrpcMetricsFuture<F>
+impl<F, ResBody, E> Future for GrpcMetricsFuture<F, http::Response<ResBody>>
 where
     F: Future<Output = Result<http::Response<ResBody>, E>>,
 {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.project();
+        match self.project() {
+            GrpcMetricsFutureProj::Inner { inner, guard } => match inner.poll(cx) {
+                Poll::Ready(result) => {
+                    let status = match &result {
+                        Ok(response) => grpc_status_from_response(response),
+                        Err(_) => "transport_error",
+                    };
 
-        match this.inner.poll(cx) {
-            Poll::Ready(result) => {
-                let status = match &result {
-                    Ok(response) => grpc_status_from_response(response),
-                    Err(_) => "transport_error",
-                };
+                    guard
+                        .metrics
+                        .num_requests
+                        .with_label_values(&[guard.method.as_str(), status])
+                        .inc();
 
-                this.guard
-                    .metrics
-                    .num_requests
-                    .with_label_values(&[this.guard.method.as_str(), status])
-                    .inc();
+                    guard.completed = true;
 
-                this.guard.completed = true;
-
-                Poll::Ready(result)
+                    Poll::Ready(result)
+                }
+                Poll::Pending => Poll::Pending,
+            },
+            GrpcMetricsFutureProj::Rejected { response } => {
+                Poll::Ready(Ok(response.take().expect("polled after completion")))
             }
-            Poll::Pending => Poll::Pending,
         }
     }
 }
@@ -220,7 +267,7 @@ fn grpc_status_from_response<B>(response: &http::Response<B>) -> &'static str {
     grpc_code_to_str(code)
 }
 
-fn grpc_code_to_str(code: Code) -> &'static str {
+pub fn grpc_code_to_str(code: Code) -> &'static str {
     match code {
         Code::Ok => "Ok",
         Code::Cancelled => "Cancelled",

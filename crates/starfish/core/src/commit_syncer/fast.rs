@@ -840,6 +840,7 @@ mod tests {
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        protocol_config.set_gc_depth_for_testing(5);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())

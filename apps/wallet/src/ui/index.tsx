@@ -19,7 +19,7 @@ import {
     StardustIndexerClientProvider,
     ThemeProvider,
 } from '@iota/core';
-import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { AppsBackendClientProvider } from '@iota/apps-backend-client';
 import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import cn from 'clsx';
@@ -32,7 +32,7 @@ import { walletApiProvider } from './app/apiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
 import { UnlockAccountsProvider } from './app/components/accounts/UnlockAccountsContext';
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
-import { growthbook } from './app/experimentation/featureGating';
+import { appsBackendClient } from './app/experimentation/featureGating';
 import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from '_hooks';
 import './styles/global.scss';
@@ -68,7 +68,7 @@ function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
     const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     return (
-        <GrowthBookProvider growthbook={growthbook}>
+        <AppsBackendClientProvider client={appsBackendClient}>
             <HashRouter>
                 <IotaLedgerClientProvider>
                     {/*
@@ -138,7 +138,7 @@ function AppWrapper() {
                     </Fragment>
                 </IotaLedgerClientProvider>
             </HashRouter>
-        </GrowthBookProvider>
+        </AppsBackendClientProvider>
     );
 }
 

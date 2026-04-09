@@ -196,12 +196,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             return Err(e);
         }
 
-        let (transaction_commitment, our_shard, proof_for_shard) = TransactionsCommitment::compute_merkle_root_shard_and_proof(
-            &serialized_transactions,
-            &self.context,
-            encoder,
-        )
-            .expect("we should expect correct computation of the transactions commitment, our shard and its proof");
+        let (transaction_commitment, our_shard, proof_for_shard) =
+            TransactionsCommitment::compute_merkle_root_shard_and_proof(
+                &serialized_transactions,
+                &self.context,
+                encoder,
+            )?;
         if signed_block_header.transactions_commitment() != transaction_commitment {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -608,6 +608,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
             SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+        if let Err(e) =
+            serialized_block_bundle_parts.validate_useful_authorities(&self.context.committee)
+        {
+            self.context
+                .metrics
+                .node_metrics
+                .bundles_with_invalid_parts
+                .with_label_values(&[peer_hostname.as_str(), "metadata", e.name()])
+                .inc();
+            warn!("Invalid bundle metadata from {}: {}", peer, e);
+            return Err(e);
+        }
 
         // 1. Create a verified block and make some preliminary checks
         let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
@@ -1452,12 +1464,12 @@ impl SubscriptionCounter {
 
     fn decrement(&self, peer: AuthorityIndex) -> Result<(), ConsensusError> {
         let mut counter = self.counter.lock();
+        if counter.subscriptions_by_authority[peer] == 0 {
+            warn!("Subscription count for peer {peer} is already zero, skipping decrement");
+            return Ok(());
+        }
         counter.count -= 1;
         let original_subscription_by_peer = counter.subscriptions_by_authority[peer];
-
-        if counter.subscriptions_by_authority[peer] == 0 {
-            panic!("Subscription count for peer {peer} is already zero, cannot decrement");
-        }
         counter.subscriptions_by_authority[peer] -= 1;
         let mut total_stake = 0;
         for (authority_index, _) in self.context.committee.authorities() {
@@ -2115,6 +2127,88 @@ mod tests {
         let block_headers = core_dispatcher.get_block_headers();
         assert_eq!(block_headers.len(), headers.len());
         assert_eq!(block_headers, headers);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_with_invalid_useful_authority_hints() {
+        let committee_size = 4;
+        let (context, _keys) = Context::new_for_test(committee_size);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new(context.clone()));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+        );
+
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state,
+            store,
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        let invalid_authority = AuthorityIndex::new_for_test(250);
+        let block_bundle = BlockBundle {
+            verified_block: input_block,
+            verified_headers: vec![],
+            serialized_shards: vec![],
+            useful_headers_authors: BTreeSet::from([invalid_authority]),
+            useful_shards_authors: BTreeSet::new(),
+        };
+        let serialized_block_bundle = SerializedBlockBundle::try_from(
+            SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
+        )
+        .unwrap();
+
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle,
+                &mut encoder,
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndex { index, max })
+                if index == invalid_authority && max == committee_size
+        ));
+        assert!(core_dispatcher.get_blocks().is_empty());
+        assert!(core_dispatcher.get_block_headers().is_empty());
+        assert_eq!(authority_service.received_block_headers.size(), 0);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

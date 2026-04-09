@@ -142,6 +142,12 @@ pub(crate) enum ConsensusError {
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
 
+    #[error("Merkle tree has no root (empty shard list)")]
+    EmptyMerkleTree,
+
+    #[error("Missing block header for {block_ref}")]
+    MissingBlockHeader { block_ref: BlockRef },
+
     #[error(
         "Commit range exceeded limit after scanning during {sync_type} sync: {count} > {limit}"
     )]
