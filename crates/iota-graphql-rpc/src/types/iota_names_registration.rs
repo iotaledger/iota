@@ -36,9 +36,9 @@ use super::{
     uint53::UInt53,
 };
 use crate::{
+    backward_consistency::{BackwardView, build_backward_objects_query},
     config::DEFAULT_PAGE_SIZE,
     connection::ScanConnection,
-    consistency::{View, build_objects_query},
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
 };
@@ -520,22 +520,26 @@ impl IotaNames {
 
         let Some((checkpoint_timestamp_ms, results)) = db
             .execute_repeatable(move |conn| {
-                let Some(range) = AvailableRange::result(conn, checkpoint_viewed_at)? else {
+                if AvailableRange::result(conn, checkpoint_viewed_at)?.is_none() {
                     return Ok::<_, diesel::result::Error>(None);
                 };
 
                 let timestamp_ms = Checkpoint::query_timestamp(conn, checkpoint_viewed_at)?;
 
-                let sql = build_objects_query(
-                    View::Consistent,
-                    range,
+                let sql = build_backward_objects_query(
+                    BackwardView::Consistent {
+                        checkpoint_viewed_at,
+                    },
                     &page,
                     move |query| filter.apply(query),
-                    move |newer| newer,
                 );
 
-                let objects: Vec<StoredHistoryObject> =
+                let backward_objects: Vec<super::object::StoredBackwardObject> =
                     conn.results(move || sql.clone().into_boxed())?;
+                let objects: Vec<StoredHistoryObject> = backward_objects
+                    .into_iter()
+                    .map(|o| o.into_stored_history(checkpoint_viewed_at))
+                    .collect();
 
                 Ok(Some((timestamp_ms, objects)))
             })

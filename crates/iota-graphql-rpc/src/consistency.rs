@@ -24,6 +24,7 @@ pub(crate) enum View {
     /// Return objects that fulfill the filtering criteria, even if there are
     /// more recent versions of the object within the checkpoint range. This
     /// is used for lookups such as by `object_id` and `version`.
+    #[expect(dead_code)] // Matched in build_objects_query arms; no caller currently passes it
     Historical,
     /// Return objects that fulfill the filtering criteria and are the most
     /// recent version within the checkpoint range.
