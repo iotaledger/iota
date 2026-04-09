@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This modules shares common types and logic for the checkpoint reader.
+//! This module shares common types and logic for the checkpoint reader.
 
 use std::collections::BTreeMap;
 
