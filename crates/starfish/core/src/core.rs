@@ -765,6 +765,12 @@ impl Core {
                 return None;
             }
 
+            if self.context.protocol_config.consensus_starfish_speed()
+                && !self.has_strong_vote_quorum(quorum_round)
+            {
+                return None;
+            }
+
             if Duration::from_millis(
                 self.context
                     .clock
@@ -1310,6 +1316,21 @@ impl Core {
         }
 
         Some(missing)
+    }
+
+    /// Checks whether a 2f+1 quorum of blocks at the given round have
+    /// `is_strong_vote() == true`, indicating data availability for the
+    /// leader's acknowledged blocks.
+    fn has_strong_vote_quorum(&self, round: Round) -> bool {
+        let dag_state = self.dag_state.read();
+        let blocks = dag_state.get_last_cached_block_header_per_authority(round + 1);
+        let mut strong_votes = StakeAggregator::<QuorumThreshold>::new();
+        for (block, _equivocating) in &blocks {
+            if block.round() == round && block.is_strong_vote() {
+                strong_votes.add(block.author(), &self.context.committee);
+            }
+        }
+        strong_votes.reached_threshold(&self.context.committee)
     }
 
     /// Checks whether the leaders of the round exist.
