@@ -32,6 +32,7 @@ use iota_types::{
     dynamic_field::{self, Field},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
+    execution::SharedInput,
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     inner_temporary_store::InnerTemporaryStore,
@@ -738,9 +739,9 @@ impl LocalExec {
             .filter_shared_objects()
             .iter()
             .map(|s| match s {
-                iota_types::execution::SharedInput::Existing(obj_ref) => obj_ref.0,
-                iota_types::execution::SharedInput::Deleted((id, _, _, _)) => *id,
-                iota_types::execution::SharedInput::Cancelled((id, _)) => *id,
+                SharedInput::Existing(obj_ref) => obj_ref.0,
+                SharedInput::Deleted((id, _, _, _)) => *id,
+                SharedInput::Cancelled((id, _)) => *id,
             })
             .collect();
         assert_eq!(
