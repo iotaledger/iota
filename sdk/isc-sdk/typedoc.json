@@ -1,0 +1,6 @@
+{
+    "entryPoints": ["src/*.ts"],
+    "excludeInternal": true,
+    "excludePrivate": true,
+    "intentionallyNotExported": []
+}

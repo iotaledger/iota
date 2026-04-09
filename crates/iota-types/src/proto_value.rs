@@ -373,7 +373,7 @@ pub(crate) mod tests {
         });
         let bound = required_budget(&expected);
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let deser = ProtoVisitorBuilder::new(bound)
             .deserialize_value(&bytes, &type_layout)
@@ -414,7 +414,7 @@ pub(crate) mod tests {
         layout = layout_("0x0::foo::Bar", vec![("f", layout)]);
         value = value_("0x0::foo::Bar", vec![("f", value)]);
 
-        let bytes = serialize(value.clone());
+        let bytes = serialize(value);
 
         let err = ProtoVisitorBuilder::new(bound)
             .deserialize_value(&bytes, &layout)

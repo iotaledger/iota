@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { useAppsBackend, Feature } from '@iota/core';
+import { useAppsBackendClient, useFeatureIsOn } from '@iota/apps-backend-client';
+import { Feature } from '@iota/core';
 import { Network } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useRef } from 'react';
@@ -12,23 +12,24 @@ import { Header } from '../header';
 import { useNetworkContext } from '~/contexts';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Info } from '@iota/apps-ui-icons';
+import { isString } from '~/lib';
 
 type PageLayoutProps = {
     content: ReactNode;
     loading?: boolean;
+    loadingText?: string;
 };
 
-export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
+export function PageLayout({ content, loading, loadingText }: PageLayoutProps): JSX.Element {
     const [network] = useNetworkContext();
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
     const outageOverride = useFeatureIsOn(Feature.NetworkOutageOverride as string);
+
+    const canShowLoadingText = isString(loadingText);
 
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
-        queryFn: () =>
-            request<{ degraded: boolean }>('monitor-network', {
-                project: 'EXPLORER',
-            }),
+        queryFn: () => client.getMonitorNetwork('EXPLORER'),
         // Keep cached for 2 minutes
         staleTime: 2 * 60 * 1000,
         retry: false,
@@ -58,7 +59,10 @@ export function PageLayout({ content, loading }: PageLayoutProps): JSX.Element {
             </section>
             {loading && (
                 <div className="absolute left-1/2 right-0 top-1/2 flex -translate-x-1/2 -translate-y-1/2 transform justify-center">
-                    <LoadingIndicator size="w-6 h-6" />
+                    <LoadingIndicator
+                        size="w-6 h-6"
+                        text={(canShowLoadingText && loadingText) || ''}
+                    />
                 </div>
             )}
             <main className="relative z-10">

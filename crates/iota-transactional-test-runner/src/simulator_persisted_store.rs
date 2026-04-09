@@ -5,13 +5,14 @@
 use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_config::genesis;
+use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
-    digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{ObjectDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     error::{IotaError, UserInputError},
     messages_checkpoint::{
@@ -21,7 +22,7 @@ use iota_types::{
     object::{Object, Owner},
     storage::{
         BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ReadStore,
-        RestStateReader, load_package_object_from_object_store,
+        load_package_object_from_object_store,
     },
     transaction::VerifiedTransaction,
 };
@@ -34,7 +35,6 @@ use typed_store::{
     DBMapUtils, Map,
     metrics::SamplingInterval,
     rocks::{DBMap, MetricConf},
-    traits::{TableSummary, TypedStoreDebug},
 };
 
 use super::SimulatorStore;
@@ -60,8 +60,7 @@ pub struct PersistedStoreInner {
     // Transaction data
     transactions: DBMap<TransactionDigest, iota_types::transaction::TrustedTransaction>,
     effects: DBMap<TransactionDigest, TransactionEffects>,
-    events: DBMap<TransactionEventsDigest, TransactionEvents>,
-    events_tx_digest_index: DBMap<TransactionDigest, TransactionEventsDigest>,
+    events: DBMap<TransactionDigest, TransactionEvents>,
 
     // Committee data
     epoch_to_committee: DBMap<EpochId, Committee>,
@@ -79,7 +78,7 @@ impl PersistedStore {
         let samp: SamplingInterval = SamplingInterval::new(Duration::from_secs(60), 0);
         let read_write = PersistedStoreInner::open_tables_read_write(
             path.clone(),
-            MetricConf::new("persisted").with_sampling(samp.clone()),
+            MetricConf::new("persisted").with_sampling(samp),
             None,
             None,
         );
@@ -176,22 +175,6 @@ impl SimulatorStore for PersistedStore {
             .transpose()
             .expect("failed to fetch highest checkpoint")
             .map(|(_, checkpoint)| checkpoint.into())
-    }
-
-    fn get_transaction_events_by_tx_digest(
-        &self,
-        tx_digest: &TransactionDigest,
-    ) -> Option<TransactionEvents> {
-        self.read_write
-            .events_tx_digest_index
-            .get(tx_digest)
-            .expect("Fatal: DB read failed")
-            .and_then(|x| {
-                self.read_write
-                    .events
-                    .get(&x)
-                    .expect("Fatal: DB read failed")
-            })
     }
 
     fn get_object(&self, id: &ObjectID) -> Option<Object> {
@@ -315,12 +298,8 @@ impl SimulatorStore for PersistedStore {
 
     fn insert_events(&mut self, tx_digest: &TransactionDigest, events: TransactionEvents) {
         self.read_write
-            .events_tx_digest_index
-            .insert(tx_digest, &events.digest())
-            .expect("Fatal: DB write failed");
-        self.read_write
             .events
-            .insert(&events.digest(), &events)
+            .insert(tx_digest, &events)
             .expect("Fatal: DB write failed");
     }
 
@@ -592,12 +571,12 @@ impl ReadStore for PersistedStore {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         Ok(self
             .read_write
             .events
-            .get(event_digest)
+            .get(digest)
             .expect("Fatal: DB read failed"))
     }
 
@@ -766,14 +745,14 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         self.sync();
 
         Ok(self
             .inner
             .events
-            .get(event_digest)
+            .get(digest)
             .expect("Fatal: DB read failed"))
     }
 
@@ -796,7 +775,7 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
     }
 }
 
-impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
+impl GrpcStateReader for PersistedStoreInnerReadOnlyWrapper {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
@@ -816,7 +795,7 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
         todo!()
     }
 
-    fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
+    fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         None
     }
 

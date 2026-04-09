@@ -5,7 +5,7 @@ type Format = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'weekday
 
 export function formatDate(
     date: Date | number,
-    format: Format[] = ['day', 'month', 'hour', 'minute'],
+    format: Format[] = ['day', 'month', 'year', 'hour', 'minute'],
 ): string {
     const dateTime = new Date(date);
     if (!(dateTime instanceof Date)) return '';

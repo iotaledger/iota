@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from './utils/fixtures';
-import { createPasskeyWallet } from './utils/wallet';
+import { createPasskeyWallet, TESTS_PASSWORD } from './utils/wallet';
 
 const username = 'Passkeys';
 const EXPECTED_RP_ID = 'iota.org';
@@ -58,6 +58,8 @@ test(`Passkey restoration should use ${EXPECTED_RP_ID} origin`, async ({ page, e
 
     await page.getByTestId('wallet-settings-button').click();
     await page.getByText('Reset').click();
+    await page.getByPlaceholder('Password').fill(TESTS_PASSWORD);
+    await page.getByRole('button', { name: 'Verify' }).click();
     await page.getByRole('button', { name: 'Reset' }).click();
 
     await page.getByRole('button', { name: /Get Started/ }).click();

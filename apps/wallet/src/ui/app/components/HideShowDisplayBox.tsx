@@ -28,7 +28,7 @@ export function HideShowDisplayBox({
         const textToCopy = Array.isArray(value) ? value.join(' ') : value;
         try {
             await navigator.clipboard.writeText(textToCopy);
-            ampli.elementCopied({
+            ampli.copiedElement({
                 type: eventType,
             });
             toast(copiedMessage || 'Copied');
@@ -38,7 +38,7 @@ export function HideShowDisplayBox({
     }
 
     return (
-        <div className="flex flex-col gap-md" data-testid="mnemonic-display-box">
+        <div className="flex flex-col gap-md" data-testid="mnemonic-display-box" data-amp-mask>
             <TextArea
                 defaultValue={value}
                 isVisibilityToggleEnabled

@@ -134,13 +134,13 @@ export function Account({
                 <div className="ml-auto flex items-center space-x-2 [&_button]:h-5 [&_button]:w-5 [&_svg]:h-5 [&_svg]:w-5">
                     <div className="account-icon-color flex items-center space-x-2 [&_button:not(.locked)]:invisible group-hover:[&_button:not(.locked)]:visible">
                         {onOptionsClick && (
-                            <ButtonUnstyled onClick={onOptionsClick}>
+                            <ButtonUnstyled onClick={onOptionsClick} aria-label="More options">
                                 <MoreHoriz />
                             </ButtonUnstyled>
                         )}
                     </div>
                     {showSelected && (
-                        <ButtonUnstyled>
+                        <ButtonUnstyled aria-label="Checkmark">
                             {isSelected ? (
                                 <CheckmarkFilled className="account-check-active-color h-5 w-5" />
                             ) : (

@@ -17,7 +17,6 @@ export * from './Pagination';
 export * from './PlaceholderTable';
 export * from './PlayPause';
 export * from './ProgressBar';
-export * from './ProgressCircle';
 export * from './RingChart';
 export * from './SplitPanes';
 export * from './TableCard';

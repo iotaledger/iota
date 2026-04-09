@@ -36,14 +36,14 @@ export function NFTDetailsPage() {
 
     function handleMoreAboutKiosk() {
         const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
-        ampli.externalLinkOpened({ type: 'ts-sdk documentation' });
+        ampli.openedLink({ type: 'ts-sdk documentation' });
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
         const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
-        ampli.externalLinkOpened({ type: 'ts-sdk documentation' });
+        ampli.openedLink({ type: 'ts-sdk documentation' });
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
@@ -131,7 +131,9 @@ export function NFTDetailsPage() {
                                                                 address={ownerAddress}
                                                                 eventType="address"
                                                             >
-                                                                {formatAddress(ownerAddress)}
+                                                                <span data-amp-mask>
+                                                                    {formatAddress(ownerAddress)}
+                                                                </span>
                                                             </ExplorerLink>
                                                         }
                                                         fullwidth
@@ -140,7 +142,11 @@ export function NFTDetailsPage() {
                                                 {nftId && (
                                                     <KeyValueInfo
                                                         keyText="Object ID"
-                                                        value={formatAddress(nftId)}
+                                                        value={
+                                                            <span data-amp-mask>
+                                                                {formatAddress(nftId)}
+                                                            </span>
+                                                        }
                                                         fullwidth
                                                     />
                                                 )}

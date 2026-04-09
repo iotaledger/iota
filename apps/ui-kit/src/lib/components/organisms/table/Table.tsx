@@ -119,6 +119,7 @@ export function Table({
                                         icon={<DoubleArrowLeft />}
                                         disabled={!paginationOptions.hasFirst}
                                         onClick={paginationOptions.onFirst}
+                                        aria-label="First page"
                                     />
                                     <Button
                                         type={ButtonType.Secondary}
@@ -126,6 +127,7 @@ export function Table({
                                         icon={<ArrowLeft />}
                                         disabled={!paginationOptions.hasPrev}
                                         onClick={paginationOptions.onPrev}
+                                        aria-label="Previous page"
                                     />
                                     <Button
                                         type={ButtonType.Secondary}
@@ -133,6 +135,7 @@ export function Table({
                                         icon={<ArrowRight />}
                                         disabled={!paginationOptions.hasNext}
                                         onClick={paginationOptions.onNext}
+                                        aria-label="Next page"
                                     />
                                     <Button
                                         type={ButtonType.Secondary}
@@ -140,6 +143,7 @@ export function Table({
                                         icon={<DoubleArrowRight />}
                                         disabled={!paginationOptions.hasLast}
                                         onClick={paginationOptions.onLast}
+                                        aria-label="Last page"
                                     />
                                 </>
                             )}

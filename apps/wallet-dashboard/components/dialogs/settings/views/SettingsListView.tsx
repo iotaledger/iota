@@ -16,8 +16,8 @@ import { SettingsDialogView } from '../enums';
 import { Globe } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
 import { toTitleCase } from '@iota/core';
-import Link from 'next/link';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
+import { ExternalLink } from '@/components/ExternalLink';
 
 interface SettingsListViewProps {
     handleClose: () => void;
@@ -57,15 +57,14 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                         <p>{process.env.NEXT_PUBLIC_DASHBOARD_REV}</p>
                         <div className="flex gap-md">
                             {LEGAL_LINKS.map(({ title, href }) => (
-                                <Link
+                                <ExternalLink
                                     key={href}
                                     href={href}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                    type="legal"
                                     className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
                                 >
                                     {title}
-                                </Link>
+                                </ExternalLink>
                             ))}
                         </div>
                     </div>

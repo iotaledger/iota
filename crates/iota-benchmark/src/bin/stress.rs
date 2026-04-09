@@ -8,7 +8,9 @@ use anyhow::{Context, Result, bail};
 use clap::*;
 use iota_benchmark::{
     benchmark_setup::Env,
-    drivers::{BenchmarkCmp, BenchmarkStats, bench_driver::BenchDriver, driver::Driver},
+    drivers::{
+        BenchmarkCmp, BenchmarkMetadata, BenchmarkStats, bench_driver::BenchDriver, driver::Driver,
+    },
     options::Opts,
     system_state_observer::SystemStateObserver,
     workloads::workload_configuration::WorkloadConfiguration,
@@ -52,6 +54,7 @@ async fn main() -> Result<()> {
         None => ProtocolConfig::get_for_max_version_UNSAFE(),
     };
 
+    let run_duration = opts.run_duration;
     let max_num_new_move_object_ids = protocol_config.max_num_new_move_object_ids();
     let max_num_transferred_move_object_ids = protocol_config.max_num_transferred_move_object_ids();
 
@@ -122,6 +125,7 @@ async fn main() -> Result<()> {
     let prev_benchmark_stats_path = opts.compare_with.clone();
     let curr_benchmark_stats_path = opts.benchmark_stats_path.clone();
     let registry_clone = registry.clone();
+    let setup_info = opts.run_spec.get_setup_info();
     let handle = std::thread::spawn(move || {
         client_runtime.block_on(async move {
             let workloads = WorkloadConfiguration::configure(
@@ -164,15 +168,20 @@ async fn main() -> Result<()> {
             .expect("Failed to join the server handle");
         match joined {
             Ok(result) => match result {
-                Ok((benchmark_stats, stress_stats)) => {
+                Ok((mut benchmark_stats, stress_stats)) => {
+                    benchmark_stats.metadata = Some(BenchmarkMetadata {
+                        setup_info,
+                        run_duration: run_duration.to_string(),
+                        digest_count: benchmark_stats.digests.len(),
+                    });
                     let benchmark_table = benchmark_stats.to_table();
-                    eprintln!("Benchmark Report:");
-                    eprintln!("{benchmark_table}");
+                    println!("Benchmark Report:");
+                    println!("{benchmark_table}");
 
                     if stress_stat_collection {
-                        eprintln!("Stress Performance Report:");
+                        println!("Stress Performance Report:");
                         let stress_stats_table = stress_stats.to_table();
-                        eprintln!("{stress_stats_table}");
+                        println!("{stress_stats_table}");
                     }
 
                     if !prev_benchmark_stats_path.is_empty() {
@@ -183,12 +192,13 @@ async fn main() -> Result<()> {
                             old: &prev_stats,
                         };
                         let cmp_table = cmp.to_table();
-                        eprintln!("Benchmark Comparison Report[{prev_benchmark_stats_path}]:");
-                        eprintln!("{cmp_table}");
+                        println!("Benchmark Comparison Report[{prev_benchmark_stats_path}]:");
+                        println!("{cmp_table}");
                     }
                     if !curr_benchmark_stats_path.is_empty() {
-                        let serialized = serde_json::to_string(&benchmark_stats)?;
-                        std::fs::write(curr_benchmark_stats_path, serialized)?;
+                        let file = std::fs::File::create(&curr_benchmark_stats_path)?;
+                        let writer = std::io::BufWriter::new(file);
+                        serde_json::to_writer_pretty(writer, &benchmark_stats)?;
                     }
                 }
                 Err(e) => eprintln!("{e}"),

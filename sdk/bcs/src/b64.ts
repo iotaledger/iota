@@ -21,9 +21,3 @@ export function toBase64(bytes: Uint8Array): string {
 
     return btoa(output);
 }
-
-/** @deprecated use toBase64 instead */
-export const toB64 = toBase64;
-
-/** @deprecated use fromBase64 instead */
-export const fromB64 = fromBase64;

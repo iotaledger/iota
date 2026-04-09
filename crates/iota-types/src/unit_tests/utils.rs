@@ -328,7 +328,7 @@ mod move_authenticator {
             initial_shared_version: OBJECT_START_VERSION,
             mutable: false,
         });
-        let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+        let authenticator = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
             vec![],
             vec![],
             self_call_arg,

@@ -61,6 +61,8 @@ export function Navbar({
                     <div
                         className="state-layer navbar-icon-color relative rounded-full p-xs hover:cursor-pointer sm:hidden [&_svg]:h-6 [&_svg]:w-6"
                         onClick={onToggleNavbar}
+                        role="button"
+                        aria-label="Toggle menu"
                     >
                         <MenuIcon />
                     </div>

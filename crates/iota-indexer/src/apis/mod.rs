@@ -7,7 +7,7 @@ pub(crate) use extended_api::ExtendedApi;
 pub use governance_api::GovernanceReadApi;
 pub(crate) use indexer_api::IndexerApi;
 pub(crate) use move_utils::MoveUtilsApi;
-pub(crate) use read_api::ReadApi;
+pub use read_api::ReadApi;
 pub(crate) use transaction_builder_api::TransactionBuilderApi;
 pub use write_api::{OptimisticWriteApi, WriteApi};
 

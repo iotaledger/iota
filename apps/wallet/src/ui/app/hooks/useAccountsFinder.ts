@@ -86,7 +86,7 @@ export function useAccountsFinder({
         sourceStrategy,
     ]);
 
-    async function find() {
+    async function find(): Promise<number> {
         const foundAddresses = await accountFinder.find();
 
         let sourceStrategyToPersist: SourceStrategyToPersist | undefined = undefined;
@@ -121,8 +121,8 @@ export function useAccountsFinder({
             };
         }
 
-        // Persist accounts
-        await backgroundClient.persistAccountsFinder(sourceStrategyToPersist);
+        // Persist accounts and return the number of accounts created
+        return await backgroundClient.persistAccountsFinder(sourceStrategyToPersist);
     }
 
     return {

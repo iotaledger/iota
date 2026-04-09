@@ -1,25 +1,24 @@
 ---
 title: IOTA Genesis Ceremony CLI
-description: The IOTA Genesis Ceremony CLI provides commands for building a Genesis blob file.
-tags: [ cli, reference, validator, iota-cli]
+description: The IOTA Genesis Ceremony CLI (part of iota-tool) provides commands for building a Genesis blob file.
+tags: [ cli, reference, validator, iota-tool]
 teams:
   - iotaledger/dev-tools
   - iotaledger/vm-language
 ---
 
-The IOTA CLI `genesis-ceremony` command allows the orchestration of an IOTA Genesis Ceremony,
+The `iota-tool genesis-ceremony` command allows the orchestration of an IOTA Genesis Ceremony,
 where multiple remote validators can sign a genesis blob. Each step persists in a file structure
-that can be shared (for instance, via GitHub) with the validators.
 that can be shared (for instance, via GitHub) with the validators.
 
 ## Commands
 
-Typing `iota genesis-ceremony --help` into your terminal or console displays the following information on available commands.
+Typing `iota-tool genesis-ceremony --help` into your terminal or console displays the following information on available commands.
 
 ```shell
 Create an IOTA Genesis Ceremony with multiple remote validators
 
-Usage: iota genesis-ceremony [OPTIONS] <COMMAND>
+Usage: iota-tool genesis-ceremony [OPTIONS] <COMMAND>
 
 Commands:
   init                        Initialize a Genesis builder which can be configured with validators
@@ -50,7 +49,7 @@ This command creates a structure in the file system to persist the genesis build
 Afterward, the below commands can be used to set additional configurations.
 
 ```shell
-iota genesis-ceremony init
+iota-tool genesis-ceremony init
 ```
 
 <details>
@@ -72,7 +71,7 @@ epoch_duration_ms: 86400000
 Each validator is added one at a time, and is persisted in the `committee` folder.
 
 ```shell
-iota genesis-ceremony add-validator \
+iota-tool genesis-ceremony add-validator \
     --name validator0 \
     --authority-key-file validator-authority.key \
     --protocol-key-file validator-protocol.key \
@@ -114,7 +113,7 @@ proof_of_possession: pk+5HoByE1fuHjkDVHOaKxazKnHLEOYf9IoDP9+C5eeG06Ji30Y9lXCHmB/
 ### List Validators
 
 ```shell
-iota genesis-ceremony list-validators
+iota-tool genesis-ceremony list-validators
 ```
 
 <details>
@@ -149,7 +148,7 @@ The resulting distribution schedule is amended only if any migration sources are
 passed in the [Build the Unsigned Checkpoint](#build-the-unsigned-checkpoint) step.
 
 ```shell
-$ iota genesis-ceremony init-token-distribution-schedule \
+$ iota-tool genesis-ceremony init-token-distribution-schedule \
     --token-allocations-path <path-to-token-allocations-csv-file>
 ```
 
@@ -158,13 +157,13 @@ $ iota genesis-ceremony init-token-distribution-schedule \
 This command checks the current state of the builder and reports any issues.
 
 ```shell
-iota genesis-ceremony validate-state
+iota-tool genesis-ceremony validate-state
 ```
 
 ### Build the Unsigned Checkpoint
 
 ```shell
-iota genesis-ceremony build-unsigned-checkpoint
+iota-tool genesis-ceremony build-unsigned-checkpoint
 ```
 
 ### Examine the Genesis Checkpoint
@@ -173,7 +172,7 @@ This command opens the Genesis Inspector, a responsive command-line tool which a
 attributes of the current built checkpoint.
 
 ```shell
-iota genesis-ceremony examine-genesis-checkpoint
+iota-tool genesis-ceremony examine-genesis-checkpoint
 ```
 
 ### Verify and Sign the Checkpoint
@@ -181,7 +180,7 @@ iota genesis-ceremony examine-genesis-checkpoint
 Each validator must sign the created checkpoint before finalizing the genesis blob.
 
 ```shell
-iota genesis-ceremony verify-and-sign --key-file authority.key
+iota-tool genesis-ceremony verify-and-sign --key-file authority.key
 ```
 
 ### Finalize the Genesis blob
@@ -190,5 +189,5 @@ Executing this command will generate the `genesis.blob` file using the configura
 previous commands.
 
 ```shell
-iota genesis-ceremony finalize
+iota-tool genesis-ceremony finalize
 ```

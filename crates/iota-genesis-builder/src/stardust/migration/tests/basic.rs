@@ -58,7 +58,7 @@ fn basic_simple_coin_id() {
     )
     .unwrap();
     migration
-        .run_migration([(header.clone(), stardust_basic.clone().into())])
+        .run_migration([(header.clone(), stardust_basic.into())])
         .unwrap();
     let migrated_object_id = migration
         .output_objects_map
@@ -146,7 +146,7 @@ fn basic_id() {
     )
     .unwrap();
     migration
-        .run_migration([(header.clone(), stardust_basic.clone().into())])
+        .run_migration([(header.clone(), stardust_basic.into())])
         .unwrap();
     let migrated_object_id = migration
         .output_objects_map

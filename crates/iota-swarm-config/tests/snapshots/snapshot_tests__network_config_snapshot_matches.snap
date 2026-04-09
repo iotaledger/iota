@@ -14,9 +14,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -46,7 +43,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
@@ -146,9 +143,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -178,7 +172,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
@@ -278,9 +272,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -310,7 +301,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
@@ -410,9 +401,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -442,7 +430,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
@@ -542,9 +530,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -574,7 +559,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
@@ -674,9 +659,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -706,7 +688,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
@@ -806,9 +788,6 @@ validator_configs:
     db-path: /tmp/foo/
     network-address: ""
     json-rpc-address: "0.0.0.0:1"
-    enable-rest-api: true
-    rest:
-      enable-unstable-apis: true
     metrics-address: "0.0.0.0:1"
     admin-interface-address: "127.0.0.1:8888"
     consensus-config:
@@ -838,7 +817,7 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 40
+      checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false

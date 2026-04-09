@@ -5,7 +5,6 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
-import { setNetworkGroup } from '_src/shared/analytics/amplitude';
 import { getCustomNetwork, toast } from '@iota/core';
 import { getAllNetworks, Network, type NetworkConfiguration } from '@iota/iota-sdk/client';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -48,8 +47,7 @@ export function NetworkSelector() {
                         store: true,
                     }),
                 ).unwrap();
-                setNetworkGroup(network.id, null);
-                ampli.networkSwitched({
+                ampli.switchedNetwork({
                     toNetwork: network.name,
                 });
             } catch (e) {

@@ -6,7 +6,7 @@ import { DialogBody, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 export function DialogLayout({ children }: PropsWithChildren) {
     return (
         <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>
-            <div className="flex h-full flex-col" data-testid="dialog-layout">
+            <div className="flex h-full flex-col" data-testid="dialog-layout" data-amp-mask>
                 {children}
             </div>
         </DialogContent>

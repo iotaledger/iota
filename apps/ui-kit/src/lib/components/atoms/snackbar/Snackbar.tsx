@@ -6,6 +6,7 @@ import cx from 'classnames';
 import { Close } from '@iota/apps-ui-icons';
 import { SnackbarType } from './snackbar.enums';
 import { BACKGROUND_COLOR, TEXT_COLOR } from './snackbar.classes';
+import { ButtonUnstyled } from '../button';
 
 type Renderable = JSX.Element | string | null;
 export interface SnackbarProps {
@@ -59,10 +60,9 @@ export function Snackbar({
         >
             <div className={cx('w-full text-left text-body-md', TEXT_COLOR[type])}>{text}</div>
             {showClose && (
-                <Close
-                    className={cx('h-5 w-5 cursor-pointer', TEXT_COLOR[type])}
-                    onClick={onClose}
-                />
+                <ButtonUnstyled onClick={onClose} aria-label="Close">
+                    <Close className={cx('h-5 w-5', TEXT_COLOR[type])} />
+                </ButtonUnstyled>
             )}
         </div>
     );

@@ -8,6 +8,7 @@ import { normalizeIotaAddress } from '../../utils/iota-types.js';
 import { bytesToHex } from '@noble/hashes/utils';
 
 /**
+ * @experimental
  * A MoveAuthenticator public key. Since MoveAuthenticator uses account abstraction,
  * this uses the object ID as the identity rather than a traditional cryptographic public key.
  */

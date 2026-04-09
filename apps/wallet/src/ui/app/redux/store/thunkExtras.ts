@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { BackgroundClient } from '_app/background-client';
-import { growthbook } from '_src/ui/app/experimentation/featureGating';
+import { appsBackendClient } from '_src/ui/app/experimentation/featureGating';
 import type { RootState } from '_src/ui/app/redux/rootReducer';
 import type { AppDispatch } from '_store';
 
 export const thunkExtras = {
-    growthbook,
+    appsBackendClient,
     background: new BackgroundClient(),
 };
 

@@ -1,11 +1,11 @@
 ---
-description: 'The errors contract keeps a map of error codes to error message templates. These error codes are used in
-request receipts.'
+description: "The errors contract keeps a map of error codes to error message templates. These error codes are used in
+  request receipts."
 image: /img/logo/WASP_logo_dark.png
 tags:
-- core-contract
-- core-contract-errors
-- reference
+  - core-contract
+  - core-contract-errors
+  - reference
 ---
 
 # The `errors` Contract

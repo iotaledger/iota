@@ -55,6 +55,15 @@ fn is_valid_path_component(component: &str) -> bool {
 
 pub trait MessageFields {
     const FIELDS: &'static [&'static MessageField];
+
+    /// Oneof group names declared in this message.
+    ///
+    /// A oneof name acts as a virtual parent path for its variant fields
+    /// during read mask validation.  For example, a message with
+    /// `oneof execution_result { CommandResults command_results = 3; ... }`
+    /// lists `"execution_result"` here so that paths like
+    /// `"execution_result.command_results"` are accepted by `validate()`.
+    const ONEOFS: &'static [&'static str] = &[];
 }
 
 pub struct MessageField {
@@ -62,6 +71,7 @@ pub struct MessageField {
     pub json_name: &'static str,
     pub number: i32,
     pub is_optional: bool,
+    pub is_map: bool,
     pub message_fields: Option<&'static [&'static MessageField]>,
 }
 
@@ -100,6 +110,7 @@ impl MessageField {
             json_name: "",
             number: 0,
             is_optional: false,
+            is_map: false,
             message_fields: None,
         }
     }
@@ -114,6 +125,11 @@ impl MessageField {
 
     pub const fn with_optional(mut self, is_optional: bool) -> Self {
         self.is_optional = is_optional;
+        self
+    }
+
+    pub const fn with_is_map(mut self, is_map: bool) -> Self {
+        self.is_map = is_map;
         self
     }
 }

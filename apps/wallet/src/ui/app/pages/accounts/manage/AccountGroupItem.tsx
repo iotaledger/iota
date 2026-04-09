@@ -49,7 +49,7 @@ export function AccountGroupItem({
     });
 
     async function handleCopySuccess() {
-        ampli.elementCopied({
+        ampli.copiedElement({
             type: 'address',
         });
         toast('Address copied');
@@ -58,7 +58,7 @@ export function AccountGroupItem({
     function handleOpen() {
         const newWindow = window.open(explorerHref!, '_blank', 'noopener,noreferrer');
         if (newWindow) newWindow.opener = null;
-        ampli.externalLinkOpened({ type: 'address' });
+        ampli.openedLink({ type: 'address' });
     }
 
     function handleRename() {
@@ -68,7 +68,7 @@ export function AccountGroupItem({
     function handleExportKeys() {
         const accountType = account?.type;
         if (accountType) {
-            ampli.accountKeysExported({
+            ampli.exportedAccountKeys({
                 accountType: ACCOUNT_TYPE_TO_AMPLI_ACCOUNT_TYPE[accountType],
             });
         }
@@ -122,7 +122,7 @@ export function AccountGroupItem({
           };
     return (
         <div className="relative overflow-visible [&_span]:whitespace-nowrap">
-            <div onClick={handleSelectAccount} ref={anchorRef}>
+            <div onClick={handleSelectAccount} ref={anchorRef} data-amp-mask>
                 <Account
                     isCopyable
                     isActive={isActive}
@@ -150,25 +150,32 @@ export function AccountGroupItem({
                             top: dropdownPosition.y,
                         }}
                         className={clsx(
-                            `absolute right-0 z-[99] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6`,
+                            'absolute right-0 z-[99]',
                             showDropdownOptionsBottom ? '-translate-y-full' : '',
                         )}
                     >
-                        <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                            <Dropdown>
-                                <ListItem hideBottomBorder onClick={handleRename}>
-                                    Rename
-                                </ListItem>
-                                <ListItem hideBottomBorder onClick={handleExportKeys}>
-                                    Export Account Keys
-                                </ListItem>
-                                {allAccounts.isPending ? null : (
-                                    <ListItem hideBottomBorder onClick={handleRemove}>
-                                        Delete
+                        <div
+                            className={clsx(
+                                'animate-dropdown-show rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6',
+                                showDropdownOptionsBottom ? 'origin-bottom' : 'origin-top',
+                            )}
+                        >
+                            <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                                <Dropdown>
+                                    <ListItem hideBottomBorder onClick={handleRename}>
+                                        Rename
                                     </ListItem>
-                                )}
-                            </Dropdown>
-                        </OutsideClickHandler>
+                                    <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                        Export Account Keys
+                                    </ListItem>
+                                    {allAccounts.isPending ? null : (
+                                        <ListItem hideBottomBorder onClick={handleRemove}>
+                                            Delete
+                                        </ListItem>
+                                    )}
+                                </Dropdown>
+                            </OutsideClickHandler>
+                        </div>
                     </div>
                 </Portal>
             )}

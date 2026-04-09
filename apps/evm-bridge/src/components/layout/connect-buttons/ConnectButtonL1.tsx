@@ -34,12 +34,14 @@ export function ConnectButtonL1({
     }, [l1Wallet.isConnected, l1Wallet.currentWallet?.name, l1Account?.address]);
 
     return (
-        <ConnectButton
-            data-testid="connect-l1-wallet"
-            className={className}
-            connectText={connectText}
-            size={size}
-            iotaNamesEnabled={iotaNamesEnabled}
-        />
+        <div data-amp-mask>
+            <ConnectButton
+                data-testid="connect-l1-wallet"
+                className={className}
+                connectText={connectText}
+                size={size}
+                iotaNamesEnabled={iotaNamesEnabled}
+            />
+        </div>
     );
 }

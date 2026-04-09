@@ -1,7 +1,7 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SVGProps } from 'react';
+import type { SVGProps } from 'react';
 export default function SvgMigration(props: SVGProps<SVGSVGElement>) {
     return (
         <svg

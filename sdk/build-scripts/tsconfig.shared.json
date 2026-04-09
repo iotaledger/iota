@@ -9,6 +9,8 @@
         "emitDeclarationOnly": true,
         // output .js.map sourcemap files for consumers
         "sourceMap": true,
+        // output .d.ts.map files so "go to definition" navigates to .ts source instead of .d.ts stubs
+        "declarationMap": true,
         // stricter type-checking for stronger correctness. Recommended by TS
         "strict": true,
         // linter checks for common issues

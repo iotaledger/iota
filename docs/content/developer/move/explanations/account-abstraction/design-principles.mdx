@@ -1,0 +1,44 @@
+---
+description: "Design principles for third-party developers using Account Abstraction in IOTA"
+tags:
+  - move-sc
+  - move-vm
+---
+
+# Design Principles for Third-Party Developers
+
+import AccountAbstraction from '../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+## Authenticator functions are read-only by construction
+
+The type system prevents an authenticator function from modifying any state. All its inputs are immutable. This is intentional: authentication must be a direct decision, it reads the ledger state and says yes or no. If you need mutable state during authentication (for example, to record that a one-time code has been used), that state must be managed through the account object itself, which can be done during the execution of the AA transaction.
+
+## Account state lives as dynamic fields
+
+The best approach to design abstract accounts is typically to use stateless structs and store meaningful data as dynamic fields. This allows the account struct itself to be minimal while allowing arbitrary extensions/plug-ins that enable additional authenticator functions. When defining an abstract account, store authentication-relevant state, member lists, key stores, approval tables, nonces, as dynamic fields under the account's UID. The authenticator function receives a read-only reference to the account and can traverse those dynamic fields.
+
+## The [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) enables intent-aware authentication
+
+The [`tx_inputs`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_inputs) and [`tx_commands`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_tx_commands) fields of [`AuthContext`](../../../references/framework/iota/auth_context.mdx#iota_auth_context_AuthContext) expose the full PTB. Authenticator functions can use this to inspect what the AA transaction will do and enforce policies over it. This makes authentication aware of intent, not just identity: rather than simply verifying who is sending the transaction, the authenticator can also verify what the AA transaction does, checking which functions are called, which objects are involved, and what values are passed, before deciding whether to allow execution.
+
+## Authentication is signaled by execution, not return value
+
+The authenticator function has no return type. Returning successfully means "authenticated"; aborting means "rejected". Use `assert!` and standard Move abort patterns to express rejection conditions.
+
+Avoid silent failures: if authentication should fail, abort with a descriptive error.
+
+## Authenticator references are version-aware but decoupled from compile-time dependencies
+
+[`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) stores a runtime reference to a package, module, and function. This reference is not a compile-time import. When you rotate to a new authenticator version, you create a new [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) pointing to the new package. Old transactions that were authorized by the old authenticator remain valid; new transactions go through the new one. This decoupling means you can upgrade authentication logic without redeploying the account type itself.
+
+However, this also means that an upgrade to any authenticator function will not be automatically enforced for all accounts using it. Users MUST opt-in to use the new authenticator function version by rotating the [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1).
+
+## Immutable accounts have fixed authenticators
+
+[`iota::account::create_immutable_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_immutable_account_v1) creates an account whose object can never change. This means the [`AuthenticatorFunctionRefV1`](../../../references/framework/iota/authenticator_function.mdx#iota_authenticator_function_AuthenticatorFunctionRefV1) is permanently fixed. Use this only when your authentication logic is entirely stateless and needs no future update path. This can be used, for instance, for throwaway accounts. Mutable shared accounts created with [`iota::account::create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1) are the typical choice for any production use case.
+
+## The bytecode verifier enforces module-local account creation
+
+The IOTA Move bytecode verifier requires that the `Account` type argument to [`iota::account::create_account_v1`](../../../references/framework/iota/account.mdx#iota_account_create_account_v1) be defined in the same module that calls it. This cannot be circumvented. It ensures that no module can create an abstract account impersonating a type defined elsewhere, and that account creation is always an authorized operation within the module that owns the type.

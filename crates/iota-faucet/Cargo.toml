@@ -55,3 +55,6 @@ path = "src/main.rs"
 ignored = [
   "eyre", # imported through a procedural macro
 ]
+
+[lints]
+workspace = true

@@ -1,11 +1,11 @@
 ---
-description: 'The evm core contract provides the necessary infrastructure to accept Ethereum transactions and execute
-EVM code.'
+description: "The evm core contract provides the necessary infrastructure to accept Ethereum transactions and execute
+  EVM code."
 image: /img/logo/WASP_logo_dark.png
 tags:
-- core-contract
-- evm
-- reference
+  - core-contract
+  - evm
+  - reference
 ---
 
 # The `evm` Contract

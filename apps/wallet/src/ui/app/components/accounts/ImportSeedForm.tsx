@@ -51,6 +51,7 @@ export function ImportSeedForm({ onSubmit }: ImportSeedFormProps) {
                     rows={5}
                     {...register('seed')}
                     errorMessage={form.formState.errors.seed?.message}
+                    data-amp-mask
                 />
                 <InfoBox
                     title="Non-Standard Restore Method"

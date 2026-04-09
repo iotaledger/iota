@@ -46,6 +46,7 @@ export function Header({
                     type={ButtonType.Ghost}
                     onClick={onBack}
                     icon={<ArrowBack />}
+                    aria-label="Back"
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />
@@ -64,6 +65,7 @@ export function Header({
                     onClick={onClose}
                     icon={<Close />}
                     testId={`close-icon`}
+                    aria-label="Close"
                 />
             ) : (
                 keepSpaceForIcon && <div className="w-9" />

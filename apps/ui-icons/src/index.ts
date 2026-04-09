@@ -1,4 +1,4 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export { default as Passkey } from './Passkey';
@@ -69,6 +69,7 @@ export { default as MoreVert } from './MoreVert';
 export { default as Notifications } from './Notifications';
 export { default as OutboundLink } from './OutboundLink';
 export { default as Pause } from './Pause';
+export { default as PercentDiscount } from './PercentDiscount';
 export { default as Person } from './Person';
 export { default as Pined } from './Pined';
 export { default as PlaceholderReplace } from './PlaceholderReplace';
@@ -84,8 +85,10 @@ export { default as RewardsOff } from './RewardsOff';
 export { default as Save } from './Save';
 export { default as Search } from './Search';
 export { default as Seed } from './Seed';
+export { default as SellTag } from './SellTag';
 export { default as Send } from './Send';
 export { default as Settings } from './Settings';
+export { default as SidePanel } from './SidePanel';
 export { default as SmX } from './SmX';
 export { default as SortByDefault } from './SortByDefault';
 export { default as SortByDown } from './SortByDown';
@@ -95,16 +98,17 @@ export { default as StarHex } from './StarHex';
 export { default as Subnames } from './Subnames';
 export { default as SwapAccount } from './SwapAccount';
 export { default as ThumbUp } from './ThumbUp';
+export { default as Trade } from './Trade';
 export { default as TriangleDown } from './TriangleDown';
 export { default as TriangleLeft } from './TriangleLeft';
 export { default as TriangleRight } from './TriangleRight';
 export { default as TriangleUp } from './TriangleUp';
 export { default as Unpined } from './Unpined';
 export { default as Unstake } from './Unstake';
+export { default as Usdto } from './Usdto';
 export { default as Vest } from './Vest';
 export { default as Vesting } from './Vesting';
 export { default as VisibilityOff } from './VisibilityOff';
 export { default as VisibilityOn } from './VisibilityOn';
 export { default as Wallet } from './Wallet';
 export { default as Warning } from './Warning';
-export { default as Sidepanel } from './Sidepanel';

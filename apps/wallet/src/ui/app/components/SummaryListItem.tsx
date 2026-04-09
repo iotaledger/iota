@@ -3,7 +3,7 @@
 
 interface SummaryListItemProps {
     icon: React.ReactNode;
-    text: string;
+    text: React.ReactNode;
 }
 
 export function SummaryListItem({ icon, text }: SummaryListItemProps) {

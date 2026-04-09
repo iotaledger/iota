@@ -48,10 +48,10 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
+    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
     jsonrpc_index::IndexStore,
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
-    rest_index::RestIndexStore,
     signature_verifier::SignatureVerifierMetrics,
 };
 
@@ -340,19 +340,16 @@ impl<'a> TestAuthorityBuilder<'a> {
                 epoch_store
                     .protocol_config()
                     .max_move_identifier_len_as_option(),
-                false,
             )))
         };
-        let rest_index = if self.disable_indexer {
+        let grpc_indexes_store = if self.disable_indexer {
             None
         } else {
             Some(Arc::new(
-                RestIndexStore::new(
-                    path.join("rest_index"),
-                    &authority_store,
+                GrpcIndexesStore::new(
+                    path.join(GRPC_INDEXES_DIR),
+                    Arc::clone(&authority_store),
                     &checkpoint_store,
-                    &epoch_store,
-                    &cache_traits.backing_package_store,
                 )
                 .await,
             ))
@@ -379,7 +376,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             epoch_store.clone(),
             committee_store,
             index_store,
-            rest_index,
+            grpc_indexes_store,
             checkpoint_store,
             &registry,
             genesis.objects(),
@@ -431,9 +428,15 @@ impl<'a> TestAuthorityBuilder<'a> {
                 )
                 .unwrap();
 
-            state
+            let batch = state
                 .get_cache_commit()
-                .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
+                .build_db_batch(epoch_store.epoch(), &[*genesis.transaction().digest()]);
+
+            state.get_cache_commit().commit_transaction_outputs(
+                epoch_store.epoch(),
+                batch,
+                &[*genesis.transaction().digest()],
+            );
         }
 
         // We want to insert these objects directly instead of relying on genesis

@@ -2,32 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import SecureYourWallet from '_assets/images/onboarding/secure-your-wallet.png';
 import SecureYourWalletDark from '_assets/images/onboarding/secure-your-wallet-darkmode.png';
 import { Card, CardType, CardBody, CardAction, CardActionType } from '@iota/apps-ui-kit';
-import { AccountsFormType, useAccountsFormContext, PageTemplate } from '_components';
-import { useAppSelector, useCreateAccountsMutation } from '_hooks';
+import { AccountsFormType, useAccountsFormContext, PageTemplate, useSourceFlow } from '_components';
+import { useAppSelector, useAccounts } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { ImportPass, Passkey } from '@iota/apps-ui-icons';
 import { openInNewTab } from '_src/shared/utils';
 import { type ActionCardItem, OnboardingCardIcon } from './AddAccountPage';
-import { Feature, Theme, useFeatureEnabledByNetwork, useTheme } from '@iota/core';
+import { Theme, useTheme } from '@iota/core';
+import { ACCOUNT_FORM_TYPE_TO_AMPLI } from '_src/shared/analytics';
+import { isFirstAccount } from '../../helpers';
 
 export function CreateNewWallet() {
     const { theme } = useTheme();
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
-    const network = useAppSelector(({ app }) => app.network);
+    const { sourceFlowRef } = useSourceFlow();
+    const sourceFlow = sourceFlowRef.current;
     const isPopupOrSidePanel = useAppSelector(
         (state) =>
             state.app.extensionViewType === ExtensionViewType.Popup ||
             state.app.extensionViewType === ExtensionViewType.SidePanel,
     );
-    const createAccountsMutation = useCreateAccountsMutation();
-    const [searchParams] = useSearchParams();
-    const sourceFlow = searchParams.get('sourceFlow') || 'Unknown';
-    const isPasskeysEnabled = useFeatureEnabledByNetwork(Feature.WalletPasskeys, network);
+    const { data: accounts } = useAccounts();
 
     const profileOptions = [
         {
@@ -36,32 +36,37 @@ export function CreateNewWallet() {
             subtitle: 'Recovery Phrase (12/24 words)',
             actionType: AccountsFormType.NewMnemonic,
         },
-        ...(isPasskeysEnabled
-            ? [
-                  {
-                      title: 'Passkey',
-                      icon: Passkey,
-                      subtitle: 'Use a password manager',
-                      actionType: AccountsFormType.Passkey,
-                  },
-              ]
-            : []),
+        {
+            title: 'Passkey',
+            icon: Passkey,
+            subtitle: 'Use a password manager',
+            actionType: AccountsFormType.Passkey,
+        },
     ] as const satisfies ActionCardItem[];
 
     const handleCardAction = async (actionType: (typeof profileOptions)[number]['actionType']) => {
+        const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[actionType];
+
+        if (ampliData) {
+            ampli.clickedCreateNewAccount({
+                accountType: ampliData.accountType,
+                accountOrigin: ampliData.accountOrigin,
+                isFirstAccount: isFirstAccount(accounts),
+                sourceFlow,
+            });
+        }
+
         switch (actionType) {
             case AccountsFormType.NewMnemonic:
                 setAccountsFormValues({ type: AccountsFormType.NewMnemonic });
-                ampli.accountCreationStarted({ sourceFlow });
                 navigate(
                     `/accounts/protect-account?accountsFormType=${AccountsFormType.NewMnemonic}`,
                 );
                 break;
             case AccountsFormType.Passkey:
-                ampli.clickedCreatePasskey({ sourceFlow });
                 const url = '/accounts/passkey-account';
                 if (isPopupOrSidePanel) {
-                    openInNewTab(url);
+                    openInNewTab(`${url}?sourceFlow=${sourceFlow}`);
                     window.close();
                 } else {
                     navigate(url);
@@ -102,7 +107,6 @@ export function CreateNewWallet() {
                         <Card
                             key={card.title}
                             type={CardType.Filled}
-                            isDisabled={createAccountsMutation.isPending}
                             isHoverable
                             onClick={() => handleCardAction(card.actionType)}
                             testId={card.actionType}

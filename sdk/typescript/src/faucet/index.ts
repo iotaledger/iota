@@ -5,6 +5,7 @@
 export {
     requestIotaFromFaucetV0,
     requestIotaFromFaucetV1,
+    requestIotaFromFaucet,
     getFaucetRequestStatus,
     getFaucetHost,
     FaucetRateLimitError,

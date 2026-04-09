@@ -107,8 +107,8 @@ async fn idempotence() {
     // Add more rounds so we have something to commit after the leader of wave 1
     let decision_round_wave_2 = committer.committers[0].decision_round(2);
     build_dag(
-        context.clone(),
-        dag_state.clone(),
+        context,
+        dag_state,
         Some(references_decision_round_wave_1),
         decision_round_wave_2,
     );
@@ -182,12 +182,7 @@ async fn direct_commit_late_call() {
     // note: waves & rounds are zero-indexed.
     let num_waves = 11;
     let decision_round_wave_10 = committer.committers[0].decision_round(10);
-    build_dag(
-        context.clone(),
-        dag_state.clone(),
-        None,
-        decision_round_wave_10,
-    );
+    build_dag(context, dag_state, None, decision_round_wave_10);
 
     let last_decided = Slot::new_for_test(0, 0);
     let sequence = committer.try_decide(last_decided);
@@ -371,12 +366,8 @@ async fn indirect_commit() {
     dag_builder.persist_all_blocks(dag_state.clone());
 
     // Create committer without pipelining and only 1 leader per leader round
-    let committer = UniversalCommitterBuilder::new(
-        dag_builder.context.clone(),
-        leader_schedule,
-        dag_state.clone(),
-    )
-    .build();
+    let committer =
+        UniversalCommitterBuilder::new(dag_builder.context, leader_schedule, dag_state).build();
     // note: without pipelining or multi-leader enabled there should only be one
     // committer.
     assert!(committer.committers.len() == 1);
@@ -455,12 +446,7 @@ async fn indirect_skip() {
 
     // Add enough blocks to reach the decision round of the leader of wave 3.
     let decision_round_wave_3 = committer.committers[0].decision_round(3);
-    build_dag(
-        context.clone(),
-        dag_state.clone(),
-        Some(references),
-        decision_round_wave_3,
-    );
+    build_dag(context, dag_state, Some(references), decision_round_wave_3);
 
     // Ensure we make a commit decision for the leaders of wave 1 ~ 3
     let last_committed = Slot::new_for_test(0, 0);
@@ -544,7 +530,7 @@ async fn undecided() {
     let decision_round_wave_1 = committer.committers[0].decision_round(1);
     build_dag(
         context.clone(),
-        dag_state.clone(),
+        dag_state,
         Some(references_voting_round_wave_1),
         decision_round_wave_1,
     );
@@ -580,7 +566,7 @@ async fn test_byzantine_direct_commit() {
     // This includes a "good vote" from validator C which is acting as a byzantine
     // validator
     let good_references_voting_round_wave_4 = build_dag(
-        context.clone(),
+        context,
         dag_state.clone(),
         Some(references_leader_round_wave_4.clone()),
         voting_round_wave_4,
@@ -644,7 +630,7 @@ async fn test_byzantine_direct_commit() {
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
-    dag_state.write().accept_block(decision_block_a14.clone());
+    dag_state.write().accept_block(decision_block_a14);
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
@@ -662,7 +648,7 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decision_block_b14.clone());
+    dag_state.write().accept_block(decision_block_b14);
 
     let decision_block_c14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 2)
@@ -675,7 +661,7 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decision_block_c14.clone());
+    dag_state.write().accept_block(decision_block_c14);
 
     let decision_block_d14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 3)
@@ -688,7 +674,7 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decision_block_d14.clone());
+    dag_state.write().accept_block(decision_block_d14);
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4

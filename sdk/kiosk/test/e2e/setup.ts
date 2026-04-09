@@ -13,15 +13,10 @@ import type {
     IotaTransactionBlockResponse,
 } from '@iota/iota-sdk/client';
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
-import {
-    FaucetRateLimitError,
-    getFaucetHost,
-    requestIotaFromFaucetV1,
-} from '@iota/iota-sdk/faucet';
+import { getFaucetHost, requestIotaFromFaucet } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import tmp from 'tmp';
-import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
 
 import type { KioskClient } from '../../src/index.js';
@@ -78,14 +73,7 @@ export async function setupIotaClient() {
     const keypair = Ed25519Keypair.generate();
     const address = keypair.getPublicKey().toIotaAddress();
     const client = getClient();
-    await retry(() => requestIotaFromFaucetV1({ host: DEFAULT_FAUCET_URL, recipient: address }), {
-        backoff: 'EXPONENTIAL',
-        // overall timeout in 60 seconds
-        timeout: 1000 * 60,
-        // skip retry if we hit the rate-limit error
-        retryIf: (error: any) => !(error instanceof FaucetRateLimitError),
-        logger: (msg) => console.warn('Retrying requesting from faucet: ' + msg),
-    });
+    await requestIotaFromFaucet({ host: DEFAULT_FAUCET_URL, recipient: address });
 
     const tmpDirPath = path.join(tmpdir(), 'config-');
     const tmpDir = await mkdtemp(tmpDirPath);
@@ -152,7 +140,7 @@ export async function publishExtensionsPackage(toolbox: TestToolbox): Promise<st
 }
 
 export async function publishHeroPackage(toolbox: TestToolbox): Promise<string> {
-    const packagePath = __dirname + '/./data/hero';
+    const packagePath = __dirname + '/data/hero';
     const { packageId } = await publishPackage(packagePath, toolbox);
 
     return packageId;

@@ -17,6 +17,21 @@ pub mod rpc {
         }
     }
 
+    impl Status {
+        /// Convert to a [`tonic::Status`], preserving code, message, and
+        /// details.
+        ///
+        /// The details are encoded as the binary `google.rpc.Status` message,
+        /// matching the `grpc-status-details-bin` trailer convention.
+        pub fn to_tonic_status(&self) -> tonic::Status {
+            use prost::Message;
+
+            let code = tonic::Code::from_i32(self.code);
+            let details_bytes = self.encode_to_vec();
+            tonic::Status::with_details(code, &self.message, details_bytes.into())
+        }
+    }
+
     impl ::prost::Name for ErrorInfo {
         const NAME: &'static str = "ErrorInfo";
         const PACKAGE: &'static str = "google.rpc";

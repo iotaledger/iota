@@ -1,0 +1,78 @@
+---
+description: 'How to pre-authorize multiple transactions with a single signature using Merkle tree-based authentication'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Pre-Authorize Multiple Transactions with a Single Signature
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to authorize a set of transactions upfront with a single signature, so that each transaction in the set can be submitted independently without requiring a new signature.
+
+:::tip Recommended reading
+
+This guide builds on the [Authenticate an Account with a Public Key](create-public-key-authentication.mdx) how-to. Reviewing that one first will help you understand the public key verification used here.
+
+:::
+
+:::tip Why is this possible?
+
+The authenticator receives `ctx.digest()` from [`TxContext`](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_TxContext), which is the unique digest of the current transaction. This allows the on-chain authenticator to verify that the transaction being submitted was part of the pre-approved set, without requiring another signature.
+
+:::
+
+:::note Relation to the OneSig protocol
+
+This example is inspired by the
+[OneSig protocol](https://github.com/LayerZero-Labs/onesig), which proposes
+authorizing multiple transactions using a single signature over a Merkle root.
+
+The implementation shown here demonstrates the core concept of verifying a
+transaction against a signed Merkle root. However, it is simplified for
+educational purposes and does **not fully implement all details of the
+OneSig protocol**.
+
+:::
+
+
+## Example Code
+
+1. Define the authenticator. It runs two checks in sequence: first verifies the signature over the Merkle root, then verifies that the current transaction's digest is a leaf in that tree.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L63-L74
+```
+2. The two verification helpers called by the authenticator. `verify_merkle_root` checks the Ed25519 signature against the stored public key. `verify_merkle_proof` hashes the transaction digest and walks up the tree using the provided sibling hashes to reconstruct the root.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move#L90-L111
+```
+:::note
+
+The example also creates a simple Account with a public key attached which you can check in the full example code if needed.
+
+:::
+
+## Expected Behavior
+
+- A single signature over the Merkle root authorizes all transactions in the pre-approved set.
+- Each transaction must be submitted with its Merkle proof; transactions not in the tree are rejected.
+- Once the root is signed, any party with the transaction and its proof can submit it — no further interaction with the key is needed.
+
+## Full Example Code
+
+<Tabs groupId="module" queryString>
+<TabItem value="onesig" label="OneSig account module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/account.move
+```
+
+</TabItem>
+<TabItem value="merkle" label="Merkle tree module">
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/onesig/sources/merkle.move
+```
+
+</TabItem>
+</Tabs>

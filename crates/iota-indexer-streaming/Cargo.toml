@@ -8,18 +8,20 @@ publish = false
 
 [dependencies]
 # external dependencies
-async-trait.workspace = true
 backoff.workspace = true
+diesel = { workspace = true, features = ["r2d2", "postgres"] }
 futures.workspace = true
 prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt"] }
-tokio-postgres = "0.7.15"
 tokio-stream.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-indexer.workspace = true
 iota-types.workspace = true
+
+[lints]
+workspace = true

@@ -378,17 +378,15 @@ describe('Publickey', () => {
             sigs: [
                 {
                     $kind: 'ED25519',
-                    ED25519: Array.from(
-                        parseSerializedSignature((await k1.signPersonalMessage(data)).signature)
-                            .signature!,
-                    ),
+                    ED25519: parseSerializedSignature(
+                        (await k1.signPersonalMessage(data)).signature,
+                    ).signature!,
                 },
                 {
                     $kind: 'Secp256k1',
-                    Secp256k1: Array.from(
-                        parseSerializedSignature((await k2.signPersonalMessage(data)).signature)
-                            .signature!,
-                    ),
+                    Secp256k1: parseSerializedSignature(
+                        (await k2.signPersonalMessage(data)).signature,
+                    ).signature!,
                 },
             ],
             multisig_pk: bcs.MultiSigPublicKey.parse(multiSigPublicKey.toRawBytes()),

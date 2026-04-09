@@ -30,6 +30,8 @@ import { useNavigate } from 'react-router-dom';
 import { Warning } from '@iota/apps-ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
+const SOURCE_FLOW = 'Validator card';
+
 export function ValidatorsCard() {
     const accountAddress = useActiveAddress();
     const {
@@ -79,9 +81,9 @@ export function ValidatorsCard() {
     const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const handleNewStake = () => {
-        ampli.stakeClicked({
+        ampli.clickedStakeIota({
             isCurrentlyStaking: true,
-            sourceFlow: 'Validator card',
+            sourceFlow: SOURCE_FLOW,
         });
         navigate('new');
     };

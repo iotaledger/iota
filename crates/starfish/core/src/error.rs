@@ -11,6 +11,7 @@ use typed_store::TypedStoreError;
 use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or
@@ -109,10 +110,10 @@ pub(crate) enum ConsensusError {
         peer: AuthorityIndex,
     },
     #[error(
-        "After reconstruction, the transaction commitment does not match the commitment in the block {}",
-        block_ref
+        "After reconstruction, the transaction commitment does not match the commitment in transaction ref {}",
+        transaction_ref
     )]
-    TransactionCommitmentMismatch { block_ref: BlockRef },
+    TransactionCommitmentMismatch { transaction_ref: TransactionRef },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
@@ -140,6 +141,22 @@ pub(crate) enum ConsensusError {
 
     #[error("Too many ancestors in the block: {0} > {1}")]
     TooManyAncestors(usize, usize),
+
+    #[error(
+        "Commit range exceeded limit after scanning during {sync_type} sync: {count} > {limit}"
+    )]
+    CommitRangeExceededAfterScanning {
+        count: CommitIndex,
+        limit: CommitIndex,
+        sync_type: &'static str,
+    },
+
+    #[error("Peer {peer} sent too many commits: {count} > {limit}")]
+    TooManyCommitsFromPeer {
+        peer: AuthorityIndex,
+        count: CommitIndex,
+        limit: CommitIndex,
+    },
 
     #[error("Ancestors from the same authority {0}")]
     DuplicatedAncestorsAuthority(AuthorityIndex),
@@ -188,7 +205,16 @@ pub(crate) enum ConsensusError {
     #[error("Received unexpected transaction from peer {peer}: {received:?}")]
     UnexpectedTransactionForCommit {
         peer: AuthorityIndex,
-        received: BlockRef,
+        received: GenericTransactionRef,
+    },
+
+    #[error(
+        "Fetched transactions from peer {peer} do not match committed transaction refs. Expected {expected} transactions, but received {received} transactions"
+    )]
+    FetchedTransactionsMismatch {
+        peer: AuthorityIndex,
+        expected: usize,
+        received: usize,
     },
 
     #[error("RocksDB failure: {0}")]
@@ -250,6 +276,32 @@ pub(crate) enum ConsensusError {
         shard_round: Round,
         block_round: Round,
     },
+
+    #[error(
+        "All GenericTransactionRef elements must have the same variant (BlockRef, TransactionRef, etc.) for batch operations."
+    )]
+    InconsistentTransactionRefVariants,
+
+    #[error(
+        "Transaction reference variant is inconsistent with protocol flag consensus_fast_commit_sync={protocol_flag_enabled}. Expected {expected_variant}, but received {received_variant}"
+    )]
+    TransactionRefVariantMismatch {
+        protocol_flag_enabled: bool,
+        expected_variant: &'static str,
+        received_variant: &'static str,
+    },
+
+    #[error("Failed to fetch {num_requested} block headers from any peer")]
+    FailedToFetchBlockHeaders { num_requested: usize },
+
+    #[error("Voting block header {block_ref:?} for commit certification was not found in storage")]
+    MissingVotingBlockHeaderInStorage { block_ref: BlockRef },
+
+    // TODO: This error can be removed once consensus_fast_commit_sync is enabled on all networks.
+    // It's currently used to gate fast commit sync endpoints and features during the gradual
+    // rollout phase.
+    #[error("Fast commit sync is not enabled in the current protocol version")]
+    FastCommitSyncNotEnabled,
 }
 
 impl ConsensusError {
@@ -273,6 +325,26 @@ impl ConsensusError {
                 });
             }
             if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_validation_requested_tx_refs(
+        gen_tx_refs: &[GenericTransactionRef],
+        peer: AuthorityIndex,
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        for gen_tx_ref in gen_tx_refs {
+            if !committee.is_valid_index(gen_tx_ref.author()) {
+                return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                    index: gen_tx_ref.author(),
+                    max: committee.size(),
+                    peer,
+                });
+            }
+            if gen_tx_ref.round() == GENESIS_ROUND {
                 return Err(ConsensusError::UnexpectedGenesisRequested { peer });
             }
         }

@@ -11,12 +11,11 @@ import {
     useShouldOpenInNewTab,
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature, useAppsBackendClient } from '@iota/apps-backend-client';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    useAppsBackend,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
     useGetOwnedObjects,
@@ -72,13 +71,10 @@ export function TokenDetails() {
 
     const OBJECT_PER_REQ = 1;
 
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
-        queryFn: () =>
-            request<{ degraded: boolean }>('monitor-network', {
-                project: 'WALLET',
-            }),
+        queryFn: () => client.getMonitorNetwork('WALLET'),
         // Keep cached for 2 minutes:
         staleTime: 2 * 60 * 1000,
         retry: false,
@@ -230,7 +226,7 @@ export function TokenDetails() {
                     data-testid="coin-page"
                 >
                     <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
-                        <div className="flex flex-col gap-xs">
+                        <div className="flex flex-col gap-xs" data-amp-mask>
                             <Address
                                 isExternal={!!explorerHref}
                                 externalLink={explorerHref!}
@@ -238,12 +234,12 @@ export function TokenDetails() {
                                 isCopyable
                                 copyText={activeAccountAddress}
                                 onCopySuccess={() => {
-                                    ampli.elementCopied({
+                                    ampli.copiedElement({
                                         type: 'address',
                                     });
                                     toast('Address copied');
                                 }}
-                                onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
+                                onOpen={() => ampli.openedLink({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>

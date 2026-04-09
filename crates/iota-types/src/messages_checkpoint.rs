@@ -18,7 +18,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tap::TapFallible;
-use tracing::warn;
+use tracing::{instrument, warn};
 
 pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
 use crate::{
@@ -318,6 +318,7 @@ pub type VerifiedCheckpoint = VerifiedEnvelope<CheckpointSummary, AuthorityStron
 pub type TrustedCheckpoint = TrustedEnvelope<CheckpointSummary, AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedCheckpointSummary {
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.data().verify_epoch(self.auth_sig().epoch)?;
         self.auth_sig().verify_secure(
@@ -368,6 +369,7 @@ impl CertifiedCheckpointSummary {
 }
 
 impl SignedCheckpointSummary {
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.data().verify_epoch(self.auth_sig().epoch)?;
         self.auth_sig().verify_secure(

@@ -257,7 +257,7 @@ fn foundry_with_special_metadata() -> Result<()> {
     assert_eq!(coin_metadata.symbol, "doge");
     assert_eq!(coin_metadata.description, "Much wow");
     assert_eq!(
-        coin_metadata.icon_url.unwrap().to_string(),
+        coin_metadata.icon_url.unwrap(),
         "https://dogecoin.com/logo.png"
     );
 

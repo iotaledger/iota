@@ -143,7 +143,7 @@ pub(crate) fn build_objects_query(
                     LEFT JOIN ({}) newer
                     ON (candidates.object_id = newer.object_id AND candidates.object_version < newer.object_version)"#,
                 snapshot_objs_inner,
-                newer.clone()
+                newer
             );
             snapshot_objs = filter!(snapshot_objs, "newer.object_version IS NULL");
             snapshot_objs

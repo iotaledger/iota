@@ -40,6 +40,7 @@ export function UnlockAccountModal({ onClose, onSuccess, open }: UnlockAccountMo
                 // this is not necessary for unlocking but will show the wrong password error as a form error
                 // so doing it like this to keep it simple. The extra verification shouldn't be a problem
                 verify={true}
+                isLoading={unlockAllAccountsMutation.isPending}
             />
             <ForgotPasswordDialog isOpen={isForgotPasswordOpen} setOpen={setForgotPasswordOpen} />
         </>

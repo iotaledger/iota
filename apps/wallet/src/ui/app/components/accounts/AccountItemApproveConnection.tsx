@@ -30,7 +30,7 @@ export function AccountItemApproveConnection({
     }
 
     return (
-        <div onClick={onUnlockedAccountClick}>
+        <div onClick={onUnlockedAccountClick} data-amp-mask>
             <Account
                 title={accountName}
                 subtitle={formatAddress(account.address)}

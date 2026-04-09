@@ -14,6 +14,9 @@ on:
         type: boolean
       isMoveExampleUsedByOthers:
         type: boolean
+      isNightly:
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -46,6 +49,7 @@ jobs:
     with:
       isRust: ${{ inputs.isRust }}
       isRustExample: ${{ inputs.isRustExample }}
+      isNightly: ${{ inputs.isNightly }}
 
   crates-changes:
     needs: rust-lints
@@ -91,9 +95,12 @@ jobs:
       testOnlyChangedCrates: ${{ !inputs.isRustWorkspaceConfig }}
       changedCrates: ${{ join(fromJson(needs.crates-changes.outputs.components || '[]'), ' ') }}
       changedExternalCrates: ${{ join(fromJson(needs.external-changes.outputs.components || '[]'), ' ') }}
+      isNightly: ${{ inputs.isNightly }}
 
   execution-cut:
     if: (!cancelled() && !failure() && inputs.isRust)
     needs:
       - rust-lints
     uses: ./.github/workflows/_execution_cut.yml
+    with:
+      isNightly: ${{ inputs.isNightly }}

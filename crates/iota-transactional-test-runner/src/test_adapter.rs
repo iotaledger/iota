@@ -31,6 +31,7 @@ use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
     IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
 };
+use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
@@ -46,7 +47,7 @@ use iota_types::{
     },
     committee::EpochId,
     crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
-    digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
+    digests::{ConsensusCommitDigest, TransactionDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
     execution_status::ExecutionStatus,
@@ -61,7 +62,7 @@ use iota_types::{
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::GenericSignature,
-    storage::{ObjectStore, ReadStore, RestStateReader},
+    storage::{ObjectStore, ReadStore},
     transaction::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionKind, VerifiedTransaction,
@@ -145,9 +146,9 @@ pub struct OffChainConfig {
     /// Dir for simulacrum to write checkpoint files to. To be passed to the
     /// offchain indexer if it uses file-based ingestion.
     pub data_ingestion_path: PathBuf,
-    /// URL for the IOTA REST API. To be passed to the offchain indexer if it
-    /// uses the REST API.
-    pub rest_api_url: Option<String>,
+    /// URL for the IOTA gRPC API. To be passed to the offchain indexer if it
+    /// uses the gRPC API.
+    pub grpc_api_url: Option<String>,
 }
 
 struct AdapterInitConfig {
@@ -182,10 +183,10 @@ pub struct IotaTestAdapter {
     pub(crate) staged_modules: BTreeMap<Symbol, StagedPackage>,
     is_simulator: bool,
     /// If `is_simulator` is true, the executor will be a `Simulacrum`, and this
-    /// will be a `RestStateReader` that can be used to spawn the equivalent
-    /// of a fullnode rest api. This can then be used to serve an indexer
-    /// that reads from said rest api service.
-    pub read_replica: Option<Arc<dyn RestStateReader + Send + Sync>>,
+    /// will be a `GrpcStateReader` that can be used to spawn the equivalent
+    /// of a fullnode gRPC server. This can then be used to serve an indexer
+    /// that reads from said gRPC service.
+    pub read_replica: Option<Arc<dyn GrpcStateReader + Send + Sync>>,
     /// Configuration for offchain state reader read from the file itself, and
     /// can be passed to the specific indexing and reader flavor.
     pub offchain_config: Option<OffChainConfig>,
@@ -218,7 +219,7 @@ impl AdapterInitConfig {
             flavor,
             epochs_to_keep,
             data_ingestion_path,
-            rest_api_url,
+            grpc_api_url,
         } = iota_args;
 
         let map = verify_and_create_named_address_mapping(named_addresses).unwrap();
@@ -255,7 +256,7 @@ impl AdapterInitConfig {
                 snapshot_config,
                 epochs_to_keep,
                 data_ingestion_path: data_ingestion_path.unwrap_or(tempdir().unwrap().keep()),
-                rest_api_url,
+                grpc_api_url,
             })
         } else {
             None
@@ -1425,7 +1426,7 @@ impl IotaTestAdapter {
 
         Ok((
             aa_id,
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new(
+            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
                 auth_inputs,
                 vec![],
                 CallArg::Object(aa_arg),
@@ -2559,7 +2560,7 @@ async fn init_val_fullnode_executor(
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
-    Option<Arc<dyn RestStateReader + Send + Sync>>,
+    Option<Arc<dyn GrpcStateReader + Send + Sync>>,
 ) {
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
@@ -2629,7 +2630,7 @@ async fn init_sim_executor(
 ) -> (
     Box<dyn TransactionalAdapter>,
     AccountSetup,
-    Option<Arc<dyn RestStateReader + Send + Sync>>,
+    Option<Arc<dyn GrpcStateReader + Send + Sync>>,
 ) {
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
@@ -2716,7 +2717,7 @@ async fn init_sim_executor(
             key_pair: Some(default_account_kp.1),
             gas: o.id(),
         };
-        objects.push(o.clone());
+        objects.push(o);
 
         if let (Some(v_addr), Some(v_key)) = (validator_addr, validator_key) {
             let o = store.owned_objects(v_addr).next().unwrap();
@@ -2891,9 +2892,9 @@ impl ReadStore for IotaTestAdapter {
 
     fn try_get_events(
         &self,
-        event_digest: &TransactionEventsDigest,
+        digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
-        self.executor.try_get_events(event_digest)
+        self.executor.try_get_events(digest)
     }
 
     fn try_get_full_checkpoint_contents_by_sequence_number(

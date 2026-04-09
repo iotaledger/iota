@@ -18,3 +18,14 @@ export function isPersistAccountsFinder(
 ): payload is PersistAccountsFinderPayload & AccountFinderConfigParams {
     return isBasePayload(payload) && payload.type === 'persist-accounts-finder';
 }
+
+export interface PersistAccountsFinderResponse extends BasePayload {
+    type: 'persist-accounts-finder-response';
+    numberOfAccountsCreated: number;
+}
+
+export function isPersistAccountsFinderResponse(
+    payload: Payload,
+): payload is PersistAccountsFinderResponse {
+    return isBasePayload(payload) && payload.type === 'persist-accounts-finder-response';
+}

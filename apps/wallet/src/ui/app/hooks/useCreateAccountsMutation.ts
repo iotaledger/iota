@@ -2,14 +2,19 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE } from '_src/shared/analytics';
+import { ampli, ACCOUNT_FORM_TYPE_TO_AMPLI, AmpliSourceFlow } from '_src/shared/analytics';
 import { useMutation } from '@tanstack/react-query';
-
-import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
+import {
+    useAccountsFormContext,
+    AccountsFormType,
+    type AccountsFormValues,
+    useSourceFlow,
+} from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
-
 import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
+import { useAccounts } from './useAccounts';
+import { isFirstAccount } from '_src/ui/app/helpers';
 
 function validateAccountFormValues(
     createType: AccountsFormType,
@@ -33,14 +38,21 @@ function ensurePassword(password: string | undefined): string {
 
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
-    const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const [accountsFormValuesRef, setAccountFormValues, sourceFlowRef] = useAccountsFormContext();
     const { createPasskeyAccount } = useCreatePasskeyAccount();
+    const { data: accounts } = useAccounts();
+    const { resetSourceFlow } = useSourceFlow();
 
     return useMutation({
         mutationKey: ['create accounts'],
+        onSuccess: () => {
+            resetSourceFlow();
+        },
         mutationFn: async ({ type, password }: { type: AccountsFormType; password?: string }) => {
             let createdAccounts;
             const accountsFormValues = accountsFormValuesRef.current;
+            const sourceFlow = sourceFlowRef.current || AmpliSourceFlow.Unknown;
+            const ampliData = ACCOUNT_FORM_TYPE_TO_AMPLI[type];
 
             // Validate form values are present and match the requested type
             const values = validateAccountFormValues(type, accountsFormValues);
@@ -161,11 +173,16 @@ export function useCreateAccountsMutation() {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);
             }
 
-            ampli.accountsAdded({
-                accountType: ACCOUNT_FORM_TYPE_TO_AMPLI_ACCOUNT_TYPE[type],
+            ampli.addedAccounts({
+                ...ampliData,
+                sourceFlow,
                 numberOfAccounts: createdAccounts.length,
+                isFirstAccount: isFirstAccount(accounts),
             });
             setAccountFormValues(null);
+            if (password) {
+                await backgroundClient.unlockAllAccountsAndSources({ password });
+            }
             const selectedAccount = createdAccounts[0];
             if (selectedAccount?.id) {
                 await backgroundClient.selectAccount(selectedAccount?.id);

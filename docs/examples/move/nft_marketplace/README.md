@@ -15,7 +15,7 @@ The [`rental_extension.move`](https://github.com/iotaledger/iota/blob/develop/do
 
 ### 1. Install the IOTA CLI and Connect to the Network
 
-The first thing you'll need to do is [install the IOTA CLI](https://docs.iota.org/developer/getting-started/install-iota), [connect to an IOTA network](https://docs.iota.org/developer/getting-started/connect) and [get some test tokens](https://docs.iota.org/developer/getting-started/get-coins) to pay for [gas](https://docs.iota.org/about-iota/tokenomics/gas-in-iota).
+The first thing you'll need to do is [install the IOTA CLI](https://docs.iota.org/developer/getting-started/install-iota), [connect to an IOTA network](https://docs.iota.org/developer/getting-started/connect) and [get some test tokens](https://docs.iota.org/developer/getting-started/get-coins) to pay for [gas](https://docs.iota.org/about-iota/tokenomics/gas-pricing).
 
 ### 2. Install Kiosk
 

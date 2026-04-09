@@ -43,6 +43,10 @@ pub enum ExpectedFailureType {
     // This is not a failure type, but a placeholder for no failure. Marking no failure asserts
     // that the transaction must succeed.
     NoFailure,
+
+    // This is not a failure type, but a placeholder to test MoveAuthenticator failures. Marking
+    // this asserts that the transaction must fail with MoveAuthenticator failure.
+    MoveAuthenticatorFailure,
 }
 
 impl TryFrom<u32> for ExpectedFailureType {
@@ -52,8 +56,9 @@ impl TryFrom<u32> for ExpectedFailureType {
         match value {
             0 => {
                 let mut rng = rand::thread_rng();
-                let n = rng.gen_range(1..ExpectedFailureType::COUNT - 1);
-                Ok(ExpectedFailureType::iter().nth(n).unwrap())
+                let c = Self::random_candidates();
+                let idx = rng.gen_range(0..c.len());
+                Ok(c[idx])
             }
             _ => ExpectedFailureType::iter()
                 .nth(value as usize)
@@ -65,6 +70,12 @@ impl TryFrom<u32> for ExpectedFailureType {
                     )
                 }),
         }
+    }
+}
+
+impl ExpectedFailureType {
+    fn random_candidates() -> &'static [ExpectedFailureType] {
+        &[ExpectedFailureType::InvalidSignature]
     }
 }
 
@@ -88,7 +99,7 @@ impl FromStr for ExpectedFailureType {
 impl Distribution<ExpectedFailureType> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ExpectedFailureType {
         // Exclude the "Random" variant
-        let n = rng.gen_range(1..ExpectedFailureType::COUNT);
+        let n = rng.gen_range(1..ExpectedFailureType::COUNT - 1);
         ExpectedFailureType::iter().nth(n).unwrap()
     }
 }

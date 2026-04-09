@@ -82,10 +82,12 @@ const HomeCardCTA = () => {
             </h2>
           </div>
         </div>
-
       
         <div className={styles.CardGrid}>
           <HomeCard title="About IOTA">
+            <Link className={styles.CardLink} to="./about-iota/iota-architecture">
+              IOTA Architecture <ArrowIcon />
+            </Link>
             <Link className={styles.CardLink} to="./about-iota/tokenomics">
               Tokenomics <ArrowIcon />
             </Link>
@@ -94,6 +96,7 @@ const HomeCardCTA = () => {
             </Link>
             <Link className={styles.CardLink} to="./developer/standards">
               Standards <ArrowIcon />
+
             </Link>
           </HomeCard>
           <HomeCard title="Developers">

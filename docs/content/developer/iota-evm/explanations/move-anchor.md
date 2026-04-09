@@ -1,7 +1,7 @@
 ---
 description: The IOTA EVM can be interacted with using the ISC Move packages.
 teams:
- - iotaledger/l2-smart-contract
+  - iotaledger/l2-smart-contract
 ---
 
 # ISC Move Packages

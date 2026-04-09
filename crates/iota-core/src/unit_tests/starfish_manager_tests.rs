@@ -197,6 +197,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
                 leader_block_header.reference(),
                 vec![leader_block_header],
                 vec![],
+                vec![],
                 1000 + commit_idx * 1000,
                 StarfishCommitRef::new(commit_idx as u32, StarfishCommitDigest::MIN),
                 vec![],

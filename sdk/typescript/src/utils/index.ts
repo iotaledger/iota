@@ -25,18 +25,7 @@ export {
     IOTA_ADDRESS_LENGTH,
 } from './iota-types.js';
 
-export {
-    fromB64,
-    toB64,
-    fromHEX,
-    toHex,
-    toHEX,
-    fromHex,
-    fromBase64,
-    toBase64,
-    fromBase58,
-    toBase58,
-} from '@iota/bcs';
+export { toHex, fromHex, fromBase64, toBase64, fromBase58, toBase58 } from '@iota/bcs';
 
 export {
     IOTA_DECIMALS,
@@ -48,6 +37,9 @@ export {
     IOTA_SYSTEM_MODULE_NAME,
     IOTA_TYPE_ARG,
     IOTA_SYSTEM_STATE_OBJECT_ID,
+    IOTA_RANDOM_OBJECT_ID,
 } from './constants.js';
 
 export { deriveDynamicFieldID } from './dynamic-fields.js';
+
+export { deriveObjectID } from './derived-objects.js';

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './calculateStakeShare';
+export * from './apps-backend';
 export * from './chunkArray';
 export * from './formatDate';
 export * from './formatPercentageDisplay';

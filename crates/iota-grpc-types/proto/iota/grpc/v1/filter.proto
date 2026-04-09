@@ -1,0 +1,237 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v1.filter;
+
+import "iota/grpc/options.proto";
+import "iota/grpc/v1/bcs.proto";
+import "iota/grpc/v1/types.proto";
+
+// Logical AND of several filters.
+message AllEventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated EventFilter filters = 1;
+}
+
+// Logical OR of several filters.
+message AnyEventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated EventFilter filters = 1;
+}
+
+// Logical NOT of a filter.
+message NotEventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  EventFilter filter = 1;
+}
+
+// Filter by address.
+message AddressFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v1.types.Address address = 1;
+}
+
+// Filter by Move package + module (optional).
+message MovePackageAndModuleFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v1.types.ObjectId package_id = 1;
+  optional string module = 2;
+}
+
+// Filter by the given Move event struct name (struct tag).
+// For example, if the event is defined in `0xabcd::MyModule`, and named
+// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
+message MoveEventTypeFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  string struct_tag = 1;
+}
+
+// Filter for events.
+message EventFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  oneof filter {
+    // Logical AND of several filters.
+    AllEventFilter all = 1;
+    // Logical OR of several filters.
+    AnyEventFilter any = 2;
+    // Logical NOT of a filter.
+    NotEventFilter negation = 3;
+
+    // Filter by sender address.
+    AddressFilter sender = 4;
+
+    // Return events emitted in a specified Move package + module (optional).
+    // If the event is defined in PackageA::ModuleA but emitted in a tx with PackageB::ModuleB,
+    // filtering `MovePackageAndModule` by PackageB::ModuleB returns the event.
+    // Filtering `MoveEventPackageAndModule` by PackageA::ModuleA returns the event too.
+    MovePackageAndModuleFilter move_package_and_module = 5;
+    // Return events with the given Move package + module (optional) where the event struct is
+    // defined. If the event is defined in PackageA::ModuleA but emitted in a tx
+    // with PackageB::ModuleB, filtering `MoveEventPackageAndModule` by PackageA::ModuleA returns the
+    // event. Filtering `MovePackageAndModule` by PackageB::ModuleB returns the event too.
+    MovePackageAndModuleFilter move_event_package_and_module = 6;
+    // Return events with the given Move event struct name (struct tag).
+    // For example, if the event is defined in `0xabcd::MyModule`, and named
+    // `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
+    MoveEventTypeFilter move_event_type = 7;
+  }
+}
+
+// Logical AND of several filters.
+message AllTransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated TransactionFilter filters = 1;
+}
+
+// Logical OR of several filters.
+message AnyTransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated TransactionFilter filters = 1;
+}
+
+// Logical NOT of a filter.
+message NotTransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  TransactionFilter filter = 1;
+}
+
+enum TransactionKind {
+  // `SYSTEM_TRANSACTION` can be used to filter for all types of system transactions.
+  SYSTEM_TRANSACTION = 0;
+  PROGRAMMABLE_TRANSACTION = 1;
+  GENESIS = 2;
+  CONSENSUS_COMMIT_PROLOGUE_V1 = 3;
+  AUTHENTICATOR_STATE_UPDATE_V1 = 4;
+  END_OF_EPOCH_TRANSACTION = 5;
+  RANDOMNESS_STATE_UPDATE = 6;
+}
+
+// Filter by transaction kinds (any of the specified kinds).
+message TransactionKindsFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  repeated TransactionKind kinds = 1;
+}
+
+// Filter by input object ID.
+message ObjectIdFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v1.types.ObjectReference object_ref = 1;
+}
+
+// --- Command filter messages ---
+
+// Filter by move package, module (optional) and function (optional).
+message MoveCallCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  iota.grpc.v1.types.ObjectId package_id = 1;
+  optional string module = 2;
+  optional string function = 3;
+}
+
+// Match a TransferObjects command.
+message TransferObjectsCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a SplitCoins command.
+message SplitCoinsCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a MergeCoins command.
+message MergeCoinsCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a Publish command.
+message PublishCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match a MakeMoveVec command.
+message MakeMoveVecCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+}
+
+// Match an Upgrade command. Optionally filter by the specific package being upgraded.
+message UpgradeCommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  optional iota.grpc.v1.types.ObjectId package_id = 1;
+}
+
+// Filter by command type.
+message CommandFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  oneof filter {
+    MoveCallCommandFilter move_call = 1;
+    TransferObjectsCommandFilter transfer_objects = 2;
+    SplitCoinsCommandFilter split_coins = 3;
+    MergeCoinsCommandFilter merge_coins = 4;
+    PublishCommandFilter publish = 5;
+    MakeMoveVecCommandFilter make_move_vec = 6;
+    UpgradeCommandFilter upgrade = 7;
+  }
+}
+
+// --- Execution status filter ---
+
+// Filter by transaction execution status.
+// Set `success` to `true` to match successful transactions,
+// or `false` to match failed transactions (cancelled, execution error, etc.).
+message ExecutionStatusFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  bool success = 1;
+}
+
+// Filter for transactions.
+message TransactionFilter {
+  option (iota.grpc.message_accessors) = "with";
+
+  oneof filter {
+    // Logical AND of several filters.
+    AllTransactionFilter all = 1;
+    // Logical OR of several filters.
+    AnyTransactionFilter any = 2;
+    // Logical NOT of a filter.
+    NotTransactionFilter negation = 3;
+
+    // Filter transactions of any given kind in the filter.
+    TransactionKindsFilter transaction_kinds = 4;
+
+    // Filter by transaction execution success/failure.
+    ExecutionStatusFilter execution_status = 5;
+
+    // Filter by sender address.
+    AddressFilter sender = 6;
+    // Filter by recipient address. The recipient is determined by
+    // checking the owners of mutated and unwrapped objects.
+    AddressFilter receiver = 7;
+
+    // Filter for transactions that touch this object.
+    ObjectIdFilter affected_object = 8;
+
+    // Filter by command type.
+    CommandFilter command = 9;
+
+    // Filter transactions that contain events matching the given event filter.
+    EventFilter event = 10;
+  }
+}

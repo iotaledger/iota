@@ -31,7 +31,7 @@ This will start the dev server on port 3000, which should be accessible on http:
 Start validators locally:
 
 ```bash
-cargo run --bin iota start --force-regenesis --with-faucet --with-indexer
+cargo run --bin iota-localnet start --force-regenesis --with-faucet --with-indexer
 ```
 
 In a separate terminal, you can now run the end-to-end tests:

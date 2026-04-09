@@ -5,5 +5,5 @@
 //!
 //! Provides ergonomic methods for executing and simulating transactions.
 
-mod execute;
-mod simulate;
+pub mod execute;
+pub mod simulate;

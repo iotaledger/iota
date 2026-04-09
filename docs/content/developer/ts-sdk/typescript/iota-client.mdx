@@ -34,15 +34,15 @@ await client.getCoins({
 ```
 
 The `getFullnodeUrl` helper in the previous code provides the URL for the specified network, useful
-during development. In a production application, however, you should use the
-[Mainnet RPC address](../typescript#network-locations). The function supports the following values:
+during development. In a production application, however, you should use the Mainnet RPC
+address. The function supports the following values:
 
 -   `localnet`
 -   `devnet`
 -   `testnet`
 -   `mainnet`
 
-For local development, you can run `cargo run --bin iota start --with-faucet --force-regenesis` to
+For local development, you can run `cargo run --bin iota-localnet start --with-faucet --force-regenesis` to
 spin up a local network with a local validator, a full node, and a faucet server. Refer to
 [the Local Network guide](../../../developer/getting-started/local-network.mdx) for
 more information.

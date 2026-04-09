@@ -1,3 +1,6 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import {
     AccountsContractMethod,
     CoreContract,
@@ -7,7 +10,7 @@ import {
 } from '../src/index';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
-import { requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
+import { requestIotaFromFaucet } from '@iota/iota-sdk/faucet';
 import { IotaClient } from '@iota/iota-sdk/client';
 import { beforeAll, expect, test } from 'vitest';
 import { CONFIG } from './config';
@@ -29,7 +32,7 @@ test('Send IOTA', async () => {
     const keypair = new Ed25519Keypair();
     const address = keypair.toIotaAddress();
 
-    await requestIotaFromFaucetV0({
+    await requestIotaFromFaucet({
         host: L1.faucetUrl!,
         recipient: address,
     });

@@ -94,7 +94,7 @@ export function ReviewValuesFormView({
                                     type={ExplorerLinkType.Address}
                                     address={senderAddress}
                                 >
-                                    {formatAddress(senderAddress)}
+                                    <span data-amp-mask>{formatAddress(senderAddress)}</span>
                                 </ExplorerLink>
                             }
                             fullwidth
@@ -112,7 +112,9 @@ export function ReviewValuesFormView({
                                         type={ExplorerLinkType.Address}
                                         address={nameRecord?.targetAddress || to}
                                     >
-                                        {nameRecord ? nameRecord.name : formatAddress(to || '')}
+                                        <span data-amp-mask>
+                                            {nameRecord ? nameRecord.name : formatAddress(to || '')}
+                                        </span>
                                     </ExplorerLink>
                                 </NamedAddressTooltip>
                             }

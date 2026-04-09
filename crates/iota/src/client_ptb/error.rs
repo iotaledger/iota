@@ -186,7 +186,7 @@ fn build_error_report(file_string: &str, error: PTBError) -> miette::Report {
         severity,
     } = error;
     let clamp = |x: usize| x.min(file_string.len() - 1);
-    let label = LabeledSpan::at(clamp(span.start)..clamp(span.end), message.clone());
+    let label = LabeledSpan::at(clamp(span.start)..clamp(span.end), message);
     let error_string = match severity {
         Severity::Advice => "Advice found when processing PTB".to_string(),
         Severity::Warning => "Warning when processing PTB".to_string(),

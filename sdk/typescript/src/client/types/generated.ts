@@ -1045,8 +1045,20 @@ export type IotaTransactionKind =
  */
 export interface IotaValidatorSummary {
     authorityPubkeyBytes: string;
+    /**
+     * The fee set by the validator for providing staking services.
+     *
+     * This might be overridden by the protocol, that uses instead an effective commission rate. See more
+     * on the associated field.
+     */
     commissionRate: string;
     description: string;
+    /**
+     * The effective fee charged by the validator for staking services.
+     *
+     * This follows [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md).
+     */
+    effectiveCommissionRate?: string | null;
     /** ID of the exchange rate table object. */
     exchangeRatesId: string;
     /** Number of exchange rates in the table. */
@@ -1098,7 +1110,11 @@ export interface IotaValidatorSummary {
  * Move code. This function represents the data received by the Move authenticate function during the
  * Account Abstraction authentication flow.
  */
-export interface MoveAuthenticator {
+export type MoveAuthenticator = {
+    V1: MoveAuthenticatorV1;
+};
+/** MoveAuthenticatorV1 is the first version of MoveAuthenticator. */
+export interface MoveAuthenticatorV1 {
     /** Input objects or primitive values */
     call_args: CallArg[];
     /** The object that is authenticated. Represents the account being the sender of the transaction. */
@@ -1261,6 +1277,15 @@ export type IotaObjectChange =
           objectType: string;
           sender: string;
           type: 'wrapped';
+          version: string;
+      } /** Unwrapped object */
+    | {
+          digest: string;
+          objectId: string;
+          objectType: string;
+          owner: ObjectOwner;
+          sender: string;
+          type: 'unwrapped';
           version: string;
       } /** New object creation */
     | {

@@ -3,30 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import {
-    useAccountSources,
-    useActiveAccount,
-    useBackgroundClient,
-    useCreateAccountsMutation,
-} from '_hooks';
+import { AccountsFormType, useAccountsFormContext, useSourceFlow } from '_components';
+import { useAccountSources, useActiveAccount, useCreateAccountsMutation } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import {
-    Button,
-    ButtonSize,
-    ButtonType,
-    Chip,
-    ChipSize,
-    Divider,
-    Dropdown,
-    ListItem,
-} from '@iota/apps-ui-kit';
+import { AmpliSourceFlow } from '_src/shared/analytics';
+import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature, Collapsible } from '@iota/core';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
@@ -74,11 +61,10 @@ export function AccountGroup({
     const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
-    const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
-    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [, setAccountsFormValues] = useAccountsFormContext();
+    const { setSourceFlow } = useSourceFlow();
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -94,13 +80,10 @@ export function AccountGroup({
             type: accountsFormType,
             sourceID: accountSource.id,
         });
-        if (accountSource.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
-            createAccountsMutation.mutate({
-                type: accountsFormType,
-            });
-        }
+        setSourceFlow(AmpliSourceFlow.ManageAccounts);
+        createAccountsMutation.mutate({
+            type: accountsFormType,
+        });
     }
 
     function getUrlForLedgerDerivedAccounts(url: string) {
@@ -139,6 +122,7 @@ export function AccountGroup({
     const dropdownVisibility = {
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
+        showBalanceFinder,
     };
     const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
 
@@ -190,13 +174,6 @@ export function AccountGroup({
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
-                            {showBalanceFinder && (
-                                <Chip
-                                    label="Balance Finder"
-                                    onClick={handleBalanceFinder}
-                                    size={ChipSize.Small}
-                                />
-                            )}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
                                 <Button
                                     size={ButtonSize.Small}
@@ -284,42 +261,29 @@ export function AccountGroup({
                     ))
                 )}
             </Collapsible>
-            <div
-                className={`absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
-            >
-                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                    <Dropdown>
-                        {dropdownVisibility.showExportMnemonic && (
-                            <ListItem hideBottomBorder onClick={handleExportMnemonic}>
-                                Export Mnemonic
-                            </ListItem>
-                        )}
-                        {dropdownVisibility.showExportSeed && (
-                            <ListItem hideBottomBorder onClick={handleExportSeed}>
-                                Export Seed
-                            </ListItem>
-                        )}
-                    </Dropdown>
-                </OutsideClickHandler>
-            </div>
-            {isPasswordModalVisible ? (
-                <VerifyPasswordModal
-                    open
-                    onVerify={async (password) => {
-                        await backgroundClient.unlockAllAccountsAndSources({
-                            password,
-                        });
-
-                        if (accountsFormValues.current) {
-                            await createAccountsMutation.mutateAsync({
-                                type: accountsFormValues.current.type,
-                            });
-                        }
-                        setPasswordModalVisible(false);
-                    }}
-                    onClose={() => setPasswordModalVisible(false)}
-                />
-            ) : null}
+            {isDropdownOpen && (
+                <div className="absolute right-3 top-3 z-[100] origin-top animate-dropdown-show rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6">
+                    <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                        <Dropdown>
+                            {dropdownVisibility.showBalanceFinder && (
+                                <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                    Balance Finder
+                                </ListItem>
+                            )}
+                            {dropdownVisibility.showExportMnemonic && (
+                                <ListItem hideBottomBorder onClick={handleExportMnemonic}>
+                                    Export Mnemonic
+                                </ListItem>
+                            )}
+                            {dropdownVisibility.showExportSeed && (
+                                <ListItem hideBottomBorder onClick={handleExportSeed}>
+                                    Export Seed
+                                </ListItem>
+                            )}
+                        </Dropdown>
+                    </OutsideClickHandler>
+                </div>
+            )}
         </div>
     );
 }

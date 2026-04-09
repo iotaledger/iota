@@ -434,6 +434,7 @@ impl GovernanceReadApi {
                 system_state_summary.inactive_pools_id(),
                 system_state_summary.inactive_pools_size(),
                 |df| bcs::from_bytes::<ID>(&df.bcs_name).map_err(Into::into),
+                Some(system_state_summary.protocol_version().as_u64()),
             )
             .await?;
 
@@ -482,6 +483,7 @@ impl GovernanceReadApi {
                 system_state_summary.validator_candidates_id(),
                 system_state_summary.validator_candidates_size(),
                 |df| bcs::from_bytes::<IotaAddress>(&df.bcs_name).map_err(Into::into),
+                Some(system_state_summary.protocol_version().as_u64()),
             )
             .await?;
 
@@ -538,6 +540,7 @@ impl GovernanceReadApi {
         table_id: ObjectID,
         validator_size: u64,
         key: F,
+        protocol_version: Option<u64>,
     ) -> Result<Vec<ValidatorTable>, IndexerError>
     where
         F: Fn(DynamicFieldInfo) -> Result<K, IndexerError>,
@@ -555,7 +558,12 @@ impl GovernanceReadApi {
             let validator_candidate = self
                 .inner
                 .spawn_blocking(move |this| {
-                    iota_types::iota_system_state::get_validator_from_table(&this, table_id, &key)
+                    iota_types::iota_system_state::get_validator_from_table(
+                        &this,
+                        table_id,
+                        &key,
+                        protocol_version,
+                    )
                 })
                 .await?;
 
@@ -755,8 +763,7 @@ mod tests {
         let rate2 = PoolTokenExchangeRate::new_for_testing(200, 220);
         let rate3 = PoolTokenExchangeRate::new_for_testing(300, 330);
         let rates = vec![(2, rate2.clone()), (3, rate3.clone()), (1, rate1.clone())];
-        let expected: Vec<(u64, PoolTokenExchangeRate)> =
-            vec![(3, rate3.clone()), (2, rate2), (1, rate1)];
+        let expected: Vec<(u64, PoolTokenExchangeRate)> = vec![(3, rate3), (2, rate2), (1, rate1)];
         assert_eq!(backfill_rates(rates), expected);
     }
 
@@ -767,9 +774,9 @@ mod tests {
         let rate5 = PoolTokenExchangeRate::new_for_testing(500, 550);
         let rates = vec![(3, rate3.clone()), (1, rate1.clone()), (5, rate5.clone())];
         let expected = vec![
-            (5, rate5.clone()),
+            (5, rate5),
             (4, rate3.clone()),
-            (3, rate3.clone()),
+            (3, rate3),
             (2, rate1.clone()),
             (1, rate1),
         ];

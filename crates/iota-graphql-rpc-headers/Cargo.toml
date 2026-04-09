@@ -8,3 +8,6 @@ publish = false
 
 [dependencies]
 axum.workspace = true
+
+[lints]
+workspace = true

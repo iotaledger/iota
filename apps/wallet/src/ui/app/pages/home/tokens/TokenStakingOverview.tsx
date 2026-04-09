@@ -25,6 +25,8 @@ import { Stake } from '@iota/apps-ui-icons';
 import { useShouldOpenInNewTab } from '_src/ui/app/hooks';
 import { openInNewTab } from '_src/shared/utils';
 
+const SOURCE_FLOW = 'Home page';
+
 export function TokenStakingOverview({
     accountAddress,
     disabled,
@@ -48,16 +50,16 @@ export function TokenStakingOverview({
     });
 
     function handleOnClick() {
+        ampli.clickedStakeIota({
+            isCurrentlyStaking: totalDelegatedStake > 0,
+            sourceFlow: SOURCE_FLOW,
+        });
+
         if (shouldOpenNewTab) {
             openInNewTab('/stake');
         } else {
             navigate('/stake');
         }
-
-        ampli.stakeClicked({
-            isCurrentlyStaking: totalDelegatedStake > 0,
-            sourceFlow: 'Home page',
-        });
     }
 
     const isLoading = isPending || queryResultStake.isPending;

@@ -33,3 +33,6 @@ telemetry-subscribers.workspace = true
 [[bin]]
 name = "iota-rpc-loadgen"
 path = "src/main.rs"
+
+[lints]
+workspace = true

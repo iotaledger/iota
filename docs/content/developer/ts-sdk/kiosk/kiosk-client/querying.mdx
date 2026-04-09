@@ -22,7 +22,7 @@ const address = '0xAddress'
 const { kioskOwnerCaps, kioskIds } = await kioskClient.getOwnedKiosks({ address });
 console.log(kioskOwnerCaps);
 
-/**
+/*
  * An example response for an address that owns two kiosks (one of which is personal)
 [
   {
@@ -64,7 +64,7 @@ const res = await kioskClient.getKiosk({
     }
 });
 console.log(res);
-/**
+/*
  * An example response of an existing kiosk
  *
 {
@@ -151,7 +151,7 @@ const extension = await kioskClient.getKioskExtension({
 
 console.log(extension);
 
-/**
+/*
  * An example output of the response
 {
   objectId: 'extensionObjectId',
@@ -207,7 +207,7 @@ const address = '0xAddress';
 const policies = await kioskClient.getOwnedTransferPolicies({ address });
 console.log(policies);
 
-/**
+/*
  * An example output of the response
 [
   {

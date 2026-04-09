@@ -925,7 +925,9 @@ pub fn check_unpublished_dependencies(unpublished: &BTreeSet<Symbol>) -> Result<
         .map(|name| {
             format!(
                 "Package dependency \"{name}\" does not specify a published address \
-		 (the Move.toml manifest for \"{name}\" does not contain a 'published-at' field, nor is there a 'published-id' in the Move.lock).",
+		 (the Move.toml manifest for \"{name}\" does not contain a 'published-at' field, \
+		 nor is there a 'published-id' in the Move.lock). \
+		 You can use `iota move manage-package` to record the on-chain address for \"{name}\".",
             )
         })
         .collect::<Vec<_>>();

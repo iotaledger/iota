@@ -61,7 +61,7 @@ impl NodeFwTestServer {
         });
 
         tokio::spawn(Self::periodically_remove_expired_addresses(
-            app_state.blocklist.clone(),
+            app_state.blocklist,
         ));
 
         self.server_handle = Some(handle);

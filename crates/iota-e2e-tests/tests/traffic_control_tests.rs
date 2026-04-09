@@ -272,6 +272,11 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
                 return Ok(());
             }
         }
+        // Yield to the async executor so that the background `run_tally_loop` task
+        // can process the pending tally and update the blocklist before the next
+        // request. Without this, the single-threaded tokio test runtime may never
+        // schedule the tally loop between iterations, causing the test to be flaky.
+        tokio::task::yield_now().await;
     }
     panic!("Expected error policy to trigger within {n} requests");
 }
@@ -343,6 +348,11 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
             );
             return Ok(());
         }
+        // Yield to the async executor so that the background `run_tally_loop` task
+        // can process the pending tally and update the blocklist before the next
+        // request. Without this, the single-threaded tokio test runtime may never
+        // schedule the tally loop between iterations, causing the test to be flaky.
+        tokio::task::yield_now().await;
     }
     panic!("Expected spam policy to trigger within {txn_count} requests");
 }
@@ -400,6 +410,11 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
             assert_eq!(&digest, tx_digest);
             assert!(confirmed_local_execution.unwrap());
         }
+        // Yield to the async executor so that the background `run_tally_loop` task
+        // can process the pending tally and update the blocklist before the next
+        // request. Without this, the single-threaded tokio test runtime may never
+        // schedule the tally loop between iterations, causing the test to be flaky.
+        tokio::task::yield_now().await;
     }
     panic!("Expected spam policy to trigger within {txn_count} requests");
 }
@@ -464,7 +479,14 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
                 return Ok(());
             }
         }
+        // Yield to the async executor so that the background `run_tally_loop` task
+        // can process the pending tally and update the blocklist before the next
+        // request. Without this, the single-threaded tokio test runtime may never
+        // schedule the tally loop between iterations, causing the test to be flaky.
+        tokio::task::yield_now().await;
     }
+    // Allow time for the async HTTP delegation to the firewall server to complete.
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     let fw_blocklist = server.list_addresses_rpc().await;
     assert!(
         !fw_blocklist.is_empty(),
@@ -544,7 +566,14 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
         assert!(response.is_ok(), "Expected request to succeed");
+        // Yield to the async executor so that the background `run_tally_loop` task
+        // can process the pending tally and update the blocklist before the next
+        // request. Without this, the single-threaded tokio test runtime may never
+        // schedule the tally loop between iterations, causing the test to be flaky.
+        tokio::task::yield_now().await;
     }
+    // Allow time for the async HTTP delegation to the firewall server to complete.
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     let fw_blocklist = server.list_addresses_rpc().await;
     assert!(
         !fw_blocklist.is_empty(),

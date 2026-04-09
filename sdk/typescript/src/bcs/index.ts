@@ -49,7 +49,7 @@ export {
 } from './pure.js';
 
 export { TypeTagSerializer } from './type-tag-serializer.js';
-export { BcsType, type BcsTypeOptions } from '@iota/bcs';
+export { BcsType, BcsStruct, BcsEnum, BcsTuple, type BcsTypeOptions } from '@iota/bcs';
 
 const iotaBcs = {
     ...bcs,

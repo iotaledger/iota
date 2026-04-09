@@ -272,7 +272,7 @@ impl TransactionBuilder {
         amounts: Vec<u64>,
     ) -> Result<TransactionKind, anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_iota(recipients.clone(), amounts.clone())?;
+        builder.pay_iota(recipients, amounts)?;
         let pt = builder.finish();
         let tx_kind = TransactionKind::programmable(pt);
         Ok(tx_kind)

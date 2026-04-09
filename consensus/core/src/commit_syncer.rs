@@ -48,7 +48,7 @@ use tokio::{
     task::{JoinHandle, JoinSet},
     time::{MissedTickBehavior, sleep},
 };
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
@@ -784,6 +784,7 @@ impl<C: NetworkClient> Inner<C> {
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the votes as verified blocks.
+    #[instrument(level = "trace", skip_all)]
     fn verify_commits(
         &self,
         peer: AuthorityIndex,

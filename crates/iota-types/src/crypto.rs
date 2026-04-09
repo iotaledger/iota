@@ -746,6 +746,7 @@ impl Signature {
         Signer::sign(secret, hashed_msg)
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn new_secure<T>(value: &IntentMessage<T>, secret: &dyn Signer<Signature>) -> Self
     where
         T: Serialize,
@@ -1010,6 +1011,7 @@ impl<S: IotaSignatureInner + Sized> IotaSignature for S {
         S::PubKey::SIGNATURE_SCHEME
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
@@ -1096,6 +1098,7 @@ pub struct AuthoritySignInfo {
 }
 
 impl AuthoritySignInfoTrait for AuthoritySignInfo {
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T: Serialize>(
         &self,
         data: &T,
@@ -1269,6 +1272,7 @@ static_assertions::assert_not_impl_any!(AuthorityStrongQuorumSignInfo: Hash, Eq,
 impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
     for AuthorityQuorumSignInfo<STRONG_THRESHOLD>
 {
+    #[instrument(level = "trace", skip_all)]
     fn verify_secure<T: Serialize>(
         &self,
         data: &T,
@@ -1322,8 +1326,6 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
                     index: Some(authority_index),
                     committee: Box::new(committee.clone()),
                 })?;
-
-            // Update weight.
             let voting_rights = committee.weight(authority);
             fp_ensure!(
                 voting_rights > 0,
@@ -1480,7 +1482,6 @@ mod bcs_signable {
     impl BcsSignable for crate::effects::TransactionEffects {}
     impl BcsSignable for crate::effects::TransactionEvents {}
     impl BcsSignable for crate::transaction::TransactionData {}
-    impl BcsSignable for crate::move_authenticator::MoveAuthenticator {}
     impl BcsSignable for crate::transaction::SenderSignedData {}
     impl BcsSignable for crate::object::ObjectInner {}
 
@@ -1501,6 +1502,36 @@ where
         // Note: This assumes that names never contain the separator `::`.
         write!(writer, "{name}::").expect("Hasher should not fail");
         bcs::serialize_into(writer, &self).expect("Message serialization should not fail");
+    }
+}
+
+/// Manual [`Signable`] impl for MoveAuthenticator.
+///
+/// `serde_name::trace_name` returns `None` for types that carry
+/// `#[serde(flatten)]`, so the blanket impl via `BcsSignable` panics.
+/// We hardcode the tag and serialise via `self.inner` — the same
+/// representation that `AsRef<[u8]>` already uses.
+impl<W> Signable<W> for crate::move_authenticator::MoveAuthenticator
+where
+    W: std::io::Write,
+{
+    fn write(&self, writer: &mut W) {
+        let name = "MoveAuthenticator";
+        write!(writer, "{name}::").expect("Hasher should not fail");
+        bcs::serialize_into(writer, &self.inner).expect("Message serialization should not fail");
+    }
+}
+
+impl SignableBytes for crate::move_authenticator::MoveAuthenticator {
+    fn from_signable_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let name = "MoveAuthenticator";
+        let name_byte_len = format!("{name}::").bytes().len();
+        let inner = bcs::from_bytes(
+            bytes
+                .get(name_byte_len..)
+                .ok_or_else(|| anyhow!("Failed to deserialize to {name}."))?,
+        )?;
+        Ok(Self::from_inner(inner))
     }
 }
 
@@ -1590,6 +1621,7 @@ impl<'a> VerificationObligation<'a> {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_all(self) -> IotaResult<()> {
         let mut pks = Vec::with_capacity(self.public_keys.len());
         for pk in self.public_keys.clone() {

@@ -27,7 +27,7 @@ export function ConnectButtonL2({
     }, [l2Account.isConnected, l2Account.address, l2Account.connector?.name, l2Account.chainId]);
 
     return (
-        <div className="text-label-lg" data-testid="connect-l2-wallet">
+        <div className="text-label-lg" data-testid="connect-l2-wallet" data-amp-mask>
             <ConnectButton
                 label={text}
                 accountStatus={{

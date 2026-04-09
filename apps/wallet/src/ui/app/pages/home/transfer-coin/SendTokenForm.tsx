@@ -134,7 +134,7 @@ export function SendTokenForm({
         >
             <div className="flex h-full w-full flex-col">
                 <Form autoComplete="off" noValidate className="flex-1">
-                    <div className="flex h-full w-full flex-col gap-md">
+                    <div className="flex h-full w-full flex-col gap-md" data-amp-mask>
                         <SendTokenFormInput
                             name="amount"
                             coinType={coinType}

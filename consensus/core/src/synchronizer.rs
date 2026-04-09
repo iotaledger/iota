@@ -30,7 +30,7 @@ use tokio::{
     task::{JoinError, JoinSet},
     time::{Instant, sleep, sleep_until, timeout},
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::{
     BlockAPI, CommitIndex, Round,
@@ -751,6 +751,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .collect::<Vec<_>>()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn verify_blocks(
         serialized_blocks: Vec<Bytes>,
         block_verifier: Arc<V>,
@@ -783,7 +784,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     .metrics
                     .node_metrics
                     .invalid_blocks
-                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -1811,7 +1812,7 @@ mod tests {
 
         // THEN authority 2 can now lock with Live sync
         let guard_2 = map
-            .lock_blocks(missing_block_refs.clone(), authority_2, SyncMethod::Live)
+            .lock_blocks(missing_block_refs, authority_2, SyncMethod::Live)
             .expect("Should successfully lock after authority 1 released");
 
         assert_eq!(guard_2.block_refs.len(), 2);
@@ -1869,11 +1870,7 @@ mod tests {
 
         // THEN authority 3 can now lock with Periodic sync
         let guard_3 = map
-            .lock_blocks(
-                missing_block_refs.clone(),
-                authority_3,
-                SyncMethod::Periodic,
-            )
+            .lock_blocks(missing_block_refs, authority_3, SyncMethod::Periodic)
             .expect("Should successfully lock after authority 1 released");
 
         assert_eq!(guard_3.block_refs.len(), 2);
@@ -1915,11 +1912,7 @@ mod tests {
         // BUT authority 2 CAN lock with Periodic sync (total would be 2, at Periodic
         // limit)
         let guard_2_periodic = map
-            .lock_blocks(
-                missing_block_refs.clone(),
-                authority_2,
-                SyncMethod::Periodic,
-            )
+            .lock_blocks(missing_block_refs, authority_2, SyncMethod::Periodic)
             .expect("Should successfully lock with Periodic - under Periodic limit of 2");
 
         assert_eq!(guard_2_periodic.block_refs.len(), 2);
@@ -1967,11 +1960,7 @@ mod tests {
         // AND authority 3 cannot lock with Periodic sync (would exceed Periodic limit
         // of 2)
         let authority_3 = AuthorityIndex::new_for_test(3);
-        let guard_3 = map.lock_blocks(
-            missing_block_refs.clone(),
-            authority_3,
-            SyncMethod::Periodic,
-        );
+        let guard_3 = map.lock_blocks(missing_block_refs, authority_3, SyncMethod::Periodic);
 
         assert!(
             guard_3.is_none(),
@@ -2101,11 +2090,7 @@ mod tests {
 
         // BUT authority 3 CAN lock with Periodic sync
         let guard_3_periodic = map
-            .lock_blocks(
-                missing_block_refs.clone(),
-                authority_3,
-                SyncMethod::Periodic,
-            )
+            .lock_blocks(missing_block_refs, authority_3, SyncMethod::Periodic)
             .expect("Should lock with Periodic");
         assert_eq!(guard_3_periodic.block_refs.len(), 2);
     }
