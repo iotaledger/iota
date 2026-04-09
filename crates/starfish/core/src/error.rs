@@ -302,6 +302,12 @@ pub(crate) enum ConsensusError {
     // rollout phase.
     #[error("Fast commit sync is not enabled in the current protocol version")]
     FastCommitSyncNotEnabled,
+
+    #[error("Block has strong_vote field but consensus_starfish_speed is disabled")]
+    UnexpectedStrongVote,
+
+    #[error("Block strong_vote contains invalid authority index {index}, committee size is {max}")]
+    InvalidStrongVoteAuthority { index: AuthorityIndex, max: usize },
 }
 
 impl ConsensusError {

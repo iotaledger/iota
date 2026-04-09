@@ -162,6 +162,21 @@ impl BlockVerifier for SignedBlockVerifier {
             });
         }
 
+        // Validate strong_vote field.
+        if let Some(authority_set) = block.strong_vote() {
+            if !self.context.protocol_config.consensus_starfish_speed() {
+                return Err(ConsensusError::UnexpectedStrongVote);
+            }
+            for authority_index in authority_set.iter() {
+                if !committee.is_valid_index(authority_index) {
+                    return Err(ConsensusError::InvalidStrongVoteAuthority {
+                        index: authority_index,
+                        max: committee.size(),
+                    });
+                }
+            }
+        }
+
         // TODO: transaction verification is removed from here. It should be done when
         // the transaction data gets available by Data/Transaction Manager
         Ok(())

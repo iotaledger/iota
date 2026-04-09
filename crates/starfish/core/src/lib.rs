@@ -4,6 +4,7 @@
 
 mod authority_node;
 mod authority_service;
+mod authority_set;
 mod base_committer;
 mod block_header;
 mod block_manager;
