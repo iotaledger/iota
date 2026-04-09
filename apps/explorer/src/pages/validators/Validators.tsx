@@ -35,7 +35,7 @@ import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
-import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { ValidatorFilters, ValidatorSearch } from '~/components/validator';
 import type { ValidatorStatus } from '~/components/validator';
 import type { IotaValidatorSummaryExtended } from '~/lib/types/validator.types';
@@ -233,7 +233,9 @@ function ValidatorPageResult(): JSX.Element {
     const activeCommitteeSize = data?.committeeMembers.length ?? null;
     const protocolVersion = data?.protocolVersion ?? null;
 
-    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({
+        balance: totalStaked,
+    });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
         useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
@@ -242,13 +244,15 @@ function ValidatorPageResult(): JSX.Element {
             title: 'Committee Stake',
             value: formattedTotalStakedAmount,
             supportingLabel: totalStakedSymbol,
-            tooltipText: 'The combined IOTA staked by all validators in the active committee.',
+            tooltipText:
+                "The combined amount of tokens staked with validators selected for the upcoming epoch's active committee.",
         },
         {
             title: 'Staking Ratio',
             value: stakingRatio,
             supportingLabel: undefined,
-            tooltipText: 'The ratio of the total staked IOTA to the total supply of IOTA.',
+            tooltipText:
+                "The proportion of the total IOTA supply delegated to the validators chosen for the next epoch's active committee.",
         },
     ];
 
@@ -257,7 +261,7 @@ function ValidatorPageResult(): JSX.Element {
             title: 'AVG APY',
             value: averageAPY ? `${averageAPY}%` : '--',
             tooltipText:
-                'The average annualized percentage yield globally for all involved validators.',
+                'The overall average Annual Percentage Yield (APY) across all participating validators.',
         },
         {
             title: 'Delegators',
@@ -278,24 +282,19 @@ function ValidatorPageResult(): JSX.Element {
         },
         {
             title: 'Protocol Version',
-            value: protocolVersion ?? '--',
-            tooltipText: 'The current protocol version running on the network.',
-        },
+            value: protocolVersion ?? '--',        },
         {
             title: 'Active Validators',
             value: numberOfValidators || '--',
-            tooltipText: 'Total number of active validators including pending.',
         },
         {
             title: 'Active Committee Size',
             value: activeCommitteeSize ?? '--',
-            tooltipText:
-                'Number of validators currently in the active committee participating in consensus.',
+            
         },
         {
             title: 'Max Committee Size',
             value: maxCommitteeSize ?? '--',
-            tooltipText: 'The maximum number of validators that can be in the committee.',
         },
     ];
 
