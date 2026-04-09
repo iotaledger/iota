@@ -1,0 +1,13 @@
+[package]
+name = "move-regex-borrow-graph"
+version = "0.0.1"
+authors = ["The Move Contributors"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+itertools.workspace = true
+move-binary-format.workspace = true
+move-core-types.workspace = true
+petgraph.workspace = true
