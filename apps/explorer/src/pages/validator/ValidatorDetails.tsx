@@ -31,10 +31,8 @@ function ValidatorDetails(): JSX.Element {
     const { data: inactiveValidatorData, isLoading: isInactiveValidatorLoading } =
         useGetInactiveValidator(id || '');
 
-    const { data: candidateMatches, isLoading: isValidatorCandidateLoading } =
+    const { data: validatorCandidateData, isLoading: isValidatorCandidateLoading } =
         useGetValidatorCandidates(id || '');
-
-    const validatorCandidateData = candidateMatches?.[0] ?? null;
 
     const numberOfActiveValidators = systemStateData?.activeValidators.length ?? null;
     const { data: rollingAverageApys, isLoading: isValidatorsApysLoading } = useGetValidatorsApy();

@@ -133,23 +133,11 @@ function ValidatorPageResult(): JSX.Element {
         return formatPercentageDisplay(ratio);
     })();
 
-    const allValidators = useMemo(
-        () => [
-            ...(activeValidators || []),
-            ...(Number(data?.pendingActiveValidatorsSize) > 0
-                ? sanitizedPendingValidatorsData
-                : []),
-            ...(sanitizedCandidateValidatorsData.length > 0
-                ? sanitizedCandidateValidatorsData
-                : []),
-        ],
-        [
-            activeValidators,
-            data?.pendingActiveValidatorsSize,
-            sanitizedPendingValidatorsData,
-            sanitizedCandidateValidatorsData,
-        ],
-    );
+    const allValidators = [
+        ...(activeValidators || []),
+        ...(Number(data?.pendingActiveValidatorsSize) > 0 ? sanitizedPendingValidatorsData : []),
+        ...(sanitizedCandidateValidatorsData ?? []),
+    ];
 
     const tableColumns = useMemo(() => {
         if (!data || !maxCommitteeSize || !validatorEvents) return null;
@@ -235,7 +223,7 @@ function ValidatorPageResult(): JSX.Element {
                     />
                 ) : (
                     <div className="flex w-full flex-col gap-xl">
-                        <div className="pt-md--rs text-display-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                        <div className="dark:text-iota-neutral-92 pt-md--rs text-display-sm text-iota-neutral-10">
                             Validators
                         </div>
                         <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">

@@ -152,11 +152,7 @@ export function generateValidatorsTableColumns({
             accessorKey: 'stakingPoolIotaBalance',
             enableSorting: true,
             sortingFn: (rowA, rowB, columnId) =>
-                parseBigIntSafe(rowA.getValue(columnId)) -
-                    parseBigIntSafe(rowB.getValue(columnId)) >
-                0
-                    ? 1
-                    : -1,
+                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
             cell({ getValue }) {
                 const stakingPoolIotaBalance = getValue<string>();
                 return (
@@ -244,11 +240,7 @@ export function generateValidatorsTableColumns({
             id: 'nextEpochStake',
             enableSorting: true,
             sortingFn: (rowA, rowB, columnId) =>
-                parseBigIntSafe(rowA.getValue(columnId)) -
-                    parseBigIntSafe(rowB.getValue(columnId)) >
-                0
-                    ? 1
-                    : -1,
+                BigInt(rowA.getValue(columnId)) - BigInt(rowB.getValue(columnId)) > 0 ? 1 : -1,
             cell({ getValue }) {
                 const nextEpochStake = getValue<string>();
                 const isValid = nextEpochStake && !isNaN(Number(nextEpochStake));
@@ -474,17 +466,7 @@ function sortByNumber(
     return Number(rowA.getValue(columnId)) - Number(rowB.getValue(columnId)) > 0 ? 1 : -1;
 }
 function sortByStakingBalanceDesc(left: IotaValidatorSummary, right: IotaValidatorSummary) {
-    const leftBalance = parseBigIntSafe(left.stakingPoolIotaBalance);
-    const rightBalance = parseBigIntSafe(right.stakingPoolIotaBalance);
-    return leftBalance > rightBalance ? -1 : leftBalance < rightBalance ? 1 : 0;
-}
-
-function parseBigIntSafe(value: string | undefined | null): bigint {
-    try {
-        return BigInt(value ?? 0);
-    } catch {
-        return 0n;
-    }
+    return BigInt(left.stakingPoolIotaBalance) > BigInt(right.stakingPoolIotaBalance) ? -1 : 1;
 }
 function getLastReward(
     validatorEvents: IotaEvent[],
