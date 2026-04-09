@@ -182,11 +182,26 @@ export function getVestingOverview(
 
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
-    const totalAvailableClaimingAmount = timelockedObjects.reduce(
+    let totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs <= timestampMs ? acc + BigInt(current.locked.value) : acc,
         0n,
     );
+
+    // Count unlocked timelock stakes (only for Staker users)
+    if (userType === SupplyIncreaseUserType.Staker) {
+        const unlockedTimelockedStakes = timelockedStakedObjects.filter(
+            (stake) => Number(stake.expirationTimestampMs) <= timestampMs,
+        );
+        const totalUnlockedStakesAmount = unlockedTimelockedStakes.reduce(
+            (acc, current) => acc + BigInt(current.principal),
+            0n,
+        );
+
+        // Add unlocked stakes to available claiming
+        totalAvailableClaimingAmount += totalUnlockedStakesAmount;
+    }
+
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs > timestampMs &&

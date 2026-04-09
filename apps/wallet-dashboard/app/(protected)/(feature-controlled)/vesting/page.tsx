@@ -10,6 +10,7 @@ import {
     UnstakeDialog,
     SupplyIncreaseVestingOverview,
     StakeDialogView,
+    CollectTransactionDialog,
 } from '@/components';
 import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
@@ -70,12 +71,15 @@ import BigNumber from 'bignumber.js';
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
         useState<TimelockedStakedObjectsGrouped | null>(null);
+    const [collectTxDigest, setCollectTxDigest] = useState<string | null>(null);
+    const [showCollectTransaction, setShowCollectTransaction] = useState(false);
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { mutateAsync: signAndExecuteTransaction, isPending: isSendingTransaction } =
+        useSignAndExecuteTransaction();
     const { theme } = useTheme();
     const { data: balance } = useBalance(address);
 
@@ -101,10 +105,15 @@ export default function VestingDashboardPage(): JSX.Element {
         isUnlockError,
         unlockError,
         userType,
+        inactiveValidatorUnlockedStakes,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
         groupTimelockedStakedObjects(supplyIncreaseVestingStakedMapped || []);
+
+    const inactiveValidatorAddresses = new Set(
+        inactiveValidatorUnlockedStakes.map((stake) => stake.validatorAddress),
+    );
 
     const {
         isDialogStakeOpen,
@@ -210,22 +219,20 @@ export default function VestingDashboardPage(): JSX.Element {
             },
             {
                 onSuccess: (tx) => {
-                    handleOnSuccess(tx.digest);
+                    setCollectTxDigest(tx.digest);
+                    setShowCollectTransaction(true);
                     ampli.timelockCollect();
+                    toast.success('Collect transaction has been sent');
 
                     if (isMaxTransactionSizeError) {
                         resetMaxTransactionSize();
                     }
                 },
             },
-        )
-            .then(() => {
-                toast.success('Collect transaction has been sent');
-            })
-            .catch((error) => {
-                toast.error('Collect transaction was not sent');
-                console.error('Error executing collect transaction:', error);
-            });
+        ).catch((error) => {
+            toast.error('Collect transaction was not sent');
+            console.error('Error executing collect transaction:', error);
+        });
     };
 
     function handleUnstake(delegatedTimelockedStake: TimelockedStakedObjectsGrouped): void {
@@ -277,8 +284,11 @@ export default function VestingDashboardPage(): JSX.Element {
                                     disabled={
                                         !supplyIncreaseVestingSchedule.availableClaiming ||
                                         supplyIncreaseVestingSchedule.availableClaiming === 0n ||
-                                        isUnlockPending
+                                        isUnlockPending ||
+                                        inactiveValidatorUnlockedStakes.length > 0 ||
+                                        isSendingTransaction
                                     }
+                                    fullWidth
                                 />
                             }
                         />
@@ -342,6 +352,15 @@ export default function VestingDashboardPage(): JSX.Element {
                                 <Title title="Staked Vesting" />
 
                                 <div className="flex flex-col gap-y-md px-lg py-sm">
+                                    {inactiveValidatorUnlockedStakes.length > 0 && (
+                                        <InfoBox
+                                            title="Inactive validator"
+                                            supportingText="Some timelocked stakes cannot be collected because their validator is no longer active. Please unstake them first."
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Warning}
+                                            icon={<Warning />}
+                                        />
+                                    )}
                                     <div className="flex flex-row gap-x-md">
                                         <DisplayStats
                                             label="Your stake"
@@ -388,6 +407,9 @@ export default function VestingDashboardPage(): JSX.Element {
                                                             }
                                                             handleUnstake={handleUnstake}
                                                             currentEpoch={Number(system.epoch)}
+                                                            showUnstakeButton={inactiveValidatorAddresses.has(
+                                                                timelockedStakedObject.validatorAddress,
+                                                            )}
                                                         />
                                                     );
                                                 },
@@ -416,6 +438,16 @@ export default function VestingDashboardPage(): JSX.Element {
                         supplyIncreaseVestingSchedule.availableStaking,
                     )}
                 />
+                {showCollectTransaction && collectTxDigest && (
+                    <CollectTransactionDialog
+                        open={showCollectTransaction}
+                        txDigest={collectTxDigest}
+                        onClose={() => {
+                            setShowCollectTransaction(false);
+                            refreshStakeList();
+                        }}
+                    />
+                )}
             </>
         );
     }

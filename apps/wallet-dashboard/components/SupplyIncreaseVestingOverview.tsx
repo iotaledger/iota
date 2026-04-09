@@ -93,7 +93,7 @@ export function SupplyIncreaseVestingOverview({
             supplyIncreaseVestingStakedMapped.length > 0 ? (
             <div style={{ gridArea: 'vesting' }} className="with-vesting flex grow overflow-hidden">
                 <Panel>
-                    <div className="flex flex-col gap-md p-md sm:flex-row">
+                    <div className="flex w-full flex-col items-center justify-between gap-md p-md sm:flex-row">
                         <InfoBox
                             title="Your vesting period has ended"
                             supportingText="Claim your rewards and migrate your stake now to make your tokens fully compatible with your favorite wallets and ready for use."
