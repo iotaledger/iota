@@ -617,7 +617,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname.as_str(), "metadata", e.name()])
                 .inc();
-            info!("Invalid bundle metadata from {}: {}", peer, e);
+            warn!("Invalid bundle metadata from {}: {}", peer, e);
             return Err(e);
         }
 
