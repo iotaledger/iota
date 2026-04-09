@@ -11,7 +11,8 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use iota_types::{
     base_types::AuthorityName,
     error::{ErrorCategory, IotaError},
-    messages_grpc::{SubmitTransactionsRequest, TxStatusUpdate},
+    messages_grpc::TxStatusUpdate,
+    transaction::Transaction,
 };
 use tokio::time::timeout;
 use tracing::instrument;
@@ -50,7 +51,7 @@ impl TransactionSubmitter {
         authority_aggregator: &Arc<AuthorityAggregator<A>>,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         amplification_factor: u64,
-        request: SubmitTransactionsRequest,
+        transactions: Vec<Transaction>,
         options: &SubmitTransactionOptions,
     ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
@@ -69,7 +70,7 @@ impl TransactionSubmitter {
             options.blocked_validators.clone(),
         );
 
-        let ping_label = request.transactions.is_empty().to_string();
+        let ping_label = transactions.is_empty().to_string();
         let mut retries = 0;
         let mut request_rpcs = FuturesUnordered::new();
 
@@ -91,7 +92,7 @@ impl TransactionSubmitter {
                         // result
                         let submit_fut = self.submit_transaction_once(
                             client,
-                            &request,
+                            &transactions,
                             options,
                             client_monitor,
                             name,
@@ -186,7 +187,7 @@ impl TransactionSubmitter {
     pub(crate) async fn submit_transaction_once<A>(
         &self,
         client: Arc<SafeClient<A>>,
-        request: &SubmitTransactionsRequest,
+        transactions: &[Transaction],
         options: &SubmitTransactionOptions,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         validator: AuthorityName,
@@ -199,7 +200,7 @@ impl TransactionSubmitter {
 
         let statuses = timeout(
             SUBMIT_TRANSACTION_TIMEOUT,
-            client.submit_tx(request.clone(), options.forwarded_client_addr),
+            client.submit_tx(transactions.to_vec(), options.forwarded_client_addr),
         )
         .await
         .map_err(|_| {
@@ -207,7 +208,7 @@ impl TransactionSubmitter {
                 authority_name: validator,
                 display_name: display_name.clone(),
                 operation: OperationType::Submit,
-                ping: request.transactions.is_empty(),
+                ping: transactions.is_empty(),
                 result: Err(()),
             });
             TransactionRequestError::TimedOutSubmittingTransaction
@@ -218,7 +219,7 @@ impl TransactionSubmitter {
                     authority_name: validator,
                     display_name: display_name.clone(),
                     operation: OperationType::Submit,
-                    ping: request.transactions.is_empty(),
+                    ping: transactions.is_empty(),
                     result: Err(()),
                 });
             }
@@ -243,7 +244,7 @@ impl TransactionSubmitter {
                         authority_name: validator,
                         display_name,
                         operation: OperationType::Submit,
-                        ping: request.transactions.is_empty(),
+                        ping: transactions.is_empty(),
                         result: Err(()),
                     });
                 }
@@ -260,7 +261,7 @@ impl TransactionSubmitter {
             authority_name: validator,
             display_name,
             operation: OperationType::Submit,
-            ping: request.transactions.is_empty(),
+            ping: transactions.is_empty(),
             result: Ok(latency),
         });
         Ok(result)
