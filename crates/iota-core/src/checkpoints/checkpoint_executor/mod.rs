@@ -36,7 +36,7 @@ use iota_types::{
     full_checkpoint_content::CheckpointData,
     message_envelope::Message,
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
-    transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
+    transaction::{TransactionDataAPI, TransactionKey, TransactionKind, VerifiedTransaction},
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
@@ -367,15 +367,39 @@ impl CheckpointExecutor {
             .handle_finalized_checkpoint(&ckpt_state.data.checkpoint, &ckpt_state.data.tx_digests)
             .expect("cannot fail");
 
+        let randomness_rounds = self.extract_randomness_rounds(
+            &ckpt_state.data.checkpoint,
+            &ckpt_state.data.checkpoint_contents,
+        );
+
+        if self.state.is_fullnode(&self.epoch_store) {
+            let epoch = ckpt_state.data.checkpoint.epoch;
+            // Remove version assignments on fullnodes after checkpoint execution.
+            // On validators, version assignments are removed when consensus output is
+            // committed. We cannot remove here on validators because checkpoint
+            // execution can run ahead of consensus, which would then re-insert
+            // version assignments.
+            self.epoch_store.remove_shared_version_assignments(
+                randomness_rounds
+                    .iter()
+                    .map(|round| TransactionKey::RandomnessRound(epoch, *round)),
+            );
+
+            self.epoch_store.remove_shared_version_assignments(
+                ckpt_state
+                    .data
+                    .tx_digests
+                    .iter()
+                    .copied()
+                    .map(TransactionKey::Digest),
+            );
+        }
+
         // Once the checkpoint is finalized, we know that any randomness contained in
         // this checkpoint has been successfully included in a checkpoint
         // certified by quorum of validators. (RandomnessManager/
         // RandomnessReporter is only present on validators.)
         if let Some(randomness_reporter) = self.epoch_store.randomness_reporter() {
-            let randomness_rounds = self.extract_randomness_rounds(
-                &ckpt_state.data.checkpoint,
-                &ckpt_state.data.checkpoint_contents,
-            );
             for round in randomness_rounds {
                 debug!(
                     ?round,
