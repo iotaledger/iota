@@ -20,6 +20,7 @@ use tracing::{debug, warn};
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
+    authority_set::AuthoritySet,
     block_header::{BlockHeaderDigest, TransactionsCommitment, VerifiedBlock},
     context::Context,
     dag_state::DagState,
@@ -43,43 +44,7 @@ const CORDIAL_KNOWLEDGE_CHANNEL_CAPACITY: usize = 10_000;
 /// skip evictions for too long either.
 const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
-/// Represents a subset of authorities using a bitmask.
-/// Each bit in the `low` and `high` fields corresponds to an authority index.
-/// The maximum number of authorities supported is 256 (0-255).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SubsetAuthorities {
-    low: u128,
-    high: u128,
-}
-
 pub type Ancestors = Arc<[BlockRef]>;
-impl SubsetAuthorities {
-    #[inline]
-    pub fn new_with(author: usize, own: usize) -> Self {
-        let mut s = Self { low: 0, high: 0 };
-        s.insert(author);
-        s.insert(own);
-        s
-    }
-
-    /// Insert an authority into the subset. Returns true if the authority was
-    /// not already present.
-    #[inline]
-    pub fn insert(&mut self, i: usize) -> bool {
-        if i < 128 {
-            let mask = 1u128 << i;
-            let already_present = (self.low & mask) != 0;
-            self.low |= mask;
-            !already_present
-        } else {
-            let bit = i - 128;
-            let mask = 1u128 << bit;
-            let already_present = (self.high & mask) != 0;
-            self.high |= mask;
-            !already_present
-        }
-    }
-}
 
 /// Manages the global cordial knowledge state.
 /// Receives high-level updates from DagState and AuthorityService and
@@ -105,8 +70,7 @@ pub(crate) struct CordialKnowledge {
     /// shall retrieve it from `cordial_knowledge[block_ref.
     /// author][block_ref.round][block_ref.digest]`. The provided value is a
     /// tuple of (ancestors, who knows the block header).
-    cordial_knowledge:
-        Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>>>,
+    cordial_knowledge: Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, AuthoritySet)>>>,
     /// Each Connection Knowledge corresponds to one peer. Upon reception of a
     /// message from CordialKnowledge, we propagate the respected
     /// information for each connection.
@@ -623,7 +587,7 @@ impl CordialKnowledge {
 
         // Insert block into cordial knowledge
         let ancestors: Ancestors = Arc::from(header.ancestors());
-        let who_knows_this_block = SubsetAuthorities::new_with(block_author, own_index);
+        let who_knows_this_block = AuthoritySet::new_with(block_ref.author, self.context.own_index);
         round_map.insert(block_digest, (ancestors, who_knows_this_block));
 
         // 2) Notify all *other* authorities (except self and block_author) about new
@@ -693,7 +657,7 @@ impl CordialKnowledge {
                 if let Some(parent_round_map) = parent_author_map.get_mut(&parent_round) {
                     if let Some((_, who_knows_parent)) = parent_round_map.get_mut(&parent_digest) {
                         // Mark that block_author now knows this parent
-                        if who_knows_parent.insert(block_author) {
+                        if who_knows_parent.insert(block_ref.author) {
                             vec_knowledge_msgs[block_author].push(
                                 ConnectionKnowledgeMessage::RemoveHeader {
                                     block_ref: *parent_ref,
