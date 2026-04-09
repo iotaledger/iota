@@ -46,28 +46,16 @@ cd "$REPO_ROOT"
 # remember current commit
 CURRENT_COMMIT=$(git rev-parse HEAD)
 
-# TODO this can be removed when v1.20 reaches mainnet
-git checkout $RELEASE_COMMIT || exit 1
-if cargo metadata --no-deps --format-version 1 \
-     | jq -e '[.packages[].targets[] | select(.kind[] == "bin") | .name] | contains(["iota-localnet"])' > /dev/null 2>&1; then
-  IOTA_BINARY="iota-localnet"
-  echo "iota-localnet target found"
-else
-  IOTA_BINARY="iota"
-  echo "iota-localnet target NOT found"
-fi
-git checkout $CURRENT_COMMIT || exit 1
-
 # check if binaries have already been built
-if [ -f "$WORKING_DIR/iota-node-release" ] && [ -f "$WORKING_DIR/$IOTA_BINARY-release" ] && [ -f "$WORKING_DIR/iota-node-candidate" ]; then
+if [ -f "$WORKING_DIR/iota-node-release" ] && [ -f "$WORKING_DIR/iota-localnet-release" ] && [ -f "$WORKING_DIR/iota-node-candidate" ]; then
   echo "Binaries already built, skipping build"
 else
-  echo "Building iota-node and $IOTA_BINARY at $RELEASE_COMMIT"
+  echo "Building iota-node and iota-localnet at $RELEASE_COMMIT"
 
   git checkout $RELEASE_COMMIT || exit 1
-  cargo build --bin iota-node --bin $IOTA_BINARY || exit 1
+  cargo build --bin iota-node --bin iota-localnet || exit 1
   cp ./target/debug/iota-node "$WORKING_DIR/iota-node-release"
-  cp ./target/debug/$IOTA_BINARY "$WORKING_DIR/$IOTA_BINARY-release"
+  cp ./target/debug/iota-localnet "$WORKING_DIR/iota-localnet-release"
 
   echo "Building iota-node at $RELEASE_CANDIDATE_COMMIT"
   git checkout $RELEASE_CANDIDATE_COMMIT || exit 1
@@ -81,7 +69,7 @@ fi
 export IOTA_CONFIG_DIR="$WORKING_DIR/config"
 rm -rf "$IOTA_CONFIG_DIR"
 
-"$WORKING_DIR/$IOTA_BINARY-release" genesis --epoch-duration-ms 600000 --committee-size 4
+"$WORKING_DIR/iota-localnet-release" genesis --epoch-duration-ms 600000 --committee-size 4
 
 LOG_DIR="$WORKING_DIR/logs"
 METRICS_DIR="$WORKING_DIR/metrics"
