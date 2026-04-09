@@ -17,7 +17,8 @@ import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { Dialog } from '@iota/apps-ui-kit';
 import { DetailsView } from './views';
-import { TransactionDialogView } from '../TransactionDialog';
+import { TransactionDetailsLayout } from '../transaction/TransactionDetailsLayout';
+import { DialogLayout } from '../layout';
 import { StakeDialogView } from './enums/view.enums';
 import { ampli } from '@/lib/utils/analytics';
 
@@ -179,7 +180,9 @@ export function StakeDialog({
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (
-                        <TransactionDialogView txDigest={txDigest} onClose={handleClose} />
+                        <DialogLayout>
+                            <TransactionDetailsLayout digest={txDigest} onClose={handleClose} />
+                        </DialogLayout>
                     )}
                 </>
             </FormikProvider>

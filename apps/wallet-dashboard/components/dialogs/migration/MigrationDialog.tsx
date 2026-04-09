@@ -7,7 +7,8 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useMigrationTransaction } from '@/hooks/useMigrationTransaction';
 import { Dialog } from '@iota/apps-ui-kit';
 import { GAS_BALANCE_TOO_LOW_ID, GAS_BUDGET_ERROR_MESSAGES, toast } from '@iota/core';
-import { TransactionDialogView } from '../TransactionDialog';
+import { TransactionDetailsLayout } from '../transaction/TransactionDetailsLayout';
+import { DialogLayout } from '../layout';
 import { MigrationDialogView } from './enums';
 import { ConfirmMigrationView } from './views';
 import { ampli } from '@/lib/utils/analytics';
@@ -114,7 +115,9 @@ export function MigrationDialog({
                 />
             )}
             {view === MigrationDialogView.TransactionDetails && (
-                <TransactionDialogView txDigest={txDigest} onClose={handleClose} />
+                <DialogLayout>
+                    <TransactionDetailsLayout digest={txDigest} onClose={handleClose} />
+                </DialogLayout>
             )}
         </Dialog>
     );

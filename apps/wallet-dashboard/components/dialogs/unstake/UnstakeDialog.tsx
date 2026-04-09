@@ -7,7 +7,8 @@ import { ExtendedDelegatedStake } from '@iota/core';
 import { TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { UnstakeDialogView } from './enums';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import { TransactionDialogView } from '../TransactionDialog';
+import { TransactionDetailsLayout } from '../transaction/TransactionDetailsLayout';
+import { DialogLayout } from '../layout';
 
 interface UnstakeDialogProps {
     view: UnstakeDialogView;
@@ -49,7 +50,9 @@ export function UnstakeDialog({
                 />
             )}
             {view === UnstakeDialogView.TransactionDetails && (
-                <TransactionDialogView txDigest={txDigest} onClose={handleClose} />
+                <DialogLayout>
+                    <TransactionDetailsLayout digest={txDigest} onClose={handleClose} />
+                </DialogLayout>
             )}
         </Dialog>
     );

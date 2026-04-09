@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLink } from '@/components';
-import { Header, LoadingIndicator } from '@iota/apps-ui-kit';
+import { Header, LoadingIndicator, InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
+import { Warning } from '@iota/apps-ui-icons';
 import {
     useTransactionSummary,
+    useGetTransaction,
     ViewTxnOnExplorerButton,
     ExplorerLinkType,
     TransactionReceipt,
@@ -17,14 +19,24 @@ import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
 import { trackElementCopied } from '@/lib/utils';
 import { useCallback } from 'react';
 
-interface TransactionDialogDetailsProps {
-    transaction: IotaTransactionBlockResponse;
+interface TransactionDetailsLayoutProps {
     onClose: () => void;
+    transaction?: IotaTransactionBlockResponse;
+    digest?: string | null;
 }
-export function TransactionDetailsLayout({ transaction, onClose }: TransactionDialogDetailsProps) {
-    const address = useCurrentAccount()?.address ?? '';
 
+export function TransactionDetailsLayout({
+    onClose,
+    transaction: txProp,
+    digest,
+}: TransactionDetailsLayoutProps) {
+    const address = useCurrentAccount()?.address ?? '';
     const recognizedPackagesList = useRecognizedPackages();
+
+    const { data: fetchedTransaction, isError, error } = useGetTransaction(digest ?? '');
+
+    const transaction = txProp ?? fetchedTransaction;
+
     const summary = useTransactionSummary({
         transaction,
         currentAddress: address,
@@ -35,7 +47,27 @@ export function TransactionDetailsLayout({ transaction, onClose }: TransactionDi
         trackElementCopied('transaction-digest');
     }, []);
 
-    if (!summary) return <LoadingIndicator />;
+    if (!txProp && isError) {
+        return (
+            <InfoBox
+                type={InfoBoxType.Error}
+                title="Error getting transaction info"
+                supportingText={
+                    error?.message ?? 'An error occurred when getting the transaction info'
+                }
+                icon={<Warning />}
+                style={InfoBoxStyle.Default}
+            />
+        );
+    }
+
+    if (!transaction || !summary) {
+        return (
+            <div className="flex h-full w-full justify-center">
+                <LoadingIndicator />
+            </div>
+        );
+    }
 
     return (
         <>

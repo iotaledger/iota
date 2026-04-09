@@ -3,4 +3,3 @@
 
 export * from './EnterValuesFormView';
 export * from './ReviewValuesFormView';
-export * from './TransactionDetailsView';

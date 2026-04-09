@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState } from 'react';
-import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
+import { EnterValuesFormView, ReviewValuesFormView } from './views';
+import { TransactionDetailsLayout } from '../transaction';
 import { CoinBalance, getNetwork } from '@iota/iota-sdk/client';
 import {
     useGetAllCoins,
@@ -176,7 +177,7 @@ function SendTokenDialogBody({
             </FormikProvider>
 
             {step === FormStep.TransactionDetails && data?.digest && (
-                <TransactionDetailsView
+                <TransactionDetailsLayout
                     digest={data.digest}
                     onClose={() => {
                         setOpen(false);
