@@ -57,13 +57,15 @@ where
 
 #[tokio::test]
 async fn test_open() {
-    let _db = open_map::<_, u32, String>(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let _db = open_map::<_, u32, String>(tmp.path(), None);
 }
 
 #[tokio::test]
 async fn test_reopen() {
+    let tmp = iota_common::tempdir();
     let arc = {
-        let db = open_map::<_, u32, String>(iota_common::tempdir().keep(), None);
+        let db = open_map::<_, u32, String>(tmp.path(), None);
         db.insert(&123456789, &"123456789".to_string())
             .expect("Failed to insert");
         db
@@ -81,8 +83,9 @@ async fn test_reopen_macro() {
     const FIRST_CF: &str = "First_CF";
     const SECOND_CF: &str = "Second_CF";
 
+    let tmp = iota_common::tempdir();
     let rocks = open_cf_opts(
-        iota_common::tempdir().keep(),
+        tmp.path(),
         None,
         MetricConf::default(),
         &[
@@ -106,7 +109,8 @@ async fn test_reopen_macro() {
 
 #[tokio::test]
 async fn test_contains_key() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
@@ -122,17 +126,23 @@ async fn test_contains_key() {
 
 #[tokio::test]
 async fn test_safe_drop_db() {
-    let path = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let path = tmp.path();
     {
-        let db: DBMap<i32, String> = open_map(path.clone(), Some("table"));
+        let db: DBMap<i32, String> = open_map(path, Some("table"));
         db.insert(&777, &"123".to_string()).unwrap();
     }
-    assert!(safe_drop_db(path, Duration::from_secs(5)).await.is_ok());
+    assert!(
+        safe_drop_db(path.to_path_buf(), Duration::from_secs(5))
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
 async fn test_multi_contain() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
@@ -161,7 +171,8 @@ async fn test_multi_contain() {
 
 #[tokio::test]
 async fn test_get() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
@@ -174,7 +185,8 @@ async fn test_get() {
 
 #[tokio::test]
 async fn test_multi_get() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
@@ -191,7 +203,8 @@ async fn test_multi_get() {
 
 #[tokio::test]
 async fn test_skip() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
@@ -222,7 +235,8 @@ async fn test_skip() {
 
 #[tokio::test]
 async fn test_reverse_iter_with_bounds() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
     db.insert(&123, &"123".to_string())
         .expect("Failed to insert");
     db.insert(&456, &"456".to_string())
@@ -244,7 +258,8 @@ async fn test_reverse_iter_with_bounds() {
 
 #[tokio::test]
 async fn test_remove() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
@@ -256,7 +271,8 @@ async fn test_remove() {
 
 #[tokio::test]
 async fn test_iter() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
     db.insert(&987654321, &"987654321".to_string())
@@ -271,7 +287,8 @@ async fn test_iter() {
 
 #[tokio::test]
 async fn test_iter_reverse() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     db.insert(&1, &"1".to_string()).expect("Failed to insert");
     db.insert(&2, &"2".to_string()).expect("Failed to insert");
@@ -290,7 +307,8 @@ async fn test_iter_reverse() {
 
 #[tokio::test]
 async fn test_insert_batch() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
     let keys_vals = (1..100).map(|i| (i, i.to_string()));
     let mut insert_batch = db.batch();
     insert_batch
@@ -305,7 +323,8 @@ async fn test_insert_batch() {
 
 #[tokio::test]
 async fn test_insert_batch_across_cf() {
-    let rocks = open_rocksdb(iota_common::tempdir().keep(), &["First_CF", "Second_CF"]);
+    let tmp = iota_common::tempdir();
+    let rocks = open_rocksdb(tmp.path(), &["First_CF", "Second_CF"]);
 
     let db_cf_1 = DBMap::reopen(
         &rocks,
@@ -346,8 +365,10 @@ async fn test_insert_batch_across_cf() {
 
 #[tokio::test]
 async fn test_insert_batch_across_different_db() {
-    let rocks = open_rocksdb(iota_common::tempdir().keep(), &["First_CF", "Second_CF"]);
-    let rocks2 = open_rocksdb(iota_common::tempdir().keep(), &["First_CF", "Second_CF"]);
+    let tmp1 = iota_common::tempdir();
+    let rocks = open_rocksdb(tmp1.path(), &["First_CF", "Second_CF"]);
+    let tmp2 = iota_common::tempdir();
+    let rocks2 = open_rocksdb(tmp2.path(), &["First_CF", "Second_CF"]);
 
     let db_cf_1: DBMap<i32, String> = DBMap::reopen(
         &rocks,
@@ -379,7 +400,8 @@ async fn test_insert_batch_across_different_db() {
 
 #[tokio::test]
 async fn test_delete_batch() {
-    let db = open_map::<_, u32, String>(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map::<_, u32, String>(tmp.path(), None);
 
     let keys_vals = (1..100).map(|i| (i, i.to_string()));
     let mut batch = db.batch();
@@ -402,12 +424,10 @@ async fn test_delete_batch() {
 
 #[tokio::test]
 async fn test_delete_range() {
+    let tmp = iota_common::tempdir();
     let options = ReadWriteOptions::default().set_ignore_range_deletions(false);
     let db: DBMap<i32, String> = DBMap::reopen(
-        &open_rocksdb(
-            iota_common::tempdir().keep(),
-            &[rocksdb::DEFAULT_COLUMN_FAMILY_NAME],
-        ),
+        &open_rocksdb(tmp.path(), &[rocksdb::DEFAULT_COLUMN_FAMILY_NAME]),
         None,
         &options,
         false,
@@ -440,7 +460,8 @@ async fn test_delete_range() {
 
 #[tokio::test]
 async fn test_iter_with_bounds() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     // Add [1, 50) and (50, 100) in the db
     for i in 1..100 {
@@ -504,7 +525,8 @@ async fn test_iter_with_bounds() {
 #[rstest]
 #[tokio::test]
 async fn test_range_iter() {
-    let db = open_map(iota_common::tempdir().keep(), None);
+    let tmp = iota_common::tempdir();
+    let db = open_map(tmp.path(), None);
 
     // Add [1, 50) and (50, 100) in the db
     for i in 1..100 {
@@ -544,7 +566,8 @@ async fn test_range_iter() {
 
 #[tokio::test]
 async fn test_is_empty() {
-    let db: DBMap<i32, String> = open_map(iota_common::tempdir().keep(), Some("table"));
+    let tmp = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp.path(), Some("table"));
     // Test empty map is truly empty
     assert!(db.is_empty());
 
@@ -564,7 +587,8 @@ async fn test_is_empty() {
 #[tokio::test]
 async fn test_multi_insert() {
     // Init a DB
-    let db: DBMap<i32, String> = open_map(iota_common::tempdir().keep(), Some("table"));
+    let tmp = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp.path(), Some("table"));
     // Create kv pairs
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
 
@@ -579,7 +603,8 @@ async fn test_multi_insert() {
 
 #[tokio::test]
 async fn test_checkpoint() {
-    let path_prefix = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let path_prefix = tmp.path();
     let db_path = path_prefix.join("db");
     let db: DBMap<i32, String> = open_map(db_path, Some("table"));
     // Create kv pairs
@@ -618,7 +643,8 @@ async fn test_checkpoint() {
 #[tokio::test]
 async fn test_multi_remove() {
     // Init a DB
-    let db: DBMap<i32, String> = open_map(iota_common::tempdir().keep(), Some("table"));
+    let tmp = iota_common::tempdir();
+    let db: DBMap<i32, String> = open_map(tmp.path(), Some("table"));
 
     // Create kv pairs
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
@@ -646,10 +672,11 @@ async fn test_multi_remove() {
 
 #[tokio::test]
 async fn open_as_secondary_test() {
-    let primary_path = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let primary_path = tmp.path();
 
     // Init a DB
-    let primary_db: DBMap<i32, String> = open_map(primary_path.clone(), Some("table"));
+    let primary_db: DBMap<i32, String> = open_map(primary_path, Some("table"));
     // Create kv pairs
     let keys_vals = (0..101).map(|i| (i, i.to_string()));
 

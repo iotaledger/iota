@@ -2366,9 +2366,8 @@ async fn diagnose_split_brain(
         Datetime: {time:?}"
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
-    let path = iota_common::tempdir()
-        .keep()
-        .join(Path::new("checkpoint_fork_dump.txt"));
+    let tmp = iota_common::tempdir();
+    let path = tmp.path().join(Path::new("checkpoint_fork_dump.txt"));
     let mut file = File::create(path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);

@@ -80,7 +80,8 @@ mod tests {
 
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
-        let data_ingestion_path = iota_common::tempdir().keep();
+        let tmp = iota_common::tempdir();
+        let data_ingestion_path = tmp.path().to_path_buf();
         let sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
@@ -152,7 +153,8 @@ mod tests {
     async fn test_simple_client_simulator_cluster() {
         let rng = StdRng::from_seed([12; 32]);
         let sim = Simulacrum::new_with_rng(rng);
-        let data_ingestion_path = iota_common::tempdir().keep();
+        let tmp = iota_common::tempdir();
+        let data_ingestion_path = tmp.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         sim.create_checkpoint();

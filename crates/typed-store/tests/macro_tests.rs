@@ -60,7 +60,8 @@ struct TablesSingle {
 
 #[tokio::test]
 async fn macro_test() {
-    let primary_path = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let primary_path = tmp.path().to_path_buf();
     let tbls_primary =
         Tables::open_tables_read_write(primary_path.clone(), MetricConf::default(), None, None);
 
@@ -155,7 +156,8 @@ async fn macro_test() {
 
 #[tokio::test]
 async fn rename_test() {
-    let dbdir = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let dbdir = tmp.path().to_path_buf();
 
     let key = "key".to_string();
     let value = "value".to_string();
@@ -184,7 +186,8 @@ struct DeprecatedTables {
 
 #[tokio::test]
 async fn deprecate_test() {
-    let dbdir = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let dbdir = tmp.path().to_path_buf();
     let key = "key".to_string();
     let value = "value".to_string();
     {
@@ -247,7 +250,8 @@ struct DeprecatedTablesTypeErased {
 
 #[tokio::test]
 async fn deprecate_type_erased_test() {
-    let dbdir = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let dbdir = tmp.path().to_path_buf();
     let key = "key".to_string();
     let value = "value".to_string();
 
@@ -335,7 +339,8 @@ fn migrate_old_to_new(
 
 #[tokio::test]
 async fn migration_test() {
-    let dbdir = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let dbdir = tmp.path().to_path_buf();
     let key = "migrate_key".to_string();
     let value = "migrate_value".to_string();
 
@@ -416,7 +421,8 @@ async fn migration_test() {
 
 #[tokio::test]
 async fn read_only_with_deprecated_and_migration_test() {
-    let dbdir = iota_common::tempdir().keep();
+    let tmp = iota_common::tempdir();
+    let dbdir = tmp.path().to_path_buf();
     let old_key = "old_key".to_string();
     let old_value = "old_value".to_string();
 

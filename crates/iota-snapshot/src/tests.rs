@@ -57,19 +57,19 @@ fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> Accumu
 
 #[tokio::test]
 async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
-    let db_path = iota_common::tempdir().keep();
-    let restored_db_path = iota_common::tempdir().keep();
-    let local = iota_common::tempdir().keep().join("local_dir");
-    let remote = iota_common::tempdir().keep().join("remote_dir");
-    let restored_local = iota_common::tempdir().keep().join("local_dir_restore");
+    let tmp_db = iota_common::tempdir();
+    let tmp_restored_db = iota_common::tempdir();
+    let tmp_local = iota_common::tempdir();
+    let tmp_remote = iota_common::tempdir();
+    let tmp_restored_local = iota_common::tempdir();
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(local),
+        directory: Some(tmp_local.path().join("local_dir")),
         ..Default::default()
     };
     let remote_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(remote),
+        directory: Some(tmp_remote.path().join("remote_dir")),
         ..Default::default()
     };
 
@@ -80,7 +80,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         NonZeroUsize::new(1).unwrap(),
     )
     .await?;
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_db.path(), None));
     insert_keys(&perpetual_db, 1000)?;
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
@@ -89,7 +89,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(restored_local),
+        directory: Some(tmp_restored_local.path().join("local_dir_restore")),
         ..Default::default()
     };
     let mut snapshot_reader = StateSnapshotReaderV1::new(
@@ -101,7 +101,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         false, // skip_reset_local_store
     )
     .await?;
-    let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
+    let restored_perpetual_db = AuthorityPerpetualTables::open(tmp_restored_db.path(), None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read(&restored_perpetual_db, abort_registration, None)
@@ -112,19 +112,19 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
-    let db_path = iota_common::tempdir().keep();
-    let restored_db_path = iota_common::tempdir().keep();
-    let local = iota_common::tempdir().keep().join("local_dir");
-    let remote = iota_common::tempdir().keep().join("remote_dir");
-    let restored_local = iota_common::tempdir().keep().join("local_dir_restore");
+    let tmp_db = iota_common::tempdir();
+    let tmp_restored_db = iota_common::tempdir();
+    let tmp_local = iota_common::tempdir();
+    let tmp_remote = iota_common::tempdir();
+    let tmp_restored_local = iota_common::tempdir();
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(local),
+        directory: Some(tmp_local.path().join("local_dir")),
         ..Default::default()
     };
     let remote_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(remote),
+        directory: Some(tmp_remote.path().join("remote_dir")),
         ..Default::default()
     };
     let snapshot_writer = StateSnapshotWriterV1::new(
@@ -134,7 +134,7 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         NonZeroUsize::new(1).unwrap(),
     )
     .await?;
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_db.path(), None));
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
@@ -142,7 +142,7 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(restored_local),
+        directory: Some(tmp_restored_local.path().join("local_dir_restore")),
         ..Default::default()
     };
     let mut snapshot_reader = StateSnapshotReaderV1::new(
@@ -154,7 +154,7 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         false, // skip_reset_local_store
     )
     .await?;
-    let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
+    let restored_perpetual_db = AuthorityPerpetualTables::open(tmp_restored_db.path(), None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read(&restored_perpetual_db, abort_registration, None)
