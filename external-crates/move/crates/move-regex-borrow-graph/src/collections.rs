@@ -111,7 +111,7 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
         ensure!(self.graph.contains_node(r), "missing ref {:?} in graph", r);
         Ok(self
             .graph
-            .edges_directed(r, petgraph::Direction::Outgoing)
+            .edges(r)
             .map(move |(r_, s, e)| {
                 debug_assert_eq!(r, r_);
                 (e, s)
@@ -123,9 +123,9 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
         ensure!(self.graph.contains_node(r), "missing ref {:?} in graph", r);
         Ok(self
             .graph
-            .edges_directed(r, petgraph::Direction::Incoming)
-            .map(move |(p, r_, e)| {
-                debug_assert_eq!(r, r_);
+            .neighbors_directed(r, petgraph::Direction::Incoming)
+            .map(move |p| {
+                let e = self.graph.edge_weight(p, r).unwrap();
                 (p, e)
             }))
     }
