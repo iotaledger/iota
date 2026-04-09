@@ -222,6 +222,20 @@ mod checked {
         if let Err(e) = verify_module_with_config_metered(verifier_config, module, meter) {
             // Check that the status indicates metering timeout.
             if check_for_verifier_timeout(&e.major_status()) {
+                if e.major_status()
+                    == move_core_types::vm_status::StatusCode::REFERENCE_SAFETY_INCONSISTENT
+                {
+                    let mut bytes = vec![];
+                    let _ = module.serialize_with_version(
+                        move_binary_format::file_format_common::VERSION_MAX,
+                        &mut bytes,
+                    );
+                    tracing::error!(
+                        "Reference safety inconsistency detected in module: {:?}",
+                        bytes
+                    );
+                    debug_assert!(false, "Reference safety inconsistency detected");
+                }
                 return Err(IotaError::ModuleVerificationFailure {
                     error: format!("Verification timed out: {e}"),
                 });

@@ -28,6 +28,7 @@ pub struct VerifierConfig {
     pub max_identifier_len: Option<u64>,
     pub bytecode_version: u32,
     pub max_variants_in_enum: Option<u64>,
+    pub sanity_check_with_regex_reference_safety: Option</* meter limit */ u128>,
 }
 
 #[derive(Debug, Clone)]
@@ -70,6 +71,7 @@ impl Default for VerifierConfig {
             max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
+            sanity_check_with_regex_reference_safety: Some(8_000_000),
         }
     }
 }
