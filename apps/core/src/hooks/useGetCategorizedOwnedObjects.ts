@@ -179,23 +179,23 @@ export function useGetCategorizedOwnedObjects(
         return category;
     }, [nftItems.length, nameItems.length, kioskItems.length, otherItems.length]);
 
-    const ownedObjectsDone =
+    const ownedObjectsFetched =
         !ownedObjectsQuery.isLoading &&
         !ownedObjectsQuery.isFetchingNextPage &&
         !ownedObjectsQuery.hasNextPage;
-    const isPending = !ownedObjectsDone || kioskFetching;
+    const isPending = !ownedObjectsFetched || kioskFetching;
 
     const isError = ownedObjectsQuery.isError;
 
     return {
         nft: {
             ...nftPagination,
-            isFetching: !ownedObjectsDone,
+            isFetching: !ownedObjectsFetched,
             isError,
         },
         name: {
             ...namePagination,
-            isFetching: !ownedObjectsDone,
+            isFetching: !ownedObjectsFetched,
             isError,
         },
         kiosk: {
@@ -205,7 +205,7 @@ export function useGetCategorizedOwnedObjects(
         },
         other: {
             ...otherPagination,
-            isFetching: !ownedObjectsDone,
+            isFetching: !ownedObjectsFetched,
             isError,
         },
         availableCategories: isPending ? [] : availableCategories,
