@@ -39,9 +39,9 @@ const icons = {
 };
 
 const ICON_SIZES: Record<TransactionIconSize, string> = {
-    [TransactionIconSize.Small]: '[&_svg]:h-4 [&_svg]:w-4',
-    [TransactionIconSize.Medium]: '[&_svg]:h-5 [&_svg]:w-5',
-    [TransactionIconSize.Large]: '[&_svg]:h-6 [&_svg]:w-6',
+    [TransactionIconSize.Small]: '[&_svg]:size-4',
+    [TransactionIconSize.Medium]: '[&_svg]:size-5',
+    [TransactionIconSize.Large]: '[&_svg]:size-6',
 };
 
 interface TransactionIconProps {
