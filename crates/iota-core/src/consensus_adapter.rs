@@ -1058,18 +1058,17 @@ impl ConsensusAdapter {
         ProcessedMethod::Consensus
     }
 
-    /// Submits an `EndOfPublish` message to consensus with bounded retry and
-    /// exponential backoff. On transient failures (e.g. DB write errors in
-    /// `insert_pending_consensus_transactions`), retries up to
-    /// `MAX_RETRIES` times. If all attempts fail, logs at `error!` level
-    /// and relies on crash recovery via `submit_recovered` as the ultimate
-    /// backstop.
+    /// Submits an `EndOfPublish` message to consensus with indefinite retry
+    /// and exponential backoff (capped at `MAX_BACKOFF`). On transient
+    /// failures (e.g. DB write errors in
+    /// `insert_pending_consensus_transactions`), retries until success since
+    /// a missing `EndOfPublish` would stall the epoch.
     fn submit_end_of_publish_with_retry(
         self: &Arc<Self>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
-        const MAX_RETRIES: u32 = 5;
         const INITIAL_BACKOFF: Duration = Duration::from_millis(100);
+        const MAX_BACKOFF: Duration = Duration::from_secs(10);
 
         info!(
             epoch = ?epoch_store.epoch(),
@@ -1077,7 +1076,8 @@ impl ConsensusAdapter {
             "Sending EndOfPublish message to consensus",
         );
 
-        for attempt in 0..=MAX_RETRIES {
+        let mut attempt: u32 = 0;
+        loop {
             match self.submit(
                 ConsensusTransaction::new_end_of_publish(self.authority),
                 None,
@@ -1085,18 +1085,7 @@ impl ConsensusAdapter {
             ) {
                 Ok(_) => return,
                 Err(err) => {
-                    if attempt == MAX_RETRIES {
-                        error!(
-                            epoch = ?epoch_store.epoch(),
-                            authority = ?self.authority,
-                            "Failed to submit EndOfPublish after {} attempts: {:?}. \
-                             Will rely on crash recovery via submit_recovered.",
-                            MAX_RETRIES + 1,
-                            err,
-                        );
-                        return;
-                    }
-                    let backoff = INITIAL_BACKOFF * 2u32.pow(attempt);
+                    let backoff = (INITIAL_BACKOFF * 2u32.pow(attempt.min(10))).min(MAX_BACKOFF);
                     warn!(
                         epoch = ?epoch_store.epoch(),
                         authority = ?self.authority,
@@ -1106,6 +1095,7 @@ impl ConsensusAdapter {
                         err,
                     );
                     std::thread::sleep(backoff);
+                    attempt = attempt.saturating_add(1);
                 }
             }
         }
