@@ -4,6 +4,7 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 import { createUnstakeTransaction, getGasSummary } from '../../utils';
+import { getUserFriendlyDryRunExecutionError } from '../../utils/formatUIErrors';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
 export function useNewUnstakeTransaction(senderAddress: string, unstakeIotaId: string) {
@@ -19,6 +20,10 @@ export function useNewUnstakeTransaction(senderAddress: string, unstakeIotaId: s
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
+            if (txDryRun.effects.status.status !== 'success') {
+                const errorText = txDryRun.effects.status.error || 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
+            }
             return {
                 txBytes,
                 txDryRun,
