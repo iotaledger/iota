@@ -87,7 +87,10 @@ export function AccountGroup({
                 type: accountsFormType,
             });
             const newAccount = accountCreationResult?.[0];
-            if (newAccount && isMnemonicSerializedUiAccount(newAccount)) {
+            if (
+                newAccount &&
+                (isMnemonicSerializedUiAccount(newAccount) || isSeedSerializedUiAccount(newAccount))
+            ) {
                 const { accountIndex } = parseDerivationPath(newAccount.derivationPath);
                 const newWalletName = `Wallet ${accountIndex + 1}`;
                 setExpandedWalletNames(
