@@ -52,22 +52,45 @@ import { ... } from '@iota/audit-trail/web';
 
 ## Usage Examples
 
-<Tabs groupId="language" queryString>
-<TabItem value="typescript-node" label="Typescript (Node.js)">
+This sections gives a brief description how to run the provided examples.
+The [Examples README](https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/README.md) for further details including a list of provided examples.
 
-```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/01_create_trail.ts
+### Prerequisites
+
+Before running the examples, complete the [Local Network Setup](./local-network-setup.mdx) to start a local IOTA node and deploy the Audit Trail package.
+
+### Environment Variables
+
+Set the following environment variables:
+
+| Name | Required | Description |
+|------|----------|-------------|
+| `IOTA_AUDIT_TRAIL_PKG_ID` | yes | Package ID of the deployed `audit_trail` Move package |
+| `IOTA_TF_COMPONENTS_PKG_ID` | local/custom setups | Package ID of the deployed `TfComponents` package |
+| `NETWORK_URL` | test networks | RPC URL of the IOTA node |
+| `NETWORK_NAME_FAUCET` | test networks | Faucet alias used by `@iota/iota-sdk` |
+
+### Running an Example
+
+Clone the repository, install dependencies, and run any example by name:
+
+```bash
+git clone https://github.com/iotaledger/notarization.git
+cd notarization/bindings/wasm/audit_trail_wasm
+npm install
+npm run build
 ```
 
-</TabItem>
-</Tabs>
+```bash
+# If not having published the package to localnet, you can alternatively run `eval $(./audit-trail-move/scripts/publish_package.sh)`
+# instead of setting the environment variables manually.
+export IOTA_AUDIT_TRAIL_PKG_ID=<audit-trail-pkg-id goes here>
+export IOTA_TF_COMPONENTS_PKG_ID=<tf-components-pkg-id goes here>
+npm run example:node -- 01_create_audit_trail
+```
 
-See [utils](https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/util.ts) for details about the helper functions used here.
+See [utils](https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/util.ts) for details about the helper functions used in these examples.
 
 ## API Reference
 
 For complete API documentation, see the [WASM API Reference](../references/wasm/api_ref.md).
-
-## Examples
-
-You can find more usage examples in the [audit trail examples directory](https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples).

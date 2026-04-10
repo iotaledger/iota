@@ -8,11 +8,13 @@ tags:
 
 # Privacy and Off-Chain Documents
 
+Audit Trail records accept arbitrary byte content — it is technically possible to store full documents, raw payloads, or any other data directly on-chain. However, audit trails in real-world scenarios often involve sensitive information — trade invoices, personal health data, employee records, proprietary manufacturing parameters, or contractual terms that parties are legally obligated to keep confidential.
+
 :::warning RECOMMENDATION
 While Audit Trail records can hold arbitrary data, storing sensitive, personal, or confidential information directly on a public ledger is strongly discouraged. Use the on-chain/off-chain pattern described below to protect privacy while preserving verifiability.
 :::
 
-Audit Trail records accept arbitrary byte content — it is technically possible to store full documents, raw payloads, or any other data directly on-chain. However, audit trails in real-world scenarios often involve sensitive information — trade invoices, personal health data, employee records, proprietary manufacturing parameters, or contractual terms that parties are legally obligated to keep confidential. This page explains why storing such data directly on a public ledger is problematic and why the recommended approach is to store only cryptographic hashes on-chain.
+This page explains why storing such data directly on a public ledger is problematic and why the recommended approach is to store only cryptographic hashes on-chain.
 
 ---
 
