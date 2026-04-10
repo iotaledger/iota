@@ -952,12 +952,13 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
 
-        let transactions_synchronizer = crate::transactions_synchronizer::TransactionsSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_thread_dispatcher.clone(),
-            dag_state.clone(),
-        );
+        let transactions_synchronizer =
+            crate::transactions_synchronizer::TransactionsSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                dag_state.clone(),
+            );
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),

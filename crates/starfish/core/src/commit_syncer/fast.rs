@@ -31,8 +31,8 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
-    header_synchronizer::HeaderSynchronizerHandle,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -192,7 +192,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 e
                             );
                         } else {
-                            self.inner.header_synchronizer.clear_verified_headers_cache();
+                            self.inner
+                                .header_synchronizer
+                                .clear_verified_headers_cache();
                             info!(
                                 "[{}] Components reinitialized, fast sync complete",
                                 self.inner.sync_type.as_str()
