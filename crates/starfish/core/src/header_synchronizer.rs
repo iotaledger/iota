@@ -822,13 +822,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             // asynchronously.
             let now = context.clock.timestamp_utc_ms();
             if now < verified_block_header.timestamp_ms() {
-                warn!(
-                    "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
+                trace!(
+                    "Synced block header {} timestamp {} is in the future (now={}). Will not ignore as median based timestamp is enabled.",
                     verified_block_header.reference(),
                     verified_block_header.timestamp_ms(),
                     now
                 );
-                continue;
             }
 
             verified_block_headers.push(verified_block_header);
@@ -3115,84 +3114,6 @@ mod tests {
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes5, &expected5);
-    }
-
-    #[tokio::test]
-    async fn test_process_fetched_headers_with_future_timestamp() {
-        let validators = 4;
-        let (context, _) = Context::new_for_test(validators);
-        let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
-
-        let network_client = Arc::new(MockNetworkClient::default());
-
-        // Set up synchronizers
-        let transactions_synchronizer = TransactionsSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            dag_state.clone(),
-        );
-
-        let handle = HeaderSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            commit_vote_monitor.clone(),
-            transactions_synchronizer.clone(),
-            block_verifier.clone(),
-            dag_state.clone(),
-            false,
-        );
-
-        // Create two block headers - one with a normal timestamp, one with a future
-        // timestamp
-        let normal_block_header = TestBlockHeader::new(1, 0)
-            .set_timestamp_ms(context.clock.timestamp_utc_ms())
-            .build();
-        let future_block_header = TestBlockHeader::new(2, 1)
-            .set_timestamp_ms(
-                context.clock.timestamp_utc_ms() + Duration::from_secs(3600).as_millis() as u64,
-            )
-            .build();
-
-        let normal_block_header = VerifiedBlockHeader::new_for_test(normal_block_header);
-        let future_block_header = VerifiedBlockHeader::new_for_test(future_block_header);
-        let headers_refs = [
-            normal_block_header.reference(),
-            future_block_header.reference(),
-        ]
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-        let peer = AuthorityIndex::new_for_test(1);
-        network_client
-            .stub_fetch_headers_response(
-                [normal_block_header.clone(), future_block_header.clone()].to_vec(),
-                peer,
-                None,
-            )
-            .await;
-        let _ = handle.fetch_headers(headers_refs, peer).await.is_ok();
-        // Wait a little bit until synchronizer tries to add them into core
-        sleep(Duration::from_millis(1_000)).await;
-
-        // THEN ensure that the normal block header was added and block header with
-        // future timestamp was ignored
-        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_block_headers.len(), 1);
-        assert_eq!(added_block_headers[0], normal_block_header);
-
-        // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
-        }
     }
 
     #[tokio::test]

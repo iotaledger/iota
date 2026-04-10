@@ -75,11 +75,12 @@ impl SignedBlockVerifier {
             .context
             .protocol_config
             .max_transactions_in_block_bytes() as usize;
-        if batch.iter().map(|t| t.len()).sum::<usize>() > total_transactions_size_limit
+        let total_transaction_bytes = batch.iter().map(|t| t.len()).sum::<usize>();
+        if total_transaction_bytes > total_transactions_size_limit
             && total_transactions_size_limit > 0
         {
             return Err(ConsensusError::TooManyTransactionBytes {
-                size: batch.len(),
+                size: total_transaction_bytes,
                 limit: total_transactions_size_limit,
             });
         }
@@ -108,6 +109,10 @@ impl BlockVerifier for SignedBlockVerifier {
         // Verify the block's signature.
         block.verify_signature(&self.context)?;
 
+        // Validate overlap indices before accessing ancestors() or acknowledgments()
+        // to prevent panics from adversarial index values in deserialized headers.
+        block.verify_references_indices()?;
+
         // Verify the block's ancestor refs are consistent with the block's round,
         // and total parent stakes reach quorum.
         if block.ancestors().len() > committee.size() {
@@ -116,6 +121,7 @@ impl BlockVerifier for SignedBlockVerifier {
                 committee.size(),
             ));
         }
+
         if block.ancestors().is_empty() {
             return Err(ConsensusError::InsufficientParentStakes {
                 parent_stakes: 0,
@@ -132,7 +138,7 @@ impl BlockVerifier for SignedBlockVerifier {
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
-            ConsensusError::quick_validation_authority_indices(&[block.author()], committee)?;
+            ConsensusError::quick_validation_authority_indices(&[ancestor.author], committee)?;
             if (i == 0 && ancestor.author != block.author())
                 || (i > 0 && ancestor.author == block.author())
             {

@@ -6246,7 +6246,6 @@ dependencies = [
  "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
- "iota-sdk-types",
  "iota-storage",
  "iota-types",
  "notify",
