@@ -1124,7 +1124,7 @@ impl ValidatorService {
             Ok(Either::Right(dropped_error)) => {
                 // Transaction was dropped by white-flag conflict resolution.
                 WaitForEffectResponse::Rejected {
-                    error: Some(dropped_error),
+                    error: dropped_error,
                 }
             }
             Err(_timeout) => {

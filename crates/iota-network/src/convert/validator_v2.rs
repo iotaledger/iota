@@ -153,10 +153,7 @@ impl TryFrom<TxStatusUpdate> for StatusDetail {
                     .transpose()?,
             }),
             TxStatusUpdate::Rejected { error } => Kind::Rejected(RejectedStatus {
-                error: error
-                    .as_ref()
-                    .map(|e| bcs_serialize(e, "RejectedStatus.error"))
-                    .transpose()?,
+                error: bcs_serialize(&error, "RejectedStatus.error")?,
             }),
             TxStatusUpdate::Expired { epoch } => Kind::Expired(ExpiredStatus { epoch }),
         };
@@ -205,11 +202,7 @@ impl TryFrom<StatusDetail> for TxStatusUpdate {
                 })
             }
             Kind::Rejected(r) => {
-                let error = r
-                    .error
-                    .as_ref()
-                    .map(|e| bcs_deserialize(e, "RejectedStatus.error"))
-                    .transpose()?;
+                let error = bcs_deserialize(&r.error, "RejectedStatus.error")?;
                 Ok(TxStatusUpdate::Rejected { error })
             }
             Kind::Expired(e) => Ok(TxStatusUpdate::Expired { epoch: e.epoch }),
@@ -430,21 +423,10 @@ mod tests {
     fn tx_status_update_rejected() {
         let digest = TransactionDigest::random();
         let update = TxStatusUpdate::Rejected {
-            error: Some(IotaError::TransactionSerialization {
+            error: IotaError::TransactionSerialization {
                 error: "conflict".to_string(),
-            }),
+            },
         };
-        let tx_status: api::TxStatus = (digest, update).try_into().unwrap();
-        assert!(matches!(
-            tx_status.status.unwrap().kind,
-            Some(Kind::Rejected(_))
-        ));
-    }
-
-    #[test]
-    fn tx_status_update_rejected_no_error() {
-        let digest = TransactionDigest::random();
-        let update = TxStatusUpdate::Rejected { error: None };
         let tx_status: api::TxStatus = (digest, update).try_into().unwrap();
         assert!(matches!(
             tx_status.status.unwrap().kind,
@@ -545,18 +527,15 @@ mod tests {
     fn tx_status_rejected_round_trip() {
         let digest = TransactionDigest::random();
         let update = TxStatusUpdate::Rejected {
-            error: Some(IotaError::TransactionSerialization {
+            error: IotaError::TransactionSerialization {
                 error: "test".to_string(),
-            }),
+            },
         };
         let proto: api::TxStatus = (digest, update).try_into().unwrap();
         let (back_digest, back_update): (TransactionDigest, TxStatusUpdate) =
             proto.try_into().unwrap();
         assert_eq!(digest, back_digest);
-        assert!(matches!(
-            back_update,
-            TxStatusUpdate::Rejected { error: Some(_) }
-        ));
+        assert!(matches!(back_update, TxStatusUpdate::Rejected { .. }));
     }
 
     #[test]

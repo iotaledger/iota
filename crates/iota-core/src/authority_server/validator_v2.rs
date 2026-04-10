@@ -139,14 +139,14 @@ impl ValidatorService {
                 .num_rejected_tx_during_overload
                 .with_label_values(&[e.as_ref()])
                 .inc();
-            return Ok(TxStatusUpdate::Rejected { error: Some(e) });
+            return Ok(TxStatusUpdate::Rejected { error: e });
         }
 
         // Validate transaction.
         if let Err(e) =
             transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
         {
-            return Ok(TxStatusUpdate::Rejected { error: Some(e) });
+            return Ok(TxStatusUpdate::Rejected { error: e });
         }
 
         // Check if already executed. Transient cache errors are treated as
@@ -167,7 +167,7 @@ impl ValidatorService {
             Ok(verified) => verified,
             Err(e) => {
                 metrics.signature_errors.inc();
-                return Ok(TxStatusUpdate::Rejected { error: Some(e) });
+                return Ok(TxStatusUpdate::Rejected { error: e });
             }
         };
         drop(tx_verif_guard);
@@ -362,7 +362,7 @@ impl ValidatorService {
                 }
             }
             Ok(Either::Right(dropped_error)) => TxStatusUpdate::Rejected {
-                error: Some(dropped_error),
+                error: dropped_error,
             },
             Err(_timeout) => TxStatusUpdate::Expired {
                 epoch: epoch_store.epoch(),
@@ -509,8 +509,11 @@ impl ValidatorService {
 
         let last_locally_built_checkpoint = epoch_store
             .last_built_checkpoint_summary()
-            .ok()
-            .flatten()
+            .map_err(|e| {
+                tonic::Status::internal(format!(
+                    "Failed to read last built checkpoint summary: {e}"
+                ))
+            })?
             .map(|(seq, _)| seq)
             .unwrap_or(0);
 

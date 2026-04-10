@@ -276,14 +276,9 @@ impl EffectsCertifier {
                         ))
                     }
                 }
-                Some((_, TxStatusUpdate::Rejected { error })) => match error {
-                    Some(e) => Err(TransactionRequestError::RejectedAtValidator(e)),
-                    // Rejected { error: None } means consensus dropped the tx
-                    // (e.g. duplicate or epoch change). RejectedByConsensus maps
-                    // to ErrorCategory::Aborted, which the retry loop treats as
-                    // retriable — the client will resubmit to a (possibly new) validator.
-                    None => Err(TransactionRequestError::RejectedByConsensus),
-                },
+                Some((_, TxStatusUpdate::Rejected { error })) => {
+                    Err(TransactionRequestError::RejectedAtValidator(error))
+                }
                 Some((_, TxStatusUpdate::Expired { epoch })) => {
                     Err(TransactionRequestError::StatusExpired(epoch))
                 }
@@ -474,7 +469,7 @@ impl EffectsCertifier {
             StatusAggregator::<TransactionRequestError>::new(committee.clone());
         // Collect responses from validators which observed the transaction getting
         // rejected, but do not have a local reason to reject the transaction.
-        let mut reason_not_found_aggregator = StatusAggregator::<()>::new(committee.clone());
+        let reason_not_found_aggregator = StatusAggregator::<()>::new(committee.clone());
         // Every validator returns at most one TxStatusUpdate.
         while let Some((name, response)) = futures.next().await {
             // Extract the first per-item result from the batch response.
@@ -522,17 +517,12 @@ impl EffectsCertifier {
                     }
                 }
                 Ok(Some((_, TxStatusUpdate::Rejected { error }))) => {
-                    if let Some(e) = error {
-                        tracing::trace!(name = ?name.concise(), "Rejected at validator: {:?}", e);
-                        let error = TransactionRequestError::RejectedAtValidator(e);
-                        if error.is_submission_retriable() {
-                            retriable_errors_aggregator.insert(name, error);
-                        } else {
-                            non_retriable_errors_aggregator.insert(name, error);
-                        }
+                    tracing::trace!(name = ?name.concise(), "Rejected at validator: {:?}", error);
+                    let error = TransactionRequestError::RejectedAtValidator(error);
+                    if error.is_submission_retriable() {
+                        retriable_errors_aggregator.insert(name, error);
                     } else {
-                        tracing::trace!(name = ?name.concise(), "Not found at validator");
-                        reason_not_found_aggregator.insert(name, ());
+                        non_retriable_errors_aggregator.insert(name, error);
                     }
                     self.metrics
                         .rejection_acks

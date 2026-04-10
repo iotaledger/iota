@@ -74,8 +74,8 @@ message ExecutedStatus {
 
 // Transaction was rejected during validation or by white-flag conflict resolution.
 message RejectedStatus {
-  // Optional BCS-serialized IotaError describing the rejection reason.
-  optional bytes error = 1;
+  // BCS-serialized IotaError describing the rejection reason.
+  bytes error = 1;
 }
 
 // Transaction status has expired from the validator's cache.
