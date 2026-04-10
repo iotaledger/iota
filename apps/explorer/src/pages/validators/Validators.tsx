@@ -47,6 +47,7 @@ function ValidatorPageResult(): JSX.Element {
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
     const { label } = useEpochProgress();
+    const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');
     const [currentValidatorStatus, setCurrentValidatorStatus] = useState<ValidatorStatus>('All');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -282,6 +283,7 @@ function ValidatorPageResult(): JSX.Element {
         {
             title: 'Protocol Version',
             value: protocolVersion ?? '--',
+            supportingLabel: binaryVersion ? `v${binaryVersion}` : '--',
         },
         {
             title: 'Active Validators',
