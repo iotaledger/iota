@@ -39,7 +39,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionLimit,
     IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
-    progress_store::ExecutorProgress,
+    progress_store::ExecutorProgress, reader::v2::CheckpointReaderConfig,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -64,32 +64,23 @@ async fn run(
         ..Default::default()
     };
 
-    match duration.into() {
-        None => {
-            indexer
-                .run(
-                    path.into().unwrap_or_else(temp_dir),
-                    None,
-                    vec![],
-                    reader_options,
-                )
-                .await
-        }
-        Some(duration) => {
-            let handle = tokio::task::spawn(indexer.run(
-                path.into().unwrap_or_else(temp_dir),
-                None,
-                vec![],
-                reader_options,
-            ));
-            tokio::time::sleep(duration).await;
-            token.cancel();
-            handle.await.map_err(|err| IngestionError::Shutdown {
-                component: "indexer executor".into(),
-                msg: err.to_string(),
-            })?
-        }
-    }
+    let indexer_executor_fut = indexer.run_with_config(CheckpointReaderConfig {
+        reader_options,
+        ingestion_path: path.into(),
+        remote_store_url: None,
+    });
+
+    if let Some(duration) = duration.into() {
+        tokio::task::spawn({
+            let token = token.clone();
+            async move {
+                tokio::time::sleep(duration).await;
+                token.cancel();
+            }
+        });
+    };
+
+    indexer_executor_fut.await
 }
 
 struct ExecutorBundle {

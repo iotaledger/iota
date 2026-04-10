@@ -1114,12 +1114,6 @@ ecvrf_verify
 ed25519_verify
 	public fun
 	0x2::ed25519
-blake2b256
-	public fun
-	0x2::hash
-keccak256
-	public fun
-	0x2::hash
 hash_to_input
 	public fun
 	0x2::vdf
@@ -1726,6 +1720,75 @@ sequence_number
 digest
 	public fun
 	0x2::ptb_call_arg
+Intent
+	public struct
+	0x2::intent
+new
+	public fun
+	0x2::intent
+scope
+	public fun
+	0x2::intent
+version
+	public fun
+	0x2::intent
+app_id
+	public fun
+	0x2::intent
+scope_transaction_data
+	public fun
+	0x2::intent
+scope_transaction_effects
+	public fun
+	0x2::intent
+scope_checkpoint_summary
+	public fun
+	0x2::intent
+scope_personal_message
+	public fun
+	0x2::intent
+scope_sender_signed_transaction
+	public fun
+	0x2::intent
+scope_proof_of_possession
+	public fun
+	0x2::intent
+scope_bridge_event_deprecated
+	public fun
+	0x2::intent
+scope_consensus_block
+	public fun
+	0x2::intent
+scope_discovery_peers
+	public fun
+	0x2::intent
+scope_authority_capabilities
+	public fun
+	0x2::intent
+version_v0
+	public fun
+	0x2::intent
+app_id_iota
+	public fun
+	0x2::intent
+app_id_consensus
+	public fun
+	0x2::intent
+iota_transaction
+	public fun
+	0x2::intent
+iota_personal_message
+	public fun
+	0x2::intent
+to_bytes
+	public fun
+	0x2::intent
+blake2b256
+	public fun
+	0x2::hash
+keccak256
+	public fun
+	0x2::hash
 AuthContext
 	public struct
 	0x2::auth_context
@@ -1738,7 +1801,19 @@ tx_inputs
 tx_commands
 	public fun
 	0x2::auth_context
+tx_data_bytes
+	public fun
+	0x2::auth_context
+intent_tx_data_bytes
+	public fun
+	0x2::auth_context
+signed_tx_bytes
+	public fun
+	0x2::auth_context
 native_digest
+	fun
+	0x2::auth_context
+native_tx_data_bytes
 	fun
 	0x2::auth_context
 native_tx_inputs
