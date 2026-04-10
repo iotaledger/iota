@@ -3,14 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
-import {
-    LabelText,
-    LabelTextSize,
-    Panel,
-    Title,
-    TitleSize,
-    TooltipPosition,
-} from '@iota/apps-ui-kit';
+import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
 import { getValidatorEffectiveCommission, useFormatCoin } from '@iota/core';
 import { EpochStatusIndicator } from '~/pages/validator/ValidatorDetails';
 

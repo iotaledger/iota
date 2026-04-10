@@ -22,7 +22,6 @@ import {
     LoadingIndicator,
     Panel,
     Title,
-    TitleSize,
     Tooltip,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
