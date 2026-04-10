@@ -256,12 +256,6 @@ impl ValidatorService {
             ))
         );
 
-        // TODO(#11111): epoch_store is captured once and used for the full 30s wait.
-        // If an epoch change occurs mid-wait, notify_read_dropped_digests
-        // watches the old epoch's cache and the timeout reports a stale epoch.
-        // This matches V1's handle_wait_for_effect_impl behavior. Client retry
-        // after timeout gets a fresh epoch store. Consider listening for epoch
-        // change to return Expired early if cross-epoch awareness is needed.
         let (tx_sender, rx) = tokio::sync::mpsc::channel(request.queries.len().max(1));
 
         for query in request.queries {
@@ -304,10 +298,10 @@ impl ValidatorService {
             Ok(None) => {}
         }
 
-        // Wait for execution, rejection, or timeout.
+        // Wait for execution, rejection, epoch end, or timeout.
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(GET_TX_STATUS_TIMEOUT_SECS),
-            async {
+            epoch_store.within_alive_epoch(async {
                 let digests_to_watch = [tx_digest];
                 tokio::select! {
                     biased;
@@ -318,12 +312,16 @@ impl ValidatorService {
                         Either::Right(dropped_error)
                     }
                 }
-            },
+            }),
         )
         .await;
 
         match result {
-            Ok(Either::Left(effects_digests)) => {
+            // Epoch ended before execution or rejection.
+            Ok(Err(())) => TxStatusUpdate::Expired {
+                epoch: epoch_store.epoch(),
+            },
+            Ok(Ok(Either::Left(effects_digests))) => {
                 let Some(effects_digest) = effects_digests.into_iter().next() else {
                     tracing::warn!(
                         ?tx_digest,
@@ -360,7 +358,7 @@ impl ValidatorService {
                     details,
                 }
             }
-            Ok(Either::Right(dropped_error)) => TxStatusUpdate::Rejected {
+            Ok(Ok(Either::Right(dropped_error))) => TxStatusUpdate::Rejected {
                 error: dropped_error,
             },
             Err(_timeout) => TxStatusUpdate::Expired {
