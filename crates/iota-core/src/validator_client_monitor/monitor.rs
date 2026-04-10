@@ -107,7 +107,7 @@ where
                     let start = Instant::now();
                     match timeout(
                         timeout_duration,
-                        client.validator_health(ValidatorHealthRequest {}),
+                        client.health_check(ValidatorHealthRequest {}),
                     )
                     .await
                     {

@@ -1,10 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_network::{
-    api::{GetCheckpointRequest, GetCheckpointResponse, ValidatorPeer},
-    tonic,
-};
+use iota_network::api::{GetCheckpointRequest, GetCheckpointResponse, ValidatorPeer};
 use iota_types::{
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     traffic_control::Weight,

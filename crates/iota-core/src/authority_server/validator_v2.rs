@@ -4,12 +4,9 @@
 use std::sync::Arc;
 
 use futures::future::Either;
-use iota_network::{
-    api::{
-        GetTxStatusRequest, NotifyCapabilitiesRequest, NotifyCapabilitiesResponse, SubmitTxRequest,
-        TxStatus, ValidatorV2,
-    },
-    tonic::{Request, Response, Status},
+use iota_network::api::{
+    GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
+    NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
 use iota_types::{
     digests::TransactionDigest,
@@ -21,7 +18,7 @@ use iota_types::{
     messages_grpc::{
         ExecutedData, GetTxStatusRequest as DomainGetTxStatusRequest,
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        SubmitTransactionsRequest, TxStatusUpdate,
+        SubmitTransactionsRequest, TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
     transaction::Transaction,
@@ -38,7 +35,7 @@ const MAX_QUERIES_PER_GET_TX_STATUS: usize = 256;
 const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
 
 /// A single streamed item in a V2 RPC response.
-type TxUpdateItem = Result<(TransactionDigest, TxStatusUpdate), Status>;
+type TxUpdateItem = Result<(TransactionDigest, TxStatusUpdate), tonic::Status>;
 
 use iota_metrics::spawn_monitored_task;
 
@@ -52,13 +49,13 @@ impl ValidatorService {
     async fn submit_tx_impl(
         &self,
         request: SubmitTransactionsRequest,
-    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), Status> {
+    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
         fp_ensure!(
             !state.is_fullnode(&epoch_store),
-            IotaError::FullNodeCantHandleSubmitTransactions.into()
+            IotaError::FullNodeCantHandleValidatorV2.into()
         );
 
         fp_ensure!(
@@ -71,7 +68,7 @@ impl ValidatorService {
 
         fp_ensure!(
             request.transactions.len() <= MAX_TRANSACTIONS_PER_SUBMIT,
-            Status::invalid_argument(format!(
+            tonic::Status::invalid_argument(format!(
                 "too many transactions: {} exceeds limit of {MAX_TRANSACTIONS_PER_SUBMIT}",
                 request.transactions.len()
             ))
@@ -120,16 +117,17 @@ impl ValidatorService {
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         transaction: Transaction,
-    ) -> Result<TxStatusUpdate, Status> {
+    ) -> Result<TxStatusUpdate, tonic::Status> {
         let tx_digest = *transaction.digest();
 
-        let build_executed = |effects: TransactionEffects| -> Result<TxStatusUpdate, Status> {
-            let effects_digest = effects.digest();
-            Ok(TxStatusUpdate::Executed {
-                effects_digest,
-                details: Some(Self::build_executed_data(state, &effects)),
-            })
-        };
+        let build_executed =
+            |effects: TransactionEffects| -> Result<TxStatusUpdate, tonic::Status> {
+                let effects_digest = effects.digest();
+                Ok(TxStatusUpdate::Executed {
+                    effects_digest,
+                    details: Some(Self::build_executed_data(state, &effects)),
+                })
+            };
 
         // Check system overload.
         if let Err(e) = state.check_system_overload(
@@ -141,14 +139,14 @@ impl ValidatorService {
                 .num_rejected_tx_during_overload
                 .with_label_values(&[e.as_ref()])
                 .inc();
-            return Ok(TxStatusUpdate::Rejected { error: Some(e) });
+            return Ok(TxStatusUpdate::Rejected { error: e });
         }
 
         // Validate transaction.
         if let Err(e) =
             transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
         {
-            return Ok(TxStatusUpdate::Rejected { error: Some(e) });
+            return Ok(TxStatusUpdate::Rejected { error: e });
         }
 
         // Check if already executed. Transient cache errors are treated as
@@ -169,12 +167,12 @@ impl ValidatorService {
             Ok(verified) => verified,
             Err(e) => {
                 metrics.signature_errors.inc();
-                return Ok(TxStatusUpdate::Rejected { error: Some(e) });
+                return Ok(TxStatusUpdate::Rejected { error: e });
             }
         };
         drop(tx_verif_guard);
 
-        // TODO(#11110): return Rejected instead of Err(Status) for consistency.
+        // TODO(#11110): return Rejected instead of Err(tonic::Status) for consistency.
         // Early bail-out during epoch boundary.
         if !epoch_store
             .get_reconfig_state_read_lock_guard()
@@ -184,12 +182,12 @@ impl ValidatorService {
             return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
         }
 
-        // TODO(#11110): return Rejected instead of Err(Status) for consistency.
+        // TODO(#11110): return Rejected instead of Err(tonic::Status) for consistency.
         // Content validation: deny checks + owned object version validation.
         let owned_objects = state
             .handle_transaction_validation_checks(&verified_tx, epoch_store)
             .await
-            .map_err(Status::from)?;
+            .map_err(tonic::Status::from)?;
         if let Err(e) = state
             .get_cache_writer()
             .validate_owned_object_versions(&owned_objects)
@@ -203,10 +201,10 @@ impl ValidatorService {
             {
                 return build_executed(effects);
             }
-            return Err(Status::from(e));
+            return Err(tonic::Status::from(e));
         }
 
-        // TODO(#11110): return Rejected instead of Err(Status) for consistency.
+        // TODO(#11110): return Rejected instead of Err(tonic::Status) for consistency.
         // Reconfig check.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
@@ -221,7 +219,7 @@ impl ValidatorService {
                 Some(&reconfiguration_lock),
                 epoch_store,
             )
-            .map_err(Status::from)?;
+            .map_err(tonic::Status::from)?;
 
         Ok(TxStatusUpdate::Submitted)
     }
@@ -232,13 +230,13 @@ impl ValidatorService {
     async fn get_tx_status_impl(
         &self,
         request: DomainGetTxStatusRequest,
-    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), Status> {
+    ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
 
         fp_ensure!(
             !state.is_fullnode(&epoch_store),
-            IotaError::FullNodeCantHandleSubmitTransactions.into()
+            IotaError::FullNodeCantHandleValidatorV2.into()
         );
 
         fp_ensure!(
@@ -253,7 +251,7 @@ impl ValidatorService {
         // SubmitTransactionsRequest and WaitForEffectsRequest).
         fp_ensure!(
             request.queries.len() <= MAX_QUERIES_PER_GET_TX_STATUS,
-            Status::invalid_argument(format!(
+            tonic::Status::invalid_argument(format!(
                 "too many queries: {} exceeds limit of {MAX_QUERIES_PER_GET_TX_STATUS}",
                 request.queries.len()
             ))
@@ -271,7 +269,7 @@ impl ValidatorService {
             let state = state.clone();
             let epoch_store = epoch_store.clone();
             let tx_sender = tx_sender.clone();
-            tokio::spawn(async move {
+            spawn_monitored_task!(async move {
                 let update = Self::wait_for_tx_finality(
                     &state,
                     &epoch_store,
@@ -364,7 +362,7 @@ impl ValidatorService {
                 }
             }
             Ok(Either::Right(dropped_error)) => TxStatusUpdate::Rejected {
-                error: Some(dropped_error),
+                error: dropped_error,
             },
             Err(_timeout) => TxStatusUpdate::Expired {
                 epoch: epoch_store.epoch(),
@@ -423,7 +421,7 @@ impl ValidatorService {
     async fn notify_capabilities_impl(
         &self,
         request: HandleCapabilityNotificationRequestV1,
-    ) -> Result<(HandleCapabilityNotificationResponseV1, Weight), Status> {
+    ) -> Result<(HandleCapabilityNotificationResponseV1, Weight), tonic::Status> {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
 
         fp_ensure!(
@@ -439,7 +437,7 @@ impl ValidatorService {
 
         fp_ensure!(
             !self.state.is_fullnode(&epoch_store),
-            IotaError::FullNodeCantHandleAuthorityCapabilities.into()
+            IotaError::FullNodeCantHandleValidatorV2.into()
         );
 
         let existing_capabilities = epoch_store.get_capabilities_v1()?;
@@ -502,6 +500,38 @@ impl ValidatorService {
             Weight::one(),
         ))
     }
+
+    fn health_check_impl(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<(ValidatorHealthResponse, Weight), tonic::Status> {
+        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+
+        let last_locally_built_checkpoint = epoch_store
+            .last_built_checkpoint_summary()
+            .map_err(|e| {
+                tonic::Status::internal(format!(
+                    "Failed to read last built checkpoint summary: {e}"
+                ))
+            })?
+            .map(|(seq, _)| seq)
+            .unwrap_or(0);
+
+        Ok((
+            ValidatorHealthResponse {
+                num_inflight_execution_transactions: self
+                    .state
+                    .transaction_manager()
+                    .inflight_queue_len()
+                    as u64,
+                num_inflight_consensus_transactions: self
+                    .consensus_adapter
+                    .num_inflight_transactions(),
+                last_locally_built_checkpoint,
+            },
+            Weight::zero(),
+        ))
+    }
 }
 
 #[async_trait::async_trait]
@@ -510,8 +540,8 @@ impl ValidatorV2 for ValidatorService {
 
     async fn submit_tx(
         &self,
-        request: Request<SubmitTxRequest>,
-    ) -> Result<Response<Self::SubmitTxStream>, Status> {
+        request: tonic::Request<SubmitTxRequest>,
+    ) -> Result<tonic::Response<Self::SubmitTxStream>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_stream(ip, self.submit_tx_impl(req).await)
     }
@@ -520,17 +550,25 @@ impl ValidatorV2 for ValidatorService {
 
     async fn get_tx_status(
         &self,
-        request: Request<GetTxStatusRequest>,
-    ) -> Result<Response<Self::GetTxStatusStream>, Status> {
+        request: tonic::Request<GetTxStatusRequest>,
+    ) -> Result<tonic::Response<Self::GetTxStatusStream>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_stream(ip, self.get_tx_status_impl(req).await)
     }
 
     async fn notify_capabilities(
         &self,
-        request: Request<NotifyCapabilitiesRequest>,
-    ) -> Result<Response<NotifyCapabilitiesResponse>, Status> {
+        request: tonic::Request<NotifyCapabilitiesRequest>,
+    ) -> Result<tonic::Response<NotifyCapabilitiesResponse>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_unary(ip, self.notify_capabilities_impl(req).await)
+    }
+
+    async fn health_check(
+        &self,
+        request: tonic::Request<HealthCheckRequest>,
+    ) -> Result<tonic::Response<HealthCheckResponse>, tonic::Status> {
+        let (req, ip) = self.pre_handle(request).await?;
+        self.post_handle_unary(ip, self.health_check_impl(req))
     }
 }
