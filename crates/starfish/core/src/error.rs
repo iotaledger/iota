@@ -149,6 +149,15 @@ pub(crate) enum ConsensusError {
     MissingBlockHeader { block_ref: BlockRef },
 
     #[error(
+        "Invalid overlap indices: overlap_start={overlap_start}, overlap_end={overlap_end}, references_len={references_len}"
+    )]
+    InvalidOverlapIndices {
+        overlap_start: u8,
+        overlap_end: u8,
+        references_len: usize,
+    },
+
+    #[error(
         "Commit range exceeded limit after scanning during {sync_type} sync: {count} > {limit}"
     )]
     CommitRangeExceededAfterScanning {
