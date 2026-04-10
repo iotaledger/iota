@@ -311,7 +311,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         )}
                         <div className="flex items-center gap-sm">
                             {!isPending && showPagination && hasVisualAssets && (
-                                <span className="dark:text-iota-neutral-60 shrink-0 text-body-sm text-iota-neutral-40">
+                                <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                     Showing {start} - {end}
                                 </span>
                             )}
