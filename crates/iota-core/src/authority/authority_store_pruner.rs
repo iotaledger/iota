@@ -1115,7 +1115,6 @@ mod tests {
         let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
         let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
 
-        perpetual_db.objects.db.flush()?;
         perpetual_db.objects.compact_range(&start, &end)?;
         let before_compaction_size = get_sst_size(&db_path);
 
@@ -1134,7 +1133,6 @@ mod tests {
                 .await;
         info!("Total pruned keys = {:?}", total_pruned);
 
-        perpetual_db.objects.db.flush()?;
         perpetual_db.objects.compact_range(&start, &end)?;
         let after_compaction_size = get_sst_size(&db_path);
 

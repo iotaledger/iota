@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import cx from 'classnames';
+import { BadgeSize } from './badge.enums';
 import type { BadgeType } from './badge.enums';
-import { BACKGROUND_COLORS, BADGE_TEXT_CLASS, BORDER_COLORS, TEXT_COLORS } from './badge.classes';
+import { BACKGROUND_COLORS, BORDER_COLORS, TEXT_COLORS } from './badge.classes';
 
 interface BadgeProps {
     /**
@@ -14,24 +15,30 @@ interface BadgeProps {
      * The label of the badge.
      */
     label?: string;
+    /**
+     * The size of the badge
+     */
+    size?: BadgeSize;
 }
 
-export function Badge({ type, label }: BadgeProps): React.JSX.Element {
+export function Badge({ type, label, size = BadgeSize.Medium }: BadgeProps): React.JSX.Element {
     const backgroundClasses = BACKGROUND_COLORS[type];
     const textClasses = TEXT_COLORS[type];
-    const borderClasses = BORDER_COLORS[type];
+    const isSmall = size === BadgeSize.Small;
     const labelClasses = label ? 'px-xs py-xxs' : 'h-1.5 w-1.5';
+    const textSizeClass = isSmall ? 'text-label-sm' : 'text-label-md';
 
     return (
         <div
             className={cx(
-                'inline-flex items-center space-x-2 rounded-full border disabled:opacity-30',
+                'inline-flex items-center space-x-2 rounded-full disabled:opacity-30',
+                { border: !isSmall },
                 backgroundClasses,
-                borderClasses,
+                { [BORDER_COLORS[type]]: !isSmall },
                 labelClasses,
             )}
         >
-            <span className={cx(BADGE_TEXT_CLASS, textClasses)}>{label}</span>
+            <span className={cx(textSizeClass, textClasses)}>{label}</span>
         </div>
     );
 }

@@ -4,154 +4,94 @@
 
 import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import { LabelText, LabelTextSize, Panel, Title, TooltipPosition } from '@iota/apps-ui-kit';
-import {
-    EFFECTIVE_COMMISSION_TOOLTIP,
-    formatPercentageDisplay,
-    getValidatorEffectiveCommission,
-    useFormatCoin,
-} from '@iota/core';
+import { getValidatorEffectiveCommission, useFormatCoin } from '@iota/core';
+import { EpochStatusIndicator } from '~/pages/validator/ValidatorDetails';
 
 type StatsCardProps = {
     validatorData: IotaValidatorSummary;
     epoch: number | string;
     epochRewards: number | null;
     apy: number | string | null;
-    tallyingScore: string | null;
+    isEarningCurrentEpoch: boolean;
 };
 
 export function ValidatorStats({
     validatorData,
-    epochRewards,
     apy,
-    tallyingScore,
+    isEarningCurrentEpoch,
 }: StatsCardProps): JSX.Element {
-    // TODO: Add logic for validator stats https://github.com/iotaledger/iota/issues/2449
-    const networkStakingParticipation = 0;
-    const votedLastRound = 0;
-
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
 
     const effectiveCommissionRate = getValidatorEffectiveCommission(validatorData);
-    const commission = formatPercentageDisplay(Number(validatorData.commissionRate) / 100, '--');
     const rewardsPoolBalance = Number(validatorData.rewardsPool);
 
-    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin({ balance: totalStake });
-    const [formattedEpochRewards, epochRewardsSymbol] = useFormatCoin({ balance: epochRewards });
+    const [formattedTotalStakeAmount, totalStakeSymbol] = useFormatCoin({
+        balance: totalStake,
+    });
     const [formattedRewardsPoolBalance, rewardsPoolBalanceSymbol] = useFormatCoin({
         balance: rewardsPoolBalance,
     });
 
+    const votingPower = Number(validatorData.votingPower) / 100;
+    const commission = Number(validatorData.commissionRate) / 100;
+
     return (
-        <div className="flex flex-col gap-lg md:flex-row">
-            <Panel>
-                <Title title="Staked on Validator" />
-                <div className="grid grid-cols-2 gap-md p-md--rs">
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Staking APY"
-                            text={apy === null ? 'N/A' : `${apy}%`}
-                            tooltipText="This represents the Annualized Percentage Yield based on a specific validator's past activities. Keep in mind that this APY may not hold true in the future."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Total IOTA Staked"
-                            text={formattedTotalStakeAmount}
-                            supportingLabel={totalStakeSymbol}
-                            tooltipText="The total amount of IOTA staked on the network by validators and delegators to secure the network and earn rewards."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Effective Commission Rate"
-                            text={effectiveCommissionRate}
-                            tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Commission"
-                            text={commission}
-                            tooltipText="The charge imposed by the validator for their staking services."
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
-                </div>
-            </Panel>
-            <Panel>
-                <Title title="Validator Staking Rewards" />
-                <div className="grid grid-cols-2 gap-md p-md--rs">
+        <Panel>
+            <Title
+                title="Current Epoch"
+                trailingElement={
+                    <EpochStatusIndicator
+                        active={isEarningCurrentEpoch}
+                        activeLabel="Earning rewards"
+                        inactiveLabel="Not earning"
+                        tooltipText="Whether this validator is in the active committee and earning staking rewards this epoch."
+                    />
+                }
+            />
+            <div className="flex flex-col gap-md p-md">
+                <div className="grid grid-cols-1 gap-xl sm:grid-cols-3 md:grid-cols-5">
                     <LabelText
-                        size={LabelTextSize.Medium}
-                        label="Last Epoch Rewards"
-                        text={typeof epochRewards === 'number' ? formattedEpochRewards : '0'}
-                        supportingLabel={epochRewardsSymbol}
-                        tooltipText={
-                            epochRewards === null
-                                ? 'Coming soon'
-                                : 'The staking rewards earned during the previous epoch.'
-                        }
+                        label="APY"
+                        text={apy === null ? 'N/A' : `${apy}%`}
+                        tooltipText="This represents the Annualized Percentage Yield based on the validator's past activities. Keep in mind that this APY may not hold true in the future."
+                        tooltipPosition={TooltipPosition.Right}
+                        size={LabelTextSize.Large}
+                    />
+                    <LabelText
+                        label="Effective Commission"
+                        text={effectiveCommissionRate}
+                        supportingLabel={`${commission}%`}
+                        tooltipText="The base commission chosen by the validator. Note that the actual commission applied is higher because of the dynamic minimum commission rule (IIP-8)."
+                        tooltipPosition={TooltipPosition.Right}
+                        size={LabelTextSize.Large}
+                    />
+                    <LabelText
+                        label="Voting Power"
+                        text={`${votingPower}%`}
+                        tooltipText="Share of total committee voting power held by this validator, proportional to its stake."
+                        tooltipPosition={TooltipPosition.Right}
+                        size={LabelTextSize.Large}
+                    />
+                    <LabelText
+                        label="Total IOTA Staked"
+                        text={formattedTotalStakeAmount}
+                        supportingLabel={totalStakeSymbol}
+                        tooltipText="The total amount of IOTA staked on the network by validators and delegators to secure the network and earn rewards."
                         tooltipPosition={TooltipPosition.Right}
                     />
                     <LabelText
-                        size={LabelTextSize.Medium}
-                        label="Reward Pool"
+                        label="Reward Balance"
                         text={formattedRewardsPoolBalance}
                         supportingLabel={rewardsPoolBalanceSymbol}
                         tooltipText={
                             Number(rewardsPoolBalance) <= 0
                                 ? 'Coming soon'
-                                : 'The current balance in this validator’s reward pool.'
+                                : 'Accumulated staking rewards that are currently available to withdraw.'
                         }
                         tooltipPosition={TooltipPosition.Right}
                     />
                 </div>
-            </Panel>
-            <Panel>
-                <Title title="Network Participation" />
-                <div className="grid grid-cols-2 gap-md p-md--rs">
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Checkpoint Participation"
-                            text={networkStakingParticipation || '--'}
-                            tooltipText={
-                                !networkStakingParticipation
-                                    ? 'Coming soon'
-                                    : 'The proportion of checkpoints that this validator has certified to date.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Voted Last Round"
-                            text={votedLastRound || '--'}
-                            tooltipText={
-                                !votedLastRound
-                                    ? 'Coming soon'
-                                    : 'This validator’s participation in the voting for the most recent round.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
-                    <div className="grid grid-rows-1 gap-md">
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Tallying Score"
-                            text={tallyingScore ?? '--'}
-                            tooltipText={
-                                !tallyingScore
-                                    ? 'Coming soon'
-                                    : 'A score created by validators to assess each other’s performance during IOTA’s standard operations.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                    </div>
-                </div>
-            </Panel>
-        </div>
+            </div>
+        </Panel>
     );
 }

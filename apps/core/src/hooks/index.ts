@@ -13,6 +13,7 @@ export * from './useGetTimeBeforeEpochNumber';
 export * from './useTransactionSummary';
 export * from './useOnScreen';
 export * from './useGetOwnedObjects';
+export * from './useGetCategorizedOwnedObjects';
 export * from './useCopyToClipboard';
 export * from './useGetAllCoins';
 export * from './useGetCoins';

@@ -43,6 +43,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ArrowBottomLeft, Info, Migration, Send, Vesting } from '@iota/apps-ui-icons';
 import { Interstitial, type InterstitialConfig } from '../interstitial';
+import Browser from 'webextension-polyfill';
+import { coerce, gte } from 'semver';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { useNavigate } from 'react-router-dom';
@@ -157,6 +159,11 @@ export function TokenDetails() {
         Feature.WalletInterstitialConfig,
     ).value;
 
+    const walletVersion = coerce(Browser.runtime.getManifest().version);
+    const minVersion = coerce(walletInterstitialConfig?.minVersion);
+    const isMinVersionCompatible =
+        !minVersion || (!!walletVersion && gte(walletVersion, minVersion));
+
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
 
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
@@ -192,6 +199,7 @@ export function TokenDetails() {
     if (
         navigator.userAgent !== 'Playwright' &&
         walletInterstitialConfig?.enabled &&
+        isMinVersionCompatible &&
         !interstitialDismissed
     ) {
         return (

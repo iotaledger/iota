@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type JSX, useMemo } from 'react';
+import { type JSX, useMemo, useState, useCallback } from 'react';
 import {
     roundFloat,
     useFormatCoin,
@@ -14,11 +14,8 @@ import {
     useMaxCommitteeSize,
 } from '@iota/core';
 import {
-    Badge,
-    BadgeType,
     DisplayStats,
     DisplayStatsSize,
-    DisplayStatsType,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
@@ -34,6 +31,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
+import { ValidatorFilters, ValidatorSearch, ValidatorStatusLegend } from '~/components/validator';
+import type { ValidatorStatus } from '~/components/validator';
+import type { IotaValidatorSummaryExtended } from '~/lib/types/validator.types';
+import { useEpochProgress } from '../epochs/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -45,6 +46,18 @@ function ValidatorPageResult(): JSX.Element {
     } = useMaxCommitteeSize();
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
+    const { label } = useEpochProgress();
+    const { data: binaryVersion } = useIotaClientQuery('getRpcApiVersion');
+    const [currentValidatorStatus, setCurrentValidatorStatus] = useState<ValidatorStatus>('All');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const handleStatusChange = useCallback((status: ValidatorStatus) => {
+        setCurrentValidatorStatus(status);
+    }, []);
+
+    const onSearchTermChange = useCallback((term: string) => {
+        setSearchTerm(term);
+    }, []);
 
     const {
         data: validatorEvents,
@@ -129,16 +142,68 @@ function ValidatorPageResult(): JSX.Element {
         return formatPercentageDisplay(ratio);
     })();
 
-    const activeAndPendingValidators = data
-        ? Number(data.pendingActiveValidatorsSize) > 0
-            ? activeValidators?.concat(sanitizedPendingValidatorsData)
-            : activeValidators
-        : [];
+    const activeAndPendingValidators = useMemo(() => {
+        if (!data) return [];
+        return Number(data.pendingActiveValidatorsSize) > 0
+            ? (activeValidators?.concat(sanitizedPendingValidatorsData) ?? [])
+            : (activeValidators ?? []);
+    }, [data, activeValidators, sanitizedPendingValidatorsData]);
+
+    const atRiskAddresses = useMemo(
+        () => new Set(data?.atRiskValidators?.map(([address]) => address) ?? []),
+        [data],
+    );
+    const validatorCounts = useMemo(() => {
+        let committee = 0;
+        let active = 0;
+        let pending = 0;
+        let atRisk = 0;
+        for (const validator of activeAndPendingValidators as IotaValidatorSummaryExtended[]) {
+            const isValidatorAtRisk = atRiskAddresses.has(validator.iotaAddress);
+            const isCommitteeMember = data?.committeeMembers.some(
+                (committeeMember) => committeeMember.iotaAddress === validator.iotaAddress,
+            );
+            if (validator.isPending) pending++;
+            else if (isCommitteeMember) committee++;
+            else active++;
+            if (isValidatorAtRisk) atRisk++;
+        }
+        return { all: activeAndPendingValidators.length, active, pending, atRisk, committee };
+    }, [activeAndPendingValidators, atRiskAddresses, data?.committeeMembers]);
+
+    const filteredValidators = useMemo(
+        () =>
+            activeAndPendingValidators.filter((validator: IotaValidatorSummaryExtended) => {
+                if (currentValidatorStatus !== 'All') {
+                    const isAtRisk = atRiskAddresses.has(validator.iotaAddress);
+                    const isCommitteeMember = data?.committeeMembers.some(
+                        (committeeMember) => committeeMember.iotaAddress === validator.iotaAddress,
+                    );
+                    if (
+                        currentValidatorStatus === 'Active' &&
+                        (validator.isPending || isCommitteeMember)
+                    )
+                        return false;
+                    if (currentValidatorStatus === 'Pending' && !validator.isPending) return false;
+                    if (currentValidatorStatus === 'At Risk' && !isAtRisk) return false;
+                    if (currentValidatorStatus === 'Committee' && !isCommitteeMember) return false;
+                }
+                if (searchTerm) {
+                    const lower = searchTerm.toLowerCase();
+                    return (
+                        validator.name.toLowerCase().includes(lower) ||
+                        validator.iotaAddress.toLowerCase().includes(lower)
+                    );
+                }
+                return true;
+            }),
+        [activeAndPendingValidators, atRiskAddresses, currentValidatorStatus, searchTerm],
+    );
 
     const tableColumns = useMemo(() => {
         if (!data || !maxCommitteeSize || !validatorEvents) return null;
         const includeColumns = [
-            'Name',
+            'Validator',
             'Stake',
             'APY',
             'Effective Commission',
@@ -146,13 +211,10 @@ function ValidatorPageResult(): JSX.Element {
             'Next Epoch Stake',
             'Last Epoch Rewards',
             'Voting Power',
-            'Status',
-            'Current Epoch Rewards',
-            'Next Epoch Rewards',
         ];
 
         return generateValidatorsTableColumns({
-            allValidators: activeAndPendingValidators,
+            allValidators: filteredValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
             atRiskValidators: data.atRiskValidators,
             maxCommitteeSize,
@@ -162,31 +224,46 @@ function ValidatorPageResult(): JSX.Element {
             includeColumns,
             currentEpoch: data.epoch,
         });
-    }, [data, activeAndPendingValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
+    }, [data, filteredValidators, validatorEvents, validatorsApy, maxCommitteeSize]);
 
-    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({ balance: totalStaked });
+    const activeCommitteeSize = data?.committeeMembers.length ?? null;
+    const protocolVersion = data?.protocolVersion ?? null;
+
+    const [formattedTotalStakedAmount, totalStakedSymbol] = useFormatCoin({
+        balance: totalStaked,
+    });
     const [formattedlastEpochRewardOnAllValidatorsAmount, lastEpochRewardOnAllValidatorsSymbol] =
         useFormatCoin({ balance: lastEpochRewardOnAllValidators });
 
-    const validatorStats = [
+    const validatorsMainStats = [
         {
-            title: 'Total Staked',
+            title: 'Committee Stake',
             value: formattedTotalStakedAmount,
             supportingLabel: totalStakedSymbol,
             tooltipText:
-                'The combined IOTA staked by validators (committee) and delegators on the network to support validation and generate rewards.',
-        },
-        {
-            title: 'Participation',
-            value: participationMetrics ? participationMetrics?.totalAddresses : undefined,
-            supportingLabel: participationMetrics ? undefined : 'Coming Soon',
-            tooltipText:
-                'Total number of unique addresses that have delegated stake in the current epoch. Includes both staked and timelocked staked IOTA',
+                "The combined amount of tokens staked with validators selected for the upcoming epoch's active committee.",
         },
         {
             title: 'Staking Ratio',
             value: stakingRatio,
-            tooltipText: 'The ratio of the total staked IOTA to the total supply of IOTA.',
+            tooltipText:
+                "The proportion of the total IOTA supply delegated to the validators chosen for the next epoch's active committee.",
+        },
+    ];
+
+    const validatorsSecondaryStats = [
+        {
+            title: 'AVG APY',
+            value: averageAPY ? `${averageAPY}%` : '--',
+            tooltipText:
+                'The overall average Annual Percentage Yield (APY) across all participating validators.',
+        },
+        {
+            title: 'Delegators',
+            value: participationMetrics ? participationMetrics?.totalAddresses : undefined,
+            supportingLabel: participationMetrics ? undefined : 'Coming Soon',
+            tooltipText:
+                'Total number of unique addresses that have delegated stake in the current epoch.',
         },
         {
             title: 'Last Epoch Rewards',
@@ -199,10 +276,26 @@ function ValidatorPageResult(): JSX.Element {
             tooltipText: 'The staking rewards earned in the previous epoch.',
         },
         {
-            title: 'AVG APY',
-            value: averageAPY ? `${averageAPY}%` : '--',
-            tooltipText:
-                'The average annualized percentage yield globally for all involved validators.',
+            title: 'Current Epoch',
+            value: data?.epoch ?? '--',
+            supportingLabel: label ?? '--',
+        },
+        {
+            title: 'Protocol Version',
+            value: protocolVersion ?? '--',
+            supportingLabel: binaryVersion ? `v${binaryVersion}` : '--',
+        },
+        {
+            title: 'Active Validators',
+            value: numberOfValidators || '--',
+        },
+        {
+            title: 'Active Committee Size',
+            value: activeCommitteeSize ?? '--',
+        },
+        {
+            title: 'Max Committee Size',
+            value: maxCommitteeSize ?? '--',
         },
     ];
 
@@ -222,32 +315,47 @@ function ValidatorPageResult(): JSX.Element {
                         <div className="pt-md--rs text-display-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                             Validators
                         </div>
-                        <div className="flex w-full flex-col gap-md--rs md:h-40 md:flex-row">
-                            {validatorStats.map((stat) => (
+
+                        <div className="grid grid-cols-1 gap-md--rs md:grid-cols-2">
+                            {validatorsMainStats.map((stat) => (
                                 <DisplayStats
                                     key={stat.title}
                                     label={stat.title}
                                     tooltipText={stat.tooltipText}
                                     value={stat.value}
                                     supportingLabel={stat.supportingLabel}
-                                    type={DisplayStatsType.Secondary}
                                     size={DisplayStatsSize.Large}
                                     tooltipPosition={TooltipPosition.Right}
                                 />
                             ))}
                         </div>
+
+                        <div className="grid grid-cols-1 gap-md--rs sm:grid-cols-2 md:grid-cols-4">
+                            {validatorsSecondaryStats.map((stat) => (
+                                <DisplayStats
+                                    key={stat.title}
+                                    label={stat.title}
+                                    tooltipText={stat.tooltipText}
+                                    value={stat.value}
+                                    supportingLabel={stat.supportingLabel}
+                                    size={DisplayStatsSize.Default}
+                                    tooltipPosition={TooltipPosition.Right}
+                                />
+                            ))}
+                        </div>
                         <Panel>
-                            <Title
-                                title="All Validators"
-                                supportingElement={
-                                    <span className="ml-1">
-                                        <Badge
-                                            type={BadgeType.PrimarySoft}
-                                            label={numberOfValidators.toString()}
-                                        />
-                                    </span>
-                                }
-                            />
+                            <Title title="All Validators" />
+
+                            <div className="flex flex-col gap-md p-md">
+                                <ValidatorSearch onSearch={onSearchTermChange} />
+                                <div className="flex">
+                                    <ValidatorFilters
+                                        selectedStatus={currentValidatorStatus}
+                                        onStatusChange={handleStatusChange}
+                                        validatorCounts={validatorCounts}
+                                    />
+                                </div>
+                            </div>
                             <div className="p-md">
                                 <ErrorBoundary>
                                     {(isPending ||
@@ -257,29 +365,26 @@ function ValidatorPageResult(): JSX.Element {
                                             rowCount={20}
                                             rowHeight="13px"
                                             colHeadings={[
-                                                'Name',
+                                                'Validator',
                                                 'Stake',
                                                 'APY',
                                                 'Effective Commission',
                                                 'Last Epoch Rewards',
-                                                'Next Epoch Stake',
                                                 'Voting Power',
                                                 'Status',
-                                                'Current Epoch Rewards',
-                                                'Next Epoch Rewards',
                                             ]}
                                         />
                                     )}
                                     {isSuccess &&
                                         isMaxCommitteeSizeSuccess &&
-                                        activeAndPendingValidators &&
+                                        filteredValidators &&
                                         tableColumns && (
                                             <TableCard
                                                 sortTable
                                                 defaultSorting={[
                                                     { id: 'stakingPoolIotaBalance', desc: true },
                                                 ]}
-                                                data={activeAndPendingValidators}
+                                                data={filteredValidators}
                                                 columns={tableColumns}
                                                 areHeadersCentered={false}
                                             />
@@ -287,6 +392,7 @@ function ValidatorPageResult(): JSX.Element {
                                 </ErrorBoundary>
                             </div>
                         </Panel>
+                        <ValidatorStatusLegend />
                     </div>
                 )
             }

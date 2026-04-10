@@ -1363,6 +1363,8 @@
                 "auth_context_replace_cost_per_byte": null,
                 "auth_context_tx_commands_cost_base": null,
                 "auth_context_tx_commands_cost_per_byte": null,
+                "auth_context_tx_data_bytes_cost_base": null,
+                "auth_context_tx_data_bytes_cost_per_byte": null,
                 "auth_context_tx_inputs_cost_base": null,
                 "auth_context_tx_inputs_cost_per_byte": null,
                 "base_gas_price": {
