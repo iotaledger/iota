@@ -50,6 +50,7 @@ feature_flags:
   pass_calculated_validator_scores_to_advance_epoch: true
   consensus_fast_commit_sync: true
   move_native_tx_context: true
+  additional_borrow_checks: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

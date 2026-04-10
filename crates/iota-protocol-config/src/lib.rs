@@ -138,6 +138,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 24: Switch consensus protocol to Starfish in all networks.
 //             Enable Move-based sponsor account authentication in devnet.
 //             Add AuthContext native functions cost for reading tx_data_bytes.
+//             Enable additional borrow checks.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -471,6 +472,10 @@ struct FeatureFlags {
     // If true, enable `TxContext` Move API to go native.
     #[serde(skip_serializing_if = "is_false")]
     move_native_tx_context: bool,
+
+    // If true, perform additional borrow checks
+    #[serde(skip_serializing_if = "is_false")]
+    additional_borrow_checks: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1611,6 +1616,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_move_authentication
     }
 
+    pub fn additional_borrow_checks(&self) -> bool {
+        self.feature_flags.additional_borrow_checks
+    }
+
     pub fn enable_move_authentication_for_sponsor(&self) -> bool {
         let enable_move_authentication_for_sponsor =
             self.feature_flags.enable_move_authentication_for_sponsor;
@@ -2716,6 +2725,9 @@ impl ProtocolConfig {
                     // verification in account abstraction.
                     cfg.auth_context_tx_data_bytes_cost_base = Some(30);
                     cfg.auth_context_tx_data_bytes_cost_per_byte = Some(2);
+
+                    // Enable additional borrow checks.
+                    cfg.feature_flags.additional_borrow_checks = true;
                 }
 
                 // Use this template when making changes:
@@ -2751,6 +2763,14 @@ impl ProtocolConfig {
             (None, None)
         };
 
+        let additional_borrow_checks = if signing_limits.is_some() {
+            // Always apply additional borrow checks during signing regardless of
+            // protocol version, to prevent accepting potentially unsafe bytecode.
+            true
+        } else {
+            self.additional_borrow_checks()
+        };
+
         VerifierConfig {
             max_loop_depth: Some(self.max_loop_depth() as usize),
             max_generic_instantiation_length: Some(self.max_generic_instantiation_length() as usize),
@@ -2772,6 +2792,7 @@ impl ProtocolConfig {
                                                                            * no limit */
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
+            additional_borrow_checks,
         }
     }
 

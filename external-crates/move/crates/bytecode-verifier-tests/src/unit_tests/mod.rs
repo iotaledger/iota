@@ -51,6 +51,7 @@ pub(crate) fn production_config() -> (VerifierConfig, MeterConfig) {
             max_identifier_len: Some(DEFAULT_MAX_IDENTIFIER_LENGTH),
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
+            additional_borrow_checks: true,
         },
         MeterConfig::old_default(),
     )
