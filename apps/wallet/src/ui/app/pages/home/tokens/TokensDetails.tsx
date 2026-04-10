@@ -283,6 +283,7 @@ export function TokenDetails() {
                                                 onClick={() => setDialogMigrationOpen(true)}
                                                 title="Migration"
                                                 icon={Migration}
+                                                subtitle="Action required"
                                             />
                                         ) : null}
                                         {hasSupplyIncreaseVestingObjects ? (
