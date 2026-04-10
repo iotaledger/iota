@@ -5037,6 +5037,14 @@ impl AuthorityPerEpochStore {
             .read()
             .load_stored_object_debts_for_testing(for_randomness, object_ids)
     }
+
+    #[cfg(test)]
+    pub(crate) fn insert_dropped_digests_for_testing(
+        &self,
+        dropped: &[(TransactionDigest, IotaError)],
+    ) {
+        self.dropped_tx_status_cache.insert_and_notify(dropped);
+    }
 }
 
 impl ExecutionComponents {
