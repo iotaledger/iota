@@ -10,9 +10,10 @@ use iota_types::{
     error::IotaError,
     messages_grpc::{
         GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
-        HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusUpdate,
-        ValidatorHealthRequest, ValidatorHealthResponse,
+        HandleCapabilityNotificationResponseV1, TxStatusUpdate, ValidatorHealthRequest,
+        ValidatorHealthResponse,
     },
+    transaction::Transaction,
 };
 use tonic::IntoRequest;
 
@@ -23,7 +24,7 @@ pub trait ValidatorV2API {
     /// Submit transactions and collect all streamed status updates.
     async fn submit_tx(
         &self,
-        request: SubmitTransactionsRequest,
+        transactions: Vec<Transaction>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
 
@@ -51,10 +52,10 @@ pub trait ValidatorV2API {
 impl ValidatorV2API for NetworkAuthorityClient {
     async fn submit_tx(
         &self,
-        request: SubmitTransactionsRequest,
+        transactions: Vec<Transaction>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        let proto: iota_network::api::SubmitTxRequest = request.try_into()?;
+        let proto: iota_network::api::SubmitTxRequest = transactions.try_into()?;
         let mut grpc_request = proto.into_request();
         insert_metadata(&mut grpc_request, client_addr);
 

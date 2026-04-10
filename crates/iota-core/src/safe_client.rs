@@ -18,11 +18,9 @@ use iota_types::{
     messages_grpc::{
         GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
         HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
-        HandleCertificateResponseV1, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
+        HandleCertificateResponseV1, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionStatus, TxStatusUpdate, ValidatorHealthRequest,
-        ValidatorHealthResponse, VerifiedObjectInfoResponse, WaitForEffectsRequest,
-        WaitForEffectsResponse,
+        ValidatorHealthResponse, VerifiedObjectInfoResponse,
     },
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
@@ -531,51 +529,20 @@ where
             .await
     }
 
-    /// Submit a transaction via the TransactionDriver protocol.
-    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn submit_transaction(
-        &self,
-        request: SubmitTransactionsRequest,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionsResponse, IotaError> {
-        self.authority_client
-            .handle_submit_transactions(request, client_addr)
-            .await
-    }
-
-    /// Wait for transaction effects from the validator.
-    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn wait_for_effects(
-        &self,
-        request: WaitForEffectsRequest,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<WaitForEffectsResponse, IotaError> {
-        self.authority_client
-            .handle_wait_for_effects(request, client_addr)
-            .await
-    }
-
-    /// Forward validator health request to the underlying authority client.
-    #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn validator_health(
-        &self,
-        request: ValidatorHealthRequest,
-    ) -> Result<ValidatorHealthResponse, IotaError> {
-        self.authority_client.handle_validator_health(request).await
-    }
-
     // --- ValidatorV2 wrappers ---
 
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
     pub async fn submit_tx(
         &self,
-        request: SubmitTransactionsRequest,
+        transactions: Vec<Transaction>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         let _timer = self.metrics.submit_tx_latency.start_timer();
         check_error!(
             self.address,
-            self.authority_client.submit_tx(request, client_addr).await,
+            self.authority_client
+                .submit_tx(transactions, client_addr)
+                .await,
             "Client error in submit_tx"
         )
     }
