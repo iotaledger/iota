@@ -75,6 +75,8 @@ use self::{
     types::TypesIsOneTimeWitnessCostParams,
     validator::ValidatorValidateMetadataBcsCostParams,
 };
+#[allow(deprecated)]
+use crate::crypto::zklogin::{self, CheckZkloginIdCostParams, CheckZkloginIssuerCostParams};
 use crate::{
     auth_context::{
         AuthContextDigestCostParams, AuthContextReplaceCostParams, AuthContextTxCommandsCostParams,
@@ -211,6 +213,12 @@ pub struct NativesCostTable {
 
     // vdf
     pub vdf_cost_params: VDFCostParams,
+
+    // zklogin (deprecated stubs for old bytecode snapshot compatibility)
+    #[allow(deprecated)]
+    pub check_zklogin_id_cost_params: CheckZkloginIdCostParams,
+    #[allow(deprecated)]
+    pub check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams,
 
     // Receive object
     pub transfer_receive_object_internal_cost_params: TransferReceiveObjectInternalCostParams,
@@ -804,6 +812,14 @@ impl NativesCostTable {
                     .vdf_hash_to_input_cost_as_option()
                     .map(Into::into),
             },
+            #[allow(deprecated)]
+            check_zklogin_id_cost_params: CheckZkloginIdCostParams {
+                check_zklogin_id_cost_base: Some(200.into()),
+            },
+            #[allow(deprecated)]
+            check_zklogin_issuer_cost_params: CheckZkloginIssuerCostParams {
+                check_zklogin_issuer_cost_base: Some(200.into()),
+            },
         }
     }
 }
@@ -1283,6 +1299,19 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "vdf",
             "hash_to_input_internal",
             make_native!(vdf::hash_to_input_internal),
+        ),
+        // Deprecated stubs for old bytecode snapshot compatibility.
+        #[allow(deprecated)]
+        (
+            "zklogin_verified_id",
+            "check_zklogin_id_internal",
+            make_native!(zklogin::check_zklogin_id_internal),
+        ),
+        #[allow(deprecated)]
+        (
+            "zklogin_verified_issuer",
+            "check_zklogin_issuer_internal",
+            make_native!(zklogin::check_zklogin_issuer_internal),
         ),
         (
             "ecdsa_k1",
