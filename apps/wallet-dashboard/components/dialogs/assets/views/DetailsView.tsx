@@ -51,10 +51,12 @@ export function DetailsView({ onClose, asset, onSend, onBack }: DetailsViewProps
         type: 'ts-sdk-documentation',
     });
 
-    // TODO: https://github.com/iotaledger/iota/issues/4024
-    const handleMarketplace = useExternalLink('https://docs.iota.org/developer/ts-sdk/kiosk/', {
-        type: 'marketplace',
-    });
+    const handleMarketplace = useExternalLink(
+        'https://docs.iota.org/developer/iota-101/nft/marketplace',
+        {
+            type: 'marketplace',
+        },
+    );
 
     return (
         <>

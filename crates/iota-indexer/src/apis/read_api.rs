@@ -336,8 +336,11 @@ impl ReadApiServer for ReadApi {
             .get_past_object_read_with_fallback(object_id, version, true)
             .await?;
 
-        self.past_object_read_to_response(None, past_object_read)
-            .await
+        self.past_object_read_to_response(
+            Some(IotaObjectDataOptions::bcs_lossless()),
+            past_object_read,
+        )
+        .await
     }
 
     async fn try_multi_get_past_objects(

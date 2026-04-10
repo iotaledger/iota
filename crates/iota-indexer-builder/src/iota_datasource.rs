@@ -8,6 +8,7 @@ use anyhow::Error;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, Worker, WorkerPool,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_metrics::{metered_channel, spawn_monitored_task};
 use iota_types::{
@@ -22,14 +23,14 @@ use tracing::info;
 use crate::indexer_builder::{DataSender, Datasource};
 
 pub struct IotaCheckpointDatasource {
-    remote_store_url: String,
+    remote_store_url: RemoteUrl,
     concurrency: usize,
     checkpoint_path: PathBuf,
     metrics: DataIngestionMetrics,
 }
 impl IotaCheckpointDatasource {
     pub fn new(
-        remote_store_url: String,
+        remote_store_url: RemoteUrl,
         concurrency: usize,
         checkpoint_path: PathBuf,
         metrics: DataIngestionMetrics,
@@ -72,12 +73,11 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
         let remote_store_url = self.remote_store_url.clone();
         Ok(spawn_monitored_task!(async {
             executor
-                .run(
-                    checkpoint_path,
-                    Some(remote_store_url),
-                    vec![], // optional remote store access options
-                    ReaderOptions::default(),
-                )
+                .run_with_config(CheckpointReaderConfig {
+                    reader_options: ReaderOptions::default(),
+                    ingestion_path: Some(checkpoint_path),
+                    remote_store_url: Some(remote_store_url),
+                })
                 .await?;
             Ok(())
         }))

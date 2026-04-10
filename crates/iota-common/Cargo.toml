@@ -9,10 +9,6 @@ publish = false
 [lints]
 workspace = true
 
-[features]
-default = ["metrics"]
-metrics = ["dep:iota-tls"]
-
 [dependencies]
 # external dependencies
 anyhow.workspace = true
@@ -20,7 +16,6 @@ fastcrypto.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
-prometheus.workspace = true
 rand.workspace = true
 reqwest.workspace = true
 snap.workspace = true
@@ -31,7 +26,6 @@ tracing.workspace = true
 # internal dependencies
 iota-macros.workspace = true
 iota-metrics.workspace = true
-iota-tls = { workspace = true, optional = true }
 iota-types.workspace = true
 
 [dev-dependencies]

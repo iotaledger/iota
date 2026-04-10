@@ -3,6 +3,10 @@ name: Deploy Apps-Backend
 on:
   push:
     branches: [develop]
+    paths:
+      - "apps/apps-backend/**"
+      - "pnpm-lock.yaml"
+      - "turbo.json"
   workflow_dispatch:
     inputs:
       deploy_type:
@@ -14,11 +18,16 @@ on:
           - rc
           - production
 
+concurrency:
+  group: apps-backend-deploy-${{ github.workflow }}-${{ inputs.deploy_type || 'staging' }}
+  cancel-in-progress: true
+
 jobs:
   resolve-deploy-type:
     runs-on: ubuntu-latest
     outputs:
       deploy_type: ${{ steps.resolve.outputs.deploy_type }}
+      environment: ${{ steps.resolve.outputs.environment }}
     steps:
       - name: Resolve deploy type
         id: resolve
@@ -29,12 +38,19 @@ jobs:
             DEPLOY_TYPE="${{ inputs.deploy_type }}"
           fi
 
+          if [ "$DEPLOY_TYPE" = "staging" ] || [ "$DEPLOY_TYPE" = "rc" ]; then
+            ENVIRONMENT="pre-production - apps-backend"
+          else
+            ENVIRONMENT="production - apps-backend"
+          fi
+
           echo "deploy_type=$DEPLOY_TYPE" >> "$GITHUB_OUTPUT"
+          echo "environment=$ENVIRONMENT" >> "$GITHUB_OUTPUT"
 
   build-and-deploy:
     needs: resolve-deploy-type
     runs-on: ubuntu-latest
-    environment: apps-backend
+    environment: ${{ needs.resolve-deploy-type.outputs.environment }}
 
     permissions:
       contents: read
@@ -67,6 +83,10 @@ jobs:
           file: ./apps/apps-backend/Dockerfile
           push: true
           tags: ghcr.io/iotaledger/iota/apps-backend-${{ needs.resolve-deploy-type.outputs.deploy_type }}:${{ env.VERSION }}
+          build-args: |
+            DEPLOY_TYPE=${{ needs.resolve-deploy-type.outputs.deploy_type }}
+            STAGING_APPS_BACKEND=${{ secrets.STAGING_APPS_BACKEND }}
+            PROD_APPS_BACKEND=${{ secrets.PROD_APPS_BACKEND }}
 
       - name: Add SSH key
         uses: webfactory/ssh-agent@v0.9.0

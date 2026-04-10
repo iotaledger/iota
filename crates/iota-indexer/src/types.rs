@@ -323,14 +323,16 @@ pub enum DynamicFieldKind {
 
 #[derive(Clone, Debug)]
 pub struct IndexedObject {
-    pub checkpoint_sequence_number: CheckpointSequenceNumber,
+    /// The checkpoint at which this object was indexed.
+    /// `None` for objects indexed by the optimistic path (checkpoint unknown).
+    pub checkpoint_sequence_number: Option<CheckpointSequenceNumber>,
     pub object: Object,
     pub df_kind: Option<DynamicFieldType>,
 }
 
 impl IndexedObject {
     pub fn from_object(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
+        checkpoint_sequence_number: Option<CheckpointSequenceNumber>,
         object: Object,
         df_kind: Option<DynamicFieldType>,
     ) -> Self {
@@ -777,7 +779,7 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
             timestamp_ms: response.timestamp_ms,
             confirmed_local_execution: response.confirmed_local_execution,
             checkpoint: response.checkpoint,
-            errors: vec![],
+            errors: response.errors,
             raw_effects: if options.show_raw_effects {
                 response.raw_effects
             } else {

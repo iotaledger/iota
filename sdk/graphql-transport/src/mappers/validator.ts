@@ -11,6 +11,7 @@ export function mapGraphQlValidatorToRpcValidator(
 ): IotaValidatorSummary {
     return {
         commissionRate: validator.commissionRate?.toString()!,
+        effectiveCommissionRate: validator.effectiveCommissionRate?.toString(),
         description: validator.description!,
         exchangeRatesId: validator.exchangeRatesTable?.address!,
         exchangeRatesSize: validator.exchangeRatesSize?.toString()!,

@@ -36,10 +36,11 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
+        ReaderOptions,
+        common::DataLimiter,
         fetch::{
             GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
         },
-        v1::{DataLimiter, ReaderOptions},
     },
 };
 

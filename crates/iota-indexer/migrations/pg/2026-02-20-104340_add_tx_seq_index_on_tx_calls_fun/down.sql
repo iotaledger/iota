@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_tx_calls_fun_tx_seq;

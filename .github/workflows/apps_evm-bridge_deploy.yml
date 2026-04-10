@@ -26,6 +26,7 @@ jobs:
     outputs:
       deploy_type: ${{ steps.resolve.outputs.deploy_type }}
       environment: ${{ steps.resolve.outputs.environment }}
+      apps_backend_secret: ${{ steps.resolve.outputs.apps_backend_secret }}
     steps:
       - name: Resolve deploy type
         id: resolve
@@ -35,14 +36,17 @@ jobs:
             staging)
               echo "deploy_type=staging" >> "$GITHUB_OUTPUT"
               echo "environment=Staging – evm-bridge" >> "$GITHUB_OUTPUT"
+              echo "apps_backend_secret=STAGING_APPS_BACKEND" >> "$GITHUB_OUTPUT"
               ;;
             rc)
               echo "deploy_type=rc" >> "$GITHUB_OUTPUT"
               echo "environment=RC – evm-bridge" >> "$GITHUB_OUTPUT"
+              echo "apps_backend_secret=RC_APPS_BACKEND" >> "$GITHUB_OUTPUT"
               ;;
             production)
               echo "deploy_type=production" >> "$GITHUB_OUTPUT"
               echo "environment=Production – evm-bridge" >> "$GITHUB_OUTPUT"
+              echo "apps_backend_secret=PROD_APPS_BACKEND" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -52,6 +56,8 @@ jobs:
       contents: read
     environment: ${{ needs.resolve-deploy-type.outputs.environment }}
     runs-on: [self-hosted-x64]
+    env:
+      APPS_BACKEND: ${{ secrets[needs.resolve-deploy-type.outputs.apps_backend_secret] }}
     strategy:
       fail-fast: false
       matrix:

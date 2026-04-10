@@ -20,3 +20,8 @@ pub mod transaction;
 pub mod transaction_execution_service;
 pub mod types;
 pub mod versioned;
+
+/// Auto-generated gRPC method path constants.
+pub mod service_methods {
+    include!("../../../generated/service_methods.rs");
+}
