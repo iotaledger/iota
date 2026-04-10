@@ -56,6 +56,7 @@ tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
 tokio-stream.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
 

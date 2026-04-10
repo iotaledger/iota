@@ -34,8 +34,6 @@ pub(crate) enum TransactionRequestError {
     // Rejected by the validator when voting on the transaction.
     #[error("{0}")]
     RejectedAtValidator(IotaError),
-    #[error("Transaction rejected by consensus")]
-    RejectedByConsensus,
     // Transaction status has been dropped from cache at the validator.
     #[error("Transaction status expired")]
     StatusExpired(EpochId),
@@ -54,7 +52,6 @@ impl TransactionRequestError {
             TransactionRequestError::ValidatorInternal(_) => ErrorCategory::Internal,
 
             TransactionRequestError::RejectedAtValidator(error) => error.categorize(),
-            TransactionRequestError::RejectedByConsensus => ErrorCategory::Aborted,
             TransactionRequestError::StatusExpired(_) => ErrorCategory::Aborted,
             TransactionRequestError::Aborted(error) => error.categorize(),
         }

@@ -6,7 +6,6 @@
 use std::net::SocketAddr;
 
 use async_trait::async_trait;
-use iota_network::tonic;
 use iota_types::{
     error::IotaError,
     iota_system_state::IotaSystemState,
@@ -22,8 +21,9 @@ use iota_types::{
     },
     transaction::*,
 };
+use tonic::IntoRequest;
 
-use crate::authority_client::{NetworkAuthorityClient, insert_metadata, tonic::IntoRequest};
+use crate::authority_client::{NetworkAuthorityClient, insert_metadata};
 
 #[async_trait]
 pub trait ValidatorAPI {
