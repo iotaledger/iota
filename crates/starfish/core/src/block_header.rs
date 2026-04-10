@@ -161,25 +161,6 @@ impl BlockHeaderV1 {
         }
     }
 
-    /// Validates that overlap_start_index and overlap_end_index are within
-    /// bounds of the references vector. Must be called before accessing
-    /// ancestors() or acknowledgments() on deserialized headers to prevent
-    /// panics from adversarial index values.
-    pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
-        let len = self.references.len();
-        if self.overlap_end_index as usize > len
-            || self.overlap_start_index as usize > len
-            || self.overlap_start_index > self.overlap_end_index
-        {
-            return Err(ConsensusError::InvalidOverlapIndices {
-                overlap_start: self.overlap_start_index,
-                overlap_end: self.overlap_end_index,
-                references_len: len,
-            });
-        }
-        Ok(())
-    }
-
     fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
             epoch: context.committee.epoch(),
@@ -449,10 +430,34 @@ impl BlockHeaderAPI for BlockHeader {
 }
 
 impl BlockHeader {
+    /// Validates that overlap_start_index and overlap_end_index are within
+    /// bounds of the references vector. Must be called before accessing
+    /// ancestors() or acknowledgments() on deserialized headers to prevent
+    /// panics from adversarial index values.
     pub(crate) fn verify_references_indices(&self) -> ConsensusResult<()> {
-        match self {
-            BlockHeader::V1(header) => header.verify_references_indices(),
+        let (references_len, overlap_start, overlap_end) = match self {
+            BlockHeader::V1(h) => (
+                h.references.len(),
+                h.overlap_start_index,
+                h.overlap_end_index,
+            ),
+            BlockHeader::V2(h) => (
+                h.references.len(),
+                h.overlap_start_index,
+                h.overlap_end_index,
+            ),
+        };
+        if overlap_end as usize > references_len
+            || overlap_start as usize > references_len
+            || overlap_start > overlap_end
+        {
+            return Err(ConsensusError::InvalidOverlapIndices {
+                overlap_start,
+                overlap_end,
+                references_len,
+            });
         }
+        Ok(())
     }
 }
 
