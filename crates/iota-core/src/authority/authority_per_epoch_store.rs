@@ -659,7 +659,13 @@ pub struct AuthorityPerEpochStore {
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
     /// Pre-consensus soft locks for owned objects (pcool / white-flag flow).
-    /// Set during validator setup; `None` when not in white-flag mode.
+    ///
+    /// Set via `OnceCell` rather than passed through the constructor because
+    /// the same `Arc` instance must be shared with the gRPC `ValidatorService`
+    /// (which acquires locks pre-consensus). The gRPC server is created once
+    /// and persists across epochs, while a new `AuthorityPerEpochStore` is
+    /// created on each epoch change — so the wiring happens after construction
+    /// in `start_epoch_specific_validator_components`. Left empty in tests.
     soft_locks: OnceCell<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>>,
 
     /// This is used to notify all epoch specific tasks that epoch has ended.
