@@ -1,5 +1,20 @@
 # @iota/graphql-transport
 
+## 0.16.0
+
+### Minor Changes
+
+-   b933a08: Add support for unwrapped objects
+
+### Patch Changes
+
+-   22e7eb8: Add support for effective commission rate in validator queries and types (IIP8).
+-   Updated dependencies [c6ec123]
+-   Updated dependencies [b933a08]
+-   Updated dependencies [f15c61d]
+-   Updated dependencies [22e7eb8]
+    -   @iota/iota-sdk@1.13.0
+
 ## 0.15.0
 
 ### Minor Changes
