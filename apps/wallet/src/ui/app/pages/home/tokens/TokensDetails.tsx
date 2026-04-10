@@ -283,6 +283,7 @@ export function TokenDetails() {
                                                 onClick={() => setDialogMigrationOpen(true)}
                                                 title="Migration"
                                                 icon={Migration}
+                                                subtitle="Action required"
                                             />
                                         ) : null}
                                         {hasSupplyIncreaseVestingObjects ? (
@@ -290,6 +291,7 @@ export function TokenDetails() {
                                                 onClick={() => setDialogVestingOpen(true)}
                                                 title="Vesting"
                                                 icon={Vesting}
+                                                subtitle="Action required"
                                             />
                                         ) : null}
                                     </div>

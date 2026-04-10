@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { ReactNode } from 'react';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
 import {
@@ -10,6 +11,9 @@ import {
     CardActionType,
     CardBody,
     CardType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     LabelText,
     LabelTextSize,
     Panel,
@@ -17,10 +21,17 @@ import {
 } from '@iota/apps-ui-kit';
 import { StakeDialog, useStakeDialog } from './dialogs';
 import { TIMELOCK_IOTA_TYPE, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
-import { Clock } from '@iota/apps-ui-icons';
+import { Clock, Vesting } from '@iota/apps-ui-icons';
 import { useQueryClient } from '@tanstack/react-query';
+import { SupplyIncreaseUserType } from '@/lib/interfaces';
 
-export function SupplyIncreaseVestingOverview() {
+interface SupplyIncreaseVestingOverviewProps {
+    customButton?: ReactNode;
+}
+
+export function SupplyIncreaseVestingOverview({
+    customButton,
+}: SupplyIncreaseVestingOverviewProps = {}) {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const iotaClient = useIotaClient();
@@ -30,6 +41,7 @@ export function SupplyIncreaseVestingOverview() {
         supplyIncreaseVestingSchedule,
         isSupplyIncreaseVestingScheduleEmpty,
         supplyIncreaseVestingStakedMapped,
+        userType,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const {
@@ -75,6 +87,32 @@ export function SupplyIncreaseVestingOverview() {
             });
     }
 
+    // Show simplified UI for Staker users
+    if (userType === SupplyIncreaseUserType.Staker) {
+        return !isSupplyIncreaseVestingScheduleEmpty ||
+            supplyIncreaseVestingStakedMapped.length > 0 ? (
+            <div style={{ gridArea: 'vesting' }} className="with-vesting flex grow overflow-hidden">
+                <Panel>
+                    <div className="flex w-full flex-col items-center justify-between gap-md p-md sm:flex-row">
+                        <InfoBox
+                            title="Your vesting period has ended"
+                            supportingText="Claim your rewards and migrate your stake now to make your tokens fully compatible with your favorite wallets and ready for use."
+                            type={InfoBoxType.Warning}
+                            style={InfoBoxStyle.Default}
+                            icon={<Vesting />}
+                        />
+                        {customButton && (
+                            <div className="flex shrink-0 flex-col items-center justify-center">
+                                {customButton}
+                            </div>
+                        )}
+                    </div>
+                </Panel>
+            </div>
+        ) : null;
+    }
+
+    // Show full UI for Entity users (investors)
     return !isSupplyIncreaseVestingScheduleEmpty || supplyIncreaseVestingStakedMapped.length > 0 ? (
         <div style={{ gridArea: 'vesting' }} className="with-vesting flex grow overflow-hidden">
             <Panel>
@@ -91,7 +129,7 @@ export function SupplyIncreaseVestingOverview() {
                                         text={
                                             nextPayoutResult.isPending
                                                 ? '-'
-                                                : `${formattedNextPayout}   `
+                                                : `${formattedNextPayout} `
                                         }
                                         supportingLabel={nextPayoutSymbol}
                                     />

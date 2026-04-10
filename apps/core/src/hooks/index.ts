@@ -32,7 +32,6 @@ export * from './useQueryTransactionsByAddress';
 export * from './useGetTransaction';
 export * from './useSortedCoinsByCategories';
 export * from './useGetNFTDisplay';
-export * from './useUnlockTimelockedObjectsTransaction';
 export * from './useGetAllOwnedObjects';
 export * from './useGetTimelockedStakedObjects';
 export * from './useGetStakingValidatorDetails';
