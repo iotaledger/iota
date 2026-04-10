@@ -44,7 +44,7 @@ export function InactiveValidators({
                             <div>
                                 <Badge type={BadgeType.Neutral} label="Validator" />
                             </div>
-                            <div className="dark:text-iota-neutral-92 flex flex-row items-center gap-x-xs text-iota-neutral-10">
+                            <div className="flex flex-row items-center gap-x-xs text-iota-neutral-10 dark:text-iota-neutral-92">
                                 <span className="text-headline-md">{name}</span>
                                 {projectUrl && (
                                     <a href={projectUrl} target="_blank" rel="noreferrer noopener">
@@ -55,10 +55,10 @@ export function InactiveValidators({
                         </div>
                     </div>
                     <div className="flex w-full flex-col gap-y-md md:w-1/2">
-                        <span className="dark:text-iota-neutral-60 text-label-lg text-iota-neutral-40">
+                        <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                             Description
                         </span>
-                        <span className="dark:text-iota-neutral-92 text-body-md text-iota-neutral-10">
+                        <span className="text-body-md text-iota-neutral-10 dark:text-iota-neutral-92">
                             {description ?? '--'}
                         </span>
                     </div>
@@ -118,7 +118,7 @@ export function ValidatorMeta({
                             </div>
                             <div className="flex min-w-0 flex-col gap-sm">
                                 <div className="flex flex-row items-center gap-x-sm gap-y-xs">
-                                    <span className="dark:text-iota-neutral-92 text-headline-md text-iota-neutral-10">
+                                    <span className="text-headline-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                         {validatorName}
                                     </span>
                                     {projectUrl && (
@@ -126,7 +126,7 @@ export function ValidatorMeta({
                                             href={projectUrl}
                                             target="_blank"
                                             rel="noreferrer noopener"
-                                            className="dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92 text-iota-neutral-40 hover:text-iota-neutral-10"
+                                            className="text-iota-neutral-40 hover:text-iota-neutral-10 dark:text-iota-neutral-60 dark:hover:text-iota-neutral-92"
                                         >
                                             <ArrowTopRight />
                                         </a>
@@ -145,7 +145,7 @@ export function ValidatorMeta({
                             </div>
                         </div>
                         {description && (
-                            <p className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
+                            <p className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                 {description}
                             </p>
                         )}
@@ -165,7 +165,7 @@ export function ValidatorMeta({
                         keyText="Address"
                         value={
                             <div className="flex flex-col gap-xxs">
-                                <div className="dark:text-iota-neutral-60 flex items-center gap-xs text-iota-neutral-40">
+                                <div className="flex items-center gap-xs text-iota-neutral-40 dark:text-iota-neutral-60">
                                     <IotaLogoMark className="h-3.5 w-3.5 shrink-0" />
                                     <span className="text-body-sm">{validatorName}</span>
                                 </div>

@@ -14,21 +14,15 @@ import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import {
-    Badge,
-    BadgeSize,
-    BadgeType,
-    DisplayStats,
-    DisplayStatsSize,
-    DisplayStatsType,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
-    KeyValueInfo,
     LabelText,
     LabelTextSize,
     LoadingIndicator,
     Panel,
     Title,
+    TitleSize,
     Tooltip,
     TooltipPosition,
 } from '@iota/apps-ui-kit';

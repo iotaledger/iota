@@ -4,11 +4,11 @@
 
 import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 import {
-    DisplayStats,
-    DisplayStatsSize,
-    DisplayStatsType,
+    LabelText,
+    LabelTextSize,
     Panel,
     Title,
+    TitleSize,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { getValidatorEffectiveCommission, useFormatCoin } from '@iota/core';
@@ -56,45 +56,39 @@ export function ValidatorStats({
                 }
             />
             <div className="flex flex-col gap-md p-md">
-                <div className="grid grid-cols-1 gap-md--rs md:grid-cols-2 lg:grid-cols-3">
-                    <DisplayStats
+                <div className="grid grid-cols-1 gap-xl sm:grid-cols-2 md:grid-cols-3">
+                    <LabelText
                         label="APY"
-                        value={apy === null ? 'N/A' : `${apy}%`}
+                        text={apy === null ? 'N/A' : `${apy}%`}
                         tooltipText="This represents the Annualized Percentage Yield based on the validator's past activities. Keep in mind that this APY may not hold true in the future."
                         tooltipPosition={TooltipPosition.Right}
-                        type={DisplayStatsType.Default}
-                        size={DisplayStatsSize.Large}
+                        size={LabelTextSize.Large}
                     />
-                    <DisplayStats
+                    <LabelText
                         label="Effective Commission"
-                        value={effectiveCommissionRate}
+                        text={effectiveCommissionRate}
                         supportingLabel={`${commission}%`}
                         tooltipText="The base commission chosen by the validator. Note that the actual commission applied is higher because of the dynamic minimum commission rule (IIP-8)."
                         tooltipPosition={TooltipPosition.Right}
-                        type={DisplayStatsType.Default}
-                        size={DisplayStatsSize.Large}
+                        size={LabelTextSize.Large}
                     />
-                    <DisplayStats
+                    <LabelText
                         label="Voting Power"
-                        value={`${votingPower}%`}
+                        text={`${votingPower}%`}
                         tooltipText="Share of total committee voting power held by this validator, proportional to its stake."
                         tooltipPosition={TooltipPosition.Right}
-                        type={DisplayStatsType.Default}
-                        size={DisplayStatsSize.Large}
+                        size={LabelTextSize.Large}
                     />
-                </div>
-
-                <div className="grid grid-cols-2 gap-md--rs lg:grid-cols-2">
-                    <DisplayStats
+                    <LabelText
                         label="Total IOTA Staked"
-                        value={formattedTotalStakeAmount}
+                        text={formattedTotalStakeAmount}
                         supportingLabel={totalStakeSymbol}
                         tooltipText="The total amount of IOTA staked on the network by validators and delegators to secure the network and earn rewards."
                         tooltipPosition={TooltipPosition.Right}
                     />
-                    <DisplayStats
+                    <LabelText
                         label="Reward Balance"
-                        value={formattedRewardsPoolBalance}
+                        text={formattedRewardsPoolBalance}
                         supportingLabel={rewardsPoolBalanceSymbol}
                         tooltipText={
                             Number(rewardsPoolBalance) <= 0
@@ -102,7 +96,6 @@ export function ValidatorStats({
                                 : 'Accumulated staking rewards that are currently available to withdraw.'
                         }
                         tooltipPosition={TooltipPosition.Right}
-                        type={DisplayStatsType.Default}
                     />
                 </div>
             </div>

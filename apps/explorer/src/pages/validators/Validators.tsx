@@ -29,7 +29,7 @@ import {
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { CurrentEpoch, ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
+import { ErrorBoundary, PageLayout, PlaceholderTable, TableCard } from '~/components';
 import { generateValidatorsTableColumns } from '~/lib/ui';
 import { Warning } from '@iota/apps-ui-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -39,6 +39,7 @@ import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { ValidatorFilters, ValidatorSearch } from '~/components/validator';
 import type { ValidatorStatus } from '~/components/validator';
 import type { IotaValidatorSummaryExtended } from '~/lib/types/validator.types';
+import { useEpochProgress } from '../epochs/utils';
 
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
@@ -50,7 +51,7 @@ function ValidatorPageResult(): JSX.Element {
     } = useMaxCommitteeSize();
     const activeValidators = data?.activeValidators;
     const numberOfValidators = activeValidators?.length || 0;
-
+    const { label } = useEpochProgress();
     const [currentValidatorStatus, setCurrentValidatorStatus] = useState<ValidatorStatus>('All');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -250,7 +251,6 @@ function ValidatorPageResult(): JSX.Element {
         {
             title: 'Staking Ratio',
             value: stakingRatio,
-            supportingLabel: undefined,
             tooltipText:
                 "The proportion of the total IOTA supply delegated to the validators chosen for the next epoch's active committee.",
         },
@@ -279,6 +279,11 @@ function ValidatorPageResult(): JSX.Element {
                 ? lastEpochRewardOnAllValidatorsSymbol
                 : undefined,
             tooltipText: 'The staking rewards earned in the previous epoch.',
+        },
+        {
+            title: 'Current Epoch',
+            value: data?.epoch ?? '--',
+            supportingLabel: label ?? '--',
         },
         {
             title: 'Protocol Version',
@@ -357,7 +362,6 @@ function ValidatorPageResult(): JSX.Element {
                         </div>
 
                         <div className="grid grid-cols-1 gap-md--rs sm:grid-cols-2 md:grid-cols-4">
-                            <CurrentEpoch hideCheckpoint />
                             {validatorsSecondaryStats.map((stat) => (
                                 <DisplayStats
                                     key={stat.title}
