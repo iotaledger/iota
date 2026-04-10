@@ -9,7 +9,11 @@ service ValidatorV2 {
   rpc SubmitTx(SubmitTxRequest) returns (stream TxStatus);
 
   // Stream status updates for a previously submitted transaction
-  rpc GetTxStatus(TxDigest) returns (stream TxStatus);
+  rpc GetTxStatus(GetTxStatusRequest) returns (stream TxStatus);
+
+  // Submit a signed capability notification from a non-committee validator.
+  rpc NotifyCapabilities(NotifyCapabilitiesRequest)
+      returns (NotifyCapabilitiesResponse);
 }
 
 // Wraps one or more transactions (BCS-encoded payloads)
@@ -20,6 +24,20 @@ message SubmitTxRequest {
 // Digest identifying a transaction
 message TxDigest {
   bytes digest = 1;
+}
+
+// Request to query the finality status of one or more previously submitted
+// transactions. Streams one TxStatus per query.
+message GetTxStatusRequest {
+  repeated TxStatusQuery queries = 1;
+}
+
+// A single transaction status query.
+message TxStatusQuery {
+  TxDigest tx_digest = 1;
+  // When true, execution details (effects, events, objects) are included
+  // in the ExecutedStatus response for this transaction.
+  bool include_details = 2;
 }
 
 // Status update streamed back to the client
@@ -60,3 +78,10 @@ message RejectedStatus {
 message ExpiredStatus {
   uint64 epoch = 1;
 }
+
+message NotifyCapabilitiesRequest {
+  // BCS-serialized SignedAuthorityCapabilitiesV1.
+  bytes capabilities = 1;
+}
+
+message NotifyCapabilitiesResponse {}
