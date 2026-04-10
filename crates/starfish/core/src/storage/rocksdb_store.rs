@@ -807,13 +807,13 @@ impl RocksDBStore {
         use typed_store::Map as _;
 
         self.transactions
-            .unsafe_clear()
+            .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;
         self.transactions_by_tx_refs
-            .unsafe_clear()
+            .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;
         self.transaction_commitments_by_authorities
-            .unsafe_clear()
+            .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;
 
         debug!("Deleted all transactions from store");

@@ -116,6 +116,7 @@ members = [
   "crates/iota-mainnet-unlocks",
   "crates/iota-metric-checker",
   "crates/iota-metrics",
+  "crates/iota-metrics-push-client",
   "crates/iota-move",
   "crates/iota-move-build",
   "crates/iota-move-lsp",
@@ -440,6 +441,7 @@ iota-macros = { path = "crates/iota-macros" }
 iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }
 iota-metrics = { path = "crates/iota-metrics" }
+iota-metrics-push-client = { path = "crates/iota-metrics-push-client" }
 iota-move = { path = "crates/iota-move" }
 iota-move-build = { path = "crates/iota-move-build" }
 iota-move-lsp = { path = "crates/iota-move-lsp" }

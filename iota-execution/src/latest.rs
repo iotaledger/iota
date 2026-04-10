@@ -186,15 +186,18 @@ impl executor::Executor for Executor {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref_for_execution: AuthenticatorFunctionRefForExecution,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRefForExecution,
+            CheckedInputObjects,
+        )>,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -213,13 +216,12 @@ impl executor::Executor for Executor {
             epoch_timestamp_ms,
             gas_data,
             gas_status,
-            authenticator,
-            authenticator_function_ref_for_execution,
-            authenticator_input_objects,
+            authenticators,
             authenticator_and_transaction_input_objects,
             transaction_kind,
             transaction_signer,
             transaction_digest,
+            transaction_data_bytes,
             trace_builder_opt,
             &self.0,
         )
@@ -237,14 +239,18 @@ impl executor::Executor for Executor {
         // Gas related
         gas_data: GasData,
         gas_status: IotaGasStatus,
-        // Authenticator
-        authenticator: MoveAuthenticator,
-        authenticator_function_ref: AuthenticatorFunctionRef,
-        authenticator_input_objects: CheckedInputObjects,
+        // Authentication
+        move_authenticators: Vec<(
+            MoveAuthenticator,
+            AuthenticatorFunctionRef,
+            CheckedInputObjects,
+        )>,
+        aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         authenticated_transaction_kind: TransactionKind,
         authenticated_transaction_signer: IotaAddress,
         authenticated_transaction_digest: TransactionDigest,
+        transaction_data_bytes: Vec<u8>,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<(), ExecutionError> {
@@ -256,12 +262,12 @@ impl executor::Executor for Executor {
             epoch_timestamp_ms,
             gas_data,
             gas_status,
-            authenticator,
-            authenticator_function_ref,
-            authenticator_input_objects,
+            move_authenticators,
+            aggregated_authenticator_input_objects,
             authenticated_transaction_kind,
             authenticated_transaction_signer,
             authenticated_transaction_digest,
+            transaction_data_bytes,
             trace_builder_opt,
             &self.0,
         )
