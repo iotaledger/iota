@@ -45,7 +45,7 @@ use tokio::{
         Duration, {self},
     },
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
@@ -913,7 +913,7 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
-            self.submit_end_of_publish_with_retry(epoch_store);
+            self.submit_end_of_publish_with_retry(epoch_store).await;
         }
         self.metrics
             .sequencing_certificate_success
@@ -1063,7 +1063,7 @@ impl ConsensusAdapter {
     /// failures (e.g. DB write errors in
     /// `insert_pending_consensus_transactions`), retries until success since
     /// a missing `EndOfPublish` would stall the epoch.
-    fn submit_end_of_publish_with_retry(
+    async fn submit_end_of_publish_with_retry(
         self: &Arc<Self>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) {
@@ -1094,7 +1094,7 @@ impl ConsensusAdapter {
                         backoff,
                         err,
                     );
-                    std::thread::sleep(backoff);
+                    tokio::time::sleep(backoff).await;
                     attempt = attempt.saturating_add(1);
                 }
             }
@@ -1205,7 +1205,9 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
         };
 
         if send_end_of_publish {
-            self.submit_end_of_publish_with_retry(epoch_store);
+            let adapter = self.clone();
+            let epoch_store = epoch_store.clone();
+            spawn_monitored_task!(adapter.submit_end_of_publish_with_retry(&epoch_store));
         }
     }
 }
