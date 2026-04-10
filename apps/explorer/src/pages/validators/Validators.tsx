@@ -14,18 +14,13 @@ import {
     useMaxCommitteeSize,
 } from '@iota/core';
 import {
-    Badge,
-    BadgeSize,
-    BadgeType,
     DisplayStats,
     DisplayStatsSize,
-    DisplayStatsType,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
     Panel,
     Title,
-    TitleSize,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
 import { useIotaClientQuery } from '@iota/dapp-kit';
@@ -36,7 +31,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEnhancedRpcClient } from '~/hooks';
 import { sanitizePendingValidators } from '~/lib';
 import { IOTA_TYPE_ARG, normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { ValidatorFilters, ValidatorSearch } from '~/components/validator';
+import { ValidatorFilters, ValidatorSearch, ValidatorStatusLegend } from '~/components/validator';
 import type { ValidatorStatus } from '~/components/validator';
 import type { IotaValidatorSummaryExtended } from '~/lib/types/validator.types';
 import { useEpochProgress } from '../epochs/utils';
@@ -220,7 +215,7 @@ function ValidatorPageResult(): JSX.Element {
         return generateValidatorsTableColumns({
             allValidators: filteredValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
-            atRiskValidators: mockedAtRiskValidators,
+            atRiskValidators: data.atRiskValidators,
             maxCommitteeSize,
             validatorEvents,
             rollingAverageApys: validatorsApy,
@@ -302,33 +297,6 @@ function ValidatorPageResult(): JSX.Element {
         },
     ];
 
-    const validatorRoles = [
-        {
-            type: BadgeType.Success,
-            label: 'Committee',
-            description: 'In the committee with voting power',
-        },
-        {
-            type: BadgeType.PrimarySoft,
-            label: 'Active',
-            description: 'Eligible, not in committee',
-        },
-        {
-            type: BadgeType.Warning,
-            label: 'Pending',
-            description: 'Activating in the next epoch',
-        },
-        {
-            type: BadgeType.Neutral,
-            label: 'Candidate',
-            description: 'Candidate for future epochs',
-        },
-        {
-            type: BadgeType.Error,
-            label: 'At Risk',
-            description: 'At risk of being slashed or penalized',
-        },
-    ];
     return (
         <PageLayout
             content={
@@ -373,32 +341,6 @@ function ValidatorPageResult(): JSX.Element {
                                 />
                             ))}
                         </div>
-                        <Panel>
-                            <div className="bg-shader-neutral-light-4 flex flex-col gap-y-sm border-b border-t border-shader-neutral-light-8 py-sm">
-                                <Title
-                                    size={TitleSize.Small}
-                                    title="Status Legend"
-                                    tooltipText="Each validator is assigned a role reflecting their current standing in the network."
-                                />
-                                <div className="grid grid-cols-2 gap-xl px-md md:grid-cols-3 lg:grid-cols-5 ">
-                                    {validatorRoles.map(({ type, label, description }) => (
-                                        <div
-                                            key={label}
-                                            className="flex flex-col items-start gap-xs"
-                                        >
-                                            <Badge
-                                                type={type}
-                                                label={label}
-                                                size={BadgeSize.Small}
-                                            />
-                                            <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                                {description}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </Panel>
                         <Panel>
                             <Title title="All Validators" />
 
@@ -448,6 +390,7 @@ function ValidatorPageResult(): JSX.Element {
                                 </ErrorBoundary>
                             </div>
                         </Panel>
+                        <ValidatorStatusLegend />
                     </div>
                 )
             }

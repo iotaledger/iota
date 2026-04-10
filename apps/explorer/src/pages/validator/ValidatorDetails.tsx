@@ -10,7 +10,13 @@ import {
     useMaxCommitteeSize,
 } from '@iota/core';
 import { useParams } from 'react-router-dom';
-import { InactiveValidators, PageLayout, ValidatorMeta, ValidatorStats } from '~/components';
+import {
+    InactiveValidators,
+    PageLayout,
+    ValidatorMeta,
+    ValidatorStats,
+    ValidatorStatusLegend,
+} from '~/components';
 import { VALIDATOR_LOW_STAKE_GRACE_PERIOD } from '~/lib/constants';
 import { getValidatorMoveEvent } from '~/lib/utils';
 import {
@@ -240,6 +246,7 @@ function ValidatorDetails(): JSX.Element {
                             style={InfoBoxStyle.Elevated}
                         />
                     )}
+                    <ValidatorStatusLegend />
                 </div>
             }
         />

@@ -70,7 +70,12 @@ function ValidatorWithImage({
                     {validator.name}
                 </span>
                 {statusBadges.map((badge) => (
-                    <Badge key={badge.label} type={badge.type} label={badge.label} size={BadgeSize.Small} />
+                    <Badge
+                        key={badge.label}
+                        type={badge.type}
+                        label={badge.label}
+                        size={BadgeSize.Small}
+                    />
                 ))}
             </div>
             <div className="flex items-center gap-1">
