@@ -1127,8 +1127,7 @@ async fn collect_v2_stream_raw(
                     }
                     Kind::Rejected(rej) => {
                         let error: IotaError =
-                            bcs::from_bytes(rej.error.as_deref().expect("error field present"))
-                                .expect("error deserialization");
+                            bcs::from_bytes(&rej.error).expect("error deserialization");
                         SubmitTransactionResult::Rejected { error }
                     }
                     Kind::Expired(_) => panic!("unexpected Expired status"),
@@ -1870,10 +1869,7 @@ async fn collect_v2_status_stream(
                 }
             }
             Kind::Rejected(rej) => {
-                let error = rej
-                    .error
-                    .as_deref()
-                    .map(|e| bcs::from_bytes(e).expect("error deserialization"));
+                let error = bcs::from_bytes(&rej.error).expect("error deserialization");
                 TxStatusUpdate::Rejected { error }
             }
             Kind::Expired(exp) => TxStatusUpdate::Expired { epoch: exp.epoch },
@@ -2278,7 +2274,7 @@ async fn test_v2_get_tx_status_dropped_digest_rejected() {
     let (digest, update) = &results[0];
     assert_eq!(*digest, dropped_digest);
     assert!(
-        matches!(update, TxStatusUpdate::Rejected { error: Some(_) }),
+        matches!(update, TxStatusUpdate::Rejected { .. }),
         "Expected Rejected for dropped digest, got {:?}",
         update
     );

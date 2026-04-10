@@ -15,7 +15,8 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_core::{
-    authority_aggregator::AuthorityAggregatorBuilder, authority_client::validator::ValidatorAPI,
+    authority_aggregator::AuthorityAggregatorBuilder,
+    authority_client::{validator::ValidatorAPI, validator_peer::ValidatorPeerAPI},
 };
 use iota_protocol_config::Chain;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
@@ -625,7 +626,7 @@ impl ToolCommand {
 
                 for (name, (_, client)) in clients {
                     let resp = client
-                        .handle_checkpoint(CheckpointRequest {
+                        .get_checkpoint_v2(CheckpointRequest {
                             sequence_number,
                             request_content: true,
                             certified: true,

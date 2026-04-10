@@ -16,10 +16,7 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest},
     effects::TransactionEffectsAPI as _,
     error::{IotaError, IotaResult},
-    messages_grpc::{
-        ExecutedData, SubmitTransactionResult, WaitForEffectRequest, WaitForEffectResponse,
-        WaitForEffectsRequest, WaitForEffectsResponse,
-    },
+    messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusQuery, TxStatusUpdate},
     transaction_driver_types::{EffectsFinalityInfo, FinalizedEffects},
 };
 use tokio::{
@@ -78,8 +75,9 @@ impl EffectsCertifier {
         tx_digest: Option<TransactionDigest>,
         // This keeps track of the current target for getting full effects.
         mut current_target: AuthorityName,
-        // Guaranteed to be not the Rejected variant.
-        submit_txn_result: SubmitTransactionResult,
+        // Expected to be Submitted or Executed; Rejected and Expired are handled
+        // as errors inside this function.
+        submit_txn_result: TxStatusUpdate,
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError>
     where
@@ -87,15 +85,22 @@ impl EffectsCertifier {
     {
         // Skip the first attempt to get full effects if it is already provided.
         let full_effects = match submit_txn_result {
-            SubmitTransactionResult::Submitted => None,
-            SubmitTransactionResult::Executed {
+            TxStatusUpdate::Submitted => None,
+            TxStatusUpdate::Executed {
                 effects_digest,
                 details,
-            } => Some((effects_digest, details)),
-            SubmitTransactionResult::Rejected { error } => {
+            } => details.map(|d| (effects_digest, d)),
+            TxStatusUpdate::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
-                        "Unexpected submission error in get_certified_finalized_effects(): {error}"
+                        "Unexpected submission error in get_certified_finalized_effects(): {error:?}"
+                    ),
+                });
+            }
+            TxStatusUpdate::Expired { epoch } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "Transaction expired in epoch {epoch} during get_certified_finalized_effects()",
                     ),
                 });
             }
@@ -233,28 +238,31 @@ impl EffectsCertifier {
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
         let request = if let Some(digest) = tx_digest {
-            WaitForEffectsRequest {
-                requests: vec![WaitForEffectRequest {
+            GetTxStatusRequest {
+                queries: vec![TxStatusQuery {
                     transaction_digest: digest,
                     include_details: true,
                 }],
             }
         } else {
-            // Ping: empty requests vec.
-            WaitForEffectsRequest { requests: vec![] }
+            // Ping: empty queries vec.
+            GetTxStatusRequest { queries: vec![] }
         };
 
         match timeout(
             WAIT_FOR_EFFECTS_TIMEOUT,
-            client.wait_for_effects(request, options.forwarded_client_addr),
+            client.get_tx_status(request, options.forwarded_client_addr),
         )
         .await
         {
-            Ok(Ok(response)) => match response.results.into_iter().next() {
-                Some(WaitForEffectResponse::Executed {
-                    effects_digest,
-                    details,
-                }) => {
+            Ok(Ok(statuses)) => match statuses.into_iter().next() {
+                Some((
+                    _,
+                    TxStatusUpdate::Executed {
+                        effects_digest,
+                        details,
+                    },
+                )) => {
                     if let Some(details) = details {
                         tracing::Span::current()
                             .record("ret_effects_digest", format!("{effects_digest:?}"));
@@ -266,15 +274,16 @@ impl EffectsCertifier {
                         ))
                     }
                 }
-                Some(WaitForEffectResponse::Rejected { error }) => match error {
-                    Some(e) => Err(TransactionRequestError::RejectedAtValidator(e)),
-                    // Even though this response is not an error, returning an error which is
-                    // required by the function signature. This will get ignored
-                    // by the caller as a retriable error.
-                    None => Err(TransactionRequestError::RejectedByConsensus),
-                },
-                Some(WaitForEffectResponse::Expired { epoch }) => {
+                Some((_, TxStatusUpdate::Rejected { error })) => {
+                    Err(TransactionRequestError::RejectedAtValidator(error))
+                }
+                Some((_, TxStatusUpdate::Expired { epoch })) => {
                     Err(TransactionRequestError::StatusExpired(epoch))
+                }
+                Some((_, TxStatusUpdate::Submitted)) => {
+                    Err(TransactionRequestError::ValidatorInternal(
+                        "Transaction still pending".to_string(),
+                    ))
                 }
                 None => Err(TransactionRequestError::ValidatorInternal(
                     "Empty response from validator".to_string(),
@@ -401,14 +410,14 @@ impl EffectsCertifier {
             let display_name = authority_aggregator.get_display_name(&name);
 
             let request = if let Some(digest) = tx_digest {
-                WaitForEffectsRequest {
-                    requests: vec![WaitForEffectRequest {
+                GetTxStatusRequest {
+                    queries: vec![TxStatusQuery {
                         transaction_digest: digest,
                         include_details: false,
                     }],
                 }
             } else {
-                WaitForEffectsRequest { requests: vec![] }
+                GetTxStatusRequest { queries: vec![] }
             };
 
             let future = async move {
@@ -458,16 +467,19 @@ impl EffectsCertifier {
             StatusAggregator::<TransactionRequestError>::new(committee.clone());
         // Collect responses from validators which observed the transaction getting
         // rejected, but do not have a local reason to reject the transaction.
-        let mut reason_not_found_aggregator = StatusAggregator::<()>::new(committee.clone());
-        // Every validator returns at most one WaitForEffectsResponse.
+        let reason_not_found_aggregator = StatusAggregator::<()>::new(committee.clone());
+        // Every validator returns at most one TxStatusUpdate.
         while let Some((name, response)) = futures.next().await {
             // Extract the first per-item result from the batch response.
-            let single_result = response.map(|r| r.results.into_iter().next());
+            let single_result = response.map(|statuses| statuses.into_iter().next());
             match single_result {
-                Ok(Some(WaitForEffectResponse::Executed {
-                    effects_digest,
-                    details: _,
-                })) => {
+                Ok(Some((
+                    _,
+                    TxStatusUpdate::Executed {
+                        effects_digest,
+                        details: _,
+                    },
+                ))) => {
                     // Notify that this validator has successfully executed the transaction.
                     let _ = acked_validators_tx.try_send(name);
 
@@ -502,25 +514,20 @@ impl EffectsCertifier {
                         return Ok(effects_digest);
                     }
                 }
-                Ok(Some(WaitForEffectResponse::Rejected { error })) => {
-                    if let Some(e) = error {
-                        tracing::trace!(name = ?name.concise(), "Rejected at validator: {:?}", e);
-                        let error = TransactionRequestError::RejectedAtValidator(e);
-                        if error.is_submission_retriable() {
-                            retriable_errors_aggregator.insert(name, error);
-                        } else {
-                            non_retriable_errors_aggregator.insert(name, error);
-                        }
+                Ok(Some((_, TxStatusUpdate::Rejected { error }))) => {
+                    tracing::trace!(name = ?name.concise(), "Rejected at validator: {:?}", error);
+                    let error = TransactionRequestError::RejectedAtValidator(error);
+                    if error.is_submission_retriable() {
+                        retriable_errors_aggregator.insert(name, error);
                     } else {
-                        tracing::trace!(name = ?name.concise(), "Not found at validator");
-                        reason_not_found_aggregator.insert(name, ());
+                        non_retriable_errors_aggregator.insert(name, error);
                     }
                     self.metrics
                         .rejection_acks
                         .with_label_values(&[ping_label.as_str()])
                         .inc();
                 }
-                Ok(Some(WaitForEffectResponse::Expired { epoch })) => {
+                Ok(Some((_, TxStatusUpdate::Expired { epoch }))) => {
                     let error = TransactionRequestError::StatusExpired(epoch);
                     // Expired status is submission retriable.
                     retriable_errors_aggregator.insert(name, error);
@@ -528,6 +535,13 @@ impl EffectsCertifier {
                         .expiration_acks
                         .with_label_values(&[ping_label.as_str()])
                         .inc();
+                }
+                Ok(Some((_, TxStatusUpdate::Submitted))) => {
+                    // Still pending — treat as retriable.
+                    let error = TransactionRequestError::ValidatorInternal(
+                        "Transaction still pending".to_string(),
+                    );
+                    retriable_errors_aggregator.insert(name, error);
                 }
                 Ok(None) => {
                     // Empty response from validator — treat as retriable error.
@@ -663,20 +677,20 @@ impl EffectsCertifier {
         display_name: String,
         client: &Arc<SafeClient<A>>,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
-        request: WaitForEffectsRequest,
+        request: GetTxStatusRequest,
         options: &SubmitTransactionOptions,
-    ) -> IotaResult<WaitForEffectsResponse>
+    ) -> IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>
     where
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
         let effects_start = Instant::now();
         let backoff =
             ExponentialBackoff::new(Duration::from_millis(100), MAX_WAIT_FOR_EFFECTS_RETRY_DELAY);
-        let is_ping = request.is_ping();
+        let is_ping = request.queries.is_empty();
         // This loop should only retry errors that are retriable without new submission.
         for (attempt, delay) in backoff.enumerate() {
             let result = client
-                .wait_for_effects(request.clone(), options.forwarded_client_addr)
+                .get_tx_status(request.clone(), options.forwarded_client_addr)
                 .await;
             match result {
                 Ok(response) => {
