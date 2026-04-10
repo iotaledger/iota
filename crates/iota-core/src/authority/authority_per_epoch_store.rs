@@ -3180,6 +3180,11 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // already have persistent locks, giving them natural precedence.
+        //
+        // Collect user transaction digests for soft lock release after the
+        // consensus output is quarantined (permanent locks must be visible
+        // before soft locks are released).
+        let mut soft_lock_digests: Vec<TransactionDigest> = Vec::new();
         if enable_white_flag {
             let (dropped, owned_object_locks) =
                 post_consensus_validation::validate_and_resolve_conflicts(
@@ -3193,16 +3198,27 @@ impl AuthorityPerEpochStore {
             //  consistent view
             if !dropped.is_empty() {
                 self.dropped_tx_status_cache.insert_and_notify(&dropped);
-                // Release pre-consensus soft locks for dropped transactions so
-                // the owned objects can be reused in new transactions.
-                if let Some(soft_locks) = self.soft_locks.get() {
-                    for (digest, _) in &dropped {
-                        soft_locks.release(digest);
-                    }
-                }
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
+            }
+
+            // Collect digests of all user transactions (both accepted and
+            // dropped) so their soft locks can be released once the permanent
+            // locks are visible in the consensus quarantine.
+            if self.soft_locks.get().is_some() {
+                soft_lock_digests.extend(dropped.iter().map(|(digest, _)| *digest));
+                for tx in sequenced_transactions.iter() {
+                    if let SequencedConsensusTransactionKind::External(
+                        ConsensusTransaction {
+                            kind: ConsensusTransactionKind::UserTransactionV1(t),
+                            ..
+                        },
+                    ) = &tx.0.transaction
+                    {
+                        soft_lock_digests.push(*t.digest());
+                    }
+                }
             }
 
             // Split back for downstream processing (separate reordering
@@ -3410,6 +3426,16 @@ impl AuthorityPerEpochStore {
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
+
+        // Release pre-consensus soft locks now that permanent locks are visible
+        // in the quarantine. Both accepted and rejected transactions are
+        // released: accepted ones now hold permanent locks, rejected ones need
+        // their non-conflicting owned objects freed for new transactions.
+        if let Some(soft_locks) = self.soft_locks.get() {
+            for digest in &soft_lock_digests {
+                soft_locks.release(digest);
+            }
+        }
 
         // Only after batch is written, notify checkpoint service to start building any
         // new pending checkpoints.

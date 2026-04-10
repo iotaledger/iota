@@ -162,6 +162,7 @@ pub struct ValidatorComponents {
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
     consensus_adapter: Arc<ConsensusAdapter>,
+    soft_locks: Arc<PreConsensusSoftLocks>,
     // Keeping the handle to the checkpoint service tasks to shut them down during reconfiguration.
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -1171,9 +1172,7 @@ impl IotaNode {
             &validator_registry,
         );
 
-        // Create pre-consensus soft locks and wire to consensus adapter.
         let soft_locks = Arc::new(PreConsensusSoftLocks::new());
-        consensus_adapter.set_soft_locks(soft_locks.clone());
 
         let checkpoint_metrics = CheckpointMetrics::new(&validator_registry);
         let iota_tx_validator_metrics = IotaTxValidatorMetrics::new(&validator_registry);
@@ -1217,6 +1216,7 @@ impl IotaNode {
             consensus_store_pruner,
             global_state_hasher,
             backpressure_manager,
+            soft_locks,
             validator_server_handle,
             validator_overload_monitor_handle,
             checkpoint_metrics,
@@ -1240,6 +1240,7 @@ impl IotaNode {
         consensus_store_pruner: ConsensusStorePruner,
         global_state_hasher: Weak<GlobalStateHasher>,
         backpressure_manager: Arc<BackpressureManager>,
+        soft_locks: Arc<PreConsensusSoftLocks>,
         validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
@@ -1265,16 +1266,16 @@ impl IotaNode {
 
         consensus_adapter.swap_low_scoring_authorities(low_scoring_authorities.clone());
 
-        // Wire pre-consensus soft locks to the epoch store so that dropped
-        // transactions can release their locks promptly. Clear stale locks
-        // from the previous epoch and spawn a background sweep task.
-        if let Some(soft_locks) = consensus_adapter.soft_locks() {
-            soft_locks.clear();
-            epoch_store.set_soft_locks(soft_locks.clone());
-
+        // Wire pre-consensus soft locks to the epoch store so that
+        // post-consensus processing can release locks once permanent locks are
+        // quarantined. Clear stale locks from the previous epoch and spawn a
+        // background sweep task.
+        soft_locks.clear();
+        epoch_store.set_soft_locks(soft_locks.clone());
+        {
             // Spawn a background task that periodically sweeps expired soft
             // locks as a safety net for transactions lost by consensus.
-            let sweep_locks = soft_locks;
+            let sweep_locks = soft_locks.clone();
             let sweep_epoch = epoch_store.clone();
             spawn_monitored_task!(sweep_epoch.within_alive_epoch(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(10));
@@ -1331,6 +1332,7 @@ impl IotaNode {
             consensus_manager,
             consensus_store_pruner,
             consensus_adapter,
+            soft_locks,
             checkpoint_service_tasks,
             checkpoint_metrics,
             iota_tx_validator_metrics,
@@ -1820,6 +1822,7 @@ impl IotaNode {
                 consensus_manager,
                 consensus_store_pruner,
                 consensus_adapter,
+                soft_locks,
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
                 iota_tx_validator_metrics,
@@ -1876,6 +1879,7 @@ impl IotaNode {
                             consensus_store_pruner,
                             weak_hasher,
                             self.backpressure_manager.clone(),
+                            soft_locks,
                             validator_server_handle,
                             validator_overload_monitor_handle,
                             checkpoint_metrics,

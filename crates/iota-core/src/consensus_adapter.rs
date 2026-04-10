@@ -7,7 +7,7 @@ use std::{
     future::Future,
     ops::Deref,
     sync::{
-        Arc, OnceLock,
+        Arc,
         atomic::{AtomicU64, Ordering},
     },
     time::Instant,
@@ -264,9 +264,6 @@ pub struct ConsensusAdapter {
     /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
     latency_observer: LatencyObserver,
-    /// Pre-consensus soft locks for owned objects (pcool / white-flag flow).
-    /// Set once during validator setup; empty when not in white-flag mode.
-    soft_locks: OnceLock<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>>,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -316,27 +313,7 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
-            soft_locks: OnceLock::new(),
         }
-    }
-
-    /// Returns the pre-consensus soft lock table, if set.
-    pub fn soft_locks(
-        &self,
-    ) -> Option<Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>> {
-        self.soft_locks.get().cloned()
-    }
-
-    /// Sets the pre-consensus soft lock table for owned-object conflict
-    /// detection. Called once during validator setup when white-flag flow is
-    /// enabled.
-    pub fn set_soft_locks(
-        &self,
-        soft_locks: Arc<crate::authority_server::soft_lock::PreConsensusSoftLocks>,
-    ) {
-        self.soft_locks
-            .set(soft_locks)
-            .expect("soft_locks should only be set once");
     }
 
     pub fn swap_low_scoring_authorities(
@@ -868,15 +845,6 @@ impl ConsensusAdapter {
         epoch_store
             .remove_pending_consensus_transactions(&consensus_keys)
             .expect("Storage error when removing consensus transaction");
-
-        // Release pre-consensus soft locks for processed user transactions.
-        if let Some(soft_locks) = self.soft_locks.get() {
-            for tx in &transactions {
-                if let ConsensusTransactionKind::UserTransactionV1(tx_data) = &tx.kind {
-                    soft_locks.release(tx_data.digest());
-                }
-            }
-        }
 
         let is_user_tx = is_soft_bundle
             || if epoch_store.protocol_config().enable_white_flag_flow() {
