@@ -428,11 +428,6 @@ mod tests {
                 ConsensusTransactionKind::MisbehaviorReport(_, _, _) => {
                     Some(config.calculate_validator_scores())
                 }
-
-                // Gated behind `enable_white_flag_flow`.
-                ConsensusTransactionKind::UserTransactionV1(_) => {
-                    Some(config.enable_white_flag_flow())
-                }
             }
         }
 
