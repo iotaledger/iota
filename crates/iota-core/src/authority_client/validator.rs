@@ -14,10 +14,8 @@ use iota_types::{
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
     },
     transaction::*,
 };
@@ -78,26 +76,6 @@ pub trait ValidatorAPI {
         &self,
         request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
-
-    /// Submit a transaction via the TransactionDriver protocol.
-    async fn handle_submit_transactions(
-        &self,
-        request: SubmitTransactionsRequest,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionsResponse, IotaError>;
-
-    /// Wait for a transaction's effects to be available.
-    async fn handle_wait_for_effects(
-        &self,
-        request: WaitForEffectsRequest,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<WaitForEffectsResponse, IotaError>;
-
-    /// Query validator health metrics (latency measurement / health check).
-    async fn handle_validator_health(
-        &self,
-        request: ValidatorHealthRequest,
-    ) -> Result<ValidatorHealthResponse, IotaError>;
 }
 
 #[async_trait]
@@ -209,57 +187,5 @@ impl ValidatorAPI for NetworkAuthorityClient {
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)
-    }
-
-    async fn handle_submit_transactions(
-        &self,
-        request: SubmitTransactionsRequest,
-        client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionsResponse, IotaError> {
-        use iota_types::messages_grpc::RawSubmitTransactionsRequest;
-        let raw_request: RawSubmitTransactionsRequest = request.try_into()?;
-        let mut grpc_request = raw_request.into_request();
-        insert_metadata(&mut grpc_request, client_addr);
-
-        let raw_response = self
-            .client()?
-            .handle_submit_transactions(grpc_request)
-            .await
-            .map(tonic::Response::into_inner)
-            .map_err(IotaError::from)?;
-        raw_response.try_into()
-    }
-
-    async fn handle_wait_for_effects(
-        &self,
-        request: WaitForEffectsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<WaitForEffectsResponse, IotaError> {
-        use iota_types::messages_grpc::RawWaitForEffectsRequest;
-        let raw_request: RawWaitForEffectsRequest = request.try_into()?;
-
-        let raw_response = self
-            .client()?
-            .handle_wait_for_effects(raw_request.into_request())
-            .await
-            .map(tonic::Response::into_inner)
-            .map_err(IotaError::from)?;
-        raw_response.try_into()
-    }
-
-    async fn handle_validator_health(
-        &self,
-        request: ValidatorHealthRequest,
-    ) -> Result<ValidatorHealthResponse, IotaError> {
-        use iota_types::messages_grpc::RawValidatorHealthRequest;
-        let raw_request: RawValidatorHealthRequest = request.try_into()?;
-
-        let raw_response = self
-            .client()?
-            .handle_validator_health(raw_request.into_request())
-            .await
-            .map(tonic::Response::into_inner)
-            .map_err(IotaError::from)?;
-        raw_response.try_into()
     }
 }

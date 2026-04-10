@@ -9,8 +9,8 @@ use iota_types::{
     messages_consensus::SignedAuthorityCapabilitiesV1,
     messages_grpc::{
         ExecutedData, GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
-        HandleCapabilityNotificationResponseV1, SubmitTransactionsRequest, TxStatusQuery,
-        TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
+        HandleCapabilityNotificationResponseV1, TxStatusQuery, TxStatusUpdate,
+        ValidatorHealthRequest, ValidatorHealthResponse,
     },
     transaction::Transaction,
 };
@@ -106,27 +106,25 @@ impl TryFrom<api::GetTxStatusRequest> for GetTxStatusRequest {
 
 // --- SubmitTxRequest (proto → domain) ---
 
-impl TryFrom<api::SubmitTxRequest> for SubmitTransactionsRequest {
+impl TryFrom<api::SubmitTxRequest> for Vec<Transaction> {
     type Error = IotaError;
 
     fn try_from(value: api::SubmitTxRequest) -> Result<Self, Self::Error> {
-        let transactions = value
+        value
             .tx
             .iter()
             .map(|t| bcs_deserialize::<Transaction>(t, "SubmitTxRequest.tx"))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(SubmitTransactionsRequest { transactions })
+            .collect()
     }
 }
 
 // --- SubmitTxRequest (domain → proto, used by tests) ---
 
-impl TryFrom<SubmitTransactionsRequest> for api::SubmitTxRequest {
+impl TryFrom<Vec<Transaction>> for api::SubmitTxRequest {
     type Error = IotaError;
 
-    fn try_from(value: SubmitTransactionsRequest) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<Transaction>) -> Result<Self, Self::Error> {
         let tx = value
-            .transactions
             .iter()
             .map(|t| bcs_serialize(t, "SubmitTxRequest.tx"))
             .collect::<Result<Vec<_>, _>>()?;
@@ -310,6 +308,7 @@ mod tests {
         digests::{TransactionDigest, TransactionEffectsDigest},
         error::IotaError,
         messages_grpc::{ExecutedData, GetTxStatusRequest, TxStatusUpdate},
+        transaction::Transaction,
     };
 
     use crate::api::{self, SubmittedStatus, status_detail::Kind};
@@ -579,13 +578,10 @@ mod tests {
 
     #[test]
     fn submit_tx_request_empty_round_trip() {
-        use iota_types::messages_grpc::SubmitTransactionsRequest;
-        let request = SubmitTransactionsRequest {
-            transactions: vec![],
-        };
-        let proto: api::SubmitTxRequest = request.clone().try_into().unwrap();
-        let back: SubmitTransactionsRequest = proto.try_into().unwrap();
-        assert_eq!(request.transactions.len(), back.transactions.len());
+        let request: Vec<Transaction> = vec![];
+        let proto: api::SubmitTxRequest = request.try_into().unwrap();
+        let back: Vec<Transaction> = proto.try_into().unwrap();
+        assert!(back.is_empty());
     }
 
     // --- NotifyCapabilitiesResponse round-trip ---
