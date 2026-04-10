@@ -15,8 +15,8 @@
 //! |---------------------------------|-----------------------------------------------------------------------|
 //! | Same tx digest resubmitted      | `try_acquire` is idempotent for same digest — passes through          |
 //! | Different tx, same owned objects | Soft lock conflict → `ObjectLockConflict` error                       |
-//! | Tx succeeds in consensus         | Active GC in `consensus_adapter` releases locks                       |
-//! | Tx dropped in post-consensus     | Active GC at `dropped_tx_status_cache` releases locks                 |
+//! | Tx processed by consensus        | Released in `authority_per_epoch_store` after quarantine               |
+//! | Tx dropped in post-consensus     | Released in `authority_per_epoch_store` after quarantine               |
 //! | Tx forgotten by consensus        | TTL expiry releases locks via background sweep                        |
 //! | Consensus submission fails       | Locks released immediately in error path                              |
 //! | Crash / restart                  | All soft locks lost → clean slate; post-consensus is authoritative    |
@@ -37,7 +37,7 @@ use iota_types::{
     base_types::{ObjectRef, TransactionDigest},
     error::IotaError,
 };
-use tracing::{debug, trace};
+use tracing::{debug, error, trace};
 
 /// Default soft-lock TTL: `gc_depth(60) × 4 / ~20 rounds/sec = 12 s`.
 const DEFAULT_SOFT_LOCK_TTL: Duration = Duration::from_secs(12);
@@ -108,13 +108,20 @@ impl PreConsensusSoftLocks {
         }
 
         // Record the reverse mapping so `release()` can find these objects.
+        // A digest uniquely determines its owned inputs, so on idempotent
+        // resubmission the set is identical. A mismatch would indicate a bug.
         self.tx_to_objects
             .entry(tx_digest)
-            .and_modify(|objs| {
-                for obj in &acquired {
-                    if !objs.contains(obj) {
-                        objs.push(*obj);
-                    }
+            .and_modify(|existing| {
+                if *existing != acquired {
+                    error!(
+                        ?tx_digest,
+                        ?existing,
+                        ?acquired,
+                        "soft-lock reverse index mismatch: \
+                         same digest appeared with different owned objects"
+                    );
+                    debug_assert_eq!(existing, &acquired);
                 }
             })
             .or_insert(acquired);
@@ -153,10 +160,15 @@ impl PreConsensusSoftLocks {
             keep
         });
 
-        // Clean up tx_to_objects entries that no longer have any live locks.
-        self.tx_to_objects.retain(|_tx_digest, obj_refs| {
-            obj_refs.retain(|obj_ref| self.locks.contains_key(obj_ref));
-            !obj_refs.is_empty()
+        // Clean up tx_to_objects entries whose locks have all been swept.
+        // A digest has a unique set of owned objects, so if none of its
+        // objects are still locked under that digest, the entry is stale.
+        self.tx_to_objects.retain(|tx_digest, obj_refs| {
+            obj_refs.iter().any(|obj_ref| {
+                self.locks
+                    .get(obj_ref)
+                    .is_some_and(|entry| entry.0 == *tx_digest)
+            })
         });
     }
 
@@ -318,8 +330,9 @@ mod tests {
         // tx_a locks X and Y.
         table.try_acquire(tx_a, &[obj_x, obj_y]).unwrap();
 
-        // tx_b tries Y and Z — Y conflicts, so Z must not be left locked.
-        let err = table.try_acquire(tx_b, &[obj_y, obj_z]).unwrap_err();
+        // tx_b tries Z then Y — Z is acquired, Y conflicts, so Z must be
+        // rolled back.
+        let err = table.try_acquire(tx_b, &[obj_z, obj_y]).unwrap_err();
         assert!(matches!(err, IotaError::ObjectLockConflict { .. }));
 
         // Only 2 locks should exist (tx_a's X and Y), not 3.
@@ -346,6 +359,30 @@ mod tests {
     }
 
     #[test]
+    fn test_sweep_cleans_stale_reverse_index_after_overwrite() {
+        // Use zero TTL so that tx_a's lock expires immediately and tx_b can
+        // overwrite it. The old tx_a entry in tx_to_objects becomes stale.
+        let table = PreConsensusSoftLocks::with_ttl(Duration::ZERO);
+        let obj = obj_ref(1, 1);
+        let tx_a = digest(1);
+        let tx_b = digest(2);
+
+        table.try_acquire(tx_a, &[obj]).unwrap();
+        // tx_a's lock is already expired (TTL=0), tx_b overwrites it.
+        table.try_acquire(tx_b, &[obj]).unwrap();
+
+        // tx_a's tx_to_objects entry is stale (obj now belongs to tx_b).
+        assert!(table.tx_to_objects.contains_key(&tx_a));
+
+        // Sweep should clean up both expired locks AND stale reverse index.
+        // tx_b's lock is also expired (TTL=0), so everything should be cleaned.
+        table.sweep_expired();
+        assert_eq!(table.lock_count(), 0);
+        assert!(!table.tx_to_objects.contains_key(&tx_a));
+        assert!(!table.tx_to_objects.contains_key(&tx_b));
+    }
+
+    #[test]
     fn test_clear() {
         let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
         let objs = vec![obj_ref(1, 1), obj_ref(2, 1)];
@@ -364,6 +401,25 @@ mod tests {
         let tx = digest(1);
         table.try_acquire(tx, &[]).unwrap();
         assert_eq!(table.lock_count(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion `left == right` failed")]
+    fn test_same_digest_different_objects_panics() {
+        let table = PreConsensusSoftLocks::with_ttl(Duration::from_secs(60));
+        let tx = digest(1);
+        let obj_a = obj_ref(1, 1);
+        let obj_b = obj_ref(2, 1);
+
+        table.try_acquire(tx, &[obj_a]).unwrap();
+        // Manually force the same digest with a different object set to
+        // trigger the inconsistency detection. In production this cannot
+        // happen through `try_acquire` because `try_set_lock` would see
+        // the same digest and succeed idempotently with the same objects.
+        // We bypass that by inserting directly into `tx_to_objects`.
+        table.tx_to_objects.insert(tx, vec![obj_b]);
+        // Re-acquire — `and_modify` detects the mismatch.
+        table.try_acquire(tx, &[obj_a]).unwrap();
     }
 
     #[test]

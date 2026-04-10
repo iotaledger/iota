@@ -997,6 +997,9 @@ impl ValidatorService {
             metrics.num_rejected_tx_soft_lock_conflict.inc();
             return Err(tonic::Status::from(e));
         }
+        metrics
+            .soft_lock_table_size
+            .set(self.soft_locks.lock_count() as i64);
 
         // Reconfig check.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
