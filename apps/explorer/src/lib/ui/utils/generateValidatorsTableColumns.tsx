@@ -48,17 +48,19 @@ function ValidatorWithImage({
     const truncatedAddress = `${validatorAddress.slice(0, 8)}\u2026${validatorAddress.slice(-6)}`;
     const copyToClipboard = useCopyToClipboard();
 
-    const statusBadge = validator.isPending
-        ? { type: BadgeType.Warning, label: 'Pending' }
+    const statusBadges = validator.isPending
+        ? [{ type: BadgeType.Warning, label: 'Pending' }]
         : isValidatorCommitteeMember
-          ? { type: BadgeType.Success, label: 'Committee' }
-          : isAtRisk
-            ? { type: BadgeType.Neutral, label: 'Candidate' }
-            : { type: BadgeType.PrimarySoft, label: 'Active' };
+          ? [{ type: BadgeType.Success, label: 'Committee' }]
+          : [{ type: BadgeType.PrimarySoft, label: 'Active' }];
+
+    if (isAtRisk) {
+        statusBadges.push({ type: BadgeType.Error, label: 'At Risk' });
+    }
 
     const validatorNameContainer = (
         <div className="flex min-w-0 flex-col gap-0.5">
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
                 <span
                     className={clsx('truncate text-label-lg', {
                         'text-iota-neutral-10 dark:text-iota-neutral-92': highlightValidatorName,
@@ -67,7 +69,9 @@ function ValidatorWithImage({
                 >
                     {validator.name}
                 </span>
-                <Badge type={statusBadge.type} label={statusBadge.label} size={BadgeSize.Small} />
+                {statusBadges.map((badge) => (
+                    <Badge key={badge.label} type={badge.type} label={badge.label} size={BadgeSize.Small} />
+                ))}
             </div>
             <div className="flex items-center gap-1">
                 <span className="text-label-sm tabular-nums text-iota-neutral-40 dark:text-iota-neutral-60">

@@ -136,10 +136,11 @@ export function ValidatorMeta({
                                     <Badge type={BadgeType.Neutral} label="Validator" />
                                     {isValidatorCommitteeMember ? (
                                         <Badge type={BadgeType.Success} label="Committee" />
-                                    ) : atRiskRemainingEpochs != null ? (
-                                        <Badge type={BadgeType.Neutral} label="Candidate" />
                                     ) : (
                                         <Badge type={BadgeType.PrimarySoft} label="Active" />
+                                    )}
+                                    {atRiskRemainingEpochs != null && (
+                                        <Badge type={BadgeType.Error} label="At Risk" />
                                     )}
                                 </div>
                             </div>

@@ -41,7 +41,9 @@ const getAtRiskRemainingEpochs = (
     validatorId: string | undefined,
 ): number | null => {
     if (!data || !validatorId) return null;
-    const atRisk = data.atRiskValidators.find(([address]) => address === validatorId);
+
+    const atRiskList = data.atRiskValidators.length ? data.atRiskValidators : data.atRiskValidators;
+    const atRisk = atRiskList.find(([address]) => address === validatorId);
     return atRisk ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRisk[1]) : null;
 };
 

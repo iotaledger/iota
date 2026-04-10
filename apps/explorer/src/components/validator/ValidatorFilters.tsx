@@ -37,7 +37,6 @@ export function ValidatorFilters({
                     key={status}
                     label={`${status}  ${count}`}
                     selected={status === selectedStatus}
-                    disabled={count === 0}
                     onClick={() => onStatusChange(status)}
                 />
             ))}

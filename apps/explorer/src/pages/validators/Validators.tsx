@@ -163,15 +163,14 @@ function ValidatorPageResult(): JSX.Element {
         let pending = 0;
         let atRisk = 0;
         for (const validator of activeAndPendingValidators as IotaValidatorSummaryExtended[]) {
+            const isValidatorAtRisk = atRiskAddresses.has(validator.iotaAddress);
+            const isCommitteeMember = data?.committeeMembers.some(
+                (committeeMember) => committeeMember.iotaAddress === validator.iotaAddress,
+            );
             if (validator.isPending) pending++;
-            else if (atRiskAddresses.has(validator.iotaAddress)) atRisk++;
-            if (
-                data?.committeeMembers.some(
-                    (committeeMember) => committeeMember.iotaAddress === validator.iotaAddress,
-                )
-            )
-                committee++;
+            else if (isCommitteeMember) committee++;
             else active++;
+            if (isValidatorAtRisk) atRisk++;
         }
         return { all: activeAndPendingValidators.length, active, pending, atRisk, committee };
     }, [activeAndPendingValidators, atRiskAddresses, data?.committeeMembers]);
@@ -186,7 +185,7 @@ function ValidatorPageResult(): JSX.Element {
                     );
                     if (
                         currentValidatorStatus === 'Active' &&
-                        (validator.isPending || isAtRisk || isCommitteeMember)
+                        (validator.isPending || isCommitteeMember)
                     )
                         return false;
                     if (currentValidatorStatus === 'Pending' && !validator.isPending) return false;
@@ -221,7 +220,7 @@ function ValidatorPageResult(): JSX.Element {
         return generateValidatorsTableColumns({
             allValidators: filteredValidators,
             committeeMembers: data.committeeMembers.map((validator) => validator.iotaAddress),
-            atRiskValidators: data.atRiskValidators,
+            atRiskValidators: mockedAtRiskValidators,
             maxCommitteeSize,
             validatorEvents,
             rollingAverageApys: validatorsApy,
