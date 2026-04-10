@@ -51,7 +51,7 @@ impl TransactionSubmitter {
         authority_aggregator: &Arc<AuthorityAggregator<A>>,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         amplification_factor: u64,
-        transactions: Vec<Transaction>,
+        transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
     ) -> Result<(AuthorityName, TxStatusUpdate), TransactionDriverError>
     where
@@ -70,7 +70,11 @@ impl TransactionSubmitter {
             options.blocked_validators.clone(),
         );
 
-        let ping_label = transactions.is_empty().to_string();
+        let ping_label = if transaction.is_none() {
+            "true"
+        } else {
+            "false"
+        };
         let mut retries = 0;
         let mut request_rpcs = FuturesUnordered::new();
 
@@ -85,14 +89,14 @@ impl TransactionSubmitter {
                         let display_name = authority_aggregator.get_display_name(&name);
                         self.metrics
                             .validator_selections
-                            .with_label_values(&[display_name.as_str(), ping_label.as_str()])
+                            .with_label_values(&[display_name.as_str(), ping_label])
                             .inc();
 
                         // Create a future that returns the name and display_name along with the
                         // result
                         let submit_fut = self.submit_transaction_once(
                             client,
-                            &transactions,
+                            &transaction,
                             options,
                             client_monitor,
                             name,
@@ -133,7 +137,7 @@ impl TransactionSubmitter {
                 Some((name, display_name, Ok(result))) => {
                     self.metrics
                         .validator_submit_transaction_successes
-                        .with_label_values(&[display_name.as_str(), ping_label.as_str()])
+                        .with_label_values(&[display_name.as_str(), ping_label])
                         .inc();
                     self.metrics
                         .submit_transaction_retries
@@ -141,7 +145,7 @@ impl TransactionSubmitter {
                     let elapsed = start_time.elapsed().as_secs_f64();
                     self.metrics
                         .submit_transaction_latency
-                        .with_label_values(&[ping_label.as_str()])
+                        .with_label_values(&[ping_label])
                         .observe(elapsed);
 
                     return Ok((name, result));
@@ -150,11 +154,7 @@ impl TransactionSubmitter {
                     let error_type = e.categorize().into();
                     self.metrics
                         .validator_submit_transaction_errors
-                        .with_label_values(&[
-                            display_name.as_str(),
-                            error_type,
-                            ping_label.as_str(),
-                        ])
+                        .with_label_values(&[display_name.as_str(), error_type, ping_label])
                         .inc();
 
                     retries += 1;
@@ -187,7 +187,7 @@ impl TransactionSubmitter {
     pub(crate) async fn submit_transaction_once<A>(
         &self,
         client: Arc<SafeClient<A>>,
-        transactions: &[Transaction],
+        transaction: &Option<Transaction>,
         options: &SubmitTransactionOptions,
         client_monitor: &Arc<ValidatorClientMonitor<A>>,
         validator: AuthorityName,
@@ -197,10 +197,14 @@ impl TransactionSubmitter {
         A: AuthorityAPI + Send + Sync + 'static + Clone,
     {
         let submit_start = Instant::now();
+        let is_ping = transaction.is_none();
 
         let statuses = timeout(
             SUBMIT_TRANSACTION_TIMEOUT,
-            client.submit_tx(transactions.to_vec(), options.forwarded_client_addr),
+            client.submit_tx(
+                transaction.clone().into_iter().collect(),
+                options.forwarded_client_addr,
+            ),
         )
         .await
         .map_err(|_| {
@@ -208,7 +212,7 @@ impl TransactionSubmitter {
                 authority_name: validator,
                 display_name: display_name.clone(),
                 operation: OperationType::Submit,
-                ping: transactions.is_empty(),
+                ping: is_ping,
                 result: Err(()),
             });
             TransactionRequestError::TimedOutSubmittingTransaction
@@ -219,7 +223,7 @@ impl TransactionSubmitter {
                     authority_name: validator,
                     display_name: display_name.clone(),
                     operation: OperationType::Submit,
-                    ping: transactions.is_empty(),
+                    ping: is_ping,
                     result: Err(()),
                 });
             }
@@ -244,7 +248,7 @@ impl TransactionSubmitter {
                         authority_name: validator,
                         display_name,
                         operation: OperationType::Submit,
-                        ping: transactions.is_empty(),
+                        ping: is_ping,
                         result: Err(()),
                     });
                 }
@@ -261,7 +265,7 @@ impl TransactionSubmitter {
             authority_name: validator,
             display_name,
             operation: OperationType::Submit,
-            ping: transactions.is_empty(),
+            ping: is_ping,
             result: Ok(latency),
         });
         Ok(result)

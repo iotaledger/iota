@@ -141,10 +141,10 @@ where
     /// - The transaction is finalized.
     /// - The transaction observes a non-retriable error.
     /// - Timeout is reached.
-    #[instrument(level = "error", skip_all, fields(tx_digest = ?transactions.iter().map(|t| *t.digest()).collect::<Vec<_>>(), ping = %transactions.is_empty()))]
+    #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest()), ping = %transaction.is_none()))]
     pub async fn drive_transaction(
         &self,
-        transactions: Vec<Transaction>,
+        transaction: Option<Transaction>,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
@@ -156,8 +156,11 @@ where
         // / reference_gas_price.
         let amplification_factor: u64 = 1;
 
-        let ping_label = transactions.is_empty().to_string();
-        let ping_label = ping_label.as_str();
+        let ping_label = if transaction.is_none() {
+            "true"
+        } else {
+            "false"
+        };
 
         let timer = Instant::now();
 
@@ -176,7 +179,7 @@ where
         let retry_loop = async {
             loop {
                 match self
-                    .drive_transaction_once(amplification_factor, transactions.clone(), &options)
+                    .drive_transaction_once(amplification_factor, transaction.clone(), &options)
                     .await
                 {
                     Ok(resp) => {
@@ -204,7 +207,7 @@ where
                                 .transaction_retries
                                 .with_label_values(&["failure", ping_label])
                                 .observe(attempts as f64);
-                            if !transactions.is_empty() {
+                            if transaction.is_some() {
                                 tracing::info!(
                                     "User transaction failed to finalize (attempt {}), with non-retriable error: {}",
                                     attempts,
@@ -213,7 +216,7 @@ where
                             }
                             return Err(e);
                         }
-                        if !transactions.is_empty() {
+                        if transaction.is_some() {
                             tracing::info!(
                                 "User transaction failed to finalize (attempt {}): {}. Retrying ...",
                                 attempts,
@@ -255,7 +258,7 @@ where
                             attempts,
                             timeout: duration,
                         };
-                        if !transactions.is_empty() {
+                        if transaction.is_some() {
                             tracing::info!(
                                 "User transaction timed out after {} attempts. Last error: {}",
                                 attempts,
@@ -273,15 +276,15 @@ where
     async fn drive_transaction_once(
         &self,
         amplification_factor: u64,
-        transactions: Vec<Transaction>,
+        transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         let auth_agg = self.authority_aggregator.load();
         let amplification_factor =
             amplification_factor.min(auth_agg.committee.num_members() as u64);
         let start_time = Instant::now();
-        let tx_digest = transactions.first().map(|t| *t.digest());
-        let is_ping = transactions.is_empty();
+        let tx_digest = transaction.as_ref().map(|t| *t.digest());
+        let is_ping = transaction.is_none();
 
         let (name, submit_txn_result) = self
             .submitter
@@ -289,7 +292,7 @@ where
                 &auth_agg,
                 &self.client_monitor,
                 amplification_factor,
-                transactions,
+                transaction,
                 options,
             )
             .await?;
@@ -391,7 +394,7 @@ where
                 // Now send a ping transaction to the chosen validator for the provided tx type
                 match self_clone
                     .drive_transaction(
-                        vec![],
+                        None,
                         SubmitTransactionOptions {
                             allowed_validators: vec![display_name.clone()],
                             ..Default::default()

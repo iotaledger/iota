@@ -340,7 +340,7 @@ where
 
         let td_response = td
             .drive_transaction(
-                vec![request.transaction.clone()],
+                Some(request.transaction.clone()),
                 SubmitTransactionOptions {
                     forwarded_client_addr: client_addr,
                     ..Default::default()
