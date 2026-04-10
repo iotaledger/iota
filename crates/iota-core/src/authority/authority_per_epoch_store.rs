@@ -3180,13 +3180,11 @@ impl AuthorityPerEpochStore {
         // single pass: validates UserTransactionV1 transactions and resolves
         // lock conflicts before reordering. Deferred txs from previous commits
         // already have persistent locks, giving them natural precedence.
-        //
-        // Collect user transaction digests for soft lock release after the
-        // consensus output is quarantined (permanent locks must be visible
-        // before soft locks are released).
-        let mut soft_lock_digests: Vec<TransactionDigest> = Vec::new();
+        // Also collects all UserTransactionV1 digests for soft lock release
+        // after the consensus output is quarantined.
+        let mut soft_lock_release_tx_digests = Vec::new();
         if enable_white_flag {
-            let (dropped, owned_object_locks) =
+            let (dropped, owned_object_locks, soft_lock_digests) =
                 post_consensus_validation::validate_and_resolve_conflicts(
                     authority_state,
                     self,
@@ -3194,6 +3192,7 @@ impl AuthorityPerEpochStore {
                 )
                 .await?;
             output.set_owned_object_locks(owned_object_locks);
+            soft_lock_release_tx_digests = soft_lock_digests;
             // TODO: possibly record dropped digests in ConsensusCommitPrologue for
             //  consistent view
             if !dropped.is_empty() {
@@ -3201,24 +3200,6 @@ impl AuthorityPerEpochStore {
                 authority_metrics
                     .consensus_handler_validation_dropped_transactions
                     .inc_by(dropped.len() as u64);
-            }
-
-            // Collect digests of all user transactions (both accepted and
-            // dropped) so their soft locks can be released once the permanent
-            // locks are visible in the consensus quarantine.
-            if self.soft_locks.get().is_some() {
-                soft_lock_digests.extend(dropped.iter().map(|(digest, _)| *digest));
-                for tx in sequenced_transactions.iter() {
-                    if let SequencedConsensusTransactionKind::External(
-                        ConsensusTransaction {
-                            kind: ConsensusTransactionKind::UserTransactionV1(t),
-                            ..
-                        },
-                    ) = &tx.0.transaction
-                    {
-                        soft_lock_digests.push(*t.digest());
-                    }
-                }
             }
 
             // Split back for downstream processing (separate reordering
@@ -3432,7 +3413,7 @@ impl AuthorityPerEpochStore {
         // released: accepted ones now hold permanent locks, rejected ones need
         // their non-conflicting owned objects freed for new transactions.
         if let Some(soft_locks) = self.soft_locks.get() {
-            for digest in &soft_lock_digests {
+            for digest in &soft_lock_release_tx_digests {
                 soft_locks.release(digest);
             }
         }
