@@ -12,22 +12,19 @@ use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabi
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id},
     crypto::{
-        AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, get_authority_key_pair,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        get_authority_key_pair, get_key_pair,
     },
     error::IotaError,
     messages_checkpoint::CheckpointResponse,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
-    messages_grpc::{
-        LayoutGenerationOption, RawSubmitTransactionsRequest, RawSubmitTransactionsResponse,
-        SubmitTransactionsRequest, SubmitTransactionsResponse,
-    },
+    messages_grpc::LayoutGenerationOption,
     supported_protocol_versions::SupportedProtocolVersions,
 };
 // Additional imports for white flag tests
 use iota_types::{
     base_types::{Identifier, IotaAddress, ObjectID, random_object_ref},
-    crypto::{AccountKeyPair, get_key_pair},
-    messages_grpc::{SubmitTransactionResult, TxStatusUpdate},
+    messages_grpc::TxStatusUpdate,
     object::Object,
     transaction::{
         CallArg, Command, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -53,27 +50,6 @@ use crate::{
         MockConsensusClient,
     },
 };
-
-/// Helper to make a tonic request with a native SubmitTransactionsRequest
-/// converted to Raw* for the protobuf wire format.
-fn make_raw_submit_request(
-    request: SubmitTransactionsRequest,
-) -> tonic::Request<RawSubmitTransactionsRequest> {
-    let raw: RawSubmitTransactionsRequest = request.try_into().expect("BCS serialization failed");
-    make_tonic_request_for_testing(raw)
-}
-
-/// Helper to convert a Raw submit response back to native types for assertion.
-fn into_native_submit_response(
-    result: Result<(tonic::Response<RawSubmitTransactionsResponse>, Weight), tonic::Status>,
-) -> Result<(tonic::Response<SubmitTransactionsResponse>, Weight), tonic::Status> {
-    let (response, weight) = result?;
-    let native: SubmitTransactionsResponse = response
-        .into_inner()
-        .try_into()
-        .map_err(|e: IotaError| tonic::Status::internal(e.to_string()))?;
-    Ok((tonic::Response::new(native), weight))
-}
 
 // This is the most basic example of how to test the server logic
 #[tokio::test]
@@ -288,665 +264,6 @@ async fn test_handle_capability_notification_v1_feature_disabled() {
     );
 }
 
-// White Flag Flow Tests
-
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_v1_feature_flag_disabled() {
-    telemetry_subscribers::init_for_testing();
-
-    // Create authority with default config (white flag disabled)
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id = ObjectID::random();
-    let gas_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[
-            Object::with_id_owner_for_testing(object_id, sender),
-            Object::with_id_owner_for_testing(gas_id, sender),
-        ])
-        .build()
-        .await;
-
-    // Create validator service with mock consensus
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    // Create a valid transaction
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
-    let recipient = dbg_addr(2);
-
-    let tx_data = TransactionData::new_transfer(
-        recipient,
-        object.compute_object_reference(),
-        sender,
-        gas.compute_object_reference(),
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-
-    // Call submit_transaction
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    // Should return Err as the feature is not supported
-    assert!(result.is_err(), "Expected an error but got Ok");
-    let err = result.unwrap_err();
-    assert_eq!(err.code(), tonic::Code::Internal);
-    assert!(
-        err.message()
-            .contains("White flag flow is not enabled in this protocol version")
-    );
-}
-
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_invalid_signature() {
-    telemetry_subscribers::init_for_testing();
-
-    // Enable white flag flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    // Create authority
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (_wrong_sender, wrong_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id = ObjectID::random();
-    let gas_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[
-            Object::with_id_owner_for_testing(object_id, sender),
-            Object::with_id_owner_for_testing(gas_id, sender),
-        ])
-        .build()
-        .await;
-
-    // Create validator service with mock consensus
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    // Create transaction with wrong signature
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
-    let recipient = dbg_addr(2);
-
-    let tx_data = TransactionData::new_transfer(
-        recipient,
-        object.compute_object_reference(),
-        sender,
-        gas.compute_object_reference(),
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        rgp,
-    );
-    // Sign with wrong key
-    let tx = to_sender_signed_transaction(tx_data, &wrong_key);
-
-    // Call submit_transaction
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    // Signature errors are reported per-transaction as Rejected results.
-    let result = into_native_submit_response(result);
-    assert!(result.is_ok(), "Batch response should be Ok");
-    let response = result.unwrap().0.into_inner();
-    assert_eq!(response.results.len(), 1);
-    match &response.results[0] {
-        SubmitTransactionResult::Rejected { error } => {
-            let msg = format!("{:?}", error).to_lowercase();
-            assert!(
-                msg.contains("signature"),
-                "Error should mention signature, got: {msg}",
-            );
-        }
-        other => panic!("Expected Rejected result, got {:?}", other),
-    }
-}
-
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_success() {
-    telemetry_subscribers::init_for_testing();
-
-    // Enable white flag flow
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    // Create authority
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id = ObjectID::random();
-    let gas_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[
-            Object::with_id_owner_for_testing(object_id, sender),
-            Object::with_id_owner_for_testing(gas_id, sender),
-        ])
-        .build()
-        .await;
-
-    // Create validator service with mock consensus
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    // Create transaction
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
-    let recipient = dbg_addr(2);
-
-    let tx_data = TransactionData::new_transfer(
-        recipient,
-        object.compute_object_reference(),
-        sender,
-        gas.compute_object_reference(),
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-
-    // Call submit_transaction
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    // Should succeed with Submitted result
-    let result = into_native_submit_response(result);
-    assert!(result.is_ok(), "Transaction submission should succeed");
-    let response = result.unwrap().0.into_inner();
-    match &response.results[0] {
-        SubmitTransactionResult::Submitted => {
-            // Success - transaction was submitted to consensus
-        }
-        other => panic!("Expected Submitted result, got {:?}", other),
-    }
-}
-
-// NOTE: Fullnode test removed as TestAuthorityBuilder doesn't expose
-// a simple way to build a fullnode. The fullnode rejection logic is tested
-// in integration tests.
-
-// ── Helper ────────────────────────────────────────────────────────────────────
-
-/// Builds a `use_clock` transaction (shared-object) signed by `sender_key`.
-/// Soft-bundle validity check requires every transaction to contain at least
-/// one shared object, and the clock satisfies that requirement.
-async fn build_shared_object_transaction(
-    state: &AuthorityState,
-    sender: IotaAddress,
-    sender_key: &AccountKeyPair,
-    gas_object_id: ObjectID,
-    pkg_ref: iota_types::base_types::ObjectRef,
-) -> Transaction {
-    let rgp = state.reference_gas_price_for_testing().unwrap();
-    let gas = state.get_object(&gas_object_id).await.unwrap();
-    let tx_data = TransactionData::new_move_call(
-        sender,
-        pkg_ref.object_id,
-        Identifier::from_static("object_basics"),
-        Identifier::from_static("use_clock"),
-        vec![],
-        gas.compute_object_reference(),
-        vec![CallArg::CLOCK_IMMUTABLE],
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-        rgp,
-    )
-    .unwrap();
-    to_sender_signed_transaction(tx_data, sender_key)
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
-/// A PTB with an empty `SplitCoins` args list is structurally invalid and
-/// fails `validity_check` before signature verification or deny checks.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_invalid_transaction() {
-    telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[Object::with_id_owner_for_testing(gas_id, sender)])
-        .build()
-        .await;
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
-
-    // Build a PTB with a SplitCoins command that has an empty amounts list —
-    // this is caught by validity_check as UserInputError::EmptyCommandInput.
-    let pt = ProgrammableTransaction {
-        inputs: vec![],
-        commands: vec![Command::SplitCoins(
-            iota_types::transaction::Argument::Gas,
-            vec![], // empty — invalid
-        )],
-    };
-    let tx_data = TransactionData::new_programmable(
-        sender,
-        vec![gas.compute_object_reference()],
-        pt,
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    let (response, _weight) = into_native_submit_response(result)
-        .expect("batch call should succeed even when individual txs fail");
-    let results = response.into_inner().results;
-    assert_eq!(results.len(), 1);
-    assert!(
-        matches!(&results[0], SubmitTransactionResult::Rejected { .. }),
-        "Expected Rejected for invalid transaction, got {:?}",
-        results[0]
-    );
-}
-
-/// Re-submitting an already-executed transaction returns
-/// `SubmitTransactionResult::Executed` with a populated `details` field.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_already_executed() {
-    telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id = ObjectID::random();
-    let gas_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[
-            Object::with_id_owner_for_testing(object_id, sender),
-            Object::with_id_owner_for_testing(gas_id, sender),
-        ])
-        .build()
-        .await;
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
-
-    let tx_data = TransactionData::new_transfer(
-        dbg_addr(2),
-        object.compute_object_reference(),
-        sender,
-        gas.compute_object_reference(),
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-
-    // Execute the transaction directly (bypasses handle_transaction, which is
-    // disabled when white-flag flow is enabled).
-    // TODO: prepare helper methods to avoid creating certified transactions, but
-    // rather executing UserTransactions directly in tests.
-    let cert = init_certified_transaction(tx.clone(), &authority_state);
-    let (effects, _) = authority_state.execute_for_test(&cert);
-
-    // Re-submit the same transaction via the white-flag endpoint.
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    let result = into_native_submit_response(result);
-    assert!(result.is_ok(), "Expected Ok for already-executed tx");
-    let response = result.unwrap().0.into_inner();
-    assert_eq!(response.results.len(), 1, "Expected exactly one result");
-    match &response.results[0] {
-        SubmitTransactionResult::Executed { effects_digest, .. } => {
-            assert_eq!(effects_digest, effects.digest());
-        }
-        other => panic!("Expected Executed result, got {:?}", other),
-    }
-}
-
-/// A transaction with a random (non-existent) gas object fails during deny
-/// checks. IOTA maps deny-check errors to `tonic::Status` via
-/// `.map_err(tonic::Status::from)?`, producing a hard `Err` rather than a
-/// `Rejected` variant.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transaction_gas_object_validation() {
-    telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let object_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[Object::with_id_owner_for_testing(object_id, sender)])
-        .build()
-        .await;
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state.get_object(&object_id).await.unwrap();
-
-    // Use a random object ref that doesn't exist in the store as gas payment.
-    let tx_data = TransactionData::new_transfer(
-        dbg_addr(2),
-        object.compute_object_reference(),
-        sender,
-        random_object_ref(), // non-existent gas object
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    // Non-existent gas object errors are reported per-transaction as Rejected
-    // results. TODO: check for a specific error kind once we have better error
-    // handling in place for the white-flag flow.
-    let result = into_native_submit_response(result);
-    assert!(result.is_ok(), "Batch response should be Ok");
-    let response = result.unwrap().0.into_inner();
-    assert_eq!(response.results.len(), 1);
-    match &response.results[0] {
-        SubmitTransactionResult::Rejected { .. } => {}
-        other => panic!("Expected Rejected result, got {:?}", other),
-    }
-}
-
-/// Soft-bundle happy path: two `use_clock` (shared-object) transactions
-/// submitted together are accepted and return `Submitted`.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_soft_bundle_transactions() {
-    telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id1 = ObjectID::random();
-    let gas_id2 = ObjectID::random();
-
-    let (authority_state, pkg_ref) =
-        init_state_with_ids_and_object_basics(vec![(sender, gas_id1), (sender, gas_id2)]).await;
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    let tx1 =
-        build_shared_object_transaction(&authority_state, sender, &sender_key, gas_id1, pkg_ref)
-            .await;
-    let tx2 =
-        build_shared_object_transaction(&authority_state, sender, &sender_key, gas_id2, pkg_ref)
-            .await;
-
-    // len > 1 triggers the soft-bundle path.
-    let request = SubmitTransactionsRequest {
-        transactions: vec![tx1, tx2],
-    };
-
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(request))
-        .await;
-
-    let result = into_native_submit_response(result);
-    assert!(result.is_ok(), "Batch submission should succeed");
-    let response = result.unwrap().0.into_inner();
-    assert_eq!(
-        response.results.len(),
-        2,
-        "Expected one result per transaction"
-    );
-    for (i, result) in response.results.iter().enumerate() {
-        match result {
-            SubmitTransactionResult::Submitted => {}
-            other => panic!("Expected Submitted for tx {i}, got {:?}", other),
-        }
-    }
-}
-
-/// In white-flag mode, transactions with different gas prices are processed
-/// independently — there is no bundle-level gas price matching. Each
-/// transaction is submitted on its own regardless of gas price differences.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_transactions_different_gas_prices_accepted() {
-    telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id1 = ObjectID::random();
-    let gas_id2 = ObjectID::random();
-
-    let (authority_state, pkg_ref) =
-        init_state_with_ids_and_object_basics(vec![(sender, gas_id1), (sender, gas_id2)]).await;
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    // tx1 at base rgp, tx2 at 2× rgp — both should be accepted independently.
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas1 = authority_state.get_object(&gas_id1).await.unwrap();
-    let gas2 = authority_state.get_object(&gas_id2).await.unwrap();
-
-    let tx_data1 = TransactionData::new_move_call(
-        sender,
-        pkg_ref.object_id,
-        Identifier::from_static("object_basics"),
-        Identifier::from_static("use_clock"),
-        vec![],
-        gas1.compute_object_reference(),
-        vec![CallArg::CLOCK_IMMUTABLE],
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
-        rgp, // base price
-    )
-    .unwrap();
-    let tx1 = to_sender_signed_transaction(tx_data1, &sender_key);
-
-    let tx_data2 = TransactionData::new_move_call(
-        sender,
-        pkg_ref.object_id,
-        Identifier::from_static("object_basics"),
-        Identifier::from_static("use_clock"),
-        vec![],
-        gas2.compute_object_reference(),
-        vec![CallArg::CLOCK_IMMUTABLE],
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp * 2,
-        rgp * 2, // different price — accepted in white-flag mode
-    )
-    .unwrap();
-    let tx2 = to_sender_signed_transaction(tx_data2, &sender_key);
-
-    let request = SubmitTransactionsRequest {
-        transactions: vec![tx1, tx2],
-    };
-
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(request))
-        .await;
-
-    // With soft-bundle checks removed, each transaction is processed independently.
-    // Different gas prices no longer cause a batch-level rejection.
-    let result = into_native_submit_response(result);
-    assert!(result.is_ok(), "Batch response should be Ok");
-    let response = result.unwrap().0.into_inner();
-    assert_eq!(
-        response.results.len(),
-        2,
-        "Expected one result per transaction"
-    );
-    for (i, result) in response.results.iter().enumerate() {
-        match result {
-            SubmitTransactionResult::Submitted => {}
-            other => panic!("Expected Submitted for tx {i}, got {:?}", other),
-        }
-    }
-}
-
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_get_checkpoint_happy_path() {
     telemetry_subscribers::init_for_testing();
@@ -1002,98 +319,43 @@ async fn test_get_checkpoint_happy_path() {
     assert!(native.contents.is_some());
 }
 
-/// A transaction whose serialized size exceeds `max_tx_size_bytes` (128 KiB)
-/// is rejected by `validity_check` before any signature or deny-check logic.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn test_submit_oversized_transaction() {
-    telemetry_subscribers::init_for_testing();
-
-    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
-        config.set_enable_white_flag_flow_for_testing(true);
-        config
-    });
-
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let gas_id = ObjectID::random();
-
-    let authority_state = TestAuthorityBuilder::new()
-        .with_starting_objects(&[Object::with_id_owner_for_testing(gas_id, sender)])
-        .build()
-        .await;
-
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
-        authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
-    ));
-
-    let validator_service = Arc::new(ValidatorService::new_for_tests(
-        authority_state.clone(),
-        consensus_adapter,
-        Arc::new(ValidatorServiceMetrics::new_for_tests()),
-    ));
-
-    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas = authority_state.get_object(&gas_id).await.unwrap();
-
-    // Build a PTB whose inputs alone total ~140 KiB > max_tx_size_bytes (128 KiB).
-    // Each pure arg is 14 KiB (below the 16 KiB per-arg limit), so the individual
-    // arg check doesn't trigger first — only the overall size limit does.
-    let inputs: Vec<_> = (0u8..10)
-        .map(|i| CallArg::Pure(vec![i; 14 * 1024]))
-        .collect();
-    let pt = ProgrammableTransaction {
-        inputs,
-        commands: vec![],
-    };
-    let tx_data = TransactionData::new_programmable(
+async fn build_shared_object_transaction(
+    state: &AuthorityState,
+    sender: IotaAddress,
+    sender_key: &AccountKeyPair,
+    gas_object_id: ObjectID,
+    pkg_ref: iota_types::base_types::ObjectRef,
+) -> Transaction {
+    let rgp = state.reference_gas_price_for_testing().unwrap();
+    let gas = state.get_object(&gas_object_id).await.unwrap();
+    let tx_data = TransactionData::new_move_call(
         sender,
-        vec![gas.compute_object_reference()],
-        pt,
-        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        pkg_ref.object_id,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("use_clock"),
+        vec![],
+        gas.compute_object_reference(),
+        vec![CallArg::CLOCK_IMMUTABLE],
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * rgp,
         rgp,
-    );
-    let tx = to_sender_signed_transaction(tx_data, &sender_key);
-
-    let result = validator_service
-        .handle_submit_transactions_impl(make_raw_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
-        .await;
-
-    let (response, _weight) = into_native_submit_response(result)
-        .expect("batch call should succeed even when individual txs fail");
-    let results = response.into_inner().results;
-    assert_eq!(results.len(), 1);
-    assert!(
-        matches!(&results[0], SubmitTransactionResult::Rejected { .. }),
-        "Expected Rejected for oversized transaction, got {:?}",
-        results[0]
-    );
+    )
+    .unwrap();
+    to_sender_signed_transaction(tx_data, sender_key)
 }
 
 // ── ValidatorV2 submit_tx (streaming) tests ──────────────────────────────────
 
-/// Helper: convert a native `SubmitTransactionsRequest` into the proto
-/// `SubmitTxRequest` and wrap it in a tonic request.
-fn make_v2_submit_request(request: SubmitTransactionsRequest) -> tonic::Request<SubmitTxRequest> {
-    let proto: SubmitTxRequest = request.try_into().expect("BCS serialization failed");
+/// Helper: convert a `Vec<Transaction>` into the proto `SubmitTxRequest` and
+/// wrap it in a tonic request.
+fn make_v2_submit_request(transactions: Vec<Transaction>) -> tonic::Request<SubmitTxRequest> {
+    let proto: SubmitTxRequest = transactions.try_into().expect("BCS serialization failed");
     make_tonic_request_for_testing(proto)
 }
 
 /// Result from collecting a V2 stream item: either a successfully decoded
 /// status or a raw `tonic::Status` error.
 enum V2StreamItem {
-    Ok(
-        iota_types::digests::TransactionDigest,
-        SubmitTransactionResult,
-    ),
+    Ok(iota_types::digests::TransactionDigest, TxStatusUpdate),
     Err(tonic::Status),
 }
 
@@ -1115,25 +377,25 @@ async fn collect_v2_stream_raw(
                     .expect("digest conversion");
                 let detail = status.status.expect("status present");
                 let native_result = match detail.kind.expect("kind present") {
-                    Kind::Submitted(_) => SubmitTransactionResult::Submitted,
+                    Kind::Submitted(_) => TxStatusUpdate::Submitted,
                     Kind::Executed(exec) => {
                         let effects_digest = bcs::from_bytes(&exec.effects_digest)
                             .expect("effects_digest deserialization");
                         let details = exec
                             .details
                             .map(|d| bcs::from_bytes(&d).expect("details deserialization"))
-                            .expect("details present");
-                        SubmitTransactionResult::Executed {
+                            .map(Box::new);
+                        TxStatusUpdate::Executed {
                             effects_digest,
-                            details: Box::new(details),
+                            details,
                         }
                     }
                     Kind::Rejected(rej) => {
                         let error: IotaError =
                             bcs::from_bytes(&rej.error).expect("error deserialization");
-                        SubmitTransactionResult::Rejected { error }
+                        TxStatusUpdate::Rejected { error }
                     }
-                    Kind::Expired(_) => panic!("unexpected Expired status"),
+                    Kind::Expired(exp) => TxStatusUpdate::Expired { epoch: exp.epoch },
                 };
                 results.push(V2StreamItem::Ok(digest, native_result));
             }
@@ -1145,10 +407,7 @@ async fn collect_v2_stream_raw(
 /// Convenience wrapper: collect all items and panic on stream-level errors.
 async fn collect_v2_stream(
     response: tonic::Response<crate::authority_server::StreamResponse<iota_network::api::TxStatus>>,
-) -> Vec<(
-    iota_types::digests::TransactionDigest,
-    SubmitTransactionResult,
-)> {
+) -> Vec<(iota_types::digests::TransactionDigest, TxStatusUpdate)> {
     collect_v2_stream_raw(response)
         .await
         .into_iter()
@@ -1215,9 +474,7 @@ async fn test_v2_submit_tx_success() {
     let expected_digest = *tx.digest();
 
     let response = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await
         .expect("submit_tx should succeed");
 
@@ -1226,7 +483,7 @@ async fn test_v2_submit_tx_success() {
     let (digest, result) = &results[0];
     assert_eq!(*digest, expected_digest);
     assert!(
-        matches!(result, SubmitTransactionResult::Submitted),
+        matches!(result, TxStatusUpdate::Submitted),
         "Expected Submitted, got {:?}",
         result
     );
@@ -1288,16 +545,14 @@ async fn test_v2_submit_tx_invalid_signature() {
     let tx = to_sender_signed_transaction(tx_data, &wrong_key);
 
     let response = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await
         .expect("submit_tx stream should open successfully");
 
     let results = collect_v2_stream(response).await;
     assert_eq!(results.len(), 1);
     match &results[0].1 {
-        SubmitTransactionResult::Rejected { error } => {
+        TxStatusUpdate::Rejected { error } => {
             let msg = format!("{:?}", error).to_lowercase();
             assert!(
                 msg.contains("signature"),
@@ -1358,9 +613,7 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
     let result = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await;
 
     match result {
@@ -1431,16 +684,14 @@ async fn test_v2_submit_tx_already_executed() {
 
     // Re-submit via V2 streaming endpoint.
     let response = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await
         .expect("submit_tx should succeed");
 
     let results = collect_v2_stream(response).await;
     assert_eq!(results.len(), 1);
     match &results[0].1 {
-        SubmitTransactionResult::Executed { effects_digest, .. } => {
+        TxStatusUpdate::Executed { effects_digest, .. } => {
             assert_eq!(effects_digest, effects.digest());
         }
         other => panic!("Expected Executed, got {:?}", other),
@@ -1488,12 +739,8 @@ async fn test_v2_submit_tx_multiple_transactions() {
         build_shared_object_transaction(&authority_state, sender, &sender_key, gas_id2, pkg_ref)
             .await;
 
-    let request = SubmitTransactionsRequest {
-        transactions: vec![tx1, tx2],
-    };
-
     let response = validator_service
-        .submit_tx(make_v2_submit_request(request))
+        .submit_tx(make_v2_submit_request(vec![tx1, tx2]))
         .await
         .expect("submit_tx should succeed");
 
@@ -1501,7 +748,7 @@ async fn test_v2_submit_tx_multiple_transactions() {
     assert_eq!(results.len(), 2, "Expected one result per transaction");
     for (i, (_digest, result)) in results.iter().enumerate() {
         assert!(
-            matches!(result, SubmitTransactionResult::Submitted),
+            matches!(result, TxStatusUpdate::Submitted),
             "Expected Submitted for tx {i}, got {:?}",
             result
         );
@@ -1566,16 +813,14 @@ async fn test_v2_submit_tx_invalid_transaction() {
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
     let response = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await
         .expect("stream should open successfully");
 
     let results = collect_v2_stream(response).await;
     assert_eq!(results.len(), 1);
     assert!(
-        matches!(&results[0].1, SubmitTransactionResult::Rejected { .. }),
+        matches!(&results[0].1, TxStatusUpdate::Rejected { .. }),
         "Expected Rejected for invalid transaction, got {:?}",
         results[0].1
     );
@@ -1634,9 +879,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
     let response = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await
         .expect("stream should open successfully");
 
@@ -1646,7 +889,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
     // The non-existent gas object may surface as either a Rejected status or a
     // stream-level error depending on which validation step catches it.
     match &items[0] {
-        V2StreamItem::Ok(_, SubmitTransactionResult::Rejected { .. }) => {}
+        V2StreamItem::Ok(_, TxStatusUpdate::Rejected { .. }) => {}
         V2StreamItem::Err(_) => {}
         other => panic!(
             "Expected Rejected or stream error for non-existent gas, got {:?}",
@@ -1727,12 +970,8 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     .unwrap();
     let tx2 = to_sender_signed_transaction(tx_data2, &sender_key);
 
-    let request = SubmitTransactionsRequest {
-        transactions: vec![tx1, tx2],
-    };
-
     let response = validator_service
-        .submit_tx(make_v2_submit_request(request))
+        .submit_tx(make_v2_submit_request(vec![tx1, tx2]))
         .await
         .expect("submit_tx should succeed");
 
@@ -1740,7 +979,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
     assert_eq!(results.len(), 2, "Expected one result per transaction");
     for (i, (_digest, result)) in results.iter().enumerate() {
         assert!(
-            matches!(result, SubmitTransactionResult::Submitted),
+            matches!(result, TxStatusUpdate::Submitted),
             "Expected Submitted for tx {i}, got {:?}",
             result
         );
@@ -1805,16 +1044,14 @@ async fn test_v2_submit_tx_oversized_transaction() {
     let tx = to_sender_signed_transaction(tx_data, &sender_key);
 
     let response = validator_service
-        .submit_tx(make_v2_submit_request(
-            SubmitTransactionsRequest::new_transaction(tx),
-        ))
+        .submit_tx(make_v2_submit_request(vec![tx]))
         .await
         .expect("stream should open successfully");
 
     let results = collect_v2_stream(response).await;
     assert_eq!(results.len(), 1);
     assert!(
-        matches!(&results[0].1, SubmitTransactionResult::Rejected { .. }),
+        matches!(&results[0].1, TxStatusUpdate::Rejected { .. }),
         "Expected Rejected for oversized transaction, got {:?}",
         results[0].1
     );
