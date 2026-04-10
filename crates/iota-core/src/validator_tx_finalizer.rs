@@ -368,7 +368,7 @@ mod tests {
         ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
         }
-        async fn health_check_v2(
+        async fn health_check(
             &self,
             _request: ValidatorHealthRequest,
         ) -> Result<ValidatorHealthResponse, IotaError> {

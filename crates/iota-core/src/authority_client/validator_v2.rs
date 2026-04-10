@@ -40,8 +40,8 @@ pub trait ValidatorV2API {
         request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
 
-    /// Health check via the V2 endpoint.
-    async fn health_check_v2(
+    /// Health check endpoint.
+    async fn health_check(
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError>;
@@ -99,7 +99,7 @@ impl ValidatorV2API for NetworkAuthorityClient {
         Ok(response.into_inner().into())
     }
 
-    async fn health_check_v2(
+    async fn health_check(
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {

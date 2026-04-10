@@ -99,7 +99,7 @@ pub struct SafeClientMetrics {
     submit_tx_latency: Histogram,
     get_tx_status_latency: Histogram,
     notify_capabilities_v2_latency: Histogram,
-    health_check_v2_latency: Histogram,
+    health_check_latency: Histogram,
     get_checkpoint_v2_latency: Histogram,
 }
 
@@ -144,7 +144,7 @@ impl SafeClientMetrics {
         let notify_capabilities_v2_latency = metrics_base
             .latency
             .with_label_values(&["notify_capabilities_v2"]);
-        let health_check_v2_latency = metrics_base.latency.with_label_values(&["health_check_v2"]);
+        let health_check_latency = metrics_base.latency.with_label_values(&["health_check"]);
         let get_checkpoint_v2_latency = metrics_base
             .latency
             .with_label_values(&["get_checkpoint_v2"]);
@@ -161,7 +161,7 @@ impl SafeClientMetrics {
             submit_tx_latency,
             get_tx_status_latency,
             notify_capabilities_v2_latency,
-            health_check_v2_latency,
+            health_check_latency,
             get_checkpoint_v2_latency,
         }
     }
@@ -610,15 +610,15 @@ where
     }
 
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn health_check_v2(
+    pub async fn health_check(
         &self,
         request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
-        let _timer = self.metrics.health_check_v2_latency.start_timer();
+        let _timer = self.metrics.health_check_latency.start_timer();
         check_error!(
             self.address,
-            self.authority_client.health_check_v2(request).await,
-            "Client error in health_check_v2"
+            self.authority_client.health_check(request).await,
+            "Client error in health_check"
         )
     }
 

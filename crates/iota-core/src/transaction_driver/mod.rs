@@ -296,13 +296,24 @@ where
                 options,
             )
             .await?;
-        if let TxStatusUpdate::Rejected { error } = &submit_txn_result {
-            return Err(TransactionDriverError::ClientInternal {
-                error: format!(
-                    "TxStatusUpdate::Rejected should have been returned as an error in submit_transaction(): {:?}",
-                    error
-                ),
-            });
+        match &submit_txn_result {
+            TxStatusUpdate::Rejected { error } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "TxStatusUpdate::Rejected should have been returned as an error in submit_transaction(): {:?}",
+                        error
+                    ),
+                });
+            }
+            TxStatusUpdate::Expired { epoch } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "TxStatusUpdate::Expired should have been returned as an error in submit_transaction() (epoch {})",
+                        epoch
+                    ),
+                });
+            }
+            _ => {}
         }
 
         // Wait for quorum effects using EffectsCertifier

@@ -92,7 +92,7 @@ impl ValidatorV2API for LocalAuthorityClient {
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
-    async fn health_check_v2(
+    async fn health_check(
         &self,
         _request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
@@ -381,7 +381,7 @@ impl ValidatorV2API for MockAuthorityApi {
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
-    async fn health_check_v2(
+    async fn health_check(
         &self,
         _request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
@@ -534,7 +534,7 @@ impl ValidatorV2API for HandleTransactionTestAuthorityClient {
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
-    async fn health_check_v2(
+    async fn health_check(
         &self,
         _request: ValidatorHealthRequest,
     ) -> Result<ValidatorHealthResponse, IotaError> {
