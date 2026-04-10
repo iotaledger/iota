@@ -14,18 +14,20 @@ use iota_config::genesis::Genesis;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
     crypto::AuthorityKeyPair,
+    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
-        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        HandleCertificateRequestV1, HandleCertificateResponseV1,
-        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
-        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-        SubmitTransactionsRequest, SubmitTransactionsResponse, SystemStateRequest,
-        TransactionInfoRequest, TransactionInfoResponse, ValidatorHealthRequest,
-        ValidatorHealthResponse, WaitForEffectsRequest, WaitForEffectsResponse,
+        GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
+        HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
+        HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
+        HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
+        ObjectInfoResponse, SubmitTransactionsRequest, SubmitTransactionsResponse,
+        SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
+        ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
+        WaitForEffectsResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -59,8 +61,44 @@ pub struct LocalAuthorityClient {
     pub fault_config: LocalAuthorityClientFaultConfig,
 }
 
-impl ValidatorPeerAPI for LocalAuthorityClient {}
-impl ValidatorV2API for LocalAuthorityClient {}
+#[async_trait]
+impl ValidatorPeerAPI for LocalAuthorityClient {
+    async fn get_checkpoint_v2(
+        &self,
+        _request: CheckpointRequest,
+    ) -> Result<CheckpointResponse, IotaError> {
+        unimplemented!()
+    }
+}
+#[async_trait]
+impl ValidatorV2API for LocalAuthorityClient {
+    async fn submit_tx(
+        &self,
+        _request: SubmitTransactionsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn get_tx_status(
+        &self,
+        _request: GetTxStatusRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn notify_capabilities_v2(
+        &self,
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+    async fn health_check(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        unimplemented!()
+    }
+}
 #[async_trait]
 impl ValidatorAPI for LocalAuthorityClient {
     async fn handle_transaction(
@@ -312,8 +350,44 @@ impl MockAuthorityApi {
     }
 }
 
-impl ValidatorPeerAPI for MockAuthorityApi {}
-impl ValidatorV2API for MockAuthorityApi {}
+#[async_trait]
+impl ValidatorPeerAPI for MockAuthorityApi {
+    async fn get_checkpoint_v2(
+        &self,
+        _request: CheckpointRequest,
+    ) -> Result<CheckpointResponse, IotaError> {
+        unimplemented!()
+    }
+}
+#[async_trait]
+impl ValidatorV2API for MockAuthorityApi {
+    async fn submit_tx(
+        &self,
+        _request: SubmitTransactionsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn get_tx_status(
+        &self,
+        _request: GetTxStatusRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn notify_capabilities_v2(
+        &self,
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+    async fn health_check(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        unimplemented!()
+    }
+}
 #[async_trait]
 impl ValidatorAPI for MockAuthorityApi {
     /// Initiate a new transaction to an IOTA or Primary account.
@@ -429,8 +503,44 @@ pub struct HandleTransactionTestAuthorityClient {
     pub sleep_duration_before_responding: Option<Duration>,
 }
 
-impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {}
-impl ValidatorV2API for HandleTransactionTestAuthorityClient {}
+#[async_trait]
+impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {
+    async fn get_checkpoint_v2(
+        &self,
+        _request: CheckpointRequest,
+    ) -> Result<CheckpointResponse, IotaError> {
+        unimplemented!()
+    }
+}
+#[async_trait]
+impl ValidatorV2API for HandleTransactionTestAuthorityClient {
+    async fn submit_tx(
+        &self,
+        _request: SubmitTransactionsRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn get_tx_status(
+        &self,
+        _request: GetTxStatusRequest,
+        _client_addr: Option<SocketAddr>,
+    ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
+        unimplemented!()
+    }
+    async fn notify_capabilities_v2(
+        &self,
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
+    async fn health_check(
+        &self,
+        _request: ValidatorHealthRequest,
+    ) -> Result<ValidatorHealthResponse, IotaError> {
+        unimplemented!()
+    }
+}
 
 #[async_trait]
 impl ValidatorAPI for HandleTransactionTestAuthorityClient {

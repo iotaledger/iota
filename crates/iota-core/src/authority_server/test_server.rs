@@ -8,7 +8,7 @@ use std::{io, sync::Arc};
 use anyhow::Result;
 use fastcrypto::traits::KeyPair;
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
-use iota_network::api::ValidatorServer;
+use iota_network::api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server};
 use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::multiaddr::Multiaddr;
 use tracing::info;
@@ -103,13 +103,13 @@ impl AuthorityServer {
             self.state.config.network_key_pair().copy().private(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
+        let validator_service =
+            ValidatorService::new_for_tests(self.state, self.consensus_adapter, self.metrics);
         let server = iota_network_stack::config::Config::new()
             .server_builder()
-            .add_service(ValidatorServer::new(ValidatorService::new_for_tests(
-                self.state,
-                self.consensus_adapter,
-                self.metrics,
-            )))
+            .add_service(ValidatorServer::new(validator_service.clone()))
+            .add_service(ValidatorV2Server::new(validator_service.clone()))
+            .add_service(ValidatorPeerServer::new(validator_service))
             .bind(&address, Some(tls_config))
             .await
             .unwrap();

@@ -1930,18 +1930,14 @@ where
             self.committee.clone(),
             self.authority_clients.clone(),
             CapabilityNotificationState::default(),
-            |name, client| {
-                Box::pin(async move {
-                    let concise_name = name.concise_owned();
-                    client
-                        .authority_client()
-                        .handle_capability_notification_v1(request.clone())
-                        .instrument(trace_span!("handle_capability_notification_v1", authority = ?concise_name))
-                        .await
-                })
+            |_name, client| {
+                Box::pin(async move { client.notify_capabilities_v2(request.clone()).await })
             },
             |mut state, name, weight, response| {
-                let display_name = validator_display_names.get(&name).unwrap_or(&name.concise().to_string()).clone();
+                let display_name = validator_display_names
+                    .get(&name)
+                    .unwrap_or(&name.concise().to_string())
+                    .clone();
                 Box::pin(async move {
                     match response {
                         Ok(_) => {
@@ -1966,7 +1962,7 @@ where
                             Self::record_rpc_error_maybe(self.metrics.clone(), &display_name, &err);
 
                             let (retryable, _categorized) = err.is_retryable();
-                            if  retryable {
+                            if retryable {
                                 // Other retryable errors (timeouts, etc.)
                                 state.retryable_errors += weight;
                             } else {
@@ -1975,8 +1971,15 @@ where
                             }
                             state.errors.push((err, vec![name], weight));
 
-                            // Check if we have reached 2f+1 non-retryable errors OR we have reached 2f+1 total errors, and there is still a chance to reach the validity threshold with retryable errors and good responses.
-                            if state.non_retryable_errors >= quorum_threshold || (state.non_retryable_errors + state.retryable_errors  >= quorum_threshold && state.good_responses + state.retryable_errors >= validity_threshold) {
+                            // Check if we have reached 2f+1 non-retryable errors OR we have reached
+                            // 2f+1 total errors, and there is still a chance to reach the validity
+                            // threshold with retryable errors and good responses.
+                            if state.non_retryable_errors >= quorum_threshold
+                                || (state.non_retryable_errors + state.retryable_errors
+                                    >= quorum_threshold
+                                    && state.good_responses + state.retryable_errors
+                                        >= validity_threshold)
+                            {
                                 return ReduceOutput::Failed(state);
                             }
                         }
@@ -1987,7 +1990,8 @@ where
             },
             // Use pre_quorum_timeout for capability notifications
             self.timeouts.pre_quorum_timeout,
-        ).await;
+        )
+        .await;
 
         match result {
             Ok(_) => {

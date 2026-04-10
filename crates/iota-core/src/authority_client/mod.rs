@@ -4,11 +4,7 @@
 use std::{collections::BTreeMap, net::SocketAddr, time::Duration};
 
 use anyhow::anyhow;
-use iota_network::{
-    api::ValidatorClient,
-    tonic,
-    tonic::{metadata::KeyAndValueRef, transport::Channel},
-};
+use iota_network::api::{ValidatorClient, ValidatorPeerClient, ValidatorV2Client};
 use iota_network_stack::config::Config;
 use iota_types::{
     base_types::AuthorityName,
@@ -30,7 +26,9 @@ pub mod validator_v2;
 /// A client for the network authority.
 #[derive(Clone)]
 pub struct NetworkAuthorityClient {
-    client: IotaResult<ValidatorClient<Channel>>,
+    client: IotaResult<ValidatorClient<tonic::transport::Channel>>,
+    v2_client: IotaResult<ValidatorV2Client<tonic::transport::Channel>>,
+    peer_client: IotaResult<ValidatorPeerClient<tonic::transport::Channel>>,
 }
 
 impl NetworkAuthorityClient {
@@ -59,28 +57,44 @@ impl NetworkAuthorityClient {
                 None,
             )
         });
-        let client: IotaResult<_> = iota_network_stack::client::connect_lazy(address, tls_config)
-            .map(ValidatorClient::new)
-            .map_err(|err| err.to_string().into());
-        Self { client }
+        let channel: IotaResult<tonic::transport::Channel> =
+            iota_network_stack::client::connect_lazy(address, tls_config)
+                .map_err(|err| err.to_string().into());
+        Self {
+            client: channel.clone().map(ValidatorClient::new),
+            v2_client: channel.clone().map(ValidatorV2Client::new),
+            peer_client: channel.map(ValidatorPeerClient::new),
+        }
     }
 
     /// Creates a new client with a `transport` channel.
-    pub fn new(channel: Channel) -> Self {
+    pub fn new(channel: tonic::transport::Channel) -> Self {
         Self {
-            client: Ok(ValidatorClient::new(channel)),
+            client: Ok(ValidatorClient::new(channel.clone())),
+            v2_client: Ok(ValidatorV2Client::new(channel.clone())),
+            peer_client: Ok(ValidatorPeerClient::new(channel)),
         }
     }
 
     /// Creates a new client with a lazy `transport` channel.
-    fn new_lazy(client: IotaResult<Channel>) -> Self {
+    fn new_lazy(channel: IotaResult<tonic::transport::Channel>) -> Self {
         Self {
-            client: client.map(ValidatorClient::new),
+            client: channel.clone().map(ValidatorClient::new),
+            v2_client: channel.clone().map(ValidatorV2Client::new),
+            peer_client: channel.map(ValidatorPeerClient::new),
         }
     }
 
-    fn client(&self) -> IotaResult<ValidatorClient<Channel>> {
+    fn client(&self) -> IotaResult<ValidatorClient<tonic::transport::Channel>> {
         self.client.clone()
+    }
+
+    fn v2_client(&self) -> IotaResult<ValidatorV2Client<tonic::transport::Channel>> {
+        self.v2_client.clone()
+    }
+
+    fn peer_client(&self) -> IotaResult<ValidatorPeerClient<tonic::transport::Channel>> {
+        self.peer_client.clone()
     }
 }
 
@@ -142,19 +156,50 @@ pub fn make_authority_clients_with_timeout_config(
     make_network_authority_clients_with_network_config(committee, &network_config)
 }
 
-fn insert_metadata<T>(request: &mut tonic::Request<T>, client_addr: Option<SocketAddr>) {
+pub(crate) fn insert_metadata<T>(request: &mut tonic::Request<T>, client_addr: Option<SocketAddr>) {
     if let Some(client_addr) = client_addr {
         let mut metadata = tonic::metadata::MetadataMap::new();
         metadata.insert("x-forwarded-for", client_addr.to_string().parse().unwrap());
         metadata
             .iter()
             .for_each(|key_and_value| match key_and_value {
-                KeyAndValueRef::Ascii(key, value) => {
+                tonic::metadata::KeyAndValueRef::Ascii(key, value) => {
                     request.metadata_mut().insert(key, value.clone());
                 }
-                KeyAndValueRef::Binary(key, value) => {
+                tonic::metadata::KeyAndValueRef::Binary(key, value) => {
                     request.metadata_mut().insert_bin(key, value.clone());
                 }
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use super::insert_metadata;
+
+    #[test]
+    fn insert_metadata_sets_x_forwarded_for_header() {
+        let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 42)), 8080);
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, Some(addr));
+
+        let header = request
+            .metadata()
+            .get("x-forwarded-for")
+            .expect("x-forwarded-for header should be set");
+        assert_eq!(header.to_str().unwrap(), "10.0.0.42:8080");
+    }
+
+    #[test]
+    fn insert_metadata_noop_when_no_client_addr() {
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, None);
+
+        assert!(
+            request.metadata().get("x-forwarded-for").is_none(),
+            "x-forwarded-for header should not be set when client_addr is None"
+        );
     }
 }
