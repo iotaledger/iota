@@ -402,6 +402,39 @@ pub struct SubmitTransactionsResponse {
     pub results: Vec<SubmitTransactionResult>,
 }
 
+/// Request to query the finality status of one or more previously submitted
+/// transactions.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GetTxStatusRequest {
+    pub queries: Vec<TxStatusQuery>,
+}
+
+/// A single transaction status query.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TxStatusQuery {
+    pub transaction_digest: TransactionDigest,
+    /// When true, execution details (effects, events, objects) are included
+    /// in the response for this transaction.
+    pub include_details: bool,
+}
+
+/// Streamed status update for ValidatorV2 RPCs (`submit_tx` and
+/// `get_tx_status`). Covers every state a transaction can be in.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum TxStatusUpdate {
+    /// The transaction passed validation and was submitted to consensus.
+    Submitted,
+    /// The transaction was executed and finalized.
+    Executed {
+        effects_digest: TransactionEffectsDigest,
+        details: Option<Box<ExecutedData>>,
+    },
+    /// The transaction was rejected.
+    Rejected { error: Option<IotaError> },
+    /// Transaction status has expired from the cache or timed out.
+    Expired { epoch: EpochId },
+}
+
 /// A single wait-for-effects item within a batch request.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WaitForEffectRequest {

@@ -18,8 +18,9 @@ mod validator_v2 {
 }
 
 pub use validator_v2::{
-    ExecutedStatus, ExpiredStatus, RejectedStatus, StatusDetail, SubmitTxRequest, SubmittedStatus,
-    TxDigest, TxStatus, status_detail,
+    ExecutedStatus, ExpiredStatus, GetTxStatusRequest, NotifyCapabilitiesRequest,
+    NotifyCapabilitiesResponse, RejectedStatus, StatusDetail, SubmitTxRequest, SubmittedStatus,
+    TxDigest, TxStatus, TxStatusQuery, status_detail,
     validator_v2_client::ValidatorV2Client,
     validator_v2_server::{ValidatorV2, ValidatorV2Server},
 };
