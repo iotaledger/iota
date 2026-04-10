@@ -34,6 +34,7 @@ struct ReferenceSafetyAnalysis<'a> {
     module: &'a CompiledModule,
     function_context: &'a FunctionContext<'a>,
     stack: AbstractStack<AbstractValue>,
+    needs_refresh: bool,
 }
 
 impl<'a> ReferenceSafetyAnalysis<'a> {
@@ -42,6 +43,9 @@ impl<'a> ReferenceSafetyAnalysis<'a> {
             module,
             function_context,
             stack: AbstractStack::new(),
+            // AbstractState::new() returns a canonical state, so the first
+            // block execution must refresh before processing instructions.
+            needs_refresh: true,
         }
     }
 
@@ -538,18 +542,18 @@ impl TransferFunctions for ReferenceSafetyAnalysis<'_> {
         last_index: CodeOffset,
         meter: &mut (impl Meter + ?Sized),
     ) -> PartialVMResult<()> {
-        // removed `first_index` from tuple, replaced `index == first_index` with
-        // `state.is_canonical()` (canonical state = first instruction in a block)
-        if state.is_canonical() {
+        if self.needs_refresh {
             safe_assert!(self.stack.is_empty());
-            state.refresh()?
+            state.refresh()?;
+            self.needs_refresh = false;
         }
         execute_inner(self, state, bytecode, index, meter)?;
         #[cfg(debug_assertions)]
         state.check_invariants();
         if index == last_index {
             safe_assert!(self.stack.is_empty());
-            state.canonicalize()?
+            state.canonicalize()?;
+            self.needs_refresh = true;
         }
         Ok(())
     }
