@@ -154,14 +154,20 @@ export function useGetCategorizedOwnedObjects(
     const otherPagination = useVirtualPagination(otherItems, pageSize, OwnedObjectCategory.Other);
     const kioskPagination = useVirtualPagination(kioskItems, pageSize, OwnedObjectCategory.Kiosk);
 
-    const hasMore = !!ownedObjectsQuery.hasNextPage;
-    const isLoadingMore = ownedObjectsQuery.isFetchingNextPage;
-
     useEffect(() => {
-        if (hasMore && !isLoadingMore && !ownedObjectsQuery.isLoading) {
+        if (
+            ownedObjectsQuery.hasNextPage &&
+            !ownedObjectsQuery.isFetchingNextPage &&
+            !ownedObjectsQuery.isLoading
+        ) {
             ownedObjectsQuery.fetchNextPage();
         }
-    }, [hasMore, isLoadingMore, ownedObjectsQuery.isLoading, ownedObjectsQuery.fetchNextPage]);
+    }, [
+        ownedObjectsQuery.hasNextPage,
+        ownedObjectsQuery.isFetchingNextPage,
+        ownedObjectsQuery.isLoading,
+        ownedObjectsQuery.fetchNextPage,
+    ]);
 
     const availableCategories = useMemo(() => {
         const category: OwnedObjectCategory[] = [];
@@ -172,7 +178,7 @@ export function useGetCategorizedOwnedObjects(
         return category;
     }, [nftItems.length, nameItems.length, kioskItems.length, otherItems.length]);
 
-    const isFetchingAll = ownedObjectsQuery.isFetching || hasMore;
+    const isFetchingAll = ownedObjectsQuery.isFetching;
     const isError = ownedObjectsQuery.isError;
 
     return {
