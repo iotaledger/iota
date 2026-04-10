@@ -9,7 +9,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::{Either, join_all};
 use iota_metrics::spawn_monitored_task;
-use iota_network::{api::Validator, tonic};
+use iota_network::api::Validator;
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -1141,7 +1141,7 @@ impl ValidatorService {
             Ok(Either::Right(dropped_error)) => {
                 // Transaction was dropped by white-flag conflict resolution.
                 WaitForEffectResponse::Rejected {
-                    error: Some(dropped_error),
+                    error: dropped_error,
                 }
             }
             Err(_timeout) => {

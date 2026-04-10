@@ -95,7 +95,10 @@ use iota_metrics::{
 };
 use iota_names::config::IotaNamesConfig;
 use iota_network::{
-    api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
+    api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server},
+    discovery,
+    discovery::TrustedPeerChangeEvent,
+    randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
@@ -1420,7 +1423,9 @@ impl IotaNode {
         server_conf.load_shed = config.grpc_load_shed;
         let server_builder =
             ServerBuilder::from_config(&server_conf, GrpcMetrics::new(prometheus_registry))
-                .add_service(ValidatorServer::new(validator_service));
+                .add_service(ValidatorServer::new(validator_service.clone()))
+                .add_service(ValidatorV2Server::new(validator_service.clone()))
+                .add_service(ValidatorPeerServer::new(validator_service));
 
         let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),

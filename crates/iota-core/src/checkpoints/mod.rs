@@ -75,7 +75,7 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
     },
     authority_client::{
-        make_network_authority_clients_with_network_config, validator::ValidatorAPI,
+        make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
     },
     checkpoints::{
         causal_order::CausalOrder,
@@ -2246,7 +2246,7 @@ async fn diagnose_split_brain(
                 request_content: true,
                 certified: false,
             };
-            client.handle_checkpoint(request)
+            client.get_checkpoint_v2(request)
         })
         .collect::<Vec<_>>();
 

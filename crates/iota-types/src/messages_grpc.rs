@@ -430,7 +430,7 @@ pub enum TxStatusUpdate {
         details: Option<Box<ExecutedData>>,
     },
     /// The transaction was rejected.
-    Rejected { error: Option<IotaError> },
+    Rejected { error: IotaError },
     /// Transaction status has expired from the cache or timed out.
     Expired { epoch: EpochId },
 }
@@ -463,7 +463,7 @@ pub enum WaitForEffectResponse {
         details: Option<Box<ExecutedData>>,
     },
     /// The transaction was rejected by consensus.
-    Rejected { error: Option<IotaError> },
+    Rejected { error: IotaError },
     /// Transaction status has expired from the cache.
     Expired { epoch: EpochId },
 }
@@ -529,8 +529,8 @@ pub struct RawExecutedStatus {
 
 #[derive(Clone, prost::Message)]
 pub struct RawRejectedStatus {
-    #[prost(bytes = "bytes", optional, tag = "1")]
-    pub error: Option<Bytes>,
+    #[prost(bytes = "bytes", tag = "1")]
+    pub error: Bytes,
 }
 
 /// A single wait-for-effect item in the raw (protobuf) batch request.
@@ -725,21 +725,13 @@ fn try_from_raw_executed_status_wait(
     Ok((effects_digest, details))
 }
 
-fn try_from_response_rejected(error: Option<IotaError>) -> Result<RawRejectedStatus, IotaError> {
-    let error = error
-        .map(|e| bcs_serialize(&e, "RawRejectedStatus.error"))
-        .transpose()?;
+fn try_from_response_rejected(error: IotaError) -> Result<RawRejectedStatus, IotaError> {
+    let error = bcs_serialize(&error, "RawRejectedStatus.error")?;
     Ok(RawRejectedStatus { error })
 }
 
-fn try_from_raw_rejected_status(
-    rejected: RawRejectedStatus,
-) -> Result<Option<IotaError>, IotaError> {
-    rejected
-        .error
-        .as_ref()
-        .map(|e| bcs_deserialize(e, "RawRejectedStatus.error"))
-        .transpose()
+fn try_from_raw_rejected_status(rejected: RawRejectedStatus) -> Result<IotaError, IotaError> {
+    bcs_deserialize(&rejected.error, "RawRejectedStatus.error")
 }
 
 // --- SubmitTransactions ---
@@ -771,7 +763,7 @@ impl TryFrom<SubmitTransactionResult> for RawSubmitTransactionResult {
                 *details,
             )?),
             SubmitTransactionResult::Rejected { error } => {
-                RawSubmitStatus::Rejected(try_from_response_rejected(Some(error))?)
+                RawSubmitStatus::Rejected(try_from_response_rejected(error)?)
             }
         };
         Ok(RawSubmitTransactionResult { inner: Some(inner) })
@@ -792,11 +784,7 @@ impl TryFrom<RawSubmitTransactionResult> for SubmitTransactionResult {
                 })
             }
             Some(RawSubmitStatus::Rejected(rejected)) => {
-                let error = try_from_raw_rejected_status(rejected)?.unwrap_or(
-                    IotaError::TransactionSerialization {
-                        error: "RawSubmitTransactionResult rejected error is None".to_string(),
-                    },
-                );
+                let error = try_from_raw_rejected_status(rejected)?;
                 Ok(SubmitTransactionResult::Rejected { error })
             }
             None => Err(IotaError::TransactionSerialization {
@@ -1057,7 +1045,9 @@ mod tests {
         let response = WaitForEffectsResponse {
             results: vec![
                 WaitForEffectResponse::Expired { epoch: 1 },
-                WaitForEffectResponse::Rejected { error: None },
+                WaitForEffectResponse::Rejected {
+                    error: IotaError::Unknown("test rejection".to_string()),
+                },
             ],
         };
         let raw: RawWaitForEffectsResponse = response.try_into().unwrap();
@@ -1070,7 +1060,7 @@ mod tests {
         ));
         assert!(matches!(
             back.results[1],
-            WaitForEffectResponse::Rejected { error: None }
+            WaitForEffectResponse::Rejected { .. }
         ));
     }
 

@@ -22,7 +22,7 @@ use iota_common::backoff::ExponentialBackoff;
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_types::{
     committee::EpochId,
-    messages_grpc::{SubmitTransactionResult, SubmitTransactionsRequest},
+    messages_grpc::{SubmitTransactionsRequest, TxStatusUpdate},
 };
 pub use metrics::*;
 use parking_lot::Mutex;
@@ -296,12 +296,22 @@ where
                 options,
             )
             .await?;
-        if let SubmitTransactionResult::Rejected { error } = &submit_txn_result {
-            return Err(TransactionDriverError::ClientInternal {
-                error: format!(
-                    "SubmitTxResult::Rejected should have been returned as an error in submit_transaction(): {error}"
-                ),
-            });
+        match &submit_txn_result {
+            TxStatusUpdate::Rejected { error } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "TxStatusUpdate::Rejected should have been returned as an error in submit_transaction(): {error:?}",
+                    ),
+                });
+            }
+            TxStatusUpdate::Expired { epoch } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "TxStatusUpdate::Expired should have been returned as an error in submit_transaction() (epoch {epoch})",
+                    ),
+                });
+            }
+            _ => {}
         }
 
         // Wait for quorum effects using EffectsCertifier
