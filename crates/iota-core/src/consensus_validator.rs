@@ -239,6 +239,7 @@ mod tests {
 
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
+    use iota_sdk_types::ObjectId;
     use iota_types::{
         crypto::Ed25519IotaSignature,
         error::IotaError,
@@ -342,15 +343,14 @@ mod tests {
     #[sim_test]
     async fn validate_transactions_feature_gating() {
         use iota_protocol_config::ProtocolConfig;
-        use iota_types::{
-            base_types::ObjectID,
-            crypto::{AccountKeyPair, AuthorityPublicKeyBytes, deterministic_random_account_key},
+        use iota_types::crypto::{
+            AccountKeyPair, AuthorityPublicKeyBytes, deterministic_random_account_key,
         };
 
         use crate::test_utils::make_transfer_iota_transaction;
 
         let (sender, sender_key): (_, AccountKeyPair) = deterministic_random_account_key();
-        let gas_object_id = ObjectID::random();
+        let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
 
         let network_config =

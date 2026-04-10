@@ -310,10 +310,9 @@ mod tests {
             HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
             HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
             HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-            ObjectInfoResponse, SubmitTransactionsRequest, SubmitTransactionsResponse,
-            SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
-            ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
-            WaitForEffectsResponse,
+            ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
+            TransactionInfoResponse, TxStatusUpdate, ValidatorHealthRequest,
+            ValidatorHealthResponse,
         },
         object::Object,
         transaction::{
@@ -351,7 +350,7 @@ mod tests {
     impl ValidatorV2API for MockAuthorityClient {
         async fn submit_tx(
             &self,
-            _request: SubmitTransactionsRequest,
+            _transactions: Vec<Transaction>,
             _client_addr: Option<SocketAddr>,
         ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
@@ -469,29 +468,6 @@ mod tests {
             _request: HandleCapabilityNotificationRequestV1,
         ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
-        }
-
-        async fn handle_submit_transactions(
-            &self,
-            _request: SubmitTransactionsRequest,
-            _client_addr: Option<SocketAddr>,
-        ) -> Result<SubmitTransactionsResponse, IotaError> {
-            unimplemented!()
-        }
-
-        async fn handle_wait_for_effects(
-            &self,
-            _request: WaitForEffectsRequest,
-            _client_addr: Option<SocketAddr>,
-        ) -> Result<WaitForEffectsResponse, IotaError> {
-            unimplemented!()
-        }
-
-        async fn handle_validator_health(
-            &self,
-            _request: ValidatorHealthRequest,
-        ) -> Result<ValidatorHealthResponse, IotaError> {
-            Ok(ValidatorHealthResponse::default())
         }
     }
 

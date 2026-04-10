@@ -24,10 +24,8 @@ use iota_types::{
         HandleCapabilityNotificationResponseV1, HandleCertificateRequestV1,
         HandleCertificateResponseV1, HandleSoftBundleCertificatesRequestV1,
         HandleSoftBundleCertificatesResponseV1, HandleTransactionResponse, ObjectInfoRequest,
-        ObjectInfoResponse, SubmitTransactionsRequest, SubmitTransactionsResponse,
-        SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse, TxStatusUpdate,
-        ValidatorHealthRequest, ValidatorHealthResponse, WaitForEffectsRequest,
-        WaitForEffectsResponse,
+        ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
+        TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     transaction::{Transaction, VerifiedTransaction},
 };
@@ -74,7 +72,7 @@ impl ValidatorPeerAPI for LocalAuthorityClient {
 impl ValidatorV2API for LocalAuthorityClient {
     async fn submit_tx(
         &self,
-        _request: SubmitTransactionsRequest,
+        _transactions: Vec<Transaction>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -203,29 +201,6 @@ impl ValidatorAPI for LocalAuthorityClient {
         epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
         Ok(HandleCapabilityNotificationResponseV1 { _unused: false })
-    }
-
-    async fn handle_submit_transactions(
-        &self,
-        _request: SubmitTransactionsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionsResponse, IotaError> {
-        unimplemented!("handle_submit_transactions not used in tests")
-    }
-
-    async fn handle_wait_for_effects(
-        &self,
-        _request: WaitForEffectsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<WaitForEffectsResponse, IotaError> {
-        unimplemented!("handle_wait_for_effects not used in tests")
-    }
-
-    async fn handle_validator_health(
-        &self,
-        _request: ValidatorHealthRequest,
-    ) -> Result<ValidatorHealthResponse, IotaError> {
-        Ok(ValidatorHealthResponse::default())
     }
 }
 
@@ -363,7 +338,7 @@ impl ValidatorPeerAPI for MockAuthorityApi {
 impl ValidatorV2API for MockAuthorityApi {
     async fn submit_tx(
         &self,
-        _request: SubmitTransactionsRequest,
+        _transactions: Vec<Transaction>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -469,29 +444,6 @@ impl ValidatorAPI for MockAuthorityApi {
             None => Ok(HandleCapabilityNotificationResponseV1 { _unused: false }),
         }
     }
-
-    async fn handle_submit_transactions(
-        &self,
-        _request: SubmitTransactionsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionsResponse, IotaError> {
-        unimplemented!("handle_submit_transactions not used in tests")
-    }
-
-    async fn handle_wait_for_effects(
-        &self,
-        _request: WaitForEffectsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<WaitForEffectsResponse, IotaError> {
-        unimplemented!("wait_for_effects not used in tests")
-    }
-
-    async fn handle_validator_health(
-        &self,
-        _request: ValidatorHealthRequest,
-    ) -> Result<ValidatorHealthResponse, IotaError> {
-        Ok(ValidatorHealthResponse::default())
-    }
 }
 
 #[derive(Clone)]
@@ -516,7 +468,7 @@ impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {
 impl ValidatorV2API for HandleTransactionTestAuthorityClient {
     async fn submit_tx(
         &self,
-        _request: SubmitTransactionsRequest,
+        _transactions: Vec<Transaction>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -607,29 +559,6 @@ impl ValidatorAPI for HandleTransactionTestAuthorityClient {
         _request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
-    }
-
-    async fn handle_submit_transactions(
-        &self,
-        _request: SubmitTransactionsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<SubmitTransactionsResponse, IotaError> {
-        unimplemented!("handle_submit_transactions not used in tests")
-    }
-
-    async fn handle_wait_for_effects(
-        &self,
-        _request: WaitForEffectsRequest,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<WaitForEffectsResponse, IotaError> {
-        unimplemented!("handle_wait_for_effects not used in tests")
-    }
-
-    async fn handle_validator_health(
-        &self,
-        _request: ValidatorHealthRequest,
-    ) -> Result<ValidatorHealthResponse, IotaError> {
-        Ok(ValidatorHealthResponse::default())
     }
 }
 

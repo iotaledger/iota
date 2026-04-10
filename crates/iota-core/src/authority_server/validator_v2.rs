@@ -17,7 +17,7 @@ use iota_types::{
     messages_grpc::{
         ExecutedData, GetTxStatusRequest as DomainGetTxStatusRequest,
         HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
-        SubmitTransactionsRequest, TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
+        TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
     transaction::Transaction,
@@ -47,7 +47,7 @@ use crate::{
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
-        request: SubmitTransactionsRequest,
+        transactions: Vec<Transaction>,
     ) -> Result<(ReceiverStream<TxUpdateItem>, Weight), tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
@@ -66,19 +66,19 @@ impl ValidatorService {
         );
 
         fp_ensure!(
-            request.transactions.len() <= MAX_TRANSACTIONS_PER_SUBMIT,
+            transactions.len() <= MAX_TRANSACTIONS_PER_SUBMIT,
             tonic::Status::invalid_argument(format!(
                 "too many transactions: {} exceeds limit of {MAX_TRANSACTIONS_PER_SUBMIT}",
-                request.transactions.len()
+                transactions.len()
             ))
         );
 
-        let (tx_sender, rx) = tokio::sync::mpsc::channel(request.transactions.len().max(1));
+        let (tx_sender, rx) = tokio::sync::mpsc::channel(transactions.len().max(1));
         let consensus_adapter = self.consensus_adapter.clone();
         let metrics = self.metrics.clone();
 
         // TODO(#11109): cap in-flight work per request (e.g. buffer_unordered(N)).
-        for transaction in request.transactions {
+        for transaction in transactions {
             let state = state.clone();
             let epoch_store = epoch_store.clone();
             let consensus_adapter = consensus_adapter.clone();
@@ -246,8 +246,7 @@ impl ValidatorService {
             .into()
         );
 
-        // Empty queries is a valid no-op/ping (consistent with V1's
-        // SubmitTransactionsRequest and WaitForEffectsRequest).
+        // Empty queries is a valid no-op/ping.
         fp_ensure!(
             request.queries.len() <= MAX_QUERIES_PER_GET_TX_STATUS,
             tonic::Status::invalid_argument(format!(
