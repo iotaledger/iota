@@ -19,6 +19,7 @@ const auditTrail = [
             'developer/iota-audit-trail/explanations/about-notarization',
             'developer/iota-audit-trail/explanations/role-based-access-control',
             'developer/iota-audit-trail/explanations/locking-configuration',
+            'developer/iota-audit-trail/explanations/privacy-and-off-chain-documents',
         ],
     },
     {

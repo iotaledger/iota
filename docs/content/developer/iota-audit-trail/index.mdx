@@ -67,9 +67,18 @@ IOTA is uniquely suited for audit trail applications due to several key properti
 * **Security**: All write operations require a valid on-chain Capability object with the appropriate permissions. Capabilities can be time-limited, address-bound, and revoked at any time, providing defense-in-depth against unauthorized access.
 * **Integrity**: Every record receives a monotonically increasing sequence number and a timestamp from the on-chain clock. The IOTA consensus mechanism guarantees that records cannot be reordered, backdated, or silently removed.
 
+## Privacy and Off-Chain Documents
+
+Audit Trail records can hold arbitrary data — you could store full documents or raw payloads directly on-chain. However, because the IOTA ledger is public and every node can read every on-chain object, storing sensitive information such as trade invoices, personal health data, or contractual terms directly on the ledger would make it visible to anyone.
+
+For this reason, the recommended approach is an **on-chain/off-chain pattern**: store only a cryptographic hash of the document on-chain and keep the actual content in the organization's private infrastructure. This separation of *proof* from *content* preserves the full verifiability of the ledger — any party holding the original document can confirm its integrity against the on-chain hash — while ensuring that sensitive data is never publicly exposed. The pattern also supports regulatory compliance (e.g., GDPR's "right to erasure"), selective disclosure between parties, and efficient use of ledger storage.
+
+For a detailed explanation of the privacy challenges, the on-chain/off-chain pattern, and a practical step-by-step example, see [Privacy and Off-Chain Documents](./explanations/privacy-and-off-chain-documents.mdx).
+
 ## Key Actors in the Audit Trail Process
 
-The IOTA Audit Trail framework defines clear roles for the participants in the audit process:
+IOTA Audit Trail provides a flexible and configurable **Role-Based Access Control** ([RBAC](#role-based-access-control-in-audit-trails-rbac)) management that can be used to
+define clear roles for the participants in the audit process:
 
 ### Trail Creator (Admin)
 
@@ -77,21 +86,26 @@ The **Trail Creator** is the address that creates the Audit Trail. Upon creation
 
 **Key Responsibilities:**
 - Create and configure the Audit Trail with metadata, locking policies, and an initial tag registry
-- Define roles with specific permission sets (e.g., `RecordAdmin`, `Auditor`, `LockingAdmin`)
+- Define roles with arbitrary permission sets and tags (e.g., `RecordAdmin`, `Auditor`, `LockingAdmin`)
 - Issue capabilities to other participants, optionally restricting them by address and time window
 - Revoke capabilities when access should be withdrawn
 - Manage the trail's locking configuration and tag registry
 
-### Record Writers
+Using the Admin Capability the Trail Creator can set up a custom role model to make sure only authorized parties can contribute to the trail.
+This allows organizations to create a secure and compliant audit environment that fits their specific needs.
+For example, in an international trade scenario, the Trail Creator could define roles for exporters, importers, customs authorities, and logistics providers.
+
+### Record Writer Roles
 
 **Record Writers** are participants who hold a Capability with record-management permissions (`AddRecord`, `DeleteRecord`, `CorrectRecord`). They are the operational users of the trail.
+The exact roles, permissions and tags depend on the use case, but Record Writer ia a common class of roles that can be customized to fit various scenarios using record tags.
 
 **Key Responsibilities:**
 - Add new records to the trail with data, optional metadata, and optional tags
 - Correct existing records (Not MVP) by creating new records that reference the originals
 - Delete records when permitted by the locking configuration
 
-### Auditors and Verifiers
+### Auditor and Verifier Roles
 
 **Auditors** verify the integrity and completeness of the trail. Reading an Audit Trail's on-chain state requires no special permissions — the trail is a shared object whose data is publicly accessible on the ledger.
 
@@ -100,11 +114,14 @@ The **Trail Creator** is the address that creates the Audit Trail. Upon creation
 - Confirm that records have not been tampered with by comparing on-chain data against off-chain source documents
 - Validate that the trail's access control configuration meets compliance requirements
 
-## Role-Based Access Control in Audit Trails
+## Role-Based Access Control in Audit Trails (RBAC)
 
-Access to every write operation on an Audit Trail is governed by **Role-Based Access Control (RBAC)**. The RBAC system is highly configurable and combines two primitives:
+Access to every write operation on an Audit Trail is governed by Role-Based Access Control (RBAC). The RBAC system is highly configurable and combines four primitives:
 
 - **Roles**: Named permission sets stored on the trail (e.g., `"Admin"`, `"RecordAdmin"`, `"LockingAdmin"`). Each role defines which operations its holders can perform.
 - **Capabilities**: On-chain objects held by users, each linked to one role. A Capability must be presented with every write operation — the trail validates it before allowing the action.
+- **Permission Sets**: Each role specifies a set of permissions (e.g., `AddRecord`, `DeleteRecord`, `AddRoles`, `UpdateMetadata`). Permissions can be combined to create custom roles that fit specific organizational needs.
+- **Record Tags**: User-defined labels that can be attached to records (e.g., `"finance"`, `"legal"`, `"maintenance"`). Roles can specify which tags they have permission to operate on, enabling fine-grained access control over different categories of records.
 
 This system enables multi-party collaboration on a single trail while maintaining strict access boundaries. For a detailed explanation of how roles, capabilities, and record tags work together, see [Role-Based Access Control for Audit Trails](./explanations/role-based-access-control.mdx).
+
