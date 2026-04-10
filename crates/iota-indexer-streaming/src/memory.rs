@@ -264,10 +264,10 @@ impl InMemory {
     /// filtering.
     ///
     /// When `start_from` is `None`, subscribes to live events only. When
-    /// `start_from` is `Some(digest)`, the stream first backfills
-    /// historical events from the transaction identified by the digest,
-    /// then seamlessly transitions to live events. This enables stream
-    /// recovery after a disconnection.
+    /// `start_from` is `Some(digest)`, the stream first backfills historical
+    /// events from the transaction identified by the digest inclusive) up to
+    /// the tip of the network, then seamlessly transitions to live events. This
+    /// enables stream recovery after a disconnection.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
@@ -376,10 +376,10 @@ impl InMemory {
     /// filtering.
     ///
     /// When `start_from` is `None`, subscribes to live transactions only. When
-    /// `start_from` is `Some(digest)`, the stream first backfills
-    /// historical transactions from the one identified by the digest,
-    /// then seamlessly transitions to live transactions. This enables
-    /// stream recovery after a disconnection.
+    /// `start_from` is `Some(digest)`, the stream first backfills historical
+    /// transactions from the one identified by the digest (inclusive) up to the
+    /// tip of the network, then seamlessly transitions to live transactions.
+    /// This enables stream recovery after a disconnection.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used for
