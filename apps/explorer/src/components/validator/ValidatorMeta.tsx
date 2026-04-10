@@ -67,16 +67,16 @@ export function InactiveValidators({
             <Panel>
                 <div className="flex flex-col gap-md p-md--rs">
                     <KeyValueInfo
-                        keyText="Pool ID"
-                        value={validatorStakingPoolId}
-                        copyText={validatorStakingPoolId}
-                        onCopySuccess={onCopySuccess}
-                    />
-                    <KeyValueInfo
                         keyText="Address"
                         value={
                             <AddressLink address={validatorAddress} copyText={validatorAddress} />
                         }
+                    />
+                    <KeyValueInfo
+                        keyText="Pool ID"
+                        value={validatorStakingPoolId}
+                        copyText={validatorStakingPoolId}
+                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Public Key"
@@ -156,12 +156,6 @@ export function ValidatorMeta({
             <Panel>
                 <div className="flex flex-col gap-md p-md--rs">
                     <KeyValueInfo
-                        keyText="Pool ID"
-                        value={validatorData.stakingPoolId}
-                        copyText={validatorData.stakingPoolId}
-                        onCopySuccess={onCopySuccess}
-                    />
-                    <KeyValueInfo
                         keyText="Address"
                         value={
                             <div className="flex flex-col gap-xxs">
@@ -177,6 +171,12 @@ export function ValidatorMeta({
                                 />
                             </div>
                         }
+                    />
+                    <KeyValueInfo
+                        keyText="Pool ID"
+                        value={validatorData.stakingPoolId}
+                        copyText={validatorData.stakingPoolId}
+                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Public Key"

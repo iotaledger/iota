@@ -49,7 +49,7 @@ export function ValidatorStats({
                 }
             />
             <div className="flex flex-col gap-md p-md">
-                <div className="grid grid-cols-1 gap-xl sm:grid-cols-2 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-xl sm:grid-cols-3 md:grid-cols-5">
                     <LabelText
                         label="APY"
                         text={apy === null ? 'N/A' : `${apy}%`}
