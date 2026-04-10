@@ -790,20 +790,16 @@ pub struct StoredBackwardHistoryObject {
     pub df_kind: Option<i16>,
 }
 
-impl StoredBackwardHistoryObject {
-    /// Builds a backward history entry for an active object from its stored
-    /// history representation.
+impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
+    type Error = IndexerError;
+
+    /// Builds a backward history entry for an active object.
     ///
-    /// Maps `checkpoint_sequence_number` to `superseded_at_checkpoint`.
-    /// Returns an error if the input object is not active.
-    pub fn from_active(h: StoredHistoryObject) -> Result<Self, IndexerError> {
-        if h.object_status != ObjectStatus::Active as i16 {
-            return Err(IndexerError::InvalidArgument(format!(
-                "expected active object status ({}), got {}",
-                ObjectStatus::Active as i16,
-                h.object_status,
-            )));
-        }
+    /// Reuses `StoredHistoryObject::try_from(IndexedObject)` for field
+    /// conversion, then maps `checkpoint_sequence_number` to
+    /// `superseded_at_checkpoint` and sets the status to `Active`.
+    fn try_from(o: IndexedObject) -> Result<Self, Self::Error> {
+        let h = StoredHistoryObject::try_from(o)?;
         Ok(Self {
             object_id: h.object_id,
             object_version: h.object_version,
@@ -822,7 +818,9 @@ impl StoredBackwardHistoryObject {
             df_kind: h.df_kind,
         })
     }
+}
 
+impl StoredBackwardHistoryObject {
     /// Builds a backward history entry with no object data.
     ///
     /// Used for `NotYetCreated` and `WrappedOrDeleted` statuses.

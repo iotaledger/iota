@@ -42,7 +42,7 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
-        objects::{BackwardHistoryObjectStatus, StoredBackwardHistoryObject, StoredHistoryObject},
+        objects::{BackwardHistoryObjectStatus, StoredBackwardHistoryObject},
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -671,13 +671,9 @@ impl PrimaryWorker {
                         input_obj.clone(),
                         df_kind,
                     );
-                    let history = StoredHistoryObject::try_from(indexed).expect(
-                        "StoredHistoryObject conversion should not fail for active objects",
-                    );
-                    result.push(
-                        StoredBackwardHistoryObject::from_active(history)
-                            .expect("input object should have active status"),
-                    );
+                    result.push(StoredBackwardHistoryObject::try_from(indexed).expect(
+                        "backward history conversion should not fail for active input objects",
+                    ));
                 }
             }
 
