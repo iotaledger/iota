@@ -55,6 +55,7 @@ impl IotaTxValidator {
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
         let mut authority_cap_batch = Vec::new();
+        let mut user_tx_v1_count: u64 = 0;
 
         for tx in txs.iter() {
             match tx {
@@ -116,6 +117,7 @@ impl IotaTxValidator {
                         .tap_err(|e| {
                             warn!("UserTransactionV1 signature verification failed: {}", e)
                         })?;
+                    user_tx_v1_count += 1;
                 }
 
                 ConsensusTransactionKind::EndOfPublish(_)
@@ -149,6 +151,9 @@ impl IotaTxValidator {
         self.metrics
             .authority_capabilities_verified
             .inc_by(authority_cap_count as u64);
+        self.metrics
+            .user_transaction_signatures_verified
+            .inc_by(user_tx_v1_count);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -194,6 +199,7 @@ pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
     checkpoint_signatures_verified: IntCounter,
     authority_capabilities_verified: IntCounter,
+    user_transaction_signatures_verified: IntCounter,
 }
 
 impl IotaTxValidatorMetrics {
@@ -214,6 +220,12 @@ impl IotaTxValidatorMetrics {
             authority_capabilities_verified: register_int_counter_with_registry!(
                 "authority_capabilities_verified",
                 "Number of signed authority capabilities verified in consensus batch verifier",
+                registry
+            )
+            .unwrap(),
+            user_transaction_signatures_verified: register_int_counter_with_registry!(
+                "user_transaction_signatures_verified",
+                "Number of UserTransactionV1 signatures verified in consensus validator",
                 registry
             )
             .unwrap(),
@@ -414,6 +426,7 @@ mod tests {
         // SignedCapabilityNotificationV1 are excluded because they require valid
         // cryptographic signatures and would fail before reaching the feature
         // gate check; their gating is verified by the exhaustive match above.
+        #[allow(deprecated)]
         let testable_variants: Vec<(&str, ConsensusTransactionKind)> = vec![
             (
                 "EndOfPublish",
