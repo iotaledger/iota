@@ -1,0 +1,191 @@
+---
+title: Manage Record Tags
+sidebar_label: Manage Record Tags
+description: How to delegate tag registry management, add and remove tags dynamically, and understand in-use tag constraints.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Manage Record Tags
+
+This guide demonstrates how to manage the record tag registry after trail creation: delegating tag management to a dedicated role, adding new tags dynamically, and removing unused tags. Tags that are still referenced by roles or records cannot be removed.
+
+## Prerequisites
+
+- An existing Audit Trail with a tag registry
+- An Admin capability for the trail
+- Familiarity with [using tagged records](./use-tagged-records.mdx)
+
+## Steps
+
+### 1. Create a Trail with an Initial Tag
+
+Start with a trail that has at least one tag in its registry.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs#L18-L25
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L19-L25
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Delegate Tag Management to a TagAdmin Role
+
+Create a `TagAdmin` role with `AddRecordTags` and `DeleteRecordTags` permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs#L29-L40
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L31-L39
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add a New Tag
+
+Add a tag to the registry after trail creation. New tags become immediately available for use in roles and records.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs#L42
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L42
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create a Role Scoped to a Tag and Add a Record
+
+Create a role restricted to a specific tag and use it to add a tagged record.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs#L49-L68
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L50-L68
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify In-Use Tags Cannot Be Removed
+
+Attempting to remove a tag that is referenced by a role or record fails.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs#L71-L75
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L71-L78
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Remove an Unused Tag
+
+Tags that are not referenced by any role or record can be safely removed.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs#L77
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts#L81
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Tags can be added dynamically after trail creation.
+- Tags that are in use (referenced by roles or records) cannot be removed.
+- Unused tags can be removed from the registry.
+- Tag management can be delegated through a dedicated `TagAdmin` role.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/11_manage_record_tags.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/11_manage_record_tags.ts
+```
+
+</TabItem>
+</Tabs>

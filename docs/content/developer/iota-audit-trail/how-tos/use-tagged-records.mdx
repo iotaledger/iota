@@ -1,0 +1,167 @@
+---
+title: Use Tagged Records
+sidebar_label: Use Tagged Records
+description: How to use record tags and role-scoped tag restrictions to control which participants can write which types of records.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Use Tagged Records
+
+This guide demonstrates how to use **record tags** to categorize records and restrict which roles can write to each category. Tags enforce separation of concerns — for example, a finance writer cannot create legal records, even if both tags exist on the same trail.
+
+## Prerequisites
+
+- An existing Audit Trail on the IOTA network
+- An Admin capability for the trail
+- Familiarity with [Role-Based Access Control](../explanations/role-based-access-control.mdx)
+
+## Steps
+
+### 1. Create a Trail with a Tag Registry
+
+Define the available tags at trail creation. Only tags in the registry can be used on records.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/09_tagged_records.rs#L21-L32
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts#L21-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Tag-Scoped Role
+
+Create a role restricted to specific tags using `RoleTags`. A holder of this role can only add records with one of the allowed tags.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/09_tagged_records.rs#L37-L47
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts#L32-L36
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Issue a Capability Bound to a Specific Address
+
+Bind the capability to a particular wallet so only that address can use it.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/09_tagged_records.rs#L49-L60
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts#L38-L41
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Add a Record with a Matching Tag
+
+The finance writer adds a record tagged as `"finance"` — this succeeds because the tag matches the role's restriction.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/09_tagged_records.rs#L70-L78
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts#L54-L57
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Tag Enforcement
+
+Attempting to add a record with a non-matching tag (e.g., `"legal"`) fails.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/09_tagged_records.rs#L85-L97
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts#L62-L72
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- A role with `RoleTags(["finance"])` can only add records tagged `"finance"`.
+- Attempts to write records with other tags (even valid ones in the registry) are rejected.
+- Tags provide fine-grained access control beyond permission-level restrictions.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/advanced/09_tagged_records.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/advanced/09_tagged_records.ts
+```
+
+</TabItem>
+</Tabs>

@@ -342,3 +342,8 @@ dynamic-notarization:
 locked-notarization:
   label: Locked Notarization
   description: Create a permanent, immutable record.
+
+# Audit Trail
+audit-trail:
+  label: Audit Trail
+  description: The solution for tamper-proof, chronological records on IOTA.

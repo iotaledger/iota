@@ -5,6 +5,7 @@
 const tsSDK = require('./ts-sdk');
 const iotaSDK = require('./iota-sdk');
 const notarization = require("./notarization");
+const auditTrail = require("./audit-trail");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
 
@@ -740,6 +741,11 @@ const developer = [
                 type: 'category',
                 label: 'Notarization',
                 items: notarization,
+            },
+            {
+                type: 'category',
+                label: 'Audit Trail',
+                items: auditTrail,
             },
             {
                 type: 'category',

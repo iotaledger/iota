@@ -1,0 +1,252 @@
+---
+title: Clinical Trial Data Integrity - Audit Trail
+sidebar_label: Clinical Trial
+description: Real-world example demonstrating how to use IOTA Audit Trail to ensure data integrity in a Phase III clinical trial with time-constrained access, deletion protection, and regulatory verification.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Clinical Trial Data Integrity - Audit Trail
+
+This real-world example models a Phase III clinical trial where an immutable audit trail guarantees data integrity, role-scoped access, time-constrained oversight, and regulatory verification. The trail supports mid-study protocol amendments (adding new tags) and uses multiple locking dimensions to protect the dataset.
+
+## Business Context
+
+Clinical trials are governed by strict regulatory requirements (ICH-GCP, 21 CFR Part 11) that mandate tamper-proof audit trails for all trial data. A blockchain-based audit trail provides:
+
+- **Data Integrity**: Immutable, chronological records of all trial events
+- **Role Separation**: Each study function (enrollment, safety monitoring, efficacy review) writes only its designated data
+- **Time-Constrained Access**: Monitor capabilities expire at the end of the study period
+- **Regulatory Inspection**: Regulators can verify the complete trail using read-only access
+- **Dataset Protection**: Locking prevents unauthorized modifications after study completion
+
+## Field Usage Strategy
+
+- **`immutable_metadata`**: Protocol identity — protocol ID and study description
+- **`updatable_metadata`**: Current study phase (e.g., `"Phase: Enrollment"` → `"Phase: Data Review"`)
+- **`record.data`**: Clinical event payload (enrollment data, adverse events, efficacy observations)
+- **`record.metadata`**: Structured event context (e.g., `"event:adverse_event"`)
+- **`record.tag`**: Data category — `enrollment`, `safety`, `efficacy`, `pk` (added mid-study)
+
+### Role Design
+
+| Role | Permissions | RoleTags | Constraint | Holder |
+|------|------------|----------|------------|--------|
+| `Admin` | Full administrative control | — | — | Study sponsor |
+| `Enroller` | AddRecord, DeleteRecord, CorrectRecord | `"enrollment"` | — | Clinical site |
+| `SafetyOfficer` | AddRecord, DeleteRecord, CorrectRecord | `"safety"` | — | Safety monitoring team |
+| `EfficacyReviewer` | AddRecord, DeleteRecord, CorrectRecord | `"efficacy"` | — | Efficacy review board |
+| `PkAnalyst` | AddRecord, DeleteRecord, CorrectRecord | `"pk"` | — | PK analysis team (added mid-study) |
+| `Monitor` | UpdateMetadata, DeleteMetadata | — | 90-day time window | Study monitor |
+| `DataSafetyBoard` | UpdateLockingConfig variants | — | — | Data Safety Monitoring Board |
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Audit Trail client SDK installed
+- Familiarity with [Role-Based Access Control](../../explanations/role-based-access-control.mdx), [locking configuration](../../explanations/locking-configuration.mdx), and [tagged records](../use-tagged-records.mdx)
+
+## Implementation Overview
+
+### 1. Create the Trial Trail
+
+Create a trail with initial tags for the three primary data categories, a count-based deletion window to protect recent records, and the protocol identity as immutable metadata.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L42-L63
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L40-L58
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Define Study Roles with Tag Restrictions
+
+Create tag-scoped roles for each study function. The Monitor receives a time-windowed capability (90 days), and the Data Safety Board manages locking.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L73-L131
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L66-L106
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Collect Study Data
+
+Each role adds records tagged with their designated category: enrollment data, safety events, and efficacy observations.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L138-L178
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L111-L138
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Mid-Study Amendment: Add a New Tag and Role
+
+Add a `"pk"` (pharmacokinetics) tag to the registry mid-study, then create a `PkAnalyst` role scoped to the new tag.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L190-L212
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L150-L166
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Deletion Window Protection
+
+The count-based deletion window protects the newest records from deletion, ensuring recently entered data cannot be tampered with.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L219-L233
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L171-L192
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 6. Lock the Dataset After Review
+
+The Data Safety Board applies a time-based write lock (1 year) and a permanent delete-trail lock to ensure long-term data retention.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L256-L284
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L209-L233
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 7. Regulator Read-Only Verification
+
+Regulators inspect the trail using read-only methods. They can verify the protocol identity, study phase, all roles and tags, locking configuration, and the full record history — without needing any write permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs#L293-L305
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts#L238-L249
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Medical Device Clinical Investigation
+- **Scenario**: Post-market clinical follow-up (PMCF) for Class III medical devices under EU MDR
+- **Tags**: `"implantation"`, `"follow_up"`, `"adverse_event"`, `"device_failure"`
+
+### Vaccine Trial with Multi-Site Enrollment
+- **Scenario**: Global vaccine Phase IV surveillance with data from multiple clinical sites
+- **Tags**: `"enrollment"`, `"vaccination"`, `"monitoring"`, `"adverse_event"`, `"efficacy"`
+
+### Food Safety Monitoring
+- **Scenario**: Long-term monitoring of food additive safety with periodic review cycles
+- **Tags**: `"sample_collection"`, `"lab_analysis"`, `"review"`, `"regulatory_action"`
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/real-world/02_clinical_trial.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/real-world/02_clinical_trial.ts
+```
+
+</TabItem>
+</Tabs>

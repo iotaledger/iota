@@ -1,0 +1,144 @@
+---
+title: Update Metadata
+sidebar_label: Update Metadata
+description: How to update and clear the mutable metadata on an Audit Trail while preserving immutable metadata.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Update Metadata
+
+This guide shows how to manage the two-tier metadata system on an Audit Trail: **immutable metadata** (set once at creation) and **updatable metadata** (can be changed or cleared at any time by an authorized role).
+
+## Prerequisites
+
+- An existing Audit Trail on the IOTA network
+- A capability with `UpdateMetadata` permission (e.g., a `MetadataAdmin` role)
+- Familiarity with [creating an Audit Trail](./create-audit-trail.mdx)
+
+## Steps
+
+### 1. Create a Trail with Both Metadata Types
+
+Set immutable metadata (name and description) and initial updatable metadata when creating the trail.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/03_update_metadata.rs#L19-L36
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L19-L27
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Delegate Metadata Updates to a Role
+
+Create a `MetadataAdmin` role and issue a capability for it. This separates metadata management from full administrative control.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/03_update_metadata.rs#L40-L54
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L32-L37
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Update the Mutable Metadata
+
+Change the updatable metadata value. The immutable metadata remains unchanged.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/03_update_metadata.rs#L62-L65
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L45-L48
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Clear the Mutable Metadata
+
+Set the updatable metadata to `None` / `undefined` to remove it entirely.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/03_update_metadata.rs#L76
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts#L59
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- **Immutable metadata** (name and description) never changes after trail creation.
+- **Updatable metadata** can be freely changed or cleared by a holder of a `MetadataAdmin` capability.
+- Typical use: store a status summary (e.g., `"Status: Active"`) that evolves as the trail progresses.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/03_update_metadata.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_update_metadata.ts
+```
+
+</TabItem>
+</Tabs>

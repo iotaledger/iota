@@ -1,0 +1,121 @@
+---
+title: Delete Records
+sidebar_label: Delete Records
+description: How to delete individual records or batch-delete all records from an Audit Trail.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Delete Records
+
+This guide shows how to delete records from an Audit Trail — both individually by sequence number and in batch. Record deletion respects the trail's [locking configuration](./configure-locking.mdx), so records within a deletion window cannot be removed.
+
+## Prerequisites
+
+- An existing Audit Trail with records
+- A capability with `DeleteRecord` and/or `DeleteAllRecords` permissions
+- Familiarity with [creating an Audit Trail](./create-audit-trail.mdx)
+
+## Steps
+
+### 1. Create a Role with Delete Permissions
+
+Define a role that includes `AddRecord`, `DeleteRecord`, and `DeleteAllRecords` permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/06_delete_records.rs#L35-L56
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L41-L49
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Delete a Single Record
+
+Remove a specific record by its sequence number.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/06_delete_records.rs#L75-L80
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L66-L71
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Batch-Delete Remaining Records
+
+Delete up to N records in a single transaction. The operation returns the number of records actually deleted.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/06_delete_records.rs#L88-L96
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts#L78-L86
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- Deleted records are permanently removed and can no longer be fetched by sequence number.
+- Batch deletion respects the deletion window — records within the protected window are skipped.
+- The record count decreases accordingly after each deletion.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/06_delete_records.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/06_delete_records.ts
+```
+
+</TabItem>
+</Tabs>

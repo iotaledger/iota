@@ -1,0 +1,212 @@
+---
+title: Digital Product Passport - Audit Trail
+sidebar_label: Product Passport
+description: Real-world example demonstrating how to use IOTA Audit Trail to build a Digital Product Passport with full lifecycle tracking.
+tags:
+  - audit-trail
+  - how-to
+---
+
+# Digital Product Passport - Audit Trail
+
+This real-world example demonstrates how to use IOTA Audit Trail to build the event history layer for a Digital Product Passport (DPP). The trail records every lifecycle event — from manufacturing through usage to end-of-life — in a tamper-proof, chronological log with role-based access control.
+
+## Business Context
+
+Regulations such as the EU Digital Product Passport mandate that products carry a verifiable history of their lifecycle. This includes manufacturing conditions, quality inspections, ownership transfers, maintenance events, and disposal records. A blockchain-based audit trail provides:
+
+- **Regulatory Compliance**: Verifiable, tamper-proof records that satisfy data retention requirements
+- **Supply Chain Transparency**: Every stakeholder can independently verify the product's history
+- **Consumer Trust**: End users can verify authenticity and sustainability claims
+- **Circular Economy**: Recyclers and refurbishers have access to the complete material composition and maintenance history
+
+## Field Usage Strategy
+
+The Audit Trail's features map directly to DPP requirements:
+
+- **`immutable_metadata`**: Product identity — name, model, serial number, manufacturer
+- **`updatable_metadata`**: Current status summary (e.g., `"Status: In Service | Owner: Fleet Corp"`)
+- **`record.data`**: Event payload — either a hash of the off-chain event document or the full event as a JSON string
+- **`record.metadata`**: Structured event context (e.g., `"event:maintenance;type:battery_replacement"`)
+- **`record.tag`**: Event category — used with RoleTags to enforce that only the right party can record each event type
+
+### Role Design
+
+| Role | Permissions | RoleTags | Holder |
+|------|------------|----------|--------|
+| `Admin` | Full administrative control | — | Product manufacturer |
+| `ManufacturingRecorder` | AddRecord | `"manufacturing"` | Factory systems |
+| `QualityInspector` | AddRecord | `"inspection"` | QA department |
+| `MaintenanceRecorder` | AddRecord, CorrectRecord | `"maintenance"` | Authorized service partners |
+| `TransferAgent` | AddRecord | `"transfer"` | Logistics providers |
+| `Auditor` | *(read-only)* | — | Regulators, consumers |
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Audit Trail client SDK installed
+- Familiarity with [Role-Based Access Control](../../explanations/role-based-access-control.mdx)
+
+## Implementation Overview
+
+### 1. Create the Product Passport Trail
+
+Create a trail with the product's identity as immutable metadata, a tag registry for event categories, and a locking configuration that ensures records are retained for compliance.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L34-L49
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/util.ts#L72-L82
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Define Roles and Issue Capabilities
+
+Set up roles for each stakeholder with appropriate permissions and tag restrictions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L71-L99
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/util.ts#L84-L98
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Record Lifecycle Events
+
+Each stakeholder records events relevant to their role, tagged with the appropriate category.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L40-L48
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_add_and_list_records.ts#L16-L23
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Verify the Product History
+
+Auditors and consumers can read the full trail without any special permissions. Paginated listing supports large trails efficiently.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L57-L63
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/03_add_and_list_records.ts#L27-L34
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Real-World Applications
+
+### Electric Vehicle Batteries
+
+- **Scenario**: Tracking battery lifecycle from cell manufacturing through vehicle integration, usage, and recycling
+- **Tags**: `"manufacturing"`, `"assembly"`, `"charge_cycle"`, `"maintenance"`, `"recycling"`
+- **Benefits**: Satisfies EU Battery Regulation requirements for battery passports
+
+### Pharmaceutical Supply Chain
+
+- **Scenario**: Recording drug manufacturing, quality testing, distribution, and dispensing
+- **Tags**: `"manufacturing"`, `"quality_control"`, `"distribution"`, `"dispensing"`
+- **Benefits**: EU Falsified Medicines Directive compliance, anti-counterfeiting
+
+### Luxury Goods Authentication
+
+- **Scenario**: Provenance tracking for high-value goods from creation to resale
+- **Tags**: `"creation"`, `"certification"`, `"sale"`, `"authentication"`
+- **Benefits**: Anti-counterfeiting, resale value preservation, authenticity verification
+
+### Industrial Equipment
+
+- **Scenario**: Maintenance and inspection logging for machinery and infrastructure
+- **Tags**: `"installation"`, `"inspection"`, `"maintenance"`, `"incident"`, `"decommission"`
+- **Benefits**: Regulatory compliance, predictive maintenance, safety auditing
+
+## Data Structure Example
+
+### Trail Metadata
+
+```
+Immutable: "EV Battery Pack BP-2026-0042 | Manufacturer: CellTech GmbH | Model: CT-100kWh"
+Updatable: "Status: In Service | Vehicle: VIN-WBA12345 | Owner: Fleet Corp"
+```
+
+### Sample Records
+
+| Seq | Tag | Data | Metadata | Added By |
+|-----|-----|------|----------|----------|
+| 0 | `manufacturing` | `"Cell assembly completed. 96 cells, 100.2 kWh nominal"` | `"event:assembly_complete;batch:B-2026-Q1-042"` | Factory |
+| 1 | `inspection` | `"QA passed. Capacity: 100.1 kWh. Internal resistance: nominal"` | `"event:qa_passed;inspector:QA-007"` | QA Dept |
+| 2 | `transfer` | `"Shipped to assembly plant. Carrier: LogiCorp #LC-5521"` | `"event:shipment;destination:plant-munich"` | LogiCorp |
+| 3 | `maintenance` | `"Firmware update v2.1.0 applied. No anomalies detected"` | `"event:firmware_update;technician:ST-042"` | Service Partner |
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/01_create_trail.ts
+```
+
+</TabItem>
+</Tabs>

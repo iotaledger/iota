@@ -1,0 +1,145 @@
+---
+title: Create an Audit Trail
+sidebar_label: Create an Audit Trail
+description: How to create an Audit Trail with metadata, an initial record, and role-based access control.
+tags:
+  - audit-trail
+  - how-to
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Create an Audit Trail
+
+This guide walks you through creating a new Audit Trail on the IOTA network, inspecting the built-in Admin role, defining a custom role, and issuing a capability for it.
+
+## Prerequisites
+
+- A funded IOTA account
+- Access to an IOTA network (testnet, devnet, or local)
+- Audit Trail client SDK installed ([Rust](../getting-started/rust.mdx) or [Wasm](../getting-started/wasm.mdx))
+
+## Steps
+
+### 1. Create the Trail
+
+Use the builder to create a trail with immutable metadata (name and description), mutable updatable metadata, and an initial seed record. On success, an **Admin** capability is automatically minted and transferred to your address.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L34-L49
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/util.ts#L72-L82
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Inspect the Built-in Admin Role
+
+Every new trail has a built-in Admin role automatically assigned to the creator. Fetch the on-chain trail object to inspect it.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L57-L63
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/01_create_audit_trail.ts#L40-L43
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Define a Custom Role
+
+Use the Admin capability to create new roles. `PermissionSet::record_admin_permissions()` grants `AddRecord`, `DeleteRecord`, and `CorrectRecord` permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L72-L79
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/01_create_audit_trail.ts#L30-L34
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Issue a Capability
+
+Mint an on-chain `Capability` object for the role and send it to the target address. The holder can then perform the actions permitted by the role.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs#L92-L99
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/01_create_audit_trail.ts#L35-L38
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- A new Audit Trail is created on-chain with a unique trail ID.
+- The creator automatically receives an Admin capability with full permissions.
+- Custom roles can be defined and capabilities issued using the Admin capability.
+- Each capability is an on-chain object that can be transferred to other addresses.
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally. See the [local network setup](../getting-started/local-network-setup.mdx) guide.
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/01_create_audit_trail.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/01_create_audit_trail.ts
+```
+
+</TabItem>
+</Tabs>
