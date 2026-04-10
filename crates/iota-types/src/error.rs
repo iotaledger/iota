@@ -681,6 +681,8 @@ pub enum IotaError {
     FullNodeCantHandleCertificate,
     #[error("Fullnode does not support handle_submit_transactions")]
     FullNodeCantHandleSubmitTransactions,
+    #[error("Fullnode does not support ValidatorV2 endpoints")]
+    FullNodeCantHandleValidatorV2,
     #[error("Fullnode does not support handle_authority_capabilities")]
     FullNodeCantHandleAuthorityCapabilities,
 

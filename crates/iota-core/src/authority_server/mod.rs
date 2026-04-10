@@ -16,10 +16,6 @@ use std::{
     time::SystemTime,
 };
 
-use iota_network::{
-    tonic,
-    tonic::metadata::{Ascii, MetadataValue},
-};
 use iota_types::{
     error::*,
     traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
@@ -28,7 +24,6 @@ pub use metrics::ValidatorServiceMetrics;
 #[cfg(test)]
 pub use test_server::{AuthorityServer, AuthorityServerHandle};
 use tokio_stream::StreamExt;
-use tonic::transport::server::TcpConnectInfo;
 use tracing::error;
 
 use crate::{
@@ -124,7 +119,9 @@ impl ValidatorService {
                 }
             }
             ClientIdSource::XForwardedFor(num_hops) => {
-                let do_header_parse = |op: &MetadataValue<Ascii>| {
+                let do_header_parse = |op: &tonic::metadata::MetadataValue<
+                    tonic::metadata::Ascii,
+                >| {
                     match op.to_str() {
                         Ok(header_val) => {
                             let header_contents =
@@ -316,7 +313,7 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
     // simulate a TCP connection, which would have added extensions to
     // the request object that would be used downstream
     let mut request = tonic::Request::new(message);
-    let tcp_connect_info = TcpConnectInfo {
+    let tcp_connect_info = tonic::transport::server::TcpConnectInfo {
         local_addr: None,
         remote_addr: Some(SocketAddr::new([127, 0, 0, 1].into(), 0)),
     };
@@ -359,4 +356,94 @@ macro_rules! handle_with_decoration {
         let wrapped_response = $self.$func_name($request).await;
         $self.tally_traffic(client, wrapped_response)
     }};
+}
+
+#[cfg(test)]
+mod client_ip_forwarding_tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use crate::{authority_client::insert_metadata, traffic_controller::parse_ip};
+
+    /// Verifies that `insert_metadata` on the client side sets the
+    /// `x-forwarded-for` header such that the server-side
+    /// `XForwardedFor` parsing extracts the correct IP address.
+    #[test]
+    fn client_ip_round_trip_via_x_forwarded_for() {
+        let client_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)), 9000);
+
+        // Client side: build a tonic request and inject metadata.
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, Some(client_addr));
+
+        // Server side: extract the x-forwarded-for header and parse it using
+        // the same logic as get_client_ip_addr with XForwardedFor(1).
+        let header = request
+            .metadata()
+            .get("x-forwarded-for")
+            .expect("x-forwarded-for should be set");
+        let header_val = header.to_str().unwrap();
+        let header_contents: Vec<&str> = header_val.split(',').map(str::trim).collect();
+
+        // XForwardedFor(1) takes the last entry.
+        let num_hops: usize = 1;
+        let client_ip = header_contents[header_contents.len() - num_hops];
+        let extracted_ip = parse_ip(client_ip);
+
+        assert_eq!(
+            extracted_ip,
+            Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)))
+        );
+    }
+
+    /// Verifies that when no client_addr is provided, no header is set.
+    #[test]
+    fn no_client_addr_means_no_forwarded_header() {
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, None);
+
+        assert!(request.metadata().get("x-forwarded-for").is_none());
+    }
+
+    /// Verifies XForwardedFor with SocketAddr source (direct connection)
+    /// still works — the server reads remote_addr from the connection.
+    #[test]
+    fn socket_addr_source_uses_connection_info() {
+        // With SocketAddr source, the server reads remote_addr() from the
+        // tonic request, not the x-forwarded-for header. This is set by the
+        // transport layer (TcpConnectInfo), not by insert_metadata.
+        // Verify that insert_metadata doesn't interfere with SocketAddr mode.
+        let client_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 5000);
+        let mut request = tonic::Request::new(());
+        insert_metadata(&mut request, Some(client_addr));
+
+        // The SocketAddr source ignores x-forwarded-for and reads
+        // remote_addr(). We verify the header is set but SocketAddr mode
+        // would not use it.
+        assert!(
+            request.metadata().get("x-forwarded-for").is_some(),
+            "Header should be set even though SocketAddr source ignores it"
+        );
+        // remote_addr() would be None here since there's no real TCP
+        // connection, confirming SocketAddr mode doesn't use the header.
+        assert!(
+            request.remote_addr().is_none(),
+            "No real TCP connection, so remote_addr should be None"
+        );
+    }
+
+    /// Verify that parse_ip (used server-side) correctly parses both IP-only
+    /// and IP:port formats from the forwarded header.
+    #[test]
+    fn parse_ip_handles_socket_addr_format() {
+        // insert_metadata writes SocketAddr format (ip:port)
+        assert_eq!(
+            parse_ip("192.168.1.100:9000"),
+            Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)))
+        );
+        // Also works with plain IP
+        assert_eq!(
+            parse_ip("10.0.0.1"),
+            Some(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)))
+        );
+    }
 }

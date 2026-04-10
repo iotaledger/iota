@@ -5,7 +5,8 @@ syntax = "proto3";
 package iota.validator.v2;
 
 service ValidatorV2 {
-  // Submit transaction(s) and stream all status updates until finality
+  // Submit transaction(s) and stream submission status per transaction.
+  // Use GetTxStatus to poll for finality.
   rpc SubmitTx(SubmitTxRequest) returns (stream TxStatus);
 
   // Stream status updates for a previously submitted transaction
@@ -14,6 +15,9 @@ service ValidatorV2 {
   // Submit a signed capability notification from a non-committee validator.
   rpc NotifyCapabilities(NotifyCapabilitiesRequest)
       returns (NotifyCapabilitiesResponse);
+
+  // Health check returning validator liveness and load metrics.
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
 
 // Wraps one or more transactions (BCS-encoded payloads)
@@ -70,13 +74,21 @@ message ExecutedStatus {
 
 // Transaction was rejected during validation or by white-flag conflict resolution.
 message RejectedStatus {
-  // Optional BCS-serialized IotaError describing the rejection reason.
-  optional bytes error = 1;
+  // BCS-serialized IotaError describing the rejection reason.
+  bytes error = 1;
 }
 
 // Transaction status has expired from the validator's cache.
 message ExpiredStatus {
   uint64 epoch = 1;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  uint64 num_inflight_execution_transactions = 1;
+  uint64 num_inflight_consensus_transactions = 2;
+  uint64 last_locally_built_checkpoint = 3;
 }
 
 message NotifyCapabilitiesRequest {
