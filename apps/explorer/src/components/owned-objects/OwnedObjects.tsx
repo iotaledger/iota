@@ -118,18 +118,20 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         }
     })();
 
-    const isPending = activeCategoryData?.isFetching ?? false;
-
-    const { availableCategories } = ownedObjects;
+    const { availableCategories, isPending: isLoading } = ownedObjects;
 
     useEffect(() => {
-        if (!isPending && availableCategories.length) {
+        if (!isLoading && availableCategories.length) {
             if (!filter || !availableCategories.includes(filter as OwnedObjectCategory)) {
                 setFilter(availableCategories[0]);
                 return;
             }
         }
-    }, [filter, availableCategories, isPending, setFilter]);
+    }, [filter, availableCategories, isLoading, setFilter]);
+
+    const isFilterSettled =
+        !isLoading && !!filter && availableCategories.includes(filter as OwnedObjectCategory);
+    const isPending = isLoading || (!isFilterSettled && availableCategories.length > 0);
 
     const effectiveViewMode = filter === OwnedObjectCategory.Other ? ObjectViewMode.List : viewMode;
 
@@ -186,9 +188,9 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         isPending,
     );
 
-    const hasVisualAssets = sortedDataByDisplayImages.length > 0;
+    const hasVisualAssets = isPending || sortedDataByDisplayImages.length > 0;
 
-    const noVisualAssets = !hasVisualAssets && !isPending;
+    const noVisualAssets = !isPending && sortedDataByDisplayImages.length === 0;
 
     if (ownedObjects.isAnyError) {
         return (
@@ -309,7 +311,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                         )}
                         <div className="flex items-center gap-sm">
                             {!isPending && showPagination && hasVisualAssets && (
-                                <span className="shrink-0 text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                <span className="dark:text-iota-neutral-60 shrink-0 text-body-sm text-iota-neutral-40">
                                     Showing {start} - {end}
                                 </span>
                             )}

@@ -43,6 +43,7 @@ interface CategorizedOwnedObjectsResult {
     kiosk: CategoryData<KioskItem>;
     other: CategoryData<IotaObjectResponse>;
     availableCategories: OwnedObjectCategory[];
+    isPending: boolean;
     isAnyError: boolean;
 }
 
@@ -178,18 +179,23 @@ export function useGetCategorizedOwnedObjects(
         return category;
     }, [nftItems.length, nameItems.length, kioskItems.length, otherItems.length]);
 
-    const isFetchingAll = ownedObjectsQuery.isFetching;
+    const ownedObjectsDone =
+        !ownedObjectsQuery.isLoading &&
+        !ownedObjectsQuery.isFetchingNextPage &&
+        !ownedObjectsQuery.hasNextPage;
+    const isPending = !ownedObjectsDone || kioskFetching;
+
     const isError = ownedObjectsQuery.isError;
 
     return {
         nft: {
             ...nftPagination,
-            isFetching: isFetchingAll,
+            isFetching: !ownedObjectsDone,
             isError,
         },
         name: {
             ...namePagination,
-            isFetching: isFetchingAll,
+            isFetching: !ownedObjectsDone,
             isError,
         },
         kiosk: {
@@ -199,10 +205,11 @@ export function useGetCategorizedOwnedObjects(
         },
         other: {
             ...otherPagination,
-            isFetching: isFetchingAll,
+            isFetching: !ownedObjectsDone,
             isError,
         },
-        availableCategories,
+        availableCategories: isPending ? [] : availableCategories,
+        isPending,
         isAnyError: isError || kioskError,
     };
 }
