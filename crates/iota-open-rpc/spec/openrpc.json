@@ -1456,12 +1456,6 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
-                "check_zklogin_id_cost_base": {
-                  "u64": "200"
-                },
-                "check_zklogin_issuer_cost_base": {
-                  "u64": "200"
-                },
                 "checkpoint_summary_version_specific_data": {
                   "u64": "1"
                 },
@@ -6471,6 +6465,7 @@
             "additionalProperties": false
           },
           {
+            "deprecated": true,
             "type": "object",
             "required": [
               "ZkLogin"
@@ -7849,25 +7844,6 @@
           }
         ]
       },
-      "IotaActiveJwk": {
-        "type": "object",
-        "required": [
-          "epoch",
-          "jwk",
-          "jwk_id"
-        ],
-        "properties": {
-          "epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          },
-          "jwk": {
-            "$ref": "#/components/schemas/IotaJWK"
-          },
-          "jwk_id": {
-            "$ref": "#/components/schemas/IotaJwkId"
-          }
-        }
-      },
       "IotaAddress": {
         "$ref": "#/components/schemas/Hex"
       },
@@ -7939,17 +7915,6 @@
             "additionalProperties": false
           }
         ]
-      },
-      "IotaAuthenticatorStateExpire": {
-        "type": "object",
-        "required": [
-          "min_epoch"
-        ],
-        "properties": {
-          "min_epoch": {
-            "$ref": "#/components/schemas/BigInt_for_uint64"
-          }
-        }
       },
       "IotaCallArg": {
         "oneOf": [
@@ -8228,12 +8193,6 @@
       "IotaEndOfEpochTransactionKind": {
         "oneOf": [
           {
-            "type": "string",
-            "enum": [
-              "AuthenticatorStateCreate"
-            ]
-          },
-          {
             "type": "object",
             "required": [
               "ChangeEpoch"
@@ -8253,18 +8212,6 @@
             "properties": {
               "ChangeEpochV2": {
                 "$ref": "#/components/schemas/IotaChangeEpochV2"
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "required": [
-              "AuthenticatorStateExpire"
-            ],
-            "properties": {
-              "AuthenticatorStateExpire": {
-                "$ref": "#/components/schemas/IotaAuthenticatorStateExpire"
               }
             },
             "additionalProperties": false
@@ -8323,45 +8270,7 @@
           }
         }
       },
-      "IotaJWK": {
-        "type": "object",
-        "required": [
-          "alg",
-          "e",
-          "kty",
-          "n"
-        ],
-        "properties": {
-          "alg": {
-            "type": "string"
-          },
-          "e": {
-            "type": "string"
-          },
-          "kty": {
-            "type": "string"
-          },
-          "n": {
-            "type": "string"
-          }
-        }
-      },
       "IotaJsonValue": {},
-      "IotaJwkId": {
-        "type": "object",
-        "required": [
-          "iss",
-          "kid"
-        ],
-        "properties": {
-          "iss": {
-            "type": "string"
-          },
-          "kid": {
-            "type": "string"
-          }
-        }
-      },
       "IotaMoveAbility": {
         "type": "string",
         "enum": [
@@ -9890,7 +9799,6 @@
               "ProgrammableTransaction",
               "Genesis",
               "ConsensusCommitPrologueV1",
-              "AuthenticatorStateUpdateV1",
               "RandomnessStateUpdate",
               "EndOfEpochTransaction"
             ]
@@ -12588,36 +12496,6 @@
             }
           },
           {
-            "description": "A transaction which updates global authenticator state",
-            "type": "object",
-            "required": [
-              "epoch",
-              "kind",
-              "new_active_jwks",
-              "round"
-            ],
-            "properties": {
-              "epoch": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              },
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "AuthenticatorStateUpdateV1"
-                ]
-              },
-              "new_active_jwks": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/IotaActiveJwk"
-                }
-              },
-              "round": {
-                "$ref": "#/components/schemas/BigInt_for_uint64"
-              }
-            }
-          },
-          {
             "description": "A transaction which updates global randomness state",
             "type": "object",
             "required": [
@@ -13335,6 +13213,7 @@
       },
       "ZkLoginAuthenticator": {
         "description": "Deprecated zkLogin authenticator. Kept only for BCS/serde deserialization compatibility. All operations return an `UnsupportedFeature` error.",
+        "deprecated": true,
         "type": "object",
         "required": [
           "inputs",
@@ -13356,7 +13235,12 @@
         }
       },
       "ZkLoginAuthenticatorAsBytes": {
-        "$ref": "#/components/schemas/Base64"
+        "deprecated": true,
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Base64"
+          }
+        ]
       },
       "ZkLoginInputs": {
         "description": "All inputs required for the zk login proof verification and other public inputs.",
