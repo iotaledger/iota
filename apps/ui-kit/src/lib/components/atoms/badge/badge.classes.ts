@@ -29,5 +29,3 @@ export const BORDER_COLORS: Record<BadgeType, string> = {
     [BadgeType.Warning]: 'border-warning-surface',
     [BadgeType.Error]: 'border-error-surface',
 };
-
-export const BADGE_TEXT_CLASS = 'text-label-md';

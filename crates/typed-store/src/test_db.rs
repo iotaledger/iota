@@ -250,12 +250,6 @@ where
         Ok(())
     }
 
-    fn unsafe_clear(&self) -> Result<(), Self::Error> {
-        let mut locked = self.rows.write().unwrap();
-        locked.clear();
-        Ok(())
-    }
-
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
         let mut locked = self.rows.write().unwrap();
         locked.clear();
@@ -655,40 +649,10 @@ mod test {
     }
 
     #[test]
-    fn test_clear() {
-        let db: TestDB<i32, String> = TestDB::open();
-
-        // Test clear of empty map
-        let _ = db.unsafe_clear();
-
-        let keys_vals = (0..101).map(|i| (i, i.to_string()));
-        let mut wb = db.batch();
-        wb.insert_batch(&db, keys_vals)
-            .expect("Failed to batch insert");
-
-        wb.write().expect("Failed to execute batch");
-
-        // Check we have multiple entries
-        assert!(db.safe_iter().count() > 1);
-        let _ = db.unsafe_clear();
-        assert_eq!(db.safe_iter().count(), 0);
-        // Clear again to ensure safety when clearing empty map
-        let _ = db.unsafe_clear();
-        assert_eq!(db.safe_iter().count(), 0);
-        // Clear with one item
-        let _ = db.insert(&1, &"e".to_string());
-        assert_eq!(db.safe_iter().count(), 1);
-        let _ = db.unsafe_clear();
-        assert_eq!(db.safe_iter().count(), 0);
-    }
-
-    #[test]
     fn test_is_empty() {
         let db: TestDB<i32, String> = TestDB::open();
 
         // Test empty map is truly empty
-        assert!(db.is_empty());
-        let _ = db.unsafe_clear();
         assert!(db.is_empty());
 
         let keys_vals = (0..101).map(|i| (i, i.to_string()));
@@ -701,11 +665,6 @@ mod test {
         // Check we have multiple entries and not empty
         assert!(db.safe_iter().count() > 1);
         assert!(!db.is_empty());
-
-        // Clear again to ensure empty works after clearing
-        let _ = db.unsafe_clear();
-        assert_eq!(db.safe_iter().count(), 0);
-        assert!(db.is_empty());
     }
 
     #[test]

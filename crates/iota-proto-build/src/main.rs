@@ -193,6 +193,9 @@ fn main() {
             .to_string();
     }
 
+    // Generate gRPC method path constants from the descriptor pool
+    codegen::generate_service_methods::generate_service_method_paths(&descriptor_pool, &out_dir);
+
     // Parse transparent message options from the descriptor pool
     let transparent_messages =
         codegen::generate_fields::parse_transparent_messages_from_pool(&descriptor_pool);

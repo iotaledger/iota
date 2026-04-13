@@ -1,5 +1,18 @@
 # @iota/iota-sdk
 
+## 1.13.0
+
+### Minor Changes
+
+-   b933a08: Add support for unwrapped objects
+
+### Patch Changes
+
+-   c6ec123: Remove unused dependencies.
+-   f15c61d: Derive `effectiveCommissionRate` on validators in `getLatestIotaSystemState` and
+    `getEpochs` based on each epoch's protocol version.
+-   22e7eb8: Add support for effective commission rate in validator queries and types (IIP8).
+
 ## 1.12.0
 
 ### Minor Changes

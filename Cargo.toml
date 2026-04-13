@@ -42,6 +42,7 @@ exclude = [
   "external-crates/move/crates/move-package",
   "external-crates/move/crates/move-package-alt",
   "external-crates/move/crates/move-proc-macros",
+  "external-crates/move/crates/move-regex-borrow-graph",
   "external-crates/move/crates/move-stackless-bytecode",
   "external-crates/move/crates/move-stdlib",
   "external-crates/move/crates/move-stdlib-natives",
@@ -116,6 +117,7 @@ members = [
   "crates/iota-mainnet-unlocks",
   "crates/iota-metric-checker",
   "crates/iota-metrics",
+  "crates/iota-metrics-push-client",
   "crates/iota-move",
   "crates/iota-move-build",
   "crates/iota-move-lsp",
@@ -180,7 +182,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.21.0-alpha"
+version = "1.21.1-beta"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -440,6 +442,7 @@ iota-macros = { path = "crates/iota-macros" }
 iota-mainnet-unlocks = { path = "crates/iota-mainnet-unlocks" }
 iota-metric-checker = { path = "crates/iota-metric-checker" }
 iota-metrics = { path = "crates/iota-metrics" }
+iota-metrics-push-client = { path = "crates/iota-metrics-push-client" }
 iota-move = { path = "crates/iota-move" }
 iota-move-build = { path = "crates/iota-move-build" }
 iota-move-lsp = { path = "crates/iota-move-lsp" }
