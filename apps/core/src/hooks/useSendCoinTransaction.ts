@@ -6,6 +6,7 @@ import { type CoinStruct } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 import { useCoinMetadata } from './useFormatCoin';
 import { createTokenTransferTransaction, getGasSummary } from '../utils';
+import { getUserFriendlyDryRunExecutionError } from '../utils/formatUIErrors';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { GasSummaryType } from '../types';
 
@@ -56,6 +57,10 @@ export function useSendCoinTransaction({
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
+            if (txDryRun.effects.status.status !== 'success') {
+                const errorText = txDryRun.effects.status.error || 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
+            }
             return {
                 txBytes,
                 txDryRun,

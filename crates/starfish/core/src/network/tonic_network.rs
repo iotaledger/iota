@@ -830,8 +830,12 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         &self,
         _request: Request<GetLatestRoundsRequest>,
     ) -> Result<Response<GetLatestRoundsResponse>, tonic::Status> {
+        // This RPC is kept in the service definition for backward compatibility,
+        // but is not supported by Starfish.
         error!("get_latest_rounds() is deprecated in starfish and should not be called");
-        unimplemented!();
+        Err(tonic::Status::unimplemented(
+            "get_latest_rounds is deprecated and not supported",
+        ))
     }
 
     type FetchTransactionsStream =

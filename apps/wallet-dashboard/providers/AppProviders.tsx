@@ -3,7 +3,7 @@
 
 'use client';
 
-import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { AppsBackendClientProvider } from '@iota/apps-backend-client';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
 import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/client';
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -20,14 +20,14 @@ import {
     Disclaimer,
     setCookieAccepted,
 } from '@iota/core';
-import { growthbook } from '@/lib/utils';
+import { appsBackendClient } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 import { captureException } from '@/instrumentation';
 import { LEGAL_LINKS } from '@/lib/constants/routes.constants';
 import { ExternalLink } from '@/components/ExternalLink';
 
-growthbook.init();
+appsBackendClient.init();
 
 export function AppProviders({ children }: React.PropsWithChildren) {
     const [queryClient] = useState(
@@ -59,7 +59,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
         queryClient.clear();
     }
     return (
-        <GrowthBookProvider growthbook={growthbook}>
+        <AppsBackendClientProvider client={appsBackendClient}>
             <QueryClientProvider client={queryClient}>
                 <IotaClientProvider
                     networks={allNetworks}
@@ -119,6 +119,6 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                 </IotaClientProvider>
                 <ReactQueryDevtools initialIsOpen={false} />
             </QueryClientProvider>
-        </GrowthBookProvider>
+        </AppsBackendClientProvider>
     );
 }

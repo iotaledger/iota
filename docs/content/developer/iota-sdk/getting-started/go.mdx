@@ -1,0 +1,85 @@
+---
+description: Get started with the IOTA SDK Go bindings to interact with the IOTA network.
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with Go
+
+<IotaSdk />
+
+The IOTA SDK Go bindings allow you to build high-performance applications that interact with the IOTA network using native Go code. These bindings wrap the core Rust SDK via a Foreign Function Interface (FFI).
+
+## Prerequisites
+
+Before using the Go bindings, ensure you have:
+* **Go**: Version 1.21 or higher.
+* **CGO**: Enabled (required for the Rust-to-Go FFI layer).
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
+Add the IOTA SDK to your Go project using `go get`:
+```bash
+go get github.com/iotaledger/iota-sdk-go
+```
+
+The package automatically includes pre-built native libraries for most modern operating systems (Windows, macOS, and Linux).
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+The `iota-sdk-go` package includes precompiled native libraries for common platforms such as Windows, macOS, and Linux. In most cases, installing the package with:
+
+```bash
+go get github.com/iotaledger/iota-sdk-go
+```
+
+will download a compatible binary automatically.
+
+However, if a prebuilt binary is not available for your operating system or CPU architecture, you may need to build the SDK from source. In this case, a Rust toolchain is required.
+
+To build the Go bindings locally, clone the SDK repository and build the bindings from the bindings/go directory:
+
+```bash
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+cd iota-rust-sdk/bindings/go
+go build ./...
+```
+
+For additional setup instructions and platform-specific details, refer to the [Go bindings README](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/go) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Devnet and retrieve the Chain ID.
+
+## 1. Create a `main.go` file
+
+Create a new file named `main.go` and paste the following code:
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/chain_id/main.go#L4-L21
+```
+
+## 2. Run the code
+
+In your terminal, run:
+
+```bash
+go run main.go
+```
+
+What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* Check Balances: Learn how to query coin balances for a specific address.
+* Transactions: Build and sign Programmable Transaction Blocks (PTBs).
+* Key Management: Use the SDK to generate and manage IOTA addresses.
+
+View more comprehensive examples in the official [Go examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/go/examples).

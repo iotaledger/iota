@@ -109,6 +109,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             with_faucet: None,
             faucet_amount: None,
             faucet_coin_count: None,
+            with_grpc: None,
             fullnode_rpc_port: 9000,
             committee_size: None,
             epoch_duration_ms: None,

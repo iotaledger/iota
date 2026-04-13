@@ -49,6 +49,7 @@ const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
 const DEFAULT_FAUCET_NUM_COINS: usize = 5;
 const DEFAULT_FAUCET_NANOS_AMOUNT: u64 = 200_000_000_000; // 200 IOTA
 const DEFAULT_FAUCET_PORT: u16 = 9123;
+const DEFAULT_GRPC_PORT: u16 = 50051;
 #[cfg(feature = "indexer")]
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
@@ -185,6 +186,19 @@ pub enum LocalnetCommand {
         /// request. Defaults to 5.
         #[arg(long)]
         faucet_coin_count: Option<usize>,
+        /// Start the gRPC API server with default host and port: 0.0.0.0:50051.
+        /// This flag accepts also a port, a host, or both (e.g.,
+        /// 0.0.0.0:50051). When providing a specific value, please use
+        /// the = sign between the flag and value: `--with-grpc=50052`
+        /// or `--with-grpc=0.0.0.0`, or `--with-grpc=0.0.0.0:50051`
+        #[arg(
+            long,
+            default_missing_value = "0.0.0.0:50051",
+            num_args = 0..=1,
+            require_equals = true,
+            value_name = "GRPC_HOST_PORT",
+        )]
+        with_grpc: Option<String>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
         indexer_feature_args: IndexerFeatureArgs,
@@ -293,6 +307,7 @@ impl LocalnetCommand {
                 with_faucet,
                 faucet_amount,
                 faucet_coin_count,
+                with_grpc,
                 #[cfg(feature = "indexer")]
                 indexer_feature_args,
                 fullnode_rpc_port,
@@ -310,6 +325,7 @@ impl LocalnetCommand {
                     with_faucet,
                     faucet_amount,
                     faucet_coin_count,
+                    with_grpc,
                     #[cfg(feature = "indexer")]
                     indexer_feature_args,
                     force_regenesis,
@@ -369,6 +385,7 @@ async fn start(
     with_faucet: Option<String>,
     faucet_amount: Option<u64>,
     faucet_coin_count: Option<usize>,
+    with_grpc: Option<String>,
     #[cfg(feature = "indexer")] indexer_feature_args: IndexerFeatureArgs,
     force_regenesis: bool,
     epoch_duration_ms: Option<u64>,
@@ -385,6 +402,10 @@ async fn start(
             config_dir.is_none(),
             "Cannot pass `--force-regenesis` and `--network.config` at the same time."
         );
+    }
+
+    if with_grpc.is_some() {
+        ensure!(!no_full_node, "Cannot enable gRPC without a fullnode.");
     }
 
     #[cfg(feature = "indexer")]
@@ -584,6 +605,16 @@ async fn start(
             .with_network_config(network_config);
     }
 
+    if let Some(ref input) = with_grpc {
+        let grpc_address = parse_host_port(input.clone(), DEFAULT_GRPC_PORT)
+            .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
+        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
+        swarm_builder = swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig {
+            address: grpc_address,
+            ..Default::default()
+        });
+    }
+
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
     #[cfg(feature = "indexer")]
@@ -626,6 +657,21 @@ async fn start(
     // the indexer requires a fullnode url with protocol specified
     let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
+
+    if with_grpc.is_some() {
+        let grpc_url = swarm
+            .fullnodes()
+            .next()
+            .and_then(|node| {
+                node.config()
+                    .grpc_api_config
+                    .as_ref()
+                    .map(|grpc| grpc.address)
+            })
+            .unwrap_or_else(|| GrpcApiConfig::default().address);
+        info!("gRPC URL: http://{grpc_url}");
+    }
+
     #[cfg(feature = "indexer")]
     let pg_address = format!("postgres://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db_name}");
 
