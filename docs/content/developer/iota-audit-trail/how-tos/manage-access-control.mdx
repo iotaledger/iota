@@ -31,14 +31,14 @@ Define a new role with a specific set of permissions. Here we create an "Operati
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L36-L43
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L46-L53
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L22-L29
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L35-L42
 ```
 
 </TabItem>
@@ -54,14 +54,14 @@ Modify the permission set of an existing role. This replaces the previous permis
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L45-L57
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L56-L71
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L32-L42
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L45-L57
 ```
 
 </TabItem>
@@ -77,14 +77,14 @@ Issue a capability that is bound to a specific wallet address and has an expirat
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L60-L68
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L74-L85
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L45-L48
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L61-L69
 ```
 
 </TabItem>
@@ -100,14 +100,14 @@ Revocation is immediate — the holder can no longer use the capability. The rev
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L79-L84
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L96-L101
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L64-L69
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L85-L90
 ```
 
 </TabItem>
@@ -123,14 +123,14 @@ Unlike revocation, destroying a capability permanently removes it without adding
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L86-L97
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L106-L124
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L72-L81
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L96-L108
 ```
 
 </TabItem>
@@ -146,14 +146,14 @@ Remove stale entries from the revoked-capability registry. This is required befo
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L99-L103
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L127-L132
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L84-L89
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L112-L117
 ```
 
 </TabItem>
@@ -169,14 +169,14 @@ Remove the role from the trail entirely. All capabilities for the role must be r
 <TabItem value="rust" label="Rust">
 
 ```rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L106
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/05_manage_access.rs#L135-L141
 ```
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 ```ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L92
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/05_manage_access.ts#L121-L127
 ```
 
 </TabItem>
