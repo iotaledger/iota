@@ -5071,7 +5071,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 
     let context = test_cluster.wallet;
 
-    let tmp = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus::Registry::new();
     let config = iota_faucet::FaucetConfig::default();
 
@@ -5080,7 +5080,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
             &prometheus_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config.clone(),
         )
         .await
@@ -5129,7 +5129,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
 
     let context = test_cluster.wallet;
 
-    let tmp = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
@@ -5141,7 +5141,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
             &prometheus_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config.clone(),
         )
         .await
@@ -5256,7 +5256,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
 
     let context = test_cluster.wallet;
 
-    let tmp = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
@@ -5268,7 +5268,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
             &prometheus_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config.clone(),
         )
         .await

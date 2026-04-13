@@ -433,13 +433,13 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
         ..Default::default()
     };
     // enable remote firewall delegation
-    let tmp_drain = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: format!("http://127.0.0.1:{port}"),
         delegate_spam_blocking: true,
         delegate_error_blocking: false,
         destination_port: 8080,
-        drain_path: tmp_drain.path().join("drain"),
+        drain_path: tmp_dir.path().join("drain"),
         drain_timeout_secs: 10,
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
@@ -512,13 +512,13 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
         ..Default::default()
     };
     // enable remote firewall delegation
-    let tmp_drain = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: format!("http://127.0.0.1:{port}"),
         delegate_spam_blocking: true,
         delegate_error_blocking: false,
         destination_port: 9000,
-        drain_path: tmp_drain.path().join("drain"),
+        drain_path: tmp_dir.path().join("drain"),
         drain_timeout_secs: 10,
     };
     let test_cluster = TestClusterBuilder::new()
@@ -597,8 +597,8 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     };
 
     // sink all traffic to trigger dead mans switch
-    let tmp_drain = iota_common::tempdir();
-    let drain_path = tmp_drain.path().join("drain");
+    let tmp_dir = iota_common::tempdir();
+    let drain_path = tmp_dir.path().join("drain");
     assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
 
     let firewall_config = RemoteFirewallConfig {
@@ -646,8 +646,8 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let tmp_drain = iota_common::tempdir();
-    let drain_path = tmp_drain.path().join("drain");
+    let tmp_dir = iota_common::tempdir();
+    let drain_path = tmp_dir.path().join("drain");
     assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
     File::create(&drain_path).expect("Failed to touch nodefw drain file");
     assert!(drain_path.exists(), "Expected drain file to exist",);

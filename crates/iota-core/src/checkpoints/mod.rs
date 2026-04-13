@@ -213,8 +213,8 @@ impl CheckpointStore {
     }
 
     pub fn new_for_tests() -> Arc<Self> {
-        let ckpt_dir = iota_common::tempdir();
-        CheckpointStore::new(ckpt_dir.path())
+        let tmp_dir = iota_common::tempdir();
+        CheckpointStore::new(tmp_dir.path())
     }
 
     pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
@@ -2366,8 +2366,8 @@ async fn diagnose_split_brain(
         Datetime: {time:?}"
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
-    let tmp = iota_common::tempdir();
-    let path = tmp.path().join(Path::new("checkpoint_fork_dump.txt"));
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path().join(Path::new("checkpoint_fork_dump.txt"));
     let mut file = File::create(path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);
@@ -2798,8 +2798,8 @@ mod tests {
             mpsc::channel::<CertifiedCheckpointSummary>(10);
         let store = Arc::new(store);
 
-        let ckpt_dir = iota_common::tempdir();
-        let checkpoint_store = CheckpointStore::new(ckpt_dir.path());
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
         let epoch_store = state.epoch_store_for_testing();
 
         let accumulator = Arc::new(StateAccumulator::new_for_tests(

@@ -678,21 +678,21 @@ async fn successful_versioned_dependency_verification() -> anyhow::Result<()> {
 async fn successful_verification_with_bytecode_dep() -> anyhow::Result<()> {
     let mut cluster = TestClusterBuilder::new().build().await;
     let context = &mut cluster.wallet;
-    let tempdir = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
     {
         // publish b
-        fs::create_dir_all(tempdir.path().join("publish"))?;
+        fs::create_dir_all(tmp_dir.path().join("publish"))?;
         let b_src =
-            copy_published_package(&tempdir.path().join("publish"), "b", IotaAddress::ZERO).await?;
+            copy_published_package(&tmp_dir.path().join("publish"), "b", IotaAddress::ZERO).await?;
         let b_ref = publish_package(context, b_src).await.0;
         // setup b as a bytecode package
-        let pkg_path = copy_published_package(&tempdir, "b", b_ref.0.into()).await?;
+        let pkg_path = copy_published_package(&tmp_dir, "b", b_ref.0.into()).await?;
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
         BuildConfig::new_for_testing().build(&pkg_path).unwrap();
         fs::remove_dir_all(pkg_path.join("sources"))?;
     };
     let (a_pkg, a_ref) = {
-        let a_src = copy_published_package(&tempdir, "a", IotaAddress::ZERO).await?;
+        let a_src = copy_published_package(&tmp_dir, "a", IotaAddress::ZERO).await?;
         (
             compile_package(a_src.clone()),
             publish_package(context, a_src).await.0,

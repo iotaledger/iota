@@ -203,7 +203,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let local_network_config = local_network_config_builder.build();
         let genesis = &self.genesis.unwrap_or(&local_network_config.genesis);
         let genesis_committee = genesis.committee().unwrap();
-        let path = self
+        let tmp_dir = self
             .store_base_path
             .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
@@ -213,7 +213,9 @@ impl<'a> TestAuthorityBuilder<'a> {
             .authority_store_pruning_config
             .enable_compaction_filter
         {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(&path.join("store"))));
+            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
+                &tmp_dir.join("store"),
+            )));
         }
         let compaction_filter = pruner_db
             .clone()
@@ -227,7 +229,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     ..Default::default()
                 };
                 let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-                    &path.join("store"),
+                    &tmp_dir.join("store"),
                     Some(perpetual_tables_options),
                 ));
                 // unwrap ok - for testing only.
@@ -272,7 +274,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         .unwrap();
         let expensive_safety_checks = self.expensive_safety_checks.unwrap_or_default();
 
-        let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
+        let checkpoint_store = CheckpointStore::new(&tmp_dir.join("checkpoints"));
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
@@ -293,7 +295,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         let epoch_store = AuthorityPerEpochStore::new(
             name,
             Arc::new(genesis_committee.clone()),
-            &path.join("store"),
+            &tmp_dir.join("store"),
             None,
             EpochMetrics::new(&registry),
             epoch_start_configuration,
@@ -310,7 +312,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         )
         .expect("failed to create authority per epoch store");
         let committee_store = Arc::new(CommitteeStore::new(
-            path.join("epochs"),
+            tmp_dir.join("epochs"),
             &genesis_committee,
             None,
         ));
@@ -326,7 +328,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             None
         } else {
             Some(Arc::new(IndexStore::new(
-                path.join("indexes"),
+                tmp_dir.join("indexes"),
                 &registry,
                 epoch_store
                     .protocol_config()
@@ -338,7 +340,7 @@ impl<'a> TestAuthorityBuilder<'a> {
         } else {
             Some(Arc::new(
                 GrpcIndexesStore::new(
-                    path.join(GRPC_INDEXES_DIR),
+                    tmp_dir.join(GRPC_INDEXES_DIR),
                     Arc::clone(&authority_store),
                     &checkpoint_store,
                 )

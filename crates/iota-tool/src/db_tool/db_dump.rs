@@ -315,8 +315,8 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let tmp = iota_common::tempdir();
-        let primary_path = tmp.path();
+        let tmp_dir = iota_common::tempdir();
+        let primary_path = tmp_dir.path();
 
         // Open the DB for writing
         let _: AuthorityEpochTables = AuthorityEpochTables::open(0, primary_path, None);

@@ -151,14 +151,14 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         })],
     };
 
-    let fixtures = iota_common::tempdir();
-    fs::create_dir(fixtures.path().join("localnet"))?;
+    let tmp_dir_fixtures = iota_common::tempdir();
+    fs::create_dir(tmp_dir_fixtures.path().join("localnet"))?;
     fs_extra::dir::copy(
         PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
-        fixtures.path().join("localnet"),
+        tmp_dir_fixtures.path().join("localnet"),
         &fs_extra::dir::CopyOptions::default(),
     )?;
-    let result = verify_packages(&config, fixtures.path()).await;
+    let result = verify_packages(&config, tmp_dir_fixtures.path()).await;
     let truncated_error_message = &result
         .unwrap_err()
         .to_string()
@@ -296,16 +296,16 @@ async fn test_api_route() -> anyhow::Result<()> {
     initialize(&config, tmp_dir.path()).await?;
 
     // set up sample lookup to serve
-    let fixtures = iota_common::tempdir();
+    let tmp_dir_fixtures = iota_common::tempdir();
     fs_extra::dir::copy(
         PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
-        fixtures.path(),
+        tmp_dir_fixtures.path(),
         &fs_extra::dir::CopyOptions::default(),
     )?;
 
     let address = "0x2";
     let module = "address";
-    let source_path = fixtures
+    let source_path = tmp_dir_fixtures
         .keep()
         .join("iota/move-stdlib/sources/address.move");
 

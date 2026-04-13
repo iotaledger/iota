@@ -113,7 +113,7 @@ impl PersistedStore {
     where
         R: rand::RngCore + rand::CryptoRng,
     {
-        let path: PathBuf = path.unwrap_or(iota_common::tempdir().keep());
+        let store_directory: PathBuf = path.unwrap_or(iota_common::tempdir().keep());
 
         let mut builder = ConfigBuilder::new_with_temp_dir()
             .rng(&mut rng)
@@ -133,7 +133,7 @@ impl PersistedStore {
 
         let genesis = &config.genesis;
 
-        let store = PersistedStore::new(genesis, path);
+        let store = PersistedStore::new(genesis, store_directory);
         let read_only_wrapper = store.read_replica();
         (
             Simulacrum::new_with_network_config_store(&config, rng, store),

@@ -55,9 +55,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -80,9 +80,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -132,9 +132,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn object_type() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -185,9 +185,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn objects_snapshot() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Run 10 transfer transactions and create 10 checkpoints
@@ -262,9 +262,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -319,9 +319,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn tx_global_order_table_on_conflict_do_nothing() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
@@ -393,9 +393,9 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_tx_indices() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -430,9 +430,9 @@ mod ingestion_tests {
     /// ```
     #[tokio::test]
     pub async fn test_insert_large_batch_event_indices() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -460,9 +460,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn checkpoint_objects_are_finalized() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let transfer_recipient = IotaAddress::random_for_testing_only();
@@ -507,9 +507,9 @@ mod ingestion_tests {
 
     #[tokio::test]
     pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
-        let tempdir = iota_common::tempdir();
+        let tmp_dir = iota_common::tempdir();
         let sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
+        let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         let transfer_recipient = IotaAddress::random_for_testing_only();
