@@ -80,8 +80,7 @@ mod tests {
 
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
-        let tmp_dir = iota_common::tempdir();
-        let data_ingestion_path = tmp_dir.path().to_path_buf();
+        let data_ingestion_path = iota_common::tempdir().keep();
         let sim = Simulacrum::new_with_rng(rng);
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 

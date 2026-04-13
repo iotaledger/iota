@@ -44,7 +44,7 @@ async fn test_profiler() {
 
     // check that the profile was written
     let mut found = false;
-    for entry in fs::read_dir(tmp_dir.keep()).unwrap().flatten() {
+    for entry in fs::read_dir(tmp_dir.path()).unwrap().flatten() {
         if entry
             .file_name()
             .into_string()

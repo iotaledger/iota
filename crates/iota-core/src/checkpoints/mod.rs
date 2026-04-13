@@ -213,8 +213,8 @@ impl CheckpointStore {
     }
 
     pub fn new_for_tests() -> Arc<Self> {
-        let tmp_dir = iota_common::tempdir();
-        CheckpointStore::new(tmp_dir.path())
+        let storage_dir = iota_common::tempdir().keep();
+        CheckpointStore::new(storage_dir.as_path())
     }
 
     pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
@@ -2367,9 +2367,7 @@ async fn diagnose_split_brain(
     );
     let fork_logs_text = format!("{header}\n\n{diff_patches}\n\n");
     let checkpoint_fork_dir = iota_common::tempdir().keep();
-    let checkpoint_fork_file_path = checkpoint_fork_dir
-        .path()
-        .join(Path::new("checkpoint_fork_dump.txt"));
+    let checkpoint_fork_file_path = checkpoint_fork_dir.join(Path::new("checkpoint_fork_dump.txt"));
     let mut file = File::create(checkpoint_fork_file_path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);
