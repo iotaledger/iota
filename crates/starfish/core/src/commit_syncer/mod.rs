@@ -60,6 +60,7 @@ use crate::{
     dag_state::DagState,
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -162,6 +163,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) network_client: Arc<C>,
     pub(crate) block_verifier: Arc<dyn BlockVerifier>,
     pub(crate) dag_state: Arc<RwLock<DagState>>,
+    pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
     pub(crate) sync_type: CommitSyncType,
 }
 
