@@ -5725,6 +5725,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bcs",
+ "iota-common",
  "iota-macros",
  "iota-metrics",
  "iota-move-natives-latest",
@@ -9564,6 +9565,7 @@ dependencies = [
  "move-borrow-graph",
  "move-bytecode-verifier-meter",
  "move-core-types",
+ "move-regex-borrow-graph",
  "move-vm-config",
  "petgraph 0.5.1",
 ]
@@ -9903,6 +9905,15 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn 2.0.108",
+]
+
+[[package]]
+name = "move-regex-borrow-graph"
+version = "0.0.1"
+dependencies = [
+ "move-binary-format",
+ "move-core-types",
+ "petgraph 0.5.1",
 ]
 
 [[package]]

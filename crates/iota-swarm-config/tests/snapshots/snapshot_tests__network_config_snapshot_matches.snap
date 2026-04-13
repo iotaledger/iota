@@ -131,6 +131,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: avYcyVgYMXTyaUYh9IRwLK0gSzl7YF6ZQDAbrS1Bhvo=
@@ -260,6 +261,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: OXnx3yM1C/ppgnDMx/o1d49fJs7E05kq11mXNae/O+I=
@@ -389,6 +391,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: CyNkjqNVr3HrHTH7f/NLs7u5lUHJzuPAw0PqMTD2y2s=
@@ -518,6 +521,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: X/I/kM+KvHcxAKEf2UU6Sr7SpN3bhiE9nP5CuM/iIY0=
@@ -647,6 +651,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: N272EiFDyKtxRbDKbyN6ujenJ+skPcRoc/XolpOLGnU=
@@ -776,6 +781,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
   - authority-key-pair:
       value: a74f03IOjL8ZFSWFChFVEi+wiMwHNwNCPDGIYkGfgjs=
@@ -905,6 +911,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+      sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
 account_keys:
   - Hloy4pnf8pWEHGP+4OFsXz56bLdIJhkD2O+OdKMqCA4=

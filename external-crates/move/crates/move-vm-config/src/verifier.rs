@@ -29,6 +29,7 @@ pub struct VerifierConfig {
     pub bytecode_version: u32,
     pub max_variants_in_enum: Option<u64>,
     pub additional_borrow_checks: bool,
+    pub sanity_check_with_regex_reference_safety: Option</* meter limit */ u128>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +73,7 @@ impl Default for VerifierConfig {
             bytecode_version: VERSION_MAX,
             max_variants_in_enum: Some(DEFAULT_MAX_VARIANTS),
             additional_borrow_checks: true,
+            sanity_check_with_regex_reference_safety: Some(8_000_000),
         }
     }
 }
