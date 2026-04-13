@@ -4,9 +4,9 @@
 /// On-chain registry for claiming addresses.
 ///
 /// `claim` validates the public key (scheme, length, address derivation),
-/// marks the sender's address as claimed, and returns a `ClaimedAddressTicket`
-/// hot potato. The caller must consume it in the same PTB — typically by
-/// passing it to an account-creation function.
+/// marks the sender's address as claimed, and returns a deterministic `UID`
+/// for the new account object. The UID must be consumed in the same PTB
+/// (no `drop` ability) — typically passed to an account-creation function.
 module iota::claim_registry;
 
 use iota::address as iota_address;
@@ -15,17 +15,13 @@ use iota::hash;
 
 // === Signature scheme flags (match Rust `SignatureScheme`) ===
 
+// 0x04 BLS12381 — not supported for user addresses.
+// 0x05 ZkLoginAuthenticator — requires special address derivation; not yet supported.
 const SCHEME_ED25519: u8 = 0x00;
 const SCHEME_SECP256K1: u8 = 0x01;
 const SCHEME_SECP256R1: u8 = 0x02;
-// TODO: passkey - 0x06.
-
-/// Matches `SignatureScheme::MoveAuthenticator` (0x07).
-/// For this scheme address derivation is skipped — `public_key` may be empty
-/// or carry arbitrary data; ownership is proved by the transaction signature.
-/// DISCUSS: should we require an explicit address derivation rule for 0x07 too,
-/// or is relying on ctx.sender() sufficient as the ownership proof?
-const SCHEME_MOVE_AUTHENTICATOR: u8 = 0x07;
+const SCHEME_MULTISIG: u8 = 0x03;
+const SCHEME_PASSKEY: u8 = 0x06;
 
 const ED25519_PUBLIC_KEY_LEN: u64 = 32;
 const COMPRESSED_PUBLIC_KEY_LEN: u64 = 33;
@@ -59,14 +55,6 @@ public struct ClaimRegistry has key {
     id: UID,
 }
 
-/// Hot potato returned by `claim`. Must be consumed in the same PTB.
-/// Carries the proven sender address, raw public key, and scheme flag.
-public struct ClaimedAddressTicket {
-    account: address,
-    public_key: vector<u8>,
-    flag: u8,
-}
-
 // === Genesis ===
 
 /// Create and share the `ClaimRegistry` singleton. Called once during genesis.
@@ -81,27 +69,29 @@ fun create(ctx: &TxContext) {
 // === Claim ===
 
 /// Validate the public key for the given `scheme` and mark `ctx.sender()` as
-/// claimed. Returns a `ClaimedAddressTicket` that must be consumed in the same
-/// PTB (hot potato — no `drop` ability).
+/// claimed. Returns a deterministic `UID` that must be consumed in the same PTB
+/// (no `drop` ability) — typically passed to an account-creation function.
 ///
-/// `scheme`: 0x00 Ed25519 | 0x01 Secp256k1 | 0x02 Secp256r1 | 0x07 MoveAuthenticator.
-/// For crypto schemes, `public_key` must have the correct length and derive to
-/// `ctx.sender()`. For 0x07, `public_key` may be empty or carry arbitrary data.
+/// The returned UID is derived from the registry address and the sender, so
+/// the future account object ID is predictable off-chain via `derive_account_address`.
+///
+/// Supported schemes:
+///   0x00 Ed25519   | 0x01 Secp256k1 | 0x02 Secp256r1
+///   0x03 MultiSig  | 0x06 Passkey
+/// For all schemes `public_key` must derive to `ctx.sender()`.
 public fun claim(
     registry: &mut ClaimRegistry,
     scheme: u8,
     public_key: vector<u8>,
     ctx: &mut TxContext,
-): ClaimedAddressTicket {
+): UID {
     assert!(is_valid_scheme(scheme), EInvalidScheme);
     assert!(is_valid_public_key_length(scheme, &public_key), EInvalidPublicKeyLength);
-    if (!is_move_authenticator_scheme(scheme)) {
-        let derived = derive_address(scheme, &public_key);
-        assert!(derived == ctx.sender(), EAddressMismatch);
-    };
-    assert!(!is_claimed(registry, ctx.sender()), EAlreadyClaimed);
-    df::add(&mut registry.id, ctx.sender(), true);
-    ClaimedAddressTicket { account: ctx.sender(), public_key, flag: scheme }
+    let derived_addr = derive_address(scheme, &public_key);
+    assert!(derived_addr == ctx.sender(), EAddressMismatch);
+    assert!(!is_claimed(registry, derived_addr), EAlreadyClaimed);
+    df::add(&mut registry.id, derived_addr, true);
+    object::new_uid_from_hash(derived_addr)
 }
 
 // === Public reads ===
@@ -115,7 +105,8 @@ public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
 public(package) fun scheme_ed25519(): u8 { SCHEME_ED25519 }
 public(package) fun scheme_secp256k1(): u8 { SCHEME_SECP256K1 }
 public(package) fun scheme_secp256r1(): u8 { SCHEME_SECP256R1 }
-public(package) fun scheme_move_authenticator(): u8 { SCHEME_MOVE_AUTHENTICATOR }
+public(package) fun scheme_multisig(): u8 { SCHEME_MULTISIG }
+public(package) fun scheme_passkey(): u8 { SCHEME_PASSKEY }
 
 // === Internal helpers ===
 
@@ -123,6 +114,8 @@ public(package) fun scheme_move_authenticator(): u8 { SCHEME_MOVE_AUTHENTICATOR 
 ///   Ed25519:   Blake2b256(pubkey)           — no flag prefix
 ///   Secp256k1: Blake2b256([0x01] || pubkey)
 ///   Secp256r1: Blake2b256([0x02] || pubkey)
+///   MultiSig:  Blake2b256([0x03] || pubkey)
+///   Passkey:   Blake2b256([0x06] || pubkey)
 fun derive_address(scheme: u8, public_key: &vector<u8>): address {
     let data = if (scheme == SCHEME_ED25519) {
         *public_key
@@ -138,20 +131,18 @@ fun is_valid_scheme(scheme: u8): bool {
     scheme == SCHEME_ED25519
         || scheme == SCHEME_SECP256K1
         || scheme == SCHEME_SECP256R1
-        || scheme == SCHEME_MOVE_AUTHENTICATOR
-}
-
-fun is_move_authenticator_scheme(scheme: u8): bool {
-    scheme == SCHEME_MOVE_AUTHENTICATOR
+        || scheme == SCHEME_MULTISIG
+        || scheme == SCHEME_PASSKEY
 }
 
 fun is_valid_public_key_length(scheme: u8, public_key: &vector<u8>): bool {
-    if (scheme == SCHEME_MOVE_AUTHENTICATOR) {
-        true
+    let len = public_key.length();
+    if (scheme == SCHEME_ED25519) {
+        len == ED25519_PUBLIC_KEY_LEN
+    } else if (scheme == SCHEME_MULTISIG) {
+        len > 0 // Variable-length composite key; structural validation happens at the Rust layer.
     } else {
-        let len = public_key.length();
-        if (scheme == SCHEME_ED25519) { len == ED25519_PUBLIC_KEY_LEN }
-        else { len == COMPRESSED_PUBLIC_KEY_LEN }
+        len == COMPRESSED_PUBLIC_KEY_LEN // Secp256k1, Secp256r1, Passkey
     }
 }
 
@@ -165,10 +156,4 @@ public fun create_for_testing(ctx: &mut TxContext) {
 #[test_only]
 public fun derive_address_for_testing(scheme: u8, public_key: &vector<u8>): address {
     derive_address(scheme, public_key)
-}
-
-#[test_only]
-public fun consume_ticket_for_testing(ticket: ClaimedAddressTicket): (address, vector<u8>, u8) {
-    let ClaimedAddressTicket { account, public_key, flag } = ticket;
-    (account, public_key, flag)
 }

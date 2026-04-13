@@ -1,9 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Both claims are in a single PTB: the first succeeds (ticket in Result(0)),
-// the second aborts with EAlreadyClaimed. The whole transaction fails, so the
-// unconsumed hot potato from Result(0) is never an issue.
+// Both claims are in a single PTB: the first succeeds (UID in Result(0)),
+// the second aborts with EAlreadyClaimed. The whole transaction rolls back,
+// so the unconsumed UID from Result(0) is never committed.
 
 //# init --accounts A --addresses test=0x0
 

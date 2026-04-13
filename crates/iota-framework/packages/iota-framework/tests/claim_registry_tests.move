@@ -63,13 +63,9 @@ fun test_claim_ed25519_happy_path() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), pk, ctx);
-        let (account, returned_pk, flag) = claim_registry::consume_ticket_for_testing(ticket);
-        assert!(account == sender);
-        assert!(flag == claim_registry::scheme_ed25519());
-        let expected_pk = ED25519_PK;
-        assert!(returned_pk == expected_pk);
+        let uid = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), pk, ctx);
         assert!(claim_registry::is_claimed(&registry, sender));
+        uid.delete();
         test_scenario::return_shared(registry);
     };
 
@@ -86,13 +82,9 @@ fun test_claim_secp256k1_happy_path() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_secp256k1(), pk, ctx);
-        let (account, returned_pk, flag) = claim_registry::consume_ticket_for_testing(ticket);
-        assert!(account == sender);
-        assert!(flag == claim_registry::scheme_secp256k1());
-        let expected_pk = SECP256K1_PK;
-        assert!(returned_pk == expected_pk);
+        let uid = claim_registry::claim(&mut registry, claim_registry::scheme_secp256k1(), pk, ctx);
         assert!(claim_registry::is_claimed(&registry, sender));
+        uid.delete();
         test_scenario::return_shared(registry);
     };
 
@@ -109,38 +101,39 @@ fun test_claim_secp256r1_happy_path() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_secp256r1(), pk, ctx);
-        let (account, returned_pk, flag) = claim_registry::consume_ticket_for_testing(ticket);
-        assert!(account == sender);
-        assert!(flag == claim_registry::scheme_secp256r1());
-        let expected_pk = SECP256R1_PK;
-        assert!(returned_pk == expected_pk);
+        let uid = claim_registry::claim(&mut registry, claim_registry::scheme_secp256r1(), pk, ctx);
         assert!(claim_registry::is_claimed(&registry, sender));
+        uid.delete();
         test_scenario::return_shared(registry);
     };
 
     test_scenario::end(scenario);
 }
 
+// ============================================================
+// claim — custom account module uses the returned UID
+// ============================================================
+
 #[test]
-fun test_claim_move_authenticator_happy_path() {
+fun test_custom_account_creation() {
     let mut scenario = setup();
-    // For SCHEME_MOVE_AUTHENTICATOR, public_key may be empty and any sender is valid.
-    scenario.next_tx(@0xcafe);
+    let pk = ED25519_PK;
+    let sender = claim_registry::derive_address_for_testing(claim_registry::scheme_ed25519(), &pk);
+
+    scenario.next_tx(sender);
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(
-            &mut registry,
-            claim_registry::scheme_move_authenticator(),
-            vector[],
-            ctx,
-        );
-        let (account, _pk, flag) = claim_registry::consume_ticket_for_testing(ticket);
-        assert!(account == @0xcafe);
-        assert!(flag == claim_registry::scheme_move_authenticator());
-        assert!(claim_registry::is_claimed(&registry, @0xcafe));
+        iota::test_account::create(&mut registry, claim_registry::scheme_ed25519(), pk, ctx);
+        assert!(claim_registry::is_claimed(&registry, sender));
         test_scenario::return_shared(registry);
+    };
+
+    // Verify the Account object was transferred to the sender.
+    scenario.next_tx(sender);
+    {
+        let account = scenario.take_from_sender<iota::test_account::Account>();
+        test_scenario::return_to_sender(&scenario, account);
     };
 
     test_scenario::end(scenario);
@@ -158,8 +151,7 @@ fun test_claim_address_mismatch() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), ED25519_PK, ctx);
-        claim_registry::consume_ticket_for_testing(ticket);
+        claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), ED25519_PK, ctx).delete();
         test_scenario::return_shared(registry);
     };
     test_scenario::end(scenario);
@@ -176,8 +168,8 @@ fun test_claim_double_claim() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), pk, ctx);
-        claim_registry::consume_ticket_for_testing(ticket);
+        let uid = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), pk, ctx);
+        uid.delete();
         test_scenario::return_shared(registry);
     };
 
@@ -185,8 +177,7 @@ fun test_claim_double_claim() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), pk, ctx);
-        claim_registry::consume_ticket_for_testing(ticket);
+        claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), pk, ctx).delete();
         test_scenario::return_shared(registry);
     };
 
@@ -201,8 +192,21 @@ fun test_claim_invalid_scheme() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, 0xff, vector[], ctx);
-        claim_registry::consume_ticket_for_testing(ticket);
+        claim_registry::claim(&mut registry, 0xff, vector[], ctx).delete();
+        test_scenario::return_shared(registry);
+    };
+    test_scenario::end(scenario);
+}
+
+#[test]
+#[expected_failure(abort_code = claim_registry::EInvalidScheme)]
+fun test_claim_move_authenticator_is_invalid() {
+    let mut scenario = setup();
+    scenario.next_tx(@0xcafe);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim(&mut registry, 0x07, vector[], ctx).delete();
         test_scenario::return_shared(registry);
     };
     test_scenario::end(scenario);
@@ -218,8 +222,7 @@ fun test_claim_ed25519_wrong_key_length() {
     {
         let mut registry = scenario.take_shared<ClaimRegistry>();
         let ctx = test_scenario::ctx(&mut scenario);
-        let ticket = claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), short_pk, ctx);
-        claim_registry::consume_ticket_for_testing(ticket);
+        claim_registry::claim(&mut registry, claim_registry::scheme_ed25519(), short_pk, ctx).delete();
         test_scenario::return_shared(registry);
     };
     test_scenario::end(scenario);

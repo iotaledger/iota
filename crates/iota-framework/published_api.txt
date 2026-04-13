@@ -2257,9 +2257,6 @@ keccak256
 ClaimRegistry
 	public struct
 	0x2::claim_registry
-ClaimedAddressTicket
-	public struct
-	0x2::claim_registry
 create
 	fun
 	0x2::claim_registry
@@ -2278,16 +2275,16 @@ scheme_secp256k1
 scheme_secp256r1
 	public(package) fun
 	0x2::claim_registry
-scheme_move_authenticator
+scheme_multisig
+	public(package) fun
+	0x2::claim_registry
+scheme_passkey
 	public(package) fun
 	0x2::claim_registry
 derive_address
 	fun
 	0x2::claim_registry
 is_valid_scheme
-	fun
-	0x2::claim_registry
-is_move_authenticator_scheme
 	fun
 	0x2::claim_registry
 is_valid_public_key_length
