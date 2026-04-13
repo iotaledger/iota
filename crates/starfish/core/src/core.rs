@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -893,9 +893,9 @@ impl Core {
         });
 
         // Create the block and insert to storage.
-        let strong_vote = self.compute_strong_vote(clock_round, &ancestors);
         let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
         let block_header = if self.context.protocol_config.consensus_starfish_speed() {
+            let strong_vote = self.compute_strong_vote(clock_round, &ancestors);
             BlockHeader::V2(BlockHeaderV2::new(
                 self.context.committee.epoch(),
                 clock_round,
@@ -1284,6 +1284,7 @@ impl Core {
         ancestors: &[VerifiedBlockHeader],
     ) -> Option<AuthoritySet> {
         if !self.context.protocol_config.consensus_starfish_speed() {
+            error!("compute_strong_vote called while consensus_starfish_speed is disabled");
             return None;
         }
 
