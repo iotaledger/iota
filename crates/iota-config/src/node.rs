@@ -239,6 +239,15 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_db_write_stall: Option<bool>,
 
+    /// When true, the fullnode forces every incoming transaction execution
+    /// request through the `WaitForLocalExecution` path, regardless of the
+    /// client-supplied request type. In this mode the TransactionDriver also
+    /// skips the 2f+1 effects certification broadcast and relies on local
+    /// checkpoint execution for finality. Intended for benchmarking the
+    /// checkpoint-based finality path.
+    #[serde(default)]
+    pub force_wait_for_local_execution: bool,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
 
