@@ -1299,6 +1299,7 @@
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
                 "accept_zklogin_in_multisig": false,
+                "additional_borrow_checks": false,
                 "additional_multisig_checks": false,
                 "adjust_rewards_by_score": false,
                 "calculate_validator_scores": false,

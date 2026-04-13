@@ -2263,7 +2263,9 @@ impl IndexerStore for PgIndexerStore {
                 for config_chunk in all_configs.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
                     insert_or_ignore_into!(protocol_configs::table, config_chunk, conn);
                 }
-                insert_or_ignore_into!(feature_flags::table, all_flags.clone(), conn);
+                for flag_chunk in all_flags.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    insert_or_ignore_into!(feature_flags::table, flag_chunk, conn);
+                }
                 Ok::<(), IndexerError>(())
             },
             PG_DB_COMMIT_SLEEP_DURATION
