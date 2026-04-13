@@ -153,9 +153,7 @@ function ValidatorPageResult(): JSX.Element {
                 ? (activeValidators?.concat(sanitizedPendingValidatorsData) ?? [])
                 : (activeValidators ?? []);
         const candidateValidators =
-            Number(sanitizedCandidateValidatorsData) > 0
-                ? (sanitizedCandidateValidatorsData ?? [])
-                : [];
+            Number(sanitizedCandidateValidatorsData) > 0 ? sanitizedCandidateValidatorsData : [];
         return [...pendingActiveValidators, ...candidateValidators];
     }, [data, activeValidators, sanitizedPendingValidatorsData, sanitizedCandidateValidatorsData]);
 

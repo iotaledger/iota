@@ -331,29 +331,6 @@ export function generateValidatorsTableColumns({
             },
         },
         {
-            header: 'Voting Power',
-            accessorKey: 'votingPower',
-            enableSorting: true,
-            sortingFn: sortByNumber,
-            cell({ getValue, row }) {
-                const validator = row.original as IotaValidatorSummaryExtended;
-                const votingPower = getValue<string>();
-                const numericPower = Number(votingPower);
-                return (
-                    <TableCellBase>
-                        <TableCellText>
-                            {validator.isCandidate ||
-                            validator.isPending ||
-                            !votingPower ||
-                            isNaN(numericPower)
-                                ? '--'
-                                : numericPower / 100 + '%'}
-                        </TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
             header: 'Status',
             accessorKey: 'status',
             id: 'status',
