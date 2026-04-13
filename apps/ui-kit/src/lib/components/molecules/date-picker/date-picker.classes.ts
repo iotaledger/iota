@@ -31,7 +31,7 @@ export const DATE_PICKER_NAV_BUTTON_CLASSES =
     'date-picker-nav-icon-color enabled:hover:date-picker-nav-bg-hover flex h-8 w-8 items-center justify-center rounded-full transition-colors hover:delay-75 disabled:cursor-not-allowed disabled:opacity-40 [&_svg]:h-4 [&_svg]:w-4';
 
 export const DATE_PICKER_HEADER_BUTTON_CLASSES =
-    'date-picker-header-text-color enabled:hover:date-picker-nav-bg-hover rounded-md px-1 py-0.5 text-label-lg font-semibold transition-colors hover:delay-75';
+    'date-picker-header-text-color enabled:hover:date-picker-nav-bg-hover rounded-md px-1 py-0.5 text-label-lg font-semibold transition-colors hover:delay-75 shrink-0';
 
 export const DATE_PICKER_YEAR_CELL_BASE_CLASSES =
     'date-picker-day-text-color flex w-full items-center justify-center rounded-lg py-2 text-body-md transition-colors hover:delay-75';
