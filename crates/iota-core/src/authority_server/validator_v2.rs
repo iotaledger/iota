@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use futures::future::Either;
+use futures::{StreamExt, future::Either, stream};
 use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
@@ -33,6 +33,12 @@ const MAX_QUERIES_PER_GET_TX_STATUS: usize = 256;
 
 /// Timeout for waiting on transaction execution in `get_tx_status`.
 const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
+
+/// Maximum number of `submit_single_tx` futures allowed to run concurrently
+/// per `submit_tx` request. Caps pre-consensus work (signature verification,
+/// validation, DB reads) and contention on `consensus_adapter`'s submit
+/// semaphore.
+const MAX_CONCURRENT_SUBMIT_TASKS: usize = 16;
 
 /// A single streamed item in a V2 RPC response.
 type TxUpdateItem = Result<(TransactionDigest, TxStatusUpdate), tonic::Status>;
@@ -78,31 +84,42 @@ impl ValidatorService {
         let consensus_adapter = self.consensus_adapter.clone();
         let metrics = self.metrics.clone();
 
-        // TODO(#11109): cap in-flight work per request (e.g. buffer_unordered(N)).
-        for transaction in transactions {
-            let state = state.clone();
-            let epoch_store = epoch_store.clone();
-            let consensus_adapter = consensus_adapter.clone();
-            let metrics = metrics.clone();
-            let tx_sender = tx_sender.clone();
-            spawn_monitored_task!(async move {
-                let tx_digest = *transaction.digest();
-                let result = Self::submit_single_tx(
-                    &state,
-                    &consensus_adapter,
-                    &metrics,
-                    &epoch_store,
-                    transaction,
-                )
-                .await;
-                let item = match result {
-                    Ok(submit_result) => Ok((tx_digest, submit_result)),
-                    Err(status) => Err(status),
-                };
-                // Ignore error: receiver dropped means client disconnected.
-                let _ = tx_sender.send(item).await;
-            });
-        }
+        // Drive up to `MAX_CONCURRENT_SUBMIT_TASKS` per-tx futures concurrently
+        // on a single task; the rest wait in the iterator. Results are forwarded
+        // to the client stream in completion order.
+        spawn_monitored_task!(async move {
+            let mut in_flight = stream::iter(transactions)
+                .map(move |transaction| {
+                    let state = state.clone();
+                    let epoch_store = epoch_store.clone();
+                    let consensus_adapter = consensus_adapter.clone();
+                    let metrics = metrics.clone();
+                    async move {
+                        let tx_digest = *transaction.digest();
+                        let result = Self::submit_single_tx(
+                            &state,
+                            &consensus_adapter,
+                            &metrics,
+                            &epoch_store,
+                            transaction,
+                        )
+                        .await;
+                        match result {
+                            Ok(submit_result) => Ok((tx_digest, submit_result)),
+                            Err(status) => Err(status),
+                        }
+                    }
+                })
+                .buffer_unordered(MAX_CONCURRENT_SUBMIT_TASKS);
+
+            while let Some(item) = in_flight.next().await {
+                // Stop on client disconnect; remaining in-flight futures are
+                // dropped when this task ends.
+                if tx_sender.send(item).await.is_err() {
+                    break;
+                }
+            }
+        });
 
         // TODO(#11080): scale traffic weight with batch size.
         Ok((ReceiverStream::new(rx), Weight::one()))
@@ -217,13 +234,13 @@ impl ValidatorService {
         }
 
         // Submit to consensus.
-        consensus_adapter
-            .submit(
-                ConsensusTransaction::new_user_transaction(verified_tx.into_inner()),
-                Some(&reconfiguration_lock),
-                epoch_store,
-            )
-            .map_err(tonic::Status::from)?;
+        if let Err(e) = consensus_adapter.submit(
+            ConsensusTransaction::new_user_transaction(verified_tx.into_inner()),
+            Some(&reconfiguration_lock),
+            epoch_store,
+        ) {
+            return Ok(TxStatusUpdate::Rejected { error: e });
+        }
 
         Ok(TxStatusUpdate::Submitted)
     }
