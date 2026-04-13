@@ -182,6 +182,7 @@ impl<'env> CodeUnitVerifier<'env, '_> {
         type_safety::verify(self.module, &self.function_context, ability_cache, meter)?;
         locals_safety::verify(self.module, &self.function_context, ability_cache, meter)?;
         let reference_safety_res = reference_safety::verify(
+            verifier_config,
             self.module,
             &self.function_context,
             self.name_def_map,
