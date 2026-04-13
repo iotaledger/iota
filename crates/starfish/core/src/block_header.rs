@@ -245,8 +245,6 @@ pub struct BlockHeaderV2 {
 }
 
 impl BlockHeaderV2 {
-    // Will be used when block construction is gated on consensus_starfish_speed.
-    #[expect(dead_code)]
     pub(crate) fn new(
         epoch: Epoch,
         round: Round,
