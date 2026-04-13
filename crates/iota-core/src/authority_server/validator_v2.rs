@@ -172,22 +172,25 @@ impl ValidatorService {
         };
         drop(tx_verif_guard);
 
-        // TODO(#11110): return Rejected instead of Err(tonic::Status) for consistency.
         // Early bail-out during epoch boundary.
         if !epoch_store
             .get_reconfig_state_read_lock_guard()
             .should_accept_user_certs()
         {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
-            return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            return Ok(TxStatusUpdate::Rejected {
+                error: IotaError::ValidatorHaltedAtEpochEnd,
+            });
         }
 
-        // TODO(#11110): return Rejected instead of Err(tonic::Status) for consistency.
         // Content validation: deny checks + owned object version validation.
-        let owned_objects = state
+        let owned_objects = match state
             .handle_transaction_validation_checks(&verified_tx, epoch_store)
             .await
-            .map_err(tonic::Status::from)?;
+        {
+            Ok(objs) => objs,
+            Err(e) => return Ok(TxStatusUpdate::Rejected { error: e }),
+        };
         if let Err(e) = state
             .get_cache_writer()
             .validate_owned_object_versions(&owned_objects)
@@ -201,15 +204,16 @@ impl ValidatorService {
             {
                 return build_executed(effects);
             }
-            return Err(tonic::Status::from(e));
+            return Ok(TxStatusUpdate::Rejected { error: e });
         }
 
-        // TODO(#11110): return Rejected instead of Err(tonic::Status) for consistency.
         // Reconfig check.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
-            return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
+            return Ok(TxStatusUpdate::Rejected {
+                error: IotaError::ValidatorHaltedAtEpochEnd,
+            });
         }
 
         // Submit to consensus.
