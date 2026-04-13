@@ -1,28 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-    str::FromStr,
-};
+use std::{path::Path, str::FromStr};
 
-use diesel::{
-    BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHelper,
-};
+use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    config::PruningOptions,
-    errors::IndexerError,
-    models::transactions::TxGlobalOrder,
-    read_only_blocking,
-    schema::{objects, tx_global_order},
-    store::indexer_store::IndexerStore,
-    types::IndexerResult,
+    config::PruningOptions, errors::IndexerError, read_only_blocking, schema::objects,
+    store::indexer_store::IndexerStore, types::IndexerResult,
 };
 use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
-    CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+    CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
+    TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
     IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
@@ -35,7 +25,6 @@ use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -87,6 +76,36 @@ fn assert_transaction_success(res: &IotaTransactionBlockResponse) {
         res.effects.as_ref().map(|e| e.status()),
         res.errors
     );
+}
+
+async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64 {
+    let counter_content = client
+        .get_object(
+            counter_obj_id,
+            Some(IotaObjectDataOptions::new().with_content()),
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap()
+        .content
+        .unwrap();
+
+    let value_field = &counter_content
+        .try_as_move()
+        .unwrap()
+        .fields
+        .read_dynamic_field_value("value")
+        .unwrap();
+
+    if let IotaMoveValue::String(counter_value_str) = &value_field {
+        counter_value_str.parse().unwrap()
+    } else {
+        panic!(
+            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
+            value_field
+        );
+    }
 }
 
 #[test]
@@ -683,7 +702,7 @@ fn test_parallel_shared_object_updates() {
                 .await
                 .unwrap();
 
-            for _ in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
+            for i in 0..NON_DETERMINISTIC_TESTS_REPETITIONS {
                 let transaction_results: Vec<_> = gas_objs
                     .iter()
                     .map(|gas| {
@@ -704,75 +723,14 @@ fn test_parallel_shared_object_updates() {
                     assert_transaction_success(res);
                 }
 
-                // Now we need to check if transaction ordering in the DB follows the ordering
-                // of transactions imposed by TX dependencies
-                {
-                    let transaction_dependencies = transaction_results
-                        .iter()
-                        .map(|res| {
-                            (
-                                res.digest,
-                                HashSet::from_iter(res.effects.as_ref().unwrap().dependencies()),
-                            )
-                        })
-                        .collect::<HashMap<_, _>>();
-
-                    let executed_transactions_digests =
-                        transaction_dependencies.keys().collect::<HashSet<_>>();
-                    let executed_transactions_digests_to_load = executed_transactions_digests
-                        .iter()
-                        .map(|digest| digest.inner().to_vec())
-                        .collect::<HashSet<_>>();
-
-                    let mut stored_global_orders = read_only_blocking!(&store.blocking_cp(), |conn| {
-                        tx_global_order::table
-                            .filter(
-                                tx_global_order::tx_digest
-                                    .eq_any(executed_transactions_digests_to_load),
-                            )
-                            .select(TxGlobalOrder::as_select())
-                            .load::<TxGlobalOrder>(conn)
-                    })
-                    .unwrap();
-                    stored_global_orders.sort_by(|a, b| {
-                        (
-                            a.global_sequence_number,
-                            a.optimistic_sequence_number.unwrap(),
-                        )
-                            .cmp(&(
-                                b.global_sequence_number,
-                                b.optimistic_sequence_number.unwrap(),
-                            ))
-                    });
-
-                    let mut seen_digests: HashSet<TransactionDigest> = HashSet::new();
-                    for stored_global_order in stored_global_orders.iter() {
-                        let tx_digest =
-                            TransactionDigest::try_from(&stored_global_order.tx_digest[..]).unwrap();
-                        let tx_deps = &transaction_dependencies[&tx_digest];
-                        let relevant_deps: HashSet<_> = tx_deps
-                            .intersection(&executed_transactions_digests)
-                            .cloned()
-                            .cloned()
-                            .collect();
-                        assert!(
-                            relevant_deps.is_subset(&seen_digests),
-                            "tx: {tx_digest:?} should have bigger order than it's deps: {relevant_deps:?}",
-
-                        );
-                        seen_digests.insert(tx_digest);
-                    }
-                }
+                let expected_count = ((i + 1) * NON_DETERMINISTIC_TESTS_REPETITIONS) as u64;
+                let counter_value = get_counter_value(counter_obj, client).await;
+                assert_eq!(
+                    counter_value, expected_count,
+                    "Counter value should be {} but was {} at iteration {}",
+                    expected_count, counter_value, i
+                );
             }
-
-            // NON_DETERMINISTIC_TESTS_REPETITIONS iterations, each with NON_DETERMINISTIC_TESTS_REPETITIONS increments
-            let expected_count = (NON_DETERMINISTIC_TESTS_REPETITIONS * NON_DETERMINISTIC_TESTS_REPETITIONS) as u64;
-            let counter_value = get_counter_value(counter_obj, client).await;
-            assert_eq!(
-                counter_value, expected_count,
-                "Counter value should be {} but was {}",
-                expected_count, counter_value
-            );
 
             Ok::<(), IndexerError>(())
         })
@@ -1550,35 +1508,72 @@ fn clever_errors() {
             panic!("transaction should have failed");
         };
         assert_eq!(error, &expected_error);
+
+        // Check error in the response as well
+        let response_error = indexer_tx_response
+            .errors
+            .first()
+            .expect("execution error should be in the response");
+        assert_eq!(response_error, &expected_error);
     });
 }
 
-async fn get_counter_value(counter_obj_id: ObjectID, client: &HttpClient) -> u64 {
-    let counter_content = client
-        .get_object(
-            counter_obj_id,
-            Some(IotaObjectDataOptions::new().with_content()),
-        )
-        .await
-        .unwrap()
-        .data
-        .unwrap()
-        .content
-        .unwrap();
+#[test]
+fn dry_run_request_add_stake() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
 
-    let value_field = &counter_content
-        .try_as_move()
-        .unwrap()
-        .fields
-        .read_dynamic_field_value("value")
-        .unwrap();
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, _key_pair): (_, AccountKeyPair) = get_key_pair();
 
-    if let IotaMoveValue::String(counter_value_str) = &value_field {
-        counter_value_str.parse().unwrap()
-    } else {
-        panic!(
-            "Counter value field is not a string (expected u64 serialized as string), got: {:?}",
-            value_field
-        );
-    }
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA * 10),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let coin_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA * 2),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, coin_ref.0, coin_ref.1).await;
+
+        let validator = client
+            .get_latest_iota_system_state_v2()
+            .await
+            .unwrap()
+            .active_validators()[0]
+            .iota_address;
+
+        let tx_bytes: TransactionBlockBytes = client
+            .request_add_stake(
+                sender,
+                vec![coin_ref.0],
+                Some((NANOS_PER_IOTA * 2).into()),
+                validator,
+                Some(gas_ref.0),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+
+        let dry_run_resp = client
+            .dry_run_transaction_block(tx_bytes.tx_bytes)
+            .await
+            .unwrap();
+
+        assert_eq!(dry_run_resp.effects.status(), &IotaExecutionStatus::Success);
+        assert!(!dry_run_resp.balance_changes.is_empty());
+    });
 }

@@ -34,14 +34,19 @@ const DEFAULT_TARGET_FILE_SIZE_BASE_MB: usize = 128;
 const ENV_VAR_DISABLE_BLOB_STORAGE: &str = "DISABLE_BLOB_STORAGE";
 const ENV_VAR_DB_PARALLELISM: &str = "DB_PARALLELISM";
 
+// TODO: Remove ReadWriteOptions because `ignore_range_deletions` is deprecated in RocksDB 10.2.1 and has no effect. There is no need to keep this struct or its boolean flag. (trackin issue: https://github.com/iotaledger/iota/issues/11042)
 #[derive(Clone, Debug)]
 pub struct ReadWriteOptions {
     pub ignore_range_deletions: bool,
+    /// When set, debug log the hash of the key and value bytes when inserting
+    /// to this table.
+    pub log_value_hash: bool,
 }
 
 impl ReadWriteOptions {
     pub fn readopts(&self) -> ReadOptions {
         let mut readopts = ReadOptions::default();
+        #[allow(deprecated)]
         readopts.set_ignore_range_deletions(self.ignore_range_deletions);
         readopts
     }
@@ -50,12 +55,18 @@ impl ReadWriteOptions {
         self.ignore_range_deletions = ignore;
         self
     }
+
+    pub fn set_log_value_hash(mut self, log_value_hash: bool) -> Self {
+        self.log_value_hash = log_value_hash;
+        self
+    }
 }
 
 impl Default for ReadWriteOptions {
     fn default() -> Self {
         Self {
             ignore_range_deletions: true,
+            log_value_hash: false,
         }
     }
 }

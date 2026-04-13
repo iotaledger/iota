@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useZodForm } from '@iota/core';
+import { useZodForm, getUserFriendlyDryRunExecutionError } from '@iota/core';
 import {
     ConnectModal,
     useCurrentAccount,
@@ -110,7 +110,8 @@ export function ModuleFunction({
             const result = await signAndExecuteTransaction({ transaction: tx });
 
             if (result.effects?.status.status === 'failure') {
-                throw new Error(result.effects.status.error || 'Transaction failed');
+                const errorText = result.effects.status.error || 'Transaction failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
             }
 
             return result;

@@ -8,6 +8,7 @@ mod checked {
     use std::{cell::RefCell, collections::BTreeMap, path::PathBuf, rc::Rc, sync::Arc};
 
     use anyhow::Result;
+    use iota_common::debug_fatal;
     use iota_move_natives::{
         NativesCostTable,
         authentication_context::AuthenticationContext,
@@ -222,6 +223,19 @@ mod checked {
         if let Err(e) = verify_module_with_config_metered(verifier_config, module, meter) {
             // Check that the status indicates metering timeout.
             if check_for_verifier_timeout(&e.major_status()) {
+                if e.major_status()
+                    == move_core_types::vm_status::StatusCode::REFERENCE_SAFETY_INCONSISTENT
+                {
+                    let mut bytes = vec![];
+                    let _ = module.serialize_with_version(
+                        move_binary_format::file_format_common::VERSION_MAX,
+                        &mut bytes,
+                    );
+                    debug_fatal!(
+                        "Reference safety inconsistency detected in module: {:?}",
+                        bytes
+                    );
+                }
                 return Err(IotaError::ModuleVerificationFailure {
                     error: format!("Verification timed out: {e}"),
                 });

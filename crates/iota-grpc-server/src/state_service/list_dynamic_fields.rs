@@ -19,7 +19,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     constants::validate_max_message_size,
     error::RpcError,
-    merge::Merge,
     types::GrpcReader,
     validation::{
         decode_page_token, encode_page_token, page_token_mismatch, require_object_id,
@@ -37,13 +36,17 @@ struct PageToken {
 }
 
 /// Check whether the read mask requests any field that requires loading the
-/// actual field object from storage (as opposed to index-only fields).
+/// actual field object from storage.
+///
+/// Only `parent` and `field_id` come from the index key; all other fields
+/// require loading and deserializing the `Field<Name, Value>` object.
 fn should_load_field(mask: &FieldMaskTree) -> bool {
-    // These fields can only be populated by loading and deserializing the
-    // `Field<Name, Value>` object.
     [
+        DynamicField::KIND_FIELD.name,
+        DynamicField::NAME_FIELD.name,
         DynamicField::VALUE_FIELD.name,
         DynamicField::VALUE_TYPE_FIELD.name,
+        DynamicField::CHILD_ID_FIELD.name,
         DynamicField::FIELD_OBJECT_FIELD.name,
         DynamicField::CHILD_OBJECT_FIELD.name,
     ]
@@ -51,13 +54,48 @@ fn should_load_field(mask: &FieldMaskTree) -> bool {
     .any(|field| mask.contains(field))
 }
 
-/// Load the field object and populate heavy fields (`value`, `value_type`,
-/// `field_object`, `child_object`) on the proto message based on the read mask.
+/// Build a [`DynamicField`] proto for a single dynamic field entry.
 ///
-/// On recoverable errors (missing object, missing layout, missing child
-/// object), logs a warning and returns `Ok(())` — the caller should still
-/// include the item with whatever index-only fields are already set.
-/// Only returns `Err` for hard storage errors that should abort the request.
+/// `parent` and `field_id` are set from the index key.  All other fields
+/// (kind, name, value, child_id, etc.) are populated by loading the actual
+/// field object when the read mask requests them.
+fn get_dynamic_field(
+    reader: &GrpcReader,
+    parent: &ObjectID,
+    field_id: &ObjectID,
+    read_mask: &FieldMaskTree,
+    load_field: bool,
+) -> Result<Option<DynamicField>, RpcError> {
+    let mut message = DynamicField::default();
+
+    if read_mask.contains(DynamicField::PARENT_FIELD.name) {
+        message.parent = Some(crate::validation::object_id_proto(parent));
+    }
+
+    if read_mask.contains(DynamicField::FIELD_ID_FIELD.name) {
+        message.field_id = Some(crate::validation::object_id_proto(field_id));
+    }
+
+    // Conditionally load the field object to populate heavy fields.
+    // On recoverable errors (missing layout, deserialization failure),
+    // the item is still returned with index-only fields populated so
+    // that clients see all items and can detect partial data via the
+    // absence of the requested heavy fields.
+    if load_field {
+        if let Err(e) = load_dynamic_field(reader, field_id, read_mask, &mut message) {
+            tracing::warn!("error loading dynamic field object {field_id}: {e}");
+            // Return the item with index-only fields rather than
+            // silently dropping it.
+        }
+    }
+
+    Ok(Some(message))
+}
+
+/// Load the field object and populate fields based on the read mask.
+///
+/// Populates: `kind`, `name`, `value`, `value_type`, `child_id`,
+/// `field_object`, `child_object`.
 fn load_dynamic_field(
     reader: &GrpcReader,
     field_id: &ObjectID,
@@ -90,7 +128,7 @@ fn load_dynamic_field(
         None => {
             tracing::warn!(
                 "unable to load layout for dynamic field object {field_id}, \
-                 returning index-only fields"
+                 returning partial fields"
             );
             return Ok(());
         }
@@ -98,6 +136,23 @@ fn load_dynamic_field(
 
     let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
         .map_err(|e| RpcError::from(e).with_context("failed to deserialize dynamic field"))?;
+
+    if read_mask.contains(DynamicField::KIND_FIELD.name) {
+        use iota_grpc_types::v1::dynamic_field::dynamic_field::DynamicFieldKind;
+        let kind = match field.kind {
+            iota_types::dynamic_field::DynamicFieldType::DynamicField => {
+                DynamicFieldKind::Field.into()
+            }
+            iota_types::dynamic_field::DynamicFieldType::DynamicObject => {
+                DynamicFieldKind::Object.into()
+            }
+        };
+        message.kind = Some(kind);
+    }
+
+    if read_mask.contains(DynamicField::NAME_FIELD.name) {
+        message.name = Some(BcsData::default().with_data(field.name_bytes.to_vec()));
+    }
 
     if read_mask.contains(DynamicField::VALUE_FIELD.name) {
         message.value = Some(BcsData::default().with_data(field.value_bytes.to_vec()));
@@ -119,16 +174,21 @@ fn load_dynamic_field(
             }
         }
         DFV::ValueMetadata::DynamicObjectField(object_id) => {
+            if read_mask.contains(DynamicField::CHILD_ID_FIELD.name) {
+                message.child_id = Some(crate::validation::object_id_proto(&object_id));
+            }
+
             if read_mask.contains(DynamicField::VALUE_TYPE_FIELD.name)
                 || read_mask.contains(DynamicField::CHILD_OBJECT_FIELD.name)
             {
                 // Missing child object is recoverable (eventually-consistent
-                // index) — return the item with index-only fields.
+                // index) — return the item with whatever fields are already
+                // populated.
                 let Some(child_object) = reader.get_object(&object_id).map_err(RpcError::from)?
                 else {
                     tracing::warn!(
                         "child object {object_id} referenced by dynamic field {field_id} \
-                         not found, returning index-only fields"
+                         not found, returning partial fields"
                     );
                     return Ok(());
                 };
@@ -194,32 +254,22 @@ pub(crate) fn list_dynamic_fields(
     let mut last_field_id: Option<ObjectID> = None;
 
     for result in iter.by_ref() {
-        let (key, info) = result.map_err(RpcError::from)?;
+        let key = result.map_err(RpcError::from)?;
         let field_id = key.field_id;
 
-        let mut df = DynamicField::merge_from((key, info), &read_mask)
-            .map_err(|e| e.with_context("failed to merge dynamic field"))?;
-
-        // Conditionally load the field object to populate heavy fields.
-        // On recoverable errors (missing layout, deserialization failure),
-        // the item is still returned with index-only fields populated so
-        // that clients see all items and can detect partial data via the
-        // absence of the requested heavy fields.
-        if load_field {
-            if let Err(e) = load_dynamic_field(&reader, &field_id, &read_mask, &mut df) {
-                tracing::warn!("error loading dynamic field object {field_id}: {e}");
-                // Return the item with index-only fields rather than
-                // silently dropping it.
-            }
-        }
+        let Some(df) = get_dynamic_field(&reader, &parent_id, &field_id, &read_mask, load_field)?
+        else {
+            continue;
+        };
 
         let item_size = df.encoded_len();
 
         // If adding this item would exceed the message size limit, stop.
         // Always include at least one item to guarantee forward progress.
+        // The current item doesn't fit — it becomes the start of the next
+        // page.  Use last_field_id as cursor (the last successfully added
+        // item).
         if !items.is_empty() && size_bytes + item_size > max_message_size {
-            // The current item doesn't fit — it becomes the start of the next page.
-            // Use last_field_id as cursor (the last successfully added item).
             let response = ListDynamicFieldsResponse::default()
                 .with_dynamic_fields(items)
                 .with_next_page_token(encode_page_token(&PageToken {

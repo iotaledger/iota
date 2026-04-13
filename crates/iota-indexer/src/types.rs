@@ -779,7 +779,7 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
             timestamp_ms: response.timestamp_ms,
             confirmed_local_execution: response.confirmed_local_execution,
             checkpoint: response.checkpoint,
-            errors: vec![],
+            errors: response.errors,
             raw_effects: if options.show_raw_effects {
                 response.raw_effects
             } else {

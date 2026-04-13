@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetTransaction } from '@iota/core';
+import { useGetTransaction, getUserFriendlyDryRunExecutionError } from '@iota/core';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useParams } from 'react-router-dom';
 import { PageLayout } from '~/components';
@@ -48,9 +48,11 @@ export function TransactionResult(): JSX.Element {
         data,
         error: getTxnError,
     } = useGetTransaction(id as string);
-    const txnExecutionError = data?.effects?.status.error;
-
-    const txnErrorText = txnExecutionError || (getTxnError as Error)?.message;
+    const executionError = data?.effects?.status.error;
+    const txnQueryErrorMessage = getTxnError?.message;
+    const txnErrorText = executionError
+        ? getUserFriendlyDryRunExecutionError(executionError)
+        : txnQueryErrorMessage;
 
     return (
         <PageLayout

@@ -1,0 +1,107 @@
+---
+title: Getting Started with Kotlin
+description: Get started with the IOTA SDK Kotlin bindings to interact with the IOTA network.
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with Kotlin
+
+<IotaSdk />
+
+The IOTA SDK Kotlin bindings allow JVM developers to interact with the IOTA network. These bindings use JNI (Java Native Interface) to bridge the performance of the Rust core SDK with the ease of use of Kotlin and Java.
+
+## Prerequisites
+
+Before using the Kotlin bindings, ensure you have:
+* **JDK**: Version 11 or higher (JDK 17 recommended).
+* **Build Tool**: Gradle or Maven.
+* **Architecture**: The SDK currently supports x86_64 and ARM64 (macOS/Linux).
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
+### Gradle
+Add the IOTA SDK dependency to your `build.gradle.kts` file:
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/build.gradle.kts#L20-L24
+```
+
+### Maven
+
+Add the following to your `pom.xml`:
+
+```xml
+<dependency>
+    <groupId>org.iota</groupId>
+    <artifactId>iota-sdk</artifactId>
+    <version>0.0.1-alpha.4</version>
+</dependency>
+```
+
+:::important Native Library Loading
+Since the Kotlin SDK wraps a Rust binary, the native library must be present in your library path. On some systems, you may need to specify the path manually when running your application:
+```java
+java -Djava.library.path=/path/to/native/library -jar your-app.jar
+```
+:::
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+The Kotlin bindings include prebuilt native libraries for most platforms (Windows, macOS, Linux). In most cases, adding the dependency via Gradle or Maven will download a compatible binary.
+
+If a prebuilt binary is not available for your platform or architecture, you can build the SDK from source. A Rust toolchain is required to compile the native Rust library.
+
+A typical workflow is:
+
+```bash
+# Clone the SDK repository
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+
+# Navigate to the Kotlin bindings folder
+cd iota-rust-sdk/bindings/kotlin
+
+# Build the native library and install it locally (Gradle example)
+./gradlew build
+```
+
+Once built, ensure your native library path points to the compiled Rust library so that the Kotlin SDK can load it.
+
+For more details on development setup, platform-specific notes, and linking, refer to the [Kotlin bindings README](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/kotlin) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to initialize a client and retrieve the Chain ID using Kotlin.
+
+## 1. Create a Main.kt
+
+Create a new file and paste the following code:
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/ChainId.kt#L1-l16
+```
+
+## 2. Run the code
+
+If using Gradle, run:
+
+```bash
+./gradlew run
+```
+
+## What's Next?
+
+Now that you have connected to the network, you can explore:
+
+* Wallet API: Manage high-level accounts and automated address syncing.
+* Secret Manager: Securely handle Mnemonic, Stronghold, or Ledger hardware wallets.
+* Output Builders: Create complex transaction outputs (NFTs, Alias, etc.).
+
+View more comprehensive examples in the official [Kotlin examples](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/kotlin/examples) directory.

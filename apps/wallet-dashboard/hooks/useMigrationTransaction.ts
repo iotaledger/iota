@@ -4,7 +4,12 @@
 import { useIotaClient } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
-import { createMigrationTransaction, getGasSummary, useMaxTransactionSizeBytes } from '@iota/core';
+import {
+    createMigrationTransaction,
+    getGasSummary,
+    getUserFriendlyDryRunExecutionError,
+    useMaxTransactionSizeBytes,
+} from '@iota/core';
 
 export function useMigrationTransaction(
     address: string,
@@ -31,6 +36,10 @@ export function useMigrationTransaction(
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
+            if (txDryRun.effects.status.status !== 'success') {
+                const errorText = txDryRun.effects.status.error || 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
+            }
             return {
                 transaction,
                 txDryRun,

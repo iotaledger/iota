@@ -29,10 +29,13 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
     const committeeMembers = data?.committeeMembers || [];
+    const atRiskValidators = data?.atRiskValidators || [];
 
     const tableColumns = generateValidatorsTableColumns({
         showValidatorIcon: showIcon,
-        includeColumns: ['Name', 'Address', 'Stake'],
+        committeeMembers: committeeMembers.map((v) => v.iotaAddress),
+        atRiskValidators,
+        includeColumns: ['Validator', 'Stake'],
     });
 
     return (
@@ -76,7 +79,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                         <PlaceholderTable
                             rowCount={limit || NUMBER_OF_VALIDATORS}
                             rowHeight="13px"
-                            colHeadings={['Name', 'Address', 'Stake']}
+                            colHeadings={['Validator', 'Stake']}
                         />
                     )}
 
