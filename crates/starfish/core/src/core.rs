@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::storage::Store;
@@ -33,10 +33,11 @@ use crate::storage::rocksdb_store::RocksDBStore;
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
     Transaction,
+    authority_set::AuthoritySet,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedOwnShard, VerifiedTransactions,
+        BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
+        GENESIS_ROUND, Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, CommitAPI, PendingSubDag},
@@ -934,16 +935,32 @@ impl Core {
         });
 
         // Create the block and insert to storage.
-        let block_header = BlockHeader::V1(BlockHeaderV1::new(
-            self.context.committee.epoch(),
-            clock_round,
-            self.context.own_index,
-            now,
-            ancestors.iter().map(|b| b.reference()).collect(),
-            acknowledgments,
-            commit_votes,
-            transactions_commitment,
-        ));
+        let ancestor_refs = ancestors.iter().map(|b| b.reference()).collect();
+        let block_header = if self.context.protocol_config.consensus_starfish_speed() {
+            let strong_vote = self.compute_strong_vote(clock_round, &ancestors);
+            BlockHeader::V2(BlockHeaderV2::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+                strong_vote,
+            ))
+        } else {
+            BlockHeader::V1(BlockHeaderV1::new(
+                self.context.committee.epoch(),
+                clock_round,
+                self.context.own_index,
+                now,
+                ancestor_refs,
+                acknowledgments,
+                commit_votes,
+                transactions_commitment,
+            ))
+        };
 
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
@@ -1381,6 +1398,43 @@ impl Core {
         );
 
         included_ancestors
+    }
+
+    /// Computes the strong_vote bitmask for a block being proposed at
+    /// `clock_round`. Checks data availability for the previous round's
+    /// leader block and its acknowledgments.
+    fn compute_strong_vote(
+        &self,
+        clock_round: Round,
+        ancestors: &[VerifiedBlockHeader],
+    ) -> Option<AuthoritySet> {
+        if !self.context.protocol_config.consensus_starfish_speed() {
+            error!("compute_strong_vote called while consensus_starfish_speed is disabled");
+            return None;
+        }
+
+        let leader_round = clock_round.saturating_sub(1);
+        let leaders = self.leaders(leader_round);
+
+        let leader_header = ancestors.iter().find(|a| {
+            a.round() == leader_round && leaders.iter().any(|s| s.authority == a.author())
+        })?;
+
+        let dag_state = self.dag_state.read();
+        let mut missing = AuthoritySet::new();
+
+        let leader_ref = leader_header.reference();
+        if !dag_state.is_data_available(&leader_ref) {
+            missing.insert(leader_ref.author);
+        }
+
+        for ack_ref in leader_header.acknowledgments() {
+            if !dag_state.is_data_available(ack_ref) {
+                missing.insert(ack_ref.author);
+            }
+        }
+
+        Some(missing)
     }
 
     /// Checks whether the leaders of the round exist.

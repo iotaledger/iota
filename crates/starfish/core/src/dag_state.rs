@@ -1920,8 +1920,6 @@ impl DagState {
     }
 
     /// Check if a block's transaction data is locally available.
-    // Will be used by strong-vote computation in a later StarfishSpeed step.
-    #[expect(dead_code)]
     pub(crate) fn is_data_available(&self, block_ref: &BlockRef) -> bool {
         let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
             let Some(header) = self.recent_block_headers.get(block_ref) else {
