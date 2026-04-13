@@ -346,6 +346,7 @@ where
                     ..Default::default()
                 },
                 Some(WAIT_FOR_FINALITY_TIMEOUT),
+                None,
             )
             .await
             .map_err(map_td_error_to_qd)?;

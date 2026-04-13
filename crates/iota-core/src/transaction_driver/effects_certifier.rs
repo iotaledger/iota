@@ -210,6 +210,80 @@ impl EffectsCertifier {
         }
     }
 
+    /// Gets effects from a single validator without broadcasting to 2f+1 for
+    /// effects digest certification. Intended for callers that rely on local
+    /// checkpoint execution for finality, making the 2f+1 certification
+    /// broadcast redundant.
+    ///
+    /// Behavior per `submit_txn_result`:
+    /// - `Executed { details: Some(_) }`: use the submitting validator's
+    ///   details directly — no extra RPC needed.
+    /// - `Executed { details: None }` or `Submitted`: fetch full effects from
+    ///   the submitting validator (one RPC, no quorum broadcast).
+    /// - `Rejected` or `Expired`: return `ClientInternal` error (these should
+    ///   already be filtered upstream by `drive_transaction_once`).
+    #[instrument(level = "error", skip_all, err(level = "debug"))]
+    pub(crate) async fn get_effects_without_certification<A>(
+        &self,
+        authority_aggregator: &AuthorityAggregator<A>,
+        tx_digest: Option<TransactionDigest>,
+        current_target: AuthorityName,
+        submit_txn_result: TxStatusUpdate,
+        options: &SubmitTransactionOptions,
+    ) -> Result<QuorumTransactionResponse, TransactionDriverError>
+    where
+        A: AuthorityAPI + Send + Sync + 'static,
+    {
+        let full_effects = match submit_txn_result {
+            TxStatusUpdate::Submitted => None,
+            TxStatusUpdate::Executed {
+                effects_digest,
+                details,
+            } => details.map(|d| (effects_digest, d)),
+            TxStatusUpdate::Rejected { error } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "Unexpected submission error in get_effects_without_certification(): {:?}",
+                        error
+                    ),
+                });
+            }
+            TxStatusUpdate::Expired { epoch } => {
+                return Err(TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "Transaction expired in epoch {} during get_effects_without_certification()",
+                        epoch
+                    ),
+                });
+            }
+        };
+
+        let (effects_digest, executed_data) = if let Some(full_effects) = full_effects {
+            full_effects
+        } else {
+            let client = authority_aggregator
+                .authority_clients
+                .get(&current_target)
+                .ok_or_else(|| TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "Submitting validator {:?} not found in authority clients",
+                        current_target
+                    ),
+                })?
+                .clone();
+            self.get_full_effects(client, tx_digest, options)
+                .await
+                .map_err(|e| TransactionDriverError::ClientInternal {
+                    error: format!(
+                        "Failed to get full effects from submitting validator {:?}: {}",
+                        current_target, e
+                    ),
+                })?
+        };
+
+        Ok(self.get_quorum_transaction_response(effects_digest, *executed_data))
+    }
+
     #[instrument(level = "debug", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest, ret_effects_digest = tracing::field::Empty
     ))]
     async fn get_full_effects<A>(

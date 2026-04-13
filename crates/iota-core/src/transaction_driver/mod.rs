@@ -20,7 +20,10 @@ use effects_certifier::*;
 pub use error::{AggregatedRequestErrors, TransactionDriverError};
 use iota_common::backoff::ExponentialBackoff;
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
-use iota_types::{committee::EpochId, messages_grpc::TxStatusUpdate, transaction::Transaction};
+use iota_types::{
+    committee::EpochId, messages_grpc::TxStatusUpdate,
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction,
+};
 pub use metrics::*;
 use parking_lot::Mutex;
 use rand::Rng;
@@ -147,6 +150,7 @@ where
         transaction: Option<Transaction>,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
+        request_type: Option<ExecuteTransactionRequestType>,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         const MAX_DRIVE_TRANSACTION_RETRY_DELAY: Duration = Duration::from_secs(10);
 
@@ -170,7 +174,12 @@ where
         let retry_loop = async {
             loop {
                 match self
-                    .drive_transaction_once(amplification_factor, transaction.clone(), &options)
+                    .drive_transaction_once(
+                        amplification_factor,
+                        transaction.clone(),
+                        &options,
+                        request_type.clone(),
+                    )
                     .await
                 {
                     Ok(resp) => {
@@ -268,6 +277,7 @@ where
         amplification_factor: u64,
         transaction: Option<Transaction>,
         options: &SubmitTransactionOptions,
+        request_type: Option<ExecuteTransactionRequestType>,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {
         let auth_agg = self.authority_aggregator.load();
         let auth_agg = auth_agg.as_ref();
@@ -305,18 +315,36 @@ where
             _ => {}
         }
 
-        // Wait for quorum effects using EffectsCertifier
-        let result = self
-            .certifier
-            .get_certified_finalized_effects(
-                auth_agg,
-                client_monitor,
-                tx_digest,
-                name,
-                submit_txn_result,
-                options,
-            )
-            .await;
+        // When the caller plans to wait for local checkpoint execution, the 2f+1
+        // effects certification broadcast is redundant — finality comes from the
+        // certified checkpoint. In that case fetch effects from the submitting
+        // validator only. Otherwise run the full certification flow.
+        let skip_certification = matches!(
+            request_type,
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution)
+        );
+        let result = if skip_certification {
+            self.certifier
+                .get_effects_without_certification(
+                    auth_agg,
+                    tx_digest,
+                    name,
+                    submit_txn_result,
+                    options,
+                )
+                .await
+        } else {
+            self.certifier
+                .get_certified_finalized_effects(
+                    auth_agg,
+                    client_monitor,
+                    tx_digest,
+                    name,
+                    submit_txn_result,
+                    options,
+                )
+                .await
+        };
 
         // This operation feedback may be imprecise since submit_transaction
         // queries multiple validators and may return the name of a malicious validator.
@@ -395,6 +423,7 @@ where
                             ..Default::default()
                         },
                         Some(ping_timeout),
+                        None,
                     )
                     .await
                 {
