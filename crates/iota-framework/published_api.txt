@@ -1807,7 +1807,7 @@ tx_data_bytes
 intent_tx_data_bytes
 	public fun
 	0x2::auth_context
-signed_tx_bytes
+signing_digest
 	public fun
 	0x2::auth_context
 native_digest

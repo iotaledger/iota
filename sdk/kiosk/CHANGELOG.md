@@ -1,5 +1,16 @@
 # @iota/kiosk
 
+## 0.8.1
+
+### Patch Changes
+
+-   c6ec123: Remove unused dependencies.
+-   Updated dependencies [c6ec123]
+-   Updated dependencies [b933a08]
+-   Updated dependencies [f15c61d]
+-   Updated dependencies [22e7eb8]
+    -   @iota/iota-sdk@1.13.0
+
 ## 0.8.0
 
 ### Minor Changes

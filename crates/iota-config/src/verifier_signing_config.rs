@@ -13,6 +13,8 @@ pub const DEFAULT_MAX_PER_PKG_METER_UNITS: usize = 2_200_000;
 pub const DEFAULT_MAX_BACK_EDGES_PER_FUNCTION: usize = 10_000;
 pub const DEFAULT_MAX_BACK_EDGES_PER_MODULE: usize = 10_000;
 
+pub const DEFAULT_SANITY_CHECK_WITH_REGEX_REFERENCE_SAFETY_UNITS: usize = 2_200_000;
+
 /// This holds limits that are only set and used by the verifier during signing
 /// _only_. There are additional limits in the `MeterConfig` and
 /// `VerifierConfig` that are used during both signing and execution, however
@@ -31,6 +33,9 @@ pub struct VerifierSigningConfig {
     max_back_edges_per_function: Option<usize>,
     #[serde(default)]
     max_back_edges_per_module: Option<usize>,
+
+    #[serde(default)]
+    pub sanity_check_with_regex_reference_safety: Option<usize>,
 }
 
 impl VerifierSigningConfig {
@@ -59,11 +64,17 @@ impl VerifierSigningConfig {
             .unwrap_or(DEFAULT_MAX_BACK_EDGES_PER_MODULE)
     }
 
+    pub fn sanity_check_with_regex_reference_safety(&self) -> usize {
+        self.sanity_check_with_regex_reference_safety
+            .unwrap_or(DEFAULT_SANITY_CHECK_WITH_REGEX_REFERENCE_SAFETY_UNITS)
+    }
+
     /// Return sign-time only limit for back edges for the verifier.
-    pub fn limits_for_signing(&self) -> (usize, usize) {
+    pub fn limits_for_signing(&self) -> (usize, usize, usize) {
         (
             self.max_back_edges_per_function(),
             self.max_back_edges_per_module(),
+            self.sanity_check_with_regex_reference_safety(),
         )
     }
 

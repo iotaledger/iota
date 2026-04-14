@@ -36,6 +36,7 @@ feature_flags:
   separate_gas_price_feedback_mechanism_for_randomness: true
   pass_validator_scores_to_advance_epoch: true
   move_native_tx_context: true
+  additional_borrow_checks: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

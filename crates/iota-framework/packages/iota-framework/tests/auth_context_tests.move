@@ -4,7 +4,7 @@
 #[test_only]
 module iota::auth_context_tests;
 
-use iota::auth_context::{new_with_tx_inputs, digest, tx_data_bytes, intent_tx_data_bytes, signed_tx_bytes};
+use iota::auth_context::{new_with_tx_inputs, digest, tx_data_bytes, intent_tx_data_bytes, signing_digest};
 use iota::ptb::new_programmable_transaction_for_testing;
 use iota::ptb_call_arg::{
     new_call_arg_pure_for_testing,
@@ -652,7 +652,7 @@ fun test_several_auth_context_instances_in_test_scenario() {
 }
 
 // ---------------------------------------------------------------------------
-// tx_data_bytes, intent_tx_data_bytes, signed_tx_bytes
+// tx_data_bytes, intent_tx_data_bytes, signing_digest
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -697,14 +697,14 @@ fun test_intent_tx_data_bytes() {
 }
 
 #[test]
-fun test_signed_tx_bytes() {
+fun test_signing_digest() {
     let tx_bytes = b"tx_payload";
     let cmd = make_noop_move_call_command();
 
     let ctx = new_with_tx_inputs(DIGEST, vector[], vector[cmd], tx_bytes);
 
-    let signed = ctx.signed_tx_bytes();
-    // signed_tx_bytes = blake2b256(intent_tx_data_bytes)
+    let signed = ctx.signing_digest();
+    // signing_digest = blake2b256(intent_tx_data_bytes)
     let expected = iota::hash::blake2b256(&ctx.intent_tx_data_bytes());
     assert!(signed == expected);
     // Blake2b256 always produces 32 bytes
