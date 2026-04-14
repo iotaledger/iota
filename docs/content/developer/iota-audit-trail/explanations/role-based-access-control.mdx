@@ -45,7 +45,7 @@ Possessing a capability does **not** automatically grant access. The audit trail
 
 ### Permissions
 
-The Audit Trail defines 18 distinct permissions, grouped by domain:
+The Audit Trail defines 19 distinct permissions, grouped by domain:
 
 | Domain | Permissions |
 |:-------|:------------|
@@ -63,6 +63,7 @@ For convenience, the library provides pre-built permission sets:
 |:------------------------------|:-----------------------------------------------------------------------|
 | `admin_permissions()`         | AddRoles, UpdateRoles, DeleteRoles, AddCapabilities, RevokeCapabilities, AddRecordTags, DeleteRecordTags |
 | `record_admin_permissions()`  | AddRecord, DeleteRecord, CorrectRecord                                 |
+| `role_admin_permissions()`    | AddRoles, UpdateRoles, DeleteRoles                                     |
 | `locking_admin_permissions()` | All locking-related permissions                                        |
 | `cap_admin_permissions()`     | AddCapabilities, RevokeCapabilities                                    |
 | `tag_admin_permissions()`     | AddRecordTags, DeleteRecordTags                                        |

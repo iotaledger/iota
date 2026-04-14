@@ -56,7 +56,7 @@ public struct AuditTrail<D: store + copy> has key {
 Each entry in the trail is a `Record` — a struct that captures the data, its context, and its position in the sequence.
 
 ```Move
-public struct Record<D: store + copy> has store, copy {
+public struct Record<D: store + copy> has store {
     data: D,
     metadata: Option<String>,
     tag: Option<String>,
@@ -105,7 +105,7 @@ This bidirectional linking ensures that:
 The Audit Trail provides a configurable locking system that protects records and the trail itself from unauthorized or premature modification.
 
 ```Move
-public struct LockingConfig has store, copy, drop {
+public struct LockingConfig has drop, store {
     delete_record_window: LockingWindow,
     delete_trail_lock: TimeLock,
     write_lock: TimeLock,
