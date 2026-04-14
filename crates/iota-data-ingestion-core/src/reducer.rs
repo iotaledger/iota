@@ -177,7 +177,7 @@ pub(crate) async fn reduce<W: Worker>(
     let mut trigger_shutdown = false;
 
     while let Some(update_batch) = stream.next().await {
-        unprocessed.extend(update_batch.into_iter());
+        unprocessed.extend(update_batch);
         // Process messages sequentially based on checkpoint sequence number.
         // This ensures in-order processing and maintains progress integrity.
         while let Some(message) = unprocessed.remove(&current_checkpoint_number) {

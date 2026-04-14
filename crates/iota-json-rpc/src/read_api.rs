@@ -185,7 +185,7 @@ impl ReadApi {
 
         for (summary_and_sig, content) in checkpoint_summaries_and_signatures
             .into_iter()
-            .zip(contents.into_iter())
+            .zip(contents)
         {
             checkpoints.push(Checkpoint::from((
                 summary_and_sig.0,
@@ -235,9 +235,7 @@ impl ReadApi {
                     |err| debug!(digests=?digests_clone, "Failed to multi get transactions: {:?}", err),
                 )?;
 
-            for ((_digest, cache_entry), txn) in
-                temp_response.iter_mut().zip(transactions.into_iter())
-            {
+            for ((_digest, cache_entry), txn) in temp_response.iter_mut().zip(transactions) {
                 cache_entry.transaction = txn;
             }
         }
@@ -252,9 +250,7 @@ impl ReadApi {
                 .tap_err(
                     |err| debug!(digests=?digests_clone, "Failed to multi get effects for transactions: {:?}", err),
                 )?;
-            for ((_digest, cache_entry), e) in
-                temp_response.iter_mut().zip(effects_list.into_iter())
-            {
+            for ((_digest, cache_entry), e) in temp_response.iter_mut().zip(effects_list) {
                 cache_entry.effects = e;
             }
         }
@@ -266,10 +262,7 @@ impl ReadApi {
             .await
             .tap_err(
                 |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
-        for ((_digest, cache_entry), seq) in temp_response
-            .iter_mut()
-            .zip(checkpoint_seq_list.into_iter())
-        {
+        for ((_digest, cache_entry), seq) in temp_response.iter_mut().zip(checkpoint_seq_list) {
             cache_entry.checkpoint_seq = seq;
         }
 
@@ -466,7 +459,7 @@ impl ReadApi {
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let resolver = Resolver::new(self.clone());
 
-        let converted_tx_block_resps: Vec<_> = stream::iter(temp_response.into_iter())
+        let converted_tx_block_resps: Vec<_> = stream::iter(temp_response)
             .map(|(_, interim_response)| {
                 convert_to_response(
                     interim_response,
