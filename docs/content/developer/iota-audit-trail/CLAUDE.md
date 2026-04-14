@@ -117,14 +117,14 @@ Always provide **Rust** and **TypeScript (Node.js)** tabs using this pattern:
 <TabItem value="rust" label="Rust">
 
 \`\`\`rust reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/examples/audit-trail/example_name.rs#L20-L32
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/examples/audit-trail/example_name.rs#L20-L32
 \`\`\`
 
 </TabItem>
 <TabItem value="typescript-node" label="Typescript (Node.js)">
 
 \`\`\`ts reference
-https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev-examples-and-docs/bindings/wasm/audit_trail_wasm/examples/src/example_name.ts#L20-L32
+https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/wasm/audit_trail_wasm/examples/src/example_name.ts#L20-L32
 \`\`\`
 
 </TabItem>
