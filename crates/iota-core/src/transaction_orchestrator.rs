@@ -14,7 +14,7 @@ use futures::{
     FutureExt,
     future::{Either, Future, select},
 };
-use iota_common::sync::notify_read::NotifyRead;
+use iota_common::{debug_fatal, sync::notify_read::NotifyRead};
 use iota_config::NodeConfig;
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
@@ -23,6 +23,7 @@ use iota_metrics::{
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
     base_types::TransactionDigest,
+    effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -294,6 +295,27 @@ where
             let resp = quorum_driver_response_to_v1(qd_resp);
             (tx, resp)
         };
+
+        // Safety: uncertified effects (PendingCheckpointExecution) must never
+        // reach the client without first waiting for local checkpoint execution.
+        if matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::PendingCheckpointExecution(_)
+        ) && !matches!(
+            request_type,
+            ExecuteTransactionRequestType::WaitForLocalExecution
+        ) {
+            debug_fatal!(
+                "Uncertified effects (PendingCheckpointExecution) about to be returned \
+                 without WaitForLocalExecution for tx {:?}",
+                response.effects.effects.transaction_digest()
+            );
+            return Err(QuorumDriverError::QuorumDriverInternal(
+                iota_types::error::IotaError::Unknown(
+                    "internal error: transaction effects not finalized".to_string(),
+                ),
+            ));
+        }
 
         let executed_locally = if matches!(
             request_type,
@@ -803,6 +825,9 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
             EffectsFinalityInfo::Checkpointed(epoch, seq)
         }
         TdEffectsFinalityInfo::QuorumExecuted(epoch) => EffectsFinalityInfo::QuorumExecuted(epoch),
+        TdEffectsFinalityInfo::PendingCheckpointExecution(epoch) => {
+            EffectsFinalityInfo::PendingCheckpointExecution(epoch)
+        }
     };
     FinalizedEffects {
         effects: td.effects,

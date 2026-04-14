@@ -319,31 +319,30 @@ where
         // effects certification broadcast is redundant — finality comes from the
         // certified checkpoint. In that case fetch effects from the submitting
         // validator only. Otherwise run the full certification flow.
-        let skip_certification = matches!(
-            request_type,
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution)
-        );
-        let result = if skip_certification {
-            self.certifier
-                .get_effects_without_certification(
-                    auth_agg,
-                    tx_digest,
-                    name,
-                    submit_txn_result,
-                    options,
-                )
-                .await
-        } else {
-            self.certifier
-                .get_certified_finalized_effects(
-                    auth_agg,
-                    client_monitor,
-                    tx_digest,
-                    name,
-                    submit_txn_result,
-                    options,
-                )
-                .await
+        let result = match request_type {
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution) => {
+                self.certifier
+                    .get_effects_without_certification(
+                        auth_agg,
+                        tx_digest,
+                        name,
+                        submit_txn_result,
+                        options,
+                    )
+                    .await
+            }
+            _ => {
+                self.certifier
+                    .get_certified_finalized_effects(
+                        auth_agg,
+                        client_monitor,
+                        tx_digest,
+                        name,
+                        submit_txn_result,
+                        options,
+                    )
+                    .await
+            }
         };
 
         // This operation feedback may be imprecise since submit_transaction

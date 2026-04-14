@@ -186,6 +186,11 @@ pub enum EffectsFinalityInfo {
     /// A quorum of validators have acknowledged effects (used in
     /// TransactionDriver flow).
     QuorumExecuted(EpochId),
+
+    /// Effects from a single validator without quorum certification.
+    /// The caller MUST wait for local checkpoint execution before returning
+    /// these to the client, as they have not been certified by a quorum.
+    PendingCheckpointExecution(EpochId),
 }
 
 /// When requested to execute a transaction with WaitForLocalExecution,
@@ -258,8 +263,9 @@ impl FinalizedEffects {
     pub fn epoch(&self) -> EpochId {
         match &self.finality_info {
             EffectsFinalityInfo::Certified(cert) => cert.epoch,
-            EffectsFinalityInfo::Checkpointed(epoch, _) => *epoch,
-            EffectsFinalityInfo::QuorumExecuted(epoch) => *epoch,
+            EffectsFinalityInfo::Checkpointed(epoch, _)
+            | EffectsFinalityInfo::QuorumExecuted(epoch)
+            | EffectsFinalityInfo::PendingCheckpointExecution(epoch) => *epoch,
         }
     }
 }

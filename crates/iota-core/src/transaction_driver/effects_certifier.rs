@@ -243,16 +243,14 @@ impl EffectsCertifier {
             TxStatusUpdate::Rejected { error } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
-                        "Unexpected submission error in get_effects_without_certification(): {:?}",
-                        error
+                        "Unexpected submission error in get_effects_without_certification(): {error:?}"
                     ),
                 });
             }
             TxStatusUpdate::Expired { epoch } => {
                 return Err(TransactionDriverError::ClientInternal {
                     error: format!(
-                        "Transaction expired in epoch {} during get_effects_without_certification()",
-                        epoch
+                        "Transaction expired in epoch {epoch} during get_effects_without_certification()"
                     ),
                 });
             }
@@ -266,8 +264,7 @@ impl EffectsCertifier {
                 .get(&current_target)
                 .ok_or_else(|| TransactionDriverError::ClientInternal {
                     error: format!(
-                        "Submitting validator {:?} not found in authority clients",
-                        current_target
+                        "Submitting validator {current_target:?} not found in authority clients"
                     ),
                 })?
                 .clone();
@@ -275,13 +272,35 @@ impl EffectsCertifier {
                 .await
                 .map_err(|e| TransactionDriverError::ClientInternal {
                     error: format!(
-                        "Failed to get full effects from submitting validator {:?}: {}",
-                        current_target, e
+                        "Failed to get full effects from submitting validator {current_target:?}: {e}"
                     ),
                 })?
         };
 
-        Ok(self.get_quorum_transaction_response(effects_digest, *executed_data))
+        self.metrics.executed_transactions.inc();
+        tracing::debug!("Transaction executed (uncertified) with effects digest: {effects_digest}");
+
+        let epoch = executed_data.effects.epoch();
+        let effects = FinalizedEffects {
+            effects: executed_data.effects,
+            finality_info: EffectsFinalityInfo::PendingCheckpointExecution(epoch),
+        };
+
+        Ok(QuorumTransactionResponse {
+            effects,
+            events: executed_data.events,
+            input_objects: if !executed_data.input_objects.is_empty() {
+                Some(executed_data.input_objects)
+            } else {
+                None
+            },
+            output_objects: if !executed_data.output_objects.is_empty() {
+                Some(executed_data.output_objects)
+            } else {
+                None
+            },
+            auxiliary_data: None,
+        })
     }
 
     #[instrument(level = "debug", skip_all, err(level = "debug"), fields(tx_digest = ?tx_digest, ret_effects_digest = tracing::field::Empty
