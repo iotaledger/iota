@@ -130,7 +130,7 @@ impl ConfigBuilder {
     }
 
     pub fn new_with_temp_dir() -> Self {
-        Self::new(iota_common::tempdir().unwrap().keep())
+        Self::new(iota_common::tempdir().keep())
     }
 }
 

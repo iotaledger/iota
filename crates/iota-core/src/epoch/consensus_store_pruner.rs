@@ -235,19 +235,19 @@ mod tests {
             let epoch_retention = 0;
             let current_epoch = 0;
 
-            let base_directory = tempfile::tempdir().unwrap().keep();
+            let tmp_dir = iota_common::tempdir();
 
-            create_epoch_directories(&base_directory, vec!["0", "other"]);
+            create_epoch_directories(tmp_dir.path(), vec!["0", "other"]);
 
             ConsensusStorePruner::prune_old_epoch_data(
-                &base_directory,
+                &tmp_dir.path().to_path_buf(),
                 current_epoch,
                 epoch_retention,
                 &metrics,
             )
             .await;
 
-            let epochs_left = read_epoch_directories(&base_directory);
+            let epochs_left = read_epoch_directories(tmp_dir.path());
 
             assert_eq!(epochs_left.len(), 1);
             assert_eq!(epochs_left[0], 0);
@@ -259,19 +259,19 @@ mod tests {
             let epoch_retention = 1;
             let current_epoch = 100;
 
-            let base_directory = tempfile::tempdir().unwrap().keep();
+            let tmp_dir = iota_common::tempdir();
 
-            create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
+            create_epoch_directories(tmp_dir.path(), vec!["97", "98", "99", "100", "other"]);
 
             ConsensusStorePruner::prune_old_epoch_data(
-                &base_directory,
+                &tmp_dir.path().to_path_buf(),
                 current_epoch,
                 epoch_retention,
                 &metrics,
             )
             .await;
 
-            let epochs_left = read_epoch_directories(&base_directory);
+            let epochs_left = read_epoch_directories(tmp_dir.path());
 
             assert_eq!(epochs_left.len(), 2);
             assert_eq!(epochs_left[0], 99);
@@ -285,19 +285,19 @@ mod tests {
             let epoch_retention = 0;
             let current_epoch = 100;
 
-            let base_directory = tempfile::tempdir().unwrap().keep();
+            let tmp_dir = iota_common::tempdir();
 
-            create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
+            create_epoch_directories(tmp_dir.path(), vec!["97", "98", "99", "100", "other"]);
 
             ConsensusStorePruner::prune_old_epoch_data(
-                &base_directory,
+                &tmp_dir.path().to_path_buf(),
                 current_epoch,
                 epoch_retention,
                 &metrics,
             )
             .await;
 
-            let epochs_left = read_epoch_directories(&base_directory);
+            let epochs_left = read_epoch_directories(tmp_dir.path());
 
             assert_eq!(epochs_left.len(), 1);
             assert_eq!(epochs_left[0], 100);
@@ -309,13 +309,13 @@ mod tests {
         let epoch_retention = 1;
         let epoch_prune_period = std::time::Duration::from_millis(500);
 
-        let base_directory = tempfile::tempdir().unwrap().keep();
+        let tmp_dir = iota_common::tempdir();
 
         // We create some directories up to epoch 100
-        create_epoch_directories(&base_directory, vec!["97", "98", "99", "100", "other"]);
+        create_epoch_directories(tmp_dir.path(), vec!["97", "98", "99", "100", "other"]);
 
         let pruner = ConsensusStorePruner::new(
-            base_directory.clone(),
+            tmp_dir.path().to_path_buf(),
             epoch_retention,
             epoch_prune_period,
             &Registry::new(),
@@ -326,7 +326,7 @@ mod tests {
         sleep(3 * epoch_prune_period).await;
 
         // We expect the directories to be the same as before
-        let epoch_dirs = read_epoch_directories(&base_directory);
+        let epoch_dirs = read_epoch_directories(tmp_dir.path());
         assert_eq!(epoch_dirs.len(), 4);
 
         // Then we update the epoch and instruct to prune for current epoch = 100
@@ -336,7 +336,7 @@ mod tests {
         // epoch < 99 should be left
         sleep(2 * epoch_prune_period).await;
 
-        let epoch_dirs = read_epoch_directories(&base_directory);
+        let epoch_dirs = read_epoch_directories(tmp_dir.path());
         assert_eq!(epoch_dirs.len(), 2);
         assert_eq!(epoch_dirs[0], 99);
         assert_eq!(epoch_dirs[1], 100);

@@ -16,15 +16,8 @@ use iota_types::{
     accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
     object::Object,
 };
-use tempfile::tempdir;
 
 use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
-
-fn temp_dir() -> std::path::PathBuf {
-    tempdir()
-        .expect("Failed to open temporary directory")
-        .keep()
-}
 
 pub fn insert_keys(
     db: &AuthorityPerpetualTables,
@@ -64,19 +57,15 @@ fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> Accumu
 
 #[tokio::test]
 async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
-    let db_path = temp_dir();
-    let restored_db_path = temp_dir();
-    let local = temp_dir().join("local_dir");
-    let remote = temp_dir().join("remote_dir");
-    let restored_local = temp_dir().join("local_dir_restore");
+    let tmp_dir = iota_common::tempdir();
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(local),
+        directory: Some(tmp_dir.path().join("local_dir")),
         ..Default::default()
     };
     let remote_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(remote),
+        directory: Some(tmp_dir.path().join("remote_dir")),
         ..Default::default()
     };
 
@@ -87,7 +76,10 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         NonZeroUsize::new(1).unwrap(),
     )
     .await?;
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &tmp_dir.path().join("db"),
+        None,
+    ));
     insert_keys(&perpetual_db, 1000)?;
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
@@ -96,7 +88,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(restored_local),
+        directory: Some(tmp_dir.path().join("local_dir_restore")),
         ..Default::default()
     };
     let mut snapshot_reader = StateSnapshotReaderV1::new(
@@ -108,7 +100,8 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
         false, // skip_reset_local_store
     )
     .await?;
-    let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
+    let restored_perpetual_db =
+        AuthorityPerpetualTables::open(&tmp_dir.path().join("restored_db"), None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read(&restored_perpetual_db, abort_registration, None)
@@ -119,19 +112,15 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
-    let db_path = temp_dir();
-    let restored_db_path = temp_dir();
-    let local = temp_dir().join("local_dir");
-    let remote = temp_dir().join("remote_dir");
-    let restored_local = temp_dir().join("local_dir_restore");
+    let tmp_dir = iota_common::tempdir();
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(local),
+        directory: Some(tmp_dir.path().join("local_dir")),
         ..Default::default()
     };
     let remote_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(remote),
+        directory: Some(tmp_dir.path().join("remote_dir")),
         ..Default::default()
     };
     let snapshot_writer = StateSnapshotWriterV1::new(
@@ -141,7 +130,10 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         NonZeroUsize::new(1).unwrap(),
     )
     .await?;
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
+    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
+        &tmp_dir.path().join("db"),
+        None,
+    ));
     let root_accumulator =
         ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
@@ -149,7 +141,7 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
-        directory: Some(restored_local),
+        directory: Some(tmp_dir.path().join("local_dir_restore")),
         ..Default::default()
     };
     let mut snapshot_reader = StateSnapshotReaderV1::new(
@@ -161,7 +153,8 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         false, // skip_reset_local_store
     )
     .await?;
-    let restored_perpetual_db = AuthorityPerpetualTables::open(&restored_db_path, None);
+    let restored_perpetual_db =
+        AuthorityPerpetualTables::open(&tmp_dir.path().join("restored_db"), None);
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read(&restored_perpetual_db, abort_registration, None)
