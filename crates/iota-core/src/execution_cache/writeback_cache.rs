@@ -613,6 +613,16 @@ impl WritebackCache {
             .or_default()
             .value_mut()
             .insert(object_key.1, marker_value);
+
+        if matches!(marker_value, MarkerValue::SharedDeleted(_)) {
+            self.object_notify_read.notify(
+                &InputKey::VersionedObject {
+                    id: object_key.0,
+                    version: object_key.1,
+                },
+                &(),
+            );
+        }
     }
 
     // lock both the dirty and committed sides of the cache, and then pass the
@@ -1900,6 +1910,13 @@ impl ObjectCacheRead for WritebackCache {
                                     if is_available {
                                         results[*idx] = Some(());
                                     }
+                                } else if self
+                                    .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
+                                    .is_some()
+                                {
+                                    // If the shared object was deleted, mark it as
+                                    // available so the transaction can proceed.
+                                    results[*idx] = Some(());
                                 }
                             }
                         });

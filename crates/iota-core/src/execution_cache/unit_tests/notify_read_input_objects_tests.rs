@@ -259,3 +259,71 @@ async fn test_receiving_object_higher_version() {
 
     assert_eq!(result.len(), 1);
 }
+
+#[tokio::test]
+async fn test_immediate_return_shared_deleted() {
+    let cache = create_writeback_cache().await;
+
+    let object_id = ObjectID::random();
+    let version = SequenceNumber::from(1);
+    let epoch_id = 0;
+
+    // Write a SharedDeleted marker
+    cache.write_marker_value(
+        epoch_id,
+        &ObjectKey(object_id, version),
+        MarkerValue::SharedDeleted(TransactionDigest::random()),
+    );
+
+    let input_keys = vec![InputKey::VersionedObject {
+        id: object_id,
+        version,
+    }];
+    let receiving_keys = HashSet::new();
+    let epoch = &epoch_id;
+
+    // Should return immediately since the shared object was deleted
+    let result = cache
+        .notify_read_input_objects(&input_keys, &receiving_keys, epoch)
+        .now_or_never()
+        .unwrap();
+
+    assert_eq!(result.len(), 1);
+}
+
+#[tokio::test]
+async fn test_wait_for_shared_deleted() {
+    let cache = create_writeback_cache().await;
+
+    let object_id = ObjectID::random();
+    let version = SequenceNumber::from(1);
+    let epoch_id = 0;
+
+    let input_keys = vec![InputKey::VersionedObject {
+        id: object_id,
+        version,
+    }];
+    let receiving_keys = HashSet::new();
+    let epoch = &epoch_id;
+
+    // Start notification future
+    let notification = cache.notify_read_input_objects(&input_keys, &receiving_keys, epoch);
+
+    // Write SharedDeleted marker after small delay
+    tokio::spawn({
+        let cache = cache.clone();
+        async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            cache.write_marker_value(
+                epoch_id,
+                &ObjectKey(object_id, version),
+                MarkerValue::SharedDeleted(TransactionDigest::random()),
+            );
+        }
+    });
+
+    // Should complete once SharedDeleted marker is written
+    let result = timeout(Duration::from_secs(1), notification).await.unwrap();
+
+    assert_eq!(result.len(), 1);
+}
