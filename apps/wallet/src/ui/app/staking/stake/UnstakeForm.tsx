@@ -41,6 +41,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '../../helpers';
 import { Info, Loader } from '@iota/apps-ui-icons';
 import { type IotaTransactionBlockResponse, type StakeObject } from '@iota/iota-sdk/client';
+import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
 export interface StakeFromProps {
@@ -209,6 +210,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                                         <Input
                                             {...field}
                                             type={InputType.NumericFormat}
+                                            decimalScale={IOTA_DECIMALS}
                                             onValueChange={(vals) =>
                                                 formik.setFieldValue('amount', vals.value, true)
                                             }

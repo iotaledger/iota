@@ -26,7 +26,7 @@ import {
     GAS_BALANCE_TOO_LOW_ID,
     useUnstakeForm,
 } from '@iota/core';
-import { CoinFormat } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_DECIMALS } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { ValidatorStakingData } from '@/components';
@@ -221,6 +221,7 @@ export function UnstakeView({
                                                 <Input
                                                     {...field}
                                                     type={InputType.NumericFormat}
+                                                    decimalScale={IOTA_DECIMALS}
                                                     onValueChange={(vals) =>
                                                         formik.setFieldValue(
                                                             'amount',

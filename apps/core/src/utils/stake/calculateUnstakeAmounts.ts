@@ -1,18 +1,22 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 
 /**
  * Parse a user-entered unstake amount string (in IOTA) to nanos (bigint).
  * Returns 0n for invalid or non-positive input.
+ * Uses the SDK's parseAmount for precision-safe parsing.
+ *
+ * Note: The Input component limits decimal input to IOTA_DECIMALS (9 digits),
+ * so no fractional nanos can occur, making parseAmount safe to use.
  */
 export function parseUnstakeAmountNanos(amountStr: string): bigint {
-    const parsed = parseFloat(amountStr);
-    if (!amountStr || isNaN(parsed) || parsed <= 0) {
-        return 0n;
-    }
-    return BigInt(Math.floor(parsed * Number(NANOS_PER_IOTA)));
+    // Use SDK's parseAmount which handles BigNumber conversion safely
+    const parsed = parseAmount(amountStr, IOTA_DECIMALS);
+
+    // Return 0n for zero or negative values (unstake amount must be positive)
+    return parsed > 0n ? parsed : 0n;
 }
 
 interface CalculateUnstakeBreakdownParams {
