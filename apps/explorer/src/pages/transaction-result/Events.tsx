@@ -16,6 +16,7 @@ import clsx from 'clsx';
 import { useState } from 'react';
 import { SyntaxHighlighter } from '~/components';
 import { ObjectLink } from '~/components/ui';
+import { onCopySuccess } from '~/lib';
 
 function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);
@@ -28,7 +29,8 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                 <KeyValueInfo
                     keyText="Type"
                     value={objectLinkLabel}
-                    copyText={objectLinkLabel}
+                    copyText={[address, module, name].join('::')}
+                    onCopySuccess={onCopySuccess}
                     fullwidth
                     isTruncated
                 />

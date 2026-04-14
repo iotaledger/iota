@@ -724,6 +724,87 @@
         color: var(--table-text-color);
     }
 
+    /* DATE PICKER */
+    .date-picker-trigger-text-color {
+        color: var(--date-picker-text-color);
+    }
+
+    .date-picker-trigger-placeholder-color {
+        color: var(--date-picker-trigger-placeholder-color);
+    }
+
+    .date-picker-trigger-border-color {
+        border-color: var(--date-picker-border-color);
+    }
+
+    .date-picker-trigger-border-hover-color {
+        border-color: var(--date-picker-trigger-border-hover-color);
+    }
+
+    .date-picker-trigger-border-focus-color {
+        border-color: var(--date-picker-focus-color);
+    }
+
+    .date-picker-trigger-border-error-color {
+        border-color: var(--date-picker-trigger-border-error-color);
+    }
+
+    .date-picker-calendar-bg {
+        background-color: var(--date-picker-calendar-bg);
+    }
+
+    .date-picker-calendar-border-color {
+        border-color: var(--date-picker-border-color);
+    }
+
+    .date-picker-header-text-color {
+        color: var(--date-picker-text-color);
+    }
+
+    .date-picker-nav-icon-color {
+        color: var(--date-picker-muted-text-color);
+    }
+
+    .date-picker-nav-bg-hover:enabled:hover {
+        background-color: var(--date-picker-hover-bg);
+    }
+
+    .date-picker-weekday-text-color {
+        color: var(--date-picker-muted-text-color);
+    }
+
+    .date-picker-day-text-color {
+        color: var(--date-picker-text-color);
+    }
+
+    .date-picker-day-bg-hover:enabled:hover {
+        background-color: var(--date-picker-hover-bg);
+    }
+
+    .date-picker-day-text-color-hover:enabled:hover {
+        color: var(--date-picker-text-color);
+    }
+
+    .date-picker-day-bg-selected {
+        background-color: var(--date-picker-day-bg-selected);
+    }
+
+    .date-picker-day-text-selected {
+        color: var(--date-picker-day-text-selected);
+    }
+
+    .date-picker-day-today-ring {
+        box-shadow: inset 0 0 0 1.5px var(--date-picker-focus-color);
+    }
+
+    .date-picker-day-text-disabled {
+        color: var(--date-picker-day-text-disabled);
+    }
+
+    .date-picker-day-text-outside-month {
+        color: var(--date-picker-day-text-outside-month);
+    }
+
     /* DIALOG */
     .dialog-outline {
         outline: var(--dialog-outline);

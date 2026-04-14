@@ -115,12 +115,10 @@ export function getSupplyIncreaseVestingUserType(
 
 export function buildSupplyIncreaseVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
-    timestampMs: number,
 ): SupplyIncreaseVestingPortfolio {
     const userType = getSupplyIncreaseVestingUserType([referencePayout]);
 
-    if (!userType || timestampMs >= referencePayout.expirationTimestampMs) {
-        // if the latest payout has already been unlocked, we cant build a vesting schedule
+    if (!userType) {
         return [];
     }
 
@@ -162,7 +160,7 @@ export function getVestingOverview(
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
-    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout, timestampMs);
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout);
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
             current.expirationTimestampMs > timestampMs ? acc + BigInt(current.amount) : acc,
@@ -184,11 +182,26 @@ export function getVestingOverview(
 
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
-    const totalAvailableClaimingAmount = timelockedObjects.reduce(
+    let totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs <= timestampMs ? acc + BigInt(current.locked.value) : acc,
         0n,
     );
+
+    // Count unlocked timelock stakes (only for Staker users)
+    if (userType === SupplyIncreaseUserType.Staker) {
+        const unlockedTimelockedStakes = timelockedStakedObjects.filter(
+            (stake) => Number(stake.expirationTimestampMs) <= timestampMs,
+        );
+        const totalUnlockedStakesAmount = unlockedTimelockedStakes.reduce(
+            (acc, current) => acc + BigInt(current.principal),
+            0n,
+        );
+
+        // Add unlocked stakes to available claiming
+        totalAvailableClaimingAmount += totalUnlockedStakesAmount;
+    }
+
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs > timestampMs &&

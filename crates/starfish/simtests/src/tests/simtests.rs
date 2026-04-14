@@ -135,8 +135,10 @@ mod test {
     /// This test exercises the fast sync mechanism and verifies consensus
     /// correctness by:
     /// 1. Starting all authorities
-    /// 2. Sequentially stopping and restarting each authority (except one for
-    ///    quorum)
+    /// 2. Sequentially stopping and restarting authorities:
+    ///    - CleanAll: restarts <1/3 of authorities, keeping a supermajority
+    ///      alive as sync source. Verifies network progress during stop.
+    ///    - Non-clean modes: restarts all authorities (DB state is preserved)
     /// 3. Verifying that restarted authorities catch up via fast sync
     /// 4. Verifying commit digest consistency across all authorities
     /// 5. Verifying that all sequenced transactions are committed by all
@@ -301,12 +303,16 @@ mod test {
         // Verify consistency after baseline progress
         verify_commit_consistency(&authorities, "after initial progress").await;
 
-        // Sequential restart cycles for each authority
-        // Only restart authorities 0..NUM_OF_AUTHORITIES-1 to have one always alive
-        // authority with clean state to serve as sync source
-        // TODO: once fast sync logic can handle early abortion, we can include all
-        // authorities in the restart cycles
-        for authority_idx in 0..(NUM_OF_AUTHORITIES - 1) {
+        // Sequential restart cycles for each authority.
+        // CleanAll: restart <1/3 of authorities, keeping a supermajority alive as
+        // sync source for wiped nodes.
+        // Non-clean modes: restart all authorities since DB state is preserved.
+        let num_to_restart = if matches!(mode, RestartMode::CleanAll) {
+            NUM_OF_AUTHORITIES.div_ceil(3) - 1
+        } else {
+            NUM_OF_AUTHORITIES
+        };
+        for authority_idx in 0..num_to_restart {
             for cycle in 0..restart_config.cycles_per_authority {
                 // Stop the authority
                 let commit_at_stop = authorities[authority_idx]

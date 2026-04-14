@@ -3,3 +3,6 @@
 
 export * from './ValidatorMeta';
 export * from './ValidatorStats';
+export * from './ValidatorFilters';
+export * from './ValidatorSearch';
+export * from './ValidatorStatusLegend';

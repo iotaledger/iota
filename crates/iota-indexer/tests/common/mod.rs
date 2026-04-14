@@ -46,7 +46,6 @@ use jsonrpsee::{
 };
 use simulacrum::Simulacrum;
 use simulacrum_server::start_simulacrum_grpc_server;
-use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
     runtime::Runtime,
@@ -109,7 +108,7 @@ impl SimulacrumTestSetup {
     ) -> &'a SimulacrumTestSetup {
         initialized_env_container.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            let data_ingestion_path = tempdir().unwrap().keep();
+            let data_ingestion_path = iota_common::tempdir().keep();
 
             let sim = env_initializer(data_ingestion_path.clone());
             let sim = Arc::new(sim);

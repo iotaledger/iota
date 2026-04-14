@@ -22,6 +22,8 @@ async function bootstrap() {
     getRequiredEnv('STAGING_APPS_BACKEND');
     getRequiredEnv('PROD_APPS_BACKEND');
 
+    app.enableShutdownHooks();
+
     app.enableCors({
         origin: '*',
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
