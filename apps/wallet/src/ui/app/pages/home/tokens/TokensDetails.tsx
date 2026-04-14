@@ -230,7 +230,6 @@ export function TokenDetails() {
             <Loading loading={isFirstTimeLoading}>
                 {isFullScreen ? (
                     <div className="grid h-full grid-cols-2 gap-lg" data-testid="coin-page">
-                        {/* Left column: account info, balance, actions, staking */}
                         <div className="flex flex-col gap-md overflow-y-auto">
                             <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
                                 <div className="flex flex-col gap-xs" data-amp-mask>
@@ -303,7 +302,6 @@ export function TokenDetails() {
                                 ) : null}
                             </div>
                         </div>
-                        {/* Right column: coin list */}
                         <div className="flex flex-col overflow-y-auto">
                             {coinBalances?.length ? (
                                 <MyTokens

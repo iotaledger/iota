@@ -87,7 +87,6 @@ export function Navigation() {
                     sidebarWidth,
                 )}
             >
-                {/* Account row */}
                 <Link
                     to="/accounts/manage"
                     className={cx(
@@ -114,7 +113,6 @@ export function Navigation() {
                     )}
                 </Link>
 
-                {/* Nav items */}
                 <div className="flex w-full flex-col gap-xs">
                     {NAVBAR_ITEMS.map((item) => (
                         <div
@@ -153,9 +151,7 @@ export function Navigation() {
                     ))}
                 </div>
 
-                {/* Network + settings at the bottom */}
                 <div className="mt-auto flex w-full flex-col">
-                    {/* Network row */}
                     <Link
                         to={networkUrl}
                         className={cx(
@@ -182,7 +178,6 @@ export function Navigation() {
                         )}
                     </Link>
 
-                    {/* Settings row */}
                     <Link
                         to={menuUrl}
                         className={cx(
