@@ -145,4 +145,43 @@ describe('calculateUnstakeBreakdown', () => {
         expect(result.unstakeAmount).toBe(0n);
         expect(result.proportionalRewards).toBe(0n);
     });
+
+    it('should use truncating division to match on-chain contract behavior', () => {
+        // Test case where division has a remainder
+        const principalAmount = 10_000_000_000n; // 10 IOTA
+        const rewardAmount = 1_000_000_000n; // 1 IOTA
+        const unstakeAmountNanos = 3_333_333_333n; // ~3.33 IOTA (one third)
+
+        const result = calculateUnstakeBreakdown({
+            principalAmount,
+            rewardAmount,
+            unstakeAmountNanos,
+            isPartialUnstake: true,
+        });
+
+        // Truncating division: (1_000_000_000 * 3_333_333_333) / 10_000_000_000 = 333_333_333
+        // This matches the on-chain contract behavior (rounds down)
+        expect(result.proportionalRewards).toBe(333_333_333n);
+        expect(result.totalUnstakeAmount).toBe(3_666_666_666n);
+        expect(result.remainingRewards).toBe(666_666_667n);
+    });
+
+    it('should truncate for very small remainders to match contract', () => {
+        // Edge case: 3 nanos reward, unstaking 1 out of 2 principal
+        const principalAmount = 2n;
+        const rewardAmount = 3n;
+        const unstakeAmountNanos = 1n;
+
+        const result = calculateUnstakeBreakdown({
+            principalAmount,
+            rewardAmount,
+            unstakeAmountNanos,
+            isPartialUnstake: true,
+        });
+
+        // Truncating division: (3 * 1) / 2 = 1 (matches contract behavior)
+        // Contract also uses truncating division, so this is correct
+        expect(result.proportionalRewards).toBe(1n);
+        expect(result.remainingRewards).toBe(2n);
+    });
 });

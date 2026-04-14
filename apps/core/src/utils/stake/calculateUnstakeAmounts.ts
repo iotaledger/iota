@@ -48,6 +48,9 @@ export function calculateUnstakeBreakdown({
     const unstakeAmount =
         isPartialUnstake && unstakeAmountNanos > 0n ? unstakeAmountNanos : principalAmount;
 
+    // Use truncating division to match on-chain contract behavior
+    // The contract uses exchange rates with truncating division (rounds down)
+    // Frontend preview must match this to avoid showing incorrect amounts to users
     const proportionalRewards =
         principalAmount > 0n ? (rewardAmount * unstakeAmount) / principalAmount : 0n;
 
