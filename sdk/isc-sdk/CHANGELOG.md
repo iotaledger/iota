@@ -1,5 +1,17 @@
 # @iota/isc-sdk
 
+## 0.2.6
+
+### Patch Changes
+
+-   b8595bf: Update zod package to v^3.25.76
+-   Updated dependencies [c6ec123]
+-   Updated dependencies [b933a08]
+-   Updated dependencies [f15c61d]
+-   Updated dependencies [22e7eb8]
+    -   @iota/iota-sdk@1.13.0
+    -   @iota/dapp-kit@0.10.1
+
 ## 0.2.5
 
 ### Patch Changes

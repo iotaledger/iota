@@ -56,6 +56,7 @@ export function AccountGroup({
 }) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
+    const [expandedWalletNames, setExpandedWalletNames] = useState<Set<string> | null>(null);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const createAccountsMutation = useCreateAccountsMutation();
@@ -81,9 +82,25 @@ export function AccountGroup({
             sourceID: accountSource.id,
         });
         setSourceFlow(AmpliSourceFlow.ManageAccounts);
-        createAccountsMutation.mutate({
-            type: accountsFormType,
-        });
+        try {
+            const accountCreationResult = await createAccountsMutation.mutateAsync({
+                type: accountsFormType,
+            });
+            const newAccount = accountCreationResult?.[0];
+            if (
+                newAccount &&
+                (isMnemonicSerializedUiAccount(newAccount) || isSeedSerializedUiAccount(newAccount))
+            ) {
+                const { accountIndex } = parseDerivationPath(newAccount.derivationPath);
+                const newWalletName = `Wallet ${accountIndex + 1}`;
+                setExpandedWalletNames(
+                    (prev) =>
+                        new Set([...(prev ?? accountGroupsByIndex.map(([n]) => n)), newWalletName]),
+                );
+            }
+        } catch {
+            // errors are already handled by the mutation
+        }
     }
 
     function getUrlForLedgerDerivedAccounts(url: string) {
@@ -151,6 +168,8 @@ export function AccountGroup({
         );
     }
 
+    const accountGroupsByIndex = Object.entries(groupAccountsByAccountIndex(accounts));
+
     return (
         <div className="relative overflow-visible">
             <Collapsible
@@ -205,46 +224,58 @@ export function AccountGroup({
             >
                 {hasLegacyAccount ? (
                     <div className="pl-md">
-                        {Object.entries(groupAccountsByAccountIndex(accounts)).map(
-                            ([walletName, walletAccounts], index) => (
-                                <Collapsible
-                                    key={index}
-                                    defaultOpen
-                                    hideArrow
-                                    hideBorder
-                                    render={({ isOpen }) => (
-                                        <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                            <div className="shrink-0 text-title-sm">
-                                                From {walletName}
-                                            </div>
-                                            <Divider />
-                                            <ArrowDown
-                                                className={clsx(
-                                                    'h-5 w-5 shrink-0',
-                                                    isOpen
-                                                        ? 'rotate-0 transition-transform ease-linear'
-                                                        : '-rotate-90 transition-transform ease-linear',
-                                                )}
-                                            />
+                        {accountGroupsByIndex.map(([walletName, walletAccounts]) => (
+                            <Collapsible
+                                key={walletName}
+                                isOpen={
+                                    expandedWalletNames === null ||
+                                    expandedWalletNames.has(walletName)
+                                }
+                                onOpenChange={(isOpen) =>
+                                    setExpandedWalletNames((prev) => {
+                                        const accountGroupSet: Set<string> =
+                                            prev === null
+                                                ? new Set(accountGroupsByIndex.map(([n]) => n))
+                                                : new Set(prev);
+                                        if (isOpen) accountGroupSet.add(walletName);
+                                        else accountGroupSet.delete(walletName);
+                                        return accountGroupSet;
+                                    })
+                                }
+                                hideArrow
+                                hideBorder
+                                render={({ isOpen }) => (
+                                    <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                        <div className="shrink-0 text-title-sm">
+                                            From {walletName}
                                         </div>
-                                    )}
-                                >
-                                    {walletAccounts.map((account, index) => (
-                                        <AccountGroupItem
-                                            outerRef={outerRef}
-                                            isActive={activeAccount?.address === account.address}
-                                            key={account.id}
-                                            account={account}
-                                            showDropdownOptionsBottom={
-                                                isLast &&
-                                                (index === walletAccounts.length - 1 ||
-                                                    index === walletAccounts.length - 2)
-                                            }
+                                        <Divider />
+                                        <ArrowDown
+                                            className={clsx(
+                                                'h-5 w-5 shrink-0',
+                                                isOpen
+                                                    ? 'rotate-0 transition-transform ease-linear'
+                                                    : '-rotate-90 transition-transform ease-linear',
+                                            )}
                                         />
-                                    ))}
-                                </Collapsible>
-                            ),
-                        )}
+                                    </div>
+                                )}
+                            >
+                                {walletAccounts.map((account, index) => (
+                                    <AccountGroupItem
+                                        outerRef={outerRef}
+                                        isActive={activeAccount?.address === account.address}
+                                        key={account.id}
+                                        account={account}
+                                        showDropdownOptionsBottom={
+                                            isLast &&
+                                            (index === walletAccounts.length - 1 ||
+                                                index === walletAccounts.length - 2)
+                                        }
+                                    />
+                                ))}
+                            </Collapsible>
+                        ))}
                     </div>
                 ) : (
                     accounts.map((account, index) => (

@@ -2073,6 +2073,7 @@ impl DagState {
 
         if let Some(last_ack) = last_ack {
             self.pending_acknowledgments = self.pending_acknowledgments.split_off(&last_ack);
+            self.pending_acknowledgments.remove(&last_ack);
         }
 
         taken

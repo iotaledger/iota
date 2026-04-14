@@ -20,6 +20,7 @@ serde.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-latest" }

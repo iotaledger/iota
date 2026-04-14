@@ -1786,6 +1786,7 @@ dependencies = [
  "move-borrow-graph",
  "move-bytecode-verifier-meter",
  "move-core-types",
+ "move-regex-borrow-graph",
  "move-vm-config",
  "petgraph",
 ]
@@ -2203,6 +2204,15 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn 2.0.104",
+]
+
+[[package]]
+name = "move-regex-borrow-graph"
+version = "0.0.1"
+dependencies = [
+ "move-binary-format",
+ "move-core-types",
+ "petgraph",
 ]
 
 [[package]]

@@ -28,7 +28,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Committee};
 
 use crate::{
     Round, VerifiedBlockHeader,
@@ -322,7 +322,32 @@ fn bitmask_to_authority_set(bitmask: [u64; 4]) -> BTreeSet<AuthorityIndex> {
     set
 }
 
+fn validate_authority_bitmask(bitmask: [u64; 4], committee: &Committee) -> ConsensusResult<()> {
+    for (array_index, &bits) in bitmask.iter().enumerate() {
+        let mut bits = bits;
+        let base = array_index * 64;
+        while bits != 0 {
+            let bit = bits.trailing_zeros() as usize;
+            let index = base + bit;
+            if index >= committee.size() {
+                return Err(ConsensusError::InvalidAuthorityIndex {
+                    index: AuthorityIndex::from(index as u8),
+                    max: committee.size(),
+                });
+            }
+            bits &= bits - 1;
+        }
+    }
+    Ok(())
+}
+
 impl SerializedBlockBundleParts {
+    pub(crate) fn validate_useful_authorities(&self, committee: &Committee) -> ConsensusResult<()> {
+        validate_authority_bitmask(self.useful_headers_authors_bitmask, committee)?;
+        validate_authority_bitmask(self.useful_shards_authors_bitmask, committee)?;
+        Ok(())
+    }
+
     pub(crate) fn useful_headers_authors(&self) -> BTreeSet<AuthorityIndex> {
         bitmask_to_authority_set(self.useful_headers_authors_bitmask)
     }
