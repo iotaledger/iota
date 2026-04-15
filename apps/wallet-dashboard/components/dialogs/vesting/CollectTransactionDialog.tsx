@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Dialog } from '@iota/apps-ui-kit';
-import { TransactionDialogView } from '../TransactionDialog';
+import { TransactionDetailsLayout } from '../transaction';
+import { DialogLayout } from '../layout';
 
 interface CollectTransactionDialogProps {
     open: boolean;
@@ -17,7 +18,9 @@ export function CollectTransactionDialog({
 }: CollectTransactionDialogProps): React.JSX.Element {
     return (
         <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-            <TransactionDialogView txDigest={txDigest} onClose={onClose} />
+            <DialogLayout>
+                <TransactionDetailsLayout digest={txDigest} onClose={onClose} />
+            </DialogLayout>
         </Dialog>
     );
 }
