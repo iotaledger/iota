@@ -983,6 +983,10 @@ impl AuthorityState {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
+            // Serialize the TransactionData for the auth context before decomposing.
+            let tx_data_bytes =
+                bcs::to_bytes(&tx_data).expect("TransactionData serialization cannot fail");
+
             let (kind, signer, gas_data) = tx_data.execution_parts();
 
             // Execute the Move authenticators.
@@ -1002,6 +1006,7 @@ impl AuthorityState {
                 kind,
                 signer,
                 transaction.digest().to_owned(),
+                tx_data_bytes,
                 &mut None,
             );
 
@@ -1337,6 +1342,8 @@ impl AuthorityState {
         certificate: &VerifiedExecutableTransaction,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
+        // Fall back to the OS temp directory if no dump directory is configured.
+        // This is safe: dump files are named by transaction digest, so no collisions.
         let dump_dir = debug_dump_config
             .dump_file_directory
             .as_ref()
@@ -1755,6 +1762,10 @@ impl AuthorityState {
                 .map(|(authenticator_input_objects, _)| authenticator_input_objects.clone())
                 .collect::<Vec<_>>();
 
+            // Serialize the TransactionData for the auth context.
+            let tx_data_bytes =
+                bcs::to_bytes(tx_data).expect("TransactionData serialization cannot fail");
+
             // Check the `MoveAuthenticator` input objects.
             // The `MoveAuthenticator` receiving objects are checked on the signing step.
             // `max_auth_gas` is used here as a Move authenticator gas budget until it is
@@ -1821,6 +1832,7 @@ impl AuthorityState {
                     kind,
                     signer,
                     tx_digest,
+                    tx_data_bytes,
                     &mut None,
                 )
         };
@@ -4492,23 +4504,7 @@ impl AuthorityState {
             .get_transaction_cache_reader()
             .try_get_executed_effects(transaction_digest)?;
         match effects {
-            Some(effects) => Ok(Some(self.sign_effects(effects, epoch_store)?)),
-            None => Ok(None),
-        }
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn sign_effects(
-        &self,
-        effects: TransactionEffects,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<VerifiedSignedTransactionEffects> {
-        let tx_digest = *effects.transaction_digest();
-        let signed_effects = match epoch_store.get_effects_signature(&tx_digest)? {
-            Some(sig) if sig.epoch == epoch_store.epoch() => {
-                SignedTransactionEffects::new_from_data_and_sig(effects, sig)
-            }
-            _ => {
+            Some(effects) => {
                 // If the transaction was executed in previous epochs, the validator will
                 // re-sign the effects with new current epoch so that a client is always able to
                 // obtain an effects certificate at the current epoch.
@@ -4531,12 +4527,33 @@ impl AuthorityState {
                 // a proof of inclusion in a checkpoint. In the case above, the
                 // Quorum Driver would return a proof of inclusion in the final
                 // checkpoint, and this code would no longer be necessary.
-                debug!(
-                    ?tx_digest,
-                    epoch=?epoch_store.epoch(),
-                    "Re-signing the effects with the current epoch"
-                );
+                if effects.executed_epoch() != epoch_store.epoch() {
+                    debug!(
+                        tx_digest=?transaction_digest,
+                        effects_epoch=?effects.executed_epoch(),
+                        epoch=?epoch_store.epoch(),
+                        "Re-signing the effects with the current epoch"
+                    );
+                }
+                Ok(Some(self.sign_effects(effects, epoch_store)?))
+            }
+            None => Ok(None),
+        }
+    }
 
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn sign_effects(
+        &self,
+        effects: TransactionEffects,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<VerifiedSignedTransactionEffects> {
+        let tx_digest = *effects.transaction_digest();
+        let signed_effects = match epoch_store.get_effects_signature(&tx_digest)? {
+            Some(sig) => {
+                debug_assert!(sig.epoch == epoch_store.epoch());
+                SignedTransactionEffects::new_from_data_and_sig(effects, sig)
+            }
+            _ => {
                 let sig = AuthoritySignInfo::new(
                     epoch_store.epoch(),
                     &effects,
@@ -5878,6 +5895,16 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
     ) -> IotaResult<Option<Object>> {
         self.get_object_cache_reader()
             .try_get_object_by_key(&object_id, version)
+    }
+
+    #[instrument(skip_all)]
+    async fn multi_get_objects(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> IotaResult<Vec<Option<Object>>> {
+        Ok(self
+            .get_object_cache_reader()
+            .multi_get_objects_by_key(object_keys))
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(

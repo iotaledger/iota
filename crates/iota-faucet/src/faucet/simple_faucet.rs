@@ -1218,7 +1218,7 @@ mod tests {
     async fn simple_faucet_basic_interface_should_work() {
         telemetry_subscribers::init_for_testing();
         let test_cluster = TestClusterBuilder::new().build().await;
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
 
@@ -1247,7 +1247,7 @@ mod tests {
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1277,13 +1277,13 @@ mod tests {
             .unwrap();
         let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1312,13 +1312,13 @@ mod tests {
             .unwrap();
         let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1361,7 +1361,7 @@ mod tests {
         };
         let coin_amount = config.amount;
         let prom_registry = Registry::new();
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
         let gas_coins = context
@@ -1387,7 +1387,7 @@ mod tests {
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1464,11 +1464,11 @@ mod tests {
             ..Default::default()
         };
         let prom_registry = Registry::new();
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1517,7 +1517,7 @@ mod tests {
         let bad_gas = gas_coins.swap_remove(0);
         let gas_coins = HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.0));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
 
@@ -1525,7 +1525,7 @@ mod tests {
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1578,13 +1578,13 @@ mod tests {
         telemetry_subscribers::init_for_testing();
         let test_cluster = TestClusterBuilder::new().build().await;
         let context = test_cluster.wallet;
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1685,12 +1685,12 @@ mod tests {
         let gas_coins: HashSet<ObjectID> =
             HashSet::from_iter(gas_coins.into_iter().map(|gas| gas.1.object_id));
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1782,13 +1782,13 @@ mod tests {
             .unwrap();
         assert!(!gas_coins.is_empty());
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1863,12 +1863,12 @@ mod tests {
             .unwrap();
         assert!(!gas_coins.is_empty());
 
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1888,14 +1888,14 @@ mod tests {
     async fn test_faucet_restart_clears_wal() {
         let test_cluster = TestClusterBuilder::new().build().await;
         let context = test_cluster.wallet;
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
         let config = FaucetConfig::default();
 
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await
@@ -1946,7 +1946,7 @@ mod tests {
         let faucet_restarted = SimpleFaucet::new(
             kept_context,
             &prom_registry_new,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             FaucetConfig::default(),
         )
         .await
@@ -1985,13 +1985,13 @@ mod tests {
         execute_tx(&mut context, tx_data).await.unwrap();
 
         let prom_registry = Registry::new();
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp_dir = iota_common::tempdir();
         let amount_to_send = config.amount;
 
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config,
         )
         .await

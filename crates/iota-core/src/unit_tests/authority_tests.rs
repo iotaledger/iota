@@ -3,7 +3,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashSet, convert::TryInto, env, fs, str::FromStr};
+use std::{collections::HashSet, convert::TryInto, str::FromStr};
 
 use bcs;
 use fastcrypto::traits::KeyPair;
@@ -2793,9 +2793,8 @@ async fn test_authority_persist() {
     let committee = genesis.committee().unwrap();
 
     // Create a random directory to store the DB
-    let dir = env::temp_dir();
-    let path = dir.join(format!("DB_{:?}", ObjectID::random()));
-    fs::create_dir(&path).unwrap();
+    let tmp_dir = iota_common::tempdir();
+    let path = tmp_dir.path().to_path_buf();
 
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     // Create an authority

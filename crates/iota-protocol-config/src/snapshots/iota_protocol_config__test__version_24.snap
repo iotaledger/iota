@@ -50,6 +50,7 @@ feature_flags:
   pass_calculated_validator_scores_to_advance_epoch: true
   consensus_fast_commit_sync: true
   move_native_tx_context: true
+  additional_borrow_checks: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
@@ -338,6 +339,8 @@ consensus_gc_depth: 60
 max_congestion_limit_overshoot_per_commit: 100
 scorer_version: 1
 auth_context_digest_cost_base: 30
+auth_context_tx_data_bytes_cost_base: 30
+auth_context_tx_data_bytes_cost_per_byte: 2
 auth_context_tx_commands_cost_base: 30
 auth_context_tx_commands_cost_per_byte: 2
 auth_context_tx_inputs_cost_base: 30

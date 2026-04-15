@@ -18,10 +18,9 @@ async fn test_profiler() {
     use std::fs;
 
     use iota_replay::ReplayToolCommand;
-    use tempfile::tempdir;
 
-    let output_dir = tempdir().unwrap();
-    let profile_output = output_dir.path().join("profile.json");
+    let tmp_dir = iota_common::tempdir();
+    let profile_output = tmp_dir.path().join("profile.json");
 
     let testnet_url = "https://api.testnet.iota.cafe".to_string();
 
@@ -45,7 +44,7 @@ async fn test_profiler() {
 
     // check that the profile was written
     let mut found = false;
-    for entry in fs::read_dir(output_dir.keep()).unwrap().flatten() {
+    for entry in fs::read_dir(tmp_dir.path()).unwrap().flatten() {
         if entry
             .file_name()
             .into_string()

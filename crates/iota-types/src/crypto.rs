@@ -1326,8 +1326,6 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
                     index: Some(authority_index),
                     committee: Box::new(committee.clone()),
                 })?;
-
-            // Update weight.
             let voting_rights = committee.weight(authority);
             fp_ensure!(
                 voting_rights > 0,

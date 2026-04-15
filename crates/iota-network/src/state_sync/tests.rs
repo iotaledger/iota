@@ -18,7 +18,6 @@ use iota_types::{
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };
 use prometheus::Registry;
-use tempfile::tempdir;
 use tokio::time::{Instant, timeout};
 
 use crate::{
@@ -277,9 +276,9 @@ async fn test_state_sync_using_archive() -> anyhow::Result<()> {
     let (ordered_checkpoints, _, sequence_number_to_digest, checkpoints) =
         committee.make_empty_checkpoints(100, None);
     // Initialize archive store with all checkpoints
-    let temp_dir = tempdir()?.keep();
-    let local_path = temp_dir.join("local_dir");
-    let remote_path = temp_dir.join("remote_dir");
+    let tmp_dir = iota_common::tempdir();
+    let local_path = tmp_dir.path().join("local_dir");
+    let remote_path = tmp_dir.path().join("remote_dir");
     let local_store_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
         directory: Some(local_path.clone()),

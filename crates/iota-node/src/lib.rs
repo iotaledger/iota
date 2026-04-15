@@ -100,7 +100,7 @@ use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
-use iota_protocol_config::ProtocolConfig;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
 use iota_snapshot::uploader::StateSnapshotUploader;
 use iota_storage::{
@@ -891,6 +891,13 @@ impl IotaNode {
         let connection_monitor_status = Arc::new(connection_monitor_status);
         let iota_node_metrics =
             Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
+
+        iota_node_metrics
+            .binary_max_protocol_version
+            .set(ProtocolVersion::MAX.as_u64() as i64);
+        iota_node_metrics
+            .configured_max_protocol_version
+            .set(config.supported_protocol_versions.unwrap().max.as_u64() as i64);
 
         // Convert transaction orchestrator to executor trait object for gRPC server
         // Note that the transaction_orchestrator (so as executor) will be None if it is
@@ -1817,6 +1824,11 @@ impl IotaNode {
 
             let cur_epoch_store = self.state.load_epoch_store_one_call_per_task();
 
+            // Update the current protocol version metric.
+            self.metrics
+                .current_protocol_version
+                .set(cur_epoch_store.protocol_config().version.as_u64() as i64);
+
             // Advertise capabilities to committee, if we are a validator.
             if let Some(components) = &*self.validator_components.lock().await {
                 // TODO: without this sleep, the consensus message is not delivered reliably.
@@ -2090,11 +2102,11 @@ impl IotaNode {
                 )
             {
                 self.state
-                .prune_checkpoints_for_eligible_epochs_for_testing(
-                    self.config.clone(),
-                    iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
-                )
-                .await?;
+                    .prune_checkpoints_for_eligible_epochs_for_testing(
+                        self.config.clone(),
+                        iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
+                    )
+                    .await?;
             }
 
             epoch_store = new_epoch_store;

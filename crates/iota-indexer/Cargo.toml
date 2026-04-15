@@ -83,6 +83,7 @@ rand.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true

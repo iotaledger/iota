@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 
 use futures::Future;
 use iota_metrics::spawn_monitored_task;
@@ -11,20 +11,14 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
 };
 use prometheus::Registry;
-use tokio::{
-    sync::{mpsc, oneshot},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
-    reader::{
-        v1::CheckpointReader as CheckpointReaderV1,
-        v2::{CheckpointReader as CheckpointReaderV2, CheckpointReaderConfig},
-    },
+    reader::v2::{CheckpointReader, CheckpointReaderConfig, RemoteUrl},
     worker_pool::{WorkerPool, WorkerPoolStatus},
 };
 
@@ -88,67 +82,6 @@ impl IngestionLimit {
     }
 }
 
-/// Represents a common interface for checkpoint readers.
-///
-/// It manages the old checkpoint reader implementation for backwards
-/// compatibility and the new one.
-enum CheckpointReader {
-    /// The old checkpoint reader implementation.
-    V1 {
-        checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
-        gc_sender: mpsc::Sender<CheckpointSequenceNumber>,
-        exit_sender: oneshot::Sender<()>,
-        handle: JoinHandle<IngestionResult<()>>,
-    },
-    /// The new checkpoint reader implementation.
-    V2(CheckpointReaderV2),
-}
-
-impl CheckpointReader {
-    /// Gets the next checkpoint from the reader.
-    async fn get_checkpoint(&mut self) -> Option<Arc<CheckpointData>> {
-        match self {
-            Self::V1 {
-                checkpoint_recv, ..
-            } => checkpoint_recv.recv().await,
-            Self::V2(reader) => reader.checkpoint().await,
-        }
-    }
-
-    /// Sends a GC signal to the reader.
-    async fn send_gc_signal(
-        &mut self,
-        seq_number: CheckpointSequenceNumber,
-    ) -> IngestionResult<()> {
-        match self {
-            Self::V1 { gc_sender, .. } => gc_sender.send(seq_number).await.map_err(|_| {
-                IngestionError::Channel(
-                    "unable to send GC operation to checkpoint reader, receiver half closed".into(),
-                )
-            }),
-            Self::V2(reader) => reader.send_gc_signal(seq_number).await,
-        }
-    }
-
-    /// Shuts down the reader.
-    async fn shutdown(self) -> IngestionResult<()> {
-        match self {
-            Self::V1 {
-                exit_sender,
-                handle,
-                ..
-            } => {
-                _ = exit_sender.send(());
-                handle.await.map_err(|err| IngestionError::Shutdown {
-                    component: "checkpoint reader".into(),
-                    msg: err.to_string(),
-                })?
-            }
-            Self::V2(reader) => reader.shutdown().await,
-        }
-    }
-}
-
 /// The Executor of the main ingestion pipeline process.
 ///
 /// This struct orchestrates the execution of multiple worker pools, handling
@@ -162,6 +95,7 @@ impl CheckpointReader {
 /// use iota_data_ingestion_core::{
 ///     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, ReaderOptions,
 ///     Worker, WorkerPool,
+///     reader::v2::CheckpointReaderConfig
 /// };
 /// use iota_types::full_checkpoint_content::CheckpointData;
 /// use prometheus::Registry;
@@ -204,11 +138,12 @@ impl CheckpointReader {
 ///     executor.register(worker_pool).await.unwrap();
 ///     // run the ingestion pipeline.
 ///     executor
-///         .run(
-///             PathBuf::from("./chk".to_string()), // path to a local directory where checkpoints are stored.
-///             None,
-///             vec![],                   // optional remote store access options.
-///             ReaderOptions::default(), // remote_read_batch_size.
+///         .run_with_config(
+///             CheckpointReaderConfig {
+///                 reader_options: ReaderOptions::default(),
+///                 ingestion_path: Some(PathBuf::from("./chk".to_string())), // path to a local directory where checkpoints are stored.
+///                 remote_store_url: None,
+///             }
 ///         )
 ///         .await
 ///         .unwrap();
@@ -324,57 +259,15 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     ///
     /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
     /// registered.
-    pub async fn run(
-        mut self,
-        path: PathBuf,
-        remote_store_url: Option<String>,
-        remote_store_options: Vec<(String, String)>,
-        reader_options: ReaderOptions,
-    ) -> IngestionResult<ExecutorProgress> {
-        let reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let (checkpoint_reader, checkpoint_recv, gc_sender, exit_sender) =
-            CheckpointReaderV1::initialize(
-                path,
-                reader_checkpoint_number,
-                remote_store_url,
-                remote_store_options,
-                reader_options,
-            );
-
-        let handle = spawn_monitored_task!(checkpoint_reader.run());
-
-        self.run_executor_loop(
-            reader_checkpoint_number,
-            CheckpointReader::V1 {
-                checkpoint_recv,
-                gc_sender,
-                exit_sender,
-                handle,
-            },
-        )
-        .await
-    }
-
-    /// Alternative main executor loop. Uses the new iteration of the
-    /// `CheckpointReader` supporting syncing checkpoints from hybrid historical
-    /// store.
-    ///
-    /// # Error
-    ///
-    /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
-    /// registered.
     pub async fn run_with_config(
         mut self,
         config: CheckpointReaderConfig,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
-        let checkpoint_reader = CheckpointReaderV2::new(reader_checkpoint_number, config).await?;
+        let checkpoint_reader = CheckpointReader::new(reader_checkpoint_number, config).await?;
 
-        self.run_executor_loop(
-            reader_checkpoint_number,
-            CheckpointReader::V2(checkpoint_reader),
-        )
-        .await
+        self.run_executor_loop(reader_checkpoint_number, checkpoint_reader)
+            .await
     }
 
     /// Common execution logic
@@ -428,7 +321,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                         }
                     }
                 }
-                Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() => {
+                Some(checkpoint) = checkpoint_reader.checkpoint(), if !self.token.is_cancelled() => {
                     // once upper limit reached skip sending new checkpoints to workers.
                     if self.should_shutdown(&checkpoint, &mut checkpoint_limit_reached) {
                         continue;
@@ -518,7 +411,9 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 /// use std::sync::Arc;
 ///
 /// use async_trait::async_trait;
-/// use iota_data_ingestion_core::{IngestionError, Worker, setup_single_workflow};
+/// use iota_data_ingestion_core::{
+///     IngestionError, Worker, reader::v2::RemoteUrl, setup_single_workflow,
+/// };
 /// use iota_types::full_checkpoint_content::CheckpointData;
 ///
 /// struct CustomWorker;
@@ -545,10 +440,10 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 /// async fn main() {
 ///     let (executor, _) = setup_single_workflow(
 ///         CustomWorker,
-///         "http://127.0.0.1:50051".to_string(), // fullnode gRPC API
-///         0,                                    // initial checkpoint number.
-///         5,                                    // concurrency.
-///         None,                                 // extra reader options.
+///         RemoteUrl::Fullnode("http://127.0.0.1:50051".into()), // fullnode gRPC API.
+///         0,                                                    // initial checkpoint number.
+///         5,                                                    // concurrency.
+///         None,                                                 // extra reader options.
 ///     )
 ///     .await
 ///     .unwrap();
@@ -557,7 +452,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
 /// ```
 pub async fn setup_single_workflow<W: Worker + 'static>(
     worker: W,
-    remote_store_url: String,
+    remote_store_url: RemoteUrl,
     initial_checkpoint_number: CheckpointSequenceNumber,
     concurrency: usize,
     reader_options: Option<ReaderOptions>,
@@ -577,12 +472,11 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     );
     executor.register(worker_pool).await?;
     Ok((
-        executor.run(
-            tempfile::tempdir()?.keep(),
-            Some(remote_store_url),
-            vec![],
-            reader_options.unwrap_or_default(),
-        ),
+        executor.run_with_config(CheckpointReaderConfig {
+            reader_options: reader_options.unwrap_or_default(),
+            ingestion_path: None,
+            remote_store_url: Some(remote_store_url),
+        }),
         token,
     ))
 }

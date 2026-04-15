@@ -38,6 +38,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
@@ -76,6 +77,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -85,6 +87,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            header_synchronizer,
             sync_type: CommitSyncType::Regular,
         });
         let synced_commit_index = inner.dag_state.read().last_commit_index();
@@ -856,6 +859,7 @@ mod tests {
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         error::ConsensusResult,
+        header_synchronizer::HeaderSynchronizer,
         network::{BlockBundleStream, NetworkClient},
         storage::{Store, mem_store::MemStore},
         transaction_ref::GenericTransactionRef,
@@ -948,6 +952,24 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
 
+        let transactions_synchronizer =
+            crate::transactions_synchronizer::TransactionsSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                dag_state.clone(),
+            );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_thread_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer,
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+        );
+
         let mut commit_syncer = RegularCommitSyncer::new(
             context,
             core_thread_dispatcher,
@@ -956,6 +978,7 @@ mod tests {
             network_client,
             block_verifier,
             dag_state,
+            header_synchronizer,
         );
 
         // Check initial state.

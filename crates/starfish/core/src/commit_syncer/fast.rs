@@ -32,6 +32,7 @@ use crate::{
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -89,6 +90,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
         dag_state: Arc<RwLock<DagState>>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -98,6 +100,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             network_client,
             block_verifier,
             dag_state,
+            header_synchronizer,
             sync_type: CommitSyncType::Fast,
         });
         let last_solid_commit_index = inner.dag_state.read().last_solid_commit_index();
@@ -189,6 +192,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 e
                             );
                         } else {
+                            self.inner
+                                .header_synchronizer
+                                .clear_verified_headers_cache();
                             info!(
                                 "[{}] Components reinitialized, fast sync complete",
                                 self.inner.sync_type.as_str()
