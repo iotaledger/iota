@@ -328,7 +328,13 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v1(request, None).await?;
+    let response = orchestrator
+        .execute_transaction_v1(
+            request,
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            None,
+        )
+        .await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();
@@ -389,7 +395,13 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         include_output_objects: true,
         include_auxiliary_data: false,
     };
-    let response = orchestrator.execute_transaction_v1(request, None).await?;
+    let response = orchestrator
+        .execute_transaction_v1(
+            request,
+            ExecuteTransactionRequestType::WaitForEffectsCert,
+            None,
+        )
+        .await?;
     let fx = &response.effects.effects;
 
     let mut expected_input_objects = fx.modified_at_versions();

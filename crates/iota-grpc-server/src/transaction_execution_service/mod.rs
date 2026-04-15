@@ -274,13 +274,30 @@ pub async fn execute_transactions(
         .filter(|&ms| ms > 0)
         .map(|ms| Duration::from_millis(ms.min(config.max_checkpoint_inclusion_timeout_ms)));
 
+    // If the client has opted into waiting for checkpoint inclusion, we can
+    // skip the 2f+1 effects certification — the subsequent
+    // `wait_for_checkpoint_inclusion` call below provides finality instead.
+    // Otherwise, preserve the default certification behavior.
+    let request_type = if checkpoint_timeout.is_some() {
+        iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution
+    } else {
+        iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForEffectsCert
+    };
+
     // Execute each transaction sequentially, collecting per-item results and
     // digests for successful executions.
     let mut transaction_results = Vec::with_capacity(request.transactions.len());
     let mut successful_digests: Vec<(usize, TransactionDigest)> = Vec::new();
     for (i, item) in request.transactions.iter().enumerate() {
-        let result = match execute_single_transaction(reader, executor, config, item, &read_mask)
-            .await
+        let result = match execute_single_transaction(
+            reader,
+            executor,
+            config,
+            item,
+            &read_mask,
+            request_type.clone(),
+        )
+        .await
         {
             Ok((digest, tx)) => {
                 successful_digests.push((i, digest));
@@ -345,6 +362,7 @@ async fn execute_single_transaction(
     config: &iota_config::node::GrpcApiConfig,
     item: &ExecuteTransactionItem,
     read_mask: &FieldMaskTree,
+    request_type: iota_types::quorum_driver_types::ExecuteTransactionRequestType,
 ) -> Result<(TransactionDigest, ExecutedTransaction), RpcError> {
     let sdk_transaction = parse_transaction_proto(item.transaction.as_ref())?;
 
@@ -409,7 +427,7 @@ async fn execute_single_transaction(
         output_objects,
         auxiliary_data: _,
     } = executor
-        .execute_transaction(exec_request, None)
+        .execute_transaction(exec_request, request_type, None)
         .await
         .map_err(RpcError::from)?;
 

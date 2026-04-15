@@ -320,6 +320,7 @@ where
     pub async fn execute_transaction_v1(
         &self,
         request: ExecuteTransactionRequestV1,
+        request_type: ExecuteTransactionRequestType,
         client_addr: Option<SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
@@ -331,7 +332,7 @@ where
                     &epoch_store,
                     request,
                     client_addr,
-                    ExecuteTransactionRequestType::WaitForEffectsCert,
+                    request_type,
                 )
                 .await?;
             return Ok(response);
@@ -1039,9 +1040,11 @@ where
     async fn execute_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
+        request_type: ExecuteTransactionRequestType,
         client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
-        self.execute_transaction_v1(request, client_addr).await
+        self.execute_transaction_v1(request, request_type, client_addr)
+            .await
     }
 
     fn simulate_transaction(
