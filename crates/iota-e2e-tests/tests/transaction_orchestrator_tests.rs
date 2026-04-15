@@ -26,7 +26,6 @@ use iota_types::{
     },
     transaction::{Transaction, TransactionDataAPI},
 };
-use rand::rngs::OsRng;
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;
 use tracing::info;
@@ -419,53 +418,6 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .collect::<Vec<_>>();
     actual_output_objects_received.sort_by_key(|&object_ref| object_ref.object_id);
     assert_eq!(expected_output_objects, actual_output_objects_received);
-
-    Ok(())
-}
-
-/// When `force_wait_for_local_execution` is enabled on the fullnode, the
-/// orchestrator must upgrade incoming `WaitForEffectsCert` requests to
-/// `WaitForLocalExecution` — observable via `is_executed_locally = true` —
-/// and the TransactionDriver must skip the 2f+1 effects certification.
-#[sim_test]
-async fn test_force_wait_for_local_execution() -> Result<(), anyhow::Error> {
-    let mut test_cluster = TestClusterBuilder::new().build().await;
-
-    // Spawn an additional fullnode with force_wait_for_local_execution enabled.
-    let mut config = test_cluster
-        .fullnode_config_builder()
-        .build(&mut OsRng, test_cluster.swarm.config());
-    config.force_wait_for_local_execution = true;
-    let fullnode_handle = test_cluster.start_fullnode_from_config(config).await;
-
-    let orchestrator = fullnode_handle
-        .iota_node
-        .with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
-
-    let context = &mut test_cluster.wallet;
-    let mut txns = batch_make_transfer_transactions(context, 1).await;
-    let txn = txns.swap_remove(0);
-    let digest = *txn.digest();
-
-    // Client asks for WaitForEffectsCert; node config must upgrade to
-    // WaitForLocalExecution.
-    let (response, executed_locally) = execute_with_orchestrator(
-        &orchestrator,
-        txn,
-        ExecuteTransactionRequestType::WaitForEffectsCert,
-    )
-    .await
-    .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
-
-    assert!(
-        executed_locally,
-        "force_wait_for_local_execution must force local execution to be confirmed"
-    );
-    assert_eq!(
-        response.effects.effects.transaction_digest(),
-        &digest,
-        "effects must be for the submitted transaction"
-    );
 
     Ok(())
 }

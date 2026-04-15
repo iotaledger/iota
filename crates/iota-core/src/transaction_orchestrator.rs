@@ -90,10 +90,6 @@ pub struct TransactionOrchestrator<A: Clone> {
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
     notifier: Arc<NotifyRead<TransactionDigest, QuorumDriverResult>>,
     metrics: Arc<TransactionOrchestratorMetrics>,
-    /// When true, every request is forced through the `WaitForLocalExecution`
-    /// path and the TransactionDriver skips 2f+1 effects certification.
-    /// Sourced from `NodeConfig::force_wait_for_local_execution`.
-    force_wait_for_local_execution: bool,
 }
 
 impl TransactionOrchestrator<NetworkAuthorityClient> {
@@ -203,15 +199,6 @@ where
             None
         };
 
-        let force_wait_for_local_execution = node_config
-            .map(|c| c.force_wait_for_local_execution)
-            .unwrap_or(false);
-        if force_wait_for_local_execution {
-            info!(
-                "TransactionOrchestrator: force_wait_for_local_execution is ENABLED — all requests will wait for local checkpoint execution and skip 2f+1 effects certification",
-            );
-        }
-
         let metrics = Arc::new(TransactionOrchestratorMetrics::new(prometheus_registry));
         let pending_tx_log = Arc::new(WritePathPendingTransactionLog::new(
             parent_path.join("fullnode_pending_transactions"),
@@ -244,7 +231,6 @@ where
             pending_tx_log,
             notifier,
             metrics,
-            force_wait_for_local_execution,
         }
     }
 }
@@ -267,16 +253,6 @@ where
     ) -> Result<(ExecuteTransactionResponseV1, IsTransactionExecutedLocally), QuorumDriverError>
     {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
-
-        // When the node is configured to force local execution, upgrade any
-        // incoming request type to WaitForLocalExecution so the 2f+1 effects
-        // certification broadcast is skipped and the response waits for the
-        // local checkpoint executor.
-        let request_type = if self.force_wait_for_local_execution {
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        } else {
-            request_type
-        };
 
         // Use TransactionDriver if configured, otherwise fall back to QuorumDriver.
         let (transaction, response) = if let Some(td) = &self.transaction_driver {
@@ -349,30 +325,13 @@ where
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
         if let Some(td) = &self.transaction_driver {
-            // TODO(discuss): the v1 API (gRPC path) doesn't carry a request
-            // type, so we can only honor the node-level force flag here — there
-            // is no way for a gRPC caller to opt into skipped certification per
-            // request. Also note that, unlike execute_transaction_block, v1
-            // does not wait for local checkpoint execution afterwards, so when
-            // the force flag is on the caller gets a faster (uncertified)
-            // response without the local-execution guarantee.
-            //
-            // Consider reintroducing a request_type parameter on the v1 API
-            // (or its gRPC wrapper) so callers can explicitly choose
-            // WaitForLocalExecution and we can then also wait for local
-            // execution here, matching execute_transaction_block's semantics.
-            let request_type = if self.force_wait_for_local_execution {
-                ExecuteTransactionRequestType::WaitForLocalExecution
-            } else {
-                ExecuteTransactionRequestType::WaitForEffectsCert
-            };
             let (_, response) = self
                 .submit_with_transaction_driver(
                     td.clone(),
                     &epoch_store,
                     request,
                     client_addr,
-                    request_type,
+                    ExecuteTransactionRequestType::WaitForEffectsCert,
                 )
                 .await?;
             return Ok(response);
