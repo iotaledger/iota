@@ -5,7 +5,7 @@ import { getDefaultNetwork, Network } from '@iota/iota-sdk/client';
 import { useLayoutEffect, useMemo } from 'react';
 // eslint-disable-next-line no-restricted-imports
 import { useSearchParams } from 'react-router-dom';
-import { growthbook } from '~/lib/utils/growthbook';
+import { appsBackendClient } from '~/lib/utils/apps-backend';
 import { queryClient } from '~/lib/utils/queryClient';
 import * as Sentry from '@sentry/react';
 
@@ -34,7 +34,7 @@ export function useNetwork(): [string, (network: Network | string) => void] {
     };
 
     useLayoutEffect(() => {
-        growthbook.setAttributes({
+        appsBackendClient.setAttributes({
             network,
             environment: import.meta.env.VITE_VERCEL_ENV,
         });

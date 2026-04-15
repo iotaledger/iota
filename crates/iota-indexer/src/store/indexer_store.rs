@@ -17,7 +17,7 @@ use crate::{
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
-        transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
+        transactions::{OptimisticTransaction, TxGlobalOrder},
         watermarks::StoredWatermark,
     },
     pruning::pruner::PrunableTable,
@@ -98,8 +98,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn advance_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError>;
 
-    async fn prune_epoch(&self, epoch: u64) -> Result<(), IndexerError>;
-
     async fn get_network_total_transactions_by_end_of_epoch(
         &self,
         epoch: u64,
@@ -145,15 +143,46 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError>;
 
-    async fn update_status_for_checkpoint_transactions(
-        &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
-    ) -> Result<(), IndexerError>;
-
     async fn persist_tx_global_order(
         &self,
-        tx_order: Vec<CheckpointTxGlobalOrder>,
+        tx_order: Vec<TxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
+
+    async fn prune_table_by_checkpoint_range(
+        &self,
+        table: &PrunableTable,
+        min_checkpoint: u64,
+        max_checkpoint: u64,
+    ) -> Result<(), IndexerError>;
+
+    async fn prune_table_by_tx_range(
+        &self,
+        table: &PrunableTable,
+        min_tx: u64,
+        max_tx: u64,
+    ) -> Result<(), IndexerError>;
+
+    /// Prune table by global_sequence_number range with DELETE LIMIT.
+    /// Uses DELETE with LIMIT to maintain consistent batch sizes.
+    /// Returns the number of rows deleted.
+    async fn prune_table_by_global_seq_with_limit(
+        &self,
+        table: &PrunableTable,
+        start: u64,
+        end: u64,
+        limit: i64,
+    ) -> Result<usize, IndexerError>;
+
+    async fn update_watermark_lowest_unpruned_key(
+        &self,
+        table: &PrunableTable,
+        lowest_unpruned_key: u64,
+    ) -> Result<(), IndexerError>;
+
+    async fn get_watermark_by_entity(
+        &self,
+        entity: String,
+    ) -> Result<Option<StoredWatermark>, IndexerError>;
 }

@@ -613,6 +613,7 @@ mod tests {
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
             async fn get_object(&self, object_id: ObjectID, version: SequenceNumber) -> IotaResult<Option<Object>>;
+            async fn multi_get_objects(&self, object_keys: &[iota_types::storage::ObjectKey]) -> IotaResult<Vec<Option<Object>>>;
 
             async fn multi_get_transactions_perpetual_checkpoints(
                 &self,

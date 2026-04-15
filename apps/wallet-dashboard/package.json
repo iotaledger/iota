@@ -21,8 +21,7 @@
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^2.32.2",
-        "@growthbook/growthbook": "^1.0.0",
-        "@growthbook/growthbook-react": "^1.0.0",
+        "@iota/apps-backend-client": "workspace:*",
         "@iota/apps-ui-icons": "workspace:*",
         "@iota/apps-ui-kit": "workspace:*",
         "@iota/core": "workspace:*",
@@ -35,7 +34,7 @@
         "bignumber.js": "^9.1.1",
         "clsx": "^2.1.1",
         "formik": "^2.4.2",
-        "next": "^15.5.11",
+        "next": "^15.5.15",
         "react": "^18.3.1",
         "react-error-boundary": "^4.0.10",
         "zustand": "^4.4.1"

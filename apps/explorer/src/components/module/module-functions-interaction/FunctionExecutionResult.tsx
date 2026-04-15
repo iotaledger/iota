@@ -5,6 +5,7 @@
 import { LinkGroup } from './LinkGroup';
 import type { IotaTransactionBlockResponse, OwnedObjectRef } from '@iota/iota-sdk/client';
 import { Close } from '@iota/apps-ui-icons';
+import { getUserFriendlyDryRunExecutionError } from '@iota/core';
 
 interface ToObjectLink {
     text: string;
@@ -25,7 +26,8 @@ type FunctionExecutionResultProps = {
 };
 
 export function FunctionExecutionResult({ error, result, onClear }: FunctionExecutionResultProps) {
-    const adjError = error || (result && result.effects?.status.error) || null;
+    const rawError = error || (result && result.effects?.status.error) || null;
+    const adjError = rawError ? getUserFriendlyDryRunExecutionError(rawError) : null;
     return (
         <div className="relative inline-flex flex-nowrap items-center gap-2 overflow-hidden rounded-lg bg-iota-neutral-96 p-xs dark:bg-iota-neutral-12">
             <div className="space-y-4 text-body-sm">

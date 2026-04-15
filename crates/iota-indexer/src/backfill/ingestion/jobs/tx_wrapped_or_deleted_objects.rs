@@ -20,7 +20,7 @@ pub(crate) struct TxWrappedOrDeletedObjectsBackfill;
 impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
     type ProcessedType = StoredTxWrappedOrDeletedObject;
 
-    fn process_checkpoint(
+    async fn process_checkpoint(
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Vec<Self::ProcessedType>, IndexerError> {
         let checkpoint_summary = &checkpoint.checkpoint_summary;

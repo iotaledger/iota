@@ -8,14 +8,13 @@ use diesel::{
 };
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
 use iota_types::{
-    iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummary, IotaSystemStateSummaryV1,
-    },
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::CertifiedCheckpointSummary,
 };
 
 use crate::{
     errors::IndexerError,
+    models::system_state::{StoredSystemState, StoredSystemStateV1},
     schema::{epochs, feature_flags, protocol_configs},
     types::IndexedEpochInfoEvent,
 };
@@ -153,6 +152,7 @@ impl StartOfEpochUpdate {
             Some(event) => (event.total_stake, event.storage_fund_balance),
             None => (0, 0),
         };
+        let stored_system_state = StoredSystemState::from(new_system_state_summary.clone());
         Self {
             epoch: new_system_state_summary.epoch() as i64,
             first_checkpoint_id: first_checkpoint_id as i64,
@@ -162,7 +162,7 @@ impl StartOfEpochUpdate {
             protocol_version: new_system_state_summary.protocol_version().as_u64() as i64,
             total_stake: total_stake as i64,
             storage_fund_balance: storage_fund_balance as i64,
-            system_state: bcs::to_bytes(new_system_state_summary).unwrap(),
+            system_state: bcs::to_bytes(&stored_system_state).unwrap(),
         }
     }
 }
@@ -216,11 +216,11 @@ impl From<&StoredEpochInfo> for Option<EndOfEpochInfo> {
     }
 }
 
-impl TryFrom<&StoredEpochInfo> for IotaSystemStateSummary {
+impl TryFrom<&StoredEpochInfo> for StoredSystemState {
     type Error = IndexerError;
 
     fn try_from(value: &StoredEpochInfo) -> Result<Self, Self::Error> {
-        IotaSystemStateSummaryV1::try_from(value)
+        StoredSystemStateV1::try_from(value)
             .map(Into::into)
             .or_else(|_| {
                 bcs::from_bytes(&value.system_state).map_err(|_| {
@@ -232,7 +232,7 @@ impl TryFrom<&StoredEpochInfo> for IotaSystemStateSummary {
     }
 }
 
-impl TryFrom<&StoredEpochInfo> for IotaSystemStateSummaryV1 {
+impl TryFrom<&StoredEpochInfo> for StoredSystemStateV1 {
     type Error = IndexerError;
 
     fn try_from(value: &StoredEpochInfo) -> Result<Self, Self::Error> {
@@ -250,11 +250,12 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
     fn try_from(value: StoredEpochInfo) -> Result<Self, Self::Error> {
         let epoch = value.epoch as u64;
         let end_of_epoch_info = (&value).into();
-        let system_state = IotaSystemStateSummary::try_from(&value).map_err(|_| {
+        let stored_system_state = StoredSystemState::try_from(&value).map_err(|_| {
             IndexerError::PersistentStorageDataCorruption(format!(
                 "failed to deserialize `system_state` for epoch {epoch}",
             ))
         })?;
+        let system_state = IotaSystemStateSummary::from(stored_system_state);
         Ok(EpochInfo {
             epoch: value.epoch as u64,
             validators: system_state.active_validators().to_vec(),

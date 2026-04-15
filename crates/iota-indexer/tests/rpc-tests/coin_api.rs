@@ -810,7 +810,8 @@ pub async fn execute_move_call(
             Some(
                 IotaTransactionBlockResponseOptions::new()
                     .with_effects()
-                    .with_events(),
+                    .with_events()
+                    .with_object_changes(),
             ),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

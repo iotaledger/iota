@@ -29,7 +29,7 @@ harness = false
 
 [features]
 default = ["pg_backend"]
-pg_integration = []
+pg_integration = ["iota-graphql-rpc/pg_integration"]
 pg_backend = []
 
 [target.'cfg(msim)'.dependencies]

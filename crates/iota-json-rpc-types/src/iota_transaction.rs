@@ -331,7 +331,8 @@ impl Display for IotaTransactionBlockResponse {
                 mut published,
                 mut transferred,
                 mut wrapped,
-            ) = (vec![], vec![], vec![], vec![], vec![], vec![]);
+                mut unwrapped,
+            ) = (vec![], vec![], vec![], vec![], vec![], vec![], vec![]);
 
             for obj in object_changes {
                 match obj {
@@ -341,6 +342,7 @@ impl Display for IotaTransactionBlockResponse {
                     ObjectChange::Published { .. } => published.push(obj),
                     ObjectChange::Transferred { .. } => transferred.push(obj),
                     ObjectChange::Wrapped { .. } => wrapped.push(obj),
+                    ObjectChange::Unwrapped { .. } => unwrapped.push(obj),
                 };
             }
 
@@ -350,6 +352,7 @@ impl Display for IotaTransactionBlockResponse {
             write_obj_changes(published, "Published", &mut builder)?;
             write_obj_changes(transferred, "Transferred", &mut builder)?;
             write_obj_changes(wrapped, "Wrapped", &mut builder)?;
+            write_obj_changes(unwrapped, "Unwrapped", &mut builder)?;
 
             let mut table = builder.build();
             table.with(TablePanel::header("Object Changes"));

@@ -9,3 +9,8 @@ export enum BadgeType {
     Warning = 'warning',
     Error = 'error',
 }
+
+export enum BadgeSize {
+    Medium = 'medium',
+    Small = 'small',
+}

@@ -1,5 +1,13 @@
 # @iota/apps-ui-kit
 
+## 0.9.5
+
+### Patch Changes
+
+-   e19cf85: add badge size property
+-   Updated dependencies [ced5c54]
+    -   @iota/apps-ui-icons@0.7.5
+
 ## 0.9.4
 
 ### Patch Changes
