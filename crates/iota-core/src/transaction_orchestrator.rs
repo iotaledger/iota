@@ -255,7 +255,7 @@ where
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
 
         // Use TransactionDriver if configured, otherwise fall back to QuorumDriver.
-        let (transaction, response) = if let Some(td) = &self.transaction_driver {
+        let (transaction, mut response) = if let Some(td) = &self.transaction_driver {
             self.submit_with_transaction_driver(
                 td.clone(),
                 &epoch_store,
@@ -272,27 +272,6 @@ where
             (tx, resp)
         };
 
-        // Safety: uncertified effects (PendingCheckpointExecution) must never
-        // reach the client without first waiting for local checkpoint execution.
-        if matches!(
-            response.effects.finality_info,
-            EffectsFinalityInfo::PendingCheckpointExecution(_)
-        ) && !matches!(
-            request_type,
-            ExecuteTransactionRequestType::WaitForLocalExecution
-        ) {
-            debug_fatal!(
-                "Uncertified effects (PendingCheckpointExecution) about to be returned \
-                 without WaitForLocalExecution for tx {:?}",
-                response.effects.effects.transaction_digest()
-            );
-            return Err(QuorumDriverError::QuorumDriverInternal(
-                iota_types::error::IotaError::Unknown(
-                    "internal error: transaction effects not finalized".to_string(),
-                ),
-            ));
-        }
-
         let executed_locally = if matches!(
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
@@ -305,12 +284,109 @@ where
             .await
             .is_ok();
             add_server_timing("local_execution");
+
+            // Skip-certification path: the TD returned effects from a single
+            // validator (tagged PendingCheckpointExecution) which could be
+            // byzantine. After the local checkpoint executor has processed
+            // the tx, reconcile the response against the authoritative
+            // local-cache effects and upgrade the finality info.
+            if executed_locally
+                && matches!(
+                    response.effects.finality_info,
+                    EffectsFinalityInfo::PendingCheckpointExecution(_)
+                )
+            {
+                Self::reconcile_effects_from_cache(&self.validator_state, &mut response);
+            }
+
             executed_locally
         } else {
             false
         };
 
+        // Safety: uncertified effects (PendingCheckpointExecution) must never
+        // reach the client — they are from a single validator and have not
+        // been confirmed by the local checkpoint executor.
+        if matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::PendingCheckpointExecution(_)
+        ) {
+            debug_fatal!(
+                "Uncertified effects (PendingCheckpointExecution) about to be returned \
+                 to the client for tx {:?}",
+                response.effects.effects.transaction_digest()
+            );
+            return Err(QuorumDriverError::QuorumDriverInternal(
+                iota_types::error::IotaError::Unknown(
+                    "internal error: transaction effects not finalized".to_string(),
+                ),
+            ));
+        }
+
         Ok((response, executed_locally))
+    }
+
+    /// Replace the response's effects (and events, if present) with the
+    /// authoritative copies from the local cache — the local checkpoint
+    /// executor has processed the tx, so the cache has the real effects and
+    /// the TD-returned (single-validator) copy can be discarded.
+    ///
+    /// Also upgrades the finality info from `PendingCheckpointExecution` to
+    /// `QuorumExecuted`. A warning is logged if the TD-returned effects
+    /// digest diverges from the cache digest (byzantine submitter or bug).
+    fn reconcile_effects_from_cache(
+        validator_state: &Arc<AuthorityState>,
+        response: &mut ExecuteTransactionResponseV1,
+    ) {
+        use iota_types::{effects::TransactionEffectsAPI as _, message_envelope::Message as _};
+
+        let tx_digest = *response.effects.effects.transaction_digest();
+        let cache = validator_state.get_transaction_cache_reader();
+
+        let cache_effects = match cache.try_get_executed_effects(&tx_digest) {
+            Ok(Some(e)) => e,
+            Ok(None) => {
+                warn!(
+                    ?tx_digest,
+                    "reconcile_effects_from_cache: local execution succeeded but effects \
+                     are not yet in the cache"
+                );
+                return;
+            }
+            Err(e) => {
+                warn!(
+                    ?tx_digest,
+                    "reconcile_effects_from_cache: failed to read executed effects: {e:?}"
+                );
+                return;
+            }
+        };
+
+        let td_digest = response.effects.effects.digest();
+        let cache_digest = cache_effects.digest();
+        if td_digest != cache_digest {
+            warn!(
+                ?tx_digest,
+                ?td_digest,
+                ?cache_digest,
+                "reconcile_effects_from_cache: TransactionDriver and local cache disagree \
+                 on effects digest — using cache (possible byzantine submitter)"
+            );
+        }
+
+        if response.events.is_some() {
+            match cache.try_get_events(&tx_digest) {
+                Ok(events) => response.events = events,
+                Err(e) => warn!(
+                    ?tx_digest,
+                    "reconcile_effects_from_cache: failed to read events: {e:?}"
+                ),
+            }
+        }
+
+        let epoch = cache_effects.executed_epoch();
+        response.effects.effects = cache_effects;
+        response.effects.finality_info = EffectsFinalityInfo::QuorumExecuted(epoch);
     }
 
     // Utilize the handle_certificate_v1 validator api to request input/output
