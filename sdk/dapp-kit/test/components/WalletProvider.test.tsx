@@ -13,6 +13,7 @@ import {
     useWallets,
 } from '../../src/index.js';
 import { DEFAULT_STORAGE_KEY } from '../../src/constants/walletDefaults.js';
+import { getWalletUniqueIdentifier } from '../../src/utils/walletUtils.js';
 import { createMockAccount } from '../mocks/mockAccount.js';
 import { iotaFeatures, superCoolFeature } from '../mocks/mockFeatures.js';
 import { createWalletProviderContextWrapper, registerMockWallet } from '../test-utils.js';
@@ -338,7 +339,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         DEFAULT_STORAGE_KEY,
-                        serializePersistedState(mockWallet.name, account.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account.address,
+                        ),
                     );
                 });
 
@@ -371,7 +375,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         'some-other-key',
-                        serializePersistedState(mockWallet.name, account.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account.address,
+                        ),
                     );
                 });
 
@@ -414,7 +421,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         DEFAULT_STORAGE_KEY,
-                        serializePersistedState(mockWallet.name, account.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account.address,
+                        ),
                     );
                 });
 
@@ -446,7 +456,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         DEFAULT_STORAGE_KEY,
-                        serializePersistedState(mockWallet.name, account.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account.address,
+                        ),
                     );
                 });
 
@@ -493,7 +506,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         DEFAULT_STORAGE_KEY,
-                        serializePersistedState(mockWallet.name, account2.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account2.address,
+                        ),
                     );
                 });
 
@@ -536,7 +552,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         DEFAULT_STORAGE_KEY,
-                        serializePersistedState(mockWallet.name, account2.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account2.address,
+                        ),
                     );
                 });
 
@@ -578,7 +597,10 @@ describe('WalletProvider', () => {
                 act(() => {
                     dispatchStorageEvent(
                         DEFAULT_STORAGE_KEY,
-                        serializePersistedState(mockWallet.name, account2.address),
+                        serializePersistedState(
+                            getWalletUniqueIdentifier(mockWallet) ?? null,
+                            account2.address,
+                        ),
                     );
                 });
 
