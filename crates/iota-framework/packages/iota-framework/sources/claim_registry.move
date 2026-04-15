@@ -5,8 +5,7 @@
 ///
 /// `claim` validates the public key (scheme, length, address derivation),
 /// marks the sender's address as claimed, and returns a deterministic `UID`
-/// for the new account object. The UID must be consumed in the same PTB
-/// (no `drop` ability) — typically passed to an account-creation function.
+/// for the new account object.
 module iota::claim_registry;
 
 use iota::address as iota_address;
@@ -69,11 +68,8 @@ fun create(ctx: &TxContext) {
 // === Claim ===
 
 /// Validate the public key for the given `scheme` and mark `ctx.sender()` as
-/// claimed. Returns a deterministic `UID` that must be consumed in the same PTB
-/// (no `drop` ability) — typically passed to an account-creation function.
-///
-/// The returned UID is derived from the registry address and the sender, so
-/// the future account object ID is predictable off-chain via `derive_account_address`.
+/// claimed.
+/// Return a `UID` for the new account object, derived from the sender's address.
 ///
 /// Supported schemes:
 ///   0x00 Ed25519   | 0x01 Secp256k1 | 0x02 Secp256r1
