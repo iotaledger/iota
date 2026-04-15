@@ -2,14 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExplorerLinkType, Loading } from '_components';
-import {
-    useActiveAccount,
-    useActiveAddress,
-    useAppSelector,
-    useExplorerLink,
-    useShouldOpenInNewTab,
-} from '_hooks';
+import { Loading } from '_components';
+import { useActiveAccount, useActiveAddress, useAppSelector, useShouldOpenInNewTab } from '_hooks';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
@@ -27,6 +21,7 @@ import {
     useGetStardustSharedBasicObjects,
     useGetStardustSharedNftObjects,
     useGetAllBalances,
+    useGetDefaultIotaName,
     toast,
     haveSupplyIncreaseLabel,
 } from '@iota/core';
@@ -34,20 +29,33 @@ import {
     Button,
     ButtonSize,
     ButtonType,
-    Address,
     InfoBox,
     InfoBoxType,
     InfoBoxStyle,
 } from '@iota/apps-ui-kit';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
+import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
+import { formatAccountName } from '../../../helpers';
 import { Network } from '@iota/iota-sdk/client';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { ArrowBottomLeft, Info, Migration, Send, Vesting } from '@iota/apps-ui-icons';
+import {
+    ArrowBottomLeft,
+    Info,
+    IotaLogoMark,
+    Keystone,
+    Ledger,
+    Migration,
+    Passkey,
+    Send,
+    Vesting,
+} from '@iota/apps-ui-icons';
 import { Interstitial, type InterstitialConfig } from '../interstitial';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { MyTokens } from './MyTokens';
 import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 import { OverviewHint } from './OverviewHint';
@@ -65,6 +73,11 @@ export function TokenDetails() {
     const activeCoinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
+    const { data: iotaName } = useGetDefaultIotaName(activeAccountAddress);
+    const accountName = formatAccountName(activeAccount?.nickname, iotaName, activeAccountAddress);
+    const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
+    const isKeystoneAccount = activeAccount && isKeystoneAccountSerializedUI(activeAccount);
+    const isPasskeyAccount = activeAccount && isPasskeyAccountSerializedUI(activeAccount);
     const network = useAppSelector((state) => state.app.network);
     const shouldOpenNewTab = useShouldOpenInNewTab();
     const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
@@ -86,10 +99,6 @@ export function TokenDetails() {
         staleTime: 2 * 60 * 1000,
         retry: false,
         enabled: isMainnet,
-    });
-    const explorerHref = useExplorerLink({
-        type: ExplorerLinkType.Address,
-        address: activeAccountAddress,
     });
     const address = useActiveAddress();
     const {
@@ -229,41 +238,48 @@ export function TokenDetails() {
             )}
             <Loading loading={isFirstTimeLoading}>
                 {isFullScreen ? (
-                    <div className="grid h-full grid-cols-2 gap-lg" data-testid="coin-page">
-                        <div className="flex flex-col gap-md overflow-y-auto">
-                            <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
-                                <div className="flex flex-col gap-xs" data-amp-mask>
-                                    <Address
-                                        isExternal={!!explorerHref}
-                                        externalLink={explorerHref!}
-                                        text={formatAddress(activeAccountAddress)}
-                                        isCopyable
-                                        copyText={activeAccountAddress}
-                                        onCopySuccess={() => {
-                                            ampli.elementCopied({
-                                                type: 'address',
-                                            });
-                                            toast('Address copied');
-                                        }}
-                                        onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
-                                    />
+                    <div className="flex h-full flex-col gap-md" data-testid="coin-page">
+                        <div className="flex flex-col gap-md overflow-y-auto scroll-smooth [scrollbar-gutter:stable]">
+                            <div className="flex flex-col gap-xs">
+                                <Link
+                                    to="/accounts/manage"
+                                    data-testid="accounts-manage"
+                                    data-amp-mask
+                                    className="flex w-fit items-center gap-sm rounded-full py-xs px-sm no-underline transition-colors hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+                                >
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
+                                        {isLedgerAccount ? (
+                                            <Ledger />
+                                        ) : isKeystoneAccount ? (
+                                            <Keystone />
+                                        ) : isPasskeyAccount ? (
+                                            <Passkey />
+                                        ) : (
+                                            <IotaLogoMark />
+                                        )}
+                                    </div>
+                                    <span className="navbar-item-label-color truncate text-label-lg">
+                                        {accountName}
+                                    </span>
+                                </Link>
+                                <div className="flex w-full items-center justify-between gap-lg px-sm py-md">
                                     <CoinBalance amount={tokenBalance} type={activeCoinType} />
-                                </div>
-                                <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
-                                    <Button
-                                        onClick={() => setDialogReceiveOpen(true)}
-                                        type={ButtonType.Secondary}
-                                        icon={<ArrowBottomLeft />}
-                                        size={ButtonSize.Small}
-                                        testId="receive-coin-button"
-                                    />
-                                    <Button
-                                        onClick={onSendClick}
-                                        icon={<Send />}
-                                        size={ButtonSize.Small}
-                                        disabled={!coinBalances?.length}
-                                        testId="send-coin-button"
-                                    />
+                                    <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
+                                        <Button
+                                            onClick={() => setDialogReceiveOpen(true)}
+                                            type={ButtonType.Secondary}
+                                            icon={<ArrowBottomLeft />}
+                                            size={ButtonSize.Small}
+                                            testId="receive-coin-button"
+                                        />
+                                        <Button
+                                            onClick={onSendClick}
+                                            icon={<Send />}
+                                            size={ButtonSize.Small}
+                                            disabled={!coinBalances?.length}
+                                            testId="send-coin-button"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex w-full flex-col items-center gap-xs">
@@ -302,7 +318,7 @@ export function TokenDetails() {
                                 ) : null}
                             </div>
                         </div>
-                        <div className="flex flex-col overflow-y-auto">
+                        <div className="flex flex-col overflow-y-auto scroll-smooth [scrollbar-gutter:stable]">
                             {coinBalances?.length ? (
                                 <MyTokens
                                     coinBalances={coinBalances ?? []}
@@ -314,45 +330,52 @@ export function TokenDetails() {
                     </div>
                 ) : (
                     <div
-                        className="flex h-full flex-1 flex-grow flex-col items-center gap-md"
+                        className="flex h-full flex-1 flex-grow flex-col gap-md"
                         data-testid="coin-page"
                     >
-                        <div className="flex w-full items-center justify-between gap-lg px-sm py-lg">
-                            <div className="flex flex-col gap-xs" data-amp-mask>
-                                <Address
-                                    isExternal={!!explorerHref}
-                                    externalLink={explorerHref!}
-                                    text={formatAddress(activeAccountAddress)}
-                                    isCopyable
-                                    copyText={activeAccountAddress}
-                                    onCopySuccess={() => {
-                                        ampli.elementCopied({
-                                            type: 'address',
-                                        });
-                                        toast('Address copied');
-                                    }}
-                                    onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
-                                />
+                        <div className="flex flex-col gap-xs">
+                            <Link
+                                to="/accounts/manage"
+                                data-testid="accounts-manage"
+                                data-amp-mask
+                                className="flex w-fit items-center gap-sm rounded-full py-xs px-sm no-underline transition-colors hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8"
+                            >
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
+                                    {isLedgerAccount ? (
+                                        <Ledger />
+                                    ) : isKeystoneAccount ? (
+                                        <Keystone />
+                                    ) : isPasskeyAccount ? (
+                                        <Passkey />
+                                    ) : (
+                                        <IotaLogoMark />
+                                    )}
+                                </div>
+                                <span className="navbar-item-label-color truncate text-label-lg">
+                                    {accountName}
+                                </span>
+                            </Link>
+                            <div className="flex w-full items-center justify-between gap-lg px-sm py-md">
                                 <CoinBalance amount={tokenBalance} type={activeCoinType} />
-                            </div>
-                            <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
-                                <Button
-                                    onClick={() => setDialogReceiveOpen(true)}
-                                    type={ButtonType.Secondary}
-                                    icon={<ArrowBottomLeft />}
-                                    size={ButtonSize.Small}
-                                    testId="receive-coin-button"
-                                />
-                                <Button
-                                    onClick={onSendClick}
-                                    icon={<Send />}
-                                    size={ButtonSize.Small}
-                                    disabled={!coinBalances?.length}
-                                    testId="send-coin-button"
-                                />
+                                <div className="flex gap-xs [&_svg]:h-5 [&_svg]:w-5">
+                                    <Button
+                                        onClick={() => setDialogReceiveOpen(true)}
+                                        type={ButtonType.Secondary}
+                                        icon={<ArrowBottomLeft />}
+                                        size={ButtonSize.Small}
+                                        testId="receive-coin-button"
+                                    />
+                                    <Button
+                                        onClick={onSendClick}
+                                        icon={<Send />}
+                                        size={ButtonSize.Small}
+                                        disabled={!coinBalances?.length}
+                                        testId="send-coin-button"
+                                    />
+                                </div>
                             </div>
                         </div>
-                        <div className="flex w-full flex-grow flex-col gap-md">
+                        <div className="flex min-h-0 w-full flex-grow flex-col gap-md overflow-y-auto scroll-smooth">
                             <div
                                 className={`flex w-full flex-col items-center gap-xs rounded-2xl ${!accountHasIota ? 'flex-grow justify-between' : ''}`}
                             >

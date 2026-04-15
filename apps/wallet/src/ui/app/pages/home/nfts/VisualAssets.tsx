@@ -14,6 +14,9 @@ import {
     toast,
 } from '@iota/core';
 import { VisibilityOff } from '@iota/apps-ui-icons';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { useAppSelector } from '_src/ui/app/hooks/useAppSelector';
+import { cx } from 'class-variance-authority';
 
 interface VisualAssetsProps {
     items: IotaObjectData[];
@@ -22,6 +25,8 @@ interface VisualAssetsProps {
 export function VisualAssets({ items }: VisualAssetsProps) {
     const { hideAsset, showAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
+    const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
 
     async function handleHideAsset(
         event: React.MouseEvent<HTMLButtonElement>,
@@ -55,7 +60,7 @@ export function VisualAssets({ items }: VisualAssetsProps) {
     }
 
     return (
-        <div className="grid w-full grid-cols-2 gap-md">
+        <div className={cx('grid w-full gap-md', isFullScreen ? 'grid-cols-3' : 'grid-cols-2')}>
             {items.map((object) => (
                 <Link
                     to={

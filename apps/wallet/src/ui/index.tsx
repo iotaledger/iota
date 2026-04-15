@@ -24,6 +24,7 @@ import { IotaClientProvider } from '@iota/dapp-kit';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import cn from 'clsx';
 import { Fragment, StrictMode } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { HashRouter } from 'react-router-dom';
@@ -106,27 +107,29 @@ function AppWrapper() {
                                                         <UnlockAccountsProvider>
                                                             <ClipboardPasteSafetyWrapper>
                                                                 <KeystoneProvider>
-                                                                    <div
-                                                                        className={cn(
-                                                                            'relative flex flex-col flex-nowrap items-center justify-center overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6',
-                                                                            extensionViewType ===
-                                                                                ExtensionViewType.SidePanel
-                                                                                ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
-                                                                                : extensionViewType ===
-                                                                                    ExtensionViewType.FullScreen
-                                                                                  ? 'h-[90vh] w-4/5'
-                                                                                  : 'h-screen max-h-popup-height min-h-popup-minimum w-[480px]',
-                                                                            extensionViewType ===
-                                                                                ExtensionViewType.Popup
-                                                                                ? ''
-                                                                                : 'rounded-xl shadow-lg',
-                                                                        )}
-                                                                    >
-                                                                        <ErrorBoundary>
-                                                                            <App />
-                                                                        </ErrorBoundary>
-                                                                        <div id="toaster-portal-container"></div>
-                                                                    </div>
+                                                                    <MotionConfig reducedMotion="user">
+                                                                        <div
+                                                                            className={cn(
+                                                                                'relative flex flex-col flex-nowrap items-center justify-center overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6',
+                                                                                extensionViewType ===
+                                                                                    ExtensionViewType.SidePanel
+                                                                                    ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
+                                                                                    : extensionViewType ===
+                                                                                        ExtensionViewType.FullScreen
+                                                                                      ? 'h-[90vh] w-[min(80vw,_960px)]'
+                                                                                      : 'h-screen max-h-popup-height min-h-popup-minimum w-[480px]',
+                                                                                extensionViewType ===
+                                                                                    ExtensionViewType.Popup
+                                                                                    ? ''
+                                                                                    : 'rounded-xl shadow-lg',
+                                                                            )}
+                                                                        >
+                                                                            <ErrorBoundary>
+                                                                                <App />
+                                                                            </ErrorBoundary>
+                                                                            <div id="toaster-portal-container"></div>
+                                                                        </div>
+                                                                    </MotionConfig>
                                                                 </KeystoneProvider>
                                                             </ClipboardPasteSafetyWrapper>
                                                         </UnlockAccountsProvider>

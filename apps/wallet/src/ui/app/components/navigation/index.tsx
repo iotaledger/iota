@@ -4,29 +4,14 @@
 
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Navbar, type NavbarItemWithId } from '@iota/apps-ui-kit';
-import {
-    Activity,
-    Apps,
-    Assets,
-    Close,
-    Globe,
-    Home,
-    IotaLogoMark,
-    Keystone,
-    Ledger,
-    Passkey,
-    Settings,
-} from '@iota/apps-ui-icons';
-import { useAppSelector, useActiveAccount } from '_hooks';
+import { Activity, Apps, Assets, Close, Globe, Home, Settings } from '@iota/apps-ui-icons';
+import { useAppSelector } from '_hooks';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { useMenuIsOpen, useNextMenuUrl } from '_components';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
-import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
-import { useGetDefaultIotaName, getCustomNetwork } from '@iota/core';
-import { formatAccountName } from '../../helpers';
+import { getCustomNetwork } from '@iota/core';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import cx from 'clsx';
+import { motion } from 'framer-motion';
 
 type NavbarItemWithPath = NavbarItemWithId & {
     path: string;
@@ -39,17 +24,6 @@ export function Navigation() {
     const isFullScreen = extensionViewType === ExtensionViewType.FullScreen;
     const isPopup = extensionViewType === ExtensionViewType.Popup;
     const useSidebar = isFullScreen || isPopup;
-
-    const activeAccount = useActiveAccount();
-    const { data: iotaName } = useGetDefaultIotaName(activeAccount?.address);
-    const accountName = formatAccountName(
-        activeAccount?.nickname,
-        iotaName,
-        activeAccount?.address,
-    );
-    const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
-    const isKeystoneAccount = activeAccount && isKeystoneAccountSerializedUI(activeAccount);
-    const isPasskeyAccount = activeAccount && isPasskeyAccountSerializedUI(activeAccount);
 
     const network = useAppSelector(({ app }) => app.network);
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
@@ -87,47 +61,45 @@ export function Navigation() {
                     sidebarWidth,
                 )}
             >
-                <Link
-                    to="/accounts/manage"
-                    className={cx(
-                        'mb-sm flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
-                        isFullScreen ? 'gap-3 px-xs' : 'justify-center px-xs',
-                    )}
-                    data-testid="accounts-manage"
+                <motion.div
+                    className="flex w-full flex-col gap-xs"
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                        hidden: {},
+                        visible: { transition: { staggerChildren: 0.03, delayChildren: 0.04 } },
+                    }}
                 >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-iota-primary-30 [&_svg]:h-5 [&_svg]:w-5 [&_svg]:text-white">
-                        {isLedgerAccount ? (
-                            <Ledger />
-                        ) : isKeystoneAccount ? (
-                            <Keystone />
-                        ) : isPasskeyAccount ? (
-                            <Passkey />
-                        ) : (
-                            <IotaLogoMark />
-                        )}
-                    </div>
-                    {isFullScreen && (
-                        <span className="navbar-item-label-color truncate text-label-lg">
-                            {accountName}
-                        </span>
-                    )}
-                </Link>
-
-                <div className="flex w-full flex-col gap-xs">
                     {NAVBAR_ITEMS.map((item) => (
-                        <div
+                        <motion.div
                             key={item.id}
                             role="button"
                             onClick={() => handleItemClick(item.id)}
                             data-testid={`nav-${item.id}`}
                             className={cx(
                                 'state-layer-secondary relative flex cursor-pointer flex-row items-center rounded-full',
-                                isFullScreen ? 'gap-3 px-xs py-[6px]' : 'justify-center py-xs',
+                                isFullScreen ? 'gap-sm px-xs py-xs' : 'justify-center py-xs',
                             )}
+                            variants={{
+                                hidden: { opacity: 0 },
+                                visible: {
+                                    opacity: 1,
+                                    transition: { duration: 0.12, ease: 'easeOut' },
+                                },
+                            }}
+                            whileTap={{ scale: 0.94 }}
+                            transition={{ duration: 0.08, ease: [0.25, 1, 0.5, 1] }}
                         >
+                            {item.id === activeId && (
+                                <motion.div
+                                    layoutId="sidebar-active-indicator"
+                                    className="absolute inset-0 rounded-full bg-shader-primary-light-12 dark:bg-shader-primary-dark-12"
+                                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                                />
+                            )}
                             <div
                                 className={cx(
-                                    'inline-flex [&_svg]:h-6 [&_svg]:w-6',
+                                    'relative inline-flex transition-colors duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)] [&_svg]:h-6 [&_svg]:w-6',
                                     item.id === activeId
                                         ? 'navbar-item-icon-selected-color'
                                         : 'navbar-item-icon-color',
@@ -138,7 +110,7 @@ export function Navigation() {
                             {isFullScreen && (
                                 <span
                                     className={cx(
-                                        'text-label-lg',
+                                        'relative text-label-lg transition-colors duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)]',
                                         item.id === activeId
                                             ? 'navbar-item-label-selected-color'
                                             : 'navbar-item-label-color',
@@ -147,29 +119,21 @@ export function Navigation() {
                                     {item.text}
                                 </span>
                             )}
-                        </div>
+                        </motion.div>
                     ))}
-                </div>
+                </motion.div>
 
                 <div className="mt-auto flex w-full flex-col">
                     <Link
                         to={networkUrl}
                         className={cx(
                             'flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
-                            isFullScreen ? 'gap-3 px-xs py-xs' : 'justify-center py-xs',
+                            isFullScreen ? 'gap-sm px-xs py-xs' : 'justify-center py-xs',
                         )}
                         aria-label={`Network: ${networkName}`}
                     >
-                        <div
-                            className={cx(
-                                'flex shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6',
-                            )}
-                        >
-                            {isFullScreen ? (
-                                <Globe className="navbar-item-icon-color" />
-                            ) : (
-                                <Globe className="navbar-item-icon-color" />
-                            )}
+                        <div className="flex shrink-0 items-center justify-center [&_svg]:h-6 [&_svg]:w-6">
+                            <Globe className="navbar-item-icon-color" />
                         </div>
                         {isFullScreen && (
                             <span className="navbar-item-label-color truncate text-label-lg">
@@ -182,7 +146,7 @@ export function Navigation() {
                         to={menuUrl}
                         className={cx(
                             'flex flex-row items-center rounded-full no-underline hover:bg-shader-neutral-light-8 dark:hover:bg-shader-neutral-dark-8',
-                            isFullScreen ? 'gap-3 px-xs py-xs' : 'justify-center py-xs',
+                            isFullScreen ? 'gap-sm px-xs py-xs' : 'justify-center py-xs',
                             isMenuOpen &&
                                 'bg-shader-primary-light-12 dark:bg-shader-primary-dark-12',
                         )}

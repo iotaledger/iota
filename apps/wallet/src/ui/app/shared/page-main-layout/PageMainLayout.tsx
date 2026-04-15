@@ -2,15 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ErrorBoundary, MenuContent, Navigation } from '_components';
+import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_components';
 import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useLocation, Link } from 'react-router-dom';
 import { useAppSelector, useActiveAccount } from '_hooks';
 import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
-import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
@@ -19,7 +20,6 @@ import { useGetDefaultIotaName } from '@iota/core';
 import { formatAccountName } from '../../helpers';
 import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
-import { WalletSettingsButton } from '_components';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -42,6 +42,10 @@ export function PageMainLayout({
     const useSidebar = isFullScreen || isPopup;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isHomePage = window.location.hash === '#/tokens';
+    const location = useLocation();
+    // Key by the top-level route segment so only tab switches trigger the crossfade,
+    // not every sub-page navigation within a section.
+    const topLevelRoute = location.pathname.split('/')[1] ?? '';
 
     return (
         <div
@@ -62,15 +66,26 @@ export function PageMainLayout({
                     >
                         <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                             <div id="overlay-portal-container" />
-                            <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
-                                <main
-                                    className={cn('flex w-full flex-grow flex-col', {
-                                        'h-full': !isHomePage,
-                                    })}
-                                >
-                                    <PageMainLayoutContext.Provider value={titlePortalContainer}>
-                                        <ErrorBoundary>{children}</ErrorBoundary>
-                                    </PageMainLayoutContext.Provider>
+                            <div className="flex h-full flex-col overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
+                                <main className="flex h-full w-full flex-col overflow-hidden">
+                                    <AnimatePresence initial={false}>
+                                        <motion.div
+                                            key={topLevelRoute}
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{
+                                                duration: 0.22,
+                                                ease: [0.16, 1, 0.3, 1],
+                                            }}
+                                            className="flex h-full w-full flex-col"
+                                        >
+                                            <PageMainLayoutContext.Provider
+                                                value={titlePortalContainer}
+                                            >
+                                                <ErrorBoundary>{children}</ErrorBoundary>
+                                            </PageMainLayoutContext.Provider>
+                                        </motion.div>
+                                    </AnimatePresence>
                                 </main>
                                 <Toaster bottomNavEnabled={bottomNavEnabled} />
                             </div>
@@ -90,16 +105,30 @@ export function PageMainLayout({
                     ) : null}
                     <div className="relative flex flex-grow flex-col flex-nowrap overflow-hidden">
                         <div id="overlay-portal-container" />
-                        <div className="flex flex-grow flex-col flex-nowrap overflow-y-auto overflow-x-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
+                        <div className="flex h-full flex-col overflow-hidden bg-iota-neutral-100 dark:bg-iota-neutral-6">
                             <main
-                                className={cn('flex w-full flex-grow flex-col', {
+                                className={cn('flex h-full w-full flex-col overflow-hidden', {
                                     'p-5': bottomNavEnabled && isHomePage,
-                                    'h-full': !isHomePage,
                                 })}
                             >
-                                <PageMainLayoutContext.Provider value={titlePortalContainer}>
-                                    <ErrorBoundary>{children}</ErrorBoundary>
-                                </PageMainLayoutContext.Provider>
+                                <AnimatePresence initial={false}>
+                                    <motion.div
+                                        key={topLevelRoute}
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{
+                                            duration: 0.22,
+                                            ease: [0.16, 1, 0.3, 1],
+                                        }}
+                                        className="flex h-full w-full flex-col"
+                                    >
+                                        <PageMainLayoutContext.Provider
+                                            value={titlePortalContainer}
+                                        >
+                                            <ErrorBoundary>{children}</ErrorBoundary>
+                                        </PageMainLayoutContext.Provider>
+                                    </motion.div>
+                                </AnimatePresence>
                             </main>
                             <Toaster bottomNavEnabled={bottomNavEnabled} />
                         </div>
