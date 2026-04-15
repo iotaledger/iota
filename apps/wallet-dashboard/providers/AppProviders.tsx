@@ -72,7 +72,6 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                             <IotaNamesClientProvider>
                                 <KioskClientProvider>
                                     <WalletProvider
-                                        syncTabs
                                         autoConnect={true}
                                         theme={[
                                             {
