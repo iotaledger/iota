@@ -360,13 +360,20 @@ impl InMemory {
                 // when switching from historical to live, the broadcast buffer may
                 // contain transactions already delivered by the historical backfill.
                 // Filter them out using the cursor to prevent duplicates.
-                .chain(live_stream.filter(move |result| {
-                    future::ready(match result {
-                        Ok(tx) => tx.tx_sequence_number >= cursor.load(Ordering::Relaxed),
-                        // we must include errors.
-                        Err(_) => true,
+                .chain({
+                    let mut initial_lagged_skipped = false;
+                    live_stream.skip_while(move |result| {
+                        future::ready(match result {
+                            Ok(tx) => tx.tx_sequence_number < cursor.load(Ordering::Relaxed),
+                            Err(IndexerStreamingError::Lagged(_)) if !initial_lagged_skipped => {
+                                initial_lagged_skipped = true;
+                                true // skip this one
+                            }
+                            // surface any other error or second Lagged
+                            Err(_) => false,
+                        })
                     })
-                })),
+                }),
         )
     }
 
@@ -458,13 +465,20 @@ impl InMemory {
                 // when switching from historical to live, the broadcast buffer may
                 // contain transactions already delivered by the historical backfill.
                 // Filter them out using the cursor to prevent duplicates.
-                .chain(live_stream.filter(move |result| {
-                    future::ready(match result {
-                        Ok(tx) => tx.tx_sequence_number >= cursor.load(Ordering::Relaxed),
-                        // we must include errors.
-                        Err(_) => true,
+                .chain({
+                    let mut initial_lagged_skipped = false;
+                    live_stream.skip_while(move |result| {
+                        future::ready(match result {
+                            Ok(tx) => tx.tx_sequence_number < cursor.load(Ordering::Relaxed),
+                            Err(IndexerStreamingError::Lagged(_)) if !initial_lagged_skipped => {
+                                initial_lagged_skipped = true;
+                                true // skip this one
+                            }
+                            // surface any other error or second Lagged
+                            Err(_) => false,
+                        })
                     })
-                })),
+                }),
         )
     }
 
