@@ -863,35 +863,40 @@ impl ConsensusAdapter {
                 )
             };
         let send_end_of_publish = if is_user_tx {
-            // If we are in `RejectUserCerts` state, we need to send `EndOfPublish` to
-            // signal other validators that we are not submitting more user
-            // transactions in the epoch. Note that there could be a race condition
-            // here where we enter this check in `RejectAllCerts` state. In that case
-            // we don't need to send `EndOfPublish` because the condition to enter
-            // `RejectAllCerts` is when 2f+1 other validators already sequenced their
-            // `EndOfPublish` message. Also note that we could send multiple
-            // `EndOfPublish` messages because multiple tasks can enter here
-            // concurrently. This doesn't affect correctness.
-            if epoch_store
-                .get_reconfig_state_read_lock_guard()
-                .is_reject_user_certs()
-            {
-                if epoch_store.protocol_config().enable_white_flag_flow() {
-                    // In the certificate-less mode, there are no pending consensus
-                    // certificates, so `EndOfPublish` is always sent immediately.
-                    debug!(epoch=?epoch_store.epoch(), "Sending EndOfPublish in certificate-less mode");
-
-                    true
-                } else {
-                    // In certificate mode, `EndOfPublish` is sent only once the list
-                    // of pending consensus certificates is drained.
+            if epoch_store.protocol_config().enable_white_flag_flow() {
+                // In certificate-less mode, `EndOfPublish` is sent solely from
+                // `close_epoch`. There is no pending certificate drain to
+                // monitor here, and sending from this per-transaction callback
+                // would produce N duplicate EndOfPublish messages (one per
+                // in-flight user transaction completing after `RejectUserCerts`
+                // is set).
+                false
+            } else {
+                // In certificate mode, `EndOfPublish` is sent once the list of
+                // pending consensus certificates is drained. Multiple tasks can
+                // enter here concurrently with `pending_count == 0`, producing
+                // duplicate messages — this is rare and does not affect
+                // correctness.
+                //
+                // Note: there could be a race condition here where we enter
+                // this check in `RejectAllCerts` state. In that case we don't
+                // need to send `EndOfPublish` because the condition to enter
+                // `RejectAllCerts` is when 2f+1 other validators already
+                // sequenced their `EndOfPublish` message.
+                //
+                // TODO: This entire certificate-mode drain logic can be removed
+                // once the certificate flow is fully cleaned up.
+                if epoch_store
+                    .get_reconfig_state_read_lock_guard()
+                    .is_reject_user_certs()
+                {
                     let pending_count = epoch_store.pending_consensus_certificates_count();
                     debug!(epoch=?epoch_store.epoch(), ?pending_count, "Deciding whether to send EndOfPublish");
 
                     pending_count == 0 // send end of epoch if no pending certificates
+                } else {
+                    false
                 }
-            } else {
-                false
             }
         } else {
             false
