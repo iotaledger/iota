@@ -86,9 +86,22 @@ impl ValidatorV2API for LocalAuthorityClient {
     }
     async fn notify_capabilities_v2(
         &self,
-        _request: HandleCapabilityNotificationRequestV1,
+        request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
-        unimplemented!()
+        let state = self.state.clone();
+        let epoch_store = state.load_epoch_store_one_call_per_task();
+
+        let verified_authority_capabilities =
+            epoch_store.verify_authority_capabilities(request.message)?;
+
+        info!(
+            "Received capability notification (v2): {:?}",
+            verified_authority_capabilities.data()
+        );
+
+        epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
+
+        Ok(HandleCapabilityNotificationResponseV1 { _unused: false })
     }
     async fn health_check(
         &self,
@@ -354,7 +367,12 @@ impl ValidatorV2API for MockAuthorityApi {
         &self,
         _request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
-        unimplemented!()
+        tokio::time::sleep(self.delay).await;
+
+        match &self.handle_capability_notification_result {
+            Some(result) => result.clone(),
+            None => Ok(HandleCapabilityNotificationResponseV1 { _unused: false }),
+        }
     }
     async fn health_check(
         &self,
