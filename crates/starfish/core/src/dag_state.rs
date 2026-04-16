@@ -1952,11 +1952,19 @@ impl DagState {
     /// (protocol_config.gc_depth)" and the eviction round of corresponding
     /// authority
     pub(crate) fn evict_transactions(&mut self) {
+        let fast_sync = self.fast_sync_ongoing();
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            // Take minimum between transaction_gc_round and eviction_round
-            let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
+            // During fast sync, recent_headers_refs_by_authority is frozen (no
+            // headers are added), so calculate_authority_eviction_round returns
+            // a stale value near GENESIS_ROUND. Use the commit-based GC round
+            // directly — all transactions are persisted before eviction runs.
+            let transaction_eviction_round = if fast_sync {
+                transaction_gc_round
+            } else {
+                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                min(transaction_gc_round, eviction_round + 1)
+            };
 
             // Evict everything below split_key
             let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
@@ -1978,10 +1986,15 @@ impl DagState {
     }
 
     pub(crate) fn evict_tx_ref_to_block_digests(&mut self) {
+        let fast_sync = self.fast_sync_ongoing();
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let eviction_round = min(transaction_gc_round, eviction_round + 1);
+            let eviction_round = if fast_sync {
+                transaction_gc_round
+            } else {
+                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                min(transaction_gc_round, eviction_round + 1)
+            };
             let split_key = (eviction_round, TransactionsCommitment::MIN);
             self.tx_ref_to_block_digest_by_authority[authority_index] =
                 self.tx_ref_to_block_digest_by_authority[authority_index].split_off(&split_key);
@@ -2183,61 +2196,59 @@ impl DagState {
         let voting_block_headers = std::mem::take(&mut self.voting_block_headers_to_write);
         let fast_commit_sync_flag = self.fast_sync_ongoing_flag_to_write.take();
 
-        // Early return if there's nothing to flush
-        if transactions.is_empty()
-            && block_headers.is_empty()
-            && commits.is_empty()
-            && commit_info.is_empty()
-            && voting_block_headers.is_empty()
-            && fast_commit_sync_flag.is_none()
-        {
-            return;
+        let has_data_to_write = !transactions.is_empty()
+            || !block_headers.is_empty()
+            || !commits.is_empty()
+            || !commit_info.is_empty()
+            || !voting_block_headers.is_empty()
+            || fast_commit_sync_flag.is_some();
+
+        if has_data_to_write {
+            debug!(
+                "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
+                block_headers.len(),
+                block_headers
+                    .iter()
+                    .map(|b| b.reference().to_string())
+                    .join(","),
+                transactions.len(),
+                transactions
+                    .iter()
+                    .map(|b| b.transactions_commitment().to_string())
+                    .join(","),
+                commits.len(),
+                commits.iter().map(|c| c.reference().to_string()).join(","),
+                commit_info.len(),
+                commit_info
+                    .iter()
+                    .map(|(commit_ref, _)| commit_ref.to_string())
+                    .join(","),
+                fast_commit_sync_flag
+                    .map(|f| f.to_string())
+                    .unwrap_or_else(|| "unchanged".to_string())
+            );
+
+            // Write all buffered data to storage
+            self.store
+                .write(
+                    WriteBatch::new(
+                        transactions,
+                        block_headers,
+                        commits,
+                        commit_info,
+                        voting_block_headers,
+                        fast_commit_sync_flag,
+                    ),
+                    self.context.clone(),
+                )
+                .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
+
+            self.context
+                .metrics
+                .node_metrics
+                .dag_state_store_write_count
+                .inc();
         }
-
-        debug!(
-            "Flushing {} block headers ({}), {} transactions ({}), {} commits ({}) and {} commit info ({}) and fast commit sync flag ({}) to storage.",
-            block_headers.len(),
-            block_headers
-                .iter()
-                .map(|b| b.reference().to_string())
-                .join(","),
-            transactions.len(),
-            transactions
-                .iter()
-                .map(|b| b.transactions_commitment().to_string())
-                .join(","),
-            commits.len(),
-            commits.iter().map(|c| c.reference().to_string()).join(","),
-            commit_info.len(),
-            commit_info
-                .iter()
-                .map(|(commit_ref, _)| commit_ref.to_string())
-                .join(","),
-            fast_commit_sync_flag
-                .map(|f| f.to_string())
-                .unwrap_or_else(|| "unchanged".to_string())
-        );
-
-        // Write all buffered data to storage
-        self.store
-            .write(
-                WriteBatch::new(
-                    transactions,
-                    block_headers,
-                    commits,
-                    commit_info,
-                    voting_block_headers,
-                    fast_commit_sync_flag,
-                ),
-                self.context.clone(),
-            )
-            .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
-
-        self.context
-            .metrics
-            .node_metrics
-            .dag_state_store_write_count
-            .inc();
 
         // Clean up old headers
         self.evict_headers();
@@ -4059,6 +4070,140 @@ mod test {
         assert_eq!(
             cached_headers.last().map(|header| header.round()),
             Some(last_accepted_round)
+        );
+    }
+
+    /// Ensures `flush()` performs eviction even when there is nothing to write,
+    /// so changes in `last_solid_subdag_base` take effect.
+    #[rstest]
+    #[tokio::test]
+    async fn test_flush_evicts_transactions_without_pending_writes(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        const CACHED_ROUNDS: Round = 5;
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let num_rounds: u32 = 200;
+        let mut dag_builder = DagBuilder::new(context);
+        dag_builder.layers(1..=num_rounds).build();
+        let mut subdag_bases = vec![];
+        let mut commits = vec![];
+        for (subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            subdag_bases.push(subdag.base);
+            commits.push(commit);
+        }
+
+        dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds), DataSource::Test);
+        for verified_transactions in dag_builder.transactions(1..=num_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::Test);
+        }
+        for commit in &commits {
+            dag_state.add_commit(commit.clone());
+        }
+
+        // First flush before updating the solid base.
+        dag_state.flush();
+
+        let transactions_after_first_flush: usize = dag_state
+            .recent_transactions_by_authority
+            .iter()
+            .map(BTreeMap::len)
+            .sum();
+
+        // Advance the solid base.
+        dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
+
+        // Second flush: no pending writes, but the solid base has advanced.
+        dag_state.flush();
+
+        let transactions_after_second_flush: usize = dag_state
+            .recent_transactions_by_authority
+            .iter()
+            .map(BTreeMap::len)
+            .sum();
+
+        // The second flush should evict additional transactions because the
+        // solid base advanced.
+        assert!(
+            transactions_after_second_flush < transactions_after_first_flush,
+            "Second flush should evict transactions when solid base advances. \
+             Before: {transactions_after_first_flush}, after: {transactions_after_second_flush}"
+        );
+    }
+
+    /// Ensures transaction eviction during fast sync does not depend on cached
+    /// headers (so `recent_headers_refs_by_authority` may be empty).
+    #[rstest]
+    #[tokio::test]
+    async fn test_fast_sync_transaction_eviction_without_headers(
+        #[values(true, false)] consensus_fast_commit_sync: bool,
+    ) {
+        telemetry_subscribers::init_for_testing();
+        let num_authorities: u32 = 4;
+        let (mut context, _) = Context::new_for_test(num_authorities as usize);
+        context
+            .protocol_config
+            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        const CACHED_ROUNDS: Round = 5;
+        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
+        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new(context.clone()));
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let num_rounds: u32 = 200;
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=num_rounds).build();
+        let mut subdag_bases = vec![];
+        let mut commits = vec![];
+        for (subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+            subdag_bases.push(subdag.base);
+            commits.push(commit);
+        }
+
+        // Simulate fast sync: add transactions and commits but no headers,
+        // leaving recent_headers_refs_by_authority empty.
+        for verified_transactions in dag_builder.transactions(1..=num_rounds) {
+            dag_state.add_transactions(verified_transactions, DataSource::FastCommitSyncer);
+        }
+        for commit in &commits {
+            dag_state.add_commit(commit.clone());
+        }
+        dag_state.update_last_solid_subdag_base(subdag_bases.last().unwrap().clone());
+        // Set the fast sync flag. It is persisted on flush so
+        // fast_sync_ongoing() returns true when eviction runs.
+        dag_state.set_fast_sync_ongoing_flag(true);
+
+        dag_state.flush();
+
+        let total_cached: usize = dag_state
+            .recent_transactions_by_authority
+            .iter()
+            .map(BTreeMap::len)
+            .sum();
+
+        let gc_depth = context.protocol_config.gc_depth();
+        // Transactions are expected to be bounded by the GC window, not by
+        // num_rounds.
+        // With gc_round = last_solid_leader_round - gc_depth * 2, the cached
+        // count is roughly authorities * 2 * gc_depth (plus a small margin for
+        // leader-round alignment).
+        let max_expected = num_authorities as usize * (2 * gc_depth as usize + 2);
+        assert!(
+            total_cached <= max_expected,
+            "Expected cached transactions ({total_cached}) to be <= ~{max_expected}; \
+             would be {} without eviction (authorities * rounds)",
+            num_authorities as usize * num_rounds as usize,
         );
     }
 
