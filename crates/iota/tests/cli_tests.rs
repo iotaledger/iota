@@ -2380,7 +2380,7 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
     // Hacky for now: we need to add the correct `published-at` field to the Move
     // toml file. In the future once we have automated address management
     // replace this logic!
-    let tmp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     fs_extra::dir::copy(
         &package_path,
         tmp_dir.path(),
@@ -2534,7 +2534,7 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     // arbitrary `lock_file` path specified in `BuildConfig` when the
     // `Move.lock` file is an input for upgrades, so we change the `BuildConfig`
     // `lock_file` to point to the root directory of package-to-be-upgraded.
-    let tmp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     fs_extra::dir::copy(
         &package_path,
         tmp_dir.path(),
@@ -2688,7 +2688,7 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
         .unwrap();
 
     // Set up a temporary working directory  for upgrading.
-    let tmp_dir = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     fs_extra::dir::copy(
         &package_path,
         tmp_dir.path(),
@@ -5071,7 +5071,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 
     let context = test_cluster.wallet;
 
-    let tmp = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus::Registry::new();
     let config = iota_faucet::FaucetConfig::default();
 
@@ -5080,7 +5080,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
             &prometheus_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config.clone(),
         )
         .await
@@ -5129,7 +5129,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
 
     let context = test_cluster.wallet;
 
-    let tmp = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
@@ -5141,7 +5141,7 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
             &prometheus_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config.clone(),
         )
         .await
@@ -5256,7 +5256,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
 
     let context = test_cluster.wallet;
 
-    let tmp = tempfile::tempdir().unwrap();
+    let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
@@ -5268,7 +5268,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
         faucet: iota_faucet::SimpleFaucet::new(
             context,
             &prometheus_registry,
-            &tmp.path().join("faucet.wal"),
+            &tmp_dir.path().join("faucet.wal"),
             config.clone(),
         )
         .await

@@ -108,9 +108,9 @@ mod compatibility_tests {
     }
 
     fn clone_repo_to_temp() -> (TempDir, PathBuf) {
-        let temp_dir = tempfile::tempdir().expect("Failed to create temp dir");
+        let tmp_dir = iota_common::tempdir();
         let repo_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let clone_path = temp_dir.path().join("repo");
+        let clone_path = tmp_dir.path().join("repo");
 
         let status = std::process::Command::new("git")
             .args([
@@ -123,7 +123,7 @@ mod compatibility_tests {
 
         assert!(status.success(), "Git clone failed");
 
-        (temp_dir, clone_path)
+        (tmp_dir, clone_path)
     }
 
     fn check_if_manifest_was_modified() -> bool {

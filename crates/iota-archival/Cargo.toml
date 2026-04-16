@@ -37,6 +37,7 @@ tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-swarm-config.workspace = true
 move-binary-format.workspace = true

@@ -1342,6 +1342,8 @@ impl AuthorityState {
         certificate: &VerifiedExecutableTransaction,
         debug_dump_config: &StateDebugDumpConfig,
     ) -> IotaResult<PathBuf> {
+        // Fall back to the OS temp directory if no dump directory is configured.
+        // This is safe: dump files are named by transaction digest, so no collisions.
         let dump_dir = debug_dump_config
             .dump_file_directory
             .as_ref()
