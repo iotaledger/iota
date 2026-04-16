@@ -235,20 +235,9 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_true")]
     no_extraneous_module_bytes: bool,
 
-    // Enable zklogin auth
-    #[serde(skip_serializing_if = "is_false")]
-    zklogin_auth: bool,
-
     // How we order transactions coming out of consensus before sending to execution.
     #[serde(skip_serializing_if = "ConsensusTransactionOrdering::is_none")]
     consensus_transaction_ordering: ConsensusTransactionOrdering,
-
-    #[serde(skip_serializing_if = "is_false")]
-    enable_jwk_consensus_updates: bool,
-
-    // If true, multisig containing zkLogin sig is accepted.
-    #[serde(skip_serializing_if = "is_false")]
-    accept_zklogin_in_multisig: bool,
 
     // If true, use the hardened OTW check
     // This flag is used to provide the correct MoveVM configuration for clients.
@@ -276,6 +265,7 @@ struct FeatureFlags {
     consensus_network: ConsensusNetwork,
 
     // Set the upper bound allowed for max_epoch in zklogin signature.
+    #[deprecated]
     #[serde(skip_serializing_if = "Option::is_none")]
     zklogin_max_epoch_upper_bound_delta: Option<u64>,
 
@@ -1158,6 +1148,13 @@ pub struct ProtocolConfig {
     hmac_hmac_sha3_256_input_cost_per_byte: Option<u64>,
     hmac_hmac_sha3_256_input_cost_per_block: Option<u64>,
 
+    // zklogin::check_zklogin_id
+    #[deprecated]
+    check_zklogin_id_cost_base: Option<u64>,
+    // zklogin::check_zklogin_issuer
+    #[deprecated]
+    check_zklogin_issuer_cost_base: Option<u64>,
+
     vdf_verify_vdf_cost: Option<u64>,
     vdf_hash_to_input_cost: Option<u64>,
 
@@ -1203,10 +1200,12 @@ pub struct ProtocolConfig {
     // Anything above 33 (f) will not be allowed.
     consensus_bad_nodes_stake_threshold: Option<u64>,
 
+    #[deprecated]
     max_jwk_votes_per_validator_per_epoch: Option<u64>,
     // The maximum age of a JWK in epochs before it is removed from the AuthenticatorState object.
     // Applied at the end of an epoch as a delta from the new epoch value, so setting this to 1
     // will cause the new epoch to start with JWKs from the previous epoch still valid.
+    #[deprecated]
     max_age_of_jwk_in_epochs: Option<u64>,
 
     // === random beacon ===
@@ -1339,10 +1338,6 @@ impl ProtocolConfig {
         self.feature_flags.no_extraneous_module_bytes
     }
 
-    pub fn zklogin_auth(&self) -> bool {
-        self.feature_flags.zklogin_auth
-    }
-
     pub fn consensus_transaction_ordering(&self) -> ConsensusTransactionOrdering {
         self.feature_flags.consensus_transaction_ordering
     }
@@ -1356,14 +1351,6 @@ impl ProtocolConfig {
     pub fn dkg_version(&self) -> u64 {
         // Version 0 was deprecated and removed, the default is 1 if not set.
         self.random_beacon_dkg_version.unwrap_or(1)
-    }
-
-    pub fn accept_zklogin_in_multisig(&self) -> bool {
-        self.feature_flags.accept_zklogin_in_multisig
-    }
-
-    pub fn zklogin_max_epoch_upper_bound_delta(&self) -> Option<u64> {
-        self.feature_flags.zklogin_max_epoch_upper_bound_delta
     }
 
     pub fn hardened_otw_check(&self) -> bool {
@@ -2133,6 +2120,13 @@ impl ProtocolConfig {
             group_ops_bls12381_uncompressed_g1_sum_cost_per_term: None,
             group_ops_bls12381_uncompressed_g1_sum_max_terms: None,
 
+            // zklogin::check_zklogin_id
+            #[allow(deprecated)]
+            check_zklogin_id_cost_base: Some(200),
+            #[allow(deprecated)]
+            // zklogin::check_zklogin_issuer
+            check_zklogin_issuer_cost_base: Some(200),
+
             vdf_verify_vdf_cost: None,
             vdf_hash_to_input_cost: None,
 
@@ -2195,8 +2189,10 @@ impl ProtocolConfig {
             consensus_bad_nodes_stake_threshold: Some(20),
 
             // Max of 10 votes per hour.
+            #[allow(deprecated)]
             max_jwk_votes_per_validator_per_epoch: Some(240),
 
+            #[allow(deprecated)]
             max_age_of_jwk_in_epochs: Some(1),
 
             consensus_max_transaction_size_bytes: Some(256 * 1024), // 256KB
@@ -2266,7 +2262,10 @@ impl ProtocolConfig {
 
         // zkLogin related flags
         {
-            cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            #[allow(deprecated)]
+            {
+                cfg.feature_flags.zklogin_max_epoch_upper_bound_delta = Some(30);
+            }
         }
 
         // Enable Mysticeti on mainnet.

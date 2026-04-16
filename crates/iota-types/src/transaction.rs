@@ -37,7 +37,6 @@ use crate::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
     IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
-    authenticator_state::ActiveJwk,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
@@ -323,6 +322,17 @@ impl GenesisObject {
             GenesisObject::RawObject { data, .. } => data.id(),
         }
     }
+}
+
+/// Deprecated: retained for BCS deserialization compatibility with historical
+/// transactions.
+#[deprecated(note = "JWK/authenticator state is no longer supported")]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub struct ActiveJwk {
+    pub jwk_id: fastcrypto_zkp::bn254::zk_login::JwkId,
+    pub jwk: fastcrypto_zkp::bn254::zk_login::JWK,
+    /// the most recent epoch in which the jwk was validated
+    pub epoch: u64,
 }
 
 #[deprecated(note = "JWK/authenticator state is no longer supported")]

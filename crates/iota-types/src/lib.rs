@@ -34,7 +34,6 @@ pub mod error;
 pub mod account_abstraction;
 pub mod accumulator;
 pub mod auth_context;
-pub mod authenticator_state;
 pub mod balance;
 pub mod base_types;
 pub mod clock;
@@ -99,7 +98,6 @@ pub mod transaction_executor;
 pub mod transfer;
 pub mod type_input;
 pub mod versioned;
-pub mod zk_login_authenticator;
 
 #[path = "./unit_tests/utils.rs"]
 pub mod utils;

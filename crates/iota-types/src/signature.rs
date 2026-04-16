@@ -30,7 +30,6 @@ use crate::{
     move_authenticator::{MoveAuthenticator, MoveAuthenticatorInner, MoveAuthenticatorV1},
     multisig::MultiSig,
     passkey_authenticator::PasskeyAuthenticator,
-    zk_login_authenticator::ZkLoginAuthenticator,
 };
 #[derive(Default, Debug, Clone)]
 pub struct VerifyParams {
@@ -64,6 +63,45 @@ pub trait AuthenticatorTrait {
     ) -> IotaResult
     where
         T: Serialize;
+}
+
+/// Deprecated zkLogin authenticator — empty stub retained only so the
+/// [`GenericSignature::ZkLoginAuthenticator`] enum variant compiles.
+/// Instances are never constructed; deserialization rejects the flag byte.
+#[deprecated(note = "zkLogin is no longer supported")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema)]
+pub struct ZkLoginAuthenticator;
+
+impl AuthenticatorTrait for ZkLoginAuthenticator {
+    fn verify_user_authenticator_epoch(
+        &self,
+        _epoch: EpochId,
+        _max_epoch_upper_bound_delta: Option<u64>,
+    ) -> IotaResult {
+        Err(IotaError::UnsupportedFeature {
+            error: "zkLogin is not supported".to_string(),
+        })
+    }
+
+    fn verify_claims<T>(
+        &self,
+        _value: &IntentMessage<T>,
+        _author: IotaAddress,
+        _aux_verify_data: &VerifyParams,
+    ) -> IotaResult
+    where
+        T: Serialize,
+    {
+        Err(IotaError::UnsupportedFeature {
+            error: "zkLogin is not supported".to_string(),
+        })
+    }
+}
+
+impl AsRef<[u8]> for ZkLoginAuthenticator {
+    fn as_ref(&self) -> &[u8] {
+        &[]
+    }
 }
 
 /// Due to the incompatibility of [enum Signature] (which dispatches a trait
@@ -223,8 +261,10 @@ impl ToFromBytes for GenericSignature {
                     Ok(GenericSignature::MultiSig(MultiSig::from_bytes(bytes)?))
                 }
                 SignatureScheme::ZkLoginAuthenticator => {
-                    let zk_login = ZkLoginAuthenticator::from_bytes(bytes)?;
-                    Ok(GenericSignature::ZkLoginAuthenticator(zk_login))
+                    // zkLogin is no longer supported — reject at deserialization.
+                    Err(FastCryptoError::GeneralError(
+                        "zkLogin is not supported".to_string(),
+                    ))
                 }
                 SignatureScheme::PasskeyAuthenticator => {
                     let passkey = PasskeyAuthenticator::from_bytes(bytes)?;
