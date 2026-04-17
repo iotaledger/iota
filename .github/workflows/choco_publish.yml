@@ -34,6 +34,11 @@ jobs:
           mkdir -p ${{ env.TMP_BUILD_DIR }}
           tar -xvzf ./tmp/${{ steps.artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }}
 
+      - name: Create LICENSE copy for chocolatey files list
+        shell: bash
+        run: |
+          cp LICENSE LICENSE.txt
+
       - name: Publish Windows iota binary to Chocolatey
         shell: bash
         run: |
@@ -53,3 +58,8 @@ jobs:
 
           choco pack --version ${choco_version} configuration=release
           choco push --source https://push.chocolatey.org/ --api-key ${{ secrets.CHOCO_API_KEY }}
+
+      - name: Remove LICENSE copy
+        shell: bash
+        run: |
+          rm LICENSE.txt
