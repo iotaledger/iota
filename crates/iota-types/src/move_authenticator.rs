@@ -337,8 +337,8 @@ impl MoveAuthenticatorV1 {
         }
     }
 
-    /// Returns the address of the MoveAuthenticatorV1, which is derived from
-    /// the object to authenticate.
+    /// Returns the address of the MoveAuthenticatorV1, which is the object ID
+    /// of the object to authenticate.
     pub fn address(&self) -> IotaResult<IotaAddress> {
         let (id, _, _) = self.object_to_authenticate_components()?;
         Ok(IotaAddress::from(id))

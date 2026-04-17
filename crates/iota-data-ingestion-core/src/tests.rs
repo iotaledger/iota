@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fs,
     path::PathBuf,
     sync::{
         Arc,
@@ -14,7 +13,6 @@ use std::{
 
 use async_trait::async_trait;
 use iota_protocol_config::ProtocolConfig;
-use iota_rest_api::CheckpointTransaction;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber},
@@ -22,7 +20,7 @@ use iota_types::{
     crypto::{KeypairTraits, RandomnessRound},
     digests::ObjectDigest,
     effects::TransactionEffects,
-    full_checkpoint_content::CheckpointData,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::GasCostSummary,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
@@ -40,7 +38,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionLimit,
     IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
-    progress_store::ExecutorProgress,
+    progress_store::ExecutorProgress, reader::v2::CheckpointReaderConfig,
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -65,32 +63,23 @@ async fn run(
         ..Default::default()
     };
 
-    match duration.into() {
-        None => {
-            indexer
-                .run(
-                    path.into().unwrap_or_else(temp_dir),
-                    None,
-                    vec![],
-                    reader_options,
-                )
-                .await
-        }
-        Some(duration) => {
-            let handle = tokio::task::spawn(indexer.run(
-                path.into().unwrap_or_else(temp_dir),
-                None,
-                vec![],
-                reader_options,
-            ));
-            tokio::time::sleep(duration).await;
-            token.cancel();
-            handle.await.map_err(|err| IngestionError::Shutdown {
-                component: "indexer executor".into(),
-                msg: err.to_string(),
-            })?
-        }
-    }
+    let indexer_executor_fut = indexer.run_with_config(CheckpointReaderConfig {
+        reader_options,
+        ingestion_path: path.into(),
+        remote_store_url: None,
+    });
+
+    if let Some(duration) = duration.into() {
+        tokio::task::spawn({
+            let token = token.clone();
+            async move {
+                tokio::time::sleep(duration).await;
+                token.cancel();
+            }
+        });
+    };
+
+    indexer_executor_fut.await
 }
 
 struct ExecutorBundle {
@@ -204,12 +193,22 @@ async fn basic_flow() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
-    let result = run(bundle.executor, path, Duration::from_secs(3), bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        Duration::from_secs(3),
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&20));
 }
@@ -230,11 +229,15 @@ async fn basic_flow_with_checkpoint_upper_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     // range not inclusive actual chk files generated 0.chk .. 24.chk
     for checkpoint_number in 0..25 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
     // process until we reach the checkpoint sequence number 19. Subsequent
     // checkpoints should be skipped.
@@ -242,12 +245,16 @@ async fn basic_flow_with_checkpoint_upper_limit() {
         .executor
         .with_ingestion_limit(IngestionLimit::MaxCheckpoint(19));
 
-    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 20.
     assert_eq!(result.unwrap().get("test"), Some(&20));
-    // remove leftover checkpoint files.
-    fs::remove_dir_all(path).unwrap();
 }
 
 // Tests the graceful shutdown behavior when a checkpoint upper limit is
@@ -266,11 +273,15 @@ async fn basic_flow_with_custom_callback_checkpoint_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     // range not inclusive actual chk files generated 0.chk .. 24.chk
     for checkpoint_number in 0..25 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
 
     // process until we reach the checkpoint sequence number 19 (inclusive).
@@ -282,12 +293,16 @@ async fn basic_flow_with_custom_callback_checkpoint_limit() {
         ShutdownAction::Continue
     });
 
-    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 20.
     assert_eq!(result.unwrap().get("test"), Some(&20));
-    // remove leftover checkpoint files.
-    fs::remove_dir_all(path).unwrap();
 }
 
 // Tests the graceful shutdown behavior when an epoch upper limit is
@@ -306,16 +321,20 @@ async fn basic_flow_with_epoch_upper_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     // range not inclusive actual chk files generated 0.chk .. 14.chk
     for checkpoint_number in 0..15 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
     // create a single checkpoint with a new epoch to simulate epoch change
     // this checkpoint should not be processed
     let bytes = mock_checkpoint_data_bytes_with_opt(15, 1, vec![]);
-    std::fs::write(path.join("15.chk"), bytes).unwrap();
+    std::fs::write(tmp_dir.path().join("15.chk"), bytes).unwrap();
 
     // process until we reach the epoch upper limit 0, so it should process up to
     // checkpoint file 14.chk (inclusive). Subsequent checkpoints (15.chk) should be
@@ -324,12 +343,16 @@ async fn basic_flow_with_epoch_upper_limit() {
         .executor
         .with_ingestion_limit(IngestionLimit::EndOfEpoch(0));
 
-    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 15.
     assert_eq!(result.unwrap().get("test"), Some(&15));
-    // remove leftover checkpoint files.
-    fs::remove_dir_all(path).unwrap();
 }
 
 // Tests the graceful shutdown behavior when an epoch upper limit is
@@ -348,16 +371,20 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     // range not inclusive actual chk files generated 0.chk .. 14.chk
     for checkpoint_number in 0..15 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
     // create a single checkpoint with a new epoch to simulate epoch change
     // this checkpoint should not be processed
     let bytes = mock_checkpoint_data_bytes_with_opt(15, 1, vec![]);
-    std::fs::write(path.join("15.chk"), bytes).unwrap();
+    std::fs::write(tmp_dir.path().join("15.chk"), bytes).unwrap();
 
     // process until we reach the epoch upper limit 0, so it should process up to
     // checkpoint file 14.chk (inclusive). Subsequent checkpoints (15.chk) should be
@@ -369,12 +396,16 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
         ShutdownAction::Continue
     });
 
-    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 15.
     assert_eq!(result.unwrap().get("test"), Some(&15));
-    // remove leftover checkpoint files.
-    fs::remove_dir_all(path).unwrap();
 }
 
 // Test: graceful shutdown via a custom callback.
@@ -402,7 +433,7 @@ async fn basic_flow_with_custom_callback() {
     add_worker_pool(&mut bundle.executor, TestWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
 
     let tx_data = TransactionData::new(
         TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
@@ -432,10 +463,18 @@ async fn basic_flow_with_custom_callback() {
         if checkpoint_number == 10 {
             let bytes =
                 mock_checkpoint_data_bytes_with_opt(checkpoint_number, 0, vec![ch_tx.clone()]);
-            std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+            std::fs::write(
+                tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+                bytes,
+            )
+            .unwrap();
         } else {
             let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-            std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+            std::fs::write(
+                tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+                bytes,
+            )
+            .unwrap();
         }
     }
 
@@ -452,12 +491,16 @@ async fn basic_flow_with_custom_callback() {
         ShutdownAction::Continue
     });
 
-    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        None,
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 11.
     assert_eq!(result.unwrap().get("test"), Some(&11));
-    // remove leftover checkpoint files.
-    fs::remove_dir_all(path).unwrap();
 }
 
 // Tests the graceful shutdown behavior when workers encounter persistent
@@ -480,12 +523,22 @@ async fn graceful_shutdown_faulty_worker() {
     add_worker_pool(&mut bundle.executor, FaultyWorker, 5)
         .await
         .unwrap();
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
-    let result = run(bundle.executor, path, Duration::from_secs(1), bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        Duration::from_secs(1),
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
@@ -513,12 +566,22 @@ async fn worker_pool_with_reducer() {
     );
     bundle.executor.register(pool).await.unwrap();
 
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
-    let result = run(bundle.executor, path, Duration::from_secs(3), bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        Duration::from_secs(3),
+        bundle.token,
+    )
+    .await;
     // 4 commits (batches of 5 checkpoints)
     assert_eq!(commit_count.load(Ordering::SeqCst), 4);
     assert!(result.is_ok());
@@ -554,12 +617,22 @@ async fn graceful_shutdown_faulty_reducer() {
     );
     bundle.executor.register(pool).await.unwrap();
 
-    let path = temp_dir();
+    let tmp_dir = iota_common::tempdir();
     for checkpoint_number in 0..20 {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+        std::fs::write(
+            tmp_dir.path().join(format!("{checkpoint_number}.chk")),
+            bytes,
+        )
+        .unwrap();
     }
-    let result = run(bundle.executor, path, Duration::from_secs(1), bundle.token).await;
+    let result = run(
+        bundle.executor,
+        tmp_dir.path().to_path_buf(),
+        Duration::from_secs(1),
+        bundle.token,
+    )
+    .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
@@ -630,12 +703,6 @@ async fn file_progress_store() {
     // Confirm the value is updated
     let value = store.load("task1".to_string()).await.unwrap();
     assert_eq!(value, 100);
-}
-
-fn temp_dir() -> std::path::PathBuf {
-    tempfile::tempdir()
-        .expect("failed to open temporary directory")
-        .keep()
 }
 
 async fn create_executor_bundle() -> ExecutorBundle {

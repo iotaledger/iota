@@ -480,7 +480,6 @@ fn test_timelocked_unstaking() {
 }
 
 #[test]
-#[ignore = "https://github.com/iotaledger/iota/issues/6127"]
 fn get_latest_iota_system_state_v2() {
     let ApiTestSetup {
         runtime,
@@ -490,10 +489,12 @@ fn get_latest_iota_system_state_v2() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        indexer_wait_for_checkpoint(store, 1).await;
-
         // ensure that the system state is updated
         cluster.force_new_epoch().await;
+        // when epoch is advanced, the indexer should catch up the latest checkpoint to
+        // reflect the end of epoch checkpoint changes
+        indexer_wait_for_latest_checkpoint(store, cluster).await;
+
         let system_state = client.get_latest_iota_system_state_v2().await.unwrap();
         let IotaSystemStateSummary::V2(system_state_v2) = system_state else {
             panic!("expected IotaSystemStateSummaryV2");

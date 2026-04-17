@@ -170,6 +170,15 @@ export const handleMintLeapFrogSubmit = async ({
                         }
                     );
                 },
+                onError: (error: any) => {
+                    setResponse({
+                        status: 'error',
+                        description: `Failed to mint the NFT: ${error?.message || error}`,
+                        title: 'NFT minting failed',
+                    });
+                    setLoading(false);
+                    setShowPopIn(true);
+                },
             }
         );
     } catch (err: any) {

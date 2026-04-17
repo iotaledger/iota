@@ -4,6 +4,6 @@
 export * from './shortenHash';
 export * from './getGasSummary';
 export * from './depositL2Parameters';
-export * from './growthbook';
+export * from './apps-backend';
 export * from './transaction';
 export * from './rainbowkitUtils';

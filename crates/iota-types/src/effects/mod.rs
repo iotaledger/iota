@@ -11,6 +11,7 @@ use iota_sdk_types::crypto::{Intent, IntentScope};
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};
 pub use test_effects_builder::TestEffectsBuilder;
+use tracing::instrument;
 
 use crate::{
     base_types::{ExecutionDigests, ObjectID, ObjectRef, SequenceNumber},
@@ -411,6 +412,7 @@ pub type VerifiedCertifiedTransactionEffects =
     VerifiedTransactionEffectsEnvelope<AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedTransactionEffects {
+    #[instrument(level = "trace", skip_all)]
     pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.auth_sig().verify_secure(
             self.data(),
@@ -419,6 +421,7 @@ impl CertifiedTransactionEffects {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn verify(self, committee: &Committee) -> IotaResult<VerifiedCertifiedTransactionEffects> {
         self.verify_authority_signatures(committee)?;
         Ok(VerifiedCertifiedTransactionEffects::new_from_verified(self))

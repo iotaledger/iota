@@ -35,7 +35,6 @@ itertools.workspace = true
 lru.workspace = true
 nonempty.workspace = true
 num-bigint.workspace = true
-num-rational.workspace = true
 num-traits = "0.2.18"
 once_cell.workspace = true
 parking_lot.workspace = true

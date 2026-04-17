@@ -10,6 +10,7 @@ import {
     addVirtualAuthenticator,
     createPasskeyWallet,
     restorePasskeyAccount,
+    TESTS_PASSWORD,
 } from './utils/wallet';
 
 const username = 'IOTAPasskey';
@@ -90,6 +91,8 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
     await page.getByTestId('wallet-settings-button').click();
 
     await page.getByText('Reset').click();
+    await page.getByPlaceholder('Password').fill(TESTS_PASSWORD);
+    await page.getByRole('button', { name: 'Verify' }).click();
     await page.getByRole('button', { name: 'Reset' }).click();
 
     await expect(page.getByText('IOTA Wallet')).toBeVisible();
@@ -129,6 +132,8 @@ test('Fails when a different authenticator tries to log in', async ({ page, exte
     await page.getByTestId('wallet-settings-button').click();
 
     await page.getByText('Reset').click();
+    await page.getByPlaceholder('Password').fill(TESTS_PASSWORD);
+    await page.getByRole('button', { name: 'Verify' }).click();
     await page.getByRole('button', { name: 'Reset' }).click(); // Dialog confirmation
 
     await expect(page.getByText('IOTA Wallet')).toBeVisible();

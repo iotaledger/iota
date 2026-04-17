@@ -8,17 +8,19 @@ use std::{
     time::Duration,
 };
 
-use diesel::{QueryDsl, RunQueryDsl};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
+use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
     config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
     metrics::IndexerMetrics,
+    models::checkpoints::StoredCheckpoint,
     read_only_blocking,
-    schema::optimistic_transactions,
+    schema::{checkpoints, optimistic_transactions},
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
@@ -43,7 +45,7 @@ use jsonrpsee::{
     types::ErrorObject,
 };
 use simulacrum::Simulacrum;
-use tempfile::tempdir;
+use simulacrum_server::start_simulacrum_grpc_server;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{
     runtime::Runtime,
@@ -106,14 +108,14 @@ impl SimulacrumTestSetup {
     ) -> &'a SimulacrumTestSetup {
         initialized_env_container.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            let data_ingestion_path = tempdir().unwrap().keep();
+            let data_ingestion_path = iota_common::tempdir().keep();
 
             let sim = env_initializer(data_ingestion_path.clone());
             let sim = Arc::new(sim);
 
             let db_name = format!("simulacrum_env_db_{unique_env_name}");
             let (_, store, _, client) =
-                runtime.block_on(start_simulacrum_rest_api_with_read_write_indexer(
+                runtime.block_on(start_simulacrum_grpc_with_read_write_indexer(
                     sim.clone(),
                     data_ingestion_path,
                     Some(&db_name),
@@ -132,11 +134,12 @@ impl SimulacrumTestSetup {
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
 /// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
-    database_name: Option<&str>,
+    database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
     pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
-    let mut builder = TestClusterBuilder::new();
+    let database_name = database_name.into();
+    let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
@@ -150,14 +153,14 @@ pub async fn start_test_cluster_with_read_write_indexer(
         // reset the existing db
         true,
         None,
-        cluster.rpc_url().to_string(),
+        cluster.grpc_url(),
         IndexerTypeConfig::writer_mode(None, pruning_options),
         None,
     )
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(cluster.rpc_url().to_owned(), database_name);
+    let indexer_port = start_indexer_reader(cluster.grpc_url(), database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -200,6 +203,49 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
         .unwrap();
 
     indexer_wait_for_checkpoint(pg_store, latest_checkpoint).await;
+}
+
+/// Wait for the indexer to index a checkpoint from the specified epoch or later
+pub async fn indexer_wait_for_epoch(pg_store: &PgIndexerStore, expected_epoch: u64) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let blocking_cp = pg_store.blocking_cp();
+            let result = tokio::task::spawn_blocking(move || {
+                read_only_blocking!(&blocking_cp, |conn| {
+                    checkpoints::table
+                        .order(checkpoints::sequence_number.desc())
+                        .first::<StoredCheckpoint>(conn)
+                        .optional()
+                })
+            })
+            .await
+            .expect("task join failed")
+            .expect("failed to get latest checkpoint");
+
+            if let Some(checkpoint) = result {
+                if checkpoint.epoch as u64 >= expected_epoch {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("timeout waiting for indexer to index epoch");
+}
+
+/// Force a new epoch and wait for the indexer to index it
+pub async fn force_new_epoch_and_wait(pg_store: &PgIndexerStore, cluster: &TestCluster) {
+    // Get the current epoch before forcing a new one
+    let (_, current_epoch) = pg_store
+        .get_available_epoch_range()
+        .await
+        .expect("failed to get current epoch");
+
+    cluster.force_new_epoch().await;
+
+    let expected_epoch = current_epoch + 1;
+    indexer_wait_for_epoch(pg_store, expected_epoch).await;
 }
 
 async fn wait_for_object(
@@ -280,7 +326,7 @@ pub async fn indexer_wait_for_optimistic_transactions_count(
     .await
     .expect("timeout waiting for indexer to prune optimistic transactions");
 
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // check once again, to ensure match was not accidental
     let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
@@ -417,31 +463,36 @@ pub fn rpc_call_error_msg_matches<T>(
     })
 }
 
-/// Set up a test indexer fetching from a REST endpoint served by the given
+/// Set up a test indexer fetching from a gRPC endpoint served by the given
 /// Simulacrum.
-pub async fn start_simulacrum_rest_api_with_write_indexer(
+pub async fn start_simulacrum_grpc_with_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
     server_url: Option<SocketAddr>,
     database_name: Option<&str>,
     db_init_hook: Option<DBInitHook>,
 ) -> (
-    JoinHandle<()>,
+    GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
 ) {
-    let server_url = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
-    let server_handle = tokio::spawn(async move {
-        iota_rest_api::RestService::new_without_version(sim)
-            .start_service(server_url)
-            .await;
-    });
+    let address = server_url.unwrap_or_else(new_local_tcp_socket_for_testing);
+
+    let config = iota_config::node::GrpcApiConfig {
+        address,
+        ..Default::default()
+    };
+
+    let server_handle = start_simulacrum_grpc_server(sim, config, Default::default())
+        .await
+        .unwrap();
+
     // Starts indexer
     let (pg_store, pg_handle, _) = start_test_indexer(
         db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
-        format!("http://{server_url}"),
+        format!("http://{address}"),
         IndexerTypeConfig::writer_mode(
             Some(SnapshotLagConfig {
                 snapshot_min_lag: 5,
@@ -455,18 +506,18 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     (server_handle, pg_store, pg_handle)
 }
 
-pub async fn start_simulacrum_rest_api_with_read_write_indexer(
+pub async fn start_simulacrum_grpc_with_read_write_indexer(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
     database_name: Option<&str>,
 ) -> (
-    JoinHandle<()>,
+    GrpcServerHandle,
     PgIndexerStore,
     JoinHandle<Result<(), IndexerError>>,
     HttpClient,
 ) {
     let simulacrum_server_url = new_local_tcp_socket_for_testing();
-    let (server_handle, pg_store, pg_handle) = start_simulacrum_rest_api_with_write_indexer(
+    let (server_handle, pg_store, pg_handle) = start_simulacrum_grpc_with_write_indexer(
         sim,
         data_ingestion_path.clone(),
         Some(simulacrum_server_url),
@@ -499,7 +550,7 @@ pub async fn wait_for_objects_snapshot(
                 .get_latest_object_snapshot_watermark()
                 .await
                 .unwrap()
-                .map(|watermark| watermark.checkpoint_hi_inclusive);
+                .map(|watermark| watermark.max_committed_cp);
             cp_opt.is_none() || (cp_opt.unwrap() < checkpoint_sequence_number)
         } {
             tokio::time::sleep(Duration::from_millis(100)).await;

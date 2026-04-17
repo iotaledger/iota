@@ -16,7 +16,6 @@ import { LocalStorageSplitPaneKey } from '~/lib/enums';
 import { Panel, Title, Divider } from '@iota/apps-ui-kit';
 import { AddressAlias, useCopyToClipboard, useGetDefaultIotaName } from '@iota/core';
 import { AddressBalanceBreakdown } from './AddressBalanceBreakdown';
-import { onCopySuccess } from '~/lib';
 import { isValidIotaName } from '@iota/iota-names-sdk';
 
 const LEFT_RIGHT_PANEL_MIN_SIZE = 30;
@@ -26,7 +25,7 @@ interface AddressResultPageHeaderProps {
 }
 
 function AddressResultPageHeader({ address }: AddressResultPageHeaderProps): React.JSX.Element {
-    const copyToClipboard = useCopyToClipboard(onCopySuccess);
+    const copyToClipboard = useCopyToClipboard();
     const { data: name, isLoading: isLoadingName } = useGetDefaultIotaName(address);
 
     return (

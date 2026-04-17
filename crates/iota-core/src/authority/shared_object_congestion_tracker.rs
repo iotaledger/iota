@@ -1749,7 +1749,7 @@ mod object_cost_tests {
                 //     301|            |
                 SharedObjectCongestionTracker::new(
                     [(shared_obj_0, 301), (shared_obj_1, 199)],
-                    congestion_control_parameters.clone(),
+                    congestion_control_parameters,
                 )
             }
             PerObjectCongestionControlMode::TotalTxCount => {

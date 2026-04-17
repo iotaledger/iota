@@ -1,6 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import {
+    EFFECTIVE_COMMISSION_TOOLTIP,
     formatPercentageDisplay,
     useValidatorInfo,
     useGetStakingValidatorDetails,
@@ -17,7 +18,7 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
         validatorAddress: validatorAddress,
     });
 
-    const { totalValidatorsStake, totalStakePercentage, totalStake, commission } =
+    const { totalValidatorsStake, totalStakePercentage, totalStake, effectiveCommission } =
         useGetStakingValidatorDetails({
             accountAddress: accountAddress,
             stakeId: null,
@@ -39,10 +40,10 @@ export function StakedInfo({ validatorAddress, accountAddress }: StakedInfoProps
                     fullwidth
                 />
                 <KeyValueInfo
-                    keyText="Commission"
-                    value={commission}
+                    keyText="Effective Commission"
+                    value={effectiveCommission}
                     fullwidth
-                    tooltipText="The charge imposed by the validator for their staking services."
+                    tooltipText={EFFECTIVE_COMMISSION_TOOLTIP}
                     tooltipPosition={TooltipPosition.Right}
                 />
                 <KeyValueInfo

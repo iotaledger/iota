@@ -65,7 +65,7 @@ const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 /// The maximum number of authorities from which we will try to periodically
 /// fetch block header at the same moment. The guard will protect that we will
 /// not ask from more than this number of authorities at the same time.
-const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER: usize = 2;
+const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER: usize = 3;
 
 /// The maximum number of authorities from which the live synchronizer will try
 /// to fetch block headers at the same moment. This is lower than the periodic
@@ -150,7 +150,7 @@ impl InflightBlockHeadersMap {
     ///
     /// Different limits apply based on the sync method:
     /// - Periodic sync: Can lock if total authorities <
-    ///   MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER (2)
+    ///   MAX_AUTHORITIES_TO_FETCH_PER_BLOCK_HEADER (3)
     /// - Live sync: Can lock if total authorities <
     ///   MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK_HEADER (1)
     fn lock_headers(
@@ -255,6 +255,7 @@ enum Command {
 pub(crate) struct HeaderSynchronizerHandle {
     commands_sender: Sender<Command>,
     tasks: tokio::sync::Mutex<JoinSet<()>>,
+    verified_headers_cache: Arc<Mutex<LruCache<BlockHeaderDigest, ()>>>,
 }
 
 impl HeaderSynchronizerHandle {
@@ -275,6 +276,10 @@ impl HeaderSynchronizerHandle {
             .await
             .map_err(|_err| ConsensusError::Shutdown)?;
         receiver.await.map_err(|_err| ConsensusError::Shutdown)?
+    }
+
+    pub(crate) fn clear_verified_headers_cache(&self) {
+        self.verified_headers_cache.lock().clear();
     }
 
     pub(crate) async fn stop(&self) -> Result<(), JoinError> {
@@ -389,6 +394,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         let commands_sender_clone = commands_sender.clone();
+        let verified_headers_cache_clone = verified_headers_cache.clone();
 
         if sync_last_known_own_block {
             commands_sender
@@ -420,6 +426,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         Arc::new(HeaderSynchronizerHandle {
             commands_sender,
             tasks: tokio::sync::Mutex::new(tasks),
+            verified_headers_cache: verified_headers_cache_clone,
         })
     }
 
@@ -802,7 +809,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     .metrics
                     .node_metrics
                     .synchronizer_invalid_block_headers
-                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
+                    .with_label_values(&[hostname.as_str(), "synchronizer", e.name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
@@ -822,13 +829,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             // asynchronously.
             let now = context.clock.timestamp_utc_ms();
             if now < verified_block_header.timestamp_ms() {
-                warn!(
-                    "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
+                trace!(
+                    "Synced block header {} timestamp {} is in the future (now={}). Will not ignore as median based timestamp is enabled.",
                     verified_block_header.reference(),
                     verified_block_header.timestamp_ms(),
                     now
                 );
-                continue;
             }
 
             verified_block_headers.push(verified_block_header);
@@ -1698,12 +1704,12 @@ mod tests {
         ];
         let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
 
-        // Lock & unlock blocks - using Periodic sync method (limit 2)
+        // Lock & unlock blocks - using Periodic sync method (limit 3)
         {
             let mut all_guards = Vec::new();
 
-            // Try to acquire the block locks for authorities 1 & 2 (Periodic limit is 2)
-            for i in 1..=2 {
+            // Try to acquire the block locks for authorities 1, 2, and 3.
+            for i in 1..=3 {
                 let authority = AuthorityIndex::new_for_test(i);
 
                 let guard =
@@ -1719,24 +1725,24 @@ mod tests {
                 assert!(guard.is_none());
             }
 
-            // Trying to acquire for authority 3 it will fail - as we have maxed out the
-            // number of allowed peers (Periodic limit is 2)
-            let authority_3 = AuthorityIndex::new_for_test(3);
+            // Trying to acquire for authority 4 will fail - as we have maxed out the
+            // number of allowed peers (Periodic limit is 3)
+            let authority_4 = AuthorityIndex::new_for_test(4);
 
             let guard = map.lock_headers(
                 missing_block_refs.clone(),
-                authority_3,
+                authority_4,
                 SyncMethod::Periodic,
             );
             assert!(guard.is_none());
 
-            // Explicitly drop the guard of authority 1 and try for authority 3 again - it
+            // Explicitly drop the guard of authority 1 and try for authority 4 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
             let guard = map.lock_headers(
                 missing_block_refs.clone(),
-                authority_3,
+                authority_4,
                 SyncMethod::Periodic,
             );
             let guard = guard.expect("Guard should be successfully acquired");
@@ -1770,7 +1776,7 @@ mod tests {
             let mut all_guards = Vec::new();
             all_guards.push(guard);
             // authority 1 should now be unlocked, so now we can lock the same refs with
-            // authority 3, but not for 4 (limit of 2)
+            // authorities 3 and 4, but not 5 (limit of 3)
             let authority_3 = AuthorityIndex::new_for_test(3);
             let guard = map.lock_headers(
                 missing_block_refs.clone(),
@@ -1787,6 +1793,12 @@ mod tests {
                 authority_4,
                 SyncMethod::Periodic,
             );
+            let guard = guard.expect("Guard should be created");
+            assert_eq!(guard.block_refs.len(), 4);
+            all_guards.push(guard);
+
+            let authority_5 = AuthorityIndex::new_for_test(5);
+            let guard = map.lock_headers(missing_block_refs, authority_5, SyncMethod::Periodic);
             assert!(guard.is_none());
         }
     }
@@ -1832,7 +1844,7 @@ mod tests {
             drop(guard_2);
         }
 
-        // Test 2: Periodic sync allows more concurrency (2 authorities)
+        // Test 2: Periodic sync allows more concurrency (3 authorities)
         {
             let authority_1 = AuthorityIndex::new_for_test(1);
             let guard_1 = map
@@ -1845,7 +1857,7 @@ mod tests {
 
             assert_eq!(guard_1.block_refs.len(), 2);
 
-            // Authority 2 can also lock with Periodic sync (limit is 2)
+            // Authority 2 can also lock with Periodic sync (limit is 3)
             let authority_2 = AuthorityIndex::new_for_test(2);
             let guard_2 = map
                 .lock_headers(
@@ -1853,26 +1865,39 @@ mod tests {
                     authority_2,
                     SyncMethod::Periodic,
                 )
-                .expect("Should successfully lock - Periodic allows 2 authorities");
+                .expect("Should successfully lock - Periodic allows 3 authorities");
 
             assert_eq!(guard_2.block_refs.len(), 2);
 
-            // But authority 3 cannot lock with Periodic sync (limit of 2 reached)
+            // Authority 3 can also lock with Periodic sync (limit is 3)
             let authority_3 = AuthorityIndex::new_for_test(3);
-            let guard_3 = map.lock_headers(
+            let guard_3 = map
+                .lock_headers(
+                    missing_block_refs.clone(),
+                    authority_3,
+                    SyncMethod::Periodic,
+                )
+                .expect("Should successfully lock - Periodic allows 3 authorities");
+
+            assert_eq!(guard_3.block_refs.len(), 2);
+
+            // But authority 4 cannot lock with Periodic sync (limit of 3 reached)
+            let authority_4 = AuthorityIndex::new_for_test(4);
+            let guard_4 = map.lock_headers(
                 missing_block_refs.clone(),
-                authority_3,
+                authority_4,
                 SyncMethod::Periodic,
             );
 
             assert!(
-                guard_3.is_none(),
-                "Should fail to lock - Periodic limit of 2 reached"
+                guard_4.is_none(),
+                "Should fail to lock - Periodic limit of 3 reached"
             );
 
             // Release locks
             drop(guard_1);
             drop(guard_2);
+            drop(guard_3);
         }
 
         // Test 3: Periodic blocks Live when at Live's limit
@@ -1899,15 +1924,15 @@ mod tests {
                 "Should fail to lock with Live - total already at Live limit of 1"
             );
 
-            // But authority 2 CAN lock with Periodic sync (total would be 2, at Periodic
-            // limit)
+            // But authority 2 CAN lock with Periodic sync (total would be 2, under the
+            // Periodic limit)
             let guard_2_periodic = map
                 .lock_headers(
                     missing_block_refs.clone(),
                     authority_2,
                     SyncMethod::Periodic,
                 )
-                .expect("Should successfully lock with Periodic - under Periodic limit of 2");
+                .expect("Should successfully lock with Periodic - under Periodic limit of 3");
 
             assert_eq!(guard_2_periodic.block_refs.len(), 2);
 
@@ -1935,33 +1960,43 @@ mod tests {
                 "Should fail to lock with Live - would exceed Live limit of 1"
             );
 
-            // But authority 2 CAN lock with Periodic sync (total=2, at Periodic limit)
+            // But authority 2 CAN lock with Periodic sync (total=2, still under the
+            // Periodic limit)
             let guard_2 = map
                 .lock_headers(
                     missing_block_refs.clone(),
                     authority_2,
                     SyncMethod::Periodic,
                 )
-                .expect("Should successfully lock with Periodic - total 2 is at Periodic limit");
+                .expect("Should successfully lock with Periodic - total 2 is under Periodic limit");
 
             assert_eq!(guard_2.block_refs.len(), 2);
 
-            // And authority 3 cannot lock with Periodic sync (would exceed Periodic limit
-            // of 2)
+            // And authority 3 can still lock with Periodic sync (reaching the Periodic
+            // limit)
             let authority_3 = AuthorityIndex::new_for_test(3);
-            let guard_3 = map.lock_headers(
-                missing_block_refs.clone(),
-                authority_3,
-                SyncMethod::Periodic,
-            );
+            let guard_3 = map
+                .lock_headers(
+                    missing_block_refs.clone(),
+                    authority_3,
+                    SyncMethod::Periodic,
+                )
+                .expect("Should successfully lock with Periodic - total 3 reaches Periodic limit");
+
+            assert_eq!(guard_3.block_refs.len(), 2);
+
+            // Authority 4 would exceed the Periodic limit.
+            let authority_4 = AuthorityIndex::new_for_test(4);
+            let guard_4 = map.lock_headers(missing_block_refs, authority_4, SyncMethod::Periodic);
 
             assert!(
-                guard_3.is_none(),
-                "Should fail to lock with Periodic - would exceed Periodic limit of 2"
+                guard_4.is_none(),
+                "Should fail to lock with Periodic - would exceed Periodic limit of 3"
             );
 
             drop(guard_1);
             drop(guard_2);
+            drop(guard_3);
         }
 
         // Test 5: Partial locks with mixed methods
@@ -1979,7 +2014,8 @@ mod tests {
                 .expect("Should lock block A");
             assert_eq!(guard_a.block_refs.len(), 1);
 
-            // Lock block B with authorities 1 & 2 using Periodic (B at limit for Periodic)
+            // Lock block B with authorities 1, 2, and 3 using Periodic (B at limit for
+            // Periodic)
             let guard_b1 = map
                 .lock_headers(
                     [block_b].into(),
@@ -1998,6 +2034,15 @@ mod tests {
                 .expect("Should lock block B with authority 2");
             assert_eq!(guard_b2.block_refs.len(), 1);
 
+            let guard_b3 = map
+                .lock_headers(
+                    [block_b].into(),
+                    AuthorityIndex::new_for_test(3),
+                    SyncMethod::Periodic,
+                )
+                .expect("Should lock block B with authority 3");
+            assert_eq!(guard_b3.block_refs.len(), 1);
+
             // Cannot lock block A with authority 2 using Live (A already at Live limit)
             let guard_a2 = map.lock_headers(
                 [block_a].into(),
@@ -2006,18 +2051,19 @@ mod tests {
             );
             assert!(guard_a2.is_none());
 
-            // Cannot lock block B with authority 3 using Periodic (B already at Periodic
+            // Cannot lock block B with authority 4 using Periodic (B already at Periodic
             // limit)
-            let guard_b3 = map.lock_headers(
+            let guard_b4 = map.lock_headers(
                 [block_b].into(),
-                AuthorityIndex::new_for_test(3),
+                AuthorityIndex::new_for_test(4),
                 SyncMethod::Periodic,
             );
-            assert!(guard_b3.is_none());
+            assert!(guard_b4.is_none());
 
             drop(guard_a);
             drop(guard_b1);
             drop(guard_b2);
+            drop(guard_b3);
         }
     }
 
@@ -2844,13 +2890,15 @@ mod tests {
             // Stub *all* authorities so none panic:
             for i in 1..=9 {
                 let peer = AuthorityIndex::new_for_test(i);
-                let timeout = if i == 1 || i == 3 {
-                    Some(2 * FETCH_REQUEST_TIMEOUT)
+                let latency = if i == 1 {
+                    Some(Duration::from_millis(2))
+                } else if i == 3 {
+                    Some(Duration::from_millis(1))
                 } else {
                     None
                 };
                 network_client
-                    .stub_fetch_headers_response(vec![missing_vbh.clone()], peer, timeout)
+                    .stub_fetch_headers_response(vec![missing_vbh.clone()], peer, latency)
                     .await;
             }
 
@@ -2869,21 +2917,20 @@ mod tests {
             )
             .await;
 
-            // 5) Knowledge-based fetches should go to 2 and 3.
-            // For authoritiy 3 we will have request timeout. After the request
-            // timeout they try to swap locks and request the header from remaining
-            // authorities, first two of them are authorities 4. Assert we
-            // got exactly three fetches - from 2 (knowledge-based), and from 4
-            // (request from remaining authority after timeout)
-            assert_eq!(results.len(), 2);
+            // 5) With MAX_PERIODIC_SYNC_PEERS=4 and MAX_PERIODIC_SYNC_RANDOM_PEERS=2:
+            // - 2 known peers are selected first: 2 and 3
+            // - 2 random peers chosen: 1 and 4, but only peer 1 gets a chunk (all refs fit
+            //   in one chunk), so peer 4 has nothing to request
+            assert_eq!(results.len(), 3);
 
-            // 6) The results should come in the following order: 2, 4, 5
+            // 6) Results in order: peers 2 and 3 (known), then peer 1 (random)
             let peers: Vec<_> = results.iter().map(|(_, _, peer)| *peer).collect();
             assert_eq!(
                 peers,
                 vec![
                     AuthorityIndex::new_for_test(2),
-                    AuthorityIndex::new_for_test(4),
+                    AuthorityIndex::new_for_test(3),
+                    AuthorityIndex::new_for_test(1),
                 ]
             );
 
@@ -3029,7 +3076,7 @@ mod tests {
             missing_block_headers,
             dag_state.clone(),
         )
-            .await;
+        .await;
 
         // 6) Assert we got 4 fetches: peer 2 (timed out) and fallback to 5 (first of
         //    the remaining peers), peer 3, and from 'random' 1 and 4
@@ -3074,84 +3121,6 @@ mod tests {
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes5, &expected5);
-    }
-
-    #[tokio::test]
-    async fn test_process_fetched_headers_with_future_timestamp() {
-        let validators = 4;
-        let (context, _) = Context::new_for_test(validators);
-        let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
-        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
-        let store = Arc::new(MemStore::new(context.clone()));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
-
-        let network_client = Arc::new(MockNetworkClient::default());
-
-        // Set up synchronizers
-        let transactions_synchronizer = TransactionsSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            dag_state.clone(),
-        );
-
-        let handle = HeaderSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_dispatcher.clone(),
-            commit_vote_monitor.clone(),
-            transactions_synchronizer.clone(),
-            block_verifier.clone(),
-            dag_state.clone(),
-            false,
-        );
-
-        // Create two block headers - one with a normal timestamp, one with a future
-        // timestamp
-        let normal_block_header = TestBlockHeader::new(1, 0)
-            .set_timestamp_ms(context.clock.timestamp_utc_ms())
-            .build();
-        let future_block_header = TestBlockHeader::new(2, 1)
-            .set_timestamp_ms(
-                context.clock.timestamp_utc_ms() + Duration::from_secs(3600).as_millis() as u64,
-            )
-            .build();
-
-        let normal_block_header = VerifiedBlockHeader::new_for_test(normal_block_header);
-        let future_block_header = VerifiedBlockHeader::new_for_test(future_block_header);
-        let headers_refs = [
-            normal_block_header.reference(),
-            future_block_header.reference(),
-        ]
-        .into_iter()
-        .collect::<BTreeSet<_>>();
-        let peer = AuthorityIndex::new_for_test(1);
-        network_client
-            .stub_fetch_headers_response(
-                [normal_block_header.clone(), future_block_header.clone()].to_vec(),
-                peer,
-                None,
-            )
-            .await;
-        let _ = handle.fetch_headers(headers_refs, peer).await.is_ok();
-        // Wait a little bit until synchronizer tries to add them into core
-        sleep(Duration::from_millis(1_000)).await;
-
-        // THEN ensure that the normal block header was added and block header with
-        // future timestamp was ignored
-        let added_block_headers = core_dispatcher.get_and_drain_block_headers().await;
-        assert_eq!(added_block_headers.len(), 1);
-        assert_eq!(added_block_headers[0], normal_block_header);
-
-        // Stop synchronizer and ensure that no panic occurred
-        if let Err(err) = handle.stop().await {
-            if err.is_panic() {
-                std::panic::resume_unwind(err.into_panic());
-            }
-        }
     }
 
     #[tokio::test]

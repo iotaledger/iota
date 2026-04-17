@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const tsSDK = require('./ts-sdk');
+const iotaSDK = require('./iota-sdk');
 const notarization = require("./notarization");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
@@ -25,6 +26,7 @@ import devnetStardustCategoryLink from '../developer/references/framework/devnet
 const developer = [
     'developer/developer',
     'developer/network-overview',
+    'developer/account-abstraction',
     {
         type: 'category',
         label: 'Getting Started',
@@ -177,6 +179,13 @@ const developer = [
             'developer/tutorials/retail-store',
             'developer/tutorials/validate-university-degree',
             'developer/tutorials/create-review-rating-dao-with-multisig',
+            {
+                type: 'category',
+                label: 'Account Abstraction',
+                items: [
+                    'developer/tutorials/account-abstraction/basic-authentication-flow',
+                ],
+            },
             {
                 type: 'category',
                 label: 'Workshops',
@@ -422,12 +431,64 @@ const developer = [
                             'developer/iota-101/move-overview/conventions',
                         ],
                     },
+                    {
+                        type: 'category',
+                        label: 'Account Abstraction',
+                        items: [
+                            'developer/move/explanations/account-abstraction/introduction',
+                            'developer/move/explanations/account-abstraction/components',
+                            'developer/move/explanations/account-abstraction/design-principles',
+                        ],
+                    },
                 ],
             },
             {
                 type: 'category',
                 label: 'How To',
                 items: [
+                    {
+                        type: 'category',
+                        label: 'Account Abstraction',
+                        link: {
+                            type: 'generated-index',
+                            slug: 'developer/move/how-tos/account-abstraction',
+                        },
+                        items: [
+                            {
+                                type: 'category',
+                                label: 'Account Creation and Management',
+                                link: {
+                                    type: 'generated-index',
+                                    slug: 'developer/move/how-tos/account-abstraction/create-manage',
+                                },
+                                description: 'How to create and manage accounts.',
+                                items: [
+                                    'developer/move/how-tos/account-abstraction/create-manage/create-iotaccount',
+                                    'developer/move/how-tos/account-abstraction/create-manage/manage-iotaccount-fields',
+                                    'developer/move/how-tos/account-abstraction/create-manage/rotate-iotaccount-properties',
+                                ]
+                            },
+                            {
+                                type: 'category',
+                                label: 'Authenticator',
+                                link: {
+                                    type: 'generated-index',
+                                    slug: 'developer/move/how-tos/account-abstraction/authenticator',
+                                },
+                                description: 'How to create and manage authenticators for accounts.',
+                                items: [
+                                    'developer/move/how-tos/account-abstraction/authenticator/basic',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-public-key-authentication',
+                                    'developer/move/how-tos/account-abstraction/authenticator/function-call-keys',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-time-locked-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-onesig-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-spending-limit-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/create-lean-imt-account',
+                                    'developer/move/how-tos/account-abstraction/authenticator/dynamic-multisig-account',
+                                ]
+                            },
+                        ],
+                    },
                     {
                         type: 'category',
                         label: 'Create Coins and Tokens',
@@ -586,6 +647,11 @@ const developer = [
         label: 'TS SDK',
         items: tsSDK,
     },
+    {
+        type: 'category',
+        label: 'IOTA SDK',
+        items: iotaSDK,
+    },
     'developer/references/rust-sdk',
     {
         type: 'category',
@@ -639,8 +705,19 @@ const developer = [
                     'developer/references/cli/keytool',
                     'developer/references/cli/move',
                     'developer/references/cli/validator',
-                    'developer/references/cli/ceremony',
                     'developer/references/cli/cheatsheet',
+                ],
+            },
+            'developer/references/cli/localnet',
+            {
+                type: 'category',
+                label: 'IOTA Tool CLI',
+                link: {
+                    type: 'doc',
+                    id: 'developer/references/cli/iota-tool',
+                },
+                items: [
+                    'developer/references/cli/ceremony',
                 ],
             },
         ],

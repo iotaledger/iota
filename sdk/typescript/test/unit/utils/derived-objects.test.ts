@@ -12,7 +12,7 @@ import { normalizeIotaAddress } from '../../../src/utils';
 // as well as `crates/iota-types/src/derived_object.rs` file.
 describe('derived object test utils', () => {
     test('deriveObjectID with primitive type', () => {
-        const key = bcs.vector(bcs.u8()).serialize(new TextEncoder().encode('foo')).toBytes();
+        const key = bcs.byteVector().serialize(new TextEncoder().encode('foo')).toBytes();
 
         expect(deriveObjectID(normalizeIotaAddress('0x2'), 'vector<u8>', key)).toBe(
             '0xa2b411aa9588c398d8e3bc97dddbdd430b5ded7f81545d05e33916c3ca0f30c3',

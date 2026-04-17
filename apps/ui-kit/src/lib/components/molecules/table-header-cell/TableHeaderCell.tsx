@@ -6,7 +6,7 @@ import cx from 'classnames';
 import { Checkbox } from '@/components/atoms/checkbox';
 import { TableHeaderCellSortOrder } from './tableHeaderCell.enums';
 
-export interface TableHeaderCellProps {
+export interface TableHeaderCellProps extends React.AriaAttributes {
     /**
      * The column key.
      */
@@ -68,6 +68,7 @@ export function TableHeaderCell({
     onSortClick,
     onCheckboxChange,
     sortOrder,
+    ...ariaProps
 }: TableHeaderCellProps): JSX.Element {
     const handleSort = () => {
         const newSortOrder =
@@ -107,6 +108,16 @@ export function TableHeaderCell({
                     'cursor-pointer': hasSort,
                 },
             )}
+            aria-sort={
+                hasSort
+                    ? sortOrder === TableHeaderCellSortOrder.Asc
+                        ? 'ascending'
+                        : sortOrder === TableHeaderCellSortOrder.Desc
+                          ? 'descending'
+                          : 'none'
+                    : undefined
+            }
+            {...ariaProps}
         >
             <div
                 className={cx(

@@ -66,6 +66,7 @@ export function parseSerializedSignature(serializedSignature: string) {
                 multisig,
                 bytes,
             };
+        // @experimental
         case 'MoveAuthenticator':
             const moveAuthenticator = bcs.MoveAuthenticator.parse(bytes.slice(1));
             return {

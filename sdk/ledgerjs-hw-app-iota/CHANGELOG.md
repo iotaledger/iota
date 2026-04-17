@@ -1,5 +1,12 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.6.2
+
+### Patch Changes
+
+-   331b7ab: Refreshed the README with up to date APIs, examples and more.
+-   adea573: Enable declarationMap in TS packages
+
 ## 0.6.1
 
 ### Patch Changes

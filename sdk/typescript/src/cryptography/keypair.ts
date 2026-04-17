@@ -72,7 +72,7 @@ export abstract class Signer {
      */
     async signPersonalMessage(bytes: Uint8Array) {
         const { signature } = await this.signWithIntent(
-            bcs.vector(bcs.u8()).serialize(bytes).toBytes(),
+            bcs.byteVector().serialize(bytes).toBytes(),
             'PersonalMessage',
         );
 

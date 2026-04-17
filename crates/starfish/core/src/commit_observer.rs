@@ -548,9 +548,7 @@ impl CommitObserver {
                 .observe(commit.headers.len() as f64);
 
             for header in &commit.headers {
-                let latency_ms = utc_now
-                    .checked_sub(header.timestamp_ms())
-                    .unwrap_or_default();
+                let latency_ms = utc_now.saturating_sub(header.timestamp_ms());
                 metrics
                     .block_header_commit_latency
                     .observe(Duration::from_millis(latency_ms).as_secs_f64());
@@ -620,9 +618,7 @@ impl CommitObserver {
                 .collect::<Vec<_>>();
 
             for block_header in headers_for_committed_txs {
-                let latency_ms = utc_now
-                    .checked_sub(block_header.timestamp_ms())
-                    .unwrap_or_default();
+                let latency_ms = utc_now.saturating_sub(block_header.timestamp_ms());
                 metrics
                     .transaction_commit_latency
                     .observe(Duration::from_millis(latency_ms).as_secs_f64());
@@ -845,7 +841,6 @@ mod tests {
             &mut observer
                 .handle_committed_leaders(
                     leaders
-                        .clone()
                         .into_iter()
                         .skip(expected_last_processed_index)
                         .collect::<Vec<_>>(),
@@ -878,10 +873,10 @@ mod tests {
         // Re-create commit observer starting from index 2 which represents the
         // last processed index from the consumer over consensus output channel
         let _observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, expected_last_processed_index as CommitIndex),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -954,7 +949,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) = observer
-            .handle_committed_leaders(leaders.clone(), CommittedSubDagSource::Consensus)
+            .handle_committed_leaders(leaders, CommittedSubDagSource::Consensus)
             .unwrap();
 
         // Check commits sent over consensus output channel is accurate
@@ -982,10 +977,10 @@ mod tests {
         // Re-create commit observer starting from index 3 which represents the
         // last processed index from the consumer over consensus output channel
         let _observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, expected_last_processed_index as CommitIndex),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -1109,10 +1104,10 @@ mod tests {
         // Recovery should resend commits up to (but not including) the first commit
         // with missing transactions.
         let observer = CommitObserver::new(
-            context.clone(),
+            context,
             CommitConsumer::new(sender, 0),
-            dag_state.clone(),
-            mem_store.clone(),
+            dag_state,
+            mem_store,
             leader_schedule,
         );
 
@@ -1282,11 +1277,11 @@ mod tests {
         // Create new observer starting from 0 to trigger recovery
         // This mimics what happens when the node restarts
         let mut observer_after_restart = CommitObserver::new(
-            context.clone(),
-            CommitConsumer::new(sender.clone(), 0),
+            context,
+            CommitConsumer::new(sender, 0),
             dag_state.clone(),
-            mem_store.clone(),
-            leader_schedule.clone(),
+            mem_store,
+            leader_schedule,
         );
 
         // Drain recovery commits
@@ -1294,10 +1289,7 @@ mod tests {
 
         // Create new blocks (rounds 7-8) that will acknowledge blocks from before
         // restart
-        builder
-            .layers(7..=8)
-            .build()
-            .persist_layers(dag_state.clone());
+        builder.layers(7..=8).build().persist_layers(dag_state);
 
         let new_leaders = builder
             .leader_blocks(7..=8)

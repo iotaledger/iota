@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{str::FromStr, time::Duration};
+use std::{fs, str::FromStr, time::Duration};
 
 use benchmark::{BenchmarkParametersGenerator, LoadType};
 use clap::{Parser, ValueEnum};
@@ -399,6 +399,26 @@ async fn main() -> Result<()> {
     }
 }
 
+// Create benchmark_dir and initialize logger
+// Then benchmark_dir would be like results/<commit>/<timestamp>_<operation>
+fn init_benchmark_logger(
+    settings: &Settings,
+    operation: &str,
+) -> std::io::Result<(std::path::PathBuf, crate::logger::SwappableWriter)> {
+    let commit = settings.repository.commit.replace("/", "_");
+
+    let mut timestamp = chrono::Local::now().format("%y%m%d_%H%M%S").to_string();
+    timestamp.push('_');
+    timestamp.push_str(operation);
+
+    let benchmark_dir = settings.results_dir.join(&commit).join(&timestamp);
+    fs::create_dir_all(&benchmark_dir)?;
+
+    let swappable_writer = crate::logger::init_logger(&benchmark_dir)?;
+
+    Ok((benchmark_dir, swappable_writer))
+}
+
 async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts) -> Result<()> {
     // Create a new testbed.
     let mut testbed = Testbed::new(settings.clone(), client)
@@ -417,16 +437,20 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 skip_monitoring,
                 use_spot_instances,
                 id,
-            } => testbed
-                .deploy(
-                    instances,
-                    skip_monitoring,
-                    dedicated_clients,
-                    use_spot_instances,
-                    id,
-                )
-                .await
-                .wrap_err("Failed to deploy testbed")?,
+            } => {
+                let (_benchmark_dir, _writer) = init_benchmark_logger(&settings, "deploy")?;
+
+                testbed
+                    .deploy(
+                        instances,
+                        skip_monitoring,
+                        dedicated_clients,
+                        use_spot_instances,
+                        id,
+                    )
+                    .await
+                    .wrap_err("Failed to deploy testbed")?
+            }
 
             // Start the specified number of instances on an existing testbed.
             TestbedAction::Start {
@@ -565,6 +589,8 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 None => None,
             };
 
+            let (benchmark_dir, writer) = init_benchmark_logger(&settings, "benchmark_run")?;
+
             let mut generator = BenchmarkParametersGenerator::new(
                 committee,
                 dedicated_clients,
@@ -614,6 +640,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             .with_log_processing(log_processing)
             .with_dedicated_clients(dedicated_clients)
             .skip_monitoring(skip_monitoring)
+            .with_benchmark_dir_and_writer(benchmark_dir, writer)
             .run_benchmarks(generator)
             .await
             .wrap_err("Failed to run benchmarks")?;

@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
+arc-swap.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 backoff.workspace = true
@@ -18,6 +19,7 @@ cached.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["env"] }
 dashmap.workspace = true
+derive_more.workspace = true
 diesel = { workspace = true, features = ["chrono", "r2d2", "serde_json", "postgres"] }
 diesel_migrations = "2.2.0"
 downcast.workspace = true
@@ -26,6 +28,7 @@ futures.workspace = true
 itertools.workspace = true
 jsonrpsee.workspace = true
 moka.workspace = true
+object_store.workspace = true
 prometheus.workspace = true
 rand = { workspace = true, optional = true }
 reqwest.workspace = true
@@ -41,12 +44,17 @@ tokio = { workspace = true, features = ["full"] }
 tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
+tonic.workspace = true
 tracing.workspace = true
 url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
+iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
+iota-grpc-client.workspace = true
+iota-grpc-server.workspace = true
+iota-grpc-types.workspace = true
 iota-json.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-api.workspace = true
@@ -57,7 +65,6 @@ iota-names.workspace = true
 iota-open-rpc.workspace = true
 iota-package-resolver.workspace = true
 iota-protocol-config.workspace = true
-iota-rest-api.workspace = true
 iota-storage.workspace = true
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
@@ -76,12 +83,14 @@ rand.workspace = true
 serde_json.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-config.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
+simulacrum-server.workspace = true
 test-cluster.workspace = true
 
 [[bin]]
@@ -89,4 +98,7 @@ name = "iota-indexer"
 path = "src/main.rs"
 
 [package.metadata.cargo-udeps.ignore]
-development = ["simulacrum"]
+development = ["simulacrum", "simulacrum-server"]
+
+[lints]
+workspace = true

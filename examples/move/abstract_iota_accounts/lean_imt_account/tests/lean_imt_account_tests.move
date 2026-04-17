@@ -144,5 +144,6 @@ fun create_auth_context_for_testing(): AuthContext {
         b"00000000000000000000000000000000",
         vector::empty(),
         vector::empty(),
+        vector[],
     )
 }

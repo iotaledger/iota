@@ -146,7 +146,7 @@ export function KeyValueInfo({
                 )}
                 <div className="self-center">
                     {copyText && (
-                        <ButtonUnstyled onClick={handleCopyClick}>
+                        <ButtonUnstyled onClick={handleCopyClick} aria-label="Copy to clipboard">
                             <Copy className="key-supporting-text-color" />
                         </ButtonUnstyled>
                     )}

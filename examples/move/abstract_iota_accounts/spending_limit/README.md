@@ -12,7 +12,7 @@ The authenticator function for the `SpendingLimitAccount` validates the signatur
 In a dedicated terminal run a local IOTA network:
 
 ```bash
-RUST_LOG="info,consensus=warn,iota_core=warn,fastcrypto_tbls=off,starfish_core=warn,iota_indexer=warn,iota_data_ingestion_core=error,iota_graphql_rpc=warn" iota start --force-regenesis --committee-size 1 --with-faucet --with-indexer --with-graphql
+RUST_LOG="info,consensus=warn,iota_core=warn,fastcrypto_tbls=off,starfish_core=warn,iota_indexer=warn,iota_data_ingestion_core=error,iota_graphql_rpc=warn" iota-localnet start --force-regenesis --committee-size 1 --with-faucet --with-indexer --with-graphql
 ```
 
 In another terminal run the rest of the commands:

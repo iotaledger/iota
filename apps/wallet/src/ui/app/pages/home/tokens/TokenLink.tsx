@@ -24,7 +24,7 @@ export function TokenLink({ coinBalance, clickableAction, icon }: TokenLinkProps
         <Link
             to={url}
             onClick={() =>
-                ampli.coinSelected({
+                ampli.selectedCoin({
                     coinType: coinBalance.coinType,
                     totalBalance: Number(BigInt(coinBalance.totalBalance) / NANOS_PER_IOTA),
                 })

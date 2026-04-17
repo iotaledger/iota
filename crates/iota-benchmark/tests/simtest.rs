@@ -24,6 +24,7 @@ mod test {
         util::get_ed25519_keypair_from_keystore,
         workloads::{
             adversarial::AdversarialPayloadCfg,
+            benchmark_move_base_dir,
             expected_failure::ExpectedFailurePayloadCfg,
             workload::ExpectedFailureType,
             workload_configuration::{WorkloadConfig, WorkloadConfiguration, WorkloadWeights},
@@ -983,6 +984,7 @@ mod test {
     struct SimulatedLoadConfig {
         num_transfer_accounts: u64,
         shared_counter_weight: u32,
+        slow_weight: u32,
         transfer_object_weight: u32,
         delegation_weight: u32,
         batch_payment_weight: u32,
@@ -1001,6 +1003,7 @@ mod test {
         fn default() -> Self {
             Self {
                 shared_counter_weight: 1,
+                slow_weight: 1,
                 transfer_object_weight: 1,
                 num_transfer_accounts: 2,
                 delegation_weight: 1,
@@ -1100,6 +1103,7 @@ mod test {
             adversarial: adversarial_weight,
             expected_failure: config.expected_failure_weight,
             randomized_transaction: config.randomized_transaction_weight,
+            slow: config.slow_weight,
         };
 
         let workload_config = WorkloadConfig {
@@ -1167,7 +1171,7 @@ mod test {
 
         let surfer_task = tokio::spawn(async move {
             // now do a iota-surfer test
-            let mut test_packages_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            let mut test_packages_dir = benchmark_move_base_dir();
             test_packages_dir.extend(["..", "..", "crates", "iota-surfer", "tests"]);
             let test_package_paths: Vec<PathBuf> = std::fs::read_dir(test_packages_dir)
                 .unwrap()

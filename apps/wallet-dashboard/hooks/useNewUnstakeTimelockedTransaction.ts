@@ -4,6 +4,7 @@
 import {
     createTimelockedUnstakeTransaction,
     getGasSummary,
+    getUserFriendlyDryRunExecutionError,
     useMaxTransactionSizeBytes,
 } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
@@ -27,6 +28,10 @@ export function useNewUnstakeTimelockedTransaction(
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
+            if (txDryRun.effects.status.status !== 'success') {
+                const errorText = txDryRun.effects.status.error || 'Transaction dry run failed';
+                throw new Error(getUserFriendlyDryRunExecutionError(errorText));
+            }
             return {
                 transaction,
                 txDryRun,

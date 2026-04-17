@@ -32,3 +32,6 @@ tempfile.workspace = true
 ignored = [
   "tiny-bip39", # it is used as "bip39"
 ]
+
+[lints]
+workspace = true

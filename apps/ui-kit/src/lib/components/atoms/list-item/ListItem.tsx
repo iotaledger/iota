@@ -6,7 +6,7 @@ import cx from 'classnames';
 import { ArrowRight } from '@iota/apps-ui-icons';
 import { Button, ButtonSize, ButtonType } from '../button';
 
-export interface ListItemProps {
+export interface ListItemProps extends React.AriaAttributes {
     /**
      * Has right icon (optional).
      */
@@ -36,6 +36,7 @@ export function ListItem({
     isDisabled,
     children,
     isHighlighted,
+    ...ariaProps
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
     function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
         if ((event.key === 'Enter' || event.key === ' ') && !isDisabled && onClick) {
@@ -64,6 +65,7 @@ export function ListItem({
                 role="button"
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
+                {...ariaProps}
                 className={cx(
                     'list-item-color relative flex flex-row items-center justify-between px-md py-sm',
                     !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',

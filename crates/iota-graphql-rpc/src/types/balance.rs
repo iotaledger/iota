@@ -224,7 +224,7 @@ fn balance_query(
     // Additionally filter objects_history table for results between the available
     // range, or checkpoint_viewed_at, if provided.
     let mut history_objs = query!("SELECT * FROM objects_history");
-    history_objs = filter(history_objs, address, coin_type.clone());
+    history_objs = filter(history_objs, address, coin_type);
     history_objs = filter!(
         history_objs,
         format!(

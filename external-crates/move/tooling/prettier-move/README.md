@@ -21,7 +21,7 @@ Requires [nodejs 18+](https://nodejs.org/en) installed.
 For CLI usage, you can install the plugin globally by running the following command:
 
 ```bash
-npm i -g prettier @iota/prettier-plugin-move
+npm i -g prettier @mysten/prettier-plugin-move
 ```
 
 Then there will be a registered executable `prettier-move` which works exactly like a regular `prettier` one, except that it automatically inserts the path to the plugin as an argument.
@@ -34,8 +34,8 @@ prettier-move -w sources/example.move # to write
 This command is identical to the following:
 
 ```bash
-prettier --plugin /path/to/local/npm/node_modules/@iota/prettier-plugin-move/out/index.js -c sources/example.move # to check
-prettier --plugin /path/to/local/npm/node_modules/@iota/prettier-plugin-move/out/index.js -w sources/example.move # to write
+prettier --plugin /path/to/local/npm/node_modules/@mysten/prettier-plugin-move/out/index.js -c sources/example.move # to check
+prettier --plugin /path/to/local/npm/node_modules/@mysten/prettier-plugin-move/out/index.js -w sources/example.move # to write
 ```
 
 ## Installation (Per-Project)
@@ -45,7 +45,7 @@ the plugin will be available via `prettier` call in the project's directory.
 
 ```bash
 # install as a dev-dependency
-npm i -D prettier @iota/prettier-plugin-move
+npm i -D prettier @mysten/prettier-plugin-move
 ```
 
 Add the `.prettierrc` or a similar configuration file (see [all supported formats](https://prettier.io/docs/en/configuration.html)):
@@ -56,7 +56,7 @@ Add the `.prettierrc` or a similar configuration file (see [all supported format
 	"tabWidth": 4,
 	"useModuleLabel": true,
 	"autoGroupImports": "module",
-	"plugins": ["@iota/prettier-plugin-move"]
+	"plugins": ["@mysten/prettier-plugin-move"]
 }
 ```
 

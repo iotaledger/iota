@@ -11,7 +11,7 @@ publish = false
 async-trait.workspace = true
 aws-config.workspace = true
 aws-runtime = "1.5"
-aws-sdk-ec2 = "1"
+aws-sdk-ec2 = { version = "1", default-features = false, features = ["rustls", "rt-tokio"] }
 aws-smithy-runtime-api = "1.11"
 chrono.workspace = true
 clap.workspace = true
@@ -24,11 +24,13 @@ prettytable-rs = "0.10"
 prometheus-parse = "0.2"
 rand.workspace = true
 reqwest.workspace = true
-russh = "0.57"
+russh = { version = "0.59", default-features = false, features = ["ring", "rsa", "flate2"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 # internal dependencies
 iota-benchmark.workspace = true
@@ -39,7 +41,11 @@ iota-swarm-config.workspace = true
 iota-types.workspace = true
 
 [dev-dependencies]
+# external dependencies
 tempfile.workspace = true
+
+# internal dependencies
+iota-common.workspace = true
 
 [[bin]]
 name = "iota-aws-orchestrator"
@@ -49,3 +55,6 @@ path = "src/main.rs"
 ignored = [
   "prettytable-rs", # library name is different than crate name
 ]
+
+[lints]
+workspace = true

@@ -66,7 +66,6 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         setSelectedAsset(asset);
         if (selectedAssetCategory === AssetCategory.Visual) {
             ampli.clickedCollectibleCard({
-                objectId: asset.objectId,
                 collectibleType: asset.type!,
             });
         }
@@ -108,6 +107,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                                                 ? !ownedAssets?.visual.length
                                                 : !ownedAssets?.other.length
                                         }
+                                        aria-label={`Filter by ${label.toLowerCase()} assets`}
                                     />
                                 ))}
                             </div>

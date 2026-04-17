@@ -3,30 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
-import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
-import {
-    useAccountSources,
-    useActiveAccount,
-    useBackgroundClient,
-    useCreateAccountsMutation,
-} from '_hooks';
+import { AccountsFormType, useAccountsFormContext, useSourceFlow } from '_components';
+import { useAccountSources, useActiveAccount, useCreateAccountsMutation } from '_hooks';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import {
-    Button,
-    ButtonSize,
-    ButtonType,
-    Chip,
-    ChipSize,
-    Divider,
-    Dropdown,
-    ListItem,
-} from '@iota/apps-ui-kit';
+import { AmpliSourceFlow } from '_src/shared/analytics';
+import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
 import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature } from '@iota/apps-backend-client';
 import { Feature, Collapsible } from '@iota/core';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
@@ -50,8 +37,6 @@ const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.LedgerDerived,
 ];
 
-const SOURCE_FLOW = 'Manage Accounts';
-
 export function getGroupTitle(aGroupAccount: SerializedUIAccount) {
     return ACCOUNT_TYPE_TO_LABEL[aGroupAccount?.type] || '';
 }
@@ -71,17 +56,16 @@ export function AccountGroup({
 }) {
     const [isDropdownOpen, setDropdownOpen] = useState(false);
     const [isCollapsibleGroupOpen, setIsCollapsibleGroupOpen] = useState(true);
+    const [expandedWalletNames, setExpandedWalletNames] = useState<Set<string> | null>(null);
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const createAccountsMutation = useCreateAccountsMutation();
     const isMnemonicDerivedGroup = type === AccountType.MnemonicDerived;
     const isSeedDerivedGroup = type === AccountType.SeedDerived;
-    const [accountsFormValues, setAccountsFormValues] = useAccountsFormContext();
-    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+    const [, setAccountsFormValues] = useAccountsFormContext();
+    const { setSourceFlow } = useSourceFlow();
     const { data: accountSources } = useAccountSources();
     const accountSource = accountSources?.find(({ id }) => id === accountSourceID);
-
-    const backgroundClient = useBackgroundClient();
 
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
         if (!accountSource) return;
@@ -97,13 +81,25 @@ export function AccountGroup({
             type: accountsFormType,
             sourceID: accountSource.id,
         });
-        if (accountSource.isLocked) {
-            setPasswordModalVisible(true);
-        } else {
-            createAccountsMutation.mutate({
+        setSourceFlow(AmpliSourceFlow.ManageAccounts);
+        try {
+            const accountCreationResult = await createAccountsMutation.mutateAsync({
                 type: accountsFormType,
-                sourceFlow: SOURCE_FLOW,
             });
+            const newAccount = accountCreationResult?.[0];
+            if (
+                newAccount &&
+                (isMnemonicSerializedUiAccount(newAccount) || isSeedSerializedUiAccount(newAccount))
+            ) {
+                const { accountIndex } = parseDerivationPath(newAccount.derivationPath);
+                const newWalletName = `Wallet ${accountIndex + 1}`;
+                setExpandedWalletNames(
+                    (prev) =>
+                        new Set([...(prev ?? accountGroupsByIndex.map(([n]) => n)), newWalletName]),
+                );
+            }
+        } catch {
+            // errors are already handled by the mutation
         }
     }
 
@@ -143,6 +139,7 @@ export function AccountGroup({
     const dropdownVisibility = {
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
+        showBalanceFinder,
     };
     const showMoreButton = Object.values(dropdownVisibility).some((v) => v);
 
@@ -171,6 +168,8 @@ export function AccountGroup({
         );
     }
 
+    const accountGroupsByIndex = Object.entries(groupAccountsByAccountIndex(accounts));
+
     return (
         <div className="relative overflow-visible">
             <Collapsible
@@ -194,13 +193,6 @@ export function AccountGroup({
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
-                            {showBalanceFinder && (
-                                <Chip
-                                    label="Balance Finder"
-                                    onClick={handleBalanceFinder}
-                                    size={ChipSize.Small}
-                                />
-                            )}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
                                 <Button
                                     size={ButtonSize.Small}
@@ -232,46 +224,58 @@ export function AccountGroup({
             >
                 {hasLegacyAccount ? (
                     <div className="pl-md">
-                        {Object.entries(groupAccountsByAccountIndex(accounts)).map(
-                            ([walletName, walletAccounts], index) => (
-                                <Collapsible
-                                    key={index}
-                                    defaultOpen
-                                    hideArrow
-                                    hideBorder
-                                    render={({ isOpen }) => (
-                                        <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                            <div className="shrink-0 text-title-sm">
-                                                From {walletName}
-                                            </div>
-                                            <Divider />
-                                            <ArrowDown
-                                                className={clsx(
-                                                    'h-5 w-5 shrink-0',
-                                                    isOpen
-                                                        ? 'rotate-0 transition-transform ease-linear'
-                                                        : '-rotate-90 transition-transform ease-linear',
-                                                )}
-                                            />
+                        {accountGroupsByIndex.map(([walletName, walletAccounts]) => (
+                            <Collapsible
+                                key={walletName}
+                                isOpen={
+                                    expandedWalletNames === null ||
+                                    expandedWalletNames.has(walletName)
+                                }
+                                onOpenChange={(isOpen) =>
+                                    setExpandedWalletNames((prev) => {
+                                        const accountGroupSet: Set<string> =
+                                            prev === null
+                                                ? new Set(accountGroupsByIndex.map(([n]) => n))
+                                                : new Set(prev);
+                                        if (isOpen) accountGroupSet.add(walletName);
+                                        else accountGroupSet.delete(walletName);
+                                        return accountGroupSet;
+                                    })
+                                }
+                                hideArrow
+                                hideBorder
+                                render={({ isOpen }) => (
+                                    <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                        <div className="shrink-0 text-title-sm">
+                                            From {walletName}
                                         </div>
-                                    )}
-                                >
-                                    {walletAccounts.map((account, index) => (
-                                        <AccountGroupItem
-                                            outerRef={outerRef}
-                                            isActive={activeAccount?.address === account.address}
-                                            key={account.id}
-                                            account={account}
-                                            showDropdownOptionsBottom={
-                                                isLast &&
-                                                (index === walletAccounts.length - 1 ||
-                                                    index === walletAccounts.length - 2)
-                                            }
+                                        <Divider />
+                                        <ArrowDown
+                                            className={clsx(
+                                                'h-5 w-5 shrink-0',
+                                                isOpen
+                                                    ? 'rotate-0 transition-transform ease-linear'
+                                                    : '-rotate-90 transition-transform ease-linear',
+                                            )}
                                         />
-                                    ))}
-                                </Collapsible>
-                            ),
-                        )}
+                                    </div>
+                                )}
+                            >
+                                {walletAccounts.map((account, index) => (
+                                    <AccountGroupItem
+                                        outerRef={outerRef}
+                                        isActive={activeAccount?.address === account.address}
+                                        key={account.id}
+                                        account={account}
+                                        showDropdownOptionsBottom={
+                                            isLast &&
+                                            (index === walletAccounts.length - 1 ||
+                                                index === walletAccounts.length - 2)
+                                        }
+                                    />
+                                ))}
+                            </Collapsible>
+                        ))}
                     </div>
                 ) : (
                     accounts.map((account, index) => (
@@ -288,43 +292,29 @@ export function AccountGroup({
                     ))
                 )}
             </Collapsible>
-            <div
-                className={`absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
-            >
-                <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
-                    <Dropdown>
-                        {dropdownVisibility.showExportMnemonic && (
-                            <ListItem hideBottomBorder onClick={handleExportMnemonic}>
-                                Export Mnemonic
-                            </ListItem>
-                        )}
-                        {dropdownVisibility.showExportSeed && (
-                            <ListItem hideBottomBorder onClick={handleExportSeed}>
-                                Export Seed
-                            </ListItem>
-                        )}
-                    </Dropdown>
-                </OutsideClickHandler>
-            </div>
-            {isPasswordModalVisible ? (
-                <VerifyPasswordModal
-                    open
-                    onVerify={async (password) => {
-                        await backgroundClient.unlockAllAccountsAndSources({
-                            password,
-                        });
-
-                        if (accountsFormValues.current) {
-                            await createAccountsMutation.mutateAsync({
-                                type: accountsFormValues.current.type,
-                                sourceFlow: SOURCE_FLOW,
-                            });
-                        }
-                        setPasswordModalVisible(false);
-                    }}
-                    onClose={() => setPasswordModalVisible(false)}
-                />
-            ) : null}
+            {isDropdownOpen && (
+                <div className="absolute right-3 top-3 z-[100] origin-top animate-dropdown-show rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6">
+                    <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
+                        <Dropdown>
+                            {dropdownVisibility.showBalanceFinder && (
+                                <ListItem hideBottomBorder onClick={handleBalanceFinder}>
+                                    Balance Finder
+                                </ListItem>
+                            )}
+                            {dropdownVisibility.showExportMnemonic && (
+                                <ListItem hideBottomBorder onClick={handleExportMnemonic}>
+                                    Export Mnemonic
+                                </ListItem>
+                            )}
+                            {dropdownVisibility.showExportSeed && (
+                                <ListItem hideBottomBorder onClick={handleExportSeed}>
+                                    Export Seed
+                                </ListItem>
+                            )}
+                        </Dropdown>
+                    </OutsideClickHandler>
+                </div>
+            )}
         </div>
     );
 }

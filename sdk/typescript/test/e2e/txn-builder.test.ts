@@ -32,7 +32,7 @@ describe('Transaction Builders', () => {
     let sharedObjectId: string;
 
     beforeAll(async () => {
-        const packagePath = __dirname + '/./data/serializer';
+        const packagePath = __dirname + '/data/serializer';
         ({ packageId, publishTxn } = await publishPackage(packagePath));
         const sharedObject = publishTxn.effects?.created!.find(
             (o) =>
@@ -166,7 +166,7 @@ describe('Transaction Builders', () => {
         'Publish and Upgrade Package',
         async () => {
             // Step 1. Publish the package
-            const originalPackagePath = __dirname + '/./data/serializer';
+            const originalPackagePath = __dirname + '/data/serializer';
             const { packageId, publishTxn } = await publishPackage(originalPackagePath, toolbox);
 
             const capId = (
@@ -203,7 +203,7 @@ describe('Transaction Builders', () => {
             await validateTransaction(toolbox.client, toolbox.keypair, callOrigTx);
 
             // Step 3. Publish the upgrade for the package.
-            const upgradedPackagePath = __dirname + '/./data/serializer_upgrade';
+            const upgradedPackagePath = __dirname + '/data/serializer_upgrade';
 
             // Step 4. Make sure the behaviour of the upgrade package matches
             // the newly introduced function

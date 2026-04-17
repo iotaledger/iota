@@ -121,12 +121,6 @@ jobs:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster_sync_check.yml
 
-  rosetta:
-    if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
-    uses: ./.github/workflows/_rosetta.yml
-    with:
-      isNightly: true
-
   simtest:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}
     timeout-minutes: 600

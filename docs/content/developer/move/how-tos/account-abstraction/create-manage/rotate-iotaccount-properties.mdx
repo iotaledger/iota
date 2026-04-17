@@ -1,0 +1,32 @@
+---
+description: 'How to rotate the authenticator function of an account in Move'
+tags:
+  - how-to
+  - move-sc
+  - move-vm
+---
+
+# Rotate the Authenticator Function
+
+import AccountAbstraction from '../../../../../_snippets/developer/move/aa.mdx';
+
+<AccountAbstraction />
+
+This how-to demonstrates how to rotate the authenticator function reference of an existing account, using `IOTAccount` as an example.
+
+## Example Code
+
+Replace the attached authenticator function reference using [`rotate_auth_function_ref_v1`](../../../../references/framework/iota/account.mdx#iota_account_rotate_auth_function_ref_v1). The previous reference is returned.
+The transaction must be authorized by either the account itself or the configured admin.
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move#L184-L193
+```
+
+## Expected Behavior
+
+- The function aborts if the transaction sender is neither the account nor the configured admin.
+- Rotating the authenticator replaces the function used to validate all future transactions from this account.
+
+## Full Example Code
+
+```move file=<rootDir>/examples/move/abstract_iota_accounts/iotaccount/sources/iotaccount.move
+```

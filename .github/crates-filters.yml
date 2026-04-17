@@ -90,6 +90,8 @@ iota-ledger-signer:
   - "crates/iota-ledger-signer/**"
 iota-light-client:
   - "crates/iota-light-client/**"
+iota-localnet:
+  - "crates/iota-localnet/**"
 iota-macros:
   - "crates/iota-macros/**"
 iota-mainnet-unlocks:
@@ -112,6 +114,8 @@ iota-network-stack:
   - "crates/iota-network-stack/**"
 iota-node:
   - "crates/iota-node/**"
+iota-node-storage:
+  - "crates/iota-node-storage/**"
 iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
@@ -136,12 +140,8 @@ iota-proxy:
   - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
-iota-rest-api:
-  - "crates/iota-rest-api/**"
 iota-rest-kv:
   - "crates/iota-rest-kv/**"
-iota-rosetta:
-  - "crates/iota-rosetta/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
 iota-sdk:

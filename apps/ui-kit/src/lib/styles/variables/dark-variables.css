@@ -256,6 +256,21 @@
     /* TABLE */
     --table-text-color: theme('colors.iota-neutral.60');
 
+    /* DATE PICKER */
+    --date-picker-text-color: theme('colors.iota-neutral.92');
+    --date-picker-trigger-placeholder-color: rgba(136, 146, 161, 0.4);
+    --date-picker-border-color: theme('colors.iota-neutral.20');
+    --date-picker-trigger-border-hover-color: theme('colors.iota-neutral.60');
+    --date-picker-focus-color: theme('colors.iota-primary.80');
+    --date-picker-trigger-border-error-color: theme('colors.iota-error.80');
+    --date-picker-calendar-bg: theme('colors.iota-neutral.6');
+    --date-picker-muted-text-color: theme('colors.iota-neutral.60');
+    --date-picker-hover-bg: theme('colors.iota-neutral.12');
+    --date-picker-day-bg-selected: theme('colors.iota-primary.30');
+    --date-picker-day-text-selected: theme('colors.iota-primary.100');
+    --date-picker-day-text-disabled: theme('colors.iota-neutral.60');
+    --date-picker-day-text-outside-month: theme('colors.iota-neutral.40');
+
     /* DIALOG */
     --dialog-outline: none;
     --dialog-overlay-bg: theme('colors.shader-neutral-light.48');

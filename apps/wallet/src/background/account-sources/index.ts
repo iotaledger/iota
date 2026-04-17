@@ -86,7 +86,6 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
             throw new Error(`Unknown Account source type ${type}`);
         }
     }
-    accountSourcesEvents.emit('accountSourcesChanged');
     return accountSource.toUISerialized();
 }
 
@@ -103,6 +102,7 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
                 msg.id,
             ),
         );
+        accountSourcesEvents.emit('accountSourcesChanged');
         return true;
     }
     if (isMethodPayload(payload, 'unlockAccountSource')) {
@@ -115,8 +115,8 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
             throw new Error('Account source not found');
         }
         await accountSource.unlock(password);
-        accountSourcesEvents.emit('accountSourcesChanged');
         uiConnection.send(createMessage({ type: 'done' }, msg.id));
+        accountSourcesEvents.emit('accountSourcesChanged');
         return true;
     }
     if (isMethodPayload(payload, 'getAccountSourceEntropy')) {

@@ -563,5 +563,80 @@
         "id": "0x000000000000000000000000000000000000000000000000000000000000107a"
       }
     ]
+  },
+  "22": {
+    "git_revision": "b1b37ed9d5ff64cbbfb3aa1ebd9b9431a0337311",
+    "packages": [
+      {
+        "name": "MoveStdlib",
+        "path": "crates/iota-framework/packages/move-stdlib",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      {
+        "name": "Iota",
+        "path": "crates/iota-framework/packages/iota-framework",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000002"
+      },
+      {
+        "name": "IotaSystem",
+        "path": "crates/iota-framework/packages/iota-system",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000003"
+      },
+      {
+        "name": "Stardust",
+        "path": "crates/iota-framework/packages/stardust",
+        "id": "0x000000000000000000000000000000000000000000000000000000000000107a"
+      }
+    ]
+  },
+  "23": {
+    "git_revision": "3e2b511de52307e8513f278ee3576a1de47a267f",
+    "packages": [
+      {
+        "name": "MoveStdlib",
+        "path": "crates/iota-framework/packages/move-stdlib",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      {
+        "name": "Iota",
+        "path": "crates/iota-framework/packages/iota-framework",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000002"
+      },
+      {
+        "name": "IotaSystem",
+        "path": "crates/iota-framework/packages/iota-system",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000003"
+      },
+      {
+        "name": "Stardust",
+        "path": "crates/iota-framework/packages/stardust",
+        "id": "0x000000000000000000000000000000000000000000000000000000000000107a"
+      }
+    ]
+  },
+  "24": {
+    "git_revision": "0daac7d867b5d4407be4533b4583d75464f50267",
+    "packages": [
+      {
+        "name": "MoveStdlib",
+        "path": "crates/iota-framework/packages/move-stdlib",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      {
+        "name": "Iota",
+        "path": "crates/iota-framework/packages/iota-framework",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000002"
+      },
+      {
+        "name": "IotaSystem",
+        "path": "crates/iota-framework/packages/iota-system",
+        "id": "0x0000000000000000000000000000000000000000000000000000000000000003"
+      },
+      {
+        "name": "Stardust",
+        "path": "crates/iota-framework/packages/stardust",
+        "id": "0x000000000000000000000000000000000000000000000000000000000000107a"
+      }
+    ]
   }
 }

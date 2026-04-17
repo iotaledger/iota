@@ -22,6 +22,7 @@ export function CloseButton({ onClick }: CloseButtonProps): JSX.Element {
             onClick={onClick}
             type="button"
             className="text-steel absolute right-0 top-0 p-4 hover:text-iota-neutral-60"
+            aria-label="Close"
         >
             <Close className="h-3 w-3" />
         </button>

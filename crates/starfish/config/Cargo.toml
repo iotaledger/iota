@@ -16,6 +16,7 @@ fastcrypto = { workspace = true, features = ["copy_key"] }
 rand.workspace = true
 rs_merkle.workspace = true
 serde.workspace = true
+tracing.workspace = true
 
 # internal dependencies
 iota-network-stack.workspace = true

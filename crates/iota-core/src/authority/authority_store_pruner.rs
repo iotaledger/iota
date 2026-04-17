@@ -41,8 +41,8 @@ use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTab
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     checkpoints::{CheckpointStore, CheckpointWatermark},
+    grpc_indexes::GrpcIndexesStore,
     jsonrpc_index::IndexStore,
-    rest_index::RestIndexStore,
 };
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
@@ -252,7 +252,7 @@ impl AuthorityStorePruner {
     fn prune_checkpoints(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_db: &Arc<CheckpointStore>,
-        rest_index: Option<&RestIndexStore>,
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
         checkpoint_number: CheckpointSequenceNumber,
         checkpoints_to_prune: Vec<CheckpointDigest>,
         checkpoint_content_to_prune: Vec<CheckpointContents>,
@@ -281,6 +281,8 @@ impl AuthorityStorePruner {
             effect_digests.push(effects_digest);
 
             if let Some(event_digest) = effects.events_digest() {
+                perpetual_batch
+                    .delete_batch(&perpetual_db.events_2, [effects.transaction_digest()])?;
                 if let Some(next_digest) = event_digest.next_lexicographical() {
                     perpetual_batch.schedule_delete_range(
                         &perpetual_db.events,
@@ -318,8 +320,8 @@ impl AuthorityStorePruner {
             )],
         )?;
 
-        if let Some(rest_index) = rest_index {
-            rest_index.prune(checkpoint_number, &checkpoint_content_to_prune)?;
+        if let Some(grpc_indexes_store) = grpc_indexes_store {
+            grpc_indexes_store.prune(checkpoint_number, &checkpoint_content_to_prune)?;
         }
         perpetual_batch.write()?;
         checkpoints_batch.write()?;
@@ -334,7 +336,7 @@ impl AuthorityStorePruner {
     pub async fn prune_objects_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
-        rest_index: Option<&RestIndexStore>,
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
@@ -361,7 +363,7 @@ impl AuthorityStorePruner {
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
-            rest_index,
+            grpc_indexes_store,
             pruner_db,
             PruningMode::Objects,
             config.num_epochs_to_retain,
@@ -384,7 +386,7 @@ impl AuthorityStorePruner {
     pub async fn prune_checkpoints_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
-        rest_index: Option<&RestIndexStore>,
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
@@ -428,7 +430,7 @@ impl AuthorityStorePruner {
         Self::prune_for_eligible_epochs(
             perpetual_db,
             checkpoint_store,
-            rest_index,
+            grpc_indexes_store,
             pruner_db,
             PruningMode::Checkpoints,
             config
@@ -447,7 +449,7 @@ impl AuthorityStorePruner {
     pub async fn prune_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
-        rest_index: Option<&RestIndexStore>,
+        grpc_indexes_store: Option<&GrpcIndexesStore>,
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         mode: PruningMode,
         num_epochs_to_retain: u64,
@@ -477,7 +479,7 @@ impl AuthorityStorePruner {
                 break;
             };
             let checkpoint = ckpt.into_inner();
-            // Skipping because  checkpoint's epoch or checkpoint number is too new.
+            // Skipping because checkpoint's epoch or checkpoint number is too new.
             // We have to respect the highest executed checkpoint watermark (including the
             // watermark itself) because there might be parts of the system that
             // still require access to old object versions (i.e. state
@@ -523,7 +525,7 @@ impl AuthorityStorePruner {
                     PruningMode::Checkpoints => Self::prune_checkpoints(
                         perpetual_db,
                         checkpoint_store,
-                        rest_index,
+                        grpc_indexes_store,
                         checkpoint_number,
                         checkpoints_to_prune,
                         checkpoint_content_to_prune,
@@ -554,7 +556,7 @@ impl AuthorityStorePruner {
                 PruningMode::Checkpoints => Self::prune_checkpoints(
                     perpetual_db,
                     checkpoint_store,
-                    rest_index,
+                    grpc_indexes_store,
                     checkpoint_number,
                     checkpoints_to_prune,
                     checkpoint_content_to_prune,
@@ -603,14 +605,14 @@ impl AuthorityStorePruner {
         delay_days: usize,
         last_processed: Arc<Mutex<HashMap<String, SystemTime>>>,
     ) -> anyhow::Result<Option<LiveFile>> {
-        let db_path = perpetual_db.objects.rocksdb.path();
+        let db_path = perpetual_db.objects.db.path_for_pruning();
         let mut state = last_processed
             .lock()
             .expect("failed to obtain a lock for last processed SST files");
         let mut sst_file_for_compaction: Option<LiveFile> = None;
         let time_threshold =
             SystemTime::now() - Duration::from_secs(delay_days as u64 * 24 * 60 * 60);
-        for sst_file in perpetual_db.objects.rocksdb.live_files()? {
+        for sst_file in perpetual_db.objects.db.live_files()? {
             let file_path = db_path.join(sst_file.name.clone().trim_matches('/'));
             let last_modified = std::fs::metadata(file_path)?.modified()?;
             if !PERIODIC_PRUNING_TABLES.contains(&sst_file.column_family_name)
@@ -677,8 +679,7 @@ impl AuthorityStorePruner {
             .checked_div(Self::pruning_tick_duration_ms(epoch_duration_ms))
             .unwrap_or(1);
         let delta = max_eligible_checkpoint
-            .checked_sub(pruned_checkpoint)
-            .unwrap_or_default()
+            .saturating_sub(pruned_checkpoint)
             .checked_div(num_intervals)
             .unwrap_or(1);
         Ok(pruned_checkpoint + delta)
@@ -689,7 +690,7 @@ impl AuthorityStorePruner {
         epoch_duration_ms: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
-        rest_index: Option<Arc<RestIndexStore>>,
+        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         jsonrpc_index: Option<Arc<IndexStore>>,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
@@ -753,12 +754,12 @@ impl AuthorityStorePruner {
             loop {
                 tokio::select! {
                     _ = objects_prune_interval.tick(), if config.num_epochs_to_retain != u64::MAX => {
-                        if let Err(err) = Self::prune_objects_for_eligible_epochs(&perpetual_db, &checkpoint_store, rest_index.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), epoch_duration_ms).await {
+                        if let Err(err) = Self::prune_objects_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), epoch_duration_ms).await {
                             error!("Failed to prune objects: {:?}", err);
                         }
                     },
                     _ = checkpoints_prune_interval.tick(), if !matches!(config.num_epochs_to_retain_for_checkpoints(), None | Some(u64::MAX) | Some(0)) => {
-                        if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(&perpetual_db, &checkpoint_store, rest_index.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), archive_readers.clone(), epoch_duration_ms).await {
+                        if let Err(err) = Self::prune_checkpoints_for_eligible_epochs(&perpetual_db, &checkpoint_store, grpc_indexes_store.as_deref(), pruner_db.as_ref(), config.clone(), metrics.clone(), archive_readers.clone(), epoch_duration_ms).await {
                             error!("Failed to prune checkpoints: {:?}", err);
                         }
                     },
@@ -779,7 +780,7 @@ impl AuthorityStorePruner {
     pub fn new(
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
-        rest_index: Option<Arc<RestIndexStore>>,
+        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
         jsonrpc_index: Option<Arc<IndexStore>>,
         mut pruning_config: AuthorityStorePruningConfig,
         is_validator: bool,
@@ -807,7 +808,7 @@ impl AuthorityStorePruner {
                 epoch_duration_ms,
                 perpetual_db,
                 checkpoint_store,
-                rest_index,
+                grpc_indexes_store,
                 jsonrpc_index,
                 pruner_db,
                 AuthorityStorePruningMetrics::new(registry),
@@ -909,7 +910,7 @@ mod tests {
     use tracing::info;
     use typed_store::{
         Map,
-        rocks::{DBMap, MetricConf, ReadWriteOptions},
+        rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options},
     };
 
     use super::AuthorityStorePruner;
@@ -922,8 +923,11 @@ mod tests {
     fn get_keys_after_pruning(path: &Path) -> anyhow::Result<HashSet<ObjectKey>> {
         let perpetual_db_path = path.join(Path::new("perpetual"));
         let cf_names = AuthorityPerpetualTables::describe_tables();
-        let cfs: Vec<&str> = cf_names.keys().map(|x| x.as_str()).collect();
-        let perpetual_db = typed_store::rocks::open_cf(
+        let cfs: Vec<_> = cf_names
+            .keys()
+            .map(|x| (x.as_str(), default_db_options().options))
+            .collect();
+        let perpetual_db = typed_store::rocks::open_cf_opts(
             perpetual_db_path,
             None,
             MetricConf::new("perpetual_pruning"),
@@ -1048,34 +1052,33 @@ mod tests {
     // Tests pruning old version of live objects.
     #[tokio::test]
     async fn test_pruning_objects() {
-        let path = tempfile::tempdir().unwrap().keep();
-        let to_keep = run_pruner(&path, 3, 2, 1000).await;
+        let tmp_dir = iota_common::tempdir();
+        let to_keep = run_pruner(tmp_dir.path(), 3, 2, 1000).await;
         assert_eq!(
             HashSet::from_iter(to_keep),
-            get_keys_after_pruning(&path).unwrap()
+            get_keys_after_pruning(tmp_dir.path()).unwrap()
         );
-        run_pruner(&tempfile::tempdir().unwrap().keep(), 3, 2, 1000).await;
     }
 
     // Tests pruning deleted objects (object tombstones).
     #[tokio::test]
     async fn test_pruning_tombstones() {
-        let path = tempfile::tempdir().unwrap().keep();
-        let to_keep = run_pruner(&path, 0, 0, 1000).await;
+        let tmp_dir = iota_common::tempdir();
+        let to_keep = run_pruner(tmp_dir.path(), 0, 0, 1000).await;
         assert_eq!(to_keep.len(), 0);
-        assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
+        assert_eq!(get_keys_after_pruning(tmp_dir.path()).unwrap().len(), 0);
 
-        let path = tempfile::tempdir().unwrap().keep();
-        let to_keep = run_pruner(&path, 3, 0, 1000).await;
+        let tmp_dir2 = iota_common::tempdir();
+        let to_keep = run_pruner(tmp_dir2.path(), 3, 0, 1000).await;
         assert_eq!(to_keep.len(), 0);
-        assert_eq!(get_keys_after_pruning(&path).unwrap().len(), 0);
+        assert_eq!(get_keys_after_pruning(tmp_dir2.path()).unwrap().len(), 0);
     }
 
     #[cfg(not(target_env = "msvc"))]
     #[tokio::test]
     async fn test_db_size_after_compaction() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.keep();
-        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = Arc::new(AuthorityPerpetualTables::open(tmp_dir.path(), None));
         let total_unique_object_ids = 10_000;
         let num_versions_per_object = 10;
         let ids = ObjectID::in_range(ObjectID::ZERO, total_unique_object_ids)?;
@@ -1107,12 +1110,11 @@ mod tests {
             size
         }
 
-        let db_path = primary_path.clone().join("perpetual");
+        let db_path = tmp_dir.path().join("perpetual");
         let start = ObjectKey(ObjectID::ZERO, SequenceNumber::MIN_VALID_INCL);
         let end = ObjectKey(ObjectID::MAX, SequenceNumber::MAX_VALID_EXCL);
 
-        perpetual_db.objects.rocksdb.flush()?;
-        perpetual_db.objects.compact_range_to_bottom(&start, &end)?;
+        perpetual_db.objects.compact_range(&start, &end)?;
         let before_compaction_size = get_sst_size(&db_path);
 
         let mut effects = TransactionEffects::default();
@@ -1130,8 +1132,7 @@ mod tests {
                 .await;
         info!("Total pruned keys = {:?}", total_pruned);
 
-        perpetual_db.objects.rocksdb.flush()?;
-        perpetual_db.objects.compact_range_to_bottom(&start, &end)?;
+        perpetual_db.objects.compact_range(&start, &end)?;
         let after_compaction_size = get_sst_size(&db_path);
 
         info!(

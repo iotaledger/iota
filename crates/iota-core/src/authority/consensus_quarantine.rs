@@ -7,7 +7,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
-use iota_common::fatal;
+use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, ObjectID, SequenceNumber, TransactionDigest},
@@ -19,7 +19,6 @@ use iota_types::{
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
-use rand::seq::SliceRandom;
 use tracing::{debug, info};
 use typed_store::{Map, rocks::DBBatch};
 
@@ -383,13 +382,7 @@ impl ConsensusOutputCache {
             .get_all_deferred_transactions_v2()
             .expect("load deferred transactions v2 cannot fail");
 
-        let executed_in_epoch_cache_capacity = if cfg!(msim) {
-            // Ensure that we test under conditions of constant, frequent,
-            // and rare cache evictions.
-            *[2, 100, 50000].choose(&mut rand::thread_rng()).unwrap()
-        } else {
-            50_000
-        };
+        let executed_in_epoch_cache_capacity = 50_000;
 
         Self {
             shared_version_assignments: Default::default(),
@@ -399,7 +392,9 @@ impl ConsensusOutputCache {
             executed_in_epoch: RwLock::new(DashMap::with_shard_amount(2048)),
             executed_in_epoch_cache: MokaCache::builder(8)
                 // most queries should be for recent transactions
-                .max_capacity(executed_in_epoch_cache_capacity)
+                .max_capacity(randomize_cache_capacity_in_tests(
+                    executed_in_epoch_cache_capacity,
+                ))
                 .eviction_policy(EvictionPolicy::lru())
                 .build(),
             metrics,

@@ -11,12 +11,11 @@ import {
     useShouldOpenInNewTab,
 } from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
-import { useFeature } from '@growthbook/growthbook-react';
+import { useFeature, useAppsBackendClient } from '@iota/apps-backend-client';
 import {
     Feature,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
     DELEGATED_STAKES_QUERY_STALE_TIME,
-    useAppsBackend,
     useGetDelegatedStake,
     TIMELOCK_IOTA_TYPE,
     useGetOwnedObjects,
@@ -44,6 +43,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ArrowBottomLeft, Info, Migration, Send, Vesting } from '@iota/apps-ui-icons';
 import { Interstitial, type InterstitialConfig } from '../interstitial';
+import Browser from 'webextension-polyfill';
+import { coerce, gte } from 'semver';
 import { CoinBalance } from './coin-balance';
 import { TokenStakingOverview } from './TokenStakingOverview';
 import { useNavigate } from 'react-router-dom';
@@ -72,13 +73,10 @@ export function TokenDetails() {
 
     const OBJECT_PER_REQ = 1;
 
-    const { request } = useAppsBackend();
+    const client = useAppsBackendClient();
     const { data } = useQuery({
         queryKey: ['apps-backend', 'monitor-network'],
-        queryFn: () =>
-            request<{ degraded: boolean }>('monitor-network', {
-                project: 'WALLET',
-            }),
+        queryFn: () => client.getMonitorNetwork('WALLET'),
         // Keep cached for 2 minutes:
         staleTime: 2 * 60 * 1000,
         retry: false,
@@ -161,6 +159,11 @@ export function TokenDetails() {
         Feature.WalletInterstitialConfig,
     ).value;
 
+    const walletVersion = coerce(Browser.runtime.getManifest().version);
+    const minVersion = coerce(walletInterstitialConfig?.minVersion);
+    const isMinVersionCompatible =
+        !minVersion || (!!walletVersion && gte(walletVersion, minVersion));
+
     const tokenBalance = BigInt(coinBalance?.totalBalance ?? 0);
 
     // Avoid perpetual loading state when fetching and retry keeps failing add isFetched check
@@ -196,6 +199,7 @@ export function TokenDetails() {
     if (
         navigator.userAgent !== 'Playwright' &&
         walletInterstitialConfig?.enabled &&
+        isMinVersionCompatible &&
         !interstitialDismissed
     ) {
         return (
@@ -238,12 +242,12 @@ export function TokenDetails() {
                                 isCopyable
                                 copyText={activeAccountAddress}
                                 onCopySuccess={() => {
-                                    ampli.elementCopied({
+                                    ampli.copiedElement({
                                         type: 'address',
                                     });
                                     toast('Address copied');
                                 }}
-                                onOpen={() => ampli.externalLinkOpened({ type: 'address' })}
+                                onOpen={() => ampli.openedLink({ type: 'address' })}
                             />
                             <CoinBalance amount={tokenBalance} type={activeCoinType} />
                         </div>
@@ -279,6 +283,7 @@ export function TokenDetails() {
                                                 onClick={() => setDialogMigrationOpen(true)}
                                                 title="Migration"
                                                 icon={Migration}
+                                                subtitle="Action required"
                                             />
                                         ) : null}
                                         {hasSupplyIncreaseVestingObjects ? (
@@ -286,6 +291,7 @@ export function TokenDetails() {
                                                 onClick={() => setDialogVestingOpen(true)}
                                                 title="Vesting"
                                                 icon={Vesting}
+                                                subtitle="Action required"
                                             />
                                         ) : null}
                                     </div>

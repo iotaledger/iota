@@ -14,7 +14,7 @@ import {
 } from './button.classes';
 import cx from 'classnames';
 
-export interface ButtonProps {
+export interface ButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {
     /**
      * The size of the button.
      */
@@ -75,6 +75,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             iconAfterText = false,
             tabIndex = 0,
             testId,
+            ...buttonProps
         },
         ref,
     ): React.JSX.Element => {
@@ -87,9 +88,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
         return (
             <button
+                type={htmlType}
+                {...buttonProps}
                 ref={ref}
                 onClick={onClick}
-                type={htmlType}
                 className={cx(
                     'state-layer relative flex items-center justify-center gap-2 rounded-full transition-all duration-150 ease-in disabled:cursor-not-allowed disabled:opacity-40',
                     paddingClasses,

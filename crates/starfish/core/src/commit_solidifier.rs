@@ -556,7 +556,7 @@ mod tests {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
-        let subdag = SubDagBuilder::new(setup.clone(), 1)
+        let subdag = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
             .with_blocks(vec![
                 BlockSpec::all_from_round(0),
@@ -591,7 +591,7 @@ mod tests {
             GenericTransactionRef::from(setup.dag_builder.block_headers(1..=1)[0].reference())
         };
 
-        let subdag = SubDagBuilder::new(setup.clone(), 1)
+        let subdag = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
             .with_blocks(vec![
                 BlockSpec::all_from_round(0),
@@ -674,7 +674,7 @@ mod tests {
             .with_committed_refs_from_round(1)
             .build();
 
-        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+        let subdag2 = SubDagBuilder::new(setup, 2)
             .leader(4, 0)
             .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
             .with_committed_refs_from_round(2)
@@ -703,15 +703,14 @@ mod tests {
             .with_committed_refs_from_round(1)
             .build();
 
-        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+        let subdag2 = SubDagBuilder::new(setup, 2)
             .leader(4, 0)
             .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
             .with_committed_refs_from_round(2)
             .build();
 
         // Submit out of order
-        let (committed, missing) =
-            commit_solidifier.try_get_solid_sub_dags(&[subdag2.clone(), subdag1.clone()]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag2, subdag1]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
         assert!(commit_solidifier.pending_subdags.is_empty());
@@ -744,7 +743,7 @@ mod tests {
         let setup = Arc::new(TestSetup::new(3, consensus_fast_commit_sync));
         let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
-        let subdag1 = SubDagBuilder::new(setup.clone(), 1)
+        let subdag1 = SubDagBuilder::new(setup, 1)
             .leader(3, 0)
             .with_blocks(vec![
                 BlockSpec::all_from_round(0),
@@ -755,7 +754,7 @@ mod tests {
             .build();
 
         let (committed, missing) =
-            commit_solidifier.try_get_solid_sub_dags(&[subdag1.clone(), subdag1.clone()]);
+            commit_solidifier.try_get_solid_sub_dags(&[subdag1.clone(), subdag1]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
         assert!(commit_solidifier.pending_subdags.is_empty());
@@ -780,7 +779,7 @@ mod tests {
             .with_committed_refs_from_round(1)
             .build();
 
-        let subdag2 = SubDagBuilder::new(setup.clone(), 2)
+        let subdag2 = SubDagBuilder::new(setup, 2)
             .leader(4, 0)
             .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
             .with_committed_refs_from_round(2)
@@ -940,7 +939,7 @@ mod tests {
         })
         .collect::<Vec<_>>();
 
-        let subdag3 = SubDagBuilder::new(setup.clone(), 2) // Same index as subdag2
+        let subdag3 = SubDagBuilder::new(setup, 2) // Same index as subdag2
             .leader(4, 0)
             .with_blocks(vec![BlockSpec::skip_first_from_round(3)])
             .with_committed_refs(committed_refs_for_subdag3)
@@ -1006,12 +1005,8 @@ mod tests {
             .build();
 
         // Initial commit - should commit first two, buffer the rest
-        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[
-            subdag1.clone(),
-            subdag2.clone(),
-            subdag3.clone(),
-            subdag5.clone(),
-        ]);
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3, subdag5]);
         assert_eq!(committed.len(), 2);
         assert_eq!(missing.len(), 2);
         assert_eq!(commit_solidifier.pending_subdags.len(), 2);

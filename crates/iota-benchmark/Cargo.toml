@@ -64,8 +64,3 @@ typed-store.workspace = true
 
 [build-dependencies]
 rustc_version_runtime = "0.3"
-
-[[bin]]
-name = "flamegraph"
-path = "src/bin/flamegraph.rs"
-required-features = ["flamegraph-alloc"]

@@ -216,7 +216,7 @@ export function PasswordModalDialog({
                                     type={ButtonType.Primary}
                                     disabled={isConfirmDisabled}
                                     text={confirmText}
-                                    icon={isLoading ? <LoadingIndicator /> : null}
+                                    icon={isLoading || isSubmitting ? <LoadingIndicator /> : null}
                                     iconAfterText
                                     fullWidth
                                 />

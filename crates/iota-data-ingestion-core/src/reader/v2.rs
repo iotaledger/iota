@@ -9,14 +9,16 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
+use iota_grpc_client::Client as GrpcClient;
 use iota_metrics::spawn_monitored_task;
-use iota_rest_api::CheckpointData;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::{
+    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+};
 use object_store::ObjectStore;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
@@ -34,8 +36,11 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
-        fetch::{LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store},
-        v1::{DataLimiter, ReaderOptions},
+        ReaderOptions,
+        common::DataLimiter,
+        fetch::{
+            GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES, LocalRead, ReadSource, fetch_from_object_store,
+        },
     },
 };
 
@@ -48,11 +53,11 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RemoteUrl {
     /// The URL to the Fullnode server that exposes
-    /// checkpoint data.
+    /// checkpoint data streaming through gRPC.
     ///
     /// # Example
     /// ```text
-    /// "http://127.0.0.1:9000/api/v1"
+    /// "http://127.0.0.1:50051"
     /// ```
     Fullnode(String),
     /// A hybrid source combining historical object store and optional live
@@ -83,7 +88,7 @@ pub enum RemoteUrl {
 /// used by the ingestion framework to fetch checkpoint data. Each variant
 /// corresponds to a different type of remote source.
 enum RemoteStore {
-    Fullnode(iota_rest_api::Client),
+    Fullnode(GrpcClient),
     HybridHistoricalStore {
         historical: HistoricalReader,
         live: Option<Box<dyn ObjectStore>>,
@@ -97,7 +102,12 @@ impl RemoteStore {
         timeout_secs: u64,
     ) -> IngestionResult<Self> {
         let store = match remote_url {
-            RemoteUrl::Fullnode(url) => RemoteStore::Fullnode(iota_rest_api::Client::new(url)),
+            RemoteUrl::Fullnode(ref url) => {
+                let grpc_client = GrpcClient::connect(url).await.map(|client| {
+                    client.with_max_decoding_message_size(GRPC_MAX_DECODING_MESSAGE_SIZE_BYTES)
+                })?;
+                RemoteStore::Fullnode(grpc_client)
+            }
             RemoteUrl::HybridHistoricalStore {
                 historical_url,
                 live_url,
@@ -214,9 +224,9 @@ impl CheckpointReaderActor {
                 || self.is_checkpoint_ahead(&checkpoints[0], self.current_checkpoint_number))
     }
 
-    /// Fetch checkpoints from the historical object store and stream them to a
-    /// channel.
-    async fn fetch_historical(
+    /// Fetches checkpoints from the historical object store and streams them to
+    /// a channel.
+    async fn relay_from_historical(
         &mut self,
         historical_reader: &HistoricalReader,
     ) -> IngestionResult<()> {
@@ -282,6 +292,63 @@ impl CheckpointReaderActor {
         Ok(())
     }
 
+    /// Fetches checkpoints from the live object store and streams them to a
+    /// channel.
+    async fn relay_from_live(
+        &mut self,
+        batch_size: usize,
+        live: &dyn ObjectStore,
+    ) -> IngestionResult<()> {
+        let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
+            .map(|checkpoint_number| fetch_from_object_store(live, checkpoint_number))
+            .pipe(futures::stream::iter)
+            .buffered(batch_size);
+        while let Some((checkpoint, size)) = self
+            .token
+            .run_until_cancelled(checkpoint_stream.try_next())
+            .await
+            .transpose()?
+            .flatten()
+        {
+            self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Fetches checkpoints from the fullnode through a gRPC streaming
+    /// connection and streams them to a channel.
+    async fn relay_from_fullnode(&mut self, client: &mut GrpcClient) -> IngestionResult<()> {
+        let mut checkpoints_stream = client
+            .stream_checkpoints(
+                Some(self.current_checkpoint_number),
+                None,
+                Some(iota_grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA),
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
+            })?
+            .into_inner();
+
+        while let Some(grpc_checkpoint) = self
+            .token
+            .run_until_cancelled(checkpoints_stream.try_next())
+            .await
+            .transpose()?
+            .flatten()
+        {
+            let checkpoint = grpc_checkpoint.checkpoint_data()?.try_into()?;
+            let size = bcs::serialized_size(&checkpoint)?;
+            self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
+                .await?;
+        }
+
+        Ok(())
+    }
+
     /// Fetches remote checkpoints from the remote store and streams them to the
     /// channel.
     ///
@@ -295,49 +362,18 @@ impl CheckpointReaderActor {
         let batch_size = self.reader_options.batch_size;
         match remote_store.as_ref() {
             RemoteStore::Fullnode(client) => {
-                let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
-                    .map(|checkpoint_number| fetch_from_full_node(client, checkpoint_number))
-                    .pipe(futures::stream::iter)
-                    .buffered(batch_size);
-
-                while let Some(checkpoint_result) = self
-                    .token
-                    .run_until_cancelled(checkpoint_stream.next())
-                    .await
-                    .flatten()
-                {
-                    let (checkpoint, size) = checkpoint_result?;
-                    self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
-                        .await?;
-                }
+                self.relay_from_fullnode(&mut client.clone()).await?;
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
                 if let Some(Err(err)) = self
                     .token
                     .clone()
-                    .run_until_cancelled(self.fetch_historical(historical))
+                    .run_until_cancelled(self.relay_from_historical(historical))
                     .await
                 {
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
                         let live = live.as_ref().ok_or(err)?;
-                        let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
-                            .map(|checkpoint_number| {
-                                fetch_from_object_store(live, checkpoint_number)
-                            })
-                            .pipe(futures::stream::iter)
-                            .buffered(batch_size);
-
-                        while let Some(checkpoint_result) = self
-                            .token
-                            .run_until_cancelled(checkpoint_stream.next())
-                            .await
-                            .flatten()
-                        {
-                            let (checkpoint, size) = checkpoint_result?;
-                            self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
-                                .await?;
-                        }
-                        return Ok(());
+                        return self.relay_from_live(batch_size, live).await;
                     }
                     return Err(err);
                 }
