@@ -4,7 +4,7 @@ This file guides agents writing or editing pages under `docs/content/developer/i
 
 ## Product context
 
-IOTA Audit Trail provides tamper-proof, chronological records of activities on the IOTA ledger. It differs from IOTA Notarization: Notarization records *static facts* (a document existed at time T); Audit Trail records *sequences of events* (who did what, when). Audit Trail objects are **shared** on-chain and use **Role-Based Access Control (RBAC)** with Roles, Capabilities, and Record Tags.
+IOTA Audit Trail provides tamper-proof, chronological records of activities on the IOTA ledger. It differs from IOTA Notarization: Notarization records _static facts_ (a document existed at time T); Audit Trail records _sequences of events_ (who did what, when). Audit Trail objects are **shared** on-chain and use **Role-Based Access Control (RBAC)** with Roles, Capabilities, and Record Tags.
 
 The external source repository is **`https://github.com/iotaledger/notarization`**. The current tag is **`v0.1`**. Use this when constructing `reference` code-block URLs.
 
@@ -36,6 +36,7 @@ The sidebar is defined in `docs/content/sidebars/audit-trail.js`. Every new page
 ## Tags
 
 Use tags registered in `docs/content/tags.yml`. Every page must include:
+
 1. Exactly one **Diataxis type tag**: `explanation`, `how-to`, `reference`, or `tutorial`.
 2. The **product tag**: `audit-trail`.
 3. Optional feature or technology tags (e.g., `rust`, `wasm`, `getting-started`).
@@ -72,7 +73,7 @@ The introduction page is the product's front door. Pattern:
 
 ### Explanation pages
 
-Purpose: help the reader *understand* a concept. No step-by-step instructions.
+Purpose: help the reader _understand_ a concept. No step-by-step instructions.
 
 - **One concept per page.** Examples: "The Audit Trail Object", "Role-Based Access Control", "Record Tags and Permissions".
 - Use horizontal rules (`---`) to separate major sections.
@@ -133,6 +134,7 @@ https://github.com/iotaledger/notarization/tree/feat/audit-trails-dev/bindings/w
 ```
 
 Key rules:
+
 - Use `groupId="language"` and `queryString` on every `<Tabs>` so the user's language choice persists across pages.
 - Use the `reference` keyword with GitHub URLs for all code — never copy code inline (see parent CLAUDE.md).
 - Wrap tab blocks in `<div className={'hide-code-block-extras'}>` to suppress extra UI chrome, except for the "Full Example Code" section at the bottom.
@@ -141,6 +143,7 @@ Key rules:
 #### Real-world examples
 
 Place in `how-tos/real-world/`. These are longer how-to guides that demonstrate a complete business scenario (e.g., product passport, supply chain tracking). They follow the same structure as regular how-tos but include additional sections:
+
 - **Business Context**: why this scenario matters.
 - **Field Usage Strategy**: how the product's data model maps to the scenario.
 - **Real-World Applications**: list of related use cases.
@@ -152,6 +155,7 @@ API reference for Wasm is auto-generated and placed in `references/wasm/`. The R
 ### contribute.mdx
 
 Follow the notarization contribute page as a template. Update:
+
 - Repository URL: `https://github.com/iotaledger/notarization`
 - Discord channel: `#notarization-dev` (or the correct channel name)
 
