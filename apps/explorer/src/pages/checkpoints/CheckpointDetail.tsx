@@ -181,6 +181,8 @@ export function CheckpointDetail(): JSX.Element {
                                                     <DateDisplay
                                                         timestamp={data.timestampMs}
                                                         type="checkpoint"
+                                                        showTimeAgo
+                                                        showHoverStyle={false}
                                                     />
                                                 ) : (
                                                     '--'

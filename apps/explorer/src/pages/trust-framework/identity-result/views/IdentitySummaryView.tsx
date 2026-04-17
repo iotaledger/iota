@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
-import { formatDate, useFormatCoin } from '@iota/core';
+import { useFormatCoin } from '@iota/core';
 import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { CoinFormat, formatDigest } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
+import { DateDisplay, ErrorBoundary } from '~/components';
 import { ObjectLink, TransactionLink } from '~/components/ui';
 import { onCopySuccess } from '~/lib/utils';
 import { type IotaDocument } from '@iota/identity-wasm/web';
-import { ErrorBoundary } from '~/components';
 
 interface IdentitySummaryViewProps {
     didDocument: IotaDocument;
@@ -22,10 +22,12 @@ export function IdentitySummaryView({
 }: IdentitySummaryViewProps): JSX.Element {
     const isActive = didDocument.metadataDeactivated() !== true;
 
-    const didDateFormat = (timestamp: string): string =>
-        formatDate(new Date(timestamp), ['year', 'month', 'day', 'hour', 'minute']);
-    const createdAt = didDateFormat(didDocument.metadataCreated()!.toRFC3339());
-    const updatedAt = didDateFormat(didDocument.metadataUpdated()!.toRFC3339());
+    const createdAtMs = didDocument.metadataCreated()
+        ? new Date(didDocument.metadataCreated()!.toRFC3339()).getTime()
+        : null;
+    const updatedAtMs = didDocument.metadataUpdated()
+        ? new Date(didDocument.metadataUpdated()!.toRFC3339()).getTime()
+        : null;
 
     return (
         <ErrorBoundary>
@@ -52,22 +54,22 @@ export function IdentitySummaryView({
                         </div>
                     )}
 
-                    {createdAt && (
+                    {createdAtMs && (
                         <div>
                             <DisplayStats
                                 label="Created at"
-                                value={createdAt}
+                                value={<DateDisplay timestamp={createdAtMs} />}
                                 tooltipPosition={TooltipPosition.Left}
                                 tooltipText="Timestamp of the transaction that first published this Identity onchain."
                             />
                         </div>
                     )}
 
-                    {updatedAt && (
+                    {updatedAtMs && (
                         <div>
                             <DisplayStats
                                 label="Updated at"
-                                value={updatedAt}
+                                value={<DateDisplay timestamp={updatedAtMs} />}
                                 tooltipPosition={TooltipPosition.Left}
                                 tooltipText="Timestamp of the most recent transaction that modified this Identity. Any change to keys, services, or document content triggers an update."
                             />

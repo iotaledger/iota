@@ -53,7 +53,7 @@ export function TransactionDetails({
             {timestamp && (
                 <DisplayStats
                     label="Date"
-                    value={<DateDisplay timestamp={timestamp} type="transaction" />}
+                    value={<DateDisplay timestamp={timestamp} type="transaction" showTimeAgo />}
                 />
             )}
         </div>
