@@ -89,7 +89,7 @@ pub(crate) struct CheckpointTransactionData {
 
 pub(crate) struct CheckpointExecutionState {
     pub data: CheckpointExecutionData,
-    state_hasher: Option<GlobalStateHash>,
+    state_hash: Option<GlobalStateHash>,
     full_data: Option<CheckpointData>,
 }
 
@@ -97,18 +97,18 @@ impl CheckpointExecutionState {
     pub fn new(data: CheckpointExecutionData) -> Self {
         Self {
             data,
-            state_hasher: None,
+            state_hash: None,
             full_data: None,
         }
     }
 
-    pub fn new_with_global_state_hasher(
+    pub fn new_with_global_state_hash(
         data: CheckpointExecutionData,
-        hasher: GlobalStateHash,
+        hash: GlobalStateHash,
     ) -> Self {
         Self {
             data,
-            state_hasher: Some(hasher),
+            state_hash: Some(hash),
             full_data: None,
         }
     }
@@ -423,7 +423,7 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, UpdateRpcIndex);
 
         self.global_state_hasher
-            .accumulate_running_root(&self.epoch_store, seq, ckpt_state.state_hasher)
+            .accumulate_running_root(&self.epoch_store, seq, ckpt_state.state_hash)
             .expect("Failed to accumulate running root");
 
         if is_final_checkpoint {
@@ -492,9 +492,9 @@ impl CheckpointExecutor {
 
         // Checkpoint builder triggers accumulation of the checkpoint, so this is
         // guaranteed to finish.
-        let state_hasher = {
+        let state_hash = {
             let _metrics_scope =
-                iota_metrics::monitored_scope("CheckpointExecutor::notify_read_state_hasher");
+                iota_metrics::monitored_scope("CheckpointExecutor::notify_read_state_hash");
             self.epoch_store
                 .notify_read_checkpoint_state_hasher(&[sequence_number])
                 .await
@@ -528,14 +528,14 @@ impl CheckpointExecutor {
 
         pipeline_handle.skip_to(PipelineStage::BuildDbBatch).await;
 
-        CheckpointExecutionState::new_with_global_state_hasher(
+        CheckpointExecutionState::new_with_global_state_hash(
             CheckpointExecutionData {
                 checkpoint,
                 checkpoint_contents,
                 tx_digests,
                 fx_digests,
             },
-            state_hasher,
+            state_hash,
         )
     }
 
@@ -590,7 +590,7 @@ impl CheckpointExecutor {
         // The early versions of the hasher (prior to effectsv2) rely on db
         // state, so we must wait until all transactions have been executed
         // before accumulating the checkpoint.
-        ckpt_state.state_hasher = Some(
+        ckpt_state.state_hash = Some(
             self.global_state_hasher
                 .accumulate_checkpoint(&tx_data.effects, sequence_number, &self.epoch_store)
                 .expect("epoch cannot have ended"),

@@ -1327,11 +1327,11 @@ impl AuthorityPerEpochStore {
     pub fn insert_state_hash_for_checkpoint(
         &self,
         checkpoint: &CheckpointSequenceNumber,
-        accumulator: &GlobalStateHash,
+        state_hash: &GlobalStateHash,
     ) -> IotaResult {
         self.tables()?
             .state_hash_by_checkpoint
-            .insert(checkpoint, accumulator)
+            .insert(checkpoint, state_hash)
             .expect("db error");
         Ok(())
     }
