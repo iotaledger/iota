@@ -111,6 +111,7 @@ impl AsRef<[u8]> for ZkLoginAuthenticator {
 /// implement its own `verify`.
 #[enum_dispatch(AuthenticatorTrait)]
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
+#[allow(clippy::large_enum_variant)]
 pub enum GenericSignature {
     MultiSig,
     Signature,
