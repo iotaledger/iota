@@ -33,14 +33,14 @@ impl KnownAttribute {
     pub const fn name(&self) -> &str {
         match self {
             Self::Authenticator(a) => a.name(),
-            Self::View(v) => v.name(),
+            Self::View(a) => a.name(),
         }
     }
 
     pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
         match self {
             Self::Authenticator(a) => a.expected_positions(),
-            Self::View(v) => v.expected_positions(),
+            Self::View(a) => a.expected_positions(),
         }
     }
 }
@@ -53,7 +53,7 @@ impl fmt::Display for KnownAttribute {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Authenticator(a) => a.fmt(f),
-            Self::View(v) => v.fmt(f),
+            Self::View(a) => a.fmt(f),
         }
     }
 }

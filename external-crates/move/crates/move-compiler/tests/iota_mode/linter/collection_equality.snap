@@ -5,14 +5,14 @@ info:
   edition: legacy
   lint: true
 ---
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:17:16
    │
 17 │     public fun bag_eq(bag1: &Bag, bag2: &Bag): bool {
-   │                ^^^^^^ Function 'bag_eq' could be marked with #[view] attribute
+   │                ^^^^^^ Function 'bag_eq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:18:14
@@ -23,14 +23,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::bag::Bag' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:21:16
    │
 21 │     public fun obj_bag_neq(bag1: &ObjectBag, bag2: &ObjectBag): bool {
-   │                ^^^^^^^^^^^ Function 'obj_bag_neq' could be marked with #[view] attribute
+   │                ^^^^^^^^^^^ Function 'obj_bag_neq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:22:14
@@ -41,14 +41,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::object_bag::ObjectBag' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:25:16
    │
 25 │     public fun table_eq(table1: &Table<u64, u64>, table2: &Table<u64, u64>): bool {
-   │                ^^^^^^^^ Function 'table_eq' could be marked with #[view] attribute
+   │                ^^^^^^^^ Function 'table_eq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:26:16
@@ -59,14 +59,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::table::Table' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:29:16
    │
 29 │     public fun obj_table_eq<K: copy + drop + store, V: key + store>(
-   │                ^^^^^^^^^^^^ Function 'obj_table_eq' could be marked with #[view] attribute
+   │                ^^^^^^^^^^^^ Function 'obj_table_eq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:33:20
@@ -77,14 +77,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::object_table::ObjectTable' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:36:16
    │
 36 │     public fun linked_table_neq(table1: &LinkedTable<u64, u64>, table2: &LinkedTable<u64, u64>): bool {
-   │                ^^^^^^^^^^^^^^^^ Function 'linked_table_neq' could be marked with #[view] attribute
+   │                ^^^^^^^^^^^^^^^^ Function 'linked_table_neq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:37:16
@@ -95,14 +95,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::linked_table::LinkedTable' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:40:16
    │
 40 │     public fun table_vec_eq(table1: &TableVec<u64>, table2: &TableVec<u64>): bool {
-   │                ^^^^^^^^^^^^ Function 'table_vec_eq' could be marked with #[view] attribute
+   │                ^^^^^^^^^^^^ Function 'table_vec_eq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:41:16
@@ -113,14 +113,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::table_vec::TableVec' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:44:16
    │
 44 │     public fun vec_map_eq(vec1: &VecMap<u64, u64>, vec2: &VecMap<u64, u64>): bool {
-   │                ^^^^^^^^^^ Function 'vec_map_eq' could be marked with #[view] attribute
+   │                ^^^^^^^^^^ Function 'vec_map_eq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:45:14
@@ -131,14 +131,14 @@ warning[Lint W99005]: possibly useless collections compare
    = Equality for collections of type 'iota::vec_map::VecMap' IS NOT a structural check based on content
    = This warning can be suppressed with '#[allow(lint(collection_equality))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
-warning[Lint W99011]: function could be marked as view
+warning[Lint W99010]: function can be marked '#[view]'
    ┌─ tests/iota_mode/linter/collection_equality.move:48:16
    │
 48 │     public fun vec_set_eq(vec1: &VecSet<u64>, vec2: &VecSet<u64>): bool {
-   │                ^^^^^^^^^^ Function 'vec_set_eq' could be marked with #[view] attribute
+   │                ^^^^^^^^^^ Function 'vec_set_eq' satisfies view constraints and can be annotated with '#[view]'
    │
-   = View functions can be called off-chain without a transaction
-   = This warning can be suppressed with '#[allow(lint(view_function_suggestion))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+   = Add '#[view]' to make the function explicitly callable as a view function.
+   = This warning can be suppressed with '#[allow(lint(view_function))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99005]: possibly useless collections compare
    ┌─ tests/iota_mode/linter/collection_equality.move:49:14

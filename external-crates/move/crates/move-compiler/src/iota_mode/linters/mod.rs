@@ -6,7 +6,7 @@ use move_ir_types::location::Loc;
 use move_symbol_pool::Symbol;
 
 use crate::{
-    cfgir::visitor::{AbstractInterpreterVisitor, CFGIRVisitor},
+    cfgir::visitor::AbstractInterpreterVisitor,
     command_line::compiler::Visitor,
     diagnostics::warning_filters::WarningFilter,
     expansion::ast as E,
@@ -74,8 +74,7 @@ pub const PUBLIC_RANDOM_FILTER_NAME: &str = "public_random";
 pub const MISSING_KEY_FILTER_NAME: &str = "missing_key";
 pub const FREEZING_CAPABILITY_FILTER_NAME: &str = "freezing_capability";
 pub const PREFER_MUTABLE_TX_CONTEXT_FILTER_NAME: &str = "prefer_mut_tx_context";
-pub const VIEW_FUNCTION_INVALID_FILTER_NAME: &str = "view_function_invalid";
-pub const VIEW_FUNCTION_SUGGESTION_FILTER_NAME: &str = "view_function_suggestion";
+pub const VIEW_FUNCTION_FILTER_NAME: &str = "view_function";
 
 pub const RANDOM_MOD_NAME: &str = "random";
 pub const RANDOM_STRUCT_NAME: &str = "Random";
@@ -95,8 +94,7 @@ pub enum LinterDiagnosticCode {
     MissingKey,
     FreezingCapability,
     PreferMutableTxContext,
-    ViewFunctionInvalid,
-    ViewFunctionSuggestion,
+    ViewFunction,
 }
 
 pub fn known_filters() -> (Option<Symbol>, Vec<WarningFilter>) {
@@ -165,14 +163,8 @@ pub fn known_filters() -> (Option<Symbol>, Vec<WarningFilter>) {
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
             LinterDiagnosticCategory::Iota as u8,
-            LinterDiagnosticCode::ViewFunctionInvalid as u8,
-            Some(VIEW_FUNCTION_INVALID_FILTER_NAME),
-        ),
-        WarningFilter::code(
-            Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Iota as u8,
-            LinterDiagnosticCode::ViewFunctionSuggestion as u8,
-            Some(VIEW_FUNCTION_SUGGESTION_FILTER_NAME),
+            LinterDiagnosticCode::ViewFunction as u8,
+            Some(VIEW_FUNCTION_FILTER_NAME),
         ),
     ];
 
