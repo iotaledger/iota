@@ -14,11 +14,12 @@ use iota_types::{
     base_types::IotaAddress,
     crypto::{IotaKeyPair, PublicKey, Signature, SignatureScheme, ToFromBytes, get_key_pair},
     error::{IotaError, IotaResult},
-    multisig::{MultiSig, MultiSigPublicKey},
+    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
     signature::GenericSignature,
     transaction::Transaction,
-    utils::{keys, make_upgraded_multisig_tx},
+    utils::{keys, load_test_vectors, make_upgraded_multisig_tx, multisig_keys},
+    zk_login_authenticator::ZkLoginAuthenticator,
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -115,16 +116,20 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
     let passkey_pk =
         PublicKey::try_from_bytes(SignatureScheme::PasskeyAuthenticator, &pk_bytes).unwrap();
 
-    // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey)
-    // with threshold = 1.
-    let keys = keys();
-    let pk0 = keys[0].public(); // ed25519
-    let pk1 = keys[1].public(); // secp256k1
-    let pk2 = keys[2].public(); // secp256r1
+    // Construct a multisig with 5 pks (ed25519, secp256k1, secp256r1, passkey) with
+    // threshold = 1.
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk0 = kp1.public_key(); // ed25519
+    let pk1 = kp2.public_key(); // secp256k1
+    let pk2 = kp3.public_key(); // secp256r1
 
     let multisig_pk = MultiSigPublicKey::new(
-        vec![pk0.clone(), pk1.clone(), pk2.clone(), passkey_pk.clone()],
-        vec![1, 1, 1, 1],
+        vec![
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+            MultisigMember::new(passkey_pk, 1),
+        ],
         1,
     )
     .unwrap();
@@ -246,13 +251,17 @@ async fn test_multisig_e2e() {
     let context = &test_cluster.wallet;
     let rgp = test_cluster.get_reference_gas_price().await;
 
-    let keys = keys();
-    let pk0 = keys[0].public(); // ed25519
-    let pk1 = keys[1].public(); // secp256k1
-    let pk2 = keys[2].public(); // secp256r1
+    let (kp1, kp2, kp3) = multisig_keys();
+    let pk0 = kp1.public_key(); // ed25519
+    let pk1 = kp2.public_key(); // secp256k1
+    let pk2 = kp3.public_key(); // secp256r1
 
     let multisig_pk = MultiSigPublicKey::insecure_new(
-        vec![(pk0.clone(), 1), (pk1.clone(), 1), (pk2.clone(), 1)],
+        vec![
+            MultisigMember::new(pk0, 1),
+            MultisigMember::new(pk1, 1),
+            MultisigMember::new(pk2, 1),
+        ],
         2,
     );
     let multisig_addr = IotaAddress::from(&multisig_pk);
