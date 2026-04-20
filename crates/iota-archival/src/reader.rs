@@ -216,7 +216,7 @@ impl ArchiveReader {
 
         let files: Vec<(FileMetadata, FileMetadata)> = summary_files
             .into_iter()
-            .zip(contents_files.into_iter())
+            .zip(contents_files)
             .map(|(s, c)| {
                 assert_eq!(s.checkpoint_seq_range, c.checkpoint_seq_range);
                 (s, c)

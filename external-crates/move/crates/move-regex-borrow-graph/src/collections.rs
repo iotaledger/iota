@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use core::fmt;
+use std::collections::{BTreeMap, BTreeSet};
+
+use petgraph::graphmap::DiGraphMap;
+
 use crate::{
     Result, bail, ensure, error,
     references::{Edge, Node, Ref},
     regex::{Extension, Regex},
 };
-use core::fmt;
-use petgraph::graphmap::DiGraphMap;
-use std::collections::{BTreeMap, BTreeSet};
 
 //**************************************************************************************************
 // Definitions
@@ -109,13 +111,10 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
     /// Returns the direct successors of the specified reference
     fn successors(&self, r: Ref) -> Result<impl Iterator<Item = (&Edge<Loc, Lbl>, Ref)> + '_> {
         ensure!(self.graph.contains_node(r), "missing ref {:?} in graph", r);
-        Ok(self
-            .graph
-            .edges(r)
-            .map(move |(r_, s, e)| {
-                debug_assert_eq!(r, r_);
-                (e, s)
-            }))
+        Ok(self.graph.edges(r).map(move |(r_, s, e)| {
+            debug_assert_eq!(r, r_);
+            (e, s)
+        }))
     }
 
     /// Returns the direct predecessors of the specified reference
@@ -162,8 +161,9 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
         self.extend_by_extension(loc, sources, ext, new_ref, &BTreeSet::new())
     }
 
-    /// Creates a new reference whose paths are an extension of all specified sources.
-    /// If sources is empty, the reference will have a single path rooted at the specified label
+    /// Creates a new reference whose paths are an extension of all specified
+    /// sources. If sources is empty, the reference will have a single path
+    /// rooted at the specified label
     pub fn extend_by_label(
         &mut self,
         loc: Loc,
@@ -176,9 +176,10 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
         self.extend_by_extension(loc, sources, ext, new_ref, &BTreeSet::new())
     }
 
-    /// Creates new references based on the mutability specified. Immutable references will extend
-    /// from all sources and mutable references will extends only from mutable sources.
-    /// Additionally, all mutable references will be disjoint from all other references created
+    /// Creates new references based on the mutability specified. Immutable
+    /// references will extend from all sources and mutable references will
+    /// extends only from mutable sources. Additionally, all mutable
+    /// references will be disjoint from all other references created
     pub fn extend_by_dot_star_for_call(
         &mut self,
         loc: Loc,
@@ -378,7 +379,8 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
     // Query API
     //**********************************************************************************************
 
-    /// Returns the references that extend the specified reference and the path(s) for the extension
+    /// Returns the references that extend the specified reference and the
+    /// path(s) for the extension
     pub fn borrowed_by(&self, r: Ref) -> Result<BTreeMap<Ref, Paths<Loc, Lbl>>> {
         let mut paths = BTreeMap::new();
         for (edge, s) in self.successors(r)? {
@@ -392,8 +394,8 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
         Ok(paths)
     }
 
-    /// Returns the references that are extended by the specified reference and the path(s) for the
-    /// extension
+    /// Returns the references that are extended by the specified reference and
+    /// the path(s) for the extension
     pub fn borrows_from(&self, r: Ref) -> Result<BTreeMap<Ref, Paths<Loc, Lbl>>> {
         let mut paths = BTreeMap::new();
         for (p, edge) in self.predecessors(r)? {
@@ -459,8 +461,8 @@ impl<Loc: Copy, Lbl: Ord + Clone + fmt::Display> Graph<Loc, Lbl> {
         Ok(())
     }
 
-    /// Canonicalize all references according to the remapping. This allows graphs to have the same
-    /// set of references before being joined.
+    /// Canonicalize all references according to the remapping. This allows
+    /// graphs to have the same set of references before being joined.
     pub fn canonicalize(&mut self, remapping: &BTreeMap<Ref, usize>) -> Result<()> {
         let nodes = std::mem::take(&mut self.nodes);
         let (ncap, ecap) = self.graph.capacity();

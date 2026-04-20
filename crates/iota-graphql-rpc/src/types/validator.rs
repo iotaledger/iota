@@ -100,8 +100,8 @@ impl Loader<u64> for Db {
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
 
-        exchange_rates.extend(candidate_rates.into_iter());
-        exchange_rates.extend(pending_rates.into_iter());
+        exchange_rates.extend(candidate_rates);
+        exchange_rates.extend(pending_rates);
 
         let mut results = BTreeMap::new();
 
