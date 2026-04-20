@@ -174,7 +174,10 @@ export function App() {
                 <Route path="tokens/*" element={<TokenDetailsPage />} />
                 <Route path="transactions/:status?" element={<TransactionBlocksPage />} />
                 <Route path="accounts/manage" element={<ManageAccountsPage />} />
-                <Route path="accounts/manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
+                <Route
+                    path="accounts/manage/accounts-finder/intro"
+                    element={<AccountsFinderIntroPage />}
+                />
                 <Route
                     path="accounts/manage/accounts-finder/:accountSourceId"
                     element={<AccountsFinderPage />}
