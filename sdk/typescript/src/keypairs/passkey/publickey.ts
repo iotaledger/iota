@@ -75,13 +75,16 @@ export class PasskeyPublicKey extends PublicKey {
     constructor(value: PublicKeyInitData) {
         super();
 
+        let bytes: Uint8Array;
         if (typeof value === 'string') {
-            this.data = fromBase64(value);
+            bytes = fromBase64(value);
         } else if (value instanceof Uint8Array) {
-            this.data = value;
+            bytes = value;
         } else {
-            this.data = Uint8Array.from(value);
+            bytes = Uint8Array.from(value);
         }
+
+        this.data = normalizePasskeyPublicKey(bytes);
 
         if (this.data.length !== PASSKEY_PUBLIC_KEY_SIZE) {
             throw new Error(
@@ -168,6 +171,32 @@ export function parseDerSPKI(derBytes: Uint8Array): Uint8Array {
 
     // Returns the last 65 bytes `04 || x || y`
     return derBytes.slice(SECP256R1_SPKI_HEADER.length);
+}
+
+/**
+ * Normalizes a WebAuthn public key to the canonical 33-byte compressed secp256r1 format.
+ * Accepts: 33-byte compressed, 65-byte uncompressed (0x04||x||y), 64-byte raw (x||y), 91-byte DER SPKI.
+ */
+export function normalizePasskeyPublicKey(input: Uint8Array): Uint8Array {
+    if (input.length === PASSKEY_PUBLIC_KEY_SIZE) return input;
+
+    if (input.length === SECP256R1_SPKI_HEADER.length + PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE) {
+        const uncompressed65 = parseDerSPKI(input);
+        return secp256r1.ProjectivePoint.fromHex(uncompressed65).toRawBytes(true);
+    }
+
+    if (input.length === PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE && input[0] === 0x04) {
+        return secp256r1.ProjectivePoint.fromHex(input).toRawBytes(true);
+    }
+
+    if (input.length === PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE - 1) {
+        const uncompressed65 = new Uint8Array(PASSKEY_UNCOMPRESSED_PUBLIC_KEY_SIZE);
+        uncompressed65[0] = 0x04;
+        uncompressed65.set(input, 1);
+        return secp256r1.ProjectivePoint.fromHex(uncompressed65).toRawBytes(true);
+    }
+
+    throw new Error(`Unsupported passkey public key length: ${input.length}`);
 }
 
 /**

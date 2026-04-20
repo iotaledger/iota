@@ -365,3 +365,48 @@ describe('passkey signer E2E testing', () => {
         expect(signer2.getPublicKey().toIotaAddress()).toEqual(address);
     });
 });
+
+describe('PasskeyPublicKey normalization', () => {
+    const compressed = fromBase64('A25OtZSBXLMdIJOgZApGPtgjYcsJmK4ve0+52QRnI4vG');
+
+    it('should handle compressed public key (33 bytes)', () => {
+        const pk = new PasskeyPublicKey(compressed);
+        expect(pk.toRawBytes()).toEqual(compressed);
+        expect(pk.toRawBytes().length).toBe(33);
+    });
+
+    it('should handle uncompressed public key (65 bytes)', () => {
+        const sk = secp256r1.utils.randomPrivateKey();
+        const pkUncompressed = secp256r1.getPublicKey(sk, false);
+        const pkCompressed = secp256r1.getPublicKey(sk, true);
+        const pk = new PasskeyPublicKey(pkUncompressed);
+        expect(pk.toRawBytes()).toEqual(pkCompressed);
+        expect(pk.toRawBytes().length).toBe(33);
+    });
+
+    it('should handle raw public key (64 bytes)', () => {
+        const sk = secp256r1.utils.randomPrivateKey();
+        const pkUncompressed = secp256r1.getPublicKey(sk, false);
+        const pkRaw = pkUncompressed.slice(1);
+        const pkCompressed = secp256r1.getPublicKey(sk, true);
+        const pk = new PasskeyPublicKey(pkRaw);
+        expect(pk.toRawBytes()).toEqual(pkCompressed);
+        expect(pk.toRawBytes().length).toBe(33);
+    });
+
+    it('should handle DER SPKI public key (91 bytes)', () => {
+        const sk = secp256r1.utils.randomPrivateKey();
+        const pkUncompressed = secp256r1.getPublicKey(sk, false);
+        const pkCompressed = secp256r1.getPublicKey(sk, true);
+        const der = new Uint8Array([...SECP256R1_SPKI_HEADER, ...pkUncompressed]);
+        const pk = new PasskeyPublicKey(der);
+        expect(pk.toRawBytes()).toEqual(pkCompressed);
+        expect(pk.toRawBytes().length).toBe(33);
+    });
+
+    it('should throw error for invalid length', () => {
+        expect(() => new PasskeyPublicKey(new Uint8Array(32))).toThrow(
+            'Unsupported passkey public key length: 32',
+        );
+    });
+});
