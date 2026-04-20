@@ -48,9 +48,9 @@ export function AccountsFinderIntroPage() {
 
     return (
         <Overlay showModal>
-            <div className="flex h-full flex-col items-center justify-between">
+            <div className="flex h-full w-full flex-col items-center justify-between">
                 <img src={imgSrc} alt="Balance Finder Intro" />
-                <div className="flex h-full flex-col items-center justify-between">
+                <div className="flex h-full w-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-y-sm p-md text-center">
                         <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                             Wallet Setup

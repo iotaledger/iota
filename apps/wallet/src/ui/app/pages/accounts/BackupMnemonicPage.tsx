@@ -46,7 +46,7 @@ export function BackupMnemonicPage() {
     return (
         <PageTemplate title="Export Mnemonic" isTitleCentered>
             <Loading loading={isFetching}>
-                <div className="flex h-full flex-col items-center justify-between">
+                <div className="flex h-full w-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-md">
                         <h3 className="text-center text-headline-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                             Wallet Created Successfully!

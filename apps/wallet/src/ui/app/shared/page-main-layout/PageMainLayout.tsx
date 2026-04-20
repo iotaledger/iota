@@ -7,7 +7,7 @@ import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation, Link } from 'react-router-dom';
-import { useAppSelector, useActiveAccount, useSidebar } from '_hooks';
+import { useActiveAccount, useSidebar } from '_hooks';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Keystone, Ledger, Passkey } from '@iota/apps-ui-icons';
@@ -31,13 +31,13 @@ export interface PageMainLayoutProps {
 
 function RouteTransition({ routeKey, children }: { routeKey: string; children: ReactNode }) {
     return (
-        <AnimatePresence initial={false}>
+        <AnimatePresence mode="wait" initial={false}>
             <motion.div
                 key={routeKey}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8, transition: { duration: 0.12, ease: [0.4, 0, 1, 1] } }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                exit={{ opacity: 0, transition: { duration: 0.08 } }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                 className="flex h-full w-full flex-col"
             >
                 {children}
