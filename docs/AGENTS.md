@@ -144,7 +144,7 @@ Explanation provides context, design decisions, and deeper understanding. It is 
    import NetworkReset from '../../../_snippets/network-reset.mdx';
    <NetworkReset />
    ```
-3. **Pick the Diátaxis type** — if unsure, re-read the type rules above; choose based on the user's *state*, not the content's subject.
+3. **Pick the Diátaxis type** — if unsure, re-read the type rules above; choose based on the user's _state_, not the content's subject.
 4. **Locate the sidebar file** — find `content/sidebars/<section>.js` before writing so you know where to register the page.
 
 ## File Organization
