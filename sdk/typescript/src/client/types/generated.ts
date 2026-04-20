@@ -76,6 +76,16 @@ export type CheckpointCommitment = {
     ECMHLiveObjectSetDigest: ECMHLiveObjectSetDigest;
 };
 export type CheckpointId = string | string;
+export interface CoinStruct {
+    balance: string;
+    coinObjectId: string;
+    coinType: string;
+    /** Base58 encoded data */
+    digest: string;
+    /** Base58 encoded data */
+    previousTransaction: string;
+    version: string;
+}
 /** RPC representation of the [Committee] type. */
 export interface CommitteeInfo {
     epoch: string;
@@ -1410,6 +1420,16 @@ export type ObjectOwner =
  */
 export interface PaginatedCheckpoints {
     data: Checkpoint[];
+    hasNextPage: boolean;
+    nextCursor?: string | null;
+}
+/**
+ * `next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the
+ * next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first
+ * item.
+ */
+export interface PaginatedCoins {
+    data: CoinStruct[];
     hasNextPage: boolean;
     nextCursor?: string | null;
 }

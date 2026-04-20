@@ -5,7 +5,7 @@
 import type {
     AddressMetrics,
     Checkpoint,
-    DynamicFieldInfo,
+    IotaDynamicFieldInfo,
     EpochInfo,
     EpochMetrics,
     IotaCallArg,
@@ -46,7 +46,7 @@ export type MoveCallMetric = [
 ];
 
 export type DynamicFieldPage = {
-    data: DynamicFieldInfo[];
+    data: IotaDynamicFieldInfo[];
     nextCursor: string | null;
     hasNextPage: boolean;
 };

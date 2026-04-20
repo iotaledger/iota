@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaObjectResponse, IotaSupply,
-    Page,
+    Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply, Page,
     serde_utils::{IotaAddress as IotaAddressSchema, ObjectID as ObjectIDSchema},
 };
 use iota_open_rpc_macros::open_rpc;
@@ -19,7 +18,7 @@ pub trait CoinReadApi {
     /// Return all Coin<`coin_type`> objects owned by an address.
     #[rustfmt::skip]
     #[method(name = "getCoins")]
-    #[schemars(with = "Page<IotaObjectResponse, ObjectIDSchema>")]
+    #[schemars(with = "Page<Coin, ObjectIDSchema>")]
     async fn get_coins(
         &self,
         /// the owner's IOTA address
@@ -37,7 +36,7 @@ pub trait CoinReadApi {
     /// Return all Coin objects owned by an address.
     #[rustfmt::skip]
     #[method(name = "getAllCoins")]
-    #[schemars(with = "Page<IotaObjectResponse, ObjectIDSchema>")]
+    #[schemars(with = "Page<Coin, ObjectIDSchema>")]
     async fn get_all_coins(
         &self,
         /// the owner's IOTA address

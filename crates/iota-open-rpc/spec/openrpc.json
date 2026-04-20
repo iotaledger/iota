@@ -3416,10 +3416,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
+        "name": "Page<Coin,ObjectIDSchema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
         }
       },
       "examples": [
@@ -3691,10 +3691,10 @@
         }
       ],
       "result": {
-        "name": "Page<IotaObjectResponse,ObjectIDSchema>",
+        "name": "Page<Coin,ObjectIDSchema>",
         "required": true,
         "schema": {
-          "$ref": "#/components/schemas/Page_for_IotaObjectResponse_and_ObjectID"
+          "$ref": "#/components/schemas/Page_for_Coin_and_ObjectID"
         }
       },
       "examples": [
@@ -6280,6 +6280,41 @@
             "format": "base58"
           }
         ]
+      },
+      "Coin": {
+        "type": "object",
+        "required": [
+          "balance",
+          "coinObjectId",
+          "coinType",
+          "digest",
+          "previousTransaction",
+          "version"
+        ],
+        "properties": {
+          "balance": {
+            "type": "string"
+          },
+          "coinObjectId": {
+            "$ref": "#/components/schemas/ObjectID"
+          },
+          "coinType": {
+            "type": "string"
+          },
+          "digest": {
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
+          },
+          "previousTransaction": {
+            "description": "Base58 encoded data",
+            "type": "string",
+            "format": "base58"
+          },
+          "version": {
+            "$ref": "#/components/schemas/SequenceNumber"
+          }
+        }
       },
       "CommitteeInfo": {
         "description": "RPC representation of the [Committee] type.",
@@ -10741,6 +10776,35 @@
             "type": [
               "string",
               "null"
+            ]
+          }
+        }
+      },
+      "Page_for_Coin_and_ObjectID": {
+        "description": "`next_cursor` points to the last item in the page; Reading with `next_cursor` will start from the next item after `next_cursor` if `next_cursor` is `Some`, otherwise it will start from the first item.",
+        "type": "object",
+        "required": [
+          "data",
+          "hasNextPage"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Coin"
+            }
+          },
+          "hasNextPage": {
+            "type": "boolean"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
