@@ -7,7 +7,6 @@ import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 import { useAppSelector } from '_hooks';
 import { getCustomNetwork } from '@iota/core';
 import { getNetwork } from '@iota/iota-sdk/client';
-import { ButtonType } from '@iota/apps-ui-kit';
 
 export function NetworkPage() {
     const network = useAppSelector(({ app }) => app.network);
