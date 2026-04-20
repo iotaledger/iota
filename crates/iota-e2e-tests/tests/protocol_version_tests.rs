@@ -541,10 +541,9 @@ mod sim_only_tests {
         .await
         .mutated()
         .iter()
-        .find(|oref| oref.reference.object_id == obj.0)
+        .find(|oref| oref.reference.0 == obj.0)
         .unwrap()
         .reference
-        .to_object_ref()
     }
 
     async fn dev_inspect_call(cluster: &TestCluster, call: ProgrammableMoveCall) -> u64 {
@@ -586,7 +585,7 @@ mod sim_only_tests {
             .await
             .created()
             .iter()
-            .map(|oref| oref.reference.to_object_ref())
+            .map(|oref| oref.reference)
             .collect()
     }
 

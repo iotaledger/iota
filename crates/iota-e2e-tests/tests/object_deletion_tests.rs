@@ -157,7 +157,7 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .object_id;
+            .0;
 
         (package_id, object_id)
     }
@@ -176,7 +176,6 @@ mod sim_only_tests {
             .unwrap()
             .created()[0]
             .reference
-            .to_object_ref()
             .0
     }
 
