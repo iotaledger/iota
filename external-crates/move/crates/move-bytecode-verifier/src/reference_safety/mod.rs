@@ -79,8 +79,7 @@ pub(crate) fn verify<'a>(
 ) -> PartialVMResult<()> {
     let initial_state = AbstractState::new(function_context);
 
-    let mut verifier =
-        ReferenceSafetyAnalysis::new(config, module, function_context, name_def_map);
+    let mut verifier = ReferenceSafetyAnalysis::new(config, module, function_context, name_def_map);
     verifier.analyze_function(initial_state, function_context, meter)
 }
 

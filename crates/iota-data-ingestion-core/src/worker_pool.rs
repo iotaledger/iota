@@ -570,7 +570,7 @@ async fn simple_watermark_tracking<W: Worker>(
     let mut progress_update = None;
 
     while let Some(update_batch) = stream.next().await {
-        unprocessed.extend(update_batch.into_iter());
+        unprocessed.extend(update_batch);
         // Process messages sequentially based on checkpoint sequence number.
         // This ensures in-order processing and maintains progress integrity.
         while unprocessed.remove(&current_checkpoint_number).is_some() {

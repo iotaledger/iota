@@ -372,8 +372,7 @@ pub trait ObjectCacheRead: Send + Sync {
                     .iter()
                     .map(|(_, k)| ObjectKey(k.id(), k.version().unwrap()))
                     .collect::<Vec<_>>(),
-            )?
-            .into_iter(),
+            )?,
         ) {
             assert!(
                 input_key.version().is_none() || input_key.version().unwrap().is_valid(),
@@ -774,7 +773,7 @@ pub trait TransactionCacheRead: Send + Sync {
         }
 
         let effects = self.try_multi_get_effects(&fetch_digests)?;
-        for (i, effects) in fetch_indices.into_iter().zip(effects.into_iter()) {
+        for (i, effects) in fetch_indices.into_iter().zip(effects) {
             results[i] = effects;
         }
 

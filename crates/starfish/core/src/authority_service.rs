@@ -1345,10 +1345,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Combine and serialize the results
         let mut result = Vec::new();
-        for (opt_serialized_tx, gen_ref) in store_transactions
-            .into_iter()
-            .chain(dag_transactions.into_iter())
-        {
+        for (opt_serialized_tx, gen_ref) in store_transactions.into_iter().chain(dag_transactions) {
             if let Some(serialized_tx) = opt_serialized_tx {
                 let serialized = if !self.context.protocol_config.consensus_fast_commit_sync() {
                     if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
