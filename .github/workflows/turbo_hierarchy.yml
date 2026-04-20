@@ -161,7 +161,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   e2e:
-    if: (!cancelled() && !failure() && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure()
+      && (github.ref_name == 'develop' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
     needs: diff
     uses: ./.github/workflows/_e2e.yml
     with:

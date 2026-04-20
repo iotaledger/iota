@@ -118,12 +118,18 @@ jobs:
       - license-check
       - typos
       - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true'
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
     uses: ./.github/workflows/_split_cluster.yml
 
   split-cluster-sync-check:
     needs:
       - diff
       - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isStarfishSynchronization == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: >-
+      (!cancelled() && !failure() && needs.diff.outputs.isStarfishSynchronization == 'true'
+      && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+      && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'ready')))
     uses: ./.github/workflows/_split_cluster_sync_check.yml
