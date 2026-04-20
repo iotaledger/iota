@@ -20,12 +20,13 @@ mod ingestion_tests {
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
-            objects::{StoredObject, StoredObjectSnapshot},
+            objects::{StoredCheckpointedObject, StoredObject, StoredObjectSnapshot},
             transactions::{StoredTransaction, TxGlobalOrder},
             tx_indices::StoredTxDigest,
         },
         schema::{
-            checkpoints, objects, objects_snapshot, transactions, tx_digests, tx_global_order,
+            checkpointed_objects, checkpoints, objects, objects_snapshot, transactions, tx_digests,
+            tx_global_order,
         },
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
@@ -72,9 +73,7 @@ mod ingestion_tests {
         let checkpoint_objects = (0..1000)
             .map(|_| CheckpointObjectChanges::random())
             .collect();
-        pg_store
-            .persist_checkpoint_objects(checkpoint_objects)
-            .await?;
+        pg_store.persist_objects(checkpoint_objects).await?;
         Ok(())
     }
 
@@ -545,6 +544,141 @@ mod ingestion_tests {
         .context("failed to read checkpoint")?;
         assert_eq!(db_checkpoint.sequence_number, 3);
         assert_eq!(db_checkpoint.epoch, 1);
+        Ok(())
+    }
+
+    /// Verify that `checkpointed_objects` matches `objects` (minus
+    /// `finalized_in_cp`) after checkpoint ingestion with mutations and
+    /// deletions.
+    #[tokio::test]
+    pub async fn checkpointed_objects_match_objects() -> Result<(), IndexerError> {
+        let sim = Simulacrum::new();
+        let data_ingestion_path = tempdir().unwrap().keep();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        // Execute several transfers to create mutations.
+        let recipient1 = IotaAddress::random_for_testing_only();
+        let recipient2 = IotaAddress::random_for_testing_only();
+
+        let (tx1, _) = sim.transfer_txn(recipient1);
+        let (_, err) = sim.execute_transaction(tx1).unwrap();
+        assert!(err.is_none());
+        sim.create_checkpoint();
+
+        let (tx2, _) = sim.transfer_txn(recipient2);
+        let (_, err) = sim.execute_transaction(tx2).unwrap();
+        assert!(err.is_none());
+        sim.create_checkpoint();
+
+        // One more transfer to trigger further mutations on gas objects.
+        let (tx3, _) = sim.transfer_txn(recipient1);
+        let (_, err) = sim.execute_transaction(tx3).unwrap();
+        assert!(err.is_none());
+        sim.create_checkpoint();
+
+        let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        indexer_wait_for_checkpoint(&pg_store, 3).await;
+
+        // Read all rows from both tables.
+        let all_objects: Vec<StoredObject> = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            objects::table
+                .order(objects::object_id.asc())
+                .load::<StoredObject>(conn)
+        })
+        .context("failed reading objects")?;
+
+        let all_checkpointed: Vec<StoredCheckpointedObject> =
+            read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+                checkpointed_objects::table
+                    .order(checkpointed_objects::object_id.asc())
+                    .select(StoredCheckpointedObject::as_select())
+                    .load::<StoredCheckpointedObject>(conn)
+            })
+            .context("failed reading checkpointed_objects")?;
+
+        assert!(
+            !all_objects.is_empty(),
+            "objects table should not be empty after ingestion"
+        );
+        assert_eq!(
+            all_objects.len(),
+            all_checkpointed.len(),
+            "objects and checkpointed_objects should have the same number of rows"
+        );
+
+        // Compare each row field by field (minus finalized_in_cp).
+        for (obj, cp_obj) in all_objects.iter().zip(all_checkpointed.iter()) {
+            assert_eq!(obj.object_id, cp_obj.object_id, "object_id mismatch");
+            assert_eq!(
+                obj.object_version, cp_obj.object_version,
+                "object_version mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.object_digest, cp_obj.object_digest,
+                "object_digest mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.owner_type, cp_obj.owner_type,
+                "owner_type mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.owner_id, cp_obj.owner_id,
+                "owner_id mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.object_type, cp_obj.object_type,
+                "object_type mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.object_type_package, cp_obj.object_type_package,
+                "object_type_package mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.object_type_module, cp_obj.object_type_module,
+                "object_type_module mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.object_type_name, cp_obj.object_type_name,
+                "object_type_name mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.serialized_object, cp_obj.serialized_object,
+                "serialized_object mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.coin_type, cp_obj.coin_type,
+                "coin_type mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.coin_balance, cp_obj.coin_balance,
+                "coin_balance mismatch for {:?}",
+                obj.object_id
+            );
+            assert_eq!(
+                obj.df_kind, cp_obj.df_kind,
+                "df_kind mismatch for {:?}",
+                obj.object_id
+            );
+        }
+
         Ok(())
     }
 }

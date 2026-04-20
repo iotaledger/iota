@@ -52,8 +52,8 @@ use crate::{
         events::StoredEvent,
         obj_indices::StoredObjectVersion,
         objects::{
-            StoredDeletedObject, StoredHistoryObject, StoredObject, StoredObjectSnapshot,
-            StoredObjects,
+            StoredCheckpointedObject, StoredDeletedObject, StoredHistoryObject, StoredObject,
+            StoredObjectSnapshot, StoredObjects,
         },
         packages::StoredPackage,
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
@@ -65,13 +65,13 @@ use crate::{
     pruning::pruner::PrunableTable,
     read_only_blocking, run_query, run_query_with_retry,
     schema::{
-        chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
-        event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
-        event_struct_package, events, feature_flags, objects, objects_history, objects_snapshot,
-        objects_version, optimistic_transactions, packages, protocol_configs, pruner_cp_watermark,
-        transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests,
-        tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
-        tx_wrapped_or_deleted_objects, watermarks,
+        chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
+        event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
+        event_struct_name, event_struct_package, events, feature_flags, objects, objects_history,
+        objects_snapshot, objects_version, optimistic_transactions, packages, protocol_configs,
+        pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
+        tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds, tx_recipients,
+        tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
     transactional_blocking_with_retry,
@@ -478,6 +478,93 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("failed to persist object deletions with error: {e}");
+        })
+    }
+
+    fn persist_checkpointed_objects_mutations(
+        &self,
+        objects: Vec<LiveObject>,
+    ) -> Result<(), IndexerError> {
+        use diesel::upsert::excluded;
+
+        let stored: Vec<StoredCheckpointedObject> = objects
+            .into_iter()
+            .map(|lo| {
+                let (indexed, _tx_digest) = lo.split();
+                StoredCheckpointedObject::from(&StoredObject::from(indexed))
+            })
+            .collect();
+        let len = stored.len();
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in stored.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    on_conflict_do_update!(
+                        checkpointed_objects::table,
+                        chunk,
+                        checkpointed_objects::object_id,
+                        (
+                            checkpointed_objects::object_version
+                                .eq(excluded(checkpointed_objects::object_version)),
+                            checkpointed_objects::object_digest
+                                .eq(excluded(checkpointed_objects::object_digest)),
+                            checkpointed_objects::owner_type
+                                .eq(excluded(checkpointed_objects::owner_type)),
+                            checkpointed_objects::owner_id
+                                .eq(excluded(checkpointed_objects::owner_id)),
+                            checkpointed_objects::object_type
+                                .eq(excluded(checkpointed_objects::object_type)),
+                            checkpointed_objects::object_type_package
+                                .eq(excluded(checkpointed_objects::object_type_package)),
+                            checkpointed_objects::object_type_module
+                                .eq(excluded(checkpointed_objects::object_type_module)),
+                            checkpointed_objects::object_type_name
+                                .eq(excluded(checkpointed_objects::object_type_name)),
+                            checkpointed_objects::serialized_object
+                                .eq(excluded(checkpointed_objects::serialized_object)),
+                            checkpointed_objects::coin_type
+                                .eq(excluded(checkpointed_objects::coin_type)),
+                            checkpointed_objects::coin_balance
+                                .eq(excluded(checkpointed_objects::coin_balance)),
+                            checkpointed_objects::df_kind
+                                .eq(excluded(checkpointed_objects::df_kind)),
+                        ),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!("Persisted {len} checkpointed object mutations");
+        })
+        .tap_err(|e| {
+            tracing::error!("failed to persist checkpointed objects: {e}");
+        })
+    }
+
+    fn persist_checkpointed_objects_deletions(
+        &self,
+        objects: Vec<RemovedObject>,
+    ) -> Result<(), IndexerError> {
+        let object_ids: Vec<Vec<u8>> = objects.iter().map(|o| o.object_id().to_vec()).collect();
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for chunk in object_ids.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    diesel::delete(
+                        checkpointed_objects::table
+                            .filter(checkpointed_objects::object_id.eq_any(chunk)),
+                    )
+                    .execute(conn)?;
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_err(|e| {
+            tracing::error!("failed to delete checkpointed objects: {e}");
         })
     }
 
@@ -2307,7 +2394,7 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_checkpoint_objects(
+    async fn persist_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
     ) -> Result<(), IndexerError> {
@@ -2349,6 +2436,48 @@ impl IndexerStore for PgIndexerStore {
         info!(
             elapsed,
             "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
+        );
+        Ok(())
+    }
+
+    async fn persist_checkpointed_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        let CheckpointObjectChanges {
+            changed_objects: mutations,
+            deleted_objects: deletions,
+        } = retain_latest_objects_from_checkpoint_batch(objects);
+        let mutation_len = mutations.len();
+        let deletion_len = deletions.len();
+
+        let mutation_chunks = chunk!(mutations, self.config.parallel_objects_chunk_size);
+        let deletion_chunks = chunk!(deletions, self.config.parallel_objects_chunk_size);
+        let mutation_futures = mutation_chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_mutations(c))
+        });
+        let deletion_futures = deletion_chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_deletions(c))
+        });
+        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join futures for persisting checkpointed objects: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all checkpointed object chunks: {e:?}",
+                ))
+            })?;
+
+        info!(
+            "Persisted checkpointed objects with {mutation_len} mutations and {deletion_len} deletions",
         );
         Ok(())
     }
